@@ -16,6 +16,7 @@ import {
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { createPortal } from 'react-dom';
 import Modal from '@/components/Modal';
 import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Bell, Menu, X, ChevronDown } from 'lucide-react';
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
@@ -85,6 +86,7 @@ function DashboardPopover({
   children,
   containerRef,
   badgeCount,
+  inlineContainer,
 }: {
   icon: IconComponent;
   label: string;
@@ -97,10 +99,21 @@ function DashboardPopover({
    */
   containerRef?: RefObject<HTMLDivElement> | MutableRefObject<HTMLDivElement | null>;
   badgeCount?: number;
+  inlineContainer?: HTMLDivElement | null;
 }) {
   const containerEl = containerRef?.current ?? null;
   const refProp = containerRef ?? undefined;
   const containerReady = containerEl !== null;
+  const inlineContentRef = useRef<HTMLDivElement | null>(null);
+  const [inlineHeight, setInlineHeight] = useState(0);
+  const isInline = Boolean(inlineContainer);
+
+  useEffect(() => {
+    if (!isInline) return;
+    if (inlineContentRef.current) {
+      setInlineHeight(inlineContentRef.current.scrollHeight);
+    }
+  }, [isInline, isOpen, children]);
 
   const hasBadge = typeof badgeCount === 'number' && badgeCount > 0;
   const badgeLabel = hasBadge ? (badgeCount > 9 ? '9+' : String(badgeCount)) : '';
@@ -126,11 +139,29 @@ function DashboardPopover({
           </span>
         )}
       </button>
-      {isOpen && (
-        <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-          {children}
-        </div>
-      )}
+      {isInline && inlineContainer
+        ? createPortal(
+            <div
+              className="w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-md mt-2 transition-[max-height,opacity,transform] duration-200 ease-out will-change-[max-height]"
+              style={{
+                maxHeight: isOpen ? `${inlineHeight}px` : '0px',
+                opacity: isOpen ? 1 : 0,
+                transform: isOpen ? 'translateY(0)' : 'translateY(-6px)',
+                pointerEvents: isOpen ? 'auto' : 'none',
+              }}
+              aria-hidden={!isOpen}
+            >
+              <div ref={inlineContentRef} className="p-3">
+                {children}
+              </div>
+            </div>,
+            inlineContainer
+          )
+        : isOpen && (
+            <div role="menu" className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+              {children}
+            </div>
+          )}
     </div>
   );
 }
@@ -208,10 +239,26 @@ export default function InstructorDashboardNew() {
     inlinePanelHostRef.current = node;
     setInlinePanelHost(node);
   }, []);
+  const notifInlineHostRef = useRef<HTMLDivElement | null>(null);
+  const [notifInlineHost, setNotifInlineHost] = useState<HTMLDivElement | null>(null);
+  const notifInlineCallback = useCallback((node: HTMLDivElement | null) => {
+    notifInlineHostRef.current = node;
+    setNotifInlineHost(node);
+  }, []);
+  const messageInlineHostRef = useRef<HTMLDivElement | null>(null);
+  const [messageInlineHost, setMessageInlineHost] = useState<HTMLDivElement | null>(null);
+  const messageInlineCallback = useCallback((node: HTMLDivElement | null) => {
+    messageInlineHostRef.current = node;
+    setMessageInlineHost(node);
+  }, []);
   useEffect(() => {
     if (!preferInlineProfileMenu) {
       inlinePanelHostRef.current = null;
       setInlinePanelHost(null);
+      notifInlineHostRef.current = null;
+      setNotifInlineHost(null);
+      messageInlineHostRef.current = null;
+      setMessageInlineHost(null);
     }
   }, [preferInlineProfileMenu]);
   useEffect(() => {
@@ -699,6 +746,12 @@ export default function InstructorDashboardNew() {
         {preferInlineProfileMenu && (
           <div className="sm:hidden px-4 flex justify-end" ref={inlinePanelCallback} aria-hidden="true" />
         )}
+        {preferInlineProfileMenu && (
+          <div className="sm:hidden px-4" ref={notifInlineCallback} aria-hidden="true" />
+        )}
+        {preferInlineProfileMenu && (
+          <div className="sm:hidden px-4" ref={messageInlineCallback} aria-hidden="true" />
+        )}
         <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
           <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
             <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
@@ -753,6 +806,7 @@ export default function InstructorDashboardNew() {
               }}
               containerRef={msgRef}
               badgeCount={unreadMessageCount}
+              inlineContainer={preferInlineProfileMenu ? messageInlineHost : null}
             >
               <ul className="max-h-80 overflow-auto p-2 space-y-2">
                 <li className="px-2 py-2 text-sm text-gray-600">
@@ -783,6 +837,7 @@ export default function InstructorDashboardNew() {
               }}
               containerRef={notifRef}
               badgeCount={0}
+              inlineContainer={preferInlineProfileMenu ? notifInlineHost : null}
             >
               <ul className="max-h-80 overflow-auto p-2 space-y-2">
                 <li className="text-sm text-gray-600 px-2 py-2">
@@ -901,6 +956,12 @@ export default function InstructorDashboardNew() {
       </header>
       {preferInlineProfileMenu && (
         <div className="sm:hidden px-4 flex justify-end" ref={inlinePanelCallback} aria-hidden="true" />
+      )}
+      {preferInlineProfileMenu && (
+        <div className="sm:hidden px-4" ref={notifInlineCallback} aria-hidden="true" />
+      )}
+      {preferInlineProfileMenu && (
+        <div className="sm:hidden px-4" ref={messageInlineCallback} aria-hidden="true" />
       )}
 
       {/* Sidebar placed inline next to title card, matching student layout */}

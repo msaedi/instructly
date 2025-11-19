@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowLeft, Settings, ChevronDown, Shield, Power, KeyRound, Gift } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -12,8 +11,8 @@ import ChangePasswordModal from '@/components/security/ChangePasswordModal';
 import DeleteAccountModal from '@/components/security/DeleteAccountModal';
 import PauseAccountModal from '@/components/security/PauseAccountModal';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
-
-const RewardsPanel = dynamic(() => import('@/features/referrals/RewardsPanel'), { ssr: false });
+import RewardsPanel from '@/features/referrals/RewardsPanel';
+import { getCachedReferralLedger, fetchReferralLedgerCached } from '@/features/shared/referrals/cache';
 
 export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [openAccount, setOpenAccount] = useState(false);
@@ -34,6 +33,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [mobile, setMobile] = useState('');
   const [zip, setZip] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
+  const [referralLedger, setReferralLedger] = useState(() => getCachedReferralLedger());
+  const [referralLoading, setReferralLoading] = useState(false);
+  const [referralError, setReferralError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!(embedded && openSecurity)) return;
@@ -94,6 +96,31 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     };
   }, [embedded, accountLoaded]);
 
+  useEffect(() => {
+    if (referralLedger || referralLoading) return;
+    let cancelled = false;
+    setReferralLoading(true);
+    void fetchReferralLedgerCached()
+      .then((data) => {
+        if (cancelled) return;
+        setReferralLedger(data);
+        setReferralError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : 'Failed to load referrals';
+        setReferralError(msg);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setReferralLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [referralLedger, referralLoading]);
+
   const handleSaveAccount = async () => {
     try {
       setSavingAccount(true);
@@ -151,6 +178,27 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       setSavingAccount(false);
     }
   };
+
+  // Referral rewards panel loads its own data via internal cache.
+
+  const renderReferralPanel = useCallback(
+    (freeze: boolean) => (
+      <RewardsPanel
+        inviterName={fullName}
+        hideHeader
+        compactShare
+        hideShareIcon
+        minimalTabs
+        compactInvite
+        compactTabs
+        freezeCache={freeze}
+        disableFetch
+        initialLedger={referralLedger}
+        externalError={referralError}
+      />
+    ),
+    [fullName, referralError, referralLedger]
+  );
 
   return (
     <div className={embedded ? '' : 'min-h-screen'}>
@@ -334,57 +382,51 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
           {embedded ? (
             <>
-              <button
-                type="button"
-                className="w-full flex items-start justify-between text-left"
-                onClick={() => setOpenRefer((v) => !v)}
-                aria-expanded={openRefer}
-              >
-                <div className="flex items-start gap-3 text-left">
-                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                    <Gift className="w-6 h-6 text-[#7E22CE]" />
-                  </div>
-                  <div>
-                    <span className="block text-lg font-semibold text-gray-900">Refer instructors</span>
-                    <span className="mt-1 block text-sm text-gray-500">Share your link to invite peers and earn rewards.</span>
-                  </div>
+            <button
+              type="button"
+              className="w-full flex items-start justify-between text-left"
+              onClick={() => setOpenRefer((v) => !v)}
+              aria-expanded={openRefer}
+            >
+              <div className="flex items-start gap-3 text-left">
+                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <Gift className="w-6 h-6 text-[#7E22CE]" />
                 </div>
-                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openRefer ? 'rotate-180' : ''}`} />
-              </button>
-              {openRefer && (
-                <div className="mt-4">
-                  <RewardsPanel
-                    inviterName={fullName}
-                    hideHeader
-                    compactShare
-                    hideShareIcon
-                    minimalTabs
-                    compactInvite
-                    compactTabs
-                  />
+                <div>
+                  <span className="block text-lg font-semibold text-gray-900">Refer instructors</span>
+                  <span className="mt-1 block text-sm text-gray-500">Share your link to invite peers and earn rewards.</span>
                 </div>
+              </div>
+              <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openRefer ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`mt-4 ${openRefer ? 'block' : 'hidden'}`} aria-hidden={!openRefer}>
+                {referralLedger ? (
+                  renderReferralPanel(openRefer)
+                ) : referralError ? (
+                <p className="text-sm text-red-600">{referralError}</p>
+              ) : (
+                <p className="text-sm text-gray-500">Loading referrals…</p>
               )}
+            </div>
             </>
           ) : (
             <>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-                <Gift className="w-6 h-6 text-[#7E22CE]" />
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <Gift className="w-6 h-6 text-[#7E22CE]" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Refer instructors</h2>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Refer instructors</h2>
-              </div>
-            </div>
-            <div className="mt-4">
-              <RewardsPanel
-                inviterName={fullName}
-                hideHeader
-                compactShare
-                hideShareIcon
-                  minimalTabs
-                  compactInvite
-                  compactTabs
-                />
+              <div className="mt-4">
+                {referralLedger ? (
+                  renderReferralPanel(true)
+                ) : referralError ? (
+                  <p className="text-sm text-red-600">{referralError}</p>
+                ) : (
+                  <p className="text-sm text-gray-500">Loading referrals…</p>
+                )}
               </div>
             </>
           )}

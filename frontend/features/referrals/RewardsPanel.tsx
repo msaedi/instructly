@@ -1,18 +1,16 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState, useEffect } from 'react';
 import { Gift, Share2, Copy, Clock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 // Use project-local SWR helper to avoid missing type dep on swr
-import { useSWRCustom as useSWR } from '@/features/shared/hooks/useSWRCustom';
+import { toReferralSummary, type ReferralLedger, type ReferralSummary, type RewardOut } from '@/features/shared/referrals/api';
 import {
-  REFERRALS_ME_KEY,
-  fetchReferralLedger,
-  toReferralSummary,
-  type ReferralLedger,
-  type ReferralSummary,
-  type RewardOut,
-} from '@/features/shared/referrals/api';
+  fetchReferralLedgerCached,
+  getCachedReferralLedger,
+  primeReferralLedgerCache,
+  invalidateReferralLedgerCache,
+} from '@/features/shared/referrals/cache';
 import { shareOrCopy } from '@/features/shared/referrals/share';
 import InviteByEmail from '@/features/referrals/InviteByEmail';
 
@@ -62,33 +60,98 @@ type RewardsPanelProps = {
   minimalTabs?: boolean;
   compactInvite?: boolean;
   compactTabs?: boolean;
+  freezeCache?: boolean;
+  initialLedger?: ReferralLedger | null;
+  disableFetch?: boolean;
+  externalError?: string | null;
 };
 
-export default function RewardsPanel({ inviterName, hideHeader = false, compactShare = false, hideShareIcon = false, minimalTabs = false, compactInvite = false, compactTabs = false }: RewardsPanelProps = {}) {
+function RewardsPanelComponent({
+  inviterName,
+  hideHeader = false,
+  compactShare = false,
+  hideShareIcon = false,
+  minimalTabs = false,
+  compactInvite = false,
+  compactTabs = false,
+  freezeCache = false,
+  initialLedger = null,
+  disableFetch = false,
+  externalError = null,
+}: RewardsPanelProps = {}) {
+  const cacheSnapshot = initialLedger ?? getCachedReferralLedger();
   const [activeTab, setActiveTab] = useState<TabKey>('unlocked');
   const [isProcessing, setIsProcessing] = useState<'share' | 'copy' | null>(null);
+  const [ledger, setLedger] = useState<ReferralLedger | null>(() => cacheSnapshot);
+  const [isLoading, setIsLoading] = useState(() => !cacheSnapshot);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(() => Boolean(cacheSnapshot));
 
-  const referralsFetcher = useCallback(async (_url: string) => {
-    const controller = new AbortController();
-    try {
-      return await fetchReferralLedger(controller.signal);
-    } finally {
-      controller.abort();
+  useEffect(() => {
+    if (initialLedger) {
+      setLedger(initialLedger);
+      setHasLoaded(true);
+      setIsLoading(false);
+      setLoadError(null);
+      return;
     }
-  }, []);
 
-  const { data, error, isLoading } = useSWR<ReferralLedger>(REFERRALS_ME_KEY, referralsFetcher, {
-    dedupingInterval: 2000,
-  });
+    if (ledger) {
+      if (!hasLoaded) {
+        setHasLoaded(true);
+      }
+      return;
+    }
 
-  const loadError = error ? (error instanceof Error ? error.message : 'Failed to load rewards') : null;
+    if (freezeCache && hasLoaded) {
+      return;
+    }
+
+    if (disableFetch) {
+      return;
+    }
+
+    let cancelled = false;
+    const load = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const result = await fetchReferralLedgerCached();
+        if (cancelled) return;
+        setLedger(result);
+        setHasLoaded(true);
+        primeReferralLedgerCache(result);
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Failed to load rewards';
+        setLoadError(message);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [ledger, freezeCache, hasLoaded, isLoading, initialLedger, disableFetch]);
+
+  const handleRetryLoad = useCallback(() => {
+    if (isLoading || (freezeCache && hasLoaded) || disableFetch) return;
+    invalidateReferralLedgerCache();
+    primeReferralLedgerCache(null);
+    setLoadError(null);
+    setHasLoaded(false);
+    setLedger(null);
+  }, [isLoading, freezeCache, hasLoaded, disableFetch]);
 
   const summary = useMemo<ReferralSummary | null>(() => {
-    if (!data) {
+    if (!ledger) {
       return null;
     }
-    return toReferralSummary(data);
-  }, [data]);
+    return toReferralSummary(ledger);
+  }, [ledger]);
 
   const shareUrl = summary?.share_url ?? '';
 
@@ -242,20 +305,33 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
         </div>
 
         <div className="mt-5 space-y-4">
-          {isLoading && (
+          {isLoading && !hasLoaded && (
             <div className="flex items-center gap-3 text-sm text-gray-500">
               <Clock className="h-4 w-4 animate-spin" aria-hidden="true" />
               Loading rewards…
             </div>
           )}
 
-          {loadError && !isLoading && (
+          {externalError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{externalError}</div>
+          )}
+
+          {loadError && !isLoading && !externalError && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {loadError}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span>{loadError}</span>
+                <button
+                  type="button"
+                  onClick={handleRetryLoad}
+                  className="inline-flex items-center justify-center rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                >
+                  Retry
+                </button>
+              </div>
             </div>
           )}
 
-          {!isLoading && !loadError && rewardsForTab.length === 0 && (
+          {!isLoading && hasLoaded && !loadError && rewardsForTab.length === 0 && (
             <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-600">
               {emptyCopy[activeTab]}
             </div>
@@ -313,3 +389,5 @@ export default function RewardsPanel({ inviterName, hideHeader = false, compactS
     </main>
   );
 }
+
+export default memo(RewardsPanelComponent);

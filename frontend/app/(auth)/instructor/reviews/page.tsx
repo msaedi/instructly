@@ -30,7 +30,7 @@ function ReviewsPageImpl() {
   const [filter, setFilter] = useState<'all' | 5 | 4 | 3 | 2 | 1>('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement | null>(null);
-  const [hoveredOpt, setHoveredOpt] = useState<'all' | 5 | 4 | 3 | 2 | 1 | null>(null);
+  const [hoveredOpt, setHoveredOpt] = useState<'all' | 5 | 4 | 3 | 2 | 1 | 'comments' | null>(null);
   const { user, isLoading: authLoading } = useAuth();
   const instructorId = user?.id ?? '';
   const [withCommentsOnly, setWithCommentsOnly] = useState(false);
@@ -55,11 +55,7 @@ function ReviewsPageImpl() {
   const reviews = reviewsData?.reviews ?? [];
   const totalReviews = ratingsData?.overall?.total_reviews ?? reviewsData?.total ?? 0;
   const averageRating = ratingsData?.overall?.rating ?? null;
-  const averageRatingDisplay = ratingsData?.overall?.display_rating ?? (averageRating != null ? `${averageRating.toFixed(1)}★` : null);
-  const confidenceLabel = ratingsData?.confidence_level ?? null;
-  const confidenceDisplay = confidenceLabel
-    ? confidenceLabel.charAt(0).toUpperCase() + confidenceLabel.slice(1)
-    : null;
+  const averageRatingDisplay = averageRating != null ? averageRating.toFixed(1) : null;
   const loading = authLoading || ratingsLoading || reviewsLoading;
   const isRefetching = reviewsFetching && !reviewsLoading;
   const effectiveLoading = loading || isRefetching;
@@ -79,7 +75,11 @@ function ReviewsPageImpl() {
     setPage(1);
   }, [selectedRating, withCommentsOnly, instructorId]);
 
-  const filterLabel = filter === 'all' ? 'All reviews' : `${filter} stars`;
+  const filterLabel = withCommentsOnly
+    ? 'With comments only'
+    : filter === 'all'
+      ? 'All reviews'
+      : `${filter} stars`;
   return (
     <div className="min-h-screen">
       {/* Header hidden when embedded */}
@@ -126,30 +126,20 @@ function ReviewsPageImpl() {
         />
 
         {/* Ratings summary */}
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Reviews</h2>
-              <p className="text-gray-600 text-sm">{loading ? 'Loading…' : `${totalReviews} total`}</p>
-              {confidenceDisplay && (
-                <span className="mt-2 inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-medium text-[#7E22CE]">
-                  {confidenceDisplay}
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="flex flex-row flex-wrap items-start justify-between gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Star className={`h-6 w-6 ${averageRating != null ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                <span className="text-3xl font-bold text-[#7E22CE] leading-none">
+                  {loading ? '—' : averageRatingDisplay ?? '—'}
                 </span>
-              )}
+              </div>
+              <p className="text-[#7E22CE] text-base font-semibold leading-tight">
+                {loading ? 'Loading…' : `${totalReviews} total reviews`}
+              </p>
             </div>
-            <div className="flex items-baseline gap-2 text-gray-900">
-              <Star className={`h-6 w-6 ${averageRating != null ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
-              <span className="text-3xl font-bold">
-                {loading ? '—' : averageRatingDisplay ?? '—'}
-              </span>
-              {averageRating != null && (
-                <span className="text-sm text-gray-500 font-medium">({averageRating.toFixed(2)})</span>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative" ref={filterRef}>
+            <div className="relative sm:self-center ml-auto pr-4 sm:pr-0 mt-4 sm:mt-0" ref={filterRef}>
               <button
                 type="button"
                 onClick={() => setIsFilterOpen((v) => !v)}
@@ -163,15 +153,16 @@ function ReviewsPageImpl() {
               {isFilterOpen && (
                 <ul
                   role="listbox"
-                  className="absolute z-10 mt-2 w-44 rounded-md border border-gray-200 bg-white shadow-md p-1"
+                  className="absolute right-0 z-10 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-md border border-gray-200 bg-white shadow-md p-1"
                 >
                   {(['all', 5, 4, 3, 2, 1] as const).map((opt) => (
                     <li key={String(opt)}>
                       <button
                         type="button"
                         role="option"
-                        aria-selected={filter === opt}
+                        aria-selected={filter === opt && !withCommentsOnly}
                         onClick={() => {
+                          setWithCommentsOnly(false);
                           setFilter(opt);
                           setPage(1);
                           setIsFilterOpen(false);
@@ -181,28 +172,46 @@ function ReviewsPageImpl() {
                         className={`w-full text-left px-3 py-2 rounded-md transition-colors cursor-pointer ${
                           hoveredOpt === opt ? 'bg-purple-50 text-[#7E22CE]' : ''
                         } ${
-                          filter === opt ? 'bg-purple-100 text-[#7E22CE] font-semibold' : 'text-gray-800'
+                          filter === opt && !withCommentsOnly
+                            ? 'bg-purple-100 text-[#7E22CE] font-semibold'
+                            : 'text-gray-800'
                         }`}
                       >
                         {opt === 'all' ? 'All reviews' : `${opt} stars`}
                       </button>
                     </li>
                   ))}
+                  <li>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={withCommentsOnly}
+                      onClick={() => {
+                        setWithCommentsOnly((prev) => {
+                          const next = !prev;
+                          if (!next) {
+                            setFilter('all');
+                          }
+                          return next;
+                        });
+                        setPage(1);
+                        setIsFilterOpen(false);
+                      }}
+                      onMouseEnter={() => setHoveredOpt('comments')}
+                      onMouseLeave={() => setHoveredOpt((h) => (h === 'comments' ? null : h))}
+                      className={`w-full text-left px-3 py-2 rounded-md transition-colors cursor-pointer ${
+                        hoveredOpt === 'comments' ? 'bg-purple-50 text-[#7E22CE]' : ''
+                      } ${
+                        withCommentsOnly ? 'bg-purple-100 text-[#7E22CE] font-semibold' : 'text-gray-800'
+                      }`}
+                    >
+                      With comments only
+                    </button>
+                  </li>
                 </ul>
               )}
             </div>
 
-            <button
-              type="button"
-              aria-pressed={withCommentsOnly}
-              onClick={() => setWithCommentsOnly((v) => !v)}
-              className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                withCommentsOnly ? 'border-purple-300 bg-purple-50 text-[#7E22CE]' : 'border-gray-300 bg-white text-gray-700'
-              }`}
-            >
-              {withCommentsOnly ? <span className="inline-block h-3 w-3 rounded-full bg-[#7E22CE]" /> : <span className="inline-block h-3 w-3 rounded-full border border-gray-300" />}
-              With comments only
-            </button>
           </div>
 
           {showEmptyState && (

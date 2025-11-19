@@ -343,10 +343,12 @@ export default function UserProfileDropdown({
           user={user as { id: string; first_name?: string; last_name?: string; has_profile_picture?: boolean; profile_picture_version?: number } | null}
           size={48}
         />
-        <ChevronDown
-          className={`h-4 w-4 text-purple-600 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          aria-hidden="true"
-        />
+        {!isInline && (
+          <ChevronDown
+            className={`h-4 w-4 text-purple-600 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          />
+        )}
       </button>
 
       {isInline ? inlineMenu : popoverMenu}

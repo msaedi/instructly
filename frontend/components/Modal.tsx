@@ -99,7 +99,8 @@ const Modal: React.FC<ModalProps> = ({
           </VisuallyHidden>
           <div
             className={`
-              pointer-events-auto flex h-full sm:h-[min(90vh,calc(100vh-4rem))] w-full ${sizeClasses[size]}
+              pointer-events-auto flex w-full ${sizeClasses[size]}
+              max-h-[calc(100vh-2rem)] sm:max-h-[min(90vh,calc(100vh-4rem))]
               flex-col overflow-hidden bg-white shadow-xl
               transform transition-all duration-200 ease-out
               relative sm:rounded-2xl dark:bg-gray-800 ${className}

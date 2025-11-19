@@ -21,6 +21,7 @@ interface InteractiveGridProps {
   activeDayIndex?: number;
   onActiveDayChange?: (index: number) => void;
   allowPastEditing?: boolean;
+  onTodayClick?: () => void;
 }
 
 const HALF_HOURS_PER_HOUR = 2;
@@ -99,6 +100,7 @@ export default function InteractiveGrid({
   activeDayIndex = 0,
   onActiveDayChange: _onActiveDayChange,
   allowPastEditing = false,
+  onTodayClick,
 }: InteractiveGridProps) {
   const rows = useMemo(() => (endHour - startHour) * HALF_HOURS_PER_HOUR, [startHour, endHour]);
 
@@ -334,7 +336,17 @@ export default function InteractiveGrid({
         }}
       >
         {/* Corner spacer */}
-        <div className="sticky left-0 top-0 z-20 bg-white/80 backdrop-blur px-2 py-1 border-r border-gray-200" />
+        <div className="sticky left-0 top-0 z-20 bg-white/80 backdrop-blur px-2 py-1 border-r border-gray-200 flex items-center justify-center">
+          {onTodayClick && (
+            <button
+              type="button"
+              onClick={onTodayClick}
+              className="inline-flex items-center justify-center rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-[11px] font-medium text-[#7E22CE] shadow-sm hover:bg-purple-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C084FC]"
+            >
+              Today
+            </button>
+          )}
+        </div>
         {displayDates.map((info, idx) => {
           const isToday = info.fullDate === todayIso;
           const dateObj = info.date;

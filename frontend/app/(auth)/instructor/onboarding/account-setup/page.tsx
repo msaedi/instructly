@@ -58,7 +58,7 @@ export default function AccountSetupPage() {
             onClick={handleSkip}
             disabled={ctaPending}
             data-testid="skip-account-setup"
-            className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center disabled:opacity-60"
+            className="sm:w-40 w-32 px-4 py-2 rounded-lg text-xs sm:text-base text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center disabled:opacity-60"
           >
             Skip for now
           </button>
@@ -66,7 +66,7 @@ export default function AccountSetupPage() {
             type="button"
             onClick={handleSaveContinue}
             disabled={ctaPending}
-            className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+            className="sm:w-56 w-32 whitespace-nowrap px-4 py-2 rounded-lg text-xs sm:text-base text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
           >
             {ctaPending ? 'Saving...' : 'Save & Continue'}
           </button>

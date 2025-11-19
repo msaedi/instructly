@@ -210,7 +210,7 @@ export function OnboardingProgressHeader({
           })}
         </div>
 
-        <div className="pr-4">
+        <div className="pr-2 sm:pr-4">
           <UserProfileDropdown
             {...(onProfileMenuToggle ? { onToggle: onProfileMenuToggle } : {})}
             inlineMode={preferInlineProfileMenu}
@@ -220,7 +220,7 @@ export function OnboardingProgressHeader({
         </div>
       </div>
       {preferInlineProfileMenu && (
-        <div className="sm:hidden px-4 flex justify-end" ref={inlinePanelCallback} aria-hidden="true" />
+        <div className="sm:hidden px-2 flex justify-end" ref={inlinePanelCallback} aria-hidden="true" />
       )}
     </header>
   );

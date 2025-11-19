@@ -381,99 +381,101 @@ function AvailabilityPageImpl() {
 
       {/* Actions (top of grid) */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            goToCurrentWeek();
-          }}
-          className="hidden sm:inline-flex px-3 py-1 rounded-md border border-purple-200 bg-purple-50 text-[#7E22CE] text-sm hover:bg-purple-100"
-        >
-          Today
-        </button>
         {/* Repeat dropdown */}
-        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap overflow-x-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-nowrap overflow-hidden">
           <span className="text-xs sm:text-sm text-gray-700 whitespace-nowrap flex-shrink-0">Repeat this schedule:</span>
-          <div className="flex items-center flex-nowrap">
-            <div className="repeat-schedule-select relative inline-flex items-center flex-shrink-0 min-w-[120px] w-auto sm:w-28">
+          <div className="flex items-center flex-1 gap-1 sm:gap-2 min-w-0">
+            <div className="repeat-schedule-select relative inline-flex items-center flex-grow-0 basis-[22%] max-w-[90px] min-w-[64px] sm:flex-none sm:max-w-none sm:w-auto sm:min-w-[120px] sm:w-28 order-1">
               <Select value={String(repeatWeeks)} onValueChange={(v) => setRepeatWeeks(parseInt(v, 10))}>
-                <SelectTrigger className="h-7 sm:h-9 w-auto px-2 sm:px-3 text-xs sm:text-sm" hideIconOnMobile>
+                <SelectTrigger className="h-7 sm:h-9 w-full px-2 sm:px-3 text-xs sm:text-sm text-center whitespace-nowrap" hideIconOnMobile>
                   <SelectValue placeholder="Repeat" />
                 </SelectTrigger>
                 <SelectContent>
                   {[1,2,3,4,6,8,12].map((w) => (
-                    <SelectItem key={w} value={String(w)}>{w} weeks</SelectItem>
+                    <SelectItem key={w} value={String(w)}>
+                      {w} week{w === 1 ? '' : 's'}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <button
-              className="repeat-schedule-apply inline-flex flex-shrink-0 items-center justify-center px-3 py-1 rounded-md text-white bg-[#7E22CE] hover:!bg-[#7E22CE] text-sm whitespace-nowrap"
-              onClick={async () => {
-                const end = new Date(currentWeekStart);
-                end.setDate(end.getDate() + repeatWeeks * 7);
-                const endISO = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
-                const res = await applyToFutureWeeks(endISO);
-                if (!res.success) {
-                  toast.error(res.message || 'Failed to apply to future weeks');
-                  return;
-                }
-                toast.success(`Applied through ${endISO}`);
-                const persisted = await persistWeek();
-                if (!persisted) return;
-              }}
-            >
-              Apply
-            </button>
+            <div className="repeat-schedule-select relative inline-flex items-center flex-grow-0 basis-[22%] max-w-[90px] min-w-[64px] sm:flex-none sm:max-w-none sm:w-auto sm:min-w-[120px] sm:w-28 order-2">
+              <button
+                className="repeat-schedule-apply w-full inline-flex items-center justify-center h-7 sm:h-9 px-2 sm:px-3 rounded-md bg-[#7E22CE] text-white text-xs sm:text-sm font-medium whitespace-nowrap shadow-sm hover:!bg-[#7E22CE] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C084FC]"
+                onClick={async () => {
+                  const end = new Date(currentWeekStart);
+                  end.setDate(end.getDate() + repeatWeeks * 7);
+                  const endISO = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
+                  const res = await applyToFutureWeeks(endISO);
+                  if (!res.success) {
+                    toast.error(res.message || 'Failed to apply to future weeks');
+                    return;
+                  }
+                  toast.success(`Applied through ${endISO}`);
+                  const persisted = await persistWeek();
+                  if (!persisted) return;
+                }}
+              >
+                Apply
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Hour range controls */}
-        <div className="ml-auto flex flex-wrap items-center gap-2 justify-end w-full sm:w-auto sm:flex-nowrap">
-          <button
-            type="button"
-            onClick={() => {
-              goToCurrentWeek();
-            }}
-            className="px-3 py-1 rounded-md border border-purple-200 bg-purple-50 text-[#7E22CE] text-sm hover:bg-purple-100 sm:hidden mr-auto"
-          >
-            Today
-          </button>
-          <div className="flex flex-col leading-tight mr-1">
-            <span className="text-xs sm:text-sm text-gray-700">Teaching window</span>
-            <span className="text-[11px] text-gray-500 -mt-0.5 hidden sm:block">Business Hours</span>
-          </div>
-          <div className="relative inline-flex items-center">
-            <Select value={String(startHour)} onValueChange={(v) => {
-              const sv = parseInt(v, 10);
-              setStartHour(sv);
-              if (sv >= endHour) setEndHour(Math.min(sv + 1, 24));
-            }}>
-              <SelectTrigger className="h-7 sm:h-9 w-20 sm:w-28 px-1.5 sm:px-3 text-xs sm:text-sm" hideIconOnMobile>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 24 }, (_, h) => h).map((h) => (
-                  <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <span className="text-gray-500">to</span>
-          <div className="relative inline-flex items-center">
-            <Select value={String(endHour)} onValueChange={(v) => {
-              const ev = parseInt(v, 10);
-              setEndHour(ev);
-              if (ev <= startHour) setStartHour(Math.max(ev - 1, 0));
-            }}>
-              <SelectTrigger className="h-7 sm:h-9 w-20 sm:w-28 px-1.5 sm:px-3 text-xs sm:text-sm" hideIconOnMobile>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => (
-                  <SelectItem key={h} value={String(h)}>{formatHour(h)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="w-full">
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+            <div className="flex w-full flex-nowrap items-center gap-1 overflow-x-auto sm:w-auto sm:gap-2">
+              <div className="flex flex-row items-center gap-2 text-xs text-gray-700 whitespace-nowrap flex-shrink-0 sm:flex-col sm:items-start sm:gap-0 sm:text-sm">
+                <span>Teaching window:</span>
+                <span className="text-[11px] text-gray-500 hidden sm:block -mt-0.5">Business Hours</span>
+              </div>
+              <div className="ml-auto flex items-center gap-1 text-xs text-gray-700 flex-shrink-0 sm:ml-0 sm:gap-2 sm:text-sm">
+                <div className="relative inline-flex items-center w-[72px] sm:w-auto">
+                  <Select
+                    value={String(startHour)}
+                    onValueChange={(v) => {
+                      const sv = parseInt(v, 10);
+                      setStartHour(sv);
+                      if (sv >= endHour) setEndHour(Math.min(sv + 1, 24));
+                    }}
+                  >
+                    <SelectTrigger className="h-7 sm:h-9 w-full sm:w-28 px-1 text-[11px] sm:px-3 sm:text-sm justify-center" hideIconOnMobile>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, h) => h).map((h) => (
+                        <SelectItem key={h} value={String(h)}>
+                          {formatHour(h)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <span className="whitespace-nowrap text-gray-700">to</span>
+                <div className="relative inline-flex items-center w-[72px] sm:w-auto">
+                  <Select
+                    value={String(endHour)}
+                    onValueChange={(v) => {
+                      const ev = parseInt(v, 10);
+                      setEndHour(ev);
+                      if (ev <= startHour) setStartHour(Math.max(ev - 1, 0));
+                    }}
+                  >
+                    <SelectTrigger className="h-7 sm:h-9 w-full sm:w-28 px-1 text-[11px] sm:px-3 sm:text-sm justify-center" hideIconOnMobile>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => (
+                        <SelectItem key={h} value={String(h)}>
+                          {formatHour(h)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -537,14 +539,13 @@ function AvailabilityPageImpl() {
             startHour={startHour}
             endHour={endHour}
             allowPastEditing={allowPastEdits === true}
+            onTodayClick={goToCurrentWeek}
           />
         )}
       </div>
       <div className="pb-16" />
     </div>
-  </div>
-
-  {hasPendingChanges && (
+    {hasPendingChanges && (
       <div className="fixed bottom-4 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 px-4">
         <div className="flex items-center justify-between gap-4 rounded-full border border-gray-200 bg-white px-6 py-3 shadow-lg">
           <div className="text-sm text-gray-800">
@@ -570,9 +571,10 @@ function AvailabilityPageImpl() {
           </div>
         </div>
       </div>
-  )}
+    )}
+  </div>
 </div>
-  );
+);
 }
 
 export default function InstructorAvailabilityPage() {

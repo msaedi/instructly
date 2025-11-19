@@ -463,10 +463,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         >
           {inviteLoading ? 'Starting…' : 'Start background check'}
         </Button>
-        <p className="text-sm text-muted-foreground max-w-xl">
-          Most approvals are same-day; <span className="font-medium">full results typically 1–3 business days</span>.
-          {' '}Your info is collected securely by our screening partner.
-        </p>
+        {/* Informational note removed per product request when verification is complete */}
       </div>
       {isForbidden ? (
         <p className="text-sm text-muted-foreground" role="alert">

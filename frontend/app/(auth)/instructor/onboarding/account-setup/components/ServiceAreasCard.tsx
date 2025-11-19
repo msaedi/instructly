@@ -173,10 +173,10 @@ export function ServiceAreasCard({
                           <span className="tracking-wide text-xs sm:text-sm whitespace-nowrap">{borough}</span>
                           <ChevronDown className={`h-4 w-4 text-gray-600 transition-transform ${isAccordionOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                         </div>
-                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex gap-2 text-[11px] sm:text-sm" onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
-                            className="text-sm px-3 py-1 rounded-md bg-purple-100 text-[#7E22CE] hover:bg-purple-200"
+                            className="px-2 sm:px-3 py-1 rounded-md bg-purple-100 text-[#7E22CE] hover:bg-purple-200 whitespace-nowrap"
                             onClick={async (e) => {
                               e.stopPropagation();
                               const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
@@ -187,7 +187,7 @@ export function ServiceAreasCard({
                           </button>
                           <button
                             type="button"
-                            className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                            className="px-2 sm:px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 whitespace-nowrap"
                             onClick={async (e) => {
                               e.stopPropagation();
                               const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));

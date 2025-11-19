@@ -167,7 +167,7 @@ export function BackgroundCheckDisclosureModal({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="max-h-[55vh] overflow-y-auto pr-2 space-y-6"
+          className="max-h-[80vh] sm:max-h-[55vh] overflow-y-auto pr-2 space-y-6"
           role="document"
           tabIndex={0}
           aria-label="Background check disclosure content"

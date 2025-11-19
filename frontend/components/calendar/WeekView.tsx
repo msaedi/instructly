@@ -16,6 +16,7 @@ interface WeekViewProps {
   activeDayIndex?: number;
   onActiveDayChange?: (index: number) => void;
   allowPastEditing?: boolean;
+  onTodayClick?: () => void;
 }
 
 const WeekView = ({
@@ -30,6 +31,7 @@ const WeekView = ({
   activeDayIndex,
   onActiveDayChange,
   allowPastEditing,
+  onTodayClick,
 }: WeekViewProps) => {
   return (
     <InteractiveGrid
@@ -44,6 +46,7 @@ const WeekView = ({
       {...(activeDayIndex !== undefined ? { activeDayIndex } : {})}
       {...(onActiveDayChange ? { onActiveDayChange } : {})}
       {...(allowPastEditing !== undefined ? { allowPastEditing } : {})}
+      {...(onTodayClick ? { onTodayClick } : {})}
     />
   );
 };

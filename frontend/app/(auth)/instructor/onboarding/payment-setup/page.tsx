@@ -258,13 +258,13 @@ export default function Step3PaymentSetup() {
         <button
           type="button"
           onClick={() => { window.location.href = '/instructor/onboarding/status'; }}
-          className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
+          className="sm:w-40 w-32 px-4 py-2 rounded-lg text-xs sm:text-base text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
         >
           Skip for now
         </button>
         <button
           onClick={() => { window.location.href = '/instructor/onboarding/status'; }}
-          className="w-40 px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+          className="sm:w-40 w-32 px-4 py-2 rounded-lg text-xs sm:text-base text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
         >
           Continue
         </button>

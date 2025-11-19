@@ -8,7 +8,7 @@ import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
-import { usePricingConfig, usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingProgress } from '@/features/instructor-onboarding/useOnboardingProgress';
@@ -46,11 +46,6 @@ function Step3SkillsPricingInner() {
   const { statusMap, markStepVisited, loading: progressLoading } = useOnboardingProgress({ activeStep: 'skill-selection' });
   const preferInlineProfileMenu = useOnboardingInlineProfileMenu();
   const { floors: pricingFloors } = usePricingFloors();
-  const { config: pricingConfig } = usePricingConfig();
-  const defaultInstructorTierPct = useMemo(() => {
-    const pct = pricingConfig?.instructor_tiers?.[0]?.pct;
-    return typeof pct === 'number' ? pct : null;
-  }, [pricingConfig]);
 
   const floorViolationsByService = useMemo(() => {
     const map = new Map<string, FloorViolation[]>();
@@ -524,14 +519,14 @@ function Step3SkillsPricingInner() {
                 <div className="mb-4 bg-white rounded-lg p-3 border border-gray-200">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-gray-700">Hourly Rate:</span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 min-w-0">
                       <span className="text-gray-500">$</span>
                       <input
                         type="number"
                         min={1}
                         step="1"
                         inputMode="decimal"
-                        className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
+                        className="w-16 sm:w-24 rounded-md border border-gray-300 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
                         placeholder="75"
                         value={s.hourly_rate}
                         onChange={(e) =>
@@ -545,15 +540,6 @@ function Step3SkillsPricingInner() {
                       <span className="text-gray-500">/hr</span>
                     </div>
                   </div>
-                  {s.hourly_rate && Number(s.hourly_rate) > 0 && defaultInstructorTierPct !== null && (
-                    <div className="mt-2 text-xs text-gray-600">
-                      You&apos;ll earn{' '}
-                      <span className="font-semibold text-[#7E22CE]">
-                        ${Number(Number(s.hourly_rate) * (1 - defaultInstructorTierPct)).toFixed(2)}
-                      </span>{' '}
-                      after the {(defaultInstructorTierPct * 100).toFixed(1).replace(/\.0$/, '')}% platform fee
-                    </div>
-                  )}
                   {violations.length > 0 && (
                     <div className="mt-2 space-y-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                       {violations.map((violation, index) => (
@@ -681,7 +667,7 @@ function Step3SkillsPricingInner() {
                               )
                             )
                           }
-                          className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
+                          className={`flex-1 px-1.5 py-1 sm:px-2 sm:py-2 text-[11px] sm:text-sm rounded-md transition-colors ${
                             s.levels_taught.includes(lvl)
                               ? 'bg-purple-100 text-[#7E22CE] border border-purple-300'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -812,14 +798,14 @@ function Step3SkillsPricingInner() {
           onClick={() => {
             window.location.href = '/instructor/onboarding/verification';
           }}
-          className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
+          className="sm:w-40 w-32 px-4 py-2 rounded-lg text-xs sm:text-base text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"
         >
           Skip for now
         </button>
         <button
           onClick={save}
           disabled={saving || hasFloorViolations}
-          className="w-56 whitespace-nowrap px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
+          className="sm:w-56 w-32 whitespace-nowrap px-4 py-2 rounded-lg text-xs sm:text-base text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 shadow-sm justify-center"
         >
           {saving ? 'Saving...' : 'Save & Continue'}
         </button>

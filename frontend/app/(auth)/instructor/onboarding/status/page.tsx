@@ -358,7 +358,7 @@ function StatusCardRow({ title, description, pillState, action, ...rest }: Statu
         <p className="text-base font-semibold text-gray-900">{title}</p>
         {description && <p className="text-sm text-gray-500">{description}</p>}
       </div>
-      <div className="flex items-center gap-3 sm:min-w-[240px] sm:justify-end">
+      <div className="flex items-center gap-3 justify-end w-full self-end sm:w-auto sm:min-w-[240px] sm:justify-end">
         <StatusPill state={pillState} />
         {action}
       </div>
