@@ -963,3 +963,16 @@ def get_cache_service(db: Session = Depends(get_db)) -> CacheService:
         logger.warning("Redis not available, using in-memory cache fallback")
 
     return CacheService(db, redis_client)
+
+
+def get_healthcheck_redis_client() -> Redis:
+    """Return a lightweight Redis client for readiness checks."""
+    return from_url(
+        settings.redis_url or "redis://localhost:6379",
+        decode_responses=True,
+        socket_keepalive=True,
+        socket_connect_timeout=5,
+        retry_on_timeout=True,
+        health_check_interval=30,
+        max_connections=10,
+    )

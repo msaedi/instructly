@@ -1,7 +1,9 @@
 import base64
 from datetime import datetime, timezone
+import hashlib
 import io
 import logging
+import os
 from typing import Any, Dict, Optional
 
 from cryptography.fernet import Fernet
@@ -18,7 +20,18 @@ from .base import BaseService
 
 logger = logging.getLogger(__name__)
 
-TOTP_VALID_WINDOW = 1
+
+def _derive_fallback_key() -> bytes:
+    secret = ""
+    try:
+        secret = settings.secret_key.get_secret_value()
+    except Exception:
+        secret = "local-default-secret"
+    digest = hashlib.sha256(secret.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest)
+
+
+_FALLBACK_TOTP_KEY = _derive_fallback_key()
 
 
 class TwoFactorAuthService(BaseService):
@@ -26,18 +39,42 @@ class TwoFactorAuthService(BaseService):
         super().__init__(db)
         self.user_repository = RepositoryFactory.create_user_repository(db)
         # Ensure Fernet key is valid length (44 url-safe base64 bytes). Expect provided via env.
-        key = (
-            settings.totp_encryption_key.get_secret_value() if settings.totp_encryption_key else ""
-        )
-        if not key:
-            # Generate ephemeral key in dev if not provided
-            self._fernet: Fernet = Fernet(Fernet.generate_key())
-        else:
+        raw_site_mode = (os.getenv("SITE_MODE", "") or "").strip().lower()
+        effective_mode = raw_site_mode or getattr(settings, "site_mode", "local")
+        hosted_modes = {"preview", "prod", "production", "live"}
+        hosted_context = effective_mode in hosted_modes
+
+        try:
+            key = settings.totp_encryption_key.get_secret_value()
+        except Exception:
+            key = ""
+        key = (key or "").strip()
+
+        self._fernet: Fernet
+        if hosted_context and not key:
+            raise RuntimeError(
+                "TOTP_ENCRYPTION_KEY must be set in hosted (preview/prod) environments"
+            )
+
+        if key:
             try:
                 self._fernet = Fernet(key)
             except Exception:
-                # Fall back to ephemeral to avoid startup failures
-                self._fernet = Fernet(Fernet.generate_key())
+                if hosted_context:
+                    raise RuntimeError(
+                        "Invalid TOTP_ENCRYPTION_KEY provided for hosted environment"
+                    )
+                logger.warning("Invalid TOTP_ENCRYPTION_KEY provided; using fallback key")
+                self._fernet = Fernet(_FALLBACK_TOTP_KEY)
+        else:
+            # Use deterministic fallback so CI/local instances share the same key
+            self._fernet = Fernet(_FALLBACK_TOTP_KEY)
+
+        configured_window = getattr(settings, "totp_valid_window", 0)
+        window = max(0, configured_window)
+        if window == 0 and getattr(settings, "is_testing", False):
+            window = 1
+        self._totp_valid_window = window
 
     def _encrypt(self, value: str) -> str:
         token: bytes = self._fernet.encrypt(value.encode("utf-8"))
@@ -84,8 +121,11 @@ class TwoFactorAuthService(BaseService):
             secret = self._decrypt(user.totp_secret)
         except Exception:
             return False
+        token = (code or "").strip()
+        if not token.isdigit():
+            return False
         totp = pyotp.TOTP(secret)
-        return bool(totp.verify(code, valid_window=TOTP_VALID_WINDOW))
+        return bool(totp.verify(token, valid_window=self._totp_valid_window))
 
     @BaseService.measure_operation("tfa_generate_backup_codes")
     def generate_backup_codes(self, count: int = 10) -> list[str]:

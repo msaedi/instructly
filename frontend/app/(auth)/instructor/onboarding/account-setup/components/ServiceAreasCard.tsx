@@ -162,6 +162,7 @@ export function ServiceAreasCard({
                         aria-expanded={isAccordionOpen}
                         role="button"
                         tabIndex={0}
+                        data-testid={`service-area-borough-${borough.toLowerCase().replace(/\s+/g, '-')}`}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();

@@ -149,7 +149,11 @@ if [[ "${FAST_HOOKS:-0}" != "1" ]]; then
   count=$(node -e 'const fs=require("fs");try{const d=JSON.parse(fs.readFileSync(".artifacts/knip.json","utf8"));console.log(Array.isArray(d)?d.length:(d.issues?d.issues.length:0));}catch{console.log(0)}')
   echo "Knip count: ${count}"
 
-  if [ "${count}" -gt 0 ]; then
+  if ! [[ "${count}" =~ ^[0-9]+$ ]]; then
+    count=0
+  fi
+
+  if (( count > 0 )); then
     echo "❌ Dead code detected (${count}). Push aborted."
     # show initial offenders for convenience
     npx knip --config knip.json --reporter=compact | sed -n "1,200p" || true

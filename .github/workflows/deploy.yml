@@ -1,19 +1,15 @@
 # .github/workflows/deploy.yml
 name: Deploy to Vercel
 on:
-  pull_request:
-    paths:
-      - 'frontend/**'
-      - 'package.json'
-      - 'frontend/package.json'
-      - 'frontend/package-lock.json'
   push:
-    branches: [ main ]
+    branches:
+      - main
     paths:
       - 'frontend/**'
       - 'package.json'
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
+  workflow_dispatch:
 
 concurrency:
   group: vercel-${{ github.workflow }}-${{ github.ref }}
@@ -23,30 +19,56 @@ jobs:
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Install Vercel CLI
-        run: npm install -g vercel@latest
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Deploy to Production
+      - name: Install deps & build (frontend)
+        working-directory: frontend
         run: |
-          set -eo pipefail
-          cd frontend
-          # Remove any existing .vercel directory to avoid conflicts
-          rm -rf .vercel
-          # Create .vercel directory
-          mkdir -p .vercel
-          # Link to the production project
-          echo '{"projectId":"${{ secrets.VERCEL_PRODUCTION_PROJECT_ID }}","orgId":"${{ secrets.VERCEL_ORG_ID }}"}' > .vercel/project.json
-          # Deploy
-          LOG=../vercel.log
-          rm -f "$LOG"
-          vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes 2>&1 | tee "$LOG"
+          npm ci
+          npm run build
+
+      - name: Verify Next build artifacts
+        working-directory: frontend
+        run: |
+          test -f .next/routes-manifest.json || { echo "::error::Missing .next/routes-manifest.json. Build likely failed."; exit 1; }
+
+      - name: Pull Vercel project/env (production)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PRODUCTION_PROJECT_ID }}
+        run: |
+          npx vercel --version
+          npx vercel whoami --token "$VERCEL_TOKEN"
+          npx vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+
+      - name: Debug Vercel link (production)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          pwd
+          ls -la
+          test -f .vercel/project.json && echo "=== .vercel/project.json ===" && cat .vercel/project.json || echo "No .vercel/project.json"
+          echo "VERCEL_PROJECT_ID=${{ secrets.VERCEL_PRODUCTION_PROJECT_ID }}"
+          echo "VERCEL_ORG_ID=${{ secrets.VERCEL_ORG_ID }}"
+
+      - name: Deploy to Vercel (production)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -eo pipefail
+          LOG=../vercel.log
+          rm -f "$LOG"
+          npx vercel deploy --prod --yes --token "$VERCEL_TOKEN" 2>&1 | tee "$LOG"
 
       - name: Soft warn on Vercel rate-limit
         if: always()
@@ -66,30 +88,56 @@ jobs:
   deploy-preview:
     name: Deploy to Preview
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Install Vercel CLI
-        run: npm install -g vercel@latest
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Deploy to Preview
+      - name: Install deps & build (frontend)
+        working-directory: frontend
         run: |
-          set -eo pipefail
-          cd frontend
-          # Remove any existing .vercel directory to avoid conflicts
-          rm -rf .vercel
-          # Create .vercel directory
-          mkdir -p .vercel
-          # Link to the preview project
-          echo '{"projectId":"${{ secrets.VERCEL_PREVIEW_PROJECT_ID }}","orgId":"${{ secrets.VERCEL_ORG_ID }}"}' > .vercel/project.json
-          # Deploy
-          LOG=../vercel.log
-          rm -f "$LOG"
-          vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes 2>&1 | tee "$LOG"
+          npm ci
+          npm run build
+
+      - name: Verify Next build artifacts
+        working-directory: frontend
+        run: |
+          test -f .next/routes-manifest.json || { echo "::error::Missing .next/routes-manifest.json. Build likely failed."; exit 1; }
+
+      - name: Pull Vercel project/env (preview)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PREVIEW_PROJECT_ID }}
+        run: |
+          npx vercel --version
+          npx vercel whoami --token "$VERCEL_TOKEN"
+          npx vercel pull --yes --environment=preview --token "$VERCEL_TOKEN"
+
+      - name: Debug Vercel link (preview)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          pwd
+          ls -la
+          test -f .vercel/project.json && echo "=== .vercel/project.json ===" && cat .vercel/project.json || echo "No .vercel/project.json"
+          echo "VERCEL_PROJECT_ID=${{ secrets.VERCEL_PREVIEW_PROJECT_ID }}"
+          echo "VERCEL_ORG_ID=${{ secrets.VERCEL_ORG_ID }}"
+
+      - name: Deploy to Vercel (preview)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -eo pipefail
+          LOG=../vercel.log
+          rm -f "$LOG"
+          npx vercel deploy --yes --token "$VERCEL_TOKEN" 2>&1 | tee "$LOG"
 
       - name: Soft warn on Vercel rate-limit
         if: always()

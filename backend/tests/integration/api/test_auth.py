@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, get_password_hash, verify_password
+from app.core.config import settings
 from app.core.enums import RoleName
 from app.models.user import User
 
@@ -129,9 +130,9 @@ class TestAuth:
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
-        # Ensure Set-Cookie is present for access_token
+        # Ensure Set-Cookie is present with configured session cookie name
         set_cookie = response.headers.get("set-cookie", "")
-        assert "access_token=" in set_cookie
+        assert f"{settings.session_cookie_name}=" in set_cookie
         # Note: Test functions should not return values in pytest
 
     def test_cookie_authentication_fallback(
@@ -154,8 +155,7 @@ class TestAuth:
         assert data["email"] == test_student.email
 
         # Test with cookie only (no Authorization header)
-        # Manually set the cookie in the client
-        client.cookies.set("access_token", token)
+        client.cookies.set(settings.session_cookie_name, token)
         response = client.get("/auth/me")
         assert response.status_code == 200
         data = response.json()
@@ -183,23 +183,26 @@ class TestAuth:
         r2 = client.get("/auth/me")
         assert r2.status_code == 200
 
-    def test_cookie_only_auth_denied_in_prod(
+    def test_cookie_only_auth_allowed_in_prod(
         self, db: Session, client: TestClient, test_student: User, test_password: str, monkeypatch
     ):
-        """Prod/preview: cookie-only must be rejected; header required."""
-        # Simulate prod mode
+        """Prod/preview should honor real session cookies on /api routes."""
         monkeypatch.setenv("SITE_MODE", "prod")
-        # Login still returns a token (we won't use it here)
+        monkeypatch.setattr(settings, "session_cookie_secure", True, raising=False)
+        # Login still returns a token (and sets cookie)
         r = client.post(
             "/auth/login",
             data={"username": test_student.email, "password": test_password},
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert r.status_code == 200
-        # Cookie-only should fail in prod
-        r2 = client.get("/auth/me")
-        assert r2.status_code == 401
-        # With header it should succeed
+        # Manually set the secure cookie since TestClient does not store HTTPS-only cookies
+        cookie_token = create_access_token({"sub": test_student.email})
+        client.cookies.set(settings.session_cookie_name, cookie_token)
+        # Cookie-only should succeed for API routes in hosted environments
+        r2 = client.get("/api/addresses/me")
+        assert r2.status_code == 200
+        # header path still works
         token = r.json().get("access_token")
         r3 = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert r3.status_code == 200

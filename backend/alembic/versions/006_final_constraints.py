@@ -102,6 +102,41 @@ def _drop_permissive_policy_and_disable_rls(table_name: str) -> None:
         """
     )
 
+
+def _create_extension_prefer_extensions_schema(extension_name: str) -> None:
+    """Create extension using extensions schema when available."""
+
+    bind = op.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return
+
+    op.execute(
+        f"""
+        DO $$
+        DECLARE
+            extensions_schema_exists BOOLEAN;
+            extension_installed BOOLEAN;
+        BEGIN
+            SELECT EXISTS (
+                SELECT 1 FROM pg_namespace WHERE nspname = 'extensions'
+            ) INTO extensions_schema_exists;
+
+            SELECT EXISTS (
+                SELECT 1 FROM pg_extension WHERE extname = '{extension_name}'
+            ) INTO extension_installed;
+
+            IF NOT extension_installed THEN
+                IF extensions_schema_exists THEN
+                    EXECUTE 'CREATE EXTENSION IF NOT EXISTS {extension_name} WITH SCHEMA extensions';
+                ELSE
+                    EXECUTE 'CREATE EXTENSION IF NOT EXISTS {extension_name}';
+                END IF;
+            END IF;
+        END
+        $$;
+        """
+    )
+
 # revision identifiers, used by Alembic.
 revision: str = "006_final_constraints"
 down_revision: Union[str, None] = "005_performance_indexes"
@@ -129,7 +164,7 @@ def upgrade() -> None:
             already_installed = False
         if not already_installed:
             try:
-                op.execute("CREATE EXTENSION IF NOT EXISTS postgis;")
+                _create_extension_prefer_extensions_schema("postgis")
                 print("PostGIS extension created")
             except Exception as e:
                 # Provide a clear, actionable error for local setups
@@ -373,11 +408,27 @@ def upgrade() -> None:
         "instructor_profiles",
         sa.Column("bgc_final_adverse_sent_at", sa.DateTime(timezone=True), nullable=True),
     )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_report_result", sa.String(length=32), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("checkr_candidate_id", sa.String(length=64), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("checkr_invitation_id", sa.String(length=64), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("bgc_note", sa.Text(), nullable=True),
+    )
 
     op.create_check_constraint(
         "ck_instructor_profiles_bgc_status",
         "instructor_profiles",
-        "bgc_status IN ('pending','passed','review','failed')",
+        "bgc_status IN ('pending','passed','review','failed','consider')",
     )
     op.create_check_constraint(
         "ck_instructor_profiles_bgc_env",
@@ -388,6 +439,58 @@ def upgrade() -> None:
         "ck_live_requires_bgc_passed",
         "instructor_profiles",
         "(is_live = FALSE) OR (bgc_status = 'passed')",
+    )
+    op.create_index(
+        "ix_instructor_profiles_checkr_candidate_id",
+        "instructor_profiles",
+        ["checkr_candidate_id"],
+    )
+    op.create_index(
+        "ix_instructor_profiles_checkr_invitation_id",
+        "instructor_profiles",
+        ["checkr_invitation_id"],
+    )
+    op.create_index(
+        "ix_instructor_profiles_bgc_report_id",
+        "instructor_profiles",
+        ["bgc_report_id"],
+    )
+
+    print("Creating bgc_webhook_log table...")
+    op.create_table(
+        "bgc_webhook_log",
+        sa.Column("id", sa.String(length=26), primary_key=True, nullable=False),
+        sa.Column("event_type", sa.String(length=64), nullable=False),
+        sa.Column("delivery_id", sa.String(length=80), nullable=True),
+        sa.Column("resource_id", sa.String(length=64), nullable=True),
+        sa.Column("http_status", sa.Integer(), nullable=True),
+        sa.Column(
+            "payload_json",
+            json_type,
+            nullable=False,
+        ),
+        sa.Column("signature", sa.String(length=128), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+    )
+    op.create_index(
+        "ix_bgc_webhook_log_event_type_created_at",
+        "bgc_webhook_log",
+        ["event_type", "created_at"],
+    )
+    op.create_index(
+        "ix_bgc_webhook_log_delivery_id",
+        "bgc_webhook_log",
+        ["delivery_id"],
+    )
+    op.create_index(
+        "ix_bgc_webhook_log_http_status",
+        "bgc_webhook_log",
+        ["http_status", "created_at"],
     )
 
     print("Creating background_checks history table...")
@@ -564,8 +667,10 @@ def upgrade() -> None:
         print("Creating PostgreSQL NOTIFY function for real-time messaging (PostgreSQL only)...")
         op.execute(
             """
-            CREATE OR REPLACE FUNCTION notify_new_message()
-            RETURNS TRIGGER AS $$
+            CREATE OR REPLACE FUNCTION public.notify_new_message()
+            RETURNS TRIGGER
+            SET search_path = public
+            AS $$
             DECLARE
                 payload json;
                 sender_first_name TEXT;
@@ -596,15 +701,17 @@ def upgrade() -> None:
             CREATE TRIGGER message_insert_notify
             AFTER INSERT ON messages
             FOR EACH ROW
-            EXECUTE FUNCTION notify_new_message();
+            EXECUTE FUNCTION public.notify_new_message();
         """
         )
 
         # Read receipt trigger: when a notification is marked read, update messages.read_by and notify
         op.execute(
             """
-            CREATE OR REPLACE FUNCTION handle_message_read_receipt()
-            RETURNS TRIGGER AS $$
+            CREATE OR REPLACE FUNCTION public.handle_message_read_receipt()
+            RETURNS TRIGGER
+            SET search_path = public
+            AS $$
             DECLARE
                 payload json;
                 booking_id VARCHAR(26);
@@ -639,7 +746,7 @@ def upgrade() -> None:
             CREATE TRIGGER message_read_receipt_notify
             AFTER UPDATE ON message_notifications
             FOR EACH ROW
-            EXECUTE FUNCTION handle_message_read_receipt();
+            EXECUTE FUNCTION public.handle_message_read_receipt();
             """
         )
 
@@ -777,6 +884,11 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("instructor_id", "neighborhood_id"),
     )
     op.create_index(
+        "ix_instructor_service_areas_neighborhood_id",
+        "instructor_service_areas",
+        ["neighborhood_id"],
+    )
+    op.create_index(
         "ix_instructor_service_areas_instructor",
         "instructor_service_areas",
         ["instructor_id", "is_active"],
@@ -830,13 +942,15 @@ def upgrade() -> None:
     if is_postgres:
         op.execute(
             """
-            CREATE OR REPLACE FUNCTION update_updated_at_column()
-            RETURNS TRIGGER AS $$
+            CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+            RETURNS TRIGGER
+            SET search_path = public
+            AS $$
             BEGIN
                 NEW.updated_at = NOW();
                 RETURN NEW;
             END;
-            $$ language 'plpgsql';
+            $$ LANGUAGE plpgsql;
             """
         )
         op.execute(
@@ -844,7 +958,7 @@ def upgrade() -> None:
             CREATE TRIGGER instructor_preferred_places_set_updated_at
             BEFORE UPDATE ON instructor_preferred_places
             FOR EACH ROW
-            EXECUTE FUNCTION update_updated_at_column();
+            EXECUTE FUNCTION public.update_updated_at_column();
             """
         )
 
@@ -1109,7 +1223,7 @@ def downgrade() -> None:
         op.execute(
             "DROP TRIGGER IF EXISTS instructor_preferred_places_set_updated_at ON instructor_preferred_places;"
         )
-        op.execute("DROP FUNCTION IF EXISTS update_updated_at_column();")
+        op.execute("DROP FUNCTION IF EXISTS public.update_updated_at_column();")
     op.drop_index(
         "ix_instructor_preferred_places_instructor_kind_position",
         table_name="instructor_preferred_places",
@@ -1118,6 +1232,10 @@ def downgrade() -> None:
 
     # Drop service area tables and spatial indexes first (to avoid dependency issues)
     print("Dropping instructor service area and neighborhoods tables...")
+    op.drop_index(
+        "ix_instructor_service_areas_neighborhood_id",
+        table_name="instructor_service_areas",
+    )
     op.drop_index("ix_instructor_service_areas_instructor", table_name="instructor_service_areas")
     op.drop_table("instructor_service_areas")
     # Legacy nyc_neighborhoods not created in this migration anymore
@@ -1166,13 +1284,13 @@ def downgrade() -> None:
     if is_postgres:
         print("Dropping message notification trigger and function (PostgreSQL only)...")
         op.execute("DROP TRIGGER IF EXISTS message_insert_notify ON messages;")
-        op.execute("DROP FUNCTION IF EXISTS notify_new_message();")
+        op.execute("DROP FUNCTION IF EXISTS public.notify_new_message();")
 
     # Drop read receipt trigger and function (Phase 2 additions)
     if is_postgres:
         print("Dropping read receipt trigger and function (PostgreSQL only)...")
         op.execute("DROP TRIGGER IF EXISTS message_read_receipt_notify ON message_notifications;")
-        op.execute("DROP FUNCTION IF EXISTS handle_message_read_receipt();")
+        op.execute("DROP FUNCTION IF EXISTS public.handle_message_read_receipt();")
 
     # Drop Phase 2 tables that depend on messages first
     print("Dropping message_reactions and message_edits tables...")
@@ -1191,6 +1309,12 @@ def downgrade() -> None:
     op.drop_index("ix_messages_sender_id", "messages")
     op.drop_index("ix_messages_booking_created", "messages")
     op.drop_table("messages")
+
+    print("Dropping bgc_webhook_log table...")
+    op.drop_index("ix_bgc_webhook_log_http_status", table_name="bgc_webhook_log")
+    op.drop_index("ix_bgc_webhook_log_delivery_id", table_name="bgc_webhook_log")
+    op.drop_index("ix_bgc_webhook_log_event_type_created_at", table_name="bgc_webhook_log")
+    op.drop_table("bgc_webhook_log")
 
     print("Dropping bgc_adverse_action_events table...")
     op.drop_index("ix_bgc_adverse_action_events_profile", "bgc_adverse_action_events")
@@ -1236,6 +1360,10 @@ def downgrade() -> None:
     print("Dropping bgc_consent table and background check columns...")
     op.drop_index("ix_bgc_consent_instructor_id", table_name="bgc_consent")
     op.drop_table("bgc_consent")
+
+    op.drop_index("ix_instructor_profiles_checkr_candidate_id", table_name="instructor_profiles")
+    op.drop_index("ix_instructor_profiles_checkr_invitation_id", table_name="instructor_profiles")
+    op.drop_index("ix_instructor_profiles_bgc_report_id", table_name="instructor_profiles")
 
     if is_postgres:
         op.execute(
@@ -1286,6 +1414,18 @@ def downgrade() -> None:
         op.execute(
             "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_status"
         )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_report_result"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS checkr_candidate_id"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS checkr_invitation_id"
+        )
+        op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_note"
+        )
     else:
         op.drop_constraint("ck_instructor_profiles_bgc_env", "instructor_profiles", type_="check")
         op.drop_constraint("ck_instructor_profiles_bgc_status", "instructor_profiles", type_="check")
@@ -1303,6 +1443,10 @@ def downgrade() -> None:
         op.drop_column("instructor_profiles", "bgc_pre_adverse_sent_at")
         op.drop_column("instructor_profiles", "bgc_pre_adverse_notice_id")
         op.drop_column("instructor_profiles", "bgc_status")
+        op.drop_column("instructor_profiles", "bgc_report_result")
+        op.drop_column("instructor_profiles", "checkr_candidate_id")
+        op.drop_column("instructor_profiles", "checkr_invitation_id")
+        op.drop_column("instructor_profiles", "bgc_note")
 
     # Drop alert history table
     print("Dropping alert_history table...")

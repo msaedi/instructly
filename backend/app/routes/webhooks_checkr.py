@@ -2,22 +2,29 @@
 
 from __future__ import annotations
 
+import base64
 from collections import OrderedDict
 from datetime import datetime, timezone
-from hashlib import sha256
+import hashlib
 import hmac
 import json
 import logging
 from time import monotonic
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from ..api.dependencies.repositories import get_background_job_repo
+from ..api.dependencies.repositories import (
+    get_background_job_repo,
+    get_bgc_webhook_log_repo,
+)
 from ..api.dependencies.services import get_background_check_workflow_service
 from ..core.config import settings
 from ..core.exceptions import RepositoryException
 from ..core.metrics import CHECKR_WEBHOOK_TOTAL
 from ..repositories.background_job_repository import BackgroundJobRepository
+from ..repositories.bgc_webhook_log_repository import BGCWebhookLogRepository
+from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas.webhook_responses import WebhookAckResponse
 from ..services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
@@ -30,11 +37,7 @@ router = APIRouter(prefix="/webhooks/checkr", tags=["webhooks"])
 _WEBHOOK_CACHE_TTL_SECONDS = 300
 _WEBHOOK_CACHE_MAX_SIZE = 1000
 _delivery_cache: OrderedDict[str, float] = OrderedDict()
-
-
-def _compute_signature(secret: str, payload: bytes) -> str:
-    mac = hmac.new(secret.encode("utf-8"), payload, sha256)
-    return mac.hexdigest()
+_SIGNATURE_PLACEHOLDER = "Please create an API key to check the authenticity of our webhooks."
 
 
 def _result_label(result: str) -> str:
@@ -46,42 +49,75 @@ def _result_label(result: str) -> str:
     return "other"
 
 
-def _verify_signature(payload: bytes, signature: str | None) -> None:
-    secret_value = settings.checkr_webhook_secret.get_secret_value()
-    if not secret_value:
-        logger.error("Checkr webhook secret is not configured")
+def _require_basic_auth(request: Request) -> None:
+    """Enforce HTTP basic authentication for inbound webhooks."""
+
+    username_secret = settings.checkr_webhook_user
+    password_secret = settings.checkr_webhook_pass
+    if username_secret is None or password_secret is None:
+        logger.error("Checkr webhook basic auth credentials are not configured")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Webhook secret not configured",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Webhook authentication not configured",
         )
 
-    if not signature:
+    header = request.headers.get("Authorization")
+    if not header or not header.lower().startswith("basic "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    token = header.split(" ", 1)[1]
+    try:
+        provided = base64.b64decode(token).decode("utf-8")
+    except Exception:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing X-Checkr-Signature header",
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized"
+        ) from None
+
+    expected = f"{username_secret.get_secret_value()}:{password_secret.get_secret_value()}"
+    if provided != expected:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+
+def _compute_signature(secret: str, raw_body: bytes) -> str:
+    return hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+
+
+def _verify_checkr_signature(request: Request, raw_body: bytes) -> None:
+    provided_sig = request.headers.get("X-Checkr-Signature")
+    if not provided_sig:
+        logger.warning("Missing Checkr webhook signature header")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    normalized_sig = provided_sig.strip()
+    if normalized_sig == _SIGNATURE_PLACEHOLDER:
+        logger.warning("Rejected Checkr webhook with placeholder signature header")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    if normalized_sig.lower().startswith("sha256="):
+        normalized_sig = normalized_sig.split("=", 1)[1].strip()
+
+    if not normalized_sig:
+        logger.warning("Empty Checkr webhook signature header")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    api_key = settings.checkr_api_key.get_secret_value()
+    if not api_key:
+        logger.error("Checkr API key is not configured for signature verification")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Webhook authentication not configured",
         )
 
-    expected = _compute_signature(secret_value, payload)
-    if not hmac.compare_digest(expected, signature):
-        try:
-            logger.warning(
-                "checkr_signature_mismatch",
-                extra={
-                    "evt": "checkr_webhook_sig_mismatch",
-                    "provided_prefix": signature[:8] if signature else None,
-                    "signature_length": len(signature or ""),
-                    "expected_prefix": expected[:8],
-                    "expected_length": len(expected),
-                    "starts_with_sha256": bool(signature and signature.startswith("sha256=")),
-                    "payload_length": len(payload),
-                },
-            )
-        except Exception:
-            pass
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid webhook signature",
+    computed_sig = _compute_signature(api_key, raw_body)
+    if not hmac.compare_digest(normalized_sig, computed_sig):
+        logger.warning(
+            "Checkr webhook signature mismatch",
+            extra={
+                "evt": "webhook_invalid_sig",
+                "delivery_id": request.headers.get("X-Checkr-Delivery-Id"),
+            },
         )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
 
 
 def _delivery_seen(delivery_key: str | None) -> bool:
@@ -112,6 +148,146 @@ def _mark_delivery(delivery_key: str | None) -> None:
         _delivery_cache.popitem(last=False)
 
 
+def _record_webhook_event(
+    log_repo: BGCWebhookLogRepository,
+    *,
+    event_type: str,
+    resource_id: str | None,
+    payload: dict[str, Any],
+    delivery_id: str | None,
+    signature: str | None,
+    http_status: int | None,
+) -> None:
+    try:
+        log_repo.record(
+            event_type=event_type or "unknown",
+            resource_id=resource_id,
+            delivery_id=delivery_id,
+            http_status=http_status,
+            payload=payload,
+            signature=signature,
+        )
+    except RepositoryException as exc:
+        logger.warning("Unable to persist webhook log: %s", str(exc))
+
+
+def _resolve_resource_id(event_type: str, data_object: dict[str, Any]) -> str | None:
+    obj_id = data_object.get("id")
+    if isinstance(obj_id, str) and obj_id:
+        return obj_id
+    if event_type.startswith("report."):
+        report_id = data_object.get("report_id")
+        return str(report_id) if isinstance(report_id, str) else None
+    invitation_id = data_object.get("invitation_id")
+    if isinstance(invitation_id, str) and invitation_id:
+        return invitation_id
+    return None
+
+
+def _handle_invitation_event(
+    repo: InstructorProfileRepository,
+    *,
+    data_object: dict[str, Any],
+) -> None:
+    invitation_id = data_object.get("id") or data_object.get("invitation_id")
+    candidate_id = data_object.get("candidate_id")
+
+    profile = None
+    if isinstance(invitation_id, str) and invitation_id:
+        profile = repo.update_bgc_by_invitation(
+            invitation_id,
+            status="pending",
+            note=None,
+        )
+    if profile is None and isinstance(candidate_id, str) and candidate_id:
+        repo.update_bgc_by_candidate(
+            candidate_id,
+            status="pending",
+            note=None,
+        )
+
+
+def _format_note(event_type: str, reason: str | None) -> str:
+    clean_reason = (reason or "").strip()
+    if clean_reason:
+        return f"{event_type}: {clean_reason}"
+    return event_type
+
+
+def _update_report_status(
+    repo: InstructorProfileRepository,
+    report_id: str | None,
+    *,
+    status: str | None,
+    note: str | None,
+) -> None:
+    if not report_id:
+        return
+    repo.update_bgc_by_report_id(
+        report_id,
+        status=status,
+        completed_at=None,
+        note=note,
+    )
+
+
+def _extract_reason(data_object: dict[str, Any]) -> str | None:
+    for key in ("reason", "status", "adjudication"):
+        value = data_object.get(key)
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned:
+                return cleaned
+    return None
+
+
+def _extract_candidate_id(data_object: dict[str, Any]) -> str | None:
+    candidate_id = data_object.get("candidate_id")
+    if isinstance(candidate_id, str):
+        cleaned = candidate_id.strip()
+        if cleaned:
+            return cleaned
+    candidate_obj = data_object.get("candidate")
+    if isinstance(candidate_obj, dict):
+        nested = candidate_obj.get("id")
+        if isinstance(nested, str) and nested.strip():
+            return nested.strip()
+    return None
+
+
+def _extract_invitation_id(data_object: dict[str, Any]) -> str | None:
+    invitation_id = data_object.get("invitation_id")
+    if isinstance(invitation_id, str):
+        cleaned = invitation_id.strip()
+        if cleaned:
+            return cleaned
+    invitation_obj = data_object.get("invitation")
+    if isinstance(invitation_obj, dict):
+        nested = invitation_obj.get("id")
+        if isinstance(nested, str) and nested.strip():
+            return nested.strip()
+    return None
+
+
+def _bind_report_to_profile(
+    repo: InstructorProfileRepository,
+    *,
+    report_id: str | None,
+    candidate_id: str | None,
+    invitation_id: str | None,
+    env: str,
+) -> str | None:
+    """Attach a Checkr report identifier to a known instructor profile."""
+
+    if not report_id:
+        return None
+
+    profile_id = repo.bind_report_to_candidate(candidate_id, report_id, env=env)
+    if profile_id:
+        return profile_id
+    return repo.bind_report_to_invitation(invitation_id, report_id, env=env)
+
+
 @router.post("/", response_model=WebhookAckResponse)
 async def handle_checkr_webhook(
     request: Request,
@@ -119,13 +295,13 @@ async def handle_checkr_webhook(
         get_background_check_workflow_service
     ),
     job_repository: BackgroundJobRepository = Depends(get_background_job_repo),
+    log_repository: BGCWebhookLogRepository = Depends(get_bgc_webhook_log_repo),
 ) -> WebhookAckResponse:
     """Process Checkr webhook events for background check reports."""
 
+    _require_basic_auth(request)
     raw_body = await request.body()
-    signature = request.headers.get("X-Checkr-Signature")
-
-    _verify_signature(raw_body, signature)
+    _verify_checkr_signature(request, raw_body)
 
     try:
         payload = json.loads(raw_body.decode("utf-8"))
@@ -135,12 +311,33 @@ async def handle_checkr_webhook(
             detail="Invalid JSON payload",
         )
 
-    event_type = payload.get("type", "")
-    data_object = payload.get("data", {}).get("object", {}) or {}
-    report_id = data_object.get("id")
+    event_type = (payload.get("type") or "").strip()
+    data_object = payload.get("data", {}).get("object") or {}
+    if not isinstance(data_object, dict):
+        data_object = {}
 
-    delivery_key = request.headers.get("X-Checkr-Delivery-Id") or (
-        f"{event_type}:{report_id}" if event_type and report_id else None
+    resource_id = _resolve_resource_id(event_type, data_object)
+    _record_webhook_event(
+        log_repository,
+        event_type=event_type,
+        resource_id=resource_id,
+        payload=payload,
+        delivery_id=request.headers.get("X-Checkr-Delivery-Id"),
+        signature=request.headers.get("X-Checkr-Signature"),
+        http_status=status.HTTP_200_OK,
+    )
+
+    result_value = data_object.get("result") or data_object.get("status")
+    logger.info(
+        "checkr_webhook type=%s resource=%s result=%s",
+        event_type or "unknown",
+        resource_id,
+        result_value,
+    )
+
+    delivery_header = request.headers.get("X-Checkr-Delivery-Id")
+    delivery_key = delivery_header or (
+        f"{event_type}:{resource_id}" if event_type and resource_id else None
     )
 
     if not event_type:
@@ -153,9 +350,34 @@ async def handle_checkr_webhook(
         )
         return WebhookAckResponse(ok=True)
 
+    repo = workflow_service.repo
+
+    if event_type in {"invitation.created", "invitation.completed"}:
+        try:
+            _handle_invitation_event(repo, data_object=data_object)
+            _mark_delivery(delivery_key)
+        except RepositoryException as exc:
+            logger.warning(
+                "Unable to process invitation event: %s",
+                str(exc),
+                extra={"event_type": event_type},
+            )
+        return WebhookAckResponse(ok=True)
+
     if event_type == "report.completed":
+        report_id = resource_id
         if not report_id:
             return WebhookAckResponse(ok=True)
+
+        candidate_id = _extract_candidate_id(data_object)
+        invitation_id = _extract_invitation_id(data_object)
+        _bind_report_to_profile(
+            repo,
+            report_id=report_id,
+            candidate_id=candidate_id,
+            invitation_id=invitation_id,
+            env=settings.checkr_env,
+        )
 
         raw_result = (data_object.get("result") or data_object.get("adjudication") or "").lower()
         normalized_result = {
@@ -175,6 +397,8 @@ async def handle_checkr_webhook(
                 package=package_value,
                 env=settings.checkr_env,
                 completed_at=completed_at,
+                candidate_id=candidate_id,
+                invitation_id=invitation_id,
             )
             if requires_follow_up and profile is not None:
                 logger.info(
@@ -216,6 +440,8 @@ async def handle_checkr_webhook(
                     "package": package_value,
                     "env": settings.checkr_env,
                     "completed_at": completed_at.isoformat(),
+                    "candidate_id": candidate_id,
+                    "invitation_id": invitation_id,
                 },
             )
         except Exception:  # pragma: no cover - safety fallback
@@ -238,17 +464,23 @@ async def handle_checkr_webhook(
                     "package": package_value,
                     "env": settings.checkr_env,
                     "completed_at": completed_at.isoformat(),
+                    "candidate_id": candidate_id,
+                    "invitation_id": invitation_id,
                 },
             )
 
         return WebhookAckResponse(ok=True)
 
     if event_type == "report.suspended":
+        report_id = resource_id
         if not report_id:
             return WebhookAckResponse(ok=True)
 
         try:
-            workflow_service.handle_report_suspended(report_id)
+            workflow_service.handle_report_suspended(
+                report_id,
+                _format_note(event_type, _extract_reason(data_object)),
+            )
             logger.info(
                 "Checkr webhook processed",
                 extra={
@@ -272,6 +504,51 @@ async def handle_checkr_webhook(
             )
         return WebhookAckResponse(ok=True)
 
-    # Other event types are acknowledged but ignored
+    report_status_events: dict[str, dict[str, str | None]] = {
+        "report.created": {"status": "pending", "note": None},
+        "report.updated": {"status": None, "note": "report.updated"},
+        "report.deferred": {"status": "pending", "note": None},
+        "report.canceled": {"status": "pending", "note": None},
+        "report.resumed": {"status": "pending", "note": "report.resumed"},
+        "report.disputed": {"status": "consider", "note": "report.disputed"},
+        "report.upgrade_failed": {"status": "pending", "note": None},
+    }
+
+    if event_type in report_status_events:
+        report_id = resource_id
+        if not report_id:
+            return WebhookAckResponse(ok=True)
+
+        candidate_id = _extract_candidate_id(data_object)
+        invitation_id = _extract_invitation_id(data_object)
+        _bind_report_to_profile(
+            repo,
+            report_id=report_id,
+            candidate_id=candidate_id,
+            invitation_id=invitation_id,
+            env=settings.checkr_env,
+        )
+
+        details = report_status_events[event_type]
+        note = details["note"]
+        if note is None:
+            note = _format_note(event_type, _extract_reason(data_object))
+        try:
+            _update_report_status(
+                repo,
+                report_id,
+                status=details["status"],
+                note=note,
+            )
+            _mark_delivery(delivery_key)
+        except RepositoryException as exc:
+            logger.warning(
+                "Failed to update report status from %s: %s",
+                event_type,
+                str(exc),
+                extra={"report_id": report_id},
+            )
+        return WebhookAckResponse(ok=True)
+
     logger.debug("Ignoring unsupported Checkr webhook event", extra={"event_type": event_type})
     return WebhookAckResponse(ok=True)

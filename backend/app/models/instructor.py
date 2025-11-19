@@ -104,6 +104,7 @@ class InstructorProfile(Base):
     bgc_status = Column(String(20), nullable=True)
     _bgc_report_id = Column("bgc_report_id", Text, nullable=True)
     bgc_completed_at = Column(DateTime(timezone=True), nullable=True)
+    bgc_report_result = Column(String(32), nullable=True)
     bgc_env = Column(String(20), nullable=False, default="sandbox", server_default="sandbox")
     bgc_valid_until = Column(DateTime(timezone=True), nullable=True)
     bgc_invited_at = Column(DateTime(timezone=True), nullable=True)
@@ -115,6 +116,9 @@ class InstructorProfile(Base):
     bgc_pre_adverse_notice_id = Column(String(26), nullable=True)
     bgc_pre_adverse_sent_at = Column(DateTime(timezone=True), nullable=True)
     bgc_final_adverse_sent_at = Column(DateTime(timezone=True), nullable=True)
+    checkr_candidate_id = Column(String(64), nullable=True)
+    checkr_invitation_id = Column(String(64), nullable=True)
+    bgc_note = Column(Text, nullable=True)
 
     def _get_bgc_report_id(self) -> str | None:
         """Decrypt the stored background-check report identifier."""
@@ -211,7 +215,7 @@ class InstructorProfile(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "bgc_status IN ('pending','passed','review','failed')",
+            "bgc_status IN ('pending','passed','review','failed','consider')",
             name="ck_instructor_profiles_bgc_status",
         ),
         CheckConstraint(
@@ -222,6 +226,8 @@ class InstructorProfile(Base):
             "(NOT is_live) OR (bgc_status = 'passed')",
             name="ck_live_requires_bgc_passed",
         ),
+        Index("ix_instructor_profiles_checkr_candidate_id", "checkr_candidate_id"),
+        Index("ix_instructor_profiles_checkr_invitation_id", "checkr_invitation_id"),
     )
 
     def __init__(self, **kwargs: Any) -> None:
@@ -450,6 +456,30 @@ class BackgroundJob(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BGCWebhookLog(Base):
+    """Append-only record of recent Checkr webhook deliveries."""
+
+    __tablename__ = "bgc_webhook_log"
+
+    id = Column(String(26), primary_key=True, index=True, default=lambda: str(ulid.ULID()))
+    event_type = Column(String(64), nullable=False)
+    delivery_id = Column(String(80), nullable=True)
+    resource_id = Column(String(64), nullable=True)
+    http_status = Column(Integer, nullable=True)
+    payload_json = Column(
+        JSONB(astext_type=Text()).with_variant(JSON(), "sqlite"),
+        nullable=False,
+    )
+    signature = Column(String(128), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_bgc_webhook_log_event_type_created_at", "event_type", "created_at"),
+        Index("ix_bgc_webhook_log_delivery_id", "delivery_id"),
+        Index("ix_bgc_webhook_log_http_status", "http_status", "created_at"),
     )
 
 

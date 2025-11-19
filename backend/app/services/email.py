@@ -56,7 +56,13 @@ class EmailService(BaseService):
         # Initialize Resend with API key
         api_key = settings.resend_api_key
         if not api_key:
-            raise ServiceException("Resend API key not configured")
+            if bool(getattr(settings, "is_testing", False)) or settings.site_mode in {
+                "local",
+                "int",
+            }:
+                api_key = ""
+            else:
+                raise ServiceException("Resend API key not configured")
 
         resend.api_key = api_key
 

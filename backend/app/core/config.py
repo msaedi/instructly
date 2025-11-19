@@ -29,7 +29,15 @@ except Exception:  # pragma: no cover - optional on CI
         return False
 
 
-from pydantic import Field, PrivateAttr, SecretStr, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    Field,
+    PrivateAttr,
+    SecretStr,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .constants import BRAND_NAME
@@ -68,6 +76,12 @@ def _classify_site_mode(raw_site_mode: str | None) -> tuple[str, bool, bool]:
     is_prod = normalized in PROD_SITE_MODES
     is_non_prod = normalized in NON_PROD_SITE_MODES
     return normalized, is_prod, is_non_prod
+
+
+def _default_session_cookie_name() -> str:
+    """Return default session cookie name."""
+
+    return "__Host-sid"
 
 
 def resolve_referrals_step(
@@ -137,6 +151,55 @@ class Settings(BaseSettings):
         description="Fernet key for encrypting TOTP secrets (optional in dev)",
     )
     two_factor_trust_days: int = Field(default=30, description="Days to trust a browser for 2FA")
+    temp_token_secret: SecretStr | None = Field(
+        default=None,
+        alias="TEMP_TOKEN_SECRET",
+        description="Optional override secret for 2FA temp tokens (defaults to SECRET_KEY)",
+    )
+    temp_token_iss: str = Field(
+        default="instainstru-auth",
+        alias="TEMP_TOKEN_ISS",
+        description="Issuer claim for temporary 2FA tokens",
+    )
+    temp_token_aud: str = Field(
+        default="instainstru-2fa",
+        alias="TEMP_TOKEN_AUD",
+        description="Audience claim for temporary 2FA tokens",
+    )
+    session_cookie_name: str = Field(
+        default_factory=_default_session_cookie_name,
+        alias="SESSION_COOKIE_NAME",
+        description="Session cookie name",
+    )
+    session_cookie_secure: bool = Field(
+        default=False,
+        alias="SESSION_COOKIE_SECURE",
+        description="Whether session cookies must be marked Secure",
+    )
+    session_cookie_samesite: Literal["lax", "strict", "none"] = Field(
+        default="lax",
+        alias="SESSION_COOKIE_SAMESITE",
+        description="SameSite attribute applied to session cookies",
+    )
+    session_cookie_domain: str | None = Field(
+        default=None,
+        description="Optional Domain attribute for session cookies (omit for __Host- cookies)",
+    )
+    email_provider: Literal["console", "resend"] = Field(
+        default="console",
+        alias="EMAIL_PROVIDER",
+        description="Email provider name",
+    )
+    resend_api_key: str | None = Field(
+        default=None,
+        alias="RESEND_API_KEY",
+        description="API key for Resend provider (optional)",
+    )
+    totp_valid_window: int = Field(
+        default=0,
+        alias="TOTP_VALID_WINDOW",
+        description="TOTP valid window tolerance",
+    )
 
     # Raw database URLs - DO NOT USE DIRECTLY! Use properties instead
     # Explicit env names (no backward compatibility):
@@ -168,7 +231,6 @@ class Settings(BaseSettings):
     is_testing: bool = False  # Set to True when running tests
 
     # Email settings
-    resend_api_key: str = ""
     from_email: str = "InstaInstru <hello@instainstru.com>"
     email_from_address: str | None = Field(
         default=None,
@@ -235,7 +297,8 @@ class Settings(BaseSettings):
         description="Checkr API key for background check operations",
     )
     checkr_package: str = Field(
-        default="essential",
+        default="basic_plus",
+        validation_alias=AliasChoices("CHECKR_DEFAULT_PACKAGE", "CHECKR_PACKAGE"),
         description="Default Checkr package to request for instructor background checks",
     )
     checkr_api_base: str = Field(
@@ -245,6 +308,20 @@ class Settings(BaseSettings):
     checkr_webhook_secret: SecretStr = Field(
         default=SecretStr(""),
         description="Shared secret for verifying Checkr webhook signatures",
+    )
+    checkr_webhook_user: SecretStr | None = Field(
+        default=None,
+        alias="CHECKR_WEBHOOK_USER",
+        description="Optional basic-auth username expected on Checkr webhook requests",
+    )
+    checkr_webhook_pass: SecretStr | None = Field(
+        default=None,
+        alias="CHECKR_WEBHOOK_PASS",
+        description="Optional basic-auth password expected on Checkr webhook requests",
+    )
+    checkr_hosted_workflow: str | None = Field(
+        default=None,
+        description="Optional workflow parameter for Checkr invitations (e.g., checkr_hosted)",
     )
     checkr_applicant_portal_url: str = Field(
         default="https://applicant.checkr.com/",
@@ -269,6 +346,10 @@ class Settings(BaseSettings):
     bgc_suppress_expiry_emails: bool = Field(
         default=True,
         description="When true, suppress background-check expiry reminder emails",
+    )
+    bgc_expiry_enabled: bool = Field(
+        default=False,
+        description="Enable automated background-check expiry sweeps and demotions",
     )
     bgc_encryption_key: str | None = Field(
         default=None,
@@ -443,6 +524,52 @@ class Settings(BaseSettings):
         case_sensitive=False,  # Changed to False - allows SECRET_KEY to match secret_key
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def _derive_cookie_policy(self) -> "Settings":
+        """Normalize session cookie attributes per site mode."""
+
+        raw_mode = (os.getenv("SITE_MODE", "") or "").strip().lower()
+        normalized, is_prod, is_non_prod = _classify_site_mode(raw_mode or self.site_mode)
+        hosted = normalized == "preview" or is_prod or normalized in {"stg", "stage", "staging"}
+
+        if hosted:
+            self.session_cookie_secure = True
+            self.session_cookie_samesite = "lax"
+            # __Host- cookies require Domain omission
+            self.session_cookie_domain = None
+        elif not is_prod and not is_non_prod:
+            # Unknown modes default to secure cookies unless explicitly disabled
+            self.session_cookie_secure = bool(self.session_cookie_secure)
+        # Keep caller-provided overrides for non-hosted environments (e.g., local HTTP)
+
+        if not bool(self.session_cookie_secure) and str(self.session_cookie_name or "").startswith(
+            "__Host-"
+        ):
+            logger.warning(
+                "SESSION_COOKIE_NAME %s uses __Host- prefix but SESSION_COOKIE_SECURE is false. "
+                "For local HTTP, set SESSION_COOKIE_NAME=sid_local (or similar) or enable HTTPS.",
+                self.session_cookie_name,
+            )
+        return self
+
+    @field_validator("session_cookie_secure", mode="before")
+    @classmethod
+    def _coerce_cookie_secure(cls, value: object) -> bool | object:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+    @field_validator("session_cookie_samesite", mode="before")
+    @classmethod
+    def _normalize_samesite(cls, value: object) -> str:
+        if value is None:
+            return "lax"
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"lax", "strict", "none"}:
+                return normalized
+        raise ValueError("SESSION_COOKIE_SAMESITE must be one of: lax, strict, none")
 
     # Public API Configuration
     public_availability_days: int = Field(
@@ -625,6 +752,11 @@ class Settings(BaseSettings):
     )
 
     # Cloudflare R2 (S3-compatible) configuration for asset uploads
+    r2_enabled: bool = Field(
+        default=True,
+        alias="R2_ENABLED",
+        description="Toggle Cloudflare R2 integration (set to false/0 to disable)",
+    )
     r2_account_id: str = Field(default="", description="Cloudflare R2 Account ID")
     r2_access_key_id: str = Field(default="", description="R2 access key ID")
     r2_secret_access_key: SecretStr = Field(
@@ -643,6 +775,7 @@ class Settings(BaseSettings):
     prometheus_bearer_token: str = Field(
         default="", description="Optional bearer token for Prometheus API"
     )
+    email_enabled: bool = Field(default=True, description="Flag to enable/disable email sending")
 
     @property
     def webhook_secrets(self) -> list[str]:
@@ -777,6 +910,22 @@ class Settings(BaseSettings):
                 self.checkr_fake = True
             elif is_prod:
                 self.checkr_fake = False
+        return self
+
+    @model_validator(mode="after")
+    def _default_checkr_base(self) -> "Settings":
+        """Align Checkr base URL with the configured environment when unset."""
+
+        fields_set = cast(Set[str], getattr(self, "model_fields_set", set()))
+        env_override = "CHECKR_API_BASE" in os.environ or "checkr_api_base" in fields_set
+        if env_override:
+            return self
+
+        normalized_env = (self.checkr_env or "sandbox").strip().lower()
+        if normalized_env == "sandbox":
+            self.checkr_api_base = "https://api.checkr-staging.com/v1"
+        else:
+            self.checkr_api_base = "https://api.checkr.com/v1"
         return self
 
     @model_validator(mode="after")

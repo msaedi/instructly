@@ -48,7 +48,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Setup Node.js (admin)
+      if: ${{ matrix.project == 'admin' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+
     - name: Setup Node.js
+      if: ${{ matrix.project != 'admin' }}
       uses: actions/setup-node@v4
       with:
         node-version: '22.x'
@@ -96,10 +103,15 @@ jobs:
       NEXT_PUBLIC_APP_URL: http://localhost:3100
       PORT: 3100  # Ensure Next.js dev server binds to the right port
       PLAYWRIGHT_BASE_URL: http://localhost:3100
+      SESSION_COOKIE_NAME: ${{ vars.SESSION_COOKIE_NAME || 'sid' }}
+      SESSION_COOKIE_SAMESITE: ${{ vars.SESSION_COOKIE_SAMESITE || 'Lax' }}
+      SESSION_COOKIE_SECURE: ${{ vars.SESSION_COOKIE_SECURE || 'false' }}
+      CI_DEBUG_STORAGE: '1'
 
       # Backend - Ensure tests bypass beta gates
       SITE_MODE: local
       is_testing: 'true'
+      TOTP_VALID_WINDOW: '1'
       CORS_ALLOW_ORIGINS: http://localhost:3100
       CORS_ALLOW_HEADERS: content-type,authorization,x-requested-with,x-csrf-token
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
@@ -121,6 +133,7 @@ jobs:
       E2E_CROSS_ORIGIN: "0"
       E2E_ENABLE_INVITES: "0"
       E2E_PROJECT: ${{ matrix.project }}
+      EMAIL_PROVIDER: console
 
     services:
       postgres:
@@ -188,6 +201,13 @@ jobs:
         echo "::add-mask::sk_test_"
         echo "::add-mask::service_role"
 
+    - name: Print cookie env
+      run: |
+        echo "PLAYWRIGHT_BASE_URL=$PLAYWRIGHT_BASE_URL"
+        echo "SESSION_COOKIE_NAME=$SESSION_COOKIE_NAME"
+        echo "SESSION_COOKIE_SAMESITE=$SESSION_COOKIE_SAMESITE"
+        echo "SESSION_COOKIE_SECURE=$SESSION_COOKIE_SECURE"
+
     - name: Clean up existing processes
       run: |
         set -euo pipefail
@@ -220,21 +240,37 @@ jobs:
           || psql "postgresql://postgres:postgres@localhost:5432/postgres" -c "CREATE DATABASE instainstru_test"
 
     # Backend setup
-    - name: Setup Python
+    - name: Setup Python (admin)
+      if: ${{ matrix.project == 'admin' }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Setup Python (non-admin)
+      if: ${{ matrix.project != 'admin' }}
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         cache: 'pip'
         cache-dependency-path: backend/requirements.txt
 
+    - name: Check disk usage (before backend deps)
+      run: df -h
+
     - name: Install backend dependencies
       working-directory: ./backend
+      env:
+        PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
+        PIP_EXTRA_INDEX_URL: https://pypi.org/simple
       run: |
         pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install --no-cache-dir -r requirements.txt
         echo "=== Key Python packages ==="
         pip freeze | grep -E 'fastapi|uvicorn|psycopg2|sqlalchemy|pydantic|redis' || true
         echo "==========================="
+
+    - name: Check disk usage (after backend deps)
+      run: df -h
 
     - name: Setup and seed test database
       working-directory: ./backend
@@ -401,6 +437,7 @@ jobs:
       run: npm ci
 
     - name: Cache Playwright & Next caches
+      if: ${{ matrix.project != 'admin' }}
       uses: actions/cache@v3
       with:
         path: |
@@ -541,12 +578,12 @@ jobs:
 
         # Count quarantined tests (informational)
         QUARANTINE_COUNT=$(grep -r '@quarantine' e2e/tests/ 2>/dev/null | wc -l || echo 0)
-        if [ "$QUARANTINE_COUNT" -gt "5" ]; then
+        if [ "${QUARANTINE_COUNT:-0}" -gt "5" ]; then
           echo ""
           echo "::warning::⚠️ $QUARANTINE_COUNT tests are quarantined (max recommended: 5)"
           echo "⚠️ Warning: $QUARANTINE_COUNT tests are quarantined (max recommended: 5)"
           echo "Please review and fix quarantined tests"
-        elif [ "$QUARANTINE_COUNT" -gt "0" ]; then
+        elif [ "${QUARANTINE_COUNT:-0}" -gt "0" ]; then
           echo ""
           echo "::notice::ℹ️ $QUARANTINE_COUNT test(s) currently quarantined"
           echo "ℹ️ Note: $QUARANTINE_COUNT test(s) currently quarantined"
@@ -596,6 +633,12 @@ jobs:
           backend/backend.log
           frontend/frontend.log
         retention-days: 3
+
+    - name: Cleanup heavy caches (admin only)
+      if: ${{ matrix.project == 'admin' }}
+      run: |
+        rm -rf ~/.cache/ms-playwright || true
+        rm -rf frontend/.next/cache || true
 
     - name: Cleanup processes
       if: always()
@@ -687,11 +730,20 @@ jobs:
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
 
+      - name: Check disk usage (before backend deps)
+        run: df -h
+
       - name: Install backend dependencies
         working-directory: backend
+        env:
+          PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
+          PIP_EXTRA_INDEX_URL: https://pypi.org/simple
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Check disk usage (after backend deps)
+        run: df -h
 
       - name: Prepare database
         working-directory: backend
@@ -875,11 +927,20 @@ jobs:
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
 
+      - name: Check disk usage (before backend deps)
+        run: df -h
+
       - name: Install backend dependencies
         working-directory: backend
+        env:
+          PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
+          PIP_EXTRA_INDEX_URL: https://pypi.org/simple
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Check disk usage (after backend deps)
+        run: df -h
 
       - name: Prepare database
         working-directory: backend

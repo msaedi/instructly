@@ -25,8 +25,21 @@ from sqlalchemy.orm import Session
 from app.core.timezone_utils import get_user_today_by_id
 from app.core.ulid_helper import generate_ulid
 from app.models.user import User
+from app.repositories.factory import RepositoryFactory
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
+
+
+class _StaticUserRepository:
+    """Minimal stub that mimics UserRepository.get_by_id behavior for tests."""
+
+    def __init__(self, users: list[User | Mock]):
+        self._users = {}
+        for user in users:
+            self._users[str(user.id)] = user
+
+    def get_by_id(self, user_id, *args, **kwargs):  # noqa: ANN001 - signature matches real method
+        return self._users.get(str(user_id))
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -116,14 +129,8 @@ class TestCrossTimezoneBookings:
         student.id = generate_ulid()
         student.timezone = "America/Chicago"  # Central Time (1 hour behind)
 
-        # Mock the database queries
-        mock_query = Mock()
-        mock_filter = Mock()
-        mock_filter.first.side_effect = [instructor, student]
-        mock_query.filter.return_value = mock_filter
-
-        # Replace db.query with our mock
-        with patch.object(db, "query", return_value=mock_query):
+        repo = _StaticUserRepository([instructor, student])
+        with patch.object(RepositoryFactory, "create_user_repository", return_value=repo):
             # Mock datetime to noon Eastern
             with patch("app.core.timezone_utils.datetime") as mock_dt:
                 # Set to Jan 15, 2024 noon EST
@@ -232,12 +239,8 @@ class TestDSTTransitions:
         instructor.id = 1
         instructor.timezone = "America/New_York"
 
-        mock_query = Mock()
-        mock_filter = Mock()
-        mock_filter.first.return_value = instructor
-        mock_query.filter.return_value = mock_filter
-
-        with patch.object(db, "query", return_value=mock_query):
+        repo = _StaticUserRepository([instructor])
+        with patch.object(RepositoryFactory, "create_user_repository", return_value=repo):
             # Test on the day before DST transition
             with patch("app.core.timezone_utils.datetime") as mock_dt:
                 # 11 PM EST on March 9
@@ -272,12 +275,8 @@ class TestInternationalDateLine:
         student.id = 2
         student.timezone = "Pacific/Niue"
 
-        mock_query = Mock()
-        mock_filter = Mock()
-        mock_filter.first.side_effect = [instructor, student]
-        mock_query.filter.return_value = mock_filter
-
-        with patch.object(db, "query", return_value=mock_query):
+        repo = _StaticUserRepository([instructor, student])
+        with patch.object(RepositoryFactory, "create_user_repository", return_value=repo):
             # Control the instant to make the test deterministic
             # Use a fixed UTC time so Kiritimati (UTC+14) is one calendar day ahead of Niue (UTC-11)
             with patch("app.core.timezone_utils.datetime") as mock_dt:
@@ -310,12 +309,8 @@ class TestInternationalDateLine:
         student.id = 2
         student.timezone = "Pacific/Honolulu"
 
-        mock_query = Mock()
-        mock_filter = Mock()
-        mock_filter.first.side_effect = [instructor, student]
-        mock_query.filter.return_value = mock_filter
-
-        with patch.object(db, "query", return_value=mock_query):
+        repo = _StaticUserRepository([instructor, student])
+        with patch.object(RepositoryFactory, "create_user_repository", return_value=repo):
             # When it's early Monday morning in Auckland (1 AM)
             # Auckland is UTC+13 in January (DST), Honolulu is UTC-10
             # So they're 23 hours apart
@@ -361,12 +356,8 @@ class TestCIEnvironment:
             mock_datetime.combine = datetime.combine
 
             for user in users:
-                mock_query = Mock()
-                mock_filter = Mock()
-                mock_filter.first.return_value = user
-                mock_query.filter.return_value = mock_filter
-
-                with patch.object(db, "query", return_value=mock_query):
+                repo = _StaticUserRepository([user])
+                with patch.object(RepositoryFactory, "create_user_repository", return_value=repo):
                     # Each user should get their correct local date
                     user_today = get_user_today_by_id(user.id, db)
 

@@ -145,35 +145,44 @@ def public_logout(response_obj: Response, request: Request) -> Response:
 
     This does not revoke server sessions; it only instructs the browser to drop cookies.
     """
-    import os as _os
-
-    site_mode = (_os.getenv("SITE_MODE", "").lower().strip()) or "local"
-    cookie_kwargs: Dict[str, Union[str, bool]] = {"path": "/"}
-    if site_mode in {"preview", "prod", "production", "live", "beta"}:
-        cookie_kwargs["secure"] = True
-        cookie_kwargs["domain"] = ".instainstru.com"
+    secure_flag = bool(settings.session_cookie_secure)
+    samesite = settings.session_cookie_samesite or "lax"
+    domain = settings.session_cookie_domain
 
     resp = Response(status_code=status.HTTP_204_NO_CONTENT)
-    # Clear guest cookie
-    resp.delete_cookie("guest_id", **cookie_kwargs)
-    # Clear session cookies by env
-    session_names = session_cookie_candidates(site_mode)
-    if session_names:
-        resp.delete_cookie(session_names[0], path="/")
 
-    if site_mode in {"preview", "prod", "production", "live", "beta"} and len(session_names) > 1:
-        legacy_kwargs: Dict[str, Union[str, bool]] = {"path": "/", "domain": ".instainstru.com"}
-        legacy_kwargs["secure"] = True
-        resp.delete_cookie(session_names[-1], **legacy_kwargs)
-        # Also clear any lingering preview/prod cookie variants for safety
-        for legacy_name in session_names[1:-1]:
-            resp.delete_cookie(legacy_name, **legacy_kwargs)
-    elif (
-        site_mode not in {"preview", "prod", "production", "live", "beta"}
-        and len(session_names) > 1
-    ):
+    def _delete_session_cookie(name: str, *, domain: str | None = None) -> None:
+        resp.delete_cookie(
+            key=name,
+            path="/",
+            domain=domain,
+            secure=secure_flag,
+            httponly=True,
+            samesite=samesite,
+        )
+
+    # Clear guest cookie
+    resp.delete_cookie(
+        "guest_id",
+        path="/",
+        secure=secure_flag,
+        httponly=True,
+        samesite=samesite,
+        domain=domain,
+    )
+    # Clear session cookies by env
+    session_names = session_cookie_candidates(settings.site_mode)
+    if session_names:
+        _delete_session_cookie(session_names[0])
+
+    if len(session_names) > 1:
         for legacy_name in session_names[1:]:
-            resp.delete_cookie(legacy_name, path="/")
+            legacy_domain = None
+            if settings.site_mode in {"preview", "prod"}:
+                legacy_domain = ".instainstru.com"
+            if legacy_name.startswith("__Host-"):
+                legacy_domain = None
+            _delete_session_cookie(legacy_name, domain=legacy_domain)
     return resp
 
 

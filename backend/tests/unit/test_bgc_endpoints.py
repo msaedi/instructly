@@ -1,17 +1,21 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from typing import Any
 
 import pytest
 
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.services import get_background_check_service
 from app.auth import get_password_hash
-from app.integrations.checkr_client import CheckrClient
+from app.core.config import settings
+from app.core.exceptions import ServiceException
+from app.integrations.checkr_client import CheckrClient, CheckrError
 from app.main import fastapi_app as app
 from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.background_check_service import BackgroundCheckService
+from app.services.geocoding.base import GeocodingProvider, GeocodingProviderError
 
 CSRF_COOKIE = "csrftoken"
 CSRF_HEADER = "X-CSRFToken"
@@ -87,8 +91,12 @@ def override_background_check_service(db):
             async def create_candidate(self, **payload):  # type: ignore[override]
                 return {"id": "cand_test"}
 
-            async def create_invitation(self, *, candidate_id: str, package: str):  # type: ignore[override]
-                return {"id": "inv_test", "report_id": "rpt_123"}
+            async def create_invitation(self, **payload):  # type: ignore[override]
+                return {
+                    "id": "inv_test",
+                    "report_id": "rpt_123",
+                    **payload,
+                }
 
         client = DummyCheckr(api_key="sk_test", base_url="https://api.checkr.com/v1")
         return BackgroundCheckService(
@@ -108,6 +116,16 @@ def override_background_check_service(db):
 @pytest.fixture(autouse=True)
 def force_local_site_mode(monkeypatch):
     monkeypatch.setenv("SITE_MODE", "local")
+
+
+@pytest.fixture(autouse=True)
+def mock_geocoding_provider(monkeypatch):
+    previous = settings.geocoding_provider
+    settings.geocoding_provider = "mock"
+    try:
+        yield
+    finally:
+        settings.geocoding_provider = previous
 
 
 @pytest.fixture
@@ -193,6 +211,251 @@ def test_invite_requires_recent_consent(client, db, owner_auth_override):
 
     _record_consent(client, profile.id, headers)
 
+
+def test_invite_returns_specific_error_on_checkr_auth_failure(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    class AuthFailureService:
+        config_error = None
+        package = "essential"
+
+        async def invite(self, *_args, **_kwargs):
+            err = CheckrError("Unauthorized", status_code=401, error_type="auth_error")
+            raise ServiceException("Checkr rejected credentials") from err
+
+    previous_service = app.dependency_overrides[get_background_check_service]
+    app.dependency_overrides[get_background_check_service] = lambda: AuthFailureService()
+    try:
+        response = client.post(
+            f"/api/instructors/{profile.id}/bgc/invite",
+            headers=headers,
+            json={},
+        )
+    finally:
+        app.dependency_overrides[get_background_check_service] = previous_service
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "checkr_auth_error"
+    assert payload["title"] == "Checkr authentication failed"
+
+
+def test_recheck_returns_specific_error_on_checkr_auth_failure(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="passed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    class AuthFailureService:
+        config_error = None
+
+        async def invite(self, *_args, **_kwargs):
+            err = CheckrError("Unauthorized", status_code=401, error_type="auth_error")
+            raise ServiceException("Checkr rejected credentials") from err
+
+    previous_service = app.dependency_overrides[get_background_check_service]
+    app.dependency_overrides[get_background_check_service] = lambda: AuthFailureService()
+    try:
+        response = client.post(
+            f"/api/instructors/{profile.id}/bgc/recheck",
+            headers=headers,
+            json={},
+        )
+    finally:
+        app.dependency_overrides[get_background_check_service] = previous_service
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "checkr_auth_error"
+    assert payload["title"] == "Checkr authentication failed"
+
+
+def test_invite_returns_specific_error_on_package_not_found(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    class PackageFailureService:
+        config_error = None
+        package = "missing_package"
+
+        async def invite(self, *_args, **_kwargs):
+            err = CheckrError(
+                "Package not found",
+                status_code=404,
+                error_type="not_found",
+                error_body={"error": "Package not found"},
+            )
+            raise ServiceException("Invalid package") from err
+
+    previous_service = app.dependency_overrides[get_background_check_service]
+    app.dependency_overrides[get_background_check_service] = lambda: PackageFailureService()
+    try:
+        response = client.post(
+            f"/api/instructors/{profile.id}/bgc/invite",
+            headers=headers,
+            json={},
+        )
+    finally:
+        app.dependency_overrides[get_background_check_service] = previous_service
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "checkr_package_not_found"
+    assert payload["title"] == "Checkr package misconfigured"
+    assert "package slug does not exist" in payload["detail"]
+
+
+def test_recheck_returns_specific_error_on_package_not_found(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="passed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    class PackageFailureService:
+        config_error = None
+
+        async def invite(self, *_args, **_kwargs):
+            err = CheckrError(
+                "Package not found",
+                status_code=404,
+                error_type="not_found",
+                error_body="Package not found",
+            )
+            raise ServiceException("Invalid package") from err
+
+    previous_service = app.dependency_overrides[get_background_check_service]
+    app.dependency_overrides[get_background_check_service] = lambda: PackageFailureService()
+    try:
+        response = client.post(
+            f"/api/instructors/{profile.id}/bgc/recheck",
+            headers=headers,
+            json={},
+        )
+    finally:
+        app.dependency_overrides[get_background_check_service] = previous_service
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "checkr_package_not_found"
+    assert payload["title"] == "Checkr package misconfigured"
+
+
+def test_invite_includes_work_location_payloads(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+    owner.zip_code = "10036"
+    db.add(owner)
+    db.commit()
+
+    captured: dict[str, dict[str, Any]] = {}
+
+    def _override():
+        repository = InstructorProfileRepository(db)
+
+        class CaptureCheckr(CheckrClient):
+            async def create_candidate(self, **payload):  # type: ignore[override]
+                captured["candidate"] = payload
+                return {"id": "cand_cap"}
+
+            async def create_invitation(self, **payload):  # type: ignore[override]
+                captured["invitation"] = payload
+                return {
+                    "id": "inv_cap",
+                    "report_id": "rpt_cap",
+                    **payload,
+                }
+
+        client_obj = CaptureCheckr(api_key="sk_test", base_url="https://api.checkr.com/v1")
+        return BackgroundCheckService(
+            db,
+            client=client_obj,
+            repository=repository,
+            package="essential",
+            env="sandbox",
+        )
+
+    app.dependency_overrides[get_background_check_service] = _override
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+
+    assert response.status_code == 200
+    candidate_payload = captured["candidate"]
+    invitation_payload = captured["invitation"]
+    assert candidate_payload["zipcode"] == "10036"
+    assert candidate_payload["work_location"]["state"] == "NY"
+    assert candidate_payload["work_location"]["city"] == "New York"
+    assert invitation_payload["work_locations"][0]["state"] == "NY"
+    assert invitation_payload["work_locations"][0]["city"] == "New York"
+
+
+def test_invite_returns_error_when_zip_missing(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+    owner.zip_code = ""
+    db.add(owner)
+    db.commit()
+
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "invalid_work_location"
+    assert payload["title"] == "Invalid work location"
+    assert (
+        payload["detail"]
+        == "We couldn't verify your primary teaching ZIP code. Please check it and try again."
+    )
+
+
+def test_invite_returns_specific_error_on_checkr_work_location_failure(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    class WorkLocationFailureService:
+        config_error = None
+        package = "essential"
+
+        async def invite(self, *_args, **_kwargs):
+            err = CheckrError(
+                "work_locations is invalid",
+                status_code=400,
+                error_type="invalid_request_error",
+                error_body="work_locations is invalid",
+            )
+            raise ServiceException("Work location rejected") from err
+
+    original_service = app.dependency_overrides[get_background_check_service]
+    app.dependency_overrides[get_background_check_service] = lambda: WorkLocationFailureService()
+    try:
+        response = client.post(
+            f"/api/instructors/{profile.id}/bgc/invite",
+            headers=headers,
+            json={},
+        )
+        assert response.status_code == 400
+        payload = response.json()
+        assert payload["code"] == "checkr_work_location_error"
+        assert payload["title"] == "Checkr work location error"
+    finally:
+        app.dependency_overrides[get_background_check_service] = original_service
+
     valid_response = client.post(
         f"/api/instructors/{profile.id}/bgc/invite",
         headers=headers,
@@ -200,6 +463,96 @@ def test_invite_requires_recent_consent(client, db, owner_auth_override):
     )
 
     assert valid_response.status_code == 200
+
+
+def test_invite_returns_provider_error_when_geocoder_unavailable(client, db, owner_auth_override, monkeypatch):
+    owner, profile = _create_instructor(db, status="failed")
+    owner.zip_code = "10036"
+    db.add(owner)
+    db.commit()
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    class ProviderStub(GeocodingProvider):
+        async def geocode(self, address: str):
+            raise GeocodingProviderError(
+                provider="google_geocode",
+                status="REQUEST_DENIED",
+                message="API key disabled",
+                payload={"zip": address},
+            )
+
+        async def reverse_geocode(self, lat: float, lng: float):
+            return None
+
+        async def autocomplete(self, *args, **kwargs):
+            return []
+
+        async def get_place_details(self, place_id: str):
+            return None
+
+    monkeypatch.setattr(
+        "app.services.background_check_service.create_geocoding_provider",
+        lambda: ProviderStub(),
+    )
+
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "geocoding_provider_error"
+    assert payload["title"] == "Location lookup unavailable"
+    provider_error = payload.get("provider_error") or {}
+    assert provider_error.get("status") == "REQUEST_DENIED"
+    assert provider_error.get("zip") == "10036"
+
+
+def test_invite_returns_invalid_work_location_for_unresolvable_zip(
+    client, db, owner_auth_override, monkeypatch
+):
+    owner, profile = _create_instructor(db, status="failed")
+    owner.zip_code = "99999"
+    db.add(owner)
+    db.commit()
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    class ZeroResultProvider(GeocodingProvider):
+        async def geocode(self, address: str):
+            return None
+
+        async def reverse_geocode(self, lat: float, lng: float):
+            return None
+
+        async def autocomplete(self, *args, **kwargs):
+            return []
+
+        async def get_place_details(self, place_id: str):
+            return None
+
+    monkeypatch.setattr(
+        "app.services.background_check_service.create_geocoding_provider",
+        lambda: ZeroResultProvider(),
+    )
+
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["code"] == "invalid_work_location"
+    assert payload["title"] == "Invalid work location"
+    assert "99999" in payload["detail"]
+    debug_info = payload.get("debug") or {}
+    assert debug_info.get("reason") == "zero_results"
+    assert debug_info.get("zip") == "99999"
 
 
 def test_invite_forbidden_for_other_users(client, db):
@@ -231,6 +584,68 @@ def test_invite_forbidden_for_other_users(client, db):
         app.dependency_overrides.pop(get_current_user, None)
 
     assert response.status_code == 403
+
+
+def test_invite_200_json(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    headers["Origin"] = "http://localhost:3000"
+    _record_consent(client, profile.id, headers)
+
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["status"] == "pending"
+    assert response.headers.get("access-control-allow-origin") == headers["Origin"]
+
+
+def test_invite_4xx_single_send_cors(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    headers["Origin"] = "http://beta-local.instainstru.com:3000"
+    _record_consent(client, profile.id, headers)
+
+    original_override = app.dependency_overrides.get(get_background_check_service)
+
+    class ErroringService:
+        config_error = None
+        package = "essential"
+
+        async def invite(self, *_args, **_kwargs):
+            raise ServiceException(
+                "Failed to initiate instructor background check"
+            ) from CheckrError(
+                "Checkr API responded with status 422",
+                status_code=422,
+                error_type="validation_error",
+            )
+
+    app.dependency_overrides[get_background_check_service] = lambda: ErroringService()
+    try:
+        response = client.post(
+            f"/api/instructors/{profile.id}/bgc/invite",
+            headers=headers,
+            json={},
+        )
+    finally:
+        if original_override is None:
+            app.dependency_overrides.pop(get_background_check_service, None)
+        else:
+            app.dependency_overrides[get_background_check_service] = original_override
+
+    assert response.status_code == 400
+    problem = response.json()
+    assert problem["code"] == "bgc_invite_failed"
+    assert problem["checkr_error"]["http_status"] == 422
+    assert response.headers.get("access-control-allow-origin") == headers["Origin"]
 
 
 def test_status_endpoint_returns_current_values(client, db):

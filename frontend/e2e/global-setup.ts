@@ -2,18 +2,10 @@ import type { FullConfig } from '@playwright/test';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { env } from '@/lib/env';
+import { buildStorageStateCookie, resolveSessionCookieName, type StorageStateCookie } from './support/cookies';
 
 interface StorageState {
-  cookies: Array<{
-    name: string;
-    value: string;
-    domain: string;
-    path: string;
-    expires: number;
-    httpOnly: boolean;
-    secure: boolean;
-    sameSite: 'Strict' | 'Lax' | 'None';
-  }>;
+  cookies: StorageStateCookie[];
   origins: unknown[];
 }
 
@@ -56,11 +48,17 @@ async function ensureDir(dirPath: string) {
 
 async function globalSetup(_config: FullConfig) {
   const projectRoot = process.cwd();
-  const storageDir = path.join(projectRoot, 'e2e', '.auth');
-  const storageFile = path.join(storageDir, 'state.json');
+  const storageDir = path.join(projectRoot, 'e2e', '.storage');
+  const storageFile = path.join(storageDir, 'instructor.json');
   await ensureDir(storageDir);
 
   const token = await readEnvToken(projectRoot);
+  const baseURL = (process.env.BASE_URL || process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100').trim() || 'http://localhost:3100';
+  const resolvedSessionCookie = resolveSessionCookieName(baseURL, process.env.SESSION_COOKIE_NAME ?? null);
+  process.stdout.write(`[E2E] storage cookie policy: base=${baseURL} name=${resolvedSessionCookie}\n`);
+  if (baseURL.startsWith('http://') && resolvedSessionCookie.startsWith('__Host-')) {
+    throw new Error(`Cannot persist __Host-* session cookie on HTTP base URL: ${baseURL}`);
+  }
 
   const thirtyDaysFromNow = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30;
 
@@ -70,16 +68,15 @@ async function globalSetup(_config: FullConfig) {
   };
 
   if (token) {
-    storageState.cookies.push({
+    const ssCookie = buildStorageStateCookie({
+      baseURL,
       name: 'staff_access_token',
       value: token,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
       expires: thirtyDaysFromNow,
     });
+    if (ssCookie) {
+      storageState.cookies.push(ssCookie);
+    }
   }
 
   await fs.writeFile(storageFile, JSON.stringify(storageState, null, 2), 'utf8');

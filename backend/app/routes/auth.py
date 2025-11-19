@@ -17,7 +17,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.services import get_auth_service
-from ..auth import create_access_token, get_current_user
+from ..auth import create_access_token, create_temp_token, get_current_user
 from ..core.config import settings
 from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..database import get_db
@@ -73,9 +73,9 @@ def _issue_two_factor_challenge_if_needed(
     if extra_claims:
         temp_claims.update(extra_claims)
 
-    temp_token = create_access_token(
+    temp_token = create_temp_token(
         data=temp_claims,
-        expires_delta=timedelta(minutes=5),
+        expires_delta=timedelta(seconds=60),
     )
     return LoginResponse(requires_2fa=True, temp_token=temp_token)
 
@@ -217,7 +217,7 @@ async def login(
         auth_service: Authentication service
 
     Returns:
-        AuthTokenResponse: Access token and token type
+        LoginResponse: Access token metadata for the client
 
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
@@ -267,6 +267,7 @@ async def login(
         base_cookie_name,
         access_token,
         max_age=settings.access_token_expire_minutes * 60,
+        domain=settings.session_cookie_domain,
     )
 
     if site_mode != "local":
@@ -343,7 +344,7 @@ async def login_with_session(
         db: Database session
 
     Returns:
-        AuthTokenResponse: Access token and token type
+        LoginResponse: Access token metadata for the client
 
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
@@ -386,6 +387,7 @@ async def login_with_session(
         base_cookie_name,
         access_token,
         max_age=settings.access_token_expire_minutes * 60,
+        domain=settings.session_cookie_domain,
     )
 
     if site_mode != "local":

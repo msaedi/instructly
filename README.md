@@ -92,6 +92,33 @@ docker-compose up -d
 # See: https://dragonflydb.io/docs/getting-started
 
 ```
+
+## 🔐 Local Checkr Sandbox
+
+Spin up the hosted-invite flow against Checkr's staging stack in three quick steps:
+
+1. **Export the sandbox env vars** in `backend/.env` (restart the API afterwards):
+   ```
+   CHECKR_ENV=sandbox
+   CHECKR_FAKE=false
+   CHECKR_API_KEY=<staging secret from the Checkr dashboard>
+   CHECKR_DEFAULT_PACKAGE=basic_plus
+   CHECKR_WEBHOOK_USER=<basic-auth user you control>
+   CHECKR_WEBHOOK_PASS=<basic-auth password>
+   CHECKR_WEBHOOK_URL=https://USER:PASS@<trycloudflare>.trycloudflare.com/webhooks/checkr/
+   ```
+   `CHECKR_WEBHOOK_USER/PASS` gate the FastAPI endpoint, so keep them in sync with the `https://user:pass@...` tunnel URL you give Checkr.
+2. **Expose the webhook locally**: `cloudflared tunnel --url http://localhost:8000` (or use ngrok) and give Checkr the tunnel URL that terminates on `/webhooks/checkr/`. The backend accepts HTTP Basic Auth and returns immediately, so tunnels stay responsive.
+3. **Subscribe in the Checkr sandbox dashboard** to:
+   ```
+   invitation.created, invitation.completed,
+   report.created, report.updated, report.completed,
+   report.disputed, report.resumed, report.suspended,
+   report.canceled, report.upgrade_failed, report.deferred
+   ```
+   These are stored in `bgc_webhook_log` (last 200 events) and viewable at `/admin/bgc-webhooks`.
+
+To send a test invite, open `/admin/bgc-review`, pick any instructor row, and click the new **Invite** button (or `POST /api/instructors/{id}/bgc/invite`). Watch `/admin/bgc-webhooks` populate instantly, then confirm the status change on the instructor dashboard. This flow mirrors production and is the quickest way to sanity-check Checkr staging without touching FakeCheckr.
 ## 📊 Monitoring
 
 InstaInstru includes a comprehensive monitoring stack with Prometheus and Grafana.

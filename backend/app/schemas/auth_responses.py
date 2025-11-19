@@ -33,15 +33,7 @@ class AuthUserWithPermissionsResponse(AuthUserResponse):
     beta_invited_by: Optional[str] = None
 
 
-class AuthTokenResponse(StrictModel):
-    """Strict token payload for session-based login responses."""
-
-    access_token: str
-    token_type: str
-
-
 __all__ = [
-    "AuthTokenResponse",
     "AuthUserResponse",
     "AuthUserWithPermissionsResponse",
 ]

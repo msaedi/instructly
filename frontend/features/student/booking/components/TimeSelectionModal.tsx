@@ -12,10 +12,10 @@ import {
   type PricingPreviewResponse,
 } from '@/lib/api/pricing';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
-import Calendar from './TimeSelectionModal/Calendar';
-import TimeDropdown from './TimeSelectionModal/TimeDropdown';
-import DurationButtons from './TimeSelectionModal/DurationButtons';
-import SummarySection from './TimeSelectionModal/SummarySection';
+import Calendar from '@/features/shared/booking/ui/Calendar';
+import TimeDropdown from '@/features/shared/booking/ui/TimeDropdown';
+import DurationButtons from '@/features/shared/booking/ui/DurationButtons';
+import SummarySection from '@/features/shared/booking/ui/SummarySection';
 import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import {
   computeBasePriceCents,
@@ -254,6 +254,8 @@ export default function TimeSelectionModal({
   const effectiveInitialDate = normalizedInitialDateValue ?? normalizedPreselectedDateValue ?? null;
   const normalizedInitialTimeDisplay = convertHHMM24ToDisplay(initialTimeHHMM24);
   const effectiveInitialTimeDisplay = normalizedInitialTimeDisplay ?? preSelectedTime ?? null;
+  const effectiveInitialDateRef = useRef(effectiveInitialDate);
+  const effectiveInitialTimeDisplayRef = useRef(effectiveInitialTimeDisplay);
   const normalizedInitialDurationValue = Number.isFinite(initialDurationMinutes ?? NaN)
     ? Number(initialDurationMinutes)
     : null;
@@ -297,6 +299,7 @@ export default function TimeSelectionModal({
   } | null>(null);
 
   const selectedTimeRef = useRef<string | null>(effectiveInitialTimeDisplay);
+  const selectedDurationRef = useRef<number>(initialDurationFallback);
 
   const logDev = (...args: unknown[]) => {
     if (process.env.NODE_ENV !== 'production') {
@@ -314,6 +317,18 @@ export default function TimeSelectionModal({
   useEffect(() => {
     selectedTimeRef.current = selectedTime;
   }, [selectedTime]);
+
+  useEffect(() => {
+    effectiveInitialDateRef.current = effectiveInitialDate;
+  }, [effectiveInitialDate]);
+
+  useEffect(() => {
+    effectiveInitialTimeDisplayRef.current = effectiveInitialTimeDisplay;
+  }, [effectiveInitialTimeDisplay]);
+
+  useEffect(() => {
+    selectedDurationRef.current = selectedDuration;
+  }, [selectedDuration]);
 
   const getTimesForDate = useCallback(
     (targetDate: string | null, durationMinutes: number): string[] => {
@@ -375,6 +390,10 @@ export default function TimeSelectionModal({
     },
     [getTimesForDate, selectedDuration]
   );
+  const setDateRef = useRef(setDate);
+  useEffect(() => {
+    setDateRef.current = setDate;
+  }, [setDate]);
 
   const formatDateLabel = useCallback((isoDate: string) => {
     if (!isoDate) {
@@ -529,20 +548,23 @@ export default function TimeSelectionModal({
         setAvailableDates(datesWithSlots);
 
         const firstAvailableDate = at(datesWithSlots, 0) ?? null;
+        const initialDateValue = effectiveInitialDateRef.current;
+        const initialTimeDisplay = effectiveInitialTimeDisplayRef.current;
+        const durationMinutes = selectedDurationRef.current ?? 60;
         const preselectedIsAvailable = Boolean(
-          effectiveInitialDate && availabilityByDate[effectiveInitialDate]
+          initialDateValue && availabilityByDate[initialDateValue]
         );
 
         let shouldAutoSelectFirstTime = false;
 
         if (!hasUserChosenDateRef.current) {
-          const initialDate = preselectedIsAvailable ? effectiveInitialDate : firstAvailableDate;
+          const initialDate = preselectedIsAvailable ? initialDateValue : firstAvailableDate;
           if (initialDate) {
             const initReason = preselectedIsAvailable ? 'init-preselected' : 'init';
-            setDate(initReason, initialDate);
+            setDateRef.current?.(initReason, initialDate);
             selectedDateRef.current = initialDate;
             hasUserChosenDateRef.current = true;
-            if (!effectiveInitialTimeDisplay) {
+            if (!initialTimeDisplay) {
               shouldAutoSelectFirstTime = true;
             }
           }
@@ -550,7 +572,7 @@ export default function TimeSelectionModal({
 
         const activeDate =
           selectedDateRef.current ??
-          (preselectedIsAvailable ? effectiveInitialDate : null) ??
+          (preselectedIsAvailable ? initialDateValue : null) ??
           firstAvailableDate;
 
         if (activeDate) {
@@ -559,20 +581,20 @@ export default function TimeSelectionModal({
           if (dayData) {
             const slots = dayData.available_slots || [];
             const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
-              expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
+              expandDiscreteStarts(slot.start_time, slot.end_time, 60, durationMinutes)
             );
 
             setTimeSlots(formattedSlots);
 
             if (
-              effectiveInitialTimeDisplay &&
-              activeDate === effectiveInitialDate &&
+              initialTimeDisplay &&
+              activeDate === initialDateValue &&
               !selectedTimeRef.current
             ) {
-              setSelectedTime(effectiveInitialTimeDisplay);
-              selectedTimeRef.current = effectiveInitialTimeDisplay;
+              setSelectedTime(initialTimeDisplay);
+              selectedTimeRef.current = initialTimeDisplay;
             } else if (
-              (shouldAutoSelectFirstTime || (!selectedTimeRef.current && !effectiveInitialTimeDisplay)) &&
+              (shouldAutoSelectFirstTime || (!selectedTimeRef.current && !initialTimeDisplay)) &&
               formattedSlots.length > 0
             ) {
               const firstSlot = at(formattedSlots, 0);
@@ -594,7 +616,7 @@ export default function TimeSelectionModal({
     } finally {
       // Loading state cleared
     }
-  }, [instructor.user_id, selectedDuration, effectiveInitialDate, effectiveInitialTimeDisplay, studentTimezone, setDate]);
+  }, [instructor.user_id, studentTimezone]);
 
   // Fetch availability data when modal opens
   useEffect(() => {

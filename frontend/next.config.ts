@@ -1,4 +1,3 @@
-import path from 'path';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
@@ -8,6 +7,8 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_LH_CI: process.env['NEXT_PUBLIC_LH_CI'] || '',
   },
+  // outputFileTracingRoot must stay scoped to this app directory to avoid Vercel's /path0/path0 issue.
+  outputFileTracingRoot: process.cwd(),
   // Allow dev asset loading from local beta host for testing
   allowedDevOrigins: ['beta-local.instainstru.com'],
   images: {
@@ -52,7 +53,6 @@ const nextConfig: NextConfig = {
       ...immutableCacheHeaders,
     ];
   },
-  outputFileTracingRoot: path.join(__dirname, '..'),
 };
 
 export default nextConfig;

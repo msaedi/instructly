@@ -571,12 +571,8 @@ export default function MessagesPage() {
     return matchesText && matchesType;
   });
   const activeConversationList = useMemo(
-    () =>
-      filteredConversations.filter((conv) => {
-        const activeMessages = messagesByThread[conv.id];
-        return (activeMessages?.length ?? 0) > 0;
-      }),
-    [filteredConversations, messagesByThread]
+    () => filteredConversations,
+    [filteredConversations]
   );
   const archivedConversationList = useMemo(
     () => filteredConversations.filter((conv) => (archivedMessagesByThread[conv.id]?.length ?? 0) > 0),
@@ -669,7 +665,7 @@ export default function MessagesPage() {
     }
 
     const firstActive = activeConversationList[0];
-    if (!selectedChat || selectedChat === COMPOSE_THREAD_ID || (messagesByThread[selectedChat]?.length ?? 0) === 0) {
+    if (!selectedChat || selectedChat === COMPOSE_THREAD_ID) {
       setSelectedChat(firstActive ? firstActive.id : null);
     }
   }, [
@@ -1476,6 +1472,77 @@ function loadStoredTemplates(): TemplateItem[] {
     }
     setThreadMessages(messagesByThread[COMPOSE_THREAD_ID] ?? []);
   }, [isComposeView, messagesByThread]);
+
+  // Track which conversations are currently being fetched to prevent duplicate requests
+  const fetchingThreadsRef = useRef<Set<string>>(new Set());
+  // Track which conversations have been loaded (even if empty) to prevent re-fetching
+  const loadedThreadsRef = useRef<Set<string>>(new Set());
+
+  // Fetch messages when a conversation is selected (if not already loaded)
+  useEffect(() => {
+    if (!selectedChat || selectedChat === COMPOSE_THREAD_ID) return;
+    if (!activeConversation) return;
+
+    // Skip if we've already loaded (or attempted to load) this conversation
+    // Using ref instead of state to avoid dependency issues
+    if (loadedThreadsRef.current.has(selectedChat)) return;
+
+    // Skip if already fetching this thread
+    if (fetchingThreadsRef.current.has(selectedChat)) return;
+
+    fetchingThreadsRef.current.add(selectedChat);
+
+    // Fetch messages for the selected conversation
+    const fetchMessages = async () => {
+      const bookingId = activeConversation.primaryBookingId;
+      if (!bookingId || !currentUser?.id) return;
+
+      try {
+        const history = await messageService.getMessageHistory(bookingId);
+        const messages = history.messages || [];
+
+        logger.info('Loaded conversation messages', {
+          conversationId: selectedChat,
+          messageCount: messages.length,
+        });
+
+        // Map messages to MessageWithAttachments format
+        const mappedMessages = messages.map((msg) =>
+          mapMessageFromResponse(msg, activeConversation, currentUser.id)
+        );
+
+        // Update messagesByThread state (even if empty array)
+        setMessagesByThread((prev) => ({
+          ...prev,
+          [selectedChat]: mappedMessages,
+        }));
+
+        // Update conversation unread count based on fetched messages
+        const unreadCount = computeUnreadFromMessages(messages, activeConversation, currentUser.id);
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.id === selectedChat ? { ...conv, unread: unreadCount } : conv
+          )
+        );
+
+        // Mark this conversation as loaded (even if messages array is empty)
+        loadedThreadsRef.current.add(selectedChat);
+      } catch (error) {
+        logger.error('Failed to fetch messages for conversation', {
+          conversationId: selectedChat,
+          bookingId,
+          error
+        });
+        // On error, we don't mark as loaded, allowing retry on next selection
+      } finally {
+        // Always remove from fetching set
+        fetchingThreadsRef.current.delete(selectedChat);
+      }
+    };
+
+    void fetchMessages();
+  }, [selectedChat, activeConversation, currentUser?.id]);
+
   useEffect(() => {
     if (!selectedChat || selectedChat === COMPOSE_THREAD_ID) return;
     if (messageDisplay === 'archived') {

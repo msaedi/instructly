@@ -23,6 +23,7 @@ import {
   useBGCDisputeOpen,
   useBGCDisputeResolve,
   useBGCRecheck,
+  useBGCInvite,
   type AdminInstructorDetail,
   type BGCCaseItem,
 } from './hooks';
@@ -49,14 +50,20 @@ export default function AdminBGCReviewPage() {
   const [disputeNoteDraft, setDisputeNoteDraft] = useState('');
   const previewDetail = useAdminInstructorDetail(isPreviewOpen ? previewId : null);
   const recheckMutation = useBGCRecheck();
+  const inviteMutation = useBGCInvite();
   const [recheckBlockedCode, setRecheckBlockedCode] = useState<'consent' | 'rate_limited' | null>(null);
 
-  const countsQuery = useBGCCounts();
+  const countsQuery = useBGCCounts(isAdmin && !authLoading);
   const counts = countsQuery.data ?? { review: 0, pending: 0 };
   const totalCases = counts.review + counts.pending;
 
   const queryTerm = searchTerm.trim();
-  const { data, isLoading, isFetching } = useBGCCases(statusFilter, queryTerm, 50);
+  const { data, isLoading, isFetching } = useBGCCases(
+    statusFilter,
+    queryTerm,
+    50,
+    isAdmin && !authLoading,
+  );
 
   const overrideMutation = useBGCOverride();
   const openDisputeMutation = useBGCDisputeOpen();
@@ -165,6 +172,29 @@ export default function AdminBGCReviewPage() {
       const message =
         error instanceof Error ? error.message : 'Unable to update background check status';
       toast.error(message);
+    } finally {
+      setActiveActionId(null);
+    }
+  };
+
+  const handleInvite = async (item: BGCCaseItem) => {
+    setActiveActionId(item.instructor_id);
+    try {
+      const response = await inviteMutation.mutateAsync({ id: item.instructor_id });
+      if (response.already_in_progress) {
+        toast.info('An invitation is already in progress for this instructor.');
+      } else {
+        toast.success('Background check invitation sent');
+      }
+    } catch (error) {
+      if (error instanceof ApiProblemError) {
+        const detail = error.problem.detail;
+        toast.error('Unable to send background check invitation', {
+          description: typeof detail === 'string' && detail.length > 0 ? detail : undefined,
+        });
+      } else {
+        toast.error('Unable to send background check invitation');
+      }
     } finally {
       setActiveActionId(null);
     }
@@ -329,7 +359,8 @@ export default function AdminBGCReviewPage() {
             </div>
 
             <div className="overflow-hidden rounded-xl border border-gray-200/80 dark:border-gray-700/60 bg-white/70 dark:bg-gray-900/40 backdrop-blur">
-              <table className="min-w-full divide-y divide-gray-200/80 dark:divide-gray-700/60 text-sm">
+              <div className="overflow-x-auto">
+                <table className="min-w-[1100px] divide-y divide-gray-200/80 dark:divide-gray-700/60 text-sm">
                 <thead className="bg-gray-50/80 dark:bg-gray-800/60 text-gray-600 dark:text-gray-300">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Instructor</th>
@@ -363,16 +394,16 @@ export default function AdminBGCReviewPage() {
                       const updatedAt = item.updated_at || item.bgc_completed_at || item.created_at;
                       const isLive = item.is_live;
                       const statusValue = (item.bgc_status ?? '').toLowerCase();
-                      const showActions = statusValue === 'review';
+                      const showActions = statusValue === 'review' || statusValue === 'consider';
                       const inDispute = item.in_dispute;
-                      const badgeTone = statusValue === 'review'
+                      const badgeTone = statusValue === 'review' || statusValue === 'consider'
                         ? 'bg-amber-50 text-amber-800 border-amber-200'
                         : statusValue === 'pending'
                         ? 'bg-sky-50 text-sky-700 border-sky-200'
                         : 'bg-gray-50 text-gray-600 border-gray-200';
                       return (
                         <tr key={item.instructor_id} className="bg-white/40 dark:bg-transparent">
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex flex-col">
                               {isLive ? (
                                 <Link
@@ -409,7 +440,9 @@ export default function AdminBGCReviewPage() {
                                   </Tooltip.Content>
                                 </Tooltip.Root>
                               )}
-                              <span className="text-xs text-gray-400">{item.instructor_id}</span>
+                              <span className="text-xs text-gray-400 font-mono whitespace-nowrap">
+                                {item.instructor_id}
+                              </span>
                               {inDispute ? (
                                 <Badge className="mt-1 w-fit border border-rose-200 bg-rose-50 text-rose-700">
                                   In dispute
@@ -417,8 +450,10 @@ export default function AdminBGCReviewPage() {
                               ) : null}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{item.email || '—'}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap dark:text-gray-300">
+                            {item.email || '—'}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
                             {item.bgc_report_id ? (
                               <Link
                                 href={item.checkr_report_url ?? '#'}
@@ -426,7 +461,7 @@ export default function AdminBGCReviewPage() {
                                 className="text-indigo-600 hover:underline dark:text-indigo-300"
                                 rel="noreferrer"
                               >
-                                {item.bgc_report_id}
+                                <span className="font-mono text-xs">{item.bgc_report_id}</span>
                               </Link>
                             ) : (
                               '—'
@@ -448,13 +483,13 @@ export default function AdminBGCReviewPage() {
                               </div>
                             ) : null}
                           </td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap dark:text-gray-300">
                             {updatedAt
                               ? `${formatDistanceToNow(new Date(updatedAt), { addSuffix: true })}`
                               : '—'}
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap items-center gap-2">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex flex-wrap items-center gap-2 min-w-[240px]">
                               <Badge variant="outline" className={`${badgeTone} capitalize`}>
                                 {statusValue || 'unknown'}
                               </Badge>
@@ -483,6 +518,17 @@ export default function AdminBGCReviewPage() {
                               <Button
                                 type="button"
                                 size="sm"
+                                variant="outline"
+                                onClick={() => handleInvite(item)}
+                                disabled={inviteMutation.isPending && activeActionId === item.instructor_id}
+                              >
+                                {inviteMutation.isPending && activeActionId === item.instructor_id
+                                  ? 'Inviting…'
+                                  : 'Invite'}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
                                 variant="ghost"
                                 onClick={() => handleCopyId(item.instructor_id)}
                               >
@@ -495,7 +541,8 @@ export default function AdminBGCReviewPage() {
                     })
                   )}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
 
             {isPreviewOpen && (
@@ -617,7 +664,8 @@ function PreviewContent({
     recheckPending ||
     recheckBlockedCode !== null ||
     normalizedStatus === 'pending' ||
-    normalizedStatus === 'review';
+    normalizedStatus === 'review' ||
+    normalizedStatus === 'consider';
 
   return (
     <dl className="space-y-3">

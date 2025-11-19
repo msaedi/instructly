@@ -3150,10 +3150,6 @@ export type components = {
  windows_created: number;
  written_dates?: string[];
  };
- AuthTokenResponse: {
- access_token: string;
- token_type: string;
- };
  AuthUserResponse: {
  email: string;
  first_name: string;
@@ -8909,7 +8905,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["AuthTokenResponse"];
+ "application/json": components["schemas"]["LoginResponse"];
  };
  };
  422: {

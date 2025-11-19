@@ -28,14 +28,49 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _create_extension_prefer_extensions_schema(extension_name: str) -> None:
+    """Create extension using extensions schema when available."""
+
+    bind = op.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return
+
+    op.execute(
+        f"""
+        DO $$
+        DECLARE
+            extensions_schema_exists BOOLEAN;
+            extension_installed BOOLEAN;
+        BEGIN
+            SELECT EXISTS (
+                SELECT 1 FROM pg_namespace WHERE nspname = 'extensions'
+            ) INTO extensions_schema_exists;
+
+            SELECT EXISTS (
+                SELECT 1 FROM pg_extension WHERE extname = '{extension_name}'
+            ) INTO extension_installed;
+
+            IF NOT extension_installed THEN
+                IF extensions_schema_exists THEN
+                    EXECUTE 'CREATE EXTENSION IF NOT EXISTS {extension_name} WITH SCHEMA extensions';
+                ELSE
+                    EXECUTE 'CREATE EXTENSION IF NOT EXISTS {extension_name}';
+                END IF;
+            END IF;
+        END
+        $$;
+        """
+    )
+
+
 def upgrade() -> None:
     """Create instructor profiles and services tables."""
     print("Creating instructor system tables...")
 
     # Enable pgvector extension for semantic search
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    _create_extension_prefer_extensions_schema("vector")
     # Enable pg_trgm for fuzzy text matching
-    op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+    _create_extension_prefer_extensions_schema("pg_trgm")
 
     # Create instructor_profiles table
     op.create_table(

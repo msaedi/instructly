@@ -7,6 +7,7 @@ import { Search, Server, Code, FlaskConical, Gift, ShieldCheck, SlidersHorizonta
 
 import { cn } from '@/lib/utils';
 import { useBGCCounts } from './bgc-review/hooks';
+import { useBGCWebhookStats } from './bgc-webhooks/hooks';
 
 function ReviewBadge({ className }: { className?: string }) {
   const { data, refetch } = useBGCCounts();
@@ -29,6 +30,34 @@ function ReviewBadge({ className }: { className?: string }) {
     <span
       className={cn(
         'inline-flex items-center justify-center rounded-full bg-purple-600 px-2 py-0.5 text-xs font-semibold text-white shadow-sm',
+        className,
+      )}
+    >
+      {count}
+    </span>
+  );
+}
+
+function WebhookErrorBadge({ className }: { className?: string }) {
+  const { data, refetch } = useBGCWebhookStats();
+  const count = data?.error_count_24h ?? 0;
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      void refetch();
+    };
+    window.addEventListener('bgc-webhooks-refresh', handleRefresh);
+    return () => {
+      window.removeEventListener('bgc-webhooks-refresh', handleRefresh);
+    };
+  }, [refetch]);
+
+  if (!count) return null;
+
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center justify-center rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white shadow-sm',
         className,
       )}
     >
@@ -75,7 +104,10 @@ function AdminSidebar() {
       label: 'Background Checks',
       href: '/admin/bgc-review',
       icon: ShieldCheck,
-      items: [{ name: 'Review Queue', href: '/admin/bgc-review' }],
+      items: [
+        { name: 'Review Queue', href: '/admin/bgc-review' },
+        { name: 'Webhook Logs', href: '/admin/bgc-webhooks' },
+      ],
     },
     {
       key: 'badges',
@@ -156,6 +188,7 @@ function AdminSidebar() {
                       >
                           <span>{sub.name}</span>
                           {sub.href === '/admin/bgc-review' ? <ReviewBadge /> : null}
+                          {sub.href === '/admin/bgc-webhooks' ? <WebhookErrorBadge /> : null}
                       </Link>
                     </li>
                   );

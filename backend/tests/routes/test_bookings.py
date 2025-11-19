@@ -17,7 +17,7 @@ TEST FAILURE ANALYSIS - test_bookings.py
 """
 
 from datetime import date, datetime, time, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from fastapi import status
 import pytest
@@ -77,6 +77,9 @@ class TestBookingRoutes:
         from app.services.booking_service import BookingService
 
         mock_service = MagicMock(spec=BookingService)
+
+        # Mock the db attribute (needed by reschedule endpoint to instantiate payment services)
+        mock_service.db = MagicMock()
 
         # Mock common methods - Create async methods that return synchronously
         async def async_create_booking(*args, **kwargs):
@@ -1172,11 +1175,24 @@ class TestBookingRoutes:
         # The endpoint doesn't exist yet but the service method does
 
     # ===== Reschedule Route Tests (use mocked service + dependency override) =====
+    @patch('app.services.stripe_service.StripeService')
+    @patch('app.services.pricing_service.PricingService')
+    @patch('app.services.config_service.ConfigService')
     def test_reschedule_booking_success(
-        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+        self, mock_config_service_class, mock_pricing_service_class, mock_stripe_service_class,
+        client_with_mock_booking_service, auth_headers_student, mock_booking_service
     ):
         """Reschedule cancels original and creates a new booking; returns the new booking."""
         from app.models.booking import BookingStatus
+
+        # Mock payment method check (student has a default payment method)
+        mock_payment_repo = MagicMock()
+        mock_default_pm = MagicMock()
+        mock_default_pm.stripe_payment_method_id = "pm_test123"
+        mock_payment_repo.get_default_payment_method.return_value = mock_default_pm
+        mock_stripe_instance = MagicMock()
+        mock_stripe_instance.payment_repository = mock_payment_repo
+        mock_stripe_service_class.return_value = mock_stripe_instance
 
         original_id = generate_ulid()
         new_id = generate_ulid()
@@ -1236,8 +1252,16 @@ class TestBookingRoutes:
         new_booking.instructor = original.instructor
         new_booking.instructor_service = original.instructor_service
 
+        # Mock availability check to return available
+        mock_booking_service.check_availability = AsyncMock(return_value={"available": True})
+
+        # Mock repository method for student conflict check
+        mock_booking_service.repository = MagicMock()
+        mock_booking_service.repository.check_student_time_conflict.return_value = None
+
         mock_booking_service.cancel_booking = AsyncMock()
         mock_booking_service.create_booking_with_payment_setup = AsyncMock(return_value=new_booking)
+        mock_booking_service.confirm_booking_payment = AsyncMock(return_value=new_booking)
 
         # Execute
         payload = {
@@ -1304,18 +1328,45 @@ class TestBookingRoutes:
         response = client.post(f"/bookings/{generate_ulid()}/reschedule", json=payload)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+    @patch('app.services.stripe_service.StripeService')
+    @patch('app.services.pricing_service.PricingService')
+    @patch('app.services.config_service.ConfigService')
     def test_reschedule_business_rule_violation(
-        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
+        self, mock_config_service_class, mock_pricing_service_class, mock_stripe_service_class,
+        client_with_mock_booking_service, auth_headers_student, mock_booking_service
     ):
         """If cancellation policy blocks cancel, reschedule should return 422 via domain exception handler."""
         from app.core.exceptions import BusinessRuleException
+
+        # Mock payment method check (student has a default payment method)
+        mock_payment_repo = MagicMock()
+        mock_default_pm = MagicMock()
+        mock_default_pm.stripe_payment_method_id = "pm_test123"
+        mock_payment_repo.get_default_payment_method.return_value = mock_default_pm
+        mock_stripe_instance = MagicMock()
+        mock_stripe_instance.payment_repository = mock_payment_repo
+        mock_stripe_service_class.return_value = mock_stripe_instance
 
         # Return an original booking
         original = Mock()
         original.id = generate_ulid()
         original.instructor_id = generate_ulid()
         original.instructor_service_id = generate_ulid()
+        original.status = "CONFIRMED"  # Add status for new logic
         mock_booking_service.get_booking_for_user.return_value = original
+
+        # Mock availability check to return available
+        mock_booking_service.check_availability = AsyncMock(return_value={"available": True})
+
+        # Mock repository method for student conflict check
+        mock_booking_service.repository = MagicMock()
+        mock_booking_service.repository.check_student_time_conflict.return_value = None
+
+        # Mock create and confirm to succeed
+        new_booking = Mock()
+        new_booking.id = generate_ulid()
+        mock_booking_service.create_booking_with_payment_setup = AsyncMock(return_value=new_booking)
+        mock_booking_service.confirm_booking_payment = AsyncMock(return_value=new_booking)
 
         # Cancel raises business rule exception
         async def cancel_raise(*args, **kwargs):

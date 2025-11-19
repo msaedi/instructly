@@ -62,6 +62,7 @@ from .instructor import (
     ServiceCreate,
     ServiceResponse,
 )
+from .main_responses import ReadyProbeResponse
 
 # Password reset schemas
 from .password_reset import PasswordResetConfirm, PasswordResetRequest, PasswordResetResponse
@@ -185,4 +186,5 @@ __all__ = [
     "PublicDayAvailability",
     "PublicInstructorAvailability",
     "PublicAvailabilityQuery",
+    "ReadyProbeResponse",
 ]

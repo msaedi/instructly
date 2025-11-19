@@ -163,6 +163,109 @@ describe('BGCStep', () => {
     expect(screen.getByText('Only the owner can start a background check.')).toBeInTheDocument();
   });
 
+  it('shows auth failure message when Checkr rejects credentials during invite', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    const response = { status: 400 } as Response;
+    const problem = {
+      type: 'about:blank',
+      title: 'Checkr authentication failed',
+      status: 400,
+      detail: 'Checkr API key is invalid or not authorized for the configured environment.',
+      code: 'checkr_auth_error',
+    };
+    mockedBGCInvite.mockRejectedValueOnce(new ApiProblemError(problem, response));
+
+    render(<BGCStep instructorId="instructor-auth-error" />);
+
+    const button = await screen.findByRole('button', { name: /start background check/i });
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await userEvent.click(button);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Background check provider authentication failed',
+        expect.objectContaining({ description: expect.stringContaining('Checkr API key configuration') })
+      )
+    );
+  });
+
+  it('shows package misconfiguration message when Checkr rejects invite package', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    const response = { status: 400 } as Response;
+    const problem = {
+      type: 'about:blank',
+      title: 'Checkr package misconfigured',
+      status: 400,
+      detail: 'The configured Checkr package slug does not exist.',
+      code: 'checkr_package_not_found',
+    };
+    mockedBGCInvite.mockRejectedValueOnce(new ApiProblemError(problem, response));
+
+    render(<BGCStep instructorId="instructor-package-error" />);
+
+    const button = await screen.findByRole('button', { name: /start background check/i });
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await userEvent.click(button);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Background check configuration error: Checkr package slug is invalid.',
+        expect.objectContaining({ description: expect.stringContaining('Checkr package configuration') })
+      )
+    );
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows invalid ZIP message when backend reports invalid work location', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    const response = { status: 400 } as Response;
+    const problem = {
+      type: 'about:blank',
+      title: 'Invalid work location',
+      status: 400,
+      detail: 'ZIP missing',
+      code: 'invalid_work_location',
+    };
+    mockedBGCInvite.mockRejectedValueOnce(new ApiProblemError(problem, response));
+
+    render(<BGCStep instructorId="instructor-invalid-zip" />);
+    const button = await screen.findByRole('button', { name: /start background check/i });
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await userEvent.click(button);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Your primary teaching ZIP code is missing or invalid.',
+        expect.objectContaining({ description: expect.stringContaining('update your ZIP code') })
+      )
+    );
+  });
+
+  it('shows provider work location error when Checkr rejects work_locations', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    const response = { status: 400 } as Response;
+    const problem = {
+      type: 'about:blank',
+      title: 'Checkr work location error',
+      status: 400,
+      detail: 'work_locations invalid',
+      code: 'checkr_work_location_error',
+    };
+    mockedBGCInvite.mockRejectedValueOnce(new ApiProblemError(problem, response));
+
+    render(<BGCStep instructorId="instructor-work-location-error" />);
+    const button = await screen.findByRole('button', { name: /start background check/i });
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await userEvent.click(button);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Background check configuration error: work location rejected.',
+        expect.objectContaining({ description: expect.stringContaining('contact support') })
+      )
+    );
+  });
+
   it('polls pending status with backoff 15s→60s→300s then clears when passed', async () => {
     jest.useFakeTimers();
     mockedBGCStatus
@@ -306,5 +409,134 @@ describe('BGCStep', () => {
     await userEvent.click(recheckButton);
 
     await waitFor(() => expect(toast.info).toHaveBeenCalledWith('You can try again later.'));
+  });
+
+  it('shows auth failure message when Checkr rejects re-check credentials', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({
+      status: 'passed',
+      env: 'sandbox',
+      consent_recent: true,
+      valid_until: null,
+      expires_in_days: 0,
+      is_expired: true,
+    });
+
+    const response = { status: 400 } as Response;
+    const problem = {
+      type: 'about:blank',
+      title: 'Checkr authentication failed',
+      status: 400,
+      detail: 'Checkr API key is invalid or not authorized for the configured environment.',
+      code: 'checkr_auth_error',
+    };
+    mockedBGCRecheck.mockRejectedValueOnce(new ApiProblemError(problem, response));
+
+    render(<BGCStep instructorId="instructor-recheck-auth-error" />);
+    const recheckButton = await screen.findByRole('button', { name: /^Re-check$/i });
+    await userEvent.click(recheckButton);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Background check provider authentication failed',
+        expect.objectContaining({ description: expect.stringContaining('Checkr API key configuration') })
+      )
+    );
+  });
+
+  it('shows package misconfiguration message when Checkr rejects re-check package', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({
+      status: 'passed',
+      env: 'sandbox',
+      consent_recent: true,
+      valid_until: null,
+      expires_in_days: 0,
+      is_expired: true,
+    });
+
+    const response = { status: 400 } as Response;
+    const problem = {
+      type: 'about:blank',
+      title: 'Checkr package misconfigured',
+      status: 400,
+      detail: 'The configured Checkr package slug does not exist.',
+      code: 'checkr_package_not_found',
+    };
+    mockedBGCRecheck.mockRejectedValueOnce(new ApiProblemError(problem, response));
+
+    render(<BGCStep instructorId="instructor-recheck-package-error" />);
+    const recheckButton = await screen.findByRole('button', { name: /^Re-check$/i });
+    await userEvent.click(recheckButton);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Background check configuration error: Checkr package slug is invalid.',
+        expect.objectContaining({ description: expect.stringContaining('Checkr package configuration') })
+      )
+    );
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows invalid ZIP message when backend reports invalid work location for re-check', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({
+      status: 'passed',
+      env: 'sandbox',
+      consent_recent: true,
+      valid_until: null,
+      expires_in_days: 0,
+      is_expired: true,
+    });
+
+    const response = { status: 400 } as Response;
+    const problem = {
+      type: 'about:blank',
+      title: 'Invalid work location',
+      status: 400,
+      detail: 'ZIP missing',
+      code: 'invalid_work_location',
+    };
+    mockedBGCRecheck.mockRejectedValueOnce(new ApiProblemError(problem, response));
+
+    render(<BGCStep instructorId="instructor-recheck-invalid-zip" />);
+    const recheckButton = await screen.findByRole('button', { name: /^Re-check$/i });
+    await userEvent.click(recheckButton);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Your primary teaching ZIP code is missing or invalid.',
+        expect.objectContaining({ description: expect.stringContaining('update your ZIP code') })
+      )
+    );
+  });
+
+  it('shows provider work location error when Checkr rejects re-check work_locations', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({
+      status: 'passed',
+      env: 'sandbox',
+      consent_recent: true,
+      valid_until: null,
+      expires_in_days: 0,
+      is_expired: true,
+    });
+
+    const response = { status: 400 } as Response;
+    const problem = {
+      type: 'about:blank',
+      title: 'Checkr work location error',
+      status: 400,
+      detail: 'work_locations invalid',
+      code: 'checkr_work_location_error',
+    };
+    mockedBGCRecheck.mockRejectedValueOnce(new ApiProblemError(problem, response));
+
+    render(<BGCStep instructorId="instructor-recheck-work-location-error" />);
+    const recheckButton = await screen.findByRole('button', { name: /^Re-check$/i });
+    await userEvent.click(recheckButton);
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Background check configuration error: work location rejected.',
+        expect.objectContaining({ description: expect.stringContaining('contact support') })
+      )
+    );
   });
 });

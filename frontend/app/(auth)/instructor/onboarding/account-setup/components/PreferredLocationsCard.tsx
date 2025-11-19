@@ -75,12 +75,20 @@ export function PreferredLocationsCard({
   return (
     <section className="bg-white rounded-none border-0 p-4 sm:rounded-lg sm:border sm:border-gray-200 sm:p-6">
       {collapsible ? (
-        <button type="button" className="w-full flex items-center justify-between mb-4 text-left" onClick={onToggle} aria-expanded={expanded}>
+        <button
+          type="button"
+          className="w-full flex items-center justify-between mb-4 text-left"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          data-testid="preferred-places-card"
+        >
           {header}
           <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
       ) : (
-        <div className="mb-4">{header}</div>
+        <div className="mb-4" data-testid="preferred-places-card">
+          {header}
+        </div>
       )}
 
       {expanded && (

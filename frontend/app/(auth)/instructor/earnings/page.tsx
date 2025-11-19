@@ -123,7 +123,7 @@ function EarningsPageImpl() {
     let cancelled = false;
     (async () => {
       try {
-        const resp = await protectedApi.getBookings({ status: 'completed', limit: 200 });
+        const resp = await protectedApi.getBookings({ status: 'COMPLETED', limit: 200 });
         const items = (resp.data as unknown as { items?: Array<{ start_time?: string; end_time?: string }> })?.items || [];
         let mins = 0;
         for (const b of items) {

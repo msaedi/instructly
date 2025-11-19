@@ -4,6 +4,8 @@ import os
 
 import pytest
 
+from app.core.config import settings
+
 
 @pytest.mark.parametrize(
     "origin",
@@ -86,7 +88,7 @@ def test_dev_beta_aliases_receive_cors_headers(client, db, test_password, origin
     assert response.headers.get("access-control-allow-origin") == origin
     assert response.headers.get("access-control-allow-credentials") == "true"
     # Ensure session cookie is issued (proof credentials were accepted).
-    assert "access_token=" in (response.headers.get("set-cookie") or "")
+    assert f"{settings.session_cookie_name}=" in (response.headers.get("set-cookie") or "")
 
     # Sanity-check fallback GET continues to emit headers.
     health = client.get("/health", headers={"Origin": origin})

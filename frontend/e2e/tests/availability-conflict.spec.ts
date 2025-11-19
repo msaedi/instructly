@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
-import fs from 'node:fs/promises';
 import { isInstructor } from '../utils/projects';
+import { seedSessionCookie } from '../support/cookies';
 
 test.beforeAll(({}, workerInfo) => {
   test.skip(!isInstructor(workerInfo), `Instructor-only spec (current project: ${workerInfo.project.name})`);
@@ -22,23 +22,6 @@ type RouteState = {
   schedule: ScheduleSeed;
   etag: string;
   version: number;
-};
-
-type SerializedStorageState = {
-  cookies: Array<{
-    name: string;
-    value: string;
-    domain: string;
-    path: string;
-    expires: number;
-    httpOnly: boolean;
-    secure: boolean;
-    sameSite: 'Strict' | 'Lax' | 'None';
-  }>;
-  origins: Array<{
-    origin: string;
-    localStorage: Array<{ name: string; value: string }>;
-  }>;
 };
 
 const formatISODate = (date: Date) => {
@@ -122,13 +105,8 @@ const alignCalendarToWeek = async (page: Page, mondayISO: string) => {
 };
 
 const STORAGE_STATE_PATH = process.env.PLAYWRIGHT_STORAGE_STATE || 'e2e/.storage/instructor.json';
-
-const loadStorageState = async (): Promise<SerializedStorageState> => {
-  const raw = JSON.parse(await fs.readFile(STORAGE_STATE_PATH, 'utf-8')) as Record<string, unknown>;
-  const cookies = Array.isArray(raw?.cookies) ? (raw.cookies as SerializedStorageState['cookies']) : [];
-  const origins = Array.isArray(raw?.origins) ? (raw.origins as SerializedStorageState['origins']) : [];
-  return { cookies, origins };
-};
+const SESSION_TOKEN = process.env.TEST_SESSION_TOKEN ?? 'fake.jwt.value';
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME;
 
 const setClientVersionOnPage = async (page: Page, version: string) => {
   await page.evaluate((etag) => {
@@ -327,9 +305,21 @@ const saveWeek = async (page: Page) => {
 };
 
 const refreshWeek = async (page: Page, mondayISO: string) => {
-  const refreshPromise = page.waitForResponse(
-    (res) => res.url().includes('/instructors/availability/week') && res.request().method() === 'GET'
-  );
+  const refreshPromise = page.waitForResponse((res) => {
+    if (!res.url().includes('/instructors/availability/week')) {
+      return false;
+    }
+    if (res.request().method() !== 'GET') {
+      return false;
+    }
+    try {
+      const url = new URL(res.url());
+      const weekStart = url.searchParams.get('start_date') ?? url.searchParams.get('week_start');
+      return weekStart === mondayISO;
+    } catch {
+      return false;
+    }
+  });
   await page.getByTestId('conflict-refresh').click();
   await refreshPromise;
   await alignCalendarToWeek(page, mondayISO);
@@ -342,14 +332,10 @@ test.describe('Availability 409 conflict flow', () => {
     const state = createRouteState({});
     const baseURL =
       test.info().project.use?.baseURL || process.env.PLAYWRIGHT_BASE_URL || process.env.E2E_BASE_URL || 'http://localhost:3100';
-    const storageState = await loadStorageState();
-
-    const contextA = await browser.newContext({ storageState, baseURL });
-    const contextB = await browser.newContext({ storageState, baseURL });
-    if (storageState.cookies?.length) {
-      await contextA.addCookies(storageState.cookies);
-      await contextB.addCookies(storageState.cookies);
-    }
+    const contextA = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
+    const contextB = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
+    await seedSessionCookie(contextA, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
+    await seedSessionCookie(contextB, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
     await stubAuthMe(pageA);
@@ -400,14 +386,10 @@ test.describe('Availability 409 conflict flow', () => {
     const state = createRouteState({});
     const baseURL =
       test.info().project.use?.baseURL || process.env.PLAYWRIGHT_BASE_URL || process.env.E2E_BASE_URL || 'http://localhost:3100';
-    const storageState = await loadStorageState();
-
-    const contextA = await browser.newContext({ storageState, baseURL });
-    const contextB = await browser.newContext({ storageState, baseURL });
-    if (storageState.cookies?.length) {
-      await contextA.addCookies(storageState.cookies);
-      await contextB.addCookies(storageState.cookies);
-    }
+    const contextA = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
+    const contextB = await browser.newContext({ storageState: STORAGE_STATE_PATH, baseURL });
+    await seedSessionCookie(contextA, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
+    await seedSessionCookie(contextB, baseURL, SESSION_TOKEN, SESSION_COOKIE_NAME);
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
     await stubAuthMe(pageA);
@@ -447,6 +429,7 @@ test.describe('Availability 409 conflict flow', () => {
     const overwriteResponse = await overwritePromise;
     expect(overwriteResponse.status()).toBe(200);
     await expect(pageA.getByTestId('conflict-modal')).toBeHidden();
+    await alignCalendarToWeek(pageA, week.iso.base);
 
     const chosenCell = availabilityCell(pageA, week.iso.base, '11:00:00');
     const overwrittenCell = availabilityCell(pageA, week.iso.base, '16:00:00');

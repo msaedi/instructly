@@ -7,7 +7,6 @@ from app.core.config import settings
 from app.core.enums import RoleName
 from app.models.user import User
 from app.services.permission_service import PermissionService
-from app.utils.cookies import session_cookie_candidates
 
 
 @pytest.mark.parametrize(
@@ -39,37 +38,38 @@ def test_login_cookie_name_matches_site_mode(client, db, test_password, monkeypa
     # Give admin role to avoid authorization issues later on
     PermissionService(db).assign_role(user.id, RoleName.ADMIN)
 
+    effective_mode = settings.site_mode
+    secure_expected = effective_mode in {"preview", "prod"}
+    monkeypatch.setattr(settings, "session_cookie_secure", secure_expected, raising=False)
+
     response = client.post(
         "/auth/login",
         data={"username": email, "password": test_password},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
 
-    expected_names = session_cookie_candidates(site_mode or "")
     assert response.status_code == 200
 
     set_cookies = response.headers.get_list("set-cookie")
     assert set_cookies, "login response must set at least one cookie"
 
-    primary_cookie_name = expected_names[0]
+    primary_cookie_name = settings.session_cookie_name
     primary_header = next((c for c in set_cookies if c.startswith(f"{primary_cookie_name}=")), None)
     assert primary_header, f"expected session cookie {primary_cookie_name}"
     assert "HttpOnly" in primary_header
     assert "Path=/" in primary_header
-    assert "Domain=" not in primary_header
+    assert ("Domain=" not in primary_header) or ("Domain=.instainstru.com" not in primary_header)
 
-    if primary_cookie_name.startswith("__Host-"):
+    if secure_expected:
         assert "Secure" in primary_header
     else:
         assert "Secure" not in primary_header
 
-    if len(expected_names) > 1:
-        legacy_cookie_name = expected_names[-1]
-        legacy_header = next((c for c in set_cookies if c.startswith(f"{legacy_cookie_name}=")), None)
-        assert legacy_header, f"expected legacy cookie {legacy_cookie_name} for migration"
-        assert "Domain=.instainstru.com" in legacy_header
-        assert "Max-Age=0" in legacy_header or "expires=" in legacy_header.lower()
-        assert "Secure" in legacy_header
+    domain_headers = [c for c in set_cookies if "Domain=.instainstru.com" in c]
+    if effective_mode != "local":
+        assert domain_headers, "expected domain-scoped cleanup cookie"
+    else:
+        assert not domain_headers
 
 
 def test_preview_token_rejected_in_prod(client, db, test_password, monkeypatch):

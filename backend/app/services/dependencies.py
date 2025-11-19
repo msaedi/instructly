@@ -6,15 +6,19 @@ Add these to your existing dependencies file or create this new file
 to provide proper dependency injection for TemplateService and NotificationService.
 """
 
+import os
 from typing import Optional
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from ..core.config import settings
 from ..database import get_db
 from .account_lifecycle_service import AccountLifecycleService
 from .booking_service import BookingService
 from .cache_service import CacheService, get_cache_service
+from .email import EmailService
+from .email_console import ConsoleEmailService
 from .notification_service import NotificationService
 from .personal_asset_service import PersonalAssetService
 from .template_service import TemplateService
@@ -88,6 +92,19 @@ def get_personal_asset_service(
     Dependency for PersonalAssetService.
     """
     return PersonalAssetService(db)
+
+
+def get_email_service(
+    db: Session = Depends(get_db),
+    cache: Optional[CacheService] = Depends(get_cache_service),
+) -> EmailService | ConsoleEmailService:
+    provider = getattr(settings, "email_provider", "console").lower()
+    missing_key = not settings.resend_api_key
+    site_mode = getattr(settings, "site_mode", "local")
+    is_ci = os.getenv("CI") == "true"
+    if provider == "console" or missing_key or (site_mode in {"int", "local"} and is_ci):
+        return ConsoleEmailService()
+    return EmailService(db, cache)
 
 
 # Example of how to use in a route:

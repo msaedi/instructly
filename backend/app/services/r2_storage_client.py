@@ -134,8 +134,18 @@ class R2StorageClient:
             "PUT", object_key, expires_seconds, content_type=content_type
         )
 
-    def generate_presigned_get(self, object_key: str, expires_seconds: int = 3600) -> PresignedUrl:
-        return self._build_presigned_url("GET", object_key, expires_seconds)
+    def generate_presigned_get(
+        self,
+        object_key: str,
+        expires_seconds: int = 3600,
+        extra_query_params: Optional[Dict[str, str]] = None,
+    ) -> PresignedUrl:
+        return self._build_presigned_url(
+            "GET",
+            object_key,
+            expires_seconds,
+            extra_query_params=extra_query_params,
+        )
 
     def generate_presigned_delete(
         self, object_key: str, expires_seconds: int = 300

@@ -9,6 +9,7 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
+import { BRAND_LEGAL_NAME } from '@/lib/branding';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName, SearchType } from '@/types/enums';
@@ -40,6 +41,9 @@ import { recordSearch } from '@/lib/searchTracking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { fetchWithAuth } from '@/lib/api';
 import { useBeta } from '@/contexts/BetaContext';
+
+const LEGAL_FOOTER_LINK_CLASSES =
+  'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400 no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#7E22CE]';
 
 const HERO_PANEL_SIZE = 400;
 
@@ -984,20 +988,12 @@ export default function HomePage() {
                   </Link>
                 </li>
                 <li>
-                  <Link
-                    href="/terms"
-                    className="focus-link text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
-                    style={{ textDecoration: 'none' }}
-                  >
+                  <Link href="/terms" className={LEGAL_FOOTER_LINK_CLASSES}>
                     Terms
                   </Link>
                 </li>
                 <li>
-                  <Link
-                    href="/privacy"
-                    className="focus-link text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400"
-                    style={{ textDecoration: 'none' }}
-                  >
+                  <Link href="/privacy" className={LEGAL_FOOTER_LINK_CLASSES}>
                     Privacy
                   </Link>
                 </li>
@@ -1018,7 +1014,9 @@ export default function HomePage() {
             </div>
           </div>
           <div className="border-t border-gray-300 dark:border-gray-700 pt-8 flex justify-between items-center">
-            <p className="text-gray-600 dark:text-gray-400">© 2025 iNSTAiNSTRU, Inc.</p>
+            <p className="text-gray-600 dark:text-gray-400">
+              © {new Date().getFullYear()} {BRAND_LEGAL_NAME}
+            </p>
             <div className="flex space-x-4">
               <Link
                 href="#"

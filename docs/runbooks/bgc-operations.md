@@ -48,6 +48,7 @@
 ## Tools
 - `backend/scripts/simulate_checkr_webhook.py` — replay Checkr events (`--email`, `--result`, `--env-file`).
 - `backend/scripts/send_bgc_test_email.py` — send template previews. Supports `--sender`, `--force`, and `--env-file` for profile testing.
+- Admin console → **Background Checks → Webhook Logs** shows the last 200 deliveries with filters, auto-refresh, and copy-friendly IDs/signatures for quick triage.
 
 ## Alerting
 - Alertmanager config: `monitoring/alertmanager/alertmanager.yml`.

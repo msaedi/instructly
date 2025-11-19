@@ -16,16 +16,15 @@ import os
 from typing import Optional, ParamSpec, Sequence, Set, Tuple, TypeVar, cast
 
 from fastapi import Depends, HTTPException, Request, status
-import jwt
-from jwt import PyJWTError
 from sqlalchemy.orm import Session
 
 from app.api.dependencies.auth import (
     get_current_active_user_optional,
     get_current_user,
 )
-from app.auth import (
-    oauth2_scheme_optional,
+from app.auth_session import (
+    get_user_from_bearer_header,
+    get_user_from_session_cookie,
 )
 from app.core.config import settings
 from app.database import get_db
@@ -55,6 +54,39 @@ AUTH_REQUIRED_NAMES = {
     "get_current_student",
     "require_admin",
 }
+
+
+def _norm(value: Optional[str]) -> str:
+    return (value or "").strip().lower()
+
+
+_HOSTED_COOKIE_DENY = {"preview", "prod", "production", "live"}
+_SAFE_COOKIE_SITE_MODES = {"local", "dev", "development", "int", "test", "ci"}
+_SAFE_COOKIE_ENVS = {"dev", "development", "ci", "test"}
+
+
+def _cookie_auth_allowed(
+    site_mode: str,
+    *,
+    env: Optional[str] = None,
+    explicit: Optional[bool] = None,
+) -> bool:
+    normalized_mode = _norm(site_mode)
+    if normalized_mode in _HOSTED_COOKIE_DENY:
+        return False
+
+    env_normalized = _norm(env)
+    in_allowed_context = (
+        normalized_mode in _SAFE_COOKIE_SITE_MODES or env_normalized in _SAFE_COOKIE_ENVS
+    )
+
+    if explicit is not None:
+        if not explicit:
+            return False
+        return in_allowed_context
+
+    return in_allowed_context
+
 
 _OPEN_PHASE_HINTS = {
     "open",
@@ -181,14 +213,13 @@ def public_guard(
 
     async def guard(
         request: Request,
-        current_user: Optional[User] = Depends(get_current_active_user_optional),
         db: Session = Depends(get_db),
     ) -> Optional[User]:
         path = request.url.path
         normalized_path = path.rstrip("/") or "/"
 
         site_mode_raw = (os.getenv("SITE_MODE", "") or "").strip().lower()
-        site_mode = site_mode_raw or "prod"
+        site_mode = site_mode_raw or settings.site_mode
         phase_env = (os.getenv("PHASE", "") or "").strip().lower()
         beta_phase_env = (os.getenv("BETA_PHASE", "") or "").strip().lower()
         phase_hint = phase_env or beta_phase_env
@@ -204,6 +235,14 @@ def public_guard(
             dynamic_prefixes.extend(_OPEN_PHASE_OPEN_PREFIXES)
 
         effective_path_set = open_path_set.union(dynamic_paths)
+        current_user: Optional[User] = getattr(request.state, "current_user", None)
+        if current_user is None:
+            current_user = get_user_from_bearer_header(request, db)
+        if current_user is None:
+            current_user = get_user_from_session_cookie(request, db)
+        if current_user:
+            setattr(request.state, "current_user", current_user)
+
         if normalized_path in effective_path_set:
             return current_user
 
@@ -223,45 +262,10 @@ def public_guard(
                     break
 
         if requires_auth and current_user is None:
-            candidate: Optional[User] = None
-            auth_header = request.headers.get("authorization")
-            if auth_header:
-                try:
-                    token = await oauth2_scheme_optional(request)
-                except Exception:
-                    token = None
-                email: Optional[str] = None
-                if token:
-                    try:
-                        payload = jwt.decode(
-                            token,
-                            settings.secret_key.get_secret_value(),
-                            algorithms=[settings.algorithm],
-                            options={"verify_aud": False},
-                        )
-                        extracted = payload.get("sub")
-                        email = extracted if isinstance(extracted, str) else None
-                    except (PyJWTError, Exception) as exc:
-                        logger.debug("public_guard_token_decode_failed error=%s", exc)
-                        email = None
-                logger.debug(
-                    "public_guard_token_debug token_present=%s email=%s",
-                    bool(token),
-                    email,
-                )
-                if email:
-                    candidate = cast(
-                        Optional[User],
-                        db.query(User).filter(User.email == email).first(),
-                    )
-                    if candidate and not candidate.is_active:
-                        candidate = None
-            if candidate:
-                return candidate
             logger.debug(
                 "public_guard_missing_user path=%s auth_header=%s site_mode=%s phase=%s",
                 path,
-                bool(auth_header),
+                bool(request.headers.get("authorization")),
                 site_mode,
                 phase_hint,
             )

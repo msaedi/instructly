@@ -1,6 +1,8 @@
 import { request as pwRequest, type FullConfig } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { normalizeStorageState } from './e2e/support/storageState';
+import { resolveSessionCookieName } from './e2e/support/cookies';
 
 const API_BASE_URL =
   process.env['E2E_API_BASE_URL'] ||
@@ -11,6 +13,18 @@ const API_BASE_URL =
 const STORAGE_DIR = path.resolve('e2e/.storage');
 const INSTRUCTOR_STATE = path.join(STORAGE_DIR, 'instructor.json');
 const ADMIN_STATE = path.join(STORAGE_DIR, 'admin.json');
+
+const PLAYWRIGHT_BASE =
+  process.env['PLAYWRIGHT_BASE_URL'] || process.env['BASE_URL'] || 'http://localhost:3100';
+const RESOLVED_SESSION_COOKIE = resolveSessionCookieName(
+  PLAYWRIGHT_BASE,
+  process.env['SESSION_COOKIE_NAME'] ?? null
+);
+
+process.stdout.write(`[E2E] cookie policy: base=${PLAYWRIGHT_BASE} name=${RESOLVED_SESSION_COOKIE}\n`);
+if (PLAYWRIGHT_BASE.startsWith('http://') && RESOLVED_SESSION_COOKIE.startsWith('__Host-')) {
+  throw new Error(`Refusing to seed __Host-* cookie on HTTP base URL: ${PLAYWRIGHT_BASE}`);
+}
 
 const INSTRUCTOR_EMAIL = process.env['E2E_INSTRUCTOR_EMAIL'] || 'sarah.chen@example.com';
 const INSTRUCTOR_PASSWORD = process.env['E2E_INSTRUCTOR_PASSWORD'] || 'Test1234';
@@ -68,8 +82,10 @@ async function loginWithSession({ email, password, statePath }: StateConfig): Pr
     });
 
     if (response.status() === 200) {
+      const rawState = await ctx.storageState();
+      const normalized = normalizeStorageState(rawState, API_BASE_URL, { label: statePath });
       await ensureDir(path.dirname(statePath));
-      await ctx.storageState({ path: statePath });
+      await fs.writeFile(statePath, JSON.stringify(normalized, null, 2), 'utf8');
       await ctx.dispose();
       return;
     }

@@ -6,15 +6,20 @@ background checks). Encapsulates key generation, access policies, processing,
 and storage interactions with R2.
 """
 
+from __future__ import annotations
+
 import base64
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import logging
-from typing import Any, Literal, Optional, TypedDict, cast
+import threading
+from typing import Any, Literal, Optional, Sequence, TypedDict, cast
 
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
+from ..database import with_db_retry
 from ..models.user import User
 from ..monitoring.prometheus_metrics import (
     profile_pic_url_cache_hits_total,
@@ -25,8 +30,13 @@ from .base import BaseService
 from .cache_service import CacheService, get_cache_service
 from .image_processing_service import ImageProcessingService
 from .r2_storage_client import PresignedUrl, R2StorageClient
+from .storage_null_client import NullStorageClient
 
 logger = logging.getLogger(__name__)
+_FALLBACK_STORAGE_WARNED = False
+_STORAGE_TIMEOUT_SECONDS = 3.0
+_STORAGE_SEMAPHORE = threading.Semaphore(5)
+_STORAGE_EXECUTOR = ThreadPoolExecutor(max_workers=5)
 
 AssetPurpose = Literal["profile_picture", "background_check"]
 
@@ -43,6 +53,23 @@ class PresignedPut(TypedDict):
     expires_at: str
 
 
+def _is_r2_storage_configured() -> bool:
+    flag_enabled = getattr(settings, "r2_enabled", True)
+    if not flag_enabled:
+        return False
+    required = [
+        getattr(settings, "r2_bucket_name", ""),
+        getattr(settings, "r2_access_key_id", ""),
+        getattr(settings, "r2_account_id", ""),
+    ]
+    try:
+        secret = settings.r2_secret_access_key.get_secret_value()
+    except Exception:
+        secret = ""
+    required.append(secret)
+    return all(required)
+
+
 class PersonalAssetService(BaseService):
     def __init__(
         self,
@@ -53,10 +80,25 @@ class PersonalAssetService(BaseService):
         cache_service: Optional[CacheService] = None,
     ) -> None:
         super().__init__(db)
-        self.storage = storage if storage is not None else R2StorageClient()
+        self.storage = storage if storage is not None else self._build_storage()
         self.images = images if images is not None else ImageProcessingService()
         self.users = users_repo if users_repo is not None else UserRepository(db)
         self.cache = cache_service if cache_service is not None else get_cache_service(self.db)
+
+    def _build_storage(self) -> NullStorageClient | R2StorageClient:
+        global _FALLBACK_STORAGE_WARNED
+        if _is_r2_storage_configured():
+            try:
+                return R2StorageClient()
+            except Exception as exc:
+                if not _FALLBACK_STORAGE_WARNED:
+                    logger.warning("R2 storage misconfigured (%s); using NullStorageClient", exc)
+                    _FALLBACK_STORAGE_WARNED = True
+        else:
+            if not _FALLBACK_STORAGE_WARNED:
+                logger.warning("R2 storage not configured; using NullStorageClient")
+                _FALLBACK_STORAGE_WARNED = True
+        return NullStorageClient()
 
     # Cache helpers
     def _cache_key_profile_url(self, user_id: str, variant: str, version: int) -> str:
@@ -73,6 +115,92 @@ class PersonalAssetService(BaseService):
             "display": f"{base}/display_400x400.jpg",
             "thumb": f"{base}/thumb_200x200.jpg",
         }
+
+    def _generate_presigned_with_limits(
+        self,
+        object_key: str,
+        version: int,
+        variant: str,
+    ) -> Optional[PresignedUrl]:
+        acquired = _STORAGE_SEMAPHORE.acquire(timeout=2)
+        if not acquired:
+            logger.warning(
+                "Storage concurrency limit reached",
+                extra={"event": "storage_backpressure", "variant": variant},
+            )
+            return None
+
+        def _task() -> PresignedUrl:
+            return self.storage.generate_presigned_get(
+                object_key,
+                expires_seconds=3600,
+                extra_query_params={"v": str(version)},
+            )
+
+        future = _STORAGE_EXECUTOR.submit(_task)
+        try:
+            return future.result(timeout=_STORAGE_TIMEOUT_SECONDS)
+        except FuturesTimeoutError:
+            logger.warning(
+                "Storage presign timed out",
+                extra={"event": "storage_presign_timeout", "variant": variant},
+            )
+            return None
+        except Exception as exc:
+            logger.warning(
+                "Storage presign failed",
+                extra={"event": "storage_presign_error", "variant": variant},
+            )
+            logger.debug("Storage presign failure detail", exc_info=exc)
+            return None
+        finally:
+            _STORAGE_SEMAPHORE.release()
+
+    def _get_presigned_view_for_user(
+        self,
+        user_id: str,
+        version: int,
+        variant: str,
+    ) -> Optional[PresignedView]:
+        cache_key = self._cache_key_profile_url(user_id, variant, version)
+        cache = self.cache
+        if cache:
+            cached = cache.get(cache_key)
+            if isinstance(cached, dict) and cached.get("url"):
+                try:
+                    profile_pic_url_cache_hits_total.labels(variant=variant).inc()
+                except Exception:
+                    pass
+                cached_map = cast(dict[str, Any], cached)
+                return PresignedView(
+                    url=str(cached_map.get("url", "")),
+                    expires_at=str(cached_map.get("expires_at", "")),
+                )
+
+        keys = self._profile_picture_keys(user_id, version)
+        key = (
+            keys["display"]
+            if variant == "display"
+            else (keys["thumb"] if variant == "thumb" else keys["original"])
+        )
+        pre = self._generate_presigned_with_limits(key, version, variant)
+        if not pre:
+            return None
+        try:
+            profile_pic_url_cache_misses_total.labels(variant=variant).inc()
+        except Exception:
+            pass
+
+        if cache:
+            try:
+                cache.set(
+                    cache_key,
+                    {"url": pre.url, "expires_at": pre.expires_at},
+                    ttl=45 * 60,
+                )
+            except Exception:
+                logger.warning("Failed to cache profile picture URL for user %s", user_id)
+        return PresignedView(url=pre.url, expires_at=pre.expires_at)
 
     @BaseService.measure_operation("initiate_upload_key")
     def initiate_upload_key(self, purpose: AssetPurpose, user_id: str, filename: str) -> str:
@@ -199,47 +327,57 @@ class PersonalAssetService(BaseService):
     def get_profile_picture_view(
         self, owner_user_id: str, variant: str = "display"
     ) -> PresignedView:
-        # Any authenticated user may view profile pictures
-        owner = self.users.get_by_id(owner_user_id)
+        def _lookup_owner() -> Optional[User]:
+            return self.users.get_by_id(
+                owner_user_id,
+                use_retry=False,
+                short_timeout=True,
+            )
+
+        owner = with_db_retry("profile_picture_lookup", _lookup_owner)
         if not owner or not owner.profile_picture_version:
             raise ValueError("No profile picture")
-        # Cache based on user/version/variant
-        cache_key = self._cache_key_profile_url(owner.id, variant, owner.profile_picture_version)
-        cache = self.cache
-        if cache:
-            cached = cache.get(cache_key)
-            if isinstance(cached, dict) and cached.get("url"):
-                cached_map = cast(dict[str, Any], cached)
-                try:
-                    profile_pic_url_cache_hits_total.labels(variant=variant).inc()
-                except Exception:
-                    pass
-                return PresignedView(
-                    url=str(cached_map.get("url", "")),
-                    expires_at=str(cached_map.get("expires_at", "")),
-                )
-
-        keys = self._profile_picture_keys(owner.id, owner.profile_picture_version)
-        key = (
-            keys["display"]
-            if variant == "display"
-            else (keys["thumb"] if variant == "thumb" else keys["original"])
+        view = self._get_presigned_view_for_user(
+            owner.id,
+            owner.profile_picture_version,
+            variant,
         )
-        pre = self.storage.generate_presigned_get(key, expires_seconds=3600)
-        try:
-            profile_pic_url_cache_misses_total.labels(variant=variant).inc()
-        except Exception:
-            pass
+        if not view:
+            raise ValueError("No profile picture")
+        return view
 
-        # Cache for 45 minutes (pre-expiry)
-        if cache:
-            try:
-                cache.set(
-                    cache_key,
-                    {"url": pre.url, "expires_at": pre.expires_at},
-                    ttl=45 * 60,
-                )
-            except Exception:
-                logger.warning("Failed to cache profile picture URL for user %s", owner.id)
+    @BaseService.measure_operation("get_profile_picture_urls_batch")
+    def get_profile_picture_urls(
+        self,
+        user_ids: Sequence[str],
+        variant: str = "display",
+    ) -> dict[str, Optional[PresignedView]]:
+        if not user_ids:
+            return {}
 
-        return PresignedView(url=pre.url, expires_at=pre.expires_at)
+        normalized_ids: list[str] = []
+        seen: set[str] = set()
+        for raw_id in user_ids:
+            clean = (raw_id or "").strip()
+            if not clean or clean in seen:
+                continue
+            seen.add(clean)
+            normalized_ids.append(clean)
+
+        if not normalized_ids:
+            return {}
+
+        def _batch_query() -> dict[str, Optional[int]]:
+            return self.users.get_profile_picture_versions(normalized_ids)
+
+        version_map = with_db_retry("profile_picture_batch_lookup", _batch_query)
+
+        results: dict[str, Optional[PresignedView]] = {}
+        for requested_id in normalized_ids:
+            version = (version_map or {}).get(requested_id) or 0
+            if not version:
+                results[requested_id] = None
+                continue
+            view = self._get_presigned_view_for_user(requested_id, version, variant)
+            results[requested_id] = view
+        return results

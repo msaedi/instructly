@@ -77,6 +77,12 @@ export function useSSEMessages({
   const isUnmountingRef = useRef(false);
   const lastErrorTimeRef = useRef<number>(0);
   const reconnectDelayRef = useRef(1000); // Start with 1 second
+  const authFailureRef = useRef(false);
+  const onMessageRef = useRef(onMessage);
+
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
 
   // Update connection status and notify listener
   const updateConnectionStatus = useCallback((status: ConnectionStatus) => {
@@ -199,7 +205,7 @@ export function useSSEMessages({
       setMessages(prev => [...prev, message]);
 
       // Notify listeners
-      onMessage?.(message);
+      onMessageRef.current?.(message);
 
       // Play sound and show notification
       playNotificationSound();
@@ -208,11 +214,40 @@ export function useSSEMessages({
     } catch {
       logger.error('Error processing message');
     }
-  }, [onMessage, playNotificationSound, showBrowserNotification]);
+  }, [playNotificationSound, showBrowserNotification]);
+
+  const verifyAuthStatus = useCallback(async () => {
+    try {
+      const response = await fetch(withApiBase('/auth/me'), {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (response.status === 401 || response.status === 403) {
+        return false;
+      }
+    } catch {
+      // Treat network errors as transient; allow reconnect logic to handle them
+      return true;
+    }
+    return true;
+  }, []);
+
+  const evaluateAuthFailure = useCallback(async () => {
+    const stillValid = await verifyAuthStatus();
+    if (!stillValid) {
+      if (!authFailureRef.current) {
+        logger.warn('SSE authentication failed; halting reconnect attempts until session is refreshed');
+      }
+      authFailureRef.current = true;
+      updateConnectionStatus(ConnectionStatus.ERROR);
+      return true;
+    }
+    return false;
+  }, [updateConnectionStatus, verifyAuthStatus]);
 
   // Connect to SSE endpoint
   const connect = useCallback(() => {
-    if (!enabled || isUnmountingRef.current) return;
+    if (!enabled || isUnmountingRef.current || authFailureRef.current) return;
 
     // Check if already connected or connecting
     if (eventSourceRef.current) {
@@ -297,48 +332,57 @@ export function useSSEMessages({
 
       // Handle errors with throttling
       eventSource.onerror = (error) => {
-        logger.error('SSE connection error', {
-          bookingId,
-          readyState: eventSource.readyState,
-          error: error
-        });
-        updateConnectionStatus(ConnectionStatus.ERROR);
+        void (async () => {
+          logger.error('SSE connection error', {
+            bookingId,
+            readyState: eventSource.readyState,
+            error: error
+          });
+          updateConnectionStatus(ConnectionStatus.ERROR);
 
-        // Close the connection
-        eventSource.close();
-        eventSourceRef.current = null;
+          eventSource.close();
+          if (eventSourceRef.current === eventSource) {
+            eventSourceRef.current = null;
+          }
 
-        // Check if last error was too recent (within 1 second)
-        const now = Date.now();
-        const timeSinceLastError = now - lastErrorTimeRef.current;
-        lastErrorTimeRef.current = now;
+          const haltForAuth = await evaluateAuthFailure();
+          if (haltForAuth || isUnmountingRef.current) {
+            return;
+          }
 
-        if (timeSinceLastError < 1000) {
-          logger.warn('Rapid reconnection detected, increasing delay');
-          // Double the delay if we're reconnecting too quickly
-          reconnectDelayRef.current = Math.min(reconnectDelayRef.current * 2, 30000); // Max 30 seconds
-        }
+          // Check if last error was too recent (within 1 second)
+          const now = Date.now();
+          const timeSinceLastError = now - lastErrorTimeRef.current;
+          lastErrorTimeRef.current = now;
 
-        // Attempt reconnection if not unmounting and within attempt limit
-        if (!isUnmountingRef.current && reconnectAttemptsRef.current < 10) { // Increased to 10 attempts
-          reconnectAttemptsRef.current++;
+          if (timeSinceLastError < 1000) {
+            logger.warn('Rapid reconnection detected, increasing delay');
+            reconnectDelayRef.current = Math.min(reconnectDelayRef.current * 2, 30000); // Max 30 seconds
+          }
 
-          // Use exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
+          if (reconnectAttemptsRef.current >= 10) {
+            logger.warn('Max reconnection attempts reached (10)');
+            updateConnectionStatus(ConnectionStatus.DISCONNECTED);
+            reconnectDelayRef.current = 1000;
+            return;
+          }
+
+          reconnectAttemptsRef.current += 1;
+
           const baseDelay = reconnectDelayRef.current;
           const delay = Math.min(baseDelay * Math.pow(2, Math.min(reconnectAttemptsRef.current - 1, 4)), 30000);
 
           logger.info(`Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/10)`);
           updateConnectionStatus(ConnectionStatus.RECONNECTING);
 
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+          }
+
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, delay);
-        } else if (reconnectAttemptsRef.current >= 10) {
-          logger.warn('Max reconnection attempts reached (10)');
-          updateConnectionStatus(ConnectionStatus.DISCONNECTED);
-          // Reset delay for next manual reconnection
-          reconnectDelayRef.current = 1000;
-        }
+        })();
       };
 
     } catch {
@@ -350,6 +394,7 @@ export function useSSEMessages({
     bookingId,
     updateConnectionStatus,
     processMessage,
+    evaluateAuthFailure,
   ]);
 
   // Disconnect from SSE
@@ -371,12 +416,11 @@ export function useSSEMessages({
 
   // Manual reconnect
   const reconnect = useCallback(() => {
-    void (async () => {
-      disconnect();
-      reconnectAttemptsRef.current = 0;
-      reconnectDelayRef.current = 1000; // Reset delay for manual reconnect
-      connect();
-    })();
+    authFailureRef.current = false;
+    disconnect();
+    reconnectAttemptsRef.current = 0;
+    reconnectDelayRef.current = 1000; // Reset delay for manual reconnect
+    connect();
   }, [connect, disconnect]);
 
   // Clear messages
@@ -386,128 +430,25 @@ export function useSSEMessages({
 
   // Setup and cleanup
   useEffect(() => {
+    if (!enabled) {
+      isUnmountingRef.current = true;
+      disconnect();
+      return () => {};
+    }
+
     isUnmountingRef.current = false;
-    let localEventSource: EventSource | null = null;
-    let connectTimeout: NodeJS.Timeout | null = null;
-
-    if (!enabled) return;
-
-    // Connection logic
-    const establishConnection = () => {
-      // Check if already connected
-      if (localEventSource && (localEventSource.readyState === EventSource.OPEN || localEventSource.readyState === EventSource.CONNECTING)) {
-        return;
-      }
-
-      updateConnectionStatus(ConnectionStatus.CONNECTING);
-
-      const url = withApiBase(`/api/messages/stream/${bookingId}`);
-
-      // Create new EventSource with credentials
-      localEventSource = new EventSource(url, { withCredentials: true } as EventSourceInit);
-      eventSourceRef.current = localEventSource;
-
-      localEventSource.onopen = () => {
-        logger.info('SSE connection established', { bookingId });
-        updateConnectionStatus(ConnectionStatus.CONNECTED);
-        reconnectAttemptsRef.current = 0;
-        reconnectDelayRef.current = 1000;
-      };
-
-      localEventSource.addEventListener('connected', (_event) => {
-      });
-
-      localEventSource.addEventListener('message', (event) => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data);
-          processMessage(data);
-        } catch {
-          logger.error('Error parsing SSE message');
-        }
-      });
-
-      localEventSource.addEventListener('read_receipt', (event) => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data);
-          processMessage(data);
-        } catch {
-          logger.error('Error parsing read_receipt');
-        }
-      });
-
-      localEventSource.addEventListener('typing_status', (event) => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data);
-          processMessage(data);
-        } catch {
-          logger.error('Error parsing typing_status');
-        }
-      });
-
-      localEventSource.addEventListener('reaction_update', (event) => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data);
-          processMessage(data);
-        } catch {
-          logger.error('Error parsing reaction_update');
-        }
-      });
-
-      localEventSource.addEventListener('heartbeat', () => {
-      });
-
-      localEventSource.addEventListener('keep-alive', () => {
-      });
-
-      localEventSource.onerror = (error) => {
-        logger.error('SSE connection error', { bookingId, error });
-        updateConnectionStatus(ConnectionStatus.ERROR);
-
-        if (localEventSource) {
-          localEventSource.close();
-        }
-
-        // Don't reconnect on unmount
-        if (!isUnmountingRef.current) {
-          updateConnectionStatus(ConnectionStatus.DISCONNECTED);
-        }
-      };
-    };
-
-    // Add a small delay to prevent rapid connect/disconnect on mount
-    connectTimeout = setTimeout(() => {
-      if (!isUnmountingRef.current && enabled) {
-        establishConnection();
+    const connectTimeout = setTimeout(() => {
+      if (!isUnmountingRef.current) {
+        connect();
       }
     }, 100);
 
     return () => {
       isUnmountingRef.current = true;
-
-      if (connectTimeout) {
-        clearTimeout(connectTimeout);
-      }
-
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-
-      // Close connection
-      if (localEventSource) {
-        localEventSource.close();
-        logger.info('SSE connection closed on unmount', { bookingId });
-      }
-
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-
-      updateConnectionStatus(ConnectionStatus.DISCONNECTED);
+      clearTimeout(connectTimeout);
+      disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, bookingId]); // Only re-run when enabled or bookingId changes
+  }, [enabled, connect, disconnect]);
 
   // Auto-clear typing status when expired
   useEffect(() => {

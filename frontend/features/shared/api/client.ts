@@ -13,6 +13,7 @@ import type {
   components,
   NaturalLanguageSearchResponse as GenNaturalLanguageSearchResponse,
   Booking,
+  BookingStatus,
 } from '@/features/shared/api/types';
 import type { CatalogServiceMinimal } from '@/features/shared/api/types';
 
@@ -730,6 +731,27 @@ export interface CreateBookingRequest {
 // Re-export generated Booking type for tests that import from this module
 export type { Booking } from '@/features/shared/api/types';
 
+type LowercaseBookingStatus = Lowercase<BookingStatus>;
+
+type GetBookingsParams = {
+  status?: BookingStatus | LowercaseBookingStatus;
+  upcoming?: boolean;
+  exclude_future_confirmed?: boolean;
+  include_past_confirmed?: boolean;
+  limit?: number;
+  offset?: number;
+  page?: number;
+  per_page?: number;
+  signal?: AbortSignal;
+};
+
+const normalizeBookingStatus = (
+  status?: GetBookingsParams['status'],
+): BookingStatus | undefined => {
+  if (!status) return undefined;
+  return String(status).toUpperCase() as BookingStatus;
+};
+
 /**
  * Protected API client for authenticated features
  */
@@ -746,25 +768,33 @@ export const protectedApi = {
   },
 
   /**
-   * Get list of bookings for authenticated user
-   * Uses generated PaginatedResponse type from OpenAPI
+   * Get list of bookings for authenticated user.
+   * Normalizes `status` to the uppercase BookingStatus enum expected by the API.
    */
-  async getBookings(params?: {
-    status?: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-    upcoming?: boolean;
-    limit?: number;
-    offset?: number;
-    signal?: AbortSignal;
-  }) {
-    const { signal, ...query } = params ?? {};
+  async getBookings(params: GetBookingsParams = {}) {
+    const { signal, ...rest } = params;
     const options: FetchOptions = {};
 
     if (signal) {
       options.signal = signal;
     }
 
-    if (Object.keys(query).length > 0) {
-      options.params = query as Record<string, string | number | boolean>;
+    const { status, ...otherParams } = rest;
+    const normalizedStatus = normalizeBookingStatus(status);
+    const normalizedQuery: Record<string, string | number | boolean> = {};
+
+    Object.entries(otherParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        normalizedQuery[key] = value as string | number | boolean;
+      }
+    });
+
+    if (normalizedStatus) {
+      normalizedQuery['status'] = normalizedStatus;
+    }
+
+    if (Object.keys(normalizedQuery).length > 0) {
+      options.params = normalizedQuery;
     }
 
     // Use generated PaginatedBookingResponse type

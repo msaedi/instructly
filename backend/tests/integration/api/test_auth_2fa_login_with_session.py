@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
+import time
 import uuid
 
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 import pyotp
+import pytest
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.search_history import SearchHistory
 from app.services.auth_service import AuthService
 from app.services.two_factor_auth_service import TwoFactorAuthService
@@ -45,6 +50,13 @@ def _seed_guest_search(db: Session, guest_session_id: str, query: str = "piano l
 
 
 class TestLoginWithSessionTwoFactor:
+    def test_totp_key_required_in_preview(self, db: Session, monkeypatch) -> None:
+        monkeypatch.setenv("SITE_MODE", "preview")
+        monkeypatch.setattr(settings, "totp_encryption_key", SecretStr(""), raising=False)
+        message = "TOTP_ENCRYPTION_KEY must be set in hosted (preview/prod) environments"
+        with pytest.raises(RuntimeError, match=re.escape(message)):
+            TwoFactorAuthService(db)
+
     def test_requires_two_factor_when_enabled(self, client: TestClient, db: Session):
         client.cookies.clear()
         email = f"emma+{uuid.uuid4().hex[:6]}@example.com"
@@ -84,19 +96,25 @@ class TestLoginWithSessionTwoFactor:
         temp_token = login_response.json()["temp_token"]
 
         totp = pyotp.TOTP(secret)
-        verify_response = client.post(
-            "/api/auth/2fa/verify-login",
-            json={"temp_token": temp_token, "code": totp.now()},
-            headers={"X-Trust-Browser": "true"},
-        )
 
-        if verify_response.status_code != 200:
-            print("verify_response_json", verify_response.json())
+        def post_with_code(offset_seconds: int = 0):
+            timestamp = int(time.time()) + offset_seconds
+            code = totp.at(timestamp)
+            return client.post(
+                "/api/auth/2fa/verify-login",
+                json={"temp_token": temp_token, "code": code},
+                headers={"X-Trust-Browser": "true"},
+            )
+
+        verify_response = post_with_code()
+        if verify_response.status_code == 400:
+            # Single bounded retry one step back in case we crossed the boundary
+            verify_response = post_with_code(-30)
 
         assert verify_response.status_code == 200
         assert "access_token" in verify_response.json()
         set_cookie = verify_response.headers.get("set-cookie") or ""
-        assert "access_token=" in set_cookie
+        assert f"{settings.session_cookie_name}=" in set_cookie
         assert "tfa_trusted=1" in set_cookie
 
         guest_rows = db.query(SearchHistory).filter(

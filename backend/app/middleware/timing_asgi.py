@@ -12,6 +12,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from ..core.constants import SSE_PATH_PREFIX
+from ..database import get_db_pool_status
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,24 @@ class TimingMiddlewareASGI:
                     logger.warning(
                         f"[TIMING] Slow request: {method} {path} took {process_time:.2f}ms"
                     )
+                if process_time > 1000:
+                    pool_status = None
+                    pool_error = None
+                    try:
+                        pool_status = get_db_pool_status()
+                    except Exception as exc:  # pragma: no cover - defensive logging
+                        pool_error = str(exc)
+                    log_extra = {
+                        "event": "slow_request_pool",
+                        "path": path,
+                        "method": method,
+                        "duration_ms": process_time,
+                    }
+                    if pool_status is not None:
+                        log_extra["db_pool"] = pool_status
+                    if pool_error:
+                        log_extra["db_pool_error"] = pool_error
+                    logger.warning("Slow request exceeded 1s", extra=log_extra)
 
             await send(message)
 

@@ -68,8 +68,11 @@ class TestEmailService:
             assert isinstance(service.default_from_name, str)
             assert service.default_from_name
 
-    def test_email_service_no_api_key_raises_exception(self, db, mock_cache):
+    def test_email_service_no_api_key_raises_exception(self, db, mock_cache, monkeypatch):
         """Test that missing API key raises ServiceException."""
+        monkeypatch.setenv("SITE_MODE", "prod")
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.setattr(settings, "is_testing", False, raising=False)
         with patch("app.core.config.settings.resend_api_key", None):
             with pytest.raises(ServiceException, match="Resend API key not configured"):
                 EmailService(db, mock_cache)

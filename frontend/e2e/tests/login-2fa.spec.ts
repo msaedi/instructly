@@ -1,16 +1,6 @@
 import { test, expect, type BrowserContext, type ConsoleMessage, type Page, type Route } from '@playwright/test';
+import { buildSessionCookie } from '../support/cookies';
 
-const apiOrigin = () => {
-  const raw =
-    process.env.NEXT_PUBLIC_API_BASE || process.env.PLAYWRIGHT_API_BASE || 'http://localhost:8000';
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return 'http://localhost:8000';
-  }
-};
-
-const API_ORIGIN = apiOrigin();
 const DEBUG_E2E_LOGIN = process.env.DEBUG_E2E_LOGIN === '1';
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -122,23 +112,14 @@ const setSessionCookieHeaders = (origin: string, value = 'fake.jwt.value') => ({
   'set-cookie': cookieHeaderForOrigin(origin, value),
 });
 
-const persistSessionCookie = async (
-  context: BrowserContext,
-  value = 'fake.jwt.value',
-  origin = API_ORIGIN
-) => {
-  const { hostname } = new URL(origin);
-  await context.addCookies([
-    {
-      name: 'access_token',
-      value,
-      domain: hostname,
-      path: '/',
-      httpOnly: true,
-      sameSite: 'Lax',
-      secure: origin.startsWith('https'),
-    },
-  ]);
+const persistSessionCookie = async (context: BrowserContext, value = 'fake.jwt.value') => {
+  const base = process.env.PLAYWRIGHT_BASE_URL ?? process.env.BASE_URL ?? 'http://localhost:3100';
+  const cookie = buildSessionCookie({
+    baseURL: base,
+    nameFromEnv: process.env.SESSION_COOKIE_NAME,
+    token: value,
+  });
+  await context.addCookies([cookie]);
 };
 
 type RouteCallback = (route: Route) => Promise<void>;
@@ -275,7 +256,7 @@ test.describe('Login routing without 2FA', () => {
         logDebug('login-with-session response', responseBody);
         const requestOrigin = new URL(route.request().url()).origin;
         await respondJson(route, responseBody, 200, setSessionCookieHeaders(requestOrigin));
-        await persistSessionCookie(context, 'fake.jwt.value', requestOrigin);
+        await persistSessionCookie(context, 'fake.jwt.value');
         sessionReady = true;
       });
 
@@ -326,7 +307,7 @@ test.describe('2FA flows', () => {
       const payload = { access_token: 'fake.jwt.2', token_type: 'bearer' };
       const requestOrigin = new URL(route.request().url()).origin;
       await respondJson(route, payload, 200, setSessionCookieHeaders(requestOrigin, 'fake.jwt.2'));
-      await persistSessionCookie(context, 'fake.jwt.2', requestOrigin);
+      await persistSessionCookie(context, 'fake.jwt.2');
       sessionReady = true;
     });
 
@@ -374,7 +355,7 @@ test.describe('2FA flows', () => {
       const payload = { access_token: 'fake.jwt.3', token_type: 'bearer' };
       const requestOrigin = new URL(route.request().url()).origin;
       await respondJson(route, payload, 200, setSessionCookieHeaders(requestOrigin, 'fake.jwt.3'));
-      await persistSessionCookie(context, 'fake.jwt.3', requestOrigin);
+      await persistSessionCookie(context, 'fake.jwt.3');
       sessionReady = true;
     });
 

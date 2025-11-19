@@ -13,16 +13,23 @@ from typing import Any, Dict
 
 # Database Connection Pooling (Optimized for Render + Supabase)
 DATABASE_POOL_CONFIG = {
-    "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "20")),  # Increased from 5 to 20
-    "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "10")),  # Increased from 5 to 10
-    "pool_timeout": 30,  # Increased from 10 to 30
-    "pool_recycle": 1800,  # 30 minutes - more aggressive recycling
-    "pool_pre_ping": True,  # Test connections before using
+    "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
+    "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
+    "pool_timeout": int(os.getenv("DATABASE_POOL_TIMEOUT", "10")),
+    "pool_recycle": int(os.getenv("DATABASE_POOL_RECYCLE", "300")),
+    "pool_pre_ping": True,
+    "pool_use_lifo": True,
+    "future": True,
     "echo_pool": os.getenv("DATABASE_ECHO_POOL", "false").lower() == "true",
     "connect_args": {
-        "connect_timeout": 5,  # Reduced from 10
+        "sslmode": "require",
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+        "connect_timeout": 5,
         "application_name": "instainstru_render",
-        "options": "-c statement_timeout=30000",  # 30s query timeout
+        "options": "-c statement_timeout=30000",
     },
 }
 

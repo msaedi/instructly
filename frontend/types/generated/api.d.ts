@@ -2895,7 +2895,7 @@ export type paths = {
          *         auth_service: Authentication service
          *
          *     Returns:
-         *         AuthTokenResponse: Access token and token type
+         *         LoginResponse: Access token metadata for the client
          *
          *     Raises:
          *         HTTPException: If credentials are invalid or rate limit exceeded
@@ -2928,7 +2928,7 @@ export type paths = {
          *         db: Database session
          *
          *     Returns:
-         *         AuthTokenResponse: Access token and token type
+         *         LoginResponse: Access token metadata for the client
          *
          *     Raises:
          *         HTTPException: If credentials are invalid or rate limit exceeded
@@ -4801,16 +4801,6 @@ export type components = {
             windows_created: number;
             /** Written Dates */
             written_dates?: string[];
-        };
-        /**
-         * AuthTokenResponse
-         * @description Strict token payload for session-based login responses.
-         */
-        AuthTokenResponse: {
-            /** Access Token */
-            access_token: string;
-            /** Token Type */
-            token_type: string;
         };
         /**
          * AuthUserResponse
@@ -15180,7 +15170,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthTokenResponse"];
+                    "application/json": components["schemas"]["LoginResponse"];
                 };
             };
             /** @description Validation Error */

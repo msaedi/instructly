@@ -18,6 +18,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.repositories.conflict_checker_repository import ConflictCheckerRepository
+from app.repositories.user_repository import UserRepository
 from app.services.conflict_checker import ConflictChecker
 
 
@@ -191,6 +192,7 @@ class TestConflictCheckerValidationRules:
         mock_repository = Mock(spec=ConflictCheckerRepository)
         service = ConflictChecker(mock_db)
         service.repository = mock_repository
+        service.user_repository = Mock(spec=UserRepository)
         return service
 
     def _setup_user_mock(self, service, user_id=generate_ulid(), timezone="America/New_York"):
@@ -198,10 +200,11 @@ class TestConflictCheckerValidationRules:
         mock_user = Mock()
         mock_user.id = user_id
         mock_user.timezone = timezone
-        service.db.query.return_value.filter.return_value.first.return_value = mock_user
+        service.user_repository.get_by_id.return_value = mock_user
         return mock_user
 
-    def test_past_date_validation_rules(self, service):
+    @patch("app.services.conflict_checker.get_user_today_by_id")
+    def test_past_date_validation_rules(self, mock_get_today, service):
         """Test business rules for past date validation."""
         # Mock repository methods to return valid data
         service.repository.get_bookings_for_conflict_check.return_value = []
@@ -212,13 +215,15 @@ class TestConflictCheckerValidationRules:
         mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
-        # Set up user mock with timezone
-        self._setup_user_mock(service)
+        # Set up user mock with timezone and deterministic "today"
+        instructor = self._setup_user_mock(service)
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
 
         # Test past date
         result = service.validate_booking_constraints(
-            instructor_id=generate_ulid(),
-            booking_date=date.today() - timedelta(days=1),
+            instructor_id=instructor.id,
+            booking_date=today - timedelta(days=1),
             start_time=time(14, 0),
             end_time=time(15, 0),
         )
@@ -226,7 +231,8 @@ class TestConflictCheckerValidationRules:
         assert result["valid"] == False
         assert any("past" in error.lower() for error in result["errors"])
 
-    def test_service_duration_validation_rules(self, service):
+    @patch("app.services.conflict_checker.get_user_today_by_id")
+    def test_service_duration_validation_rules(self, mock_get_today, service):
         """Test service-specific duration validation."""
         # Mock service with duration options
         mock_service = Mock(spec=Service)
@@ -239,26 +245,35 @@ class TestConflictCheckerValidationRules:
         service.repository.get_blackout_date.return_value = None
 
         # Set up user mock with timezone
-        self._setup_user_mock(service)
+        instructor = self._setup_user_mock(service)
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
 
         mock_profile = Mock(spec=InstructorProfile)
         mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Test service duration mismatch - use a duration not in the options
-        result = service.validate_booking_constraints(
-            instructor_id=generate_ulid(),
-            booking_date=date.today() + timedelta(days=1),
-            start_time=time(14, 0),
-            end_time=time(14, 45),  # 45 minutes - not in the options [60, 90, 120]
-            service_id=generate_ulid(),
-        )
+        import pytz
+
+        ny_tz = pytz.timezone("America/New_York")
+        with patch("app.core.timezone_utils.get_user_now") as mock_get_user_now:
+            mock_get_user_now.return_value = ny_tz.localize(datetime.combine(today, time(10, 0)))
+
+            result = service.validate_booking_constraints(
+                instructor_id=instructor.id,
+                booking_date=today + timedelta(days=1),
+                start_time=time(14, 0),
+                end_time=time(14, 45),  # 45 minutes - not in the options [60, 90, 120]
+                service_id=generate_ulid(),
+            )
 
         assert result["valid"] == True  # Valid but with warning
         assert len(result["warnings"]) >= 1
         assert any("[60, 90, 120] minutes" in warning for warning in result["warnings"])
 
-    def test_blackout_date_priority_rules(self, service):
+    @patch("app.services.conflict_checker.get_user_today_by_id")
+    def test_blackout_date_priority_rules(self, mock_get_today, service):
         """Test that blackout dates take priority over other validations."""
         # Mock blackout date exists
         service.repository.get_blackout_date.return_value = Mock(spec=BlackoutDate)
@@ -270,11 +285,13 @@ class TestConflictCheckerValidationRules:
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Set up user mock with timezone
-        self._setup_user_mock(service)
+        instructor = self._setup_user_mock(service)
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
 
         result = service.validate_booking_constraints(
-            instructor_id=generate_ulid(),
-            booking_date=date.today() + timedelta(days=1),
+            instructor_id=instructor.id,
+            booking_date=today + timedelta(days=1),
             start_time=time(14, 0),
             end_time=time(15, 0),
         )
@@ -506,6 +523,7 @@ class TestConflictCheckerEdgeCases:
         mock_repository = Mock(spec=ConflictCheckerRepository)
         service = ConflictChecker(mock_db)
         service.repository = mock_repository
+        service.user_repository = Mock(spec=UserRepository)
         return service
 
     def _setup_user_mock(self, service, user_id=generate_ulid(), timezone="America/New_York"):
@@ -513,7 +531,7 @@ class TestConflictCheckerEdgeCases:
         mock_user = Mock()
         mock_user.id = user_id
         mock_user.timezone = timezone
-        service.db.query.return_value.filter.return_value.first.return_value = mock_user
+        service.user_repository.get_by_id.return_value = mock_user
         return mock_user
 
     def test_midnight_boundary_handling(self, service):
@@ -557,7 +575,8 @@ class TestConflictCheckerEdgeCases:
         assert result["valid"] == False
         assert "not found" in result["reason"]
 
-    def test_inactive_service_validation(self, service):
+    @patch("app.services.conflict_checker.get_user_today_by_id")
+    def test_inactive_service_validation(self, mock_get_today, service):
         """Test validation with inactive service."""
         # Repository returns None for inactive service
         service.repository.get_active_service.return_value = None
@@ -571,11 +590,13 @@ class TestConflictCheckerEdgeCases:
         service.repository.get_instructor_profile.return_value = mock_profile
 
         # Set up user mock with timezone
-        self._setup_user_mock(service)
+        instructor = self._setup_user_mock(service)
+        today = date(2024, 1, 15)
+        mock_get_today.return_value = today
 
         result = service.validate_booking_constraints(
-            instructor_id=generate_ulid(),
-            booking_date=date.today() + timedelta(days=1),
+            instructor_id=instructor.id,
+            booking_date=today + timedelta(days=1),
             start_time=time(10, 0),
             end_time=time(11, 0),
             service_id=generate_ulid(),

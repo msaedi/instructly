@@ -749,7 +749,36 @@ async def reschedule_booking(
                 detail="You already have a booking scheduled at this time",
             )
 
-        # 3) Create the new booking using requested slot (service defaults to original unless provided)
+        # 3) PREFLIGHT: Check if student has a valid payment method BEFORE canceling original
+        # This ensures we don't cancel the original if we can't create a valid new booking
+        from ..services.config_service import ConfigService as _ConfigService
+        from ..services.pricing_service import PricingService as _PricingService
+        from ..services.stripe_service import StripeService as _StripeService
+
+        config_service = _ConfigService(booking_service.db)
+        pricing_service = _PricingService(booking_service.db)
+        stripe_service = _StripeService(
+            booking_service.db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
+
+        default_pm = stripe_service.payment_repository.get_default_payment_method(current_user.id)
+
+        if not default_pm or not default_pm.stripe_payment_method_id:
+            # No payment method on file - cannot reschedule
+            # Do NOT cancel original booking
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "payment_method_required_for_reschedule",
+                    "message": "A payment method is required to reschedule this lesson. Please add a payment method and try again.",
+                },
+            )
+
+        # 4) Create the new booking using requested slot (service defaults to original unless provided)
         # Sanitize carried-over optional fields from original which may be mocks in tests
         _student_note = (
             original.student_note
@@ -781,7 +810,7 @@ async def reschedule_booking(
             location_type=_location_type,
         )
 
-        # Create booking with payment setup so FE can confirm card if needed
+        # Create booking with payment setup
         new_booking = await booking_service.create_booking_with_payment_setup(
             student=current_user,
             booking_data=new_booking_data,
@@ -789,37 +818,37 @@ async def reschedule_booking(
             rescheduled_from_booking_id=original.id,
         )
 
-        # Auto-confirm payment if student has a default payment method
+        # Auto-confirm payment with the verified payment method
         try:
-            from ..services.config_service import ConfigService as _ConfigService
-            from ..services.pricing_service import PricingService as _PricingService
-            from ..services.stripe_service import StripeService as _StripeService
-
-            config_service = _ConfigService(booking_service.db)
-            pricing_service = _PricingService(booking_service.db)
-            stripe_service = _StripeService(
-                booking_service.db,
-                config_service=config_service,
-                pricing_service=pricing_service,
+            new_booking = await booking_service.confirm_booking_payment(
+                booking_id=new_booking.id,
+                student=current_user,
+                payment_method_id=default_pm.stripe_payment_method_id,
+                save_payment_method=False,
             )
-            default_pm = stripe_service.payment_repository.get_default_payment_method(
-                current_user.id
-            )
-            if default_pm and default_pm.stripe_payment_method_id:
-                try:
-                    new_booking = await booking_service.confirm_booking_payment(
-                        booking_id=new_booking.id,
-                        student=current_user,
-                        payment_method_id=default_pm.stripe_payment_method_id,
-                        save_payment_method=False,
-                    )
-                except Exception:
-                    # Leave as PENDING if auto-confirm fails (e.g., requires 3DS)
-                    pass
-        except Exception:
-            pass
+        except Exception as e:
+            # Payment confirmation failed - delete the new booking and don't cancel original
+            import logging
 
-        # 4) Only after successful creation, cancel the original booking
+            logging.error(f"Failed to confirm payment for rescheduled booking: {e}")
+            try:
+                # Clean up the failed new booking
+                booking_service.db.delete(new_booking)
+                booking_service.db.commit()
+            except Exception:
+                pass
+
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "payment_confirmation_failed",
+                    "message": "We couldn't process your payment method. Please try again or update your payment method.",
+                },
+            )
+
+        # 5) Only after successful creation AND payment confirmation, cancel the original booking
         try:
             await booking_service.cancel_booking(
                 booking_id=booking_id, user=current_user, reason="Rescheduled"
