@@ -139,6 +139,19 @@ describe('BGCStep', () => {
     expect(toast.success).toHaveBeenCalledWith('Background check already in progress');
   });
 
+  it('displays canceled status messaging and keeps CTA enabled', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({ status: 'canceled', env: 'sandbox' });
+
+    render(<BGCStep instructorId="instructor-canceled" />);
+
+    expect(await screen.findByText(/Canceled/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Background check was canceled in Checkr/i),
+    ).toBeInTheDocument();
+    const button = await screen.findByRole('button', { name: /start background check/i });
+    expect(button).not.toBeDisabled();
+  });
+
   it('disables CTA and shows message when forbidden', async () => {
     mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
     const response = { status: 403 } as Response;

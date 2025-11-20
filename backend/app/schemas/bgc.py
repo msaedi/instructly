@@ -7,7 +7,9 @@ from pydantic import Field
 
 from ._strict_base import StrictModel, StrictRequestModel
 
-BackgroundCheckStatusLiteral = Literal["pending", "review", "consider", "passed", "failed"]
+BackgroundCheckStatusLiteral = Literal[
+    "pending", "review", "consider", "passed", "failed", "canceled"
+]
 
 
 class BackgroundCheckInviteRequest(StrictRequestModel):

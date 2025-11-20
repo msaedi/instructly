@@ -400,6 +400,8 @@ export default function AdminBGCReviewPage() {
                         ? 'bg-amber-50 text-amber-800 border-amber-200'
                         : statusValue === 'pending'
                         ? 'bg-sky-50 text-sky-700 border-sky-200'
+                        : statusValue === 'canceled'
+                        ? 'bg-rose-50 text-rose-700 border-rose-200'
                         : 'bg-gray-50 text-gray-600 border-gray-200';
                       return (
                         <tr key={item.instructor_id} className="bg-white/40 dark:bg-transparent">
@@ -689,9 +691,14 @@ function PreviewContent({
         </div>
         <div>
           <dt className="text-xs uppercase text-gray-400">BGC status</dt>
-          <dd>{detail.bgc_status || '—'}</dd>
+          <dd className="capitalize">{detail.bgc_status || '—'}</dd>
         </div>
       </div>
+      {normalizedStatus === 'canceled' ? (
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          Report was canceled in Checkr. Review the case in Checkr Dashboard and decide whether to re-invite or contact support.
+        </div>
+      ) : null}
       <div>
         <dt className="text-xs uppercase text-gray-400">Valid until</dt>
         <dd className="flex flex-wrap items-center gap-2">

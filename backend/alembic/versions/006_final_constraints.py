@@ -428,7 +428,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_instructor_profiles_bgc_status",
         "instructor_profiles",
-        "bgc_status IN ('pending','passed','review','failed','consider')",
+        "bgc_status IN ('pending','passed','review','failed','consider','canceled')",
     )
     op.create_check_constraint(
         "ck_instructor_profiles_bgc_env",

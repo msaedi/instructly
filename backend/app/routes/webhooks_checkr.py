@@ -46,7 +46,25 @@ def _result_label(result: str) -> str:
         return "clear"
     if normalized == "consider":
         return "consider"
+    if normalized == "canceled":
+        return "canceled"
     return "other"
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    normalized = trimmed.replace("Z", "+00:00") if trimmed.endswith("Z") else trimmed
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _require_basic_auth(request: Request) -> None:
@@ -471,6 +489,87 @@ async def handle_checkr_webhook(
 
         return WebhookAckResponse(ok=True)
 
+    if event_type == "report.canceled":
+        report_id = resource_id
+        if not report_id:
+            return WebhookAckResponse(ok=True)
+
+        candidate_id = _extract_candidate_id(data_object)
+        invitation_id = _extract_invitation_id(data_object)
+        _bind_report_to_profile(
+            repo,
+            report_id=report_id,
+            candidate_id=candidate_id,
+            invitation_id=invitation_id,
+            env=settings.checkr_env,
+        )
+        canceled_raw = (
+            data_object.get("completed_at")
+            or data_object.get("canceled_at")
+            or data_object.get("closed_at")
+        )
+        canceled_at = _parse_timestamp(canceled_raw) or datetime.now(timezone.utc)
+        result_label = _result_label("canceled")
+        try:
+            workflow_service.handle_report_canceled(
+                report_id=report_id,
+                env=settings.checkr_env,
+                canceled_at=canceled_at,
+                candidate_id=candidate_id,
+                invitation_id=invitation_id,
+            )
+            CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="success").inc()
+            logger.info(
+                "Checkr webhook processed",
+                extra={
+                    "evt": "checkr_webhook",
+                    "type": event_type,
+                    "report_id": report_id,
+                    "outcome": "success",
+                },
+            )
+            _mark_delivery(delivery_key)
+        except RepositoryException as exc:
+            CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="queued").inc()
+            logger.warning(
+                "Background check cancel deferred: %s",
+                str(exc),
+                extra={"evt": "checkr_webhook", "type": event_type, "report_id": report_id},
+            )
+            job_repository.enqueue(
+                type="webhook.report_canceled",
+                payload={
+                    "report_id": report_id,
+                    "env": settings.checkr_env,
+                    "canceled_at": canceled_at.isoformat(),
+                    "candidate_id": candidate_id,
+                    "invitation_id": invitation_id,
+                },
+            )
+        except Exception:  # pragma: no cover - safety fallback
+            CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="error").inc()
+            logger.exception(
+                "Unhandled error processing report.canceled; enqueueing retry",
+                extra={
+                    "evt": "checkr_webhook",
+                    "type": event_type,
+                    "report_id": report_id,
+                    "outcome": "error",
+                },
+            )
+            job_repository.enqueue(
+                type="webhook.report_canceled",
+                payload={
+                    "report_id": report_id,
+                    "env": settings.checkr_env,
+                    "canceled_at": canceled_at.isoformat(),
+                    "candidate_id": candidate_id,
+                    "invitation_id": invitation_id,
+                },
+            )
+
+        return WebhookAckResponse(ok=True)
+
     if event_type == "report.suspended":
         report_id = resource_id
         if not report_id:
@@ -508,7 +607,6 @@ async def handle_checkr_webhook(
         "report.created": {"status": "pending", "note": None},
         "report.updated": {"status": None, "note": "report.updated"},
         "report.deferred": {"status": "pending", "note": None},
-        "report.canceled": {"status": "pending", "note": None},
         "report.resumed": {"status": "pending", "note": "report.resumed"},
         "report.disputed": {"status": "consider", "note": "report.disputed"},
         "report.upgrade_failed": {"status": "pending", "note": None},

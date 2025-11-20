@@ -213,7 +213,7 @@ def _ensure_owner_or_admin(user: User, instructor_user_id: str) -> None:
 
 def _status_literal(raw_status: str | None) -> BackgroundCheckStatusLiteral:
     status_value = (raw_status or "failed").lower().strip()
-    if status_value not in {"pending", "review", "consider", "passed", "failed"}:
+    if status_value not in {"pending", "review", "consider", "passed", "failed", "canceled"}:
         return "failed"
     return cast(BackgroundCheckStatusLiteral, status_value)
 

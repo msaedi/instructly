@@ -33,6 +33,10 @@ const STATUS_META: Record<BGCStatus, { label: string; className: string }> = {
     label: 'Not started',
     className: 'bg-slate-100 text-slate-700 border border-slate-200',
   },
+  canceled: {
+    label: 'Canceled',
+    className: 'bg-rose-100 text-rose-800 border border-rose-200',
+  },
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -498,6 +502,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
 
   const shouldShowRecheck =
     isExpired || (typeof expiresInDays === 'number' && Number.isFinite(expiresInDays) && expiresInDays <= 30);
+  const isCanceled = status === 'canceled';
   const recheckDisabled =
     recheckLoading ||
     inviteLoading ||
@@ -531,6 +536,11 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           </Button>
         ) : null}
       </div>
+      {isCanceled ? (
+        <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
+          Background check was canceled in Checkr. Please contact support or start a new background check to continue.
+        </div>
+      ) : null}
       {statusError ? (
         <p className="text-sm text-muted-foreground" role="alert">
           Status unavailable. You can still start a background check.

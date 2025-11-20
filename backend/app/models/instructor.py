@@ -215,7 +215,7 @@ class InstructorProfile(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "bgc_status IN ('pending','passed','review','failed','consider')",
+            "bgc_status IN ('pending','passed','review','failed','consider','canceled')",
             name="ck_instructor_profiles_bgc_status",
         ),
         CheckConstraint(

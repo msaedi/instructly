@@ -234,6 +234,63 @@ def test_report_completed_unknown_candidate_enqueues_job(client, db: Session) ->
     assert jobs[0].payload.get("candidate_id") == "cand_does_not_exist"
 
 
+def test_report_canceled_updates_profile(client, db: Session) -> None:
+    profile = _create_instructor_with_report(db, report_id="rpt_cancel_pending")
+
+    payload = {
+        "type": "report.canceled",
+        "data": {
+            "object": {
+                "id": "rpt_cancel_pending",
+                "candidate_id": "cand_cancel",
+                "canceled_at": "2024-02-01T03:04:05Z",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_status == "canceled"
+    assert profile.bgc_report_result == "canceled"
+    assert profile.bgc_valid_until is None
+    assert profile.bgc_note == "report.canceled"
+
+    history = (
+        db.query(BackgroundCheck)
+        .filter(BackgroundCheck.instructor_id == profile.id)
+        .order_by(BackgroundCheck.created_at.asc())
+        .all()
+    )
+    assert len(history) == 1
+    assert history[0].result == "canceled"
+    assert history[0].report_id_enc is not None
+
+
+def test_report_canceled_unknown_profile_enqueues_job(client, db: Session) -> None:
+    db.query(BackgroundJob).delete()
+    db.commit()
+
+    payload = {
+        "type": "report.canceled",
+        "data": {
+            "object": {
+                "id": "rpt_cancel_unknown",
+                "candidate_id": "cand_missing",
+                "canceled_at": "2024-02-01T03:04:05Z",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+    jobs = db.query(BackgroundJob).filter(BackgroundJob.type == "webhook.report_canceled").all()
+    assert len(jobs) == 1
+    assert jobs[0].payload.get("candidate_id") == "cand_missing"
+
+
 def test_maps_completed_and_logs_delivery(client, db: Session) -> None:
     db.query(BGCWebhookLog).delete()
     db.commit()

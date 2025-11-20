@@ -286,6 +286,63 @@ class BackgroundCheckWorkflowService:
                 f"No instructor profile linked to report {report_id}; cannot suspend"
             )
 
+    def handle_report_canceled(
+        self,
+        *,
+        report_id: str,
+        env: str,
+        canceled_at: datetime,
+        candidate_id: str | None = None,
+        invitation_id: str | None = None,
+    ) -> InstructorProfile:
+        """Process a report.canceled webhook event."""
+
+        canceled_at = _ensure_utc(canceled_at)
+        note_value = "report.canceled"
+        updated = self.repo.update_bgc_by_report_id(
+            report_id,
+            status="canceled",
+            completed_at=canceled_at,
+            result="canceled",
+            note=note_value,
+        )
+        if updated == 0:
+            bound_profile_id = self.repo.bind_report_to_candidate(candidate_id, report_id, env=env)
+            if not bound_profile_id:
+                bound_profile_id = self.repo.bind_report_to_invitation(
+                    invitation_id, report_id, env=env
+                )
+            if bound_profile_id:
+                updated = self.repo.update_bgc_by_report_id(
+                    report_id,
+                    status="canceled",
+                    completed_at=canceled_at,
+                    result="canceled",
+                    note=note_value,
+                )
+        if updated == 0:
+            raise RepositoryException(
+                f"No instructor profile linked to report {report_id}; cancel event deferred"
+            )
+
+        profile = self.repo.get_by_report_id(report_id)
+        if not profile:
+            raise RepositoryException(f"Unable to load instructor profile for report {report_id}")
+
+        self.repo.update_valid_until(profile.id, None)
+        profile.bgc_valid_until = None
+
+        self.repo.append_history(
+            instructor_id=profile.id,
+            report_id=report_id,
+            result="canceled",
+            package=None,
+            env=env,
+            completed_at=canceled_at,
+        )
+
+        return profile
+
     def schedule_final_adverse_action(
         self,
         profile_id: str,

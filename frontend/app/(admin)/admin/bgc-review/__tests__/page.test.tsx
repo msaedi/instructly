@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { usePathname } from 'next/navigation';
@@ -65,6 +65,7 @@ function makeInviteMutation(
 
 let reviewItems: BGCCaseItem[];
 let pendingItems: BGCCaseItem[];
+let canceledItem: BGCCaseItem;
 let reviewDetail: AdminInstructorDetail;
 
 jest.mock('@/hooks/useAdminAuth', () => ({
@@ -177,6 +178,28 @@ describe('AdminBGCReviewPage', () => {
       },
     ];
 
+    canceledItem = {
+      instructor_id: '01TESTCANCELED',
+      name: 'Canceled Instructor',
+      email: 'canceled@example.com',
+      bgc_status: 'canceled',
+      bgc_report_id: 'rpt_canceled',
+      bgc_completed_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: null,
+      consent_recent: false,
+      consent_recent_at: null,
+      checkr_report_url: 'https://dashboard.checkr.com/reports/rpt_canceled',
+      is_live: false,
+      in_dispute: false,
+      dispute_note: null,
+      dispute_opened_at: null,
+      dispute_resolved_at: null,
+      bgc_valid_until: null,
+      bgc_expires_in_days: null,
+      bgc_is_expired: false,
+    };
+
     reviewDetail = {
       id: '01TEST0INSTRUCTOR',
       name: 'Review Instructor',
@@ -211,7 +234,7 @@ describe('AdminBGCReviewPage', () => {
         if (status === 'pending') {
           items = pendingItems;
         } else if (status === 'all') {
-          items = [...reviewItems, ...pendingItems];
+          items = [...reviewItems, ...pendingItems, canceledItem];
         } else {
           items = reviewItems;
         }
@@ -410,6 +433,37 @@ describe('AdminBGCReviewPage', () => {
     expect(screen.queryByText('Review Instructor')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /reject/i })).not.toBeInTheDocument();
+  });
+
+  it('shows canceled cases in All view with guidance in preview', async () => {
+    renderWithClient(<AdminBGCReviewPage />);
+    await screen.findByText('Review Instructor');
+
+    const user = userEvent.setup();
+    const allButton = screen.getByRole('button', { name: /all/i });
+    await user.click(allButton);
+
+    const canceledTrigger = await screen.findByRole('button', { name: /canceled instructor/i });
+    const row = canceledTrigger.closest('tr');
+    expect(row).not.toBeNull();
+    if (row) {
+      expect(within(row).getAllByText(/canceled/i).length).toBeGreaterThan(0);
+    }
+
+    reviewDetail = {
+      ...reviewDetail,
+      id: canceledItem.instructor_id,
+      name: canceledItem.name,
+      email: canceledItem.email,
+      bgc_status: 'canceled',
+      bgc_valid_until: null,
+      bgc_expires_in_days: null,
+      bgc_is_expired: false,
+    };
+
+    await user.click(canceledTrigger);
+    await screen.findByText(/Instructor Preview/i);
+    await screen.findByText(/Report was canceled in Checkr/i);
   });
 
   it('handles dispute open and resolve flow', async () => {

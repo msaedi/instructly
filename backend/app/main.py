@@ -518,6 +518,29 @@ async def _background_jobs_worker() -> None:
                             if not report_id:
                                 raise RepositoryException("Missing report_id in suspended payload")
                             workflow.handle_report_suspended(report_id)
+                        elif job.type == "webhook.report_canceled":
+                            report_id = payload.get("report_id")
+                            if not report_id:
+                                raise RepositoryException("Missing report_id in canceled payload")
+                            canceled_raw = payload.get("canceled_at")
+                            if canceled_raw:
+                                canceled_at = datetime.fromisoformat(canceled_raw)
+                                if canceled_at.tzinfo is None:
+                                    canceled_at = canceled_at.replace(tzinfo=timezone.utc)
+                                else:
+                                    canceled_at = canceled_at.astimezone(timezone.utc)
+                            else:
+                                canceled_at = datetime.now(timezone.utc)
+                            env = payload.get("env", settings.checkr_env)
+                            candidate_id = payload.get("candidate_id")
+                            invitation_id = payload.get("invitation_id")
+                            workflow.handle_report_canceled(
+                                report_id=report_id,
+                                env=env,
+                                canceled_at=canceled_at,
+                                candidate_id=candidate_id,
+                                invitation_id=invitation_id,
+                            )
                         elif job.type == FINAL_ADVERSE_JOB_TYPE:
                             payload_raw = job.payload
                             if not isinstance(payload_raw, dict):
