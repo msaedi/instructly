@@ -1,10 +1,12 @@
 process.env.NEXT_PUBLIC_APP_ENV = 'preview';
 
+import * as React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BGCStep } from '@/components/instructor/BGCStep';
 import { bgcInvite, bgcRecheck, bgcStatus } from '@/lib/api/bgc';
 import { ApiProblemError } from '@/lib/api/fetch';
+import { normalizeProblem } from '@/lib/errors/problem';
 import { toast } from 'sonner';
 
 jest.mock('@/lib/api/bgc');
@@ -551,5 +553,30 @@ describe('BGCStep', () => {
         expect.objectContaining({ description: expect.stringContaining('contact support') })
       )
     );
+  });
+
+  it('shows rate limited toast when invite is rate limited', async () => {
+    mockedBGCStatus.mockResolvedValueOnce({ status: 'failed', env: 'sandbox' });
+    const response = { status: 429 } as Response;
+    const structuredDetail = {
+      status: 429,
+      code: 'bgc_invite_rate_limited',
+      title: 'Background check recently requested',
+      message: 'You recently started a background check. Please wait up to 24 hours before trying again.',
+    };
+    const normalized = normalizeProblem(structuredDetail, 429);
+    mockedBGCInvite.mockRejectedValueOnce(new ApiProblemError(normalized, response));
+
+    render(<BGCStep instructorId="instructor-rate-limit" />);
+    const button = await screen.findByRole('button', { name: /start background check/i });
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await userEvent.click(button);
+
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith(
+        'You recently requested a background check. Please wait up to 24 hours before starting another one.'
+      )
+    );
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

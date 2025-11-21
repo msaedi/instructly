@@ -71,6 +71,16 @@ def _bgc_invite_problem(
     return payload
 
 
+def _bgc_invite_rate_limited_problem() -> dict[str, Any]:
+    return {
+        "type": "about:blank",
+        "title": "Background check recently requested",
+        "status": status.HTTP_429_TOO_MANY_REQUESTS,
+        "detail": "You recently started a background check. Please wait up to 24 hours before trying again.",
+        "code": "bgc_invite_rate_limited",
+    }
+
+
 def _checkr_auth_problem(detail: str | None = None) -> dict[str, Any]:
     return {
         "type": "about:blank",
@@ -321,9 +331,11 @@ async def trigger_background_check_invite(
             },
         )
         BGC_INVITES_TOTAL.labels(outcome="rate_limited").inc()
+        problem = _bgc_invite_rate_limited_problem()
+        problem["instance"] = f"/api/instructors/{instructor_id}/bgc/invite"
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Invite rate-limited; try again later",
+            detail=problem,
         )
     logger.info(
         "Background check invite begin",

@@ -42,6 +42,23 @@ describe("problem+json parser", () => {
     expect(p).toBeNull();
   });
 
+  test("parses FastAPI-style detail object and surfaces code/message", () => {
+    const res = makeRes({ "content-type": "application/json" }, 429);
+    const body = {
+      detail: {
+        status: 429,
+        code: "bgc_invite_rate_limited",
+        title: "Too Many Requests",
+        message: "You recently requested a background check. Please wait 24 hours.",
+      },
+    };
+    const p = parseProblem(res, body);
+    expect(p).not.toBeNull();
+    expect(p!.code).toBe("bgc_invite_rate_limited");
+    expect(p!.detail).toBe("You recently requested a background check. Please wait 24 hours.");
+    expect(p!.status).toBe(429);
+  });
+
   test("normalizer fills defaults and preserves code", () => {
     const normalized = normalizeProblem({ title: "Bad Request", code: "SOME_CODE" }, 400);
     expect(normalized.title).toBe("Bad Request");

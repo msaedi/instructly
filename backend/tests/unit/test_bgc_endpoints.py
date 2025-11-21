@@ -680,3 +680,27 @@ def test_status_not_found(client, db):
         response = client.get("/api/instructors/01NOTEXISTING/bgc/status")
 
     assert response.status_code == 404
+
+
+def test_invite_returns_specific_error_when_rate_limited(client, db, owner_auth_override):
+    owner, profile = _create_instructor(db, status="failed")
+    owner_auth_override(owner)
+    headers = _csrf_headers(client)
+    _record_consent(client, profile.id, headers)
+
+    # Manually set a recent invited_at
+    profile.bgc_invited_at = datetime.now(timezone.utc)
+    db.add(profile)
+    db.commit()
+
+    response = client.post(
+        f"/api/instructors/{profile.id}/bgc/invite",
+        headers=headers,
+        json={},
+    )
+
+    assert response.status_code == 429
+    payload = response.json()
+    assert payload["code"] == "bgc_invite_rate_limited"
+    assert payload["title"] == "Background check recently requested"
+    assert "wait up to 24 hours" in payload["detail"]

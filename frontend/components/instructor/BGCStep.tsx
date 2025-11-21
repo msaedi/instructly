@@ -308,6 +308,9 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
     } catch (error) {
       let description = 'Please try again in a moment.';
       if (error instanceof ApiProblemError) {
+        if (process.env.NODE_ENV !== 'production') {
+          logger.debug('[BGCStep] ApiProblemError', error.problem);
+        }
         const detail = error.problem?.detail;
         const detailObject =
           typeof detail === 'object' && detail !== null ? (detail as Record<string, unknown>) : null;
@@ -321,6 +324,9 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           detailObject && typeof detailObject['code'] === 'string' ? (detailObject['code'] as string) : undefined;
         const topLevelCode = typeof error.problem?.code === 'string' ? error.problem.code : undefined;
         const code = detailCode ?? topLevelCode;
+        if (process.env.NODE_ENV !== 'production') {
+          logger.debug('[BGCStep] Parsed problem code', { code, detail, detailObject });
+        }
         const problemExtras = isRecord(error.problem) ? (error.problem as Record<string, unknown>) : undefined;
         const providerErrorRaw = problemExtras ? (problemExtras['provider_error'] as unknown) : undefined;
         const debugRaw = problemExtras ? (problemExtras['debug'] as unknown) : undefined;
@@ -360,6 +366,11 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           toast.error('Background check configuration error: work location rejected.', {
             description: 'Please contact support to resolve the work location issue.',
           });
+          return;
+        } else if (code === 'bgc_invite_rate_limited') {
+          toast.info(
+            'You recently requested a background check. Please wait up to 24 hours before starting another one.'
+          );
           return;
         } else if (code === 'bgc_consent_required' && ensureConsent && !afterConsent) {
           const consentOk = await ensureConsent();

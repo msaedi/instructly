@@ -41,14 +41,19 @@ export function Providers({ children }: { children: ReactNode }) {
           position="top-right"
           toastOptions={{
             style: {
-              background: '#6b21a8',
-              color: '#ffffff',
-              padding: '6px 10px',
-              borderRadius: '8px',
-              width: '230px',
-              minWidth: '230px',
-              maxWidth: '230px',
-              whiteSpace: 'nowrap',
+              background: '#5b21b6',
+              color: '#fdf4ff',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              width: 'auto',
+              minWidth: '260px',
+              maxWidth: '360px',
+              whiteSpace: 'normal',
+              boxShadow: '0 12px 24px rgba(15, 23, 42, 0.45)',
+            },
+            classNames: {
+              title: 'inst-toast-title',
+              description: 'inst-toast-description',
             },
           }}
         />

@@ -197,7 +197,7 @@ body {
   }
 
   /* Fix text colors */
-  .text-gray-900 {
+.text-gray-900 {
     color: #f3f4f6 !important; /* Gray 100 */
   }
 
@@ -867,4 +867,38 @@ html {
   outline: none !important;
   box-shadow: none !important;
   border: none !important;
+}
+
+/* Toast overrides */
+.sonner-toast {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(16px);
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.inst-toast-title {
+  font-weight: 600;
+  color: #f8fafc !important;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.inst-toast-description {
+  color: rgba(249, 250, 251, 0.92) !important;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  white-space: normal;
+  margin-top: 2px;
+}
+
+.sonner-toast .sonner-title {
+  color: #f8fafc !important;
+}
+
+.sonner-toast .sonner-description {
+  color: rgba(249, 250, 251, 0.92) !important;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
 }

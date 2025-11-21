@@ -1,6 +1,6 @@
 import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
-import { parseProblem, type Problem } from '@/lib/errors/problem';
+import { parseProblem, normalizeProblem, type Problem } from '@/lib/errors/problem';
 
 export class ApiProblemError extends Error {
   readonly problem: Problem;
@@ -79,7 +79,18 @@ export async function fetchJson<T = unknown>(endpoint: string, init: FetchOption
         try { body = await res.clone().json(); } catch { /* ignore */ }
       }
 
-      const problem = parseProblem(res, body);
+      let problem = parseProblem(res, body);
+      if (!problem && body && typeof body === 'object') {
+        const record = body as Record<string, unknown>;
+        if (typeof record['code'] === 'string' || typeof record['title'] === 'string') {
+          problem = normalizeProblem(record, res.status ?? undefined);
+        } else {
+          const nested = record['detail'];
+          if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+            problem = normalizeProblem(nested as Record<string, unknown>, res.status ?? undefined);
+          }
+        }
+      }
       if (!res.ok && problem) {
         logger.warn('API problem response', { endpoint, status: res.status, problem });
         throw new ApiProblemError(problem, res);
@@ -107,7 +118,11 @@ export async function fetchJson<T = unknown>(endpoint: string, init: FetchOption
       if ((err as { name?: string } | null)?.name === 'AbortError') {
         return undefined as unknown as T;
       }
-      logger.error(`API ${method} ${endpoint} error`, err);
+      if (err instanceof ApiProblemError) {
+        logger.warn(`API ${method} ${endpoint} problem`, { problem: err.problem, status: err.response.status });
+      } else {
+        logger.error(`API ${method} ${endpoint} error`, err);
+      }
       throw err;
     }
   };
