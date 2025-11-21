@@ -20,6 +20,7 @@ import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 import { ApiError, http, httpGet, httpPost } from '@/lib/http';
 import { getGuestSessionId } from '@/lib/searchTracking';
+import { useBetaConfig } from '@/lib/beta-config';
 // Background handled globally via GlobalBackground
 
 // Import centralized types
@@ -84,6 +85,7 @@ function SignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { checkAuth, user } = useAuth();
+  const betaConfig = useBetaConfig();
 
   // Get the redirect parameter, but if it's the login page, use home instead
   let redirect = searchParams.get('redirect') || '/';
@@ -104,6 +106,12 @@ function SignUpForm() {
   const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
   const [showPassword, setShowPassword] = useState(false);
   const [postSignupRedirect, setPostSignupRedirect] = useState<{ target: string; expectedUserId: string } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Avoid hydration mismatch by only applying beta config after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const clearFieldError = (field: keyof FormErrors) => {
     setErrors((prev) => {
@@ -514,6 +522,10 @@ function SignUpForm() {
 
   const isLoading = requestStatus === RequestStatus.LOADING;
 
+  // Hide student signup CTA on beta instructor-only phase
+  // Only apply after mount to avoid hydration mismatch
+  const showStudentSignupCta = !mounted || !(betaConfig.site === 'beta' && betaConfig.phase === 'instructor_only');
+
   return (
     <div className="mt-0 sm:mt-4 sm:mx-auto sm:w-full sm:max-w-md">
       {/* Mobile: no card chrome; Desktop: keep card with shadow */}
@@ -665,16 +677,18 @@ function SignUpForm() {
             {/* Instructor CTAs placed tight under the button */}
             {isInstructorFlow && (
               <div className="text-center mt-1">
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  Looking to learn instead?{' '}
-                  <Link
-                    href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-                    className="focus-link font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
-                  >
-                    Sign up as a student
-                  </Link>
-                </span>
-                <div className="mt-0.5">
+                {showStudentSignupCta && (
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Looking to learn instead?{' '}
+                    <Link
+                      href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+                      className="focus-link font-medium text-[#7E22CE] hover:text-[#7E22CE] dark:text-purple-400 dark:hover:text-purple-300"
+                    >
+                      Sign up as a student
+                    </Link>
+                  </span>
+                )}
+                <div className={showStudentSignupCta ? "mt-0.5" : ""}>
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Already have an account?{' '}
                     <Link

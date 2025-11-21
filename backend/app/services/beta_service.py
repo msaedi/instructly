@@ -31,11 +31,28 @@ def _resolve_frontend_origin(base_override: str | None) -> str:
 
 
 def _resolve_invite_claim_origin(base_override: str | None) -> str:
+    """
+    Resolve the base URL for invite claim links.
+
+    Priority order:
+    1. Local mode: use local_beta_frontend_origin
+    2. Explicit base_override parameter
+    3. INVITE_CLAIM_BASE_URL env var (if set)
+    4. Fallback to frontend_url
+    """
     site_mode = os.getenv("SITE_MODE", "").strip().lower()
     if site_mode == "local" and settings.local_beta_frontend_origin:
         return settings.local_beta_frontend_origin.rstrip("/")
-    base = (base_override or settings.invite_claim_base_url).rstrip("/")
-    return base
+
+    # Prefer explicit override, then INVITE_CLAIM_BASE_URL (if explicitly set), then frontend_url
+    if base_override:
+        base = base_override
+    elif os.getenv("INVITE_CLAIM_BASE_URL"):
+        base = settings.invite_claim_base_url
+    else:
+        base = settings.frontend_url
+
+    return base.rstrip("/")
 
 
 def build_join_url(code: str, email: Optional[str], base_override: str | None = None) -> str:

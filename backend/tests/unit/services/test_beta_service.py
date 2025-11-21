@@ -167,3 +167,37 @@ def test_build_join_url_hosted(monkeypatch):
         url
         == "https://preview.example.com/invite/claim?token=CODE1234&utm_source=email&utm_medium=invite&utm_campaign=founding_instructor"
     )
+
+
+def test_resolve_invite_claim_origin_with_explicit_env_var(monkeypatch):
+    """Test that INVITE_CLAIM_BASE_URL env var is preferred over frontend_url."""
+    from app.services import beta_service as module
+
+    monkeypatch.setenv("SITE_MODE", "prod")
+    monkeypatch.setenv("INVITE_CLAIM_BASE_URL", "https://custom.example.com")
+    # Also patch settings to reflect the env var (since settings are loaded at import)
+    monkeypatch.setattr(module.settings, "invite_claim_base_url", "https://custom.example.com")
+    result = module._resolve_invite_claim_origin(None)
+    assert result == "https://custom.example.com"
+
+
+def test_resolve_invite_claim_origin_fallback_to_frontend_url(monkeypatch):
+    """Test that frontend_url is used when INVITE_CLAIM_BASE_URL is not set."""
+    from app.services import beta_service as module
+
+    monkeypatch.setenv("SITE_MODE", "prod")
+    monkeypatch.delenv("INVITE_CLAIM_BASE_URL", raising=False)
+    monkeypatch.setattr(module.settings, "frontend_url", "https://beta.example.com")
+    # frontend_url should be used as fallback
+    result = module._resolve_invite_claim_origin(None)
+    assert result == "https://beta.example.com"
+
+
+def test_resolve_invite_claim_origin_override_takes_precedence(monkeypatch):
+    """Test that base_override parameter takes precedence over everything."""
+    from app.services import beta_service as module
+
+    monkeypatch.setenv("SITE_MODE", "prod")
+    monkeypatch.setenv("INVITE_CLAIM_BASE_URL", "https://should-not-use.com")
+    result = module._resolve_invite_claim_origin("https://override.example.com")
+    assert result == "https://override.example.com"
