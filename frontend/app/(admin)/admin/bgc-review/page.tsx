@@ -45,6 +45,8 @@ const formatEtaLabel = (value: string | null): string | null => {
   }
 };
 
+const PAGE_SIZE = 50;
+
 function LoadingScreen() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -60,7 +62,7 @@ export default function AdminBGCReviewPage() {
 
   const [statusFilter, setStatusFilter] = useState<'review' | 'pending' | 'all'>('review');
   const [searchTerm, setSearchTerm] = useState('');
-  const [onlyRecentConsent, setOnlyRecentConsent] = useState(false);
+  const [pageIndex, setPageIndex] = useState(1);
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [isPreviewOpen, setPreviewOpen] = useState(false);
@@ -78,7 +80,8 @@ export default function AdminBGCReviewPage() {
   const { data, isLoading, isFetching } = useBGCCases(
     statusFilter,
     queryTerm,
-    50,
+    pageIndex,
+    PAGE_SIZE,
     isAdmin && !authLoading,
   );
 
@@ -87,6 +90,10 @@ export default function AdminBGCReviewPage() {
   const resolveDisputeMutation = useBGCDisputeResolve();
 
   const items = useMemo<BGCCaseItem[]>(() => data?.items ?? [], [data]);
+
+  useEffect(() => {
+    setPageIndex(1);
+  }, [statusFilter, queryTerm]);
 
   useEffect(() => {
     if (!isPreviewOpen) {
@@ -111,19 +118,12 @@ export default function AdminBGCReviewPage() {
     setRecheckBlockedCode(null);
   }, [previewDetail.data]);
 
-  const filteredItems = useMemo<BGCCaseItem[]>(() => {
-    const term = searchTerm.trim().toLowerCase();
-    return items.filter((item) => {
-      const matchesSearch =
-        !term ||
-        item.instructor_id.toLowerCase().includes(term) ||
-        (item.email && item.email.toLowerCase().includes(term)) ||
-        (item.name && item.name.toLowerCase().includes(term)) ||
-        (item.bgc_report_id && item.bgc_report_id.toLowerCase().includes(term));
-      const matchesConsent = !onlyRecentConsent || item.consent_recent;
-      return matchesSearch && matchesConsent;
-    });
-  }, [items, onlyRecentConsent, searchTerm]);
+  const totalAvailable = data?.total ?? 0;
+  const fallbackTotalPages = Math.ceil(totalAvailable / PAGE_SIZE) || 1;
+  const totalPages = Math.max(1, data?.total_pages ?? fallbackTotalPages);
+  const currentPage = data?.page ?? pageIndex;
+  const hasNextPage = data?.has_next ?? currentPage < totalPages;
+  const hasPrevPage = data?.has_prev ?? currentPage > 1;
 
   const statusOptions = useMemo(
     () => [
@@ -135,6 +135,19 @@ export default function AdminBGCReviewPage() {
   );
 
   const isRefreshing = isFetching && !isLoading;
+  const currentPageCount = items.length;
+
+  const handleNextPage = () => {
+    if (hasNextPage && !isLoading) {
+      setPageIndex((prev) => prev + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1 && !isLoading) {
+      setPageIndex((prev) => Math.max(1, prev - 1));
+    }
+  };
 
   if (authLoading) {
     return <LoadingScreen />;
@@ -324,8 +337,8 @@ export default function AdminBGCReviewPage() {
               <AdminSidebar />
             </aside>
             <section className="col-span-12 md:col-span-9 lg:col-span-9 space-y-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-4">
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
                   <input
                     value={searchTerm}
@@ -333,17 +346,8 @@ export default function AdminBGCReviewPage() {
                     placeholder="Search by instructor, email, or ID"
                     className="w-full md:w-72 rounded-lg border border-gray-200 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/60 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100"
                   />
-                  <label className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                    <input
-                      type="checkbox"
-                      checked={onlyRecentConsent}
-                      onChange={(event) => setOnlyRecentConsent(event.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    Consent in last 24h
-                  </label>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {statusOptions.map((option) => {
                     const active = statusFilter === option.value;
                     return (
@@ -371,7 +375,9 @@ export default function AdminBGCReviewPage() {
                 </div>
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                {filteredItems.length} case{filteredItems.length === 1 ? '' : 's'} in view
+                <p>
+                  Showing {currentPageCount} of {totalAvailable} case{totalAvailable === 1 ? '' : 's'}
+                </p>
               </div>
             </div>
 
@@ -399,14 +405,14 @@ export default function AdminBGCReviewPage() {
                         </div>
                       </td>
                     </tr>
-                  ) : filteredItems.length === 0 ? (
+                  ) : items.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
                         No cases match the current filters.
                       </td>
                     </tr>
                   ) : (
-                    filteredItems.map((item) => {
+                    items.map((item) => {
                       const isProcessing =
                         overrideMutation.isPending && activeActionId === item.instructor_id;
                       const updatedAt = item.updated_at || item.bgc_completed_at || item.created_at;
@@ -418,13 +424,14 @@ export default function AdminBGCReviewPage() {
                       const showEta =
                         Boolean(etaLabel) &&
                         (statusValue === 'pending' || statusValue === 'review' || statusValue === 'consider');
-                      const badgeTone = statusValue === 'review' || statusValue === 'consider'
-                        ? 'bg-amber-50 text-amber-800 border-amber-200'
-                        : statusValue === 'pending'
-                        ? 'bg-sky-50 text-sky-700 border-sky-200'
-                        : statusValue === 'canceled'
-                        ? 'bg-rose-50 text-rose-700 border-rose-200'
-                        : 'bg-gray-50 text-gray-600 border-gray-200';
+                      const badgeTone =
+                        statusValue === 'review' || statusValue === 'consider'
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : statusValue === 'pending'
+                          ? 'bg-sky-50 text-sky-700 border-sky-200'
+                          : statusValue === 'canceled'
+                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                          : 'bg-gray-50 text-gray-600 border-gray-200';
                       return (
                         <tr key={item.instructor_id} className="bg-white/40 dark:bg-transparent">
                           <td className="px-4 py-3 whitespace-nowrap">
@@ -515,13 +522,36 @@ export default function AdminBGCReviewPage() {
                               ? `${formatDistanceToNow(new Date(updatedAt), { addSuffix: true })}`
                               : '—'}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex flex-wrap items-center gap-2 min-w-[240px]">
-                              <Badge variant="outline" className={`${badgeTone} capitalize`}>
-                                {statusValue || 'unknown'}
-                              </Badge>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 min-w-[240px]">
+                                <Badge variant="outline" className={`${badgeTone} capitalize flex-shrink-0`}>
+                                  {statusValue || 'unknown'}
+                                </Badge>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleInvite(item)}
+                                  disabled={inviteMutation.isPending && activeActionId === item.instructor_id}
+                                  className="flex-shrink-0"
+                                >
+                                  {inviteMutation.isPending && activeActionId === item.instructor_id
+                                    ? 'Inviting…'
+                                    : 'Invite'}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleCopyId(item.instructor_id)}
+                                  className="flex-shrink-0"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                              </div>
                               {showActions ? (
-                                <>
+                                <div className="flex items-center gap-2 ml-4">
                                   <Button
                                     type="button"
                                     size="sm"
@@ -536,31 +566,16 @@ export default function AdminBGCReviewPage() {
                                     variant="destructive"
                                     onClick={() => handleOverride(item, 'reject')}
                                     disabled={isProcessing || inDispute}
-                                    title={inDispute ? 'Final adverse actions cannot continue while a dispute is active' : undefined}
+                                    title={
+                                      inDispute
+                                        ? 'Final adverse actions cannot continue while a dispute is active'
+                                        : undefined
+                                    }
                                   >
                                     Reject
                                   </Button>
-                                </>
+                                </div>
                               ) : null}
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleInvite(item)}
-                                disabled={inviteMutation.isPending && activeActionId === item.instructor_id}
-                              >
-                                {inviteMutation.isPending && activeActionId === item.instructor_id
-                                  ? 'Inviting…'
-                                  : 'Invite'}
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleCopyId(item.instructor_id)}
-                              >
-                                <Copy className="h-4 w-4" />
-                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -569,6 +584,31 @@ export default function AdminBGCReviewPage() {
                   )}
                 </tbody>
                 </table>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Page {Math.max(currentPage, 1)} of {Math.max(totalPages, 1)}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handlePrevPage}
+                  disabled={!hasPrevPage || isLoading}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleNextPage}
+                  disabled={!hasNextPage || isLoading}
+                >
+                  Next
+                </Button>
               </div>
             </div>
 

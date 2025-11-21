@@ -119,6 +119,7 @@ function renderWithClient(ui: ReactNode) {
 
 describe('AdminBGCReviewPage', () => {
   beforeEach(() => {
+    const now = Date.now();
     mockedUseBGCRecheck.mockReturnValue(
       makeRecheckMutation({
         mutateAsync: jest.fn(async ({ id }: { id: string }) => ({
@@ -139,8 +140,8 @@ describe('AdminBGCReviewPage', () => {
         bgc_report_id: 'rpt_test123',
         bgc_completed_at: null,
         bgc_eta: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: null,
+        created_at: new Date(now).toISOString(),
+        updated_at: new Date(now).toISOString(),
         consent_recent: true,
         consent_recent_at: new Date().toISOString(),
         checkr_report_url: 'https://dashboard.checkr.com/reports/rpt_test123',
@@ -164,8 +165,8 @@ describe('AdminBGCReviewPage', () => {
         bgc_report_id: 'rpt_pending',
         bgc_completed_at: null,
         bgc_eta: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: null,
+        created_at: new Date(now - 60 * 1000).toISOString(),
+        updated_at: new Date(now - 60 * 1000).toISOString(),
         consent_recent: false,
         consent_recent_at: null,
         checkr_report_url: null,
@@ -188,8 +189,8 @@ describe('AdminBGCReviewPage', () => {
       bgc_report_id: 'rpt_canceled',
       bgc_completed_at: null,
       bgc_eta: null,
-      created_at: new Date().toISOString(),
-      updated_at: null,
+      created_at: new Date(now - 120 * 1000).toISOString(),
+      updated_at: new Date(now - 120 * 1000).toISOString(),
       consent_recent: false,
       consent_recent_at: null,
       checkr_report_url: 'https://dashboard.checkr.com/reports/rpt_canceled',
@@ -214,7 +215,7 @@ describe('AdminBGCReviewPage', () => {
       bgc_eta: reviewItems[0]?.bgc_eta ?? null,
       consent_recent_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
-      updated_at: null,
+      updated_at: reviewItems[0]?.updated_at ?? null,
       bgc_valid_until: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
       bgc_expires_in_days: 45,
       bgc_is_expired: false,
@@ -234,15 +235,50 @@ describe('AdminBGCReviewPage', () => {
       if (url.includes('/api/admin/bgc/cases')) {
         const requestUrl = new URL(url, 'http://localhost');
         const status = requestUrl.searchParams.get('status') ?? 'review';
-        let items;
+        const qParam = (requestUrl.searchParams.get('q') ?? '').trim().toLowerCase();
+        const pageParam = Number(requestUrl.searchParams.get('page') ?? '1') || 1;
+        const pageSizeParam =
+          Number(requestUrl.searchParams.get('page_size') ?? requestUrl.searchParams.get('limit') ?? '50') || 50;
+        let items: BGCCaseItem[];
         if (status === 'pending') {
-          items = pendingItems;
+          items = [...pendingItems];
         } else if (status === 'all') {
           items = [...reviewItems, ...pendingItems, canceledItem];
         } else {
-          items = reviewItems;
+          items = [...reviewItems];
         }
-        return createJsonResponse({ items, next_cursor: null });
+        if (qParam) {
+          items = items.filter((item) => {
+            const haystacks = [
+              item.instructor_id,
+              item.email ?? '',
+              item.name ?? '',
+              item.bgc_report_id ?? '',
+            ].map((value) => value.toLowerCase());
+            return haystacks.some((value) => value.includes(qParam));
+          });
+        }
+        items.sort((a, b) => {
+          const aDate = new Date(a.updated_at ?? a.bgc_completed_at ?? a.created_at ?? 0).getTime();
+          const bDate = new Date(b.updated_at ?? b.bgc_completed_at ?? b.created_at ?? 0).getTime();
+          if (aDate === bDate) {
+            return b.instructor_id.localeCompare(a.instructor_id);
+          }
+          return bDate - aDate;
+        });
+        const total = items.length;
+        const totalPages = total === 0 ? 1 : Math.ceil(total / pageSizeParam);
+        const start = (pageParam - 1) * pageSizeParam;
+        const pagedItems = items.slice(start, start + pageSizeParam);
+        return createJsonResponse({
+          items: pagedItems,
+          total,
+          page: pageParam,
+          page_size: pageSizeParam,
+          total_pages: totalPages,
+          has_next: start + pageSizeParam < total,
+          has_prev: pageParam > 1,
+        });
       }
 
       if (url.includes('/api/admin/instructors/')) {
@@ -455,6 +491,59 @@ describe('AdminBGCReviewPage', () => {
     await waitFor(() => {
       expect(screen.getAllByText(expectedEta).length).toBeGreaterThan(1);
     });
+  });
+
+  it('paginates cases and navigates pages', async () => {
+    const baseTime = Date.now();
+    for (let index = 0; index < 55; index += 1) {
+      reviewItems.push({
+        instructor_id: `01TESTPAG${index.toString().padStart(2, '0')}`,
+        name: `Paged Review ${index}`,
+        email: `paged${index}@example.com`,
+        bgc_status: 'review',
+        bgc_report_id: `rpt_extra_${index}`,
+        bgc_completed_at: null,
+        bgc_eta: null,
+        created_at: new Date(baseTime - (index + 2) * 60 * 1000).toISOString(),
+        updated_at: new Date(baseTime - (index + 2) * 60 * 1000).toISOString(),
+        consent_recent: true,
+        consent_recent_at: new Date().toISOString(),
+        checkr_report_url: null,
+        is_live: false,
+        in_dispute: false,
+        dispute_note: null,
+        dispute_opened_at: null,
+        dispute_resolved_at: null,
+        bgc_valid_until: null,
+        bgc_expires_in_days: null,
+        bgc_is_expired: false,
+      });
+    }
+
+    const user = userEvent.setup();
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+    const page1Labels = screen.getAllByText(/Page 1 of 2/i);
+    expect(page1Labels).toHaveLength(1);
+
+    const nextButton = await screen.findByRole('button', { name: /^Next$/i });
+    expect(nextButton).toBeEnabled();
+
+    await user.click(nextButton);
+
+    await screen.findByText('Paged Review 49');
+    const page2Labels = screen.getAllByText(/Page 2 of 2/i);
+    expect(page2Labels).toHaveLength(1);
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Next$/i })).toBeDisabled());
+
+    const previousButton = screen.getByRole('button', { name: /^Previous$/i });
+    expect(previousButton).toBeEnabled();
+    await user.click(previousButton);
+
+    await screen.findByText('Review Instructor');
+    const page1LabelsAgain = screen.getAllByText(/Page 1 of 2/i);
+    expect(page1LabelsAgain).toHaveLength(1);
   });
 
   it('switches pending filter and hides adjudication buttons', async () => {

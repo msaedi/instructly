@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import logging
+import math
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
@@ -179,7 +180,48 @@ def _build_case_item(
     return BGCCaseItemModel(**model_filter(BGCCaseItemModel, payload))
 
 
-def _get_bgc_cases(
+def _build_case_query(
+    *,
+    repo: InstructorProfileRepository,
+    status: str,
+    search: str | None,
+):
+    query = repo.db.query(repo.model).options(selectinload(repo.model.user))
+
+    if status == "pending":
+        query = query.filter(repo.model.bgc_status == "pending")
+    elif status == "review":
+        query = query.filter(repo.model.bgc_status.in_(["review", "consider"]))
+
+    joined_user = False
+    term = (search or "").strip()
+    if term:
+        joined_user = True
+        like_value = f"%{term.lower()}%"
+        query = query.join(User)
+        name_concat = func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")
+        try:
+            report_matches = repo.find_profile_ids_by_report_fragment(term)
+        except RepositoryException:
+            report_matches = set()
+
+        filters = [
+            func.lower(repo.model.id).like(like_value),
+            func.lower(func.coalesce(User.email, "")).like(like_value),
+            func.lower(func.coalesce(User.first_name, "")).like(like_value),
+            func.lower(func.coalesce(User.last_name, "")).like(like_value),
+            func.lower(name_concat).like(like_value),
+        ]
+        if report_matches:
+            filters.append(repo.model.id.in_(report_matches))
+        query = query.filter(or_(*filters))
+
+    if joined_user:
+        query = query.distinct()
+    return query
+
+
+def _get_bgc_cases_cursor(
     *,
     repo: InstructorProfileRepository,
     status: str,
@@ -187,56 +229,51 @@ def _get_bgc_cases(
     cursor: str | None,
     search: str | None,
 ) -> tuple[list[BGCCaseItemModel], str | None]:
-    """Query background-check cases with shared pagination logic."""
+    """Legacy cursor-based pagination for review list endpoint."""
 
-    query = (
-        repo.db.query(repo.model)
-        .options(selectinload(repo.model.user))
-        .order_by(repo.model.id.asc())
-    )
-
-    if status == "pending":
-        query = query.filter(repo.model.bgc_status == "pending")
-    elif status == "review":
-        query = query.filter(repo.model.bgc_status.in_(["review", "consider"]))
+    query = _build_case_query(repo=repo, status=status, search=search)
 
     if cursor:
         query = query.filter(repo.model.id > cursor)
 
-    joined_user = False
-    if search:
-        term = search.strip()
-        if term:
-            joined_user = True
-            like_value = f"%{term.lower()}%"
-            query = query.join(User)
-            name_concat = (
-                func.coalesce(User.first_name, "") + " " + func.coalesce(User.last_name, "")
-            )
-            try:
-                report_matches = repo.find_profile_ids_by_report_fragment(term)
-            except RepositoryException:
-                report_matches = set()
-
-            filters = [
-                func.lower(repo.model.id).like(like_value),
-                func.lower(func.coalesce(User.email, "")).like(like_value),
-                func.lower(func.coalesce(User.first_name, "")).like(like_value),
-                func.lower(func.coalesce(User.last_name, "")).like(like_value),
-                func.lower(name_concat).like(like_value),
-            ]
-            if report_matches:
-                filters.append(repo.model.id.in_(report_matches))
-            query = query.filter(or_(*filters))
-
-    if joined_user:
-        query = query.distinct()
-
+    query = query.order_by(repo.model.id.asc())
     rows = query.limit(limit + 1).all()
     now = datetime.now(timezone.utc)
     items = [_build_case_item(profile, repo, now) for profile in rows[:limit]]
     next_cursor = rows[limit].id if len(rows) > limit else None
     return items, next_cursor
+
+
+def _get_bgc_cases_paginated(
+    *,
+    repo: InstructorProfileRepository,
+    status: str,
+    page: int,
+    page_size: int,
+    search: str | None,
+) -> tuple[list[BGCCaseItemModel], int, int, int]:
+    """Return background-check cases ordered by most recent activity."""
+
+    base_query = _build_case_query(repo=repo, status=status, search=search)
+    total = base_query.order_by(None).count()
+    if total == 0:
+        return [], 0, 1, 1
+
+    total_pages = max(1, math.ceil(total / page_size))
+    current_page = max(1, min(page, total_pages))
+
+    order_columns = [
+        repo.model.updated_at.desc().nullslast(),
+        repo.model.bgc_completed_at.desc().nullslast(),
+        repo.model.created_at.desc().nullslast(),
+        repo.model.id.desc(),
+    ]
+    ordered_query = base_query.order_by(*order_columns)
+    offset = (current_page - 1) * page_size
+    rows = ordered_query.offset(offset).limit(page_size).all()
+    now = datetime.now(timezone.utc)
+    items = [_build_case_item(profile, repo, now) for profile in rows]
+    return items, total, current_page, total_pages
 
 
 class OverridePayload(BaseModel):
@@ -263,7 +300,7 @@ async def bgc_review_list(
 ) -> BGCReviewListResponse:
     """List instructors whose background checks require admin review."""
 
-    items, next_cursor = _get_bgc_cases(
+    items, next_cursor = _get_bgc_cases_cursor(
         repo=repo,
         status="review",
         limit=limit,
@@ -293,9 +330,16 @@ async def bgc_counts(
 @router.get("/cases", response_model=BGCCaseListResponse)
 async def bgc_cases(
     status_param: str = Query("review", alias="status", description="review, pending, or all"),
-    limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
-    cursor: Optional[str] = Query(None, description="Opaque ULID cursor for pagination"),
     q: Optional[str] = Query(None, description="Search by instructor id, name, or email"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    legacy_limit: Optional[int] = Query(
+        None,
+        alias="limit",
+        ge=1,
+        le=MAX_LIMIT,
+        description="Deprecated; use page_size instead.",
+    ),
     repo: InstructorProfileRepository = Depends(get_instructor_repo),
     _: None = Depends(require_admin),
 ) -> BGCCaseListResponse:
@@ -308,14 +352,29 @@ async def bgc_cases(
             detail="Invalid status; expected one of: review, pending, all.",
         )
 
-    items, next_cursor = _get_bgc_cases(
+    effective_page_size = legacy_limit or page_size
+
+    (
+        items,
+        total,
+        current_page,
+        total_pages,
+    ) = _get_bgc_cases_paginated(
         repo=repo,
         status=normalized,
-        limit=limit,
-        cursor=cursor,
+        page=page,
+        page_size=effective_page_size,
         search=q,
     )
-    payload = {"items": items, "next_cursor": next_cursor}
+    payload = {
+        "items": items,
+        "total": total,
+        "page": current_page,
+        "page_size": effective_page_size,
+        "total_pages": total_pages,
+        "has_next": current_page < total_pages,
+        "has_prev": current_page > 1,
+    }
     return BGCCaseListResponse(**model_filter(BGCCaseListResponse, payload))
 
 

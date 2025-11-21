@@ -17,7 +17,7 @@ class BGCReviewItemModel(StrictModel):
     instructor_id: str
     name: str
     email: str
-    bgc_status: str
+    bgc_status: str | None = None
     bgc_report_id: str | None = None
     bgc_completed_at: datetime | None = None
     created_at: datetime | None = None
@@ -51,7 +51,7 @@ class BGCCaseItemModel(StrictModel):
     name: str
     email: str
     is_live: bool
-    bgc_status: str
+    bgc_status: str | None = None
     bgc_report_id: str | None = None
     bgc_completed_at: datetime | None = None
     created_at: datetime | None = None
@@ -96,7 +96,12 @@ class BGCCaseItemModel(StrictModel):
 
 class BGCCaseListResponse(StrictModel):
     items: list[BGCCaseItemModel]
-    next_cursor: str | None = None
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
 
 
 class BGCHistoryItem(StrictModel):

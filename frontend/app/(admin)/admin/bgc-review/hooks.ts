@@ -30,7 +30,12 @@ export interface BGCCaseItem {
 
 export interface BGCCaseListResult {
   items: BGCCaseItem[];
-  next_cursor: string | null;
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
 export interface BGCCounts {
@@ -76,18 +81,24 @@ export function useBGCCounts(enabled = true) {
 export function useBGCCases(
   status: 'review' | 'pending' | 'all',
   q = '',
-  limit = 50,
+  page = 1,
+  pageSize = 50,
   enabled = true,
 ) {
   const isClient = typeof window !== 'undefined';
   return useQuery({
-    queryKey: [...CASES_QUERY_KEY_PREFIX, status, q, limit],
+    queryKey: [...CASES_QUERY_KEY_PREFIX, status, q, page, pageSize],
     queryFn: async () => {
-      const params = new URLSearchParams({ status, limit: String(limit) });
+      const params = new URLSearchParams({
+        status,
+        page: String(page),
+        page_size: String(pageSize),
+      });
       if (q.trim()) {
         params.set('q', q.trim());
       }
-      return httpGet<BGCCaseListResult>(`/api/admin/bgc/cases?${params.toString()}`);
+      const url = `/api/admin/bgc/cases?${params.toString()}`;
+      return httpGet<BGCCaseListResult>(url);
     },
     refetchOnWindowFocus: false,
     retry: 1,
