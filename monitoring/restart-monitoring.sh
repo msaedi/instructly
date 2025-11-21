@@ -3,7 +3,7 @@
 # InstaInstru Monitoring Stack Restart Script
 # This script properly restarts the monitoring stack to load alert configurations
 
-echo "InstaInstru Monitoring Stack Restart"
+echo "iNSTAiNSTRU Monitoring Stack Restart"
 echo "===================================="
 echo ""
 
@@ -61,7 +61,7 @@ echo ""
 print_status $YELLOW "To verify alerts are loaded:"
 print_status $YELLOW "1. Log into Grafana"
 print_status $YELLOW "2. Navigate to Alerting → Alert rules"
-print_status $YELLOW "3. You should see 5 alert rules under 'InstaInstru Production Alerts'"
+print_status $YELLOW "3. You should see 5 alert rules under 'iNSTAiNSTRU Production Alerts'"
 
 echo ""
 print_status $YELLOW "To view logs:"

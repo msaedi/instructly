@@ -141,7 +141,7 @@ async def health_check() -> HealthCheckResponse:
     """Basic health check endpoint."""
     return HealthCheckResponse(
         status="healthy",
-        service="InstaInstru API",
+        service="iNSTAiNSTRU API",
         version="1.0.0",
         timestamp=datetime.now(timezone.utc),
         checks={"api": True},

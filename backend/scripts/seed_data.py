@@ -58,7 +58,7 @@ BADGE_SEED_DEFINITIONS = [
         "slug": "welcome_aboard",
         "name": "Welcome Aboard",
         "criteria_type": "milestone",
-        "description": "Complete your first lesson on InstaInstru.",
+        "description": "Complete your first lesson on iNSTAiNSTRU.",
         "criteria_config": {
             "counts": "completed_lessons",
             "goal": 1,

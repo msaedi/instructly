@@ -171,6 +171,6 @@ async def test_with_bookings():
 
 
 if __name__ == "__main__":
-    print("InstaInstru Performance Test")
+    print("iNSTAiNSTRU Performance Test")
     print("=" * 50)
     asyncio.run(test_apply_pattern_performance())

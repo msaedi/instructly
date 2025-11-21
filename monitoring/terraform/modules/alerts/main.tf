@@ -17,7 +17,7 @@ variable "contact_point_name" {
 
 # Alert Rule Group
 resource "grafana_rule_group" "instainstru_production" {
-  name             = "InstaInstru Production Alerts"
+  name             = "iNSTAiNSTRU Production Alerts"
   folder_uid       = var.folder_uid
   interval_seconds = 60
 
@@ -381,7 +381,7 @@ resource "grafana_rule_group" "instainstru_production" {
 
 # SLO Alert Rules
 resource "grafana_rule_group" "slo_alerts" {
-  name             = "InstaInstru SLO Alerts"
+  name             = "iNSTAiNSTRU SLO Alerts"
   folder_uid       = var.folder_uid
   interval_seconds = 300 # 5 minutes for SLO checks
 

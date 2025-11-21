@@ -97,7 +97,7 @@ def verify_no_subdomain_usage():
     if env_from_email and "auth.instainstru.com" in env_from_email:
         print("⚠️  Warning: Environment variable 'from_email' contains auth subdomain")
         print(f"   Current value: {env_from_email}")
-        print("   Update your .env file to use: InstaInstru <hello@instainstru.com>")
+        print("   Update your .env file to use: iNSTAiNSTRU <hello@instainstru.com>")
     elif env_from_email:
         print(f"✅ Environment from_email: {env_from_email}")
     else:

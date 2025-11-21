@@ -5,7 +5,7 @@
 
 SESSION_NAME="instructly-dev"
 
-echo "Stopping InstaInstru development environment..."
+echo "Stopping iNSTAiNSTRU development environment..."
 
 # Kill tmux session
 echo "Stopping tmux session..."

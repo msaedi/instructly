@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "InstaInstru Service Performance Monitoring - Track performance of all service operations",
+  "description": "iNSTAiNSTRU Service Performance Monitoring - Track performance of all service operations",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -1215,7 +1215,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "InstaInstru Service Performance",
+  "title": "iNSTAiNSTRU Service Performance",
   "uid": "instainstru-service-performance",
   "version": 1,
   "weekStart": ""

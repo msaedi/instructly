@@ -21,7 +21,7 @@ print_status() {
 print_header() {
     echo ""
     print_status $BLUE "╔══════════════════════════════════════════╗"
-    print_status $BLUE "║    Stopping InstaInstru Monitoring       ║"
+    print_status $BLUE "║    Stopping iNSTAiNSTRU Monitoring       ║"
     print_status $BLUE "╚══════════════════════════════════════════╝"
     echo ""
 }

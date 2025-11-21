@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # backend/run_ssl.py
 """
-SSL Development Server for InstaInstru Backend
+SSL Development Server for iNSTAiNSTRU Backend
 Runs the FastAPI application with HTTPS for local development
 """
 import os
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         print("Please run: ./setup-local-ssl.sh")
         sys.exit(1)
 
-    print("🔐 Starting InstaInstru API with HTTPS...")
+    print("🔐 Starting iNSTAiNSTRU API with HTTPS...")
     print("🌐 Access at: https://localhost:8001")  # Changed to 8001
     print("📚 API Docs: https://localhost:8001/docs")
     print("⚠️  HTTP API still available at: http://localhost:8000")

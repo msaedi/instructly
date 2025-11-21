@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: 'InstaInstru Dashboards'
+  - name: 'iNSTAiNSTRU Dashboards'
     orgId: 1
-    folder: 'InstaInstru Dashboards'
+    folder: 'iNSTAiNSTRU Dashboards'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10

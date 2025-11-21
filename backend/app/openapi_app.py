@@ -48,9 +48,9 @@ from app.routes import (
 def build_openapi_app() -> FastAPI:
     """Build a minimal FastAPI app with all routers for OpenAPI generation."""
     app = FastAPI(
-        title="InstaInstru API",
+        title="iNSTAiNSTRU API",
         version="1.0.0",
-        description="InstaInstru - NYC's Premier Instructor Marketplace",
+        description="iNSTAiNSTRU - NYC's Premier Instructor Marketplace",
         openapi_url="/openapi.json",
         docs_url=None,  # Don't need docs for schema generation
         redoc_url=None,  # Don't need redoc for schema generation

@@ -259,7 +259,7 @@ def rollback():
 
 def main():
     """Main cleanup process with safety checks."""
-    print("🧹 InstaInstru Service Layer Dead Code Cleanup")
+    print("🧹 iNSTAiNSTRU Service Layer Dead Code Cleanup")
     print("=" * 50)
 
     # Show what will be deleted

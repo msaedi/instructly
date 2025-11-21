@@ -24,7 +24,7 @@ EXPECTED_BADGE_SLUGS = [
 ]
 
 EXPECTED_DESCRIPTIONS = {
-    "welcome_aboard": "Complete your first lesson on InstaInstru.",
+    "welcome_aboard": "Complete your first lesson on iNSTAiNSTRU.",
     "foundation_builder": "Reach 3 completed lessons to build early momentum.",
     "first_steps": "You earned this by completing 5 lessons.",
     "dedicated_learner": "Complete 10 lessons to unlock this milestone.",

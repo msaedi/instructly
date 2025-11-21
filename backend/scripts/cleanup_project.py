@@ -107,7 +107,7 @@ export const logger = {
 
 
 def main():
-    print("🧹 InstaInstru Project Cleanup")
+    print("🧹 iNSTAiNSTRU Project Cleanup")
     print("=" * 40)
 
     # Run cleanup tasks

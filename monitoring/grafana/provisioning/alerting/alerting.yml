@@ -2,8 +2,8 @@ apiVersion: 1
 
 # Alert rule groups
 groups:
-  - name: InstaInstru Production Alerts
-    folder: InstaInstru Dashboards
+  - name: iNSTAiNSTRU Production Alerts
+    folder: iNSTAiNSTRU Dashboards
     interval: 1m
     rules:
       # Beta invite send failures
@@ -328,8 +328,8 @@ groups:
           severity: warning
           team: backend
 
-  - name: InstaInstru Local Alerts
-    folder: InstaInstru Dashboards
+  - name: iNSTAiNSTRU Local Alerts
+    folder: iNSTAiNSTRU Dashboards
     interval: 1m
     rules:
       # Credits application activity unexpectedly drops to zero

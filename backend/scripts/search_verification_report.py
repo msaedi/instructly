@@ -18,7 +18,7 @@ def test_search_api():
     console.print(
         Panel.fit(
             "[bold]Search API Verification Report[/bold]\n" "Testing the /api/search/instructors endpoint",
-            title="InstaInstru Search Verification",
+            title="iNSTAiNSTRU Search Verification",
         )
     )
 

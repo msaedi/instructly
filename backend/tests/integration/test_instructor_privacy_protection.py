@@ -282,7 +282,7 @@ class TestEmailTemplatePrivacy:
             formatted_date=formatted_date,
             formatted_time=formatted_time,
             frontend_url="http://localhost:3000",
-            brand_name="InstaInstru",
+            brand_name="iNSTAiNSTRU",
         )
 
         # Verify privacy protection
@@ -316,7 +316,7 @@ class TestEmailTemplatePrivacy:
             formatted_date=formatted_date,
             formatted_time=formatted_time,
             frontend_url="http://localhost:3000",
-            brand_name="InstaInstru",
+            brand_name="iNSTAiNSTRU",
             reason=None,
         )
 

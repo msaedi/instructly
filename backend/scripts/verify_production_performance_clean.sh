@@ -1,7 +1,7 @@
 #!/bin/bash
 # backend/scripts/verify_production_performance_clean.sh
 
-echo "🚀 InstaInstru Production Performance Verification"
+echo "🚀 iNSTAiNSTRU Production Performance Verification"
 echo "================================================"
 echo ""
 

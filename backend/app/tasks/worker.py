@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 def start_worker() -> None:
     """Start the Celery worker with configured settings."""
-    logger.info("Starting Celery worker for InstaInstru")
+    logger.info("Starting Celery worker for iNSTAiNSTRU")
 
     # Log configuration
     logger.info(f"Broker URL: {celery_app.conf.broker_url}")

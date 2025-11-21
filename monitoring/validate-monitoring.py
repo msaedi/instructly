@@ -476,7 +476,7 @@ class MonitoringValidator:
 
     async def run_validation(self):
         """Run complete validation suite"""
-        self.print_header("InstaInstru Monitoring Validation")
+        self.print_header("iNSTAiNSTRU Monitoring Validation")
 
         # Step 1: Check connections
         print(f"{Fore.YELLOW}Checking connections...{Style.RESET_ALL}")

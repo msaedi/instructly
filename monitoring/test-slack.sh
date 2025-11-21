@@ -39,13 +39,13 @@ print_status $YELLOW "Testing Slack webhook..."
 RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
     -H 'Content-type: application/json' \
     --data '{
-        "text": "🚀 InstaInstru Monitoring Test",
+        "text": "🚀 iNSTAiNSTRU Monitoring Test",
         "blocks": [
             {
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": "InstaInstru Monitoring Test"
+                    "text": "iNSTAiNSTRU Monitoring Test"
                 }
             },
             {

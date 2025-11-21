@@ -480,7 +480,7 @@ def main():
     """Run the codebase analyzer."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Analyze InstaInstru codebase metrics")
+    parser = argparse.ArgumentParser(description="Analyze iNSTAiNSTRU codebase metrics")
     parser.add_argument("--save", action="store_true", help="Save metrics to history file")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     parser.add_argument("--path", default=".", help="Root path of the project")

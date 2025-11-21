@@ -21,7 +21,7 @@ print_status() {
 print_header() {
     echo ""
     print_status $BLUE "╔══════════════════════════════════════════╗"
-    print_status $BLUE "║    InstaInstru Monitoring Stack          ║"
+    print_status $BLUE "║    iNSTAiNSTRU Monitoring Stack          ║"
     print_status $BLUE "║    Prometheus + Grafana                  ║"
     print_status $BLUE "╚══════════════════════════════════════════╝"
     echo ""

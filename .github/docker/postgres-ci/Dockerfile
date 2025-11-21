@@ -1,4 +1,4 @@
-# InstaInstru CI Database Image
+# iNSTAiNSTRU CI Database Image
 #
 # PURPOSE: Combines PostGIS and pgvector extensions for comprehensive CI testing
 # REASON: No official image includes both extensions required by our platform
@@ -25,7 +25,7 @@
 
 FROM postgis/postgis:14-3.3
 
-LABEL maintainer="InstaInstru X-Team"
+LABEL maintainer="iNSTAiNSTRU X-Team"
 LABEL description="PostgreSQL 14 with PostGIS 3.3 and pgvector for CI"
 LABEL org.opencontainers.image.source="https://github.com/YOUR_GITHUB_ORG/InstaInstru"
 

@@ -44,10 +44,10 @@ def test_direct_email():
         print(f"Sending test email to: {settings.admin_email}")
         response = email_service.send_email(
             to_email=settings.admin_email,
-            subject="[TEST] InstaInstru Alert System Test",
+            subject="[TEST] iNSTAiNSTRU Alert System Test",
             html_content="""
             <h2>Alert System Test</h2>
-            <p>This is a test email from the InstaInstru monitoring system.</p>
+            <p>This is a test email from the iNSTAiNSTRU monitoring system.</p>
             <p>If you received this email, the alert system is working correctly!</p>
             <hr>
             <p><small>Sent at: {}</small></p>
@@ -135,7 +135,7 @@ async def test_celery_alerts():
 
 async def main():
     """Run all tests."""
-    print("=== InstaInstru Alert System Test ===")
+    print("=== iNSTAiNSTRU Alert System Test ===")
     print(f"Using database: {os.environ.get('test_database_url', 'test database')}")
 
     # Test direct email first

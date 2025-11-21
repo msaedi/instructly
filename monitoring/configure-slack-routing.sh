@@ -63,7 +63,7 @@ if ! echo "$CONTACT_POINTS" | grep -q "slack-notifications"; then
       "type": "slack",
       "settings": {
         "url": "'${SLACK_WEBHOOK_URL}'",
-        "title": "InstaInstru Alert",
+        "title": "iNSTAiNSTRU Alert",
         "text": "{{ template \"slack.default.text\" . }}"
       },
       "disableResolveMessage": false

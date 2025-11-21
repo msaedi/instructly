@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # backend/app/commands/analytics.py
 """
-Analytics management commands for InstaInstru.
+Analytics management commands for iNSTAiNSTRU.
 
 This module provides CLI commands for managing analytics calculations,
 checking status, and triggering manual runs.
@@ -252,7 +252,7 @@ class AnalyticsCommand:
 def main() -> None:
     """Main entry point for the analytics command."""
     parser = argparse.ArgumentParser(
-        description="InstaInstru Analytics Management",
+        description="iNSTAiNSTRU Analytics Management",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

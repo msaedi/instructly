@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 def start_beat() -> None:
     """Start the Celery beat scheduler with configured settings."""
-    logger.info("Starting Celery beat scheduler for InstaInstru")
+    logger.info("Starting Celery beat scheduler for iNSTAiNSTRU")
 
     # Apply beat schedule
     celery_app.conf.beat_schedule = CELERY_BEAT_SCHEDULE

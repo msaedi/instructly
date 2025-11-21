@@ -212,7 +212,7 @@ def check_production_database():
 
 def main():
     """Main entry point."""
-    print("🔍 InstaInstru Production Database Damage Check")
+    print("🔍 iNSTAiNSTRU Production Database Damage Check")
     print()
     print("This script will check your production database for signs")
     print("of accidental test wipes. It performs READ-ONLY checks.")

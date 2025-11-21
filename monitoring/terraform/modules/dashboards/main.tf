@@ -26,7 +26,7 @@ resource "grafana_dashboard" "api_overview" {
   folder = var.folder_id
 
   config_json = jsonencode({
-    title = "InstaInstru API Overview"
+    title = "iNSTAiNSTRU API Overview"
     uid   = "instainstru-api-overview"
     tags  = ["instainstru", "api", "overview"]
 
@@ -208,7 +208,7 @@ resource "grafana_dashboard" "service_performance" {
   folder = var.folder_id
 
   config_json = jsonencode({
-    title = "InstaInstru Service Performance"
+    title = "iNSTAiNSTRU Service Performance"
     uid   = "instainstru-service-performance"
     tags  = ["instainstru", "performance", "services"]
 
@@ -343,7 +343,7 @@ resource "grafana_dashboard" "slo" {
   folder = var.folder_id
 
   config_json = jsonencode({
-    title = "InstaInstru SLO Dashboard"
+    title = "iNSTAiNSTRU SLO Dashboard"
     uid   = "instainstru-slo"
     tags  = ["instainstru", "slo", "sli"]
 

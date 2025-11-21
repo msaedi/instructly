@@ -2,7 +2,7 @@
 # setup-local-ssl.sh - Local SSL certificate setup for InstaInstru development
 # Run from project root directory
 
-echo "🔐 Setting up local SSL certificates for InstaInstru..."
+echo "🔐 Setting up local SSL certificates for iNSTAiNSTRU..."
 
 # Create certificates directory
 mkdir -p backend/certs

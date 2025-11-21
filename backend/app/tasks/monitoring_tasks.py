@@ -169,7 +169,7 @@ def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
         from_email = self.email_config_service.get_monitoring_sender()
 
         # Prepare email content
-        subject = f"[{alert.severity.upper()}] InstaInstru Alert: {alert.title}"
+        subject = f"[{alert.severity.upper()}] iNSTAiNSTRU Alert: {alert.title}"
 
         details_html = ""
         if alert.details:
@@ -187,7 +187,7 @@ def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
         {details_html}
 
         <hr>
-        <p><small>This is an automated alert from InstaInstru monitoring system.</small></p>
+        <p><small>This is an automated alert from iNSTAiNSTRU monitoring system.</small></p>
         """
 
         # Create plain text version for better deliverability
@@ -204,7 +204,7 @@ def send_alert_email(self: MonitoringTask, alert_id: str) -> None:
         {'Details: ' + json.dumps(alert.details, indent=2) if alert.details else ''}
 
         --
-        This is an automated alert from InstaInstru monitoring system.
+        This is an automated alert from iNSTAiNSTRU monitoring system.
         """
 
         # Send email to all admins
@@ -270,7 +270,7 @@ def create_github_issue_for_alert(self: MonitoringTask, alert_id: str) -> None:
 {details_md}
 
 ---
-*This issue was automatically created by the InstaInstru monitoring system.*
+*This issue was automatically created by the iNSTAiNSTRU monitoring system.*
 """
 
         # Create GitHub issue

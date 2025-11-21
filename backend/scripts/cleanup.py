@@ -154,7 +154,7 @@ def run_linter_command():
 
 
 if __name__ == "__main__":
-    print("🚀 InstaInstru Cleanup Script")
+    print("🚀 iNSTAiNSTRU Cleanup Script")
     print("=" * 50)
 
     # 1. Clean database indexes

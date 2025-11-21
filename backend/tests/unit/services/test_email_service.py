@@ -121,7 +121,7 @@ class TestEmailService:
             monkeypatch,
             {
                 "trust": {
-                    "from_name": "InstaInstru Trust & Safety",
+                    "from_name": "iNSTAiNSTRU Trust & Safety",
                     "from": "notifications@instainstru.com",
                     "reply_to": "support@instainstru.com",
                 }
@@ -141,7 +141,7 @@ class TestEmailService:
         email_payload = mock_resend_send.call_args[0][0]
         assert (
             email_payload["from"]
-            == "InstaInstru Trust & Safety <notifications@instainstru.com>"
+            == "iNSTAiNSTRU Trust & Safety <notifications@instainstru.com>"
         )
         assert email_payload["reply_to"] == "support@instainstru.com"
 
@@ -158,7 +158,7 @@ class TestEmailService:
             monkeypatch,
             {
                 "trust": {
-                    "from_name": "InstaInstru Trust",
+                    "from_name": "iNSTAiNSTRU Trust",
                     "from": "trust@example.com",
                     "reply_to": "trust-support@example.com",
                 }
@@ -176,7 +176,7 @@ class TestEmailService:
 
         mock_resend_send.assert_called_once()
         email_payload = mock_resend_send.call_args[0][0]
-        assert email_payload["from"] == "InstaInstru Trust <trust@example.com>"
+        assert email_payload["from"] == "iNSTAiNSTRU Trust <trust@example.com>"
         assert email_payload["reply_to"] == "trust-support@example.com"
 
     @patch("resend.Emails.send")
@@ -192,7 +192,7 @@ class TestEmailService:
             monkeypatch,
             {
                 "bookings": {
-                    "from_name": "InstaInstru Bookings",
+                    "from_name": "iNSTAiNSTRU Bookings",
                     "from": "bookings@instainstru.com",
                     "reply_to": "support@instainstru.com",
                 }
@@ -210,7 +210,7 @@ class TestEmailService:
 
         mock_resend_send.assert_called_once()
         email_payload = mock_resend_send.call_args[0][0]
-        assert email_payload["from"] == "InstaInstru Bookings <bookings@instainstru.com>"
+        assert email_payload["from"] == "iNSTAiNSTRU Bookings <bookings@instainstru.com>"
         assert email_payload["reply_to"] == "support@instainstru.com"
 
     @patch("resend.Emails.send")
@@ -226,7 +226,7 @@ class TestEmailService:
             monkeypatch,
             {
                 "account": {
-                    "from_name": "InstaInstru",
+                    "from_name": "iNSTAiNSTRU",
                     "from": "hello@instainstru.com",
                     "reply_to": "support@instainstru.com",
                 }
@@ -244,7 +244,7 @@ class TestEmailService:
 
         mock_resend_send.assert_called_once()
         email_payload = mock_resend_send.call_args[0][0]
-        assert email_payload["from"] == "InstaInstru <hello@instainstru.com>"
+        assert email_payload["from"] == "iNSTAiNSTRU <hello@instainstru.com>"
         assert email_payload.get("reply_to") == "support@instainstru.com"
 
     @patch("resend.Emails.send")

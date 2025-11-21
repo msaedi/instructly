@@ -91,7 +91,7 @@ class TwoFactorAuthService(BaseService):
 
     @BaseService.measure_operation("tfa_generate_qr")
     def generate_qr_code(
-        self, email: str, secret: str, issuer: str = "InstaInstru"
+        self, email: str, secret: str, issuer: str = "iNSTAiNSTRU"
     ) -> tuple[str, str]:
         totp = pyotp.TOTP(secret)
         otpauth_url = totp.provisioning_uri(name=email, issuer_name=issuer)

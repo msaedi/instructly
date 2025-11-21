@@ -5,7 +5,7 @@
 set -e  # Exit on error
 
 echo "================================================"
-echo "InstaInstru RBAC Testing Suite"
+echo "iNSTAiNSTRU RBAC Testing Suite"
 echo "================================================"
 echo ""
 

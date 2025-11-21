@@ -22,7 +22,7 @@ from sqlalchemy.exc import OperationalError
 def create_test_database():
     """Create a test database for running tests safely."""
     print("=" * 60)
-    print("InstaInstru Test Database Setup")
+    print("iNSTAiNSTRU Test Database Setup")
     print("=" * 60)
     print()
 
@@ -161,7 +161,7 @@ def check_env_file():
 
 def main():
     """Main entry point."""
-    print("🔧 InstaInstru Test Database Setup Tool")
+    print("🔧 iNSTAiNSTRU Test Database Setup Tool")
     print()
 
     # Check current .env status

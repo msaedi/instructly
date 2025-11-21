@@ -35,7 +35,7 @@ def test_get_sender_known_profile():
         json.dumps(
             {
                 "trust": {
-                    "from_name": "InstaInstru Trust & Safety",
+                    "from_name": "iNSTAiNSTRU Trust & Safety",
                     "from": "notifications@instainstru.com",
                     "reply_to": "support@instainstru.com",
                 }
@@ -45,7 +45,7 @@ def test_get_sender_known_profile():
 
     resolved = get_sender("trust")
 
-    assert resolved["from_name"] == "InstaInstru Trust & Safety"
+    assert resolved["from_name"] == "iNSTAiNSTRU Trust & Safety"
     assert resolved["from_address"] == "notifications@instainstru.com"
     assert resolved["reply_to"] == "support@instainstru.com"
 
@@ -59,7 +59,7 @@ def test_get_sender_falls_back_to_defaults_for_unknown_key():
         json.dumps(
             {
                 "trust": {
-                    "from_name": "InstaInstru Trust",
+                    "from_name": "iNSTAiNSTRU Trust",
                     "from": "trust@example.com",
                 }
             }

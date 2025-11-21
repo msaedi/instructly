@@ -3,7 +3,7 @@
 # InstaInstru Alert Testing Script
 # This script simulates various conditions to trigger alerts
 
-echo "InstaInstru Alert Testing Script"
+echo "iNSTAiNSTRU Alert Testing Script"
 echo "================================"
 echo ""
 
@@ -152,7 +152,7 @@ test_low_cache_hit() {
 
 # Main execution
 main() {
-    print_status $GREEN "Starting InstaInstru Alert Testing"
+    print_status $GREEN "Starting iNSTAiNSTRU Alert Testing"
     print_status $YELLOW "This will take approximately 15-20 minutes to complete"
     print_status $YELLOW "Alerts should start firing within 3-10 minutes depending on the test\n"
 

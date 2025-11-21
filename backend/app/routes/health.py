@@ -58,7 +58,7 @@ def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
 
     return HealthCheckResponse(
         status=status,
-        service="InstaInstru API",
+        service="iNSTAiNSTRU API",
         version="1.0.0",
         timestamp=datetime.now(timezone.utc),
         checks={"database": db_status},

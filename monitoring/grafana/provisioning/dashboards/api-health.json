@@ -28,7 +28,7 @@
       }
     ]
   },
-  "description": "InstaInstru API Health Monitoring - Track HTTP requests, errors, and response times",
+  "description": "iNSTAiNSTRU API Health Monitoring - Track HTTP requests, errors, and response times",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -660,7 +660,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "InstaInstru API Health",
+  "title": "iNSTAiNSTRU API Health",
   "uid": "instainstru-api-health",
   "version": 1,
   "weekStart": ""

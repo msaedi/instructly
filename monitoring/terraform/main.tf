@@ -27,7 +27,7 @@ provider "grafana" {
 
 # Create a folder for InstaInstru dashboards
 resource "grafana_folder" "instainstru" {
-  title = "InstaInstru"
+  title = "iNSTAiNSTRU"
 }
 
 # Data source for Prometheus (Grafana Cloud Metrics)
@@ -57,7 +57,7 @@ resource "grafana_contact_point" "slack" {
 
   slack {
     url                     = var.slack_webhook_url
-    title                   = "InstaInstru Alert"
+    title                   = "iNSTAiNSTRU Alert"
     text                    = "{{ template \"slack.default.text\" . }}"
     disable_resolve_message = false
   }
@@ -137,5 +137,5 @@ output "grafana_url" {
 
 output "folder_url" {
   value       = "${var.grafana_url}/dashboards/f/${grafana_folder.instainstru.uid}"
-  description = "Direct link to InstaInstru folder"
+  description = "Direct link to iNSTAiNSTRU folder"
 }

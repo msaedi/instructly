@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "InstaInstru Business Metrics - Track booking operations, instructor services, and feature usage",
+  "description": "iNSTAiNSTRU Business Metrics - Track booking operations, instructor services, and feature usage",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -618,7 +618,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "InstaInstru Business Metrics",
+  "title": "iNSTAiNSTRU Business Metrics",
   "uid": "instainstru-business-metrics",
   "version": 1,
   "weekStart": ""

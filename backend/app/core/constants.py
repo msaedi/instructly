@@ -1,4 +1,4 @@
-"""Application-wide constants for InstaInstru platform."""
+"""Application-wide constants for iNSTAiNSTRU platform."""
 
 from __future__ import annotations
 
@@ -86,8 +86,8 @@ BRAND_NAME = "iNSTAiNSTRU"
 BRAND_TAGLINE = "Book Expert Instructors Instantly"
 BRAND_DOMAIN = "instainstru.com"
 SUPPORT_EMAIL = "support@instainstru.com"
-MONITORING_EMAIL = "InstaInstru Alerts <alerts@instainstru.com>"
-NOREPLY_EMAIL = "InstaInstru <hello@instainstru.com>"  # Keep for backward compatibility
+MONITORING_EMAIL = "iNSTAiNSTRU Alerts <alerts@instainstru.com>"
+NOREPLY_EMAIL = "iNSTAiNSTRU <hello@instainstru.com>"  # Keep for backward compatibility
 
 # API Documentation
 API_TITLE = f"{BRAND_NAME} API"

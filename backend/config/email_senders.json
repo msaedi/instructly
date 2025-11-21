@@ -1,7 +1,7 @@
 {
-  "trust":    {"from_name":"InstaInstru Trust & Safety","from":"notifications@instainstru.com","reply_to":"support@instainstru.com"},
-  "bookings": {"from_name":"InstaInstru Bookings","from":"bookings@instainstru.com","reply_to":"support@instainstru.com"},
-  "payments": {"from_name":"InstaInstru Billing","from":"billing@instainstru.com","reply_to":"support@instainstru.com"},
-  "account":  {"from_name":"InstaInstru","from":"hello@instainstru.com","reply_to":"support@instainstru.com"},
-  "referrals":{"from_name":"InstaInstru Referrals","from":"referrals@instainstru.com","reply_to":"support@instainstru.com"}
+  "trust":    {"from_name":"iNSTAiNSTRU Trust & Safety","from":"notifications@instainstru.com","reply_to":"support@instainstru.com"},
+  "bookings": {"from_name":"iNSTAiNSTRU Bookings","from":"bookings@instainstru.com","reply_to":"support@instainstru.com"},
+  "payments": {"from_name":"iNSTAiNSTRU Billing","from":"billing@instainstru.com","reply_to":"support@instainstru.com"},
+  "account":  {"from_name":"iNSTAiNSTRU","from":"hello@instainstru.com","reply_to":"support@instainstru.com"},
+  "referrals":{"from_name":"iNSTAiNSTRU Referrals","from":"referrals@instainstru.com","reply_to":"support@instainstru.com"}
 }

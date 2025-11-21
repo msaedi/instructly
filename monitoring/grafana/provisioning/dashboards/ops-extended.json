@@ -150,6 +150,6 @@
   "time": { "from": "now-6h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "InstaInstru Ops Extended",
+  "title": "iNSTAiNSTRU Ops Extended",
   "version": 1
 }

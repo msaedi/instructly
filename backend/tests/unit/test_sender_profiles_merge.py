@@ -36,12 +36,12 @@ def test_file_profiles_overridden_by_env(tmp_path, monkeypatch):
 
     file_payload = {
         "bookings": {
-            "from_name": "InstaInstru Bookings",
+            "from_name": "iNSTAiNSTRU Bookings",
             "from": "bookings@instainstru.com",
             "reply_to": "support@instainstru.com",
         },
         "payments": {
-            "from_name": "InstaInstru Billing",
+            "from_name": "iNSTAiNSTRU Billing",
             "from": "billing@instainstru.com",
             "reply_to": "billing@instainstru.com",
         },
@@ -56,12 +56,12 @@ def test_file_profiles_overridden_by_env(tmp_path, monkeypatch):
     settings.refresh_sender_profiles(env_override)
 
     payments_profile = get_sender("payments")
-    assert payments_profile["from_name"] == "InstaInstru Billing"
+    assert payments_profile["from_name"] == "iNSTAiNSTRU Billing"
     assert payments_profile["from_address"] == "billing@instainstru.com"
     assert payments_profile["reply_to"] == "accounts-payable@instainstru.com"
 
     bookings_profile = get_sender("bookings")
-    assert bookings_profile["from_name"] == "InstaInstru Bookings"
+    assert bookings_profile["from_name"] == "iNSTAiNSTRU Bookings"
     assert bookings_profile["from_address"] == "bookings@instainstru.com"
     assert bookings_profile["reply_to"] == "support@instainstru.com"
 

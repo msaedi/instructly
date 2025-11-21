@@ -231,7 +231,7 @@ class Settings(BaseSettings):
     is_testing: bool = False  # Set to True when running tests
 
     # Email settings
-    from_email: str = "InstaInstru <hello@instainstru.com>"
+    from_email: str = "iNSTAiNSTRU <hello@instainstru.com>"
     email_from_address: str | None = Field(
         default=None,
         description="Optional email address for transactional sends (overrides from_email when provided)",
@@ -337,7 +337,7 @@ class Settings(BaseSettings):
     )
     bgc_support_email: str = Field(
         default="support@instainstru.com",
-        description="Contact email for InstaInstru background check questions",
+        description="Contact email for iNSTAiNSTRU background check questions",
     )
     bgc_suppress_adverse_emails: bool = Field(
         default=True,

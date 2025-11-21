@@ -167,7 +167,7 @@ class HealthCheckResponse(StrictModel):
     status: str = Field(
         description="Service health status", pattern="^(healthy|degraded|unhealthy)$"
     )
-    service: str = Field(default="InstaInstru API", description="Service name")
+    service: str = Field(default="iNSTAiNSTRU API", description="Service name")
     version: str = Field(description="API version")
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), description="Check timestamp"
@@ -180,7 +180,7 @@ class HealthCheckResponse(StrictModel):
         json_schema_extra={
             "example": {
                 "status": "healthy",
-                "service": "InstaInstru API",
+                "service": "iNSTAiNSTRU API",
                 "version": "1.0.0",
                 "timestamp": "2025-01-20T10:30:00Z",
                 "checks": {"database": True, "redis": True, "services": True},
