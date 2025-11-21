@@ -383,7 +383,7 @@ export default function AdminBGCReviewPage() {
                     <th scope="col" className="px-4 py-3 text-left font-medium">Instructor</th>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Email</th>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Report</th>
-                    <th scope="col" className="px-4 py-3 text-left font-medium">ETA</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">Est. completion</th>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Consent</th>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Updated</th>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Actions</th>

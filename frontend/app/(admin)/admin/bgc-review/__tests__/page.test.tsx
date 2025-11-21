@@ -442,8 +442,10 @@ describe('AdminBGCReviewPage', () => {
     renderWithClient(<AdminBGCReviewPage />);
 
     await screen.findByText('Review Instructor');
-    const tableEtaMatches = await screen.findAllByText(expectedEta);
-    expect(tableEtaMatches.length).toBeGreaterThan(0);
+    const table = screen.getByRole('table');
+    expect(within(table).getByRole('columnheader', { name: /est\. completion/i })).toBeInTheDocument();
+    const etaCells = within(table).getAllByRole('cell', { name: expectedEta });
+    expect(etaCells.length).toBeGreaterThan(0);
 
     const user = userEvent.setup();
     const previewButton = screen.getByRole('button', { name: /review instructor/i });
