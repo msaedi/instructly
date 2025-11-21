@@ -12,10 +12,12 @@ def test_pre_adverse_template_contains_required_content():
     assert settings.checkr_applicant_portal_url in template.html
     assert settings.checkr_dispute_contact_url in template.html
     assert settings.ftc_summary_of_rights_url in template.html
-    assert "summary of your rights under the fair credit reporting act" in template.html.lower()
+    lower_html = template.html.lower()
+    assert "summary of your rights under the fair credit reporting act" in lower_html
     assert "5 business days" in template.html
-    assert "adverse action may be taken" in template.html.lower()
-    assert "pause any final decision" in template.text
+    assert "considering whether to move forward" in lower_html
+    assert "no final decision has been made" in lower_html
+    assert "pause any decision" in template.text.lower()
     assert "summary of your rights under the fair credit reporting act" in template.text.lower()
 
 

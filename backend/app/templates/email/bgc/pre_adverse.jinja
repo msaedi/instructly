@@ -4,9 +4,9 @@
 
 {% block content %}
   <p style="margin:0 0 12px;">Hi{% if candidate_name %} {{ candidate_name }}{% endif %},</p>
-  <p style="margin:0 0 12px;">We are sharing an update about your background screening for {{ brand_name }}. Based on the report we received on {{ report_date }}, we are providing this pre-adverse action notice.</p>
-  <p style="margin:0 0 12px;">You can review your complete report at <a href="{{ checkr_portal_url }}">{{ checkr_portal_url }}</a>. If anything looks inaccurate, please contact Checkr at <a href="{{ checkr_dispute_url }}">Checkr Support</a> and email us at {{ support_email }} within {{ dispute_window_days }} business days. We will pause any final decision while Checkr investigates.</p>
-  <p style="margin:0 0 12px;">Your rights under the Fair Credit Reporting Act are outlined here: <a href="{{ ftc_rights_url }}">Summary of Your Rights</a>.</p>
-  <p style="margin:0 0 12px;">If we do not hear from you within {{ dispute_window_days }} business days, we may move forward with final adverse action.</p>
+  <p style="margin:0 0 12px;">We’re writing to share an update about your background screening for {{ brand_name }}. Based on the report we received on {{ report_date }}, we are considering whether to move forward with your application, but no final decision has been made.</p>
+  <p style="margin:0 0 12px;">You can review your report at <a href="{{ checkr_portal_url }}">{{ checkr_portal_url }}</a>. If you believe anything is inaccurate, please contact Checkr at <a href="{{ checkr_dispute_url }}">Checkr Support</a> and email us at {{ support_email }} within {{ dispute_window_days }} business days. We will pause any decision while Checkr investigates your dispute.</p>
+  <p style="margin:0 0 12px;">You can also review your rights under the Fair Credit Reporting Act here: <a href="{{ ftc_rights_url }}">Summary of Your Rights</a>.</p>
+  <p style="margin:0 0 12px;">If we don’t hear from you within {{ dispute_window_days }} business days, we may move forward with final adverse action.</p>
   <p style="margin:24px 0 0;">Thank you,<br/>The {{ brand_name }} team</p>
 {% endblock %}

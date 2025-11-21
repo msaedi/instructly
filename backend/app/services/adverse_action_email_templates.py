@@ -26,21 +26,19 @@ def build_pre_adverse_email(*, business_days: int = 5) -> AdverseEmailTemplate:
     subject = f"{BRAND_NAME}: Pre-adverse action notice"
 
     html = f"""
-    <p>We are contacting you about your recent background report for {BRAND_NAME}. Based on information in the report, adverse action may be taken. This message is a pre-adverse action notice.</p>
-    <p>You can review your complete background report at <a href='{portal_url}'>{portal_url}</a>.</p>
-    <p>If you believe any information is inaccurate, please contact Checkr at <a href='{dispute_url}'>Checkr Support</a> and email us at {support_email} within {business_days} business days so we can pause any final decision while Checkr investigates.</p>
-    <p>Review your rights under the Fair Credit Reporting Act (FTC): <a href='{summary_url}'>Summary of Your Rights Under the Fair Credit Reporting Act (FTC)</a>.</p>
-    <p>If we do not hear from you within {business_days} business days, final adverse action may be taken.</p>
+    <p>We’re writing to share an update about your background screening for {BRAND_NAME}. Based on the report we received, we are considering whether to move forward with your application, but no final decision has been made.</p>
+    <p>You can review your report at <a href='{portal_url}'>{portal_url}</a>. If you believe anything is inaccurate, please contact Checkr at <a href='{dispute_url}'>Checkr Support</a> and email us at {support_email} within {business_days} business days. We will pause any decision while Checkr investigates your dispute.</p>
+    <p>You can also review your rights under the Fair Credit Reporting Act (FTC) here: <a href='{summary_url}'>Summary of Your Rights Under the Fair Credit Reporting Act (FTC)</a>.</p>
+    <p>If we don’t hear from you within {business_days} business days, we may move forward with final adverse action.</p>
     """.strip()
 
     text = (
-        f"We are contacting you about your recent background report for {BRAND_NAME}. "
-        "Based on information in the report, adverse action may be taken. This message is a pre-adverse action notice.\n"
-        f"Review your complete background report at {portal_url}.\n"
-        f"If you believe any information is inaccurate, contact Checkr at {dispute_url} and email {support_email} within "
-        f"{business_days} business days so we can pause any final decision while Checkr investigates.\n"
-        f"Review your rights under the Fair Credit Reporting Act (FTC): Summary of Your Rights Under the Fair Credit Reporting Act (FTC) — {summary_url}.\n"
-        f"If we do not hear from you within {business_days} business days, final adverse action may be taken."
+        f"We’re writing to share an update about your background screening for {BRAND_NAME}. "
+        "Based on the report we received, we are considering whether to move forward with your application, but no final decision has been made.\n"
+        f"You can review your report at {portal_url}. If you believe anything is inaccurate, please contact Checkr at {dispute_url} and email us at {support_email} within {business_days} business days. "
+        "We will pause any decision while Checkr investigates your dispute.\n"
+        f"You can also review your rights under the Fair Credit Reporting Act (FTC): Summary of Your Rights Under the Fair Credit Reporting Act (FTC) — {summary_url}.\n"
+        f"If we don’t hear from you within {business_days} business days, we may move forward with final adverse action."
     )
 
     return AdverseEmailTemplate(subject=subject, html=html, text=text)
