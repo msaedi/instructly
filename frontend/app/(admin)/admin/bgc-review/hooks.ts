@@ -12,6 +12,7 @@ export interface BGCCaseItem {
   bgc_status: string | null;
   bgc_report_id: string | null;
   bgc_completed_at: string | null;
+  bgc_eta: string | null;
   created_at: string | null;
   updated_at: string | null;
   consent_recent: boolean;
@@ -45,6 +46,7 @@ export interface AdminInstructorDetail {
   bgc_status: string | null;
   bgc_report_id: string | null;
   bgc_completed_at: string | null;
+  bgc_eta: string | null;
   consent_recent_at: string | null;
   created_at: string | null;
   updated_at: string | null;

@@ -33,6 +33,7 @@ class BGCReviewItemModel(StrictModel):
     dispute_note: str | None = None
     dispute_opened_at: datetime | None = None
     dispute_resolved_at: datetime | None = None
+    bgc_eta: datetime | None = None
 
 
 class BGCReviewListResponse(StrictModel):
@@ -65,6 +66,7 @@ class BGCCaseItemModel(StrictModel):
     dispute_note: str | None = None
     dispute_opened_at: datetime | None = None
     dispute_resolved_at: datetime | None = None
+    bgc_eta: datetime | None = None
 
     def to_review_model(self) -> BGCReviewItemModel:
         payload = {
@@ -87,6 +89,7 @@ class BGCCaseItemModel(StrictModel):
             "dispute_note": self.dispute_note,
             "dispute_opened_at": self.dispute_opened_at,
             "dispute_resolved_at": self.dispute_resolved_at,
+            "bgc_eta": self.bgc_eta,
         }
         return BGCReviewItemModel(**model_filter(BGCReviewItemModel, payload))
 

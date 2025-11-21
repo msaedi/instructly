@@ -274,6 +274,8 @@ class BackgroundCheckWorkflowService:
                     profile.id, notice_id=notice_id, sent_at=sent_at
                 )
 
+        self.repo.update_eta_by_report_id(report_id, None)
+        profile.bgc_eta = None
         return status_value, profile, requires_follow_up
 
     def handle_report_suspended(self, report_id: str, note: str | None = None) -> None:
@@ -346,6 +348,28 @@ class BackgroundCheckWorkflowService:
         )
 
         return profile
+
+    def handle_report_eta_updated(
+        self,
+        *,
+        report_id: str,
+        env: str,
+        eta: datetime | None,
+        candidate_id: str | None = None,
+    ) -> None:
+        """Persist Checkr's estimated completion time for a pending report."""
+
+        eta_value = _ensure_utc(eta) if eta else None
+
+        updated = self.repo.update_eta_by_report_id(report_id, eta_value)
+        if updated == 0:
+            bound_profile_id = self.repo.bind_report_to_candidate(candidate_id, report_id, env=env)
+            if bound_profile_id:
+                updated = self.repo.update_eta_by_report_id(report_id, eta_value)
+        if updated == 0:
+            raise RepositoryException(
+                f"No instructor profile linked to report {report_id}; ETA update deferred"
+            )
 
     def schedule_final_adverse_action(
         self,

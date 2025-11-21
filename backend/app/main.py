@@ -543,6 +543,27 @@ async def _background_jobs_worker() -> None:
                                 candidate_id=candidate_id,
                                 invitation_id=invitation_id,
                             )
+                        elif job.type == "webhook.report_eta":
+                            report_id = payload.get("report_id")
+                            if not report_id:
+                                raise RepositoryException("Missing report_id in ETA payload")
+                            eta_raw = payload.get("eta")
+                            if eta_raw:
+                                eta_dt = datetime.fromisoformat(eta_raw)
+                                if eta_dt.tzinfo is None:
+                                    eta_dt = eta_dt.replace(tzinfo=timezone.utc)
+                                else:
+                                    eta_dt = eta_dt.astimezone(timezone.utc)
+                            else:
+                                eta_dt = None
+                            env = payload.get("env", settings.checkr_env)
+                            candidate_id = payload.get("candidate_id")
+                            workflow.handle_report_eta_updated(
+                                report_id=report_id,
+                                env=env,
+                                eta=eta_dt,
+                                candidate_id=candidate_id,
+                            )
                         elif job.type == FINAL_ADVERSE_JOB_TYPE:
                             payload_raw = job.payload
                             if not isinstance(payload_raw, dict):

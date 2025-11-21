@@ -38,6 +38,10 @@ class DummyRepo:
         self.profile.bgc_pre_adverse_notice_id = notice_id
         self.profile.bgc_pre_adverse_sent_at = sent_at
 
+    def update_eta_by_report_id(self, report_id, eta):
+        self.profile.bgc_eta = eta
+        return 1
+
     # Methods for expiry flow hooks
     def count_pending_older_than(self, _days: int) -> int:
         return 0

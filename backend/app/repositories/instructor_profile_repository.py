@@ -444,6 +444,32 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 f"Failed to update background check metadata for report {report_id}"
             ) from exc
 
+    def update_eta_by_report_id(self, report_id: str, eta: datetime | None) -> int:
+        """Update the stored ETA for the profile linked to a report."""
+
+        try:
+            profile_id = self._resolve_profile_id_by_report(report_id)
+            if profile_id is None:
+                return 0
+
+            profile = self.get_by_id(profile_id, load_relationships=False)
+            if not profile:
+                return 0
+
+            profile.bgc_eta = eta
+            self.db.flush()
+            return 1
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to update background check ETA for report %s: %s",
+                report_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException(
+                f"Failed to update background check ETA for report {report_id}"
+            ) from exc
+
     def get_by_report_id(self, report_id: str) -> Optional[InstructorProfile]:
         """Return the instructor profile associated with a Checkr report."""
 

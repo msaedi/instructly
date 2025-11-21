@@ -234,6 +234,51 @@ def test_report_completed_unknown_candidate_enqueues_job(client, db: Session) ->
     assert jobs[0].payload.get("candidate_id") == "cand_does_not_exist"
 
 
+def test_report_updated_sets_eta(client, db: Session) -> None:
+    profile = _create_instructor_with_candidate(db, candidate_id="cand_eta")
+
+    payload = {
+        "type": "report.updated",
+        "data": {
+            "object": {
+                "id": "rpt_eta",
+                "estimated_completion_time": "2025-11-25T12:00:00Z",
+                "candidate_id": "cand_eta",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_eta is not None
+    assert profile.bgc_eta.year == 2025
+
+
+def test_report_updated_eta_enqueue_when_unbound(client, db: Session) -> None:
+    db.query(BackgroundJob).delete()
+    db.commit()
+
+    payload = {
+        "type": "report.updated",
+        "data": {
+            "object": {
+                "id": "rpt_eta_missing",
+                "estimated_completion_time": "2025-11-25T12:00:00Z",
+            },
+            "previous_attributes": {},
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+    jobs = db.query(BackgroundJob).filter(BackgroundJob.type == "webhook.report_eta").all()
+    assert len(jobs) == 1
+    assert jobs[0].payload.get("report_id") == "rpt_eta_missing"
+
+
 def test_report_completed_prefers_assessment_over_result(client, db: Session) -> None:
     profile = _create_instructor_with_candidate(db, candidate_id="cand_assessment")
 
@@ -380,6 +425,25 @@ def test_report_completed_consider_marks_review(client, db: Session) -> None:
         assert calls["profile_id"] == profile.id
     finally:
         app.dependency_overrides.pop(get_background_check_workflow_service, None)
+
+
+def test_report_completed_clears_eta(client, db: Session) -> None:
+    profile = _create_instructor_with_report(db, report_id="rpt_eta_clear")
+    profile.bgc_eta = datetime.now(timezone.utc) + timedelta(days=2)
+    db.add(profile)
+    db.flush()
+    db.refresh(profile)
+
+    payload = {
+        "type": "report.completed",
+        "data": {"object": {"id": "rpt_eta_clear", "result": "clear"}},
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_eta is None
 
 
 def test_report_completed_uses_assessment_for_review(client, db: Session) -> None:

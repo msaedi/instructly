@@ -382,6 +382,77 @@ async def handle_checkr_webhook(
             )
         return WebhookAckResponse(ok=True)
 
+    if event_type == "report.updated":
+        report_id = resource_id
+        if not report_id:
+            return WebhookAckResponse(ok=True)
+
+        eta_raw = data_object.get("estimated_completion_time")
+        previous_attrs: dict[str, Any] | None = None
+        data_envelope = payload.get("data")
+        if isinstance(data_envelope, dict):
+            maybe_prev = data_envelope.get("previous_attributes")
+            if isinstance(maybe_prev, dict):
+                previous_attrs = maybe_prev
+        prev_eta_raw = previous_attrs.get("estimated_completion_time") if previous_attrs else None
+
+        if eta_raw == prev_eta_raw and eta_raw is not None:
+            return WebhookAckResponse(ok=True)
+        if eta_raw is None and prev_eta_raw is None:
+            return WebhookAckResponse(ok=True)
+
+        eta_value = _parse_timestamp(eta_raw) if eta_raw else None
+        candidate_id = _extract_candidate_id(data_object)
+        _bind_report_to_profile(
+            repo,
+            report_id=report_id,
+            candidate_id=candidate_id,
+            invitation_id=_extract_invitation_id(data_object),
+            env=settings.checkr_env,
+        )
+
+        try:
+            workflow_service.handle_report_eta_updated(
+                report_id=report_id,
+                env=settings.checkr_env,
+                eta=eta_value,
+                candidate_id=candidate_id,
+            )
+            CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="success").inc()
+            _mark_delivery(delivery_key)
+        except RepositoryException as exc:
+            CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="queued").inc()
+            job_repository.enqueue(
+                type="webhook.report_eta",
+                payload={
+                    "report_id": report_id,
+                    "eta": eta_value.isoformat() if eta_value else None,
+                    "env": settings.checkr_env,
+                    "candidate_id": candidate_id,
+                },
+            )
+            logger.warning(
+                "Unable to persist ETA update: %s",
+                str(exc),
+                extra={"evt": "checkr_webhook", "type": event_type, "report_id": report_id},
+            )
+        except Exception:  # pragma: no cover
+            CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="error").inc()
+            job_repository.enqueue(
+                type="webhook.report_eta",
+                payload={
+                    "report_id": report_id,
+                    "eta": eta_value.isoformat() if eta_value else None,
+                    "env": settings.checkr_env,
+                    "candidate_id": candidate_id,
+                },
+            )
+            logger.exception(
+                "Unhandled error processing report.updated ETA",
+                extra={"evt": "checkr_webhook", "type": event_type, "report_id": report_id},
+            )
+        return WebhookAckResponse(ok=True)
+
     if event_type == "report.completed":
         report_id = resource_id
         if not report_id:

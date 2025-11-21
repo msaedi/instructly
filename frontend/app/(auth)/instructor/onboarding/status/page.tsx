@@ -34,7 +34,8 @@ export default function OnboardingStatusPage() {
     completedAt: string | null;
     consentRecent: boolean;
     consentRecentAt: string | null;
-  }>({ status: null, completedAt: null, consentRecent: false, consentRecentAt: null });
+    eta: string | null;
+  }>({ status: null, completedAt: null, consentRecent: false, consentRecentAt: null, eta: null });
   const redirectingRef = useRef(false);
 
   const handleBgcSnapshot = useCallback(
@@ -45,6 +46,7 @@ export default function OnboardingStatusPage() {
         completedAt: string | null;
         consentRecent: boolean;
         consentRecentAt: string | null;
+        eta: string | null;
       },
     ) => {
       setBgcSnapshot({
@@ -52,6 +54,7 @@ export default function OnboardingStatusPage() {
         completedAt: next.completedAt,
         consentRecent: next.consentRecent,
         consentRecentAt: next.consentRecentAt,
+        eta: next.eta ?? null,
       });
     },
     []

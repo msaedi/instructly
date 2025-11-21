@@ -825,6 +825,7 @@ async def get_background_check_status(
         valid_until=valid_until,
         expires_in_days=expires_in_days,
         is_expired=is_expired,
+        eta=getattr(profile, "bgc_eta", None),
     )
 
 

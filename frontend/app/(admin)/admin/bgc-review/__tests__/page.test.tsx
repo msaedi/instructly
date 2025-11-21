@@ -138,6 +138,7 @@ describe('AdminBGCReviewPage', () => {
         bgc_status: 'review',
         bgc_report_id: 'rpt_test123',
         bgc_completed_at: null,
+        bgc_eta: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
         created_at: new Date().toISOString(),
         updated_at: null,
         consent_recent: true,
@@ -162,6 +163,7 @@ describe('AdminBGCReviewPage', () => {
         bgc_status: 'pending',
         bgc_report_id: 'rpt_pending',
         bgc_completed_at: null,
+        bgc_eta: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
         created_at: new Date().toISOString(),
         updated_at: null,
         consent_recent: false,
@@ -185,6 +187,7 @@ describe('AdminBGCReviewPage', () => {
       bgc_status: 'canceled',
       bgc_report_id: 'rpt_canceled',
       bgc_completed_at: null,
+      bgc_eta: null,
       created_at: new Date().toISOString(),
       updated_at: null,
       consent_recent: false,
@@ -208,6 +211,7 @@ describe('AdminBGCReviewPage', () => {
       bgc_status: 'review',
       bgc_report_id: 'rpt_test123',
       bgc_completed_at: null,
+      bgc_eta: reviewItems[0]?.bgc_eta ?? null,
       consent_recent_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
       updated_at: null,
@@ -417,6 +421,38 @@ describe('AdminBGCReviewPage', () => {
       expect.stringContaining('/api/admin/bgc/01TEST0INSTRUCTOR/override'),
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('shows ETA for pending cases in table and preview', async () => {
+    const etaIso = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+    if (reviewItems[0]) {
+      reviewItems[0] = { ...reviewItems[0], bgc_status: 'pending', bgc_eta: etaIso };
+    }
+    reviewDetail = {
+      ...reviewDetail,
+      bgc_status: 'pending',
+      bgc_eta: etaIso,
+    };
+    const expectedEta = new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(new Date(etaIso));
+
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+    const tableEtaMatches = await screen.findAllByText(expectedEta);
+    expect(tableEtaMatches.length).toBeGreaterThan(0);
+
+    const user = userEvent.setup();
+    const previewButton = screen.getByRole('button', { name: /review instructor/i });
+    await user.click(previewButton);
+
+    await screen.findByText(/Estimated completion/i);
+    await waitFor(() => {
+      expect(screen.getAllByText(expectedEta).length).toBeGreaterThan(1);
+    });
   });
 
   it('switches pending filter and hides adjudication buttons', async () => {

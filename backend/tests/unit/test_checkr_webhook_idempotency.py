@@ -30,6 +30,7 @@ class StubWorkflow:
         *,
         report_id: str,
         result: str,
+        assessment: str | None = None,
         package: str | None,
         env: str,
         completed_at,

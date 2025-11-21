@@ -22,6 +22,7 @@ export interface BGCStatusResponse {
   valid_until?: string | null;
   expires_in_days?: number | null;
   is_expired?: boolean;
+  eta?: string | null;
 }
 
 export async function bgcInvite(instructorId: string): Promise<BGCInviteResponse> {

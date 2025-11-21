@@ -73,6 +73,23 @@ const StatusChip = React.forwardRef<HTMLSpanElement, StatusChipProps>(({ status,
 
 StatusChip.displayName = 'StatusChip';
 
+const formatEtaLabel = (value: string | null): string | null => {
+  if (!value) return null;
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(date);
+  } catch {
+    return null;
+  }
+};
+
 interface StatusSnapshot {
   status: BGCStatus | null;
   reportId: string | null;
@@ -82,6 +99,7 @@ interface StatusSnapshot {
   validUntil: string | null;
   expiresInDays: number | null;
   isExpired: boolean;
+  eta: string | null;
 }
 
 interface BGCStepProps {
@@ -99,6 +117,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   const [validUntil, setValidUntil] = React.useState<string | null>(null);
   const [expiresInDays, setExpiresInDays] = React.useState<number | null>(null);
   const [isExpired, setIsExpired] = React.useState(false);
+  const [eta, setEta] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [inviteLoading, setInviteLoading] = React.useState(false);
   const [recheckLoading, setRecheckLoading] = React.useState(false);
@@ -136,6 +155,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       setValidUntil(snapshot.validUntil);
       setExpiresInDays(snapshot.expiresInDays);
       setIsExpired(snapshot.isExpired);
+      setEta(snapshot.eta);
       onStatusUpdate?.(snapshot);
     },
     [onStatusUpdate, setStatusSafe]
@@ -152,6 +172,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       expiresInDays:
         typeof res.expires_in_days === 'number' ? res.expires_in_days : res.expires_in_days ?? null,
       isExpired: Boolean(res.is_expired),
+      eta: res.eta ?? null,
     }),
     []
   );
@@ -176,6 +197,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         validUntil: null,
         expiresInDays: null,
         isExpired: false,
+        eta: null,
       });
       setStatusError(true);
     }
@@ -204,6 +226,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           validUntil: null,
           expiresInDays: null,
           isExpired: false,
+          eta: null,
         });
         setStatusError(true);
       } finally {
@@ -301,6 +324,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         validUntil: null,
         expiresInDays: null,
         isExpired: false,
+        eta: null,
       });
       setStatusError(false);
       await loadStatus();
@@ -432,6 +456,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
         validUntil: null,
         expiresInDays: null,
         isExpired: false,
+        eta: null,
       });
       setStatusError(false);
       await loadStatus();
@@ -510,6 +535,10 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
       return null;
     }
   }, [validUntil]);
+  const etaLabel = React.useMemo(() => formatEtaLabel(eta), [eta]);
+  const pendingOrReview =
+    status === 'pending' || status === 'review' || status === 'consider';
+  const shouldShowEta = Boolean(etaLabel) && pendingOrReview;
 
   const shouldShowRecheck =
     isExpired || (typeof expiresInDays === 'number' && Number.isFinite(expiresInDays) && expiresInDays <= 30);
@@ -518,9 +547,7 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
     recheckLoading ||
     inviteLoading ||
     loading ||
-    status === 'pending' ||
-    status === 'review' ||
-    status === 'consider';
+    pendingOrReview;
 
   return (
     <div className="space-y-4" data-testid="bgc-step">
@@ -547,6 +574,11 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
           </Button>
         ) : null}
       </div>
+      {shouldShowEta ? (
+        <p className="text-sm text-muted-foreground">
+          Estimated completion: <span className="font-medium">{etaLabel}</span>
+        </p>
+      ) : null}
       {isCanceled ? (
         <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
           Background check was canceled in Checkr. Please contact support or start a new background check to continue.

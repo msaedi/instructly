@@ -46,6 +46,7 @@ class BackgroundCheckStatusResponse(StrictModel):
     valid_until: datetime | None = None
     expires_in_days: int | None = None
     is_expired: bool = False
+    eta: datetime | None = None
 
 
 __all__ = [

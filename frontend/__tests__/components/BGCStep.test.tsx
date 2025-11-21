@@ -70,6 +70,25 @@ describe('BGCStep', () => {
     expect(button).toBeDisabled();
   });
 
+  it('displays ETA when provided for pending status', async () => {
+    const etaIso = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+    mockedBGCStatus.mockResolvedValueOnce({
+      status: 'pending',
+      env: 'sandbox',
+      eta: etaIso,
+    });
+
+    render(<BGCStep instructorId="instructor-eta" />);
+
+    const expectedEta = new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(new Date(etaIso));
+    const etaLine = await screen.findByText(/Estimated completion/i);
+    expect(etaLine).toHaveTextContent(expectedEta);
+  });
+
   it('invites background check with debounce and success toast', async () => {
     const timeoutSpy = jest.spyOn(global, 'setTimeout');
     mockedBGCStatus

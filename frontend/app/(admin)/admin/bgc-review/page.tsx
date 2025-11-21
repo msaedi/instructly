@@ -28,6 +28,23 @@ import {
   type BGCCaseItem,
 } from './hooks';
 
+const formatEtaLabel = (value: string | null): string | null => {
+  if (!value) return null;
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(date);
+  } catch {
+    return null;
+  }
+};
+
 function LoadingScreen() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -366,6 +383,7 @@ export default function AdminBGCReviewPage() {
                     <th scope="col" className="px-4 py-3 text-left font-medium">Instructor</th>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Email</th>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Report</th>
+                    <th scope="col" className="px-4 py-3 text-left font-medium">ETA</th>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Consent</th>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Updated</th>
                     <th scope="col" className="px-4 py-3 text-left font-medium">Actions</th>
@@ -374,7 +392,7 @@ export default function AdminBGCReviewPage() {
                 <tbody className="divide-y divide-gray-200/60 dark:divide-gray-800/60">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan={7} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
                         <div className="inline-flex items-center gap-3">
                           <Loader2 className="h-5 w-5 animate-spin" />
                           Loading background checks…
@@ -383,7 +401,7 @@ export default function AdminBGCReviewPage() {
                     </tr>
                   ) : filteredItems.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan={7} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
                         No cases match the current filters.
                       </td>
                     </tr>
@@ -396,6 +414,10 @@ export default function AdminBGCReviewPage() {
                       const statusValue = (item.bgc_status ?? '').toLowerCase();
                       const showActions = statusValue === 'review' || statusValue === 'consider';
                       const inDispute = item.in_dispute;
+                      const etaLabel = formatEtaLabel(item.bgc_eta);
+                      const showEta =
+                        Boolean(etaLabel) &&
+                        (statusValue === 'pending' || statusValue === 'review' || statusValue === 'consider');
                       const badgeTone = statusValue === 'review' || statusValue === 'consider'
                         ? 'bg-amber-50 text-amber-800 border-amber-200'
                         : statusValue === 'pending'
@@ -468,6 +490,9 @@ export default function AdminBGCReviewPage() {
                             ) : (
                               '—'
                             )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
+                            {showEta ? etaLabel : '—'}
                           </td>
                           <td className="px-4 py-3">
                             {item.consent_recent ? (
@@ -651,6 +676,10 @@ function PreviewContent({
     ? formatDistanceToNow(new Date(detail.bgc_dispute_resolved_at), { addSuffix: true })
     : null;
   const normalizedStatus = (detail.bgc_status || '').toLowerCase();
+  const etaLabel = formatEtaLabel(detail.bgc_eta);
+  const showEta =
+    Boolean(etaLabel) &&
+    (normalizedStatus === 'pending' || normalizedStatus === 'review' || normalizedStatus === 'consider');
   let validUntilLabel: string | null = null;
   if (detail.bgc_valid_until) {
     try {
@@ -694,6 +723,12 @@ function PreviewContent({
           <dd className="capitalize">{detail.bgc_status || '—'}</dd>
         </div>
       </div>
+      {showEta ? (
+        <div>
+          <dt className="text-xs uppercase text-gray-400">Estimated completion</dt>
+          <dd>{etaLabel}</dd>
+        </div>
+      ) : null}
       {normalizedStatus === 'canceled' ? (
         <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
           Report was canceled in Checkr. Review the case in Checkr Dashboard and decide whether to re-invite or contact support.

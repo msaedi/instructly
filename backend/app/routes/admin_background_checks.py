@@ -173,6 +173,7 @@ def _build_case_item(
         "dispute_note": getattr(profile, "bgc_dispute_note", None),
         "dispute_opened_at": getattr(profile, "bgc_dispute_opened_at", None),
         "dispute_resolved_at": getattr(profile, "bgc_dispute_resolved_at", None),
+        "bgc_eta": getattr(profile, "bgc_eta", None),
     }
 
     return BGCCaseItemModel(**model_filter(BGCCaseItemModel, payload))
