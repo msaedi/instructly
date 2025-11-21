@@ -198,6 +198,7 @@ class BackgroundCheckWorkflowService:
         *,
         report_id: str,
         result: str,
+        assessment: str | None = None,
         package: Optional[str],
         env: str,
         completed_at: datetime,
@@ -214,14 +215,17 @@ class BackgroundCheckWorkflowService:
         """
 
         normalized_result = (result or "").lower() or "unknown"
-        status_value = "passed" if normalized_result == "clear" else "review"
+        normalized_assessment = (assessment or "").strip().lower() or None
+        effective_result = normalized_assessment or normalized_result
+        passed_results = {"clear", "eligible"}
+        status_value = "passed" if effective_result in passed_results else "review"
         completed_at = _ensure_utc(completed_at)
 
         updated = self.repo.update_bgc_by_report_id(
             report_id,
             status=status_value,
             completed_at=completed_at,
-            result=normalized_result,
+            result=effective_result,
         )
         if updated == 0:
             bound_profile_id = self.repo.bind_report_to_candidate(candidate_id, report_id, env=env)
@@ -234,7 +238,7 @@ class BackgroundCheckWorkflowService:
                     report_id,
                     status=status_value,
                     completed_at=completed_at,
-                    result=normalized_result,
+                    result=effective_result,
                 )
         if updated == 0:
             raise RepositoryException(
@@ -248,15 +252,15 @@ class BackgroundCheckWorkflowService:
         self.repo.append_history(
             instructor_id=profile.id,
             report_id=report_id,
-            result=normalized_result,
+            result=effective_result,
             package=package,
             env=env,
             completed_at=completed_at,
         )
 
-        requires_follow_up = normalized_result != "clear"
+        requires_follow_up = status_value != "passed"
 
-        if normalized_result == "clear":
+        if status_value == "passed":
             valid_until = completed_at + timedelta(days=365)
             self.repo.update_valid_until(profile.id, valid_until)
             profile.bgc_valid_until = valid_until

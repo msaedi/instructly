@@ -501,12 +501,14 @@ async def _background_jobs_worker() -> None:
                             result = payload.get("result", "unknown")
                             package = payload.get("package")
                             env = payload.get("env", settings.checkr_env)
+                            assessment = payload.get("assessment")
                             candidate_id = payload.get("candidate_id")
                             invitation_id = payload.get("invitation_id")
 
                             status_value, profile, follow_up = workflow.handle_report_completed(
                                 report_id=report_id,
                                 result=result,
+                                assessment=assessment,
                                 package=package,
                                 env=env,
                                 completed_at=completed_at,

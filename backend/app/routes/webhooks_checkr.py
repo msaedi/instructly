@@ -42,9 +42,9 @@ _SIGNATURE_PLACEHOLDER = "Please create an API key to check the authenticity of 
 
 def _result_label(result: str) -> str:
     normalized = (result or "").lower()
-    if normalized == "clear":
+    if normalized in {"clear", "eligible"}:
         return "clear"
-    if normalized == "consider":
+    if normalized in {"consider", "needs_review"}:
         return "consider"
     if normalized == "canceled":
         return "canceled"
@@ -403,7 +403,10 @@ async def handle_checkr_webhook(
             "consider": "consider",
             "suspended": "suspended",
         }.get(raw_result, "unknown")
-        result_label = _result_label(normalized_result)
+        assessment_raw = (data_object.get("assessment") or "").strip().lower()
+        normalized_assessment = assessment_raw or None
+        effective_result = normalized_assessment or normalized_result
+        result_label = _result_label(effective_result)
 
         completed_at = datetime.now(timezone.utc)
         package_value = data_object.get("package") or settings.checkr_package
@@ -412,6 +415,7 @@ async def handle_checkr_webhook(
             status_value, profile, requires_follow_up = workflow_service.handle_report_completed(
                 report_id=report_id,
                 result=normalized_result,
+                assessment=normalized_assessment,
                 package=package_value,
                 env=settings.checkr_env,
                 completed_at=completed_at,
@@ -446,6 +450,7 @@ async def handle_checkr_webhook(
                     "evt": "checkr_webhook",
                     "type": event_type,
                     "result": normalized_result,
+                    "assessment": normalized_assessment,
                     "report_id": report_id,
                     "outcome": "queued",
                 },
@@ -455,6 +460,7 @@ async def handle_checkr_webhook(
                 payload={
                     "report_id": report_id,
                     "result": normalized_result,
+                    "assessment": normalized_assessment,
                     "package": package_value,
                     "env": settings.checkr_env,
                     "completed_at": completed_at.isoformat(),
@@ -470,6 +476,7 @@ async def handle_checkr_webhook(
                     "evt": "checkr_webhook",
                     "type": event_type,
                     "result": normalized_result,
+                    "assessment": normalized_assessment,
                     "report_id": report_id,
                     "outcome": "error",
                 },
@@ -479,6 +486,7 @@ async def handle_checkr_webhook(
                 payload={
                     "report_id": report_id,
                     "result": normalized_result,
+                    "assessment": normalized_assessment,
                     "package": package_value,
                     "env": settings.checkr_env,
                     "completed_at": completed_at.isoformat(),

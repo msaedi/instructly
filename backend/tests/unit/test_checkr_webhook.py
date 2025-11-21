@@ -234,6 +234,37 @@ def test_report_completed_unknown_candidate_enqueues_job(client, db: Session) ->
     assert jobs[0].payload.get("candidate_id") == "cand_does_not_exist"
 
 
+def test_report_completed_prefers_assessment_over_result(client, db: Session) -> None:
+    profile = _create_instructor_with_candidate(db, candidate_id="cand_assessment")
+
+    payload = {
+        "type": "report.completed",
+        "data": {
+            "object": {
+                "id": "rpt_assessment",
+                "result": "consider",
+                "assessment": "eligible",
+                "candidate_id": "cand_assessment",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+    db.refresh(profile)
+    assert profile.bgc_status == "passed"
+    assert profile.bgc_report_result == "eligible"
+    assert profile.bgc_valid_until is not None
+    history = (
+        db.query(BackgroundCheck)
+        .filter(BackgroundCheck.instructor_id == profile.id)
+        .all()
+    )
+    assert len(history) == 1
+    assert history[0].result == "eligible"
+
+
 def test_report_canceled_updates_profile(client, db: Session) -> None:
     profile = _create_instructor_with_report(db, report_id="rpt_cancel_pending")
 
@@ -349,6 +380,29 @@ def test_report_completed_consider_marks_review(client, db: Session) -> None:
         assert calls["profile_id"] == profile.id
     finally:
         app.dependency_overrides.pop(get_background_check_workflow_service, None)
+
+
+def test_report_completed_uses_assessment_for_review(client, db: Session) -> None:
+    profile = _create_instructor_with_report(db, report_id="rpt_needs_review")
+    settings.bgc_suppress_adverse_emails = True
+    payload = {
+        "type": "report.completed",
+        "data": {
+            "object": {
+                "id": "rpt_needs_review",
+                "result": "clear",
+                "assessment": "needs_review",
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+    updated = db.query(InstructorProfile).filter_by(id=profile.id).one()
+    assert updated.bgc_status == "review"
+    assert updated.bgc_report_result == "needs_review"
+    assert updated.bgc_valid_until is None
 
 
 def test_missing_basic_auth_returns_401(client):
