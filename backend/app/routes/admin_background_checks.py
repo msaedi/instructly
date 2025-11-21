@@ -160,6 +160,7 @@ def _build_case_item(
         "email": email,
         "is_live": bool(getattr(profile, "is_live", False)),
         "bgc_status": getattr(profile, "bgc_status", ""),
+        "bgc_includes_canceled": bool(getattr(profile, "bgc_includes_canceled", False)),
         "bgc_report_id": report_id,
         "bgc_completed_at": getattr(profile, "bgc_completed_at", None),
         "created_at": getattr(profile, "created_at", None),

@@ -109,6 +109,7 @@ class InstructorProfile(Base):
     bgc_valid_until = Column(DateTime(timezone=True), nullable=True)
     bgc_eta = Column(DateTime(timezone=True), nullable=True)
     bgc_invited_at = Column(DateTime(timezone=True), nullable=True)
+    bgc_includes_canceled = Column(Boolean, nullable=False, default=False, server_default="false")
     bgc_in_dispute = Column(Boolean, nullable=False, default=False, server_default="false")
     bgc_dispute_note = Column(Text, nullable=True)
     bgc_dispute_opened_at = Column(DateTime(timezone=True), nullable=True)

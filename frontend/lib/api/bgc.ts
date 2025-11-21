@@ -23,14 +23,24 @@ export interface BGCStatusResponse {
   expires_in_days?: number | null;
   is_expired?: boolean;
   eta?: string | null;
+  bgcIncludesCanceled?: boolean;
 }
+
+type RawBGCStatusResponse = Omit<BGCStatusResponse, 'bgcIncludesCanceled'> & {
+  bgc_includes_canceled?: boolean | null;
+};
 
 export async function bgcInvite(instructorId: string): Promise<BGCInviteResponse> {
   return httpPost<BGCInviteResponse>(`/api/instructors/${instructorId}/bgc/invite`, {});
 }
 
 export async function bgcStatus(instructorId: string): Promise<BGCStatusResponse> {
-  return httpGet<BGCStatusResponse>(`/api/instructors/${instructorId}/bgc/status`);
+  const response = await httpGet<RawBGCStatusResponse>(`/api/instructors/${instructorId}/bgc/status`);
+  const { bgc_includes_canceled, ...rest } = response;
+  return {
+    ...rest,
+    bgcIncludesCanceled: Boolean(bgc_includes_canceled),
+  };
 }
 
 export async function bgcRecheck(instructorId: string): Promise<BGCInviteResponse> {

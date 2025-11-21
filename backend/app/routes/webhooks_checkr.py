@@ -478,6 +478,7 @@ async def handle_checkr_webhook(
         normalized_assessment = assessment_raw or None
         effective_result = normalized_assessment or normalized_result
         result_label = _result_label(effective_result)
+        includes_canceled = data_object.get("includes_canceled")
 
         completed_at = datetime.now(timezone.utc)
         package_value = data_object.get("package") or settings.checkr_package
@@ -492,6 +493,7 @@ async def handle_checkr_webhook(
                 completed_at=completed_at,
                 candidate_id=candidate_id,
                 invitation_id=invitation_id,
+                includes_canceled=includes_canceled,
             )
             if requires_follow_up and profile is not None:
                 logger.info(
@@ -536,6 +538,7 @@ async def handle_checkr_webhook(
                     "completed_at": completed_at.isoformat(),
                     "candidate_id": candidate_id,
                     "invitation_id": invitation_id,
+                    "includes_canceled": includes_canceled,
                 },
             )
         except Exception:  # pragma: no cover - safety fallback
@@ -562,6 +565,7 @@ async def handle_checkr_webhook(
                     "completed_at": completed_at.isoformat(),
                     "candidate_id": candidate_id,
                     "invitation_id": invitation_id,
+                    "includes_canceled": includes_canceled,
                 },
             )
 

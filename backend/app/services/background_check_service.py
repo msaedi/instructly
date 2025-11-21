@@ -209,6 +209,7 @@ class BackgroundCheckService(BaseService):
                 candidate_id=candidate_id,
                 invitation_id=invitation_id,
                 note=None,
+                includes_canceled=False,
             )
 
         return {

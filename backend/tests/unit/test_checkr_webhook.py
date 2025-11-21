@@ -155,6 +155,29 @@ def test_report_completed_clear_updates_profile(client, db: Session) -> None:
     assert updated_retry.bgc_completed_at is not None
 
 
+def test_report_completed_with_canceled_screenings_sets_flag(client, db: Session) -> None:
+    profile = _create_instructor_with_report(db, report_id="rpt_partial_flag")
+
+    payload = {
+        "type": "report.completed",
+        "data": {
+            "object": {
+                "id": "rpt_partial_flag",
+                "result": "clear",
+                "includes_canceled": True,
+            }
+        },
+    }
+    body = json.dumps(payload).encode("utf-8")
+    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+
+    assert response.status_code == 200
+
+    updated = db.query(InstructorProfile).filter_by(id=profile.id).one()
+    assert updated.bgc_status == "passed"
+    assert updated.bgc_includes_canceled is True
+
+
 def test_report_completed_without_report_binding_uses_candidate(client, db: Session) -> None:
     profile = _create_instructor_with_candidate(db, candidate_id="cand_missing_report")
 

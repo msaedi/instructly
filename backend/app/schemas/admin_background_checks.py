@@ -18,6 +18,7 @@ class BGCReviewItemModel(StrictModel):
     name: str
     email: str
     bgc_status: str | None = None
+    bgc_includes_canceled: bool = False
     bgc_report_id: str | None = None
     bgc_completed_at: datetime | None = None
     created_at: datetime | None = None
@@ -52,6 +53,7 @@ class BGCCaseItemModel(StrictModel):
     email: str
     is_live: bool
     bgc_status: str | None = None
+    bgc_includes_canceled: bool = False
     bgc_report_id: str | None = None
     bgc_completed_at: datetime | None = None
     created_at: datetime | None = None
@@ -74,6 +76,7 @@ class BGCCaseItemModel(StrictModel):
             "name": self.name,
             "email": self.email,
             "bgc_status": self.bgc_status,
+            "bgc_includes_canceled": self.bgc_includes_canceled,
             "bgc_report_id": self.bgc_report_id,
             "bgc_completed_at": self.bgc_completed_at,
             "created_at": self.created_at,

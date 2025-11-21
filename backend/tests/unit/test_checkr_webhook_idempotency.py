@@ -36,6 +36,8 @@ class StubWorkflow:
         completed_at,
         candidate_id: str | None = None,
         invitation_id: str | None = None,
+        includes_canceled: bool | None = None,
+        **_kwargs,
     ):
         self.report_completed_calls += 1
         return result, None, False

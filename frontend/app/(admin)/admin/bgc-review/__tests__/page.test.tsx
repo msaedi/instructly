@@ -117,6 +117,22 @@ function renderWithClient(ui: ReactNode) {
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
+function serializeCaseItemForApi(item: BGCCaseItem) {
+  const { bgcIncludesCanceled, ...rest } = item;
+  return {
+    ...rest,
+    bgc_includes_canceled: bgcIncludesCanceled,
+  };
+}
+
+function serializeAdminDetailForApi(detail: AdminInstructorDetail) {
+  const { bgcIncludesCanceled, ...rest } = detail;
+  return {
+    ...rest,
+    bgc_includes_canceled: bgcIncludesCanceled,
+  };
+}
+
 describe('AdminBGCReviewPage', () => {
   beforeEach(() => {
     const now = Date.now();
@@ -137,6 +153,7 @@ describe('AdminBGCReviewPage', () => {
         name: 'Review Instructor',
         email: 'review@example.com',
         bgc_status: 'review',
+        bgcIncludesCanceled: false,
         bgc_report_id: 'rpt_test123',
         bgc_completed_at: null,
         bgc_eta: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
@@ -162,6 +179,7 @@ describe('AdminBGCReviewPage', () => {
         name: 'Pending Instructor',
         email: 'pending@example.com',
         bgc_status: 'pending',
+        bgcIncludesCanceled: false,
         bgc_report_id: 'rpt_pending',
         bgc_completed_at: null,
         bgc_eta: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
@@ -186,6 +204,7 @@ describe('AdminBGCReviewPage', () => {
       name: 'Canceled Instructor',
       email: 'canceled@example.com',
       bgc_status: 'canceled',
+      bgcIncludesCanceled: false,
       bgc_report_id: 'rpt_canceled',
       bgc_completed_at: null,
       bgc_eta: null,
@@ -210,6 +229,7 @@ describe('AdminBGCReviewPage', () => {
       email: 'review@example.com',
       is_live: false,
       bgc_status: 'review',
+      bgcIncludesCanceled: false,
       bgc_report_id: 'rpt_test123',
       bgc_completed_at: null,
       bgc_eta: reviewItems[0]?.bgc_eta ?? null,
@@ -270,8 +290,9 @@ describe('AdminBGCReviewPage', () => {
         const totalPages = total === 0 ? 1 : Math.ceil(total / pageSizeParam);
         const start = (pageParam - 1) * pageSizeParam;
         const pagedItems = items.slice(start, start + pageSizeParam);
+        const pagedItemsApi = pagedItems.map(serializeCaseItemForApi);
         return createJsonResponse({
-          items: pagedItems,
+          items: pagedItemsApi,
           total,
           page: pageParam,
           page_size: pageSizeParam,
@@ -282,7 +303,7 @@ describe('AdminBGCReviewPage', () => {
       }
 
       if (url.includes('/api/admin/instructors/')) {
-        return createJsonResponse(reviewDetail);
+        return createJsonResponse(serializeAdminDetailForApi(reviewDetail));
       }
 
       if (url.includes('/dispute/open')) {
@@ -491,6 +512,34 @@ describe('AdminBGCReviewPage', () => {
     await waitFor(() => {
       expect(screen.getAllByText(expectedEta).length).toBeGreaterThan(1);
     });
+  });
+
+  it('shows canceled screenings indicator to admins when includes flag is set', async () => {
+    if (reviewItems[0]) {
+      reviewItems[0] = {
+        ...reviewItems[0],
+        bgc_status: 'passed',
+        bgcIncludesCanceled: true,
+      };
+    }
+    reviewDetail = {
+      ...reviewDetail,
+      bgc_status: 'passed',
+      bgcIncludesCanceled: true,
+    };
+
+    renderWithClient(<AdminBGCReviewPage />);
+
+    await screen.findByText('Review Instructor');
+    expect(
+      screen.getAllByTitle('This report completed with one or more canceled screenings.').length,
+    ).toBeGreaterThan(0);
+
+    const user = userEvent.setup();
+    const previewButton = screen.getByRole('button', { name: /review instructor/i });
+    await user.click(previewButton);
+
+    await screen.findByText(/canceled screenings/i);
   });
 
   it('paginates cases and navigates pages', async () => {

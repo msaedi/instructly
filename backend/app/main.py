@@ -504,6 +504,7 @@ async def _background_jobs_worker() -> None:
                             assessment = payload.get("assessment")
                             candidate_id = payload.get("candidate_id")
                             invitation_id = payload.get("invitation_id")
+                            includes_canceled = payload.get("includes_canceled")
 
                             status_value, profile, follow_up = workflow.handle_report_completed(
                                 report_id=report_id,
@@ -514,6 +515,7 @@ async def _background_jobs_worker() -> None:
                                 completed_at=completed_at,
                                 candidate_id=candidate_id,
                                 invitation_id=invitation_id,
+                                includes_canceled=includes_canceled,
                             )
                         elif job.type == "webhook.report_suspended":
                             report_id = payload.get("report_id")

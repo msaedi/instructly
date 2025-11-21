@@ -133,3 +133,57 @@ async def test_invite_propagates_checkr_errors_without_updates(db):
     assert profile.bgc_status == "review"
     assert profile.bgc_report_id is None
     assert profile.bgc_env == "sandbox"
+
+
+@pytest.mark.asyncio
+async def test_invite_uses_service_package_from_settings(db):
+    """Verify that the service uses the package configured in settings.checkr_package."""
+    captured_requests: dict[str, dict] = {}
+
+    def handler(request):
+        body = json.loads(request.content.decode())
+        if request.url.path.endswith("/candidates"):
+            captured_requests["candidate"] = body
+            return Response(201, json={"id": "cand_456"})
+        if request.url.path.endswith("/invitations"):
+            captured_requests["invitation"] = body
+            return Response(201, json={"id": "inv_456", "report_id": "rpt_456"})
+        raise AssertionError(f"Unexpected path {request.url.path}")
+
+    # The fixture sets settings.checkr_package = "essential"
+    service = _service_factory(db, MockTransport(handler))
+    profile = _create_instructor(db)
+
+    await service.invite(profile.id)
+
+    # Verify the package from settings was used
+    invitation_payload = captured_requests["invitation"]
+    assert invitation_payload["package"] == "essential"
+    assert invitation_payload["package"] == settings.checkr_package
+
+
+@pytest.mark.asyncio
+async def test_invite_package_override_takes_precedence(db):
+    """Verify that package_override parameter takes precedence over settings."""
+    captured_requests: dict[str, dict] = {}
+
+    def handler(request):
+        body = json.loads(request.content.decode())
+        if request.url.path.endswith("/candidates"):
+            return Response(201, json={"id": "cand_789"})
+        if request.url.path.endswith("/invitations"):
+            captured_requests["invitation"] = body
+            return Response(201, json={"id": "inv_789", "report_id": "rpt_789"})
+        raise AssertionError(f"Unexpected path {request.url.path}")
+
+    # The fixture sets settings.checkr_package = "essential"
+    service = _service_factory(db, MockTransport(handler))
+    profile = _create_instructor(db)
+
+    # Override with a different package
+    await service.invite(profile.id, package_override="complete_criminal")
+
+    # Verify the override was used instead of settings
+    invitation_payload = captured_requests["invitation"]
+    assert invitation_payload["package"] == "complete_criminal"
+    assert invitation_payload["package"] != settings.checkr_package

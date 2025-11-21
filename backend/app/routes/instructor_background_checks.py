@@ -249,6 +249,18 @@ async def trigger_background_check_invite(
         or getattr(settings, "checkr_package", None)
     )
 
+    logger.debug(
+        "BGC invite package resolution",
+        extra={
+            "evt": "bgc_invite_package_resolution",
+            "instructor_id": instructor_id,
+            "payload_package": payload.package_slug,
+            "service_package": getattr(background_check_service, "package", None),
+            "settings_package": getattr(settings, "checkr_package", None),
+            "resolved_package": package_slug,
+        },
+    )
+
     if background_check_service.config_error and settings.site_mode != "prod":
         logger.error(
             "Background check invite blocked due to configuration error",
@@ -826,6 +838,7 @@ async def get_background_check_status(
         expires_in_days=expires_in_days,
         is_expired=is_expired,
         eta=getattr(profile, "bgc_eta", None),
+        bgc_includes_canceled=bool(getattr(profile, "bgc_includes_canceled", False)),
     )
 
 

@@ -229,6 +229,7 @@ class BackgroundCheckWorkflowService:
         completed_at: datetime,
         candidate_id: str | None = None,
         invitation_id: str | None = None,
+        includes_canceled: bool | None = None,
     ) -> Tuple[str, Optional[InstructorProfile], bool]:
         """
         Process a report.completed webhook event.
@@ -246,11 +247,14 @@ class BackgroundCheckWorkflowService:
         status_value = "passed" if effective_result in passed_results else "review"
         completed_at = _ensure_utc(completed_at)
 
+        includes_flag = bool(includes_canceled)
+
         updated = self.repo.update_bgc_by_report_id(
             report_id,
             status=status_value,
             completed_at=completed_at,
             result=effective_result,
+            includes_canceled=includes_flag,
         )
         if updated == 0:
             bound_profile_id = self.repo.bind_report_to_candidate(candidate_id, report_id, env=env)
@@ -264,6 +268,7 @@ class BackgroundCheckWorkflowService:
                     status=status_value,
                     completed_at=completed_at,
                     result=effective_result,
+                    includes_canceled=includes_flag,
                 )
         if updated == 0:
             raise RepositoryException(

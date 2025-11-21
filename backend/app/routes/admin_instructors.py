@@ -56,6 +56,7 @@ async def admin_instructor_detail(
         "email": email,
         "is_live": bool(getattr(profile, "is_live", False)),
         "bgc_status": getattr(profile, "bgc_status", None),
+        "bgc_includes_canceled": bool(getattr(profile, "bgc_includes_canceled", False)),
         "bgc_report_id": getattr(profile, "bgc_report_id", None),
         "bgc_completed_at": getattr(profile, "bgc_completed_at", None),
         "consent_recent_at": consented_at,

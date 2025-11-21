@@ -432,6 +432,9 @@ export default function AdminBGCReviewPage() {
                           : statusValue === 'canceled'
                           ? 'bg-rose-50 text-rose-700 border-rose-200'
                           : 'bg-gray-50 text-gray-600 border-gray-200';
+                      const showCanceledIndicator =
+                        Boolean(item.bgcIncludesCanceled) &&
+                        (statusValue === 'passed' || statusValue === 'review');
                       return (
                         <tr key={item.instructor_id} className="bg-white/40 dark:bg-transparent">
                           <td className="px-4 py-3 whitespace-nowrap">
@@ -528,6 +531,14 @@ export default function AdminBGCReviewPage() {
                                 <Badge variant="outline" className={`${badgeTone} capitalize flex-shrink-0`}>
                                   {statusValue || 'unknown'}
                                 </Badge>
+                                {showCanceledIndicator ? (
+                                  <span
+                                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/10 text-[11px] font-semibold text-amber-600"
+                                    title="This report completed with one or more canceled screenings."
+                                  >
+                                    !
+                                  </span>
+                                ) : null}
                                 <Button
                                   type="button"
                                   size="sm"
@@ -720,6 +731,9 @@ function PreviewContent({
   const showEta =
     Boolean(etaLabel) &&
     (normalizedStatus === 'pending' || normalizedStatus === 'review' || normalizedStatus === 'consider');
+  const showCanceledIndicator =
+    Boolean(detail.bgcIncludesCanceled) &&
+    (normalizedStatus === 'passed' || normalizedStatus === 'review');
   let validUntilLabel: string | null = null;
   if (detail.bgc_valid_until) {
     try {
@@ -760,7 +774,19 @@ function PreviewContent({
         </div>
         <div>
           <dt className="text-xs uppercase text-gray-400">BGC status</dt>
-          <dd className="capitalize">{detail.bgc_status || '—'}</dd>
+          <dd className="capitalize">
+            <div className="flex flex-wrap items-center gap-2">
+              <span>{detail.bgc_status || '—'}</span>
+              {showCanceledIndicator ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-amber-600"
+                  title="This report completed with one or more canceled screenings."
+                >
+                  <span aria-hidden="true">•</span> canceled screenings
+                </span>
+              ) : null}
+            </div>
+          </dd>
         </div>
       </div>
       {showEta ? (

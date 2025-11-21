@@ -10,6 +10,7 @@ export interface BGCCaseItem {
   name: string;
   email: string;
   bgc_status: string | null;
+  bgcIncludesCanceled?: boolean;
   bgc_report_id: string | null;
   bgc_completed_at: string | null;
   bgc_eta: string | null;
@@ -49,6 +50,7 @@ export interface AdminInstructorDetail {
   email: string;
   is_live: boolean;
   bgc_status: string | null;
+  bgcIncludesCanceled?: boolean;
   bgc_report_id: string | null;
   bgc_completed_at: string | null;
   bgc_eta: string | null;
@@ -66,6 +68,18 @@ export interface AdminInstructorDetail {
 
 const COUNTS_QUERY_KEY: QueryKey = ['admin', 'bgc', 'counts'];
 const CASES_QUERY_KEY_PREFIX: QueryKey = ['admin', 'bgc', 'cases'];
+
+type BGCCaseItemApi = Omit<BGCCaseItem, 'bgcIncludesCanceled'> & {
+  bgc_includes_canceled?: boolean | null;
+};
+
+type BGCCaseListResultApi = Omit<BGCCaseListResult, 'items'> & {
+  items: BGCCaseItemApi[];
+};
+
+type AdminInstructorDetailApi = Omit<AdminInstructorDetail, 'bgcIncludesCanceled'> & {
+  bgc_includes_canceled?: boolean | null;
+};
 
 export function useBGCCounts(enabled = true) {
   const isClient = typeof window !== 'undefined';
@@ -98,7 +112,14 @@ export function useBGCCases(
         params.set('q', q.trim());
       }
       const url = `/api/admin/bgc/cases?${params.toString()}`;
-      return httpGet<BGCCaseListResult>(url);
+      const response = await httpGet<BGCCaseListResultApi>(url);
+      return {
+        ...response,
+        items: response.items.map(({ bgc_includes_canceled, ...rest }) => ({
+          ...rest,
+          bgcIncludesCanceled: Boolean(bgc_includes_canceled),
+        })),
+      };
     },
     refetchOnWindowFocus: false,
     retry: 1,
@@ -193,9 +214,14 @@ export function useAdminInstructorDetail(instructorId: string | null) {
     queryKey: ['admin', 'instructor', instructorId],
     queryFn: async () => {
       if (!instructorId) return null;
-      return httpGet<AdminInstructorDetail>(`/api/admin/instructors/${instructorId}`, {
+      const detail = await httpGet<AdminInstructorDetailApi>(`/api/admin/instructors/${instructorId}`, {
         credentials: 'include',
       });
+      const { bgc_includes_canceled, ...rest } = detail;
+      return {
+        ...rest,
+        bgcIncludesCanceled: Boolean(bgc_includes_canceled),
+      };
     },
     enabled: isClient && Boolean(instructorId),
     staleTime: 60_000,

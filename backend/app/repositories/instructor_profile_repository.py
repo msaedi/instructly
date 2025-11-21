@@ -371,6 +371,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         candidate_id: str | None = None,
         invitation_id: str | None = None,
         note: Any = _UNSET,
+        includes_canceled: Any = _UNSET,
     ) -> None:
         """Persist background check metadata for a specific instructor profile."""
 
@@ -389,6 +390,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 profile.checkr_invitation_id = invitation_id
             if note is not _UNSET:
                 profile.bgc_note = cast(Optional[str], note)
+            if includes_canceled is not _UNSET:
+                profile.bgc_includes_canceled = bool(includes_canceled)
 
             self.db.flush()
         except SQLAlchemyError as exc:
@@ -410,6 +413,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         completed_at: datetime | None = None,
         result: Any = _UNSET,
         note: Any = _UNSET,
+        includes_canceled: Any = _UNSET,
     ) -> int:
         """Update background check fields based on a Checkr report identifier."""
 
@@ -430,6 +434,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 profile.bgc_report_result = cast(Optional[str], result)
             if note is not _UNSET:
                 profile.bgc_note = cast(Optional[str], note)
+            if includes_canceled is not _UNSET:
+                profile.bgc_includes_canceled = bool(includes_canceled)
 
             self.db.flush()
             return 1
