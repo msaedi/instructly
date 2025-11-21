@@ -1,0 +1,12 @@
+{% extends "email/base.html" %}
+
+{% block title %}Background check under review{% endblock %}
+
+{% block content %}
+  <p style="margin:0 0 12px;">Hi{% if candidate_name %} {{ candidate_name }}{% endif %},</p>
+  <p style="margin:0 0 12px;">We’re writing to let you know that your background report for {{ brand_name }} has been received and is currently under review as part of our onboarding process. No final decision has been made at this time.</p>
+  <p style="margin:0 0 12px;">You can view your report and manage your information at any time through Checkr’s candidate portal at <a href="{{ checkr_portal_url }}">{{ checkr_portal_url }}</a>.</p>
+  <p style="margin:0 0 12px;">If there’s anything in your report that requires further attention, you may receive a separate, formal email from Checkr with more details about the report and information about your rights and how to dispute the report if needed.</p>
+  <p style="margin:0 0 12px;">For any questions about your application with {{ brand_name }}, you can reach us at {{ support_email }}.</p>
+  <p style="margin:24px 0 0;">Thank you,<br/>{{ brand_name }} Trust &amp; Safety</p>
+{% endblock %}

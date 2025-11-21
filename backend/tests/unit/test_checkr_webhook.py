@@ -422,7 +422,7 @@ def test_report_completed_consider_marks_review(client, db: Session) -> None:
         assert updated.bgc_status == "review"
         assert updated.bgc_report_result == "consider"
         assert updated.bgc_completed_at is not None
-        assert calls["profile_id"] == profile.id
+        assert "profile_id" not in calls
     finally:
         app.dependency_overrides.pop(get_background_check_workflow_service, None)
 

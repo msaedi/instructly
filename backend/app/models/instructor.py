@@ -117,6 +117,7 @@ class InstructorProfile(Base):
     bgc_pre_adverse_notice_id = Column(String(26), nullable=True)
     bgc_pre_adverse_sent_at = Column(DateTime(timezone=True), nullable=True)
     bgc_final_adverse_sent_at = Column(DateTime(timezone=True), nullable=True)
+    bgc_review_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     checkr_candidate_id = Column(String(64), nullable=True)
     checkr_invitation_id = Column(String(64), nullable=True)
     bgc_note = Column(Text, nullable=True)

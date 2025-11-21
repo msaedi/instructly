@@ -757,6 +757,27 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.db.rollback()
             raise RepositoryException("Failed to persist pre-adverse metadata") from exc
 
+    def mark_review_email_sent(self, instructor_id: str, sent_at: datetime) -> None:
+        """Persist when the neutral review status email was delivered."""
+
+        try:
+            updated = (
+                self.db.query(self.model)
+                .filter(self.model.id == instructor_id)
+                .update({self.model.bgc_review_email_sent_at: sent_at})
+            )
+            if updated == 0:
+                raise RepositoryException(f"Instructor profile {instructor_id} not found")
+            self.db.flush()
+        except SQLAlchemyError as exc:
+            self.logger.error(
+                "Failed to persist review email timestamp for instructor %s: %s",
+                instructor_id,
+                str(exc),
+            )
+            self.db.rollback()
+            raise RepositoryException("Failed to persist review email metadata") from exc
+
     def set_final_adverse_sent_at(self, instructor_id: str, sent_at: datetime) -> None:
         """Store when the final adverse email was delivered."""
 

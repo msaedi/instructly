@@ -89,9 +89,8 @@ def _build_email_payload(
 ) -> tuple[str, TemplateRegistry, Dict[str, Any]]:
     from app.services.background_check_workflow_service import (
         EXPIRY_RECHECK_SUBJECT,
-        FINAL_ADVERSE_BUSINESS_DAYS,
         FINAL_ADVERSE_SUBJECT,
-        PRE_ADVERSE_SUBJECT,
+        REVIEW_STATUS_SUBJECT,
     )
     from app.services.template_registry import TemplateRegistry
 
@@ -102,13 +101,10 @@ def _build_email_payload(
         context: Dict[str, Any] = {
             "candidate_name": safe_name,
             "report_date": _format_date(now),
-            "dispute_window_days": FINAL_ADVERSE_BUSINESS_DAYS,
             "checkr_portal_url": settings.checkr_applicant_portal_url,
-            "checkr_dispute_url": settings.checkr_dispute_contact_url,
-            "ftc_rights_url": settings.ftc_summary_of_rights_url,
             "support_email": settings.bgc_support_email,
         }
-        return PRE_ADVERSE_SUBJECT, TemplateRegistry.BGC_PRE_ADVERSE, context
+        return REVIEW_STATUS_SUBJECT, TemplateRegistry.BGC_REVIEW_STATUS, context
 
     if email_type == "final":
         context = {

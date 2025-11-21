@@ -1119,8 +1119,13 @@ def test_instructor(db: Session, test_password: str) -> User:
             )
 
 
-    # Get catalog services - use actual services from seeded data
-    catalog_services = db.query(ServiceCatalog).filter(ServiceCatalog.slug.in_(["piano", "guitar"])).all()
+    # Get catalog services - use actual services from seeded data (order by slug for deterministic order)
+    catalog_services = (
+        db.query(ServiceCatalog)
+        .filter(ServiceCatalog.slug.in_(["piano", "guitar"]))
+        .order_by(ServiceCatalog.slug)
+        .all()
+    )
 
     print(f"Found {len(catalog_services)} catalog services")
     for cs in catalog_services:
@@ -1468,8 +1473,13 @@ def test_instructor_with_bookings(db: Session, test_instructor_with_availability
     if not profile:
         raise ValueError(f"No profile found for instructor {test_instructor_with_availability.id}")
 
-    # Get the first service
-    service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
+    # Get the first service (order by ID for deterministic selection)
+    service = (
+        db.query(Service)
+        .filter(Service.instructor_profile_id == profile.id, Service.is_active == True)
+        .order_by(Service.id)
+        .first()
+    )
 
     if not service:
         raise ValueError(f"No active service found for profile {profile.id}")

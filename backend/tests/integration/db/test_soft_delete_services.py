@@ -47,18 +47,34 @@ class TestSoftDeleteServices:
             test_instructor_with_bookings.id, include_inactive_services=True
         )
 
-        # Find the service that has bookings (first one should have from our fixture)
-        service_with_bookings = initial_profile["services"][0]  # Updated key name
-
-        # Verify it has bookings by checking the database directly
-        booking_count = (
-            db.query(Booking)
-            .filter(
-                Booking.instructor_service_id == service_with_bookings["id"],
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+        # Find the service that actually has bookings (don't assume index 0!)
+        service_with_bookings = None
+        for service in initial_profile["services"]:
+            booking_count = (
+                db.query(Booking)
+                .filter(
+                    Booking.instructor_service_id == service["id"],
+                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                )
+                .count()
             )
-            .count()
-        )
+            if booking_count > 0:
+                service_with_bookings = service
+                break
+
+        # If no existing bookings found, create one for the first service
+        if not service_with_bookings:
+            service_with_bookings = initial_profile["services"][0]
+            booking_count = 0
+        else:
+            booking_count = (
+                db.query(Booking)
+                .filter(
+                    Booking.instructor_service_id == service_with_bookings["id"],
+                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                )
+                .count()
+            )
 
         # If no bookings exist, create one to ensure the test is valid
         if booking_count == 0:

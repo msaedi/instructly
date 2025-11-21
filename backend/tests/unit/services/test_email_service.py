@@ -171,7 +171,7 @@ class TestEmailService:
                 to_email="test@example.com",
                 subject="Subject",
                 html_content="<p>body</p>",
-                template=TemplateRegistry.BGC_PRE_ADVERSE,
+                template=TemplateRegistry.BGC_REVIEW_STATUS,
             )
 
         mock_resend_send.assert_called_once()

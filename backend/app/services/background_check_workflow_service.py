@@ -6,8 +6,6 @@ from datetime import date, datetime, timedelta, timezone
 import logging
 from typing import Final, Mapping, Optional, Tuple, TypedDict
 
-import ulid
-
 from ..core.config import settings
 from ..core.constants import BRAND_NAME
 from ..core.exceptions import RepositoryException, ServiceException
@@ -31,7 +29,7 @@ FINAL_ADVERSE_JOB_TYPE: Final[str] = "background_check.final_adverse_action"
 ADVERSE_EVENT_FINAL: Final[str] = "final_adverse_sent"
 
 EMAIL_DATE_FORMAT: Final[str] = "%B %d, %Y"
-PRE_ADVERSE_SUBJECT: Final[str] = f"{BRAND_NAME}: Pre-adverse action notice"
+REVIEW_STATUS_SUBJECT: Final[str] = f"Update: your {BRAND_NAME} background check is under review"
 FINAL_ADVERSE_SUBJECT: Final[str] = f"{BRAND_NAME}: Final adverse action decision"
 EXPIRY_RECHECK_SUBJECT: Final[str] = f"{BRAND_NAME}: Background check update"
 
@@ -157,12 +155,12 @@ class BackgroundCheckWorkflowService:
         finally:
             session.close()
 
-    def send_pre_adverse_email(
+    def send_review_status_email(
         self, profile: InstructorProfile, context: dict[str, object]
     ) -> bool:
         return self._send_bgc_template_email(
-            template=TemplateRegistry.BGC_PRE_ADVERSE,
-            subject=PRE_ADVERSE_SUBJECT,
+            template=TemplateRegistry.BGC_REVIEW_STATUS,
+            subject=REVIEW_STATUS_SUBJECT,
             recipient=self.profile_email(profile),
             context=context,
             suppress=settings.bgc_suppress_adverse_emails,
@@ -192,6 +190,33 @@ class BackgroundCheckWorkflowService:
             suppress=getattr(settings, "bgc_suppress_expiry_emails", True),
             log_extra={"profile_id": getattr(profile, "id", None)},
         )
+
+    def _maybe_send_review_status_email(
+        self, profile: InstructorProfile, report_completed_at: datetime
+    ) -> None:
+        already_sent = getattr(profile, "bgc_review_email_sent_at", None)
+        if already_sent:
+            return
+
+        context: dict[str, object] = {
+            "candidate_name": self.candidate_name(profile),
+            "report_date": self.format_date(report_completed_at),
+            "checkr_portal_url": settings.checkr_applicant_portal_url,
+            "support_email": settings.bgc_support_email,
+        }
+        sent = self.send_review_status_email(profile, context)
+        if not sent:
+            return
+
+        sent_at = datetime.now(timezone.utc)
+        try:
+            self.repo.mark_review_email_sent(profile.id, sent_at)
+            profile.bgc_review_email_sent_at = sent_at
+        except RepositoryException:
+            logger.exception(
+                "Failed to persist review-status email metadata",
+                extra={"profile_id": profile.id},
+            )
 
     def handle_report_completed(
         self,
@@ -267,12 +292,7 @@ class BackgroundCheckWorkflowService:
         else:
             self.repo.update_valid_until(profile.id, None)
             profile.bgc_valid_until = None
-            metadata = self._send_pre_adverse_email(profile, completed_at)
-            if metadata:
-                notice_id, sent_at = metadata
-                self._schedule_final_adverse_action(
-                    profile.id, notice_id=notice_id, sent_at=sent_at
-                )
+            self._maybe_send_review_status_email(profile, completed_at)
 
         self.repo.update_eta_by_report_id(report_id, None)
         profile.bgc_eta = None
@@ -488,32 +508,6 @@ class BackgroundCheckWorkflowService:
         """Execute the persisted final adverse action."""
 
         return self._execute_final_adverse_action(profile_id, notice_id, scheduled_at)
-
-    def _send_pre_adverse_email(
-        self, profile: InstructorProfile, report_completed_at: datetime
-    ) -> tuple[str, datetime] | None:
-        notice_id = str(ulid.ULID())
-        sent_at = _ensure_utc(datetime.now(timezone.utc))
-        try:
-            self.repo.set_pre_adverse_notice(profile.id, notice_id, sent_at)
-        except RepositoryException:
-            logger.exception(
-                "Failed to persist pre-adverse metadata",
-                extra={"profile_id": profile.id},
-            )
-            return None
-
-        context: dict[str, object] = {
-            "candidate_name": self.candidate_name(profile),
-            "report_date": self.format_date(report_completed_at),
-            "dispute_window_days": FINAL_ADVERSE_BUSINESS_DAYS,
-            "checkr_portal_url": settings.checkr_applicant_portal_url,
-            "checkr_dispute_url": settings.checkr_dispute_contact_url,
-            "ftc_rights_url": settings.ftc_summary_of_rights_url,
-            "support_email": settings.bgc_support_email,
-        }
-        self.send_pre_adverse_email(profile, context)
-        return notice_id, sent_at
 
     def _send_final_adverse_email(self, profile: InstructorProfile) -> None:
         context: dict[str, object] = {

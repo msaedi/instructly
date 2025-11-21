@@ -498,7 +498,6 @@ async def handle_checkr_webhook(
                     "Background check requires review",
                     extra={"instructor_id": profile.id, "report_id": report_id},
                 )
-                workflow_service.schedule_final_adverse_action(profile.id)
 
             CHECKR_WEBHOOK_TOTAL.labels(result=result_label, outcome="success").inc()
             logger.info(

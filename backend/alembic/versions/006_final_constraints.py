@@ -414,6 +414,10 @@ def upgrade() -> None:
     )
     op.add_column(
         "instructor_profiles",
+        sa.Column("bgc_review_email_sent_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
         sa.Column("bgc_report_result", sa.String(length=32), nullable=True),
     )
     op.add_column(
@@ -1413,6 +1417,9 @@ def downgrade() -> None:
             "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_final_adverse_sent_at"
         )
         op.execute(
+            "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_review_email_sent_at"
+        )
+        op.execute(
             "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS bgc_pre_adverse_sent_at"
         )
         op.execute(
@@ -1448,6 +1455,7 @@ def downgrade() -> None:
         op.drop_column("instructor_profiles", "bgc_dispute_note")
         op.drop_column("instructor_profiles", "bgc_in_dispute")
         op.drop_column("instructor_profiles", "bgc_final_adverse_sent_at")
+        op.drop_column("instructor_profiles", "bgc_review_email_sent_at")
         op.drop_column("instructor_profiles", "bgc_pre_adverse_sent_at")
         op.drop_column("instructor_profiles", "bgc_pre_adverse_notice_id")
         op.drop_column("instructor_profiles", "bgc_status")

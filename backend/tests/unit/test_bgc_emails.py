@@ -4,10 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.config import settings
-from app.services.background_check_workflow_service import (
-    FINAL_ADVERSE_BUSINESS_DAYS,
-    BackgroundCheckWorkflowService,
-)
+from app.services.background_check_workflow_service import BackgroundCheckWorkflowService
 
 
 class DummyRepo:
@@ -15,6 +12,7 @@ class DummyRepo:
         self.profile = profile
         self.valid_until = None
         self.pre_notices: list[tuple[str, str, datetime]] = []
+        self.review_emails: list[datetime] = []
 
     def update_bgc_by_report_id(self, report_id, **kwargs):
         self.profile.bgc_status = kwargs.get("status", self.profile.bgc_status)
@@ -41,6 +39,12 @@ class DummyRepo:
     def update_eta_by_report_id(self, report_id, eta):
         self.profile.bgc_eta = eta
         return 1
+
+    def mark_review_email_sent(self, profile_id, sent_at):
+        if profile_id != self.profile.id:
+            raise AssertionError("Unexpected profile id")
+        self.review_emails.append(sent_at)
+        self.profile.bgc_review_email_sent_at = sent_at
 
     # Methods for expiry flow hooks
     def count_pending_older_than(self, _days: int) -> int:
@@ -117,6 +121,7 @@ def make_profile(**overrides):
         "bgc_pre_adverse_notice_id": None,
         "bgc_pre_adverse_sent_at": None,
         "bgc_final_adverse_sent_at": None,
+        "bgc_review_email_sent_at": None,
         "bgc_dispute_opened_at": None,
         "bgc_dispute_resolved_at": None,
         "is_live": False,
@@ -126,7 +131,7 @@ def make_profile(**overrides):
     return SimpleNamespace(**base)
 
 
-def test_send_pre_adverse_called_when_consider_and_prod(monkeypatch):
+def test_review_email_sent_once_when_consider(monkeypatch):
     profile = make_profile()
     repo = DummyRepo(profile)
     service = BackgroundCheckWorkflowService(repo)
@@ -145,11 +150,6 @@ def test_send_pre_adverse_called_when_consider_and_prod(monkeypatch):
         fake_send,
         raising=False,
     )
-    monkeypatch.setattr(
-        BackgroundCheckWorkflowService,
-        "_schedule_final_adverse_action",
-        lambda *args, **kwargs: None,
-    )
 
     completed_at = datetime.now(timezone.utc)
     service.handle_report_completed(
@@ -160,16 +160,26 @@ def test_send_pre_adverse_called_when_consider_and_prod(monkeypatch):
         completed_at=completed_at,
     )
 
-    assert captured_contexts, "Expected pre-adverse email to be sent"
+    assert captured_contexts, "Expected review email to be sent"
     template, subject, recipient, context, suppress = captured_contexts[0]
     from app.services.template_registry import TemplateRegistry
 
-    assert template == TemplateRegistry.BGC_PRE_ADVERSE
-    assert "pre-adverse" in subject.lower()
+    assert template == TemplateRegistry.BGC_REVIEW_STATUS
+    assert "under review" in subject.lower()
     assert recipient == "candidate@example.com"
     assert suppress is False
-    assert context["dispute_window_days"] == FINAL_ADVERSE_BUSINESS_DAYS
-    assert "report_date" in context
+    assert context["checkr_portal_url"] == settings.checkr_applicant_portal_url
+    assert profile.bgc_review_email_sent_at is not None
+    assert len(repo.review_emails) == 1
+
+    service.handle_report_completed(
+        report_id="rpt_123",
+        result="consider",
+        package="standard",
+        env="sandbox",
+        completed_at=completed_at,
+    )
+    assert len(captured_contexts) == 1
 
 
 def test_final_adverse_email_called_when_not_in_dispute_and_prod(monkeypatch):

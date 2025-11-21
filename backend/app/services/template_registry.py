@@ -37,7 +37,7 @@ class TemplateRegistry(str, Enum):
     BOOKING_REMINDER_STUDENT = "email/booking/reminder_student.html"
 
     # Background checks
-    BGC_PRE_ADVERSE = "email/bgc/pre_adverse.jinja"
+    BGC_REVIEW_STATUS = "email/bgc/review_status.jinja"
     BGC_FINAL_ADVERSE = "email/bgc/final_adverse.jinja"
     BGC_EXPIRY_RECHECK = "email/bgc/expiry_recheck.jinja"
 
@@ -58,7 +58,7 @@ _TEMPLATE_DEFAULT_SENDERS: Final[dict[TemplateRegistry, str]] = {
     TemplateRegistry.BOOKING_NEW_MESSAGE: "bookings",
     TemplateRegistry.BOOKING_REMINDER_INSTRUCTOR: "bookings",
     TemplateRegistry.BOOKING_REMINDER_STUDENT: "bookings",
-    TemplateRegistry.BGC_PRE_ADVERSE: "trust",
+    TemplateRegistry.BGC_REVIEW_STATUS: "trust",
     TemplateRegistry.BGC_FINAL_ADVERSE: "trust",
     TemplateRegistry.BGC_EXPIRY_RECHECK: "trust",
 }
