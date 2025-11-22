@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
-import { BookingPayment, PaymentCard, CreditBalance, PaymentMethod } from '../types';
+import { BookingPayment, PaymentCard, PaymentMethod } from '../types';
 import { usePaymentFlow, PaymentStep } from '../hooks/usePaymentFlow';
 import PaymentMethodSelection from './PaymentMethodSelection';
 import PaymentConfirmation from './PaymentConfirmation';
@@ -12,11 +13,13 @@ import { logger } from '@/lib/logger';
 import { requireString } from '@/lib/ts/safe';
 import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBooking';
-import { paymentService } from '@/services/api/payments';
+import { paymentService, type CreateCheckoutRequest } from '@/services/api/payments';
+import { queryKeys } from '@/lib/react-query/queryClient';
 import { protectedApi, type Booking } from '@/features/shared/api/client';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { PricingPreviewContext, usePricingPreviewController, type PreviewCause } from '../hooks/usePricingPreview';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
+import { useCredits } from '../hooks/useCredits';
 import { buildCreateBookingPayload } from '../utils/buildCreateBookingPayload';
 import {
   buildPricingPreviewQuotePayload,
@@ -147,6 +150,7 @@ interface PaymentSectionProps {
 }
 
 export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPaymentMethodInline = false }: PaymentSectionProps) {
+  const queryClient = useQueryClient();
   const {
     createBooking,
     error: bookingError,
@@ -405,12 +409,37 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
   // Real payment data from backend
   const [userCards, setUserCards] = useState<PaymentCard[]>([]);
-  const [userCredits, setUserCredits] = useState<CreditBalance>({
-    totalAmount: 0,
-    credits: [],
-  });
   const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(true);
   const [isCreditsExpanded, setIsCreditsExpanded] = useState(false);
+
+  // Use shared credits hook with React Query
+  const { data: creditsData, isLoading: isLoadingCredits, refetch: refetchCredits } = useCredits();
+
+  // Convert credits data to legacy format for compatibility with existing code
+  const userCredits = {
+    totalAmount: creditsData?.available ?? 0,
+    credits: [],
+    earliestExpiry: creditsData?.expires_at ?? null,
+  };
+
+  const refreshCreditBalance = useCallback(async () => {
+    try {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.payments.credits });
+      await refetchCredits();
+    } catch (error) {
+      logger.error('Failed to refresh credit balance after payment', error as Error);
+    }
+  }, [queryClient, refetchCredits]);
+
+  const invalidateBookingQueries = useCallback(async () => {
+    const invalidations = [
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all }),
+      queryClient.invalidateQueries({ queryKey: ['bookings', 'upcoming'] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() }),
+      queryClient.invalidateQueries({ queryKey: ['bookings'] }),
+    ];
+    await Promise.allSettled(invalidations);
+  }, [queryClient]);
 
   // Track selected card ID separately for payment processing
   const [selectedCardId, setSelectedCardId] = useState<string | undefined>();
@@ -1063,13 +1092,13 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     commitCreditPreview,
   ]);
 
-  // Fetch real payment methods and credits from backend
+  // Fetch real payment methods from backend
   useEffect(() => {
-    const fetchPaymentData = async () => {
+    const fetchPaymentMethods = async () => {
       try {
         setIsLoadingPaymentMethods(true);
 
-        logDevInfo('Fetching payment data');
+        logDevInfo('Fetching payment methods');
 
         // Fetch payment methods
         const methods = await paymentService.listPaymentMethods();
@@ -1085,19 +1114,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         }));
         setUserCards(mappedCards);
 
-        // Fetch credit balance
-        const balance = await paymentService.getCreditBalance();
-        logDevInfo('Credit balance response', { balance });
-
-        setUserCredits({
-          totalAmount: balance.available || 0,
-          credits: [], // Credits detail not implemented yet
-          earliestExpiry: balance.expires_at || null,
-        });
-
-        logDevInfo('Successfully loaded payment data', {
+        logDevInfo('Successfully loaded payment methods', {
           cardCount: mappedCards.length,
-          creditBalance: balance.available,
           cards: mappedCards
         });
       } catch (error) {
@@ -1123,7 +1141,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       }
     };
 
-    void fetchPaymentData();
+    void fetchPaymentMethods();
   }, []);
 
   // Track if user manually went back to change payment method
@@ -1140,6 +1158,14 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
   // Override processPayment to create booking and process payment
   const processPayment = async () => {
+    const appliedCreditCents = Math.max(0, Math.round(creditSliderCents));
+    const appliedCreditDollars = appliedCreditCents / 100;
+    const normalizedTotalAmount =
+      updatedBookingData.totalAmount ??
+      bookingData.totalAmount ??
+      0;
+    const referralDollars = referralAppliedCents / 100;
+
     setFloorViolationMessage(null);
     // Set to processing state
     goToStep(PaymentStep.PROCESSING);
@@ -1230,16 +1256,27 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       });
 
       // Step 2: Process payment if there's an amount due
-      const amountDue = Math.max(0, bookingData.totalAmount - creditsToUse - referralAppliedCents / 100);
+      const amountDue = Math.max(0, normalizedTotalAmount - appliedCreditDollars - referralDollars);
+      const shouldProcessCheckout = amountDue > 0 || appliedCreditCents > 0;
 
       try {
-        if (amountDue > 0 && selectedCardId) {
-          // Process payment through Stripe
-          const checkoutResult = await paymentService.createCheckout({
+        if (shouldProcessCheckout) {
+          if (amountDue > 0 && !selectedCardId) {
+            throw new Error('Payment method required');
+          }
+
+          const checkoutPayload: CreateCheckoutRequest = {
             booking_id: String(booking.id),
-            payment_method_id: selectedCardId,
             save_payment_method: false, // Can be configured based on user preference
-          });
+          };
+          if (amountDue > 0) {
+            checkoutPayload.payment_method_id = selectedCardId!;
+          }
+          if (appliedCreditCents > 0) {
+            checkoutPayload.requested_credit_cents = appliedCreditCents;
+          }
+
+          const checkoutResult = await paymentService.createCheckout(checkoutPayload);
 
           logDevInfo('Payment processed', {
             paymentIntentId: checkoutResult.payment_intent_id,
@@ -1247,10 +1284,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
             amount: checkoutResult.amount,
           });
 
-          // Check if payment requires additional action (3D Secure, etc.)
           if (checkoutResult.requires_action && checkoutResult.client_secret) {
-            // Surface requires_action to the caller/UI; a Stripe Elements flow should confirm this PI.
-            // Here we return a specific error to trigger the 3DS UI upstream.
             throw new PaymentActionError(
               'requires_action',
               checkoutResult.client_secret,
@@ -1262,11 +1296,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
             throw new Error(`Payment failed with status: ${checkoutResult.status}`);
           }
         } else if (amountDue > 0) {
-          // No payment method selected but payment is required
           throw new Error('Payment method required');
         }
       } catch (paymentError: unknown) {
-        // Payment failed - cancel the booking to free up the slot
         logger.warn('Payment failed, cancelling booking', {
           bookingId: booking.id,
           error: paymentError,
@@ -1279,22 +1311,23 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           logger.error('Failed to cancel booking after payment failure', cancelError as Error);
         }
 
-        // Provide better error messages for specific failures
         const errorMessage = (paymentError as Record<string, unknown>)?.['message'] || 'Payment failed';
-        // If requires_action, instruct UI to perform 3DS confirmation
         if (errorMessage === 'requires_action' && (paymentError as Record<string, unknown>)?.['client_secret']) {
           setLocalErrorMessage('Additional authentication required to complete your payment.');
           goToStep(PaymentStep.ERROR);
-          // The page embedding PaymentSection can detect this message and call stripe.confirmCardPayment
           throw new Error('3ds_required');
         }
         if (typeof errorMessage === 'string' && errorMessage.includes('Instructor payment account not set up')) {
           throw new Error('This instructor is not yet set up to receive payments. Please try booking with another instructor or contact support.');
         }
 
-        // Re-throw the payment error
         throw paymentError;
       }
+
+      if (appliedCreditCents > 0) {
+        void refreshCreditBalance();
+      }
+      void invalidateBookingQueries();
 
       // Update booking data with actual booking ID
       const updatedData = { ...updatedBookingData, bookingId: String(booking.id) };
@@ -1345,8 +1378,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     goToStep(PaymentStep.METHOD_SELECTION);
   };
 
-  // Show loading state while fetching payment methods
-  if (isLoadingPaymentMethods) {
+  // Show loading state while fetching payment data
+  if (isLoadingPaymentMethods || isLoadingCredits) {
     return (
       <PricingPreviewContext.Provider value={previewController}>
         <div className="w-full p-8 text-center">
@@ -1354,7 +1387,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
             <div className="h-8 bg-gray-200 rounded w-48 mx-auto mb-4"></div>
             <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
           </div>
-          <p className="text-gray-500 mt-4">Loading payment methods...</p>
+          <p className="text-gray-500 mt-4">Loading payment data...</p>
         </div>
       </PricingPreviewContext.Provider>
     );
@@ -1480,7 +1513,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       )}
       {currentStep === PaymentStep.PROCESSING && (
         <PaymentProcessing
-          amount={updatedBookingData.totalAmount - creditsToUse}
+          amount={Math.max(0, (updatedBookingData.totalAmount ?? 0) - creditSliderCents / 100)}
           bookingType={updatedBookingData.bookingType}
         />
       )}

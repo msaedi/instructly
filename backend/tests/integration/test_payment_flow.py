@@ -6,8 +6,9 @@ These tests verify that the entire payment system works correctly when
 all pieces are integrated together.
 """
 
-from datetime import date, time
+from datetime import date, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,11 +16,14 @@ from sqlalchemy.orm import Session
 import stripe
 import ulid
 
+from app.core.enums import RoleName
 from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
+from app.services.booking_service import BookingService
+from app.services.cache_service import CacheService
 from app.services.config_service import ConfigService
 from app.services.permission_service import PermissionService
 from app.services.pricing_service import PricingService
@@ -358,6 +362,191 @@ class TestPaymentIntegration:
         db.refresh(test_booking)
         if test_booking.status == BookingStatus.PENDING:
             assert test_booking.status == BookingStatus.CONFIRMED
+
+    def test_webhook_invalidation_updates_cached_upcoming_lessons(
+        self,
+        db: Session,
+        student_user: User,
+        instructor_setup: tuple,
+    ):
+        """Ensure webhook confirmation invalidates cached upcoming bookings."""
+        instructor_user, instructor_profile, _service = instructor_setup
+        cache_service = CacheService(db, None)
+        booking_service = BookingService(db, cache_service=cache_service)
+        stripe_service = StripeService(
+            db,
+            config_service=ConfigService(db),
+            pricing_service=PricingService(db),
+            cache_service=cache_service,
+        )
+
+        confirmed_booking = create_booking_pg_safe(
+            db,
+            student_id=student_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=_service.id,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            duration_minutes=60,
+            total_price=Decimal("80.00"),
+            service_name="Piano Lessons",
+            hourly_rate=Decimal("80.00"),
+            status=BookingStatus.CONFIRMED,
+        )
+        db.flush()
+
+        pending_booking = create_booking_pg_safe(
+            db,
+            student_id=student_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=_service.id,
+            booking_date=date.today() + timedelta(days=3),
+            start_time=time(16, 0),
+            end_time=time(17, 0),
+            duration_minutes=60,
+            total_price=Decimal("80.00"),
+            service_name="Piano Lessons",
+            hourly_rate=Decimal("80.00"),
+            status=BookingStatus.PENDING,
+        )
+        db.flush()
+
+        payment_record = stripe_service.payment_repository.create_payment_record(
+            booking_id=pending_booking.id,
+            payment_intent_id="pi_cache_test",
+            amount=8000,
+            application_fee=1200,
+            status="succeeded",
+        )
+
+        student_identity = SimpleNamespace(
+            id=student_user.id,
+            roles=[SimpleNamespace(name=RoleName.STUDENT)],
+        )
+
+        initial = booking_service.get_bookings_for_user(
+            student_identity,
+            status=BookingStatus.CONFIRMED,
+            upcoming_only=True,
+            limit=5,
+        )
+        assert {b.id for b in initial} == {confirmed_booking.id}
+
+        stripe_service._handle_successful_payment(payment_record)
+        db.flush()
+
+        updated = booking_service.get_bookings_for_user(
+            student_identity,
+            status=BookingStatus.CONFIRMED,
+            upcoming_only=True,
+            limit=5,
+        )
+        assert {b.id for b in updated} == {confirmed_booking.id, pending_booking.id}
+
+    def test_upcoming_cache_refreshes_after_local_confirmation(
+        self,
+        db: Session,
+        student_user: User,
+        instructor_setup: tuple,
+    ):
+        """Ensure cache invalidation works when booking confirmed immediately."""
+        instructor_user, instructor_profile, instructor_service = instructor_setup
+        existing_booking = create_booking_pg_safe(
+            db,
+            student_id=student_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=date.today() + timedelta(days=3),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            service_name="Piano Lesson",
+            hourly_rate=Decimal("80.00"),
+            total_price=Decimal("80.00"),
+            duration_minutes=60,
+        )
+        pending_booking = create_booking_pg_safe(
+            db,
+            student_id=student_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=date.today() + timedelta(days=5),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            status=BookingStatus.PENDING,
+            service_name="Piano Lesson",
+            hourly_rate=Decimal("80.00"),
+            total_price=Decimal("80.00"),
+            duration_minutes=60,
+        )
+        db.flush()
+
+        cache_service = CacheService(db, None)
+        booking_service = BookingService(db, cache_service=cache_service)
+
+        first = booking_service.get_bookings_for_user(
+            student_user,
+            status=BookingStatus.CONFIRMED,
+            upcoming_only=True,
+            limit=5,
+        )
+        assert {b.id for b in first} == {existing_booking.id}
+
+        pending_booking.status = BookingStatus.CONFIRMED
+        db.flush()
+        booking_service.invalidate_booking_cache(pending_booking)
+
+        refreshed = booking_service.get_bookings_for_user(
+            student_user,
+            status=BookingStatus.CONFIRMED,
+            upcoming_only=True,
+            limit=5,
+        )
+        assert {b.id for b in refreshed} == {existing_booking.id, pending_booking.id}
+
+    def test_credit_only_checkout_consumes_balance(
+        self,
+        db: Session,
+        student_user: User,
+        instructor_setup: tuple,
+        test_booking: Booking,
+    ):
+        """Verify credit-only payments reduce available balance."""
+        instructor_user, instructor_profile, _service = instructor_setup
+        stripe_service = _build_stripe_service(db)
+        payment_repo = stripe_service.payment_repository
+
+        payment_repo.create_customer_record(student_user.id, "cus_credit_test")
+        payment_repo.create_connected_account_record(
+            instructor_profile.id,
+            "acct_credit_test",
+            onboarding_completed=True,
+        )
+        payment_repo.create_platform_credit(
+            user_id=student_user.id,
+            amount_cents=20000,
+            reason="test_credit",
+            source_booking_id=None,
+        )
+
+        initial_balance = payment_repo.get_total_available_credits(student_user.id)
+        assert initial_balance == 20000
+
+        result = stripe_service.process_booking_payment(
+            booking_id=test_booking.id,
+            payment_method_id=None,
+            requested_credit_cents=initial_balance,
+        )
+
+        applied = payment_repo.get_applied_credit_cents_for_booking(test_booking.id)
+        remaining = payment_repo.get_total_available_credits(student_user.id)
+
+        assert result["success"] is True
+        assert result["payment_intent_id"] == "credit_only"
+        assert result["status"] == "succeeded"
+        assert applied > 0
+        assert remaining == max(initial_balance - applied, 0)
+        assert test_booking.payment_status == "authorized"
 
     @patch("stripe.Customer.create")
     def test_multiple_payment_methods_flow(self, mock_customer_create, db: Session, student_user: User):

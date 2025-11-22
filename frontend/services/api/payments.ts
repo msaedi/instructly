@@ -17,8 +17,9 @@ export interface SavePaymentMethodRequest {
 
 export interface CreateCheckoutRequest {
   booking_id: string;
-  payment_method_id: string;
+  payment_method_id?: string;
   save_payment_method?: boolean;
+  requested_credit_cents?: number;
 }
 
 export interface Transaction {

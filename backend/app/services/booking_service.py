@@ -1906,6 +1906,20 @@ class BookingService(BaseService):
             "hourly_rate": service.hourly_rate,
         }
 
+    @BaseService.measure_operation("invalidate_booking_cache")
+    def invalidate_booking_cache(self, booking_or_id: Booking | str) -> None:
+        """Invalidate cached booking data for a specific booking."""
+        target_booking: Optional[Booking]
+        if isinstance(booking_or_id, Booking):
+            target_booking = booking_or_id
+        else:
+            target_booking = self.repository.get_by_id(booking_or_id)
+
+        if not target_booking:
+            return
+
+        self._invalidate_booking_caches(target_booking)
+
     def _invalidate_booking_caches(self, booking: Booking) -> None:
         """Invalidate caches affected by booking changes using enhanced cache service."""
         # Use enhanced cache service to invalidate availability caches

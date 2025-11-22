@@ -10,7 +10,7 @@ from typing import Any, Literal, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Query as SAQuery, selectinload
 
 from ..api.dependencies.auth import require_admin
 from ..api.dependencies.repositories import (
@@ -186,7 +186,7 @@ def _build_case_query(
     repo: InstructorProfileRepository,
     status: str,
     search: str | None,
-):
+) -> SAQuery:
     query = repo.db.query(repo.model).options(selectinload(repo.model.user))
 
     if status == "pending":

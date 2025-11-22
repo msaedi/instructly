@@ -35,6 +35,7 @@ from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccoun
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
+from .cache_service import CacheService
 from .config_service import ConfigService
 from .pricing_service import PricingService
 from .student_credit_service import StudentCreditService
@@ -71,11 +72,13 @@ class StripeService(BaseService):
         *,
         config_service: ConfigService,
         pricing_service: PricingService,
+        cache_service: Optional[CacheService] = None,
     ):
         """Initialize with explicit configuration dependencies and configure Stripe."""
-        super().__init__(db)
+        super().__init__(db, cache=cache_service)
         self.config_service = config_service
         self.pricing_service = pricing_service
+        self.cache_service = cache_service
         self.payment_repository = RepositoryFactory.create_payment_repository(db)
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
         self.user_repository = RepositoryFactory.create_user_repository(db)
@@ -1379,7 +1382,7 @@ class StripeService(BaseService):
     def process_booking_payment(
         self,
         booking_id: str,
-        payment_method_id: str,
+        payment_method_id: Optional[str] = None,
         requested_credit_cents: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
@@ -1387,7 +1390,7 @@ class StripeService(BaseService):
 
         Args:
             booking_id: Booking ID
-            payment_method_id: Stripe payment method ID
+            payment_method_id: Stripe payment method ID (required when balance remains)
             requested_credit_cents: Optional wallet credit amount (in cents) requested by student
 
         Returns:
@@ -1450,6 +1453,9 @@ class StripeService(BaseService):
                         "application_fee": 0,
                         "client_secret": None,
                     }
+
+                if not payment_method_id:
+                    raise ServiceException("Payment method required for the remaining balance")
 
                 # Create payment intent
                 payment_record = self.create_payment_intent(
@@ -1856,11 +1862,25 @@ class StripeService(BaseService):
             payment_record: PaymentIntent record
         """
         try:
-            # Update booking status if needed
             booking = self.booking_repository.get_by_id(payment_record.booking_id)
-            if booking and booking.status == "PENDING":
+            if not booking:
+                self.logger.warning(
+                    "Successful payment received for missing booking %s",
+                    payment_record.booking_id,
+                )
+                return
+
+            if booking.status == "PENDING":
                 booking.status = "CONFIRMED"
                 self.booking_repository.flush()
+
+            from ..services.booking_service import BookingService
+
+            booking_service = BookingService(self.db, cache_service=self.cache_service)
+            try:
+                booking_service.invalidate_booking_cache(booking)
+            except Exception as cache_err:
+                self.logger.warning(f"Failed to invalidate booking caches: {str(cache_err)}")
 
             self.logger.info(
                 f"Processed successful payment for booking {payment_record.booking_id}"

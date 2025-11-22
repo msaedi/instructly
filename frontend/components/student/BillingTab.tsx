@@ -11,6 +11,9 @@ import { paymentService } from '@/services/api/payments';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import PaymentMethods from '@/components/student/PaymentMethods';
+import { useCredits } from '@/features/student/payment/hooks/useCredits';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/queryClient';
 
 interface BillingTabProps {
   userId: string;
@@ -31,20 +34,16 @@ interface Transaction {
   created_at: string;
 }
 
-interface CreditBalance {
-  available: number;
-  expires_at: string | null;
-  pending: number;
-}
-
 const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
+  const queryClient = useQueryClient();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [creditBalance, setCreditBalance] = useState<CreditBalance | null>(null);
   const [promoCode, setPromoCode] = useState('');
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
-  const [isLoadingCredits, setIsLoadingCredits] = useState(true);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [showMoreTransactions, setShowMoreTransactions] = useState(false);
+
+  // Use shared credits hook with React Query
+  const { data: creditBalance, isLoading: isLoadingCredits, refetch: refetchCredits } = useCredits();
 
 
   // Load transactions from real API
@@ -67,29 +66,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
     void loadTransactions();
   }, [userId]);
 
-  // Load credit balance from real API
-  useEffect(() => {
-    const loadCreditBalance = async () => {
-      try {
-        setIsLoadingCredits(true);
-        const data = await paymentService.getCreditBalance();
-        setCreditBalance(data);
-        logger.info('Credit balance loaded', data);
-      } catch (err) {
-        logger.error('Error loading credit balance:', err);
-        // If API fails, show zero balance
-        setCreditBalance({
-          available: 0,
-          expires_at: null,
-          pending: 0,
-        });
-      } finally {
-        setIsLoadingCredits(false);
-      }
-    };
-
-    void loadCreditBalance();
-  }, [userId]);
+  // Credits are now loaded via the shared useCredits hook
+  // No manual loading needed
 
   // Apply promo code
   const handleApplyPromoCode = async () => {
@@ -118,9 +96,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
       });
       setPromoCode('');
 
-      // Refresh credit balance
-      const newBalance = await paymentService.getCreditBalance();
-      setCreditBalance(newBalance);
+      // Refresh credit balance via React Query
+      await queryClient.invalidateQueries({ queryKey: queryKeys.payments.credits });
+      await refetchCredits();
     } catch (err) {
       logger.error('Error applying promo code:', err);
       toast.error('Invalid or expired promo code', {
@@ -233,7 +211,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
               <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
             </div>
           </div>
-        ) : creditBalance ? (
+        ) : creditBalance && creditBalance.available > 0 ? (
           <div className="rounded-xl border border-gray-200 p-6 bg-purple-50">
             <div className="space-y-2">
               <p className="text-2xl font-bold text-[#7E22CE]">

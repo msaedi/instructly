@@ -110,6 +110,11 @@ export const queryKeys = {
       ['availability', 'booked', instructorId, date] as const,
   },
 
+  // Payments queries
+  payments: {
+    credits: ['payments', 'credits'] as const,
+  },
+
   // Search queries
   search: {
     recent: ['search', 'recent'] as const,

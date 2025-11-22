@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { PaymentSection } from '../PaymentSection';
 import { BookingPayment, PaymentStatus } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
@@ -8,6 +8,7 @@ import {
   fetchPricingPreviewQuote,
   type PricingPreviewResponse,
 } from '@/lib/api/pricing';
+import { renderWithQueryClient } from '../testUtils';
 
 let mockStudentFeePct = 0.12;
 
@@ -117,7 +118,7 @@ const renderPaymentSection = (overrides: Partial<typeof BASE_BOOKING> = {}) => {
     ...(overrides.metadata ?? {}),
   };
 
-  return render(
+  return renderWithQueryClient(
     <PaymentSection
       bookingData={{
         ...BASE_BOOKING,

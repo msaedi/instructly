@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import PaymentConfirmation from '../PaymentConfirmation';
 import { PaymentSection } from '../PaymentSection';
 import { BookingPayment, PaymentMethod, PaymentStatus } from '../../types';
@@ -10,6 +10,7 @@ import {
   fetchPricingPreviewQuote,
   type PricingPreviewResponse,
 } from '@/lib/api/pricing';
+import { renderWithQueryClient } from '../testUtils';
 
 let mockStudentFeePct = 0.12;
 
@@ -215,7 +216,7 @@ const renderPaymentSectionForSummary = (overrides: Partial<typeof BASE_BOOKING> 
     ...(overrides.metadata ?? {}),
   };
 
-  return render(
+  return renderWithQueryClient(
     <PaymentSection
       bookingData={{
         ...BASE_BOOKING,
@@ -520,7 +521,7 @@ describe('Payment summary preview', () => {
       bookingId: 'booking-1',
     };
 
-    render(
+    renderWithQueryClient(
       <PricingPreviewContext.Provider value={controller}>
         <PaymentConfirmation
           booking={BASE_BOOKING}
@@ -546,7 +547,7 @@ describe('Payment summary preview', () => {
   });
 
   it('renders preview line items and updates totals when credits are removed', async () => {
-    render(<PaymentSummaryHarness />);
+    renderWithQueryClient(<PaymentSummaryHarness />);
 
     expect(await screen.findByText('Lesson (90 min)')).toBeInTheDocument();
     expect(screen.getByText('$225.00')).toBeInTheDocument();

@@ -51,7 +51,10 @@ from ..schemas.payment_schemas import (
     TransactionHistoryItem,
     WebhookResponse,
 )
+from ..services.booking_service import BookingService
+from ..services.cache_service import CacheService, get_cache_service
 from ..services.config_service import ConfigService
+from ..services.dependencies import get_booking_service
 from ..services.pricing_service import PricingService
 from ..services.stripe_service import StripeService
 from ..utils.strict import model_filter
@@ -61,7 +64,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/payments", tags=["payments"])
 
 
-def get_stripe_service(db: Session = Depends(get_db)) -> StripeService:
+def get_stripe_service(
+    db: Session = Depends(get_db),
+    cache_service: Optional[CacheService] = Depends(get_cache_service),
+) -> StripeService:
     """Get StripeService instance with dependency injection."""
     config_service = ConfigService(db)
     pricing_service = PricingService(db)
@@ -69,6 +75,7 @@ def get_stripe_service(db: Session = Depends(get_db)) -> StripeService:
         db,
         config_service=config_service,
         pricing_service=pricing_service,
+        cache_service=cache_service,
     )
 
 
@@ -850,6 +857,7 @@ async def create_checkout(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
+    booking_service: BookingService = Depends(get_booking_service),
 ) -> CheckoutResponse:
     """
     Create a checkout/payment for a booking.
@@ -908,6 +916,11 @@ async def create_checkout(
 
         # Save payment method if requested
         if payload.save_payment_method:
+            if not payload.payment_method_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Payment method is required when saving for future use",
+                )
             stripe_service.save_payment_method(
                 user_id=current_user.id,
                 payment_method_id=payload.payment_method_id,
@@ -919,13 +932,17 @@ async def create_checkout(
             stripe_service.process_booking_payment,
             payload.booking_id,
             payload.payment_method_id,
-            payload.applied_credit_cents,
+            payload.requested_credit_cents,
         )
 
         # Update booking status if payment succeeded
         if payment_result["success"] and payment_result["status"] == "succeeded":
             booking.status = "CONFIRMED"
             stripe_service.db.flush()
+            try:
+                booking_service.invalidate_booking_cache(booking)
+            except Exception as cache_err:
+                logger.warning(f"Failed to invalidate booking cache: {cache_err}")
 
         logger.info(f"Processed payment for booking {payload.booking_id}")
 
@@ -1034,7 +1051,7 @@ async def get_instructor_earnings(
 @router.get("/transactions", response_model=List[TransactionHistoryItem])
 async def get_transaction_history(
     current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
+    stripe_service: StripeService = Depends(get_stripe_service),
     limit: int = 20,
     offset: int = 0,
 ) -> List[TransactionHistoryItem]:
@@ -1044,14 +1061,6 @@ async def get_transaction_history(
     Returns list of completed payments with booking details
     """
     try:
-        config_service = ConfigService(db)
-        pricing_service = PricingService(db)
-        stripe_service = StripeService(
-            db,
-            config_service=config_service,
-            pricing_service=pricing_service,
-        )
-
         # Get payment intents for this user
         transactions = stripe_service.payment_repository.get_user_payment_history(
             user_id=current_user.id, limit=limit, offset=offset
@@ -1149,7 +1158,8 @@ async def get_transaction_history(
 
 @router.get("/credits", response_model=CreditBalanceResponse)
 async def get_credit_balance(
-    current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
 ) -> CreditBalanceResponse:
     """
     Get user's credit balance
@@ -1157,13 +1167,6 @@ async def get_credit_balance(
     Returns available credits and expiration
     """
     try:
-        config_service = ConfigService(db)
-        pricing_service = PricingService(db)
-        stripe_service = StripeService(
-            db,
-            config_service=config_service,
-            pricing_service=pricing_service,
-        )
         payment_repo = stripe_service.payment_repository
 
         # Total available credits in cents
@@ -1198,7 +1201,10 @@ async def get_credit_balance(
 
 
 @router.post("/webhooks/stripe", response_model=WebhookResponse)
-async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db)) -> WebhookResponse:
+async def handle_stripe_webhook(
+    request: Request,
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> WebhookResponse:
     """
     Handle Stripe webhook events from both platform and connected accounts.
 
@@ -1271,13 +1277,6 @@ async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db))
             logger.info("Event from platform account")
 
         # Process the verified event
-        config_service = ConfigService(db)
-        pricing_service = PricingService(db)
-        stripe_service = StripeService(
-            db,
-            config_service=config_service,
-            pricing_service=pricing_service,
-        )
         _result = stripe_service.handle_webhook_event(event)  # Pass parsed event directly
 
         logger.info(f"Webhook processed successfully: {event['type']}")

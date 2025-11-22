@@ -29,14 +29,17 @@ class CreateCheckoutRequest(StrictRequestModel):
     """Request to create a checkout/payment for a booking."""
 
     booking_id: str = Field(..., description="Booking ID to process payment for")
-    payment_method_id: str = Field(..., description="Stripe payment method ID to use")
+    payment_method_id: Optional[str] = Field(
+        default=None,
+        description="Stripe payment method ID to use when a balance remains",
+    )
     save_payment_method: bool = Field(
         default=False, description="Whether to save payment method for future use"
     )
-    applied_credit_cents: Optional[int] = Field(
+    requested_credit_cents: Optional[int] = Field(
         default=None,
         ge=0,
-        description="Optional wallet credit amount (in cents) the student chose to apply",
+        description="Optional wallet credit amount (in cents) the student wants to apply",
     )
 
 

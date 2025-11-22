@@ -1,11 +1,12 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { fetchPricingPreview, fetchPricingPreviewQuote } from '@/lib/api/pricing';
 import { paymentService } from '@/services/api/payments';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { PaymentSection } from '../PaymentSection';
 import { BookingPayment, BookingType, PaymentStatus } from '../../types';
+import { renderWithQueryClient } from '../testUtils';
 
 jest.mock('@/lib/pricing/usePricingFloors', () => ({
   usePricingFloors: () => ({ floors: null }),
@@ -86,7 +87,7 @@ const baseBookingData: BookingPayment & {
 };
 
 const renderPaymentSection = (overrides: Partial<typeof baseBookingData> = {}) =>
-  render(
+  renderWithQueryClient(
     <PaymentSection
       bookingData={{
         ...baseBookingData,
