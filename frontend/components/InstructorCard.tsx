@@ -27,14 +27,89 @@ import { at } from '@/lib/ts/safe';
 let catalogCache: ServiceCatalogItem[] | null = null;
 let catalogPromise: Promise<ServiceCatalogItem[]> | null = null;
 
+type AvailabilitySlot = {
+  start_time: string;
+  end_time: string;
+};
+
+type AvailabilityDay = {
+  available_slots?: AvailabilitySlot[];
+  is_blackout?: boolean;
+};
+
+export interface InstructorAvailabilityData {
+  timezone?: string;
+  availabilityByDate: Record<string, AvailabilityDay>;
+}
+
+interface NextSlotResult {
+  date: string;
+  time: string;
+  displayText: string;
+}
+
+const calculateEndTime = (startTime: string, durationMinutes: number): string => {
+  const parts = startTime.split(':');
+  const hours = Number(at(parts, 0) || 0);
+  const minutes = Number(at(parts, 1) || 0);
+  const totalMinutes = hours * 60 + minutes + durationMinutes;
+  const endHours = Math.floor(totalMinutes / 60);
+  const endMinutes = totalMinutes % 60;
+  return `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+};
+
+const parseIsoDateToLocal = (value: string): Date | null => {
+  const parts = value.split('-');
+  if (parts.length < 3) return null;
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
+};
+
+const parseTimeToParts = (value: string): { hour: number; minute: number } | null => {
+  const parts = value.split(':');
+  const hour = Number(at(parts, 0));
+  const minute = Number(at(parts, 1));
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    return null;
+  }
+  return { hour, minute };
+};
+
+const formatDisplayText = (date: Date, hour: number, minute: number): string => {
+  const dateLabel = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+  const dateWithTime = new Date(date);
+  dateWithTime.setHours(hour, minute, 0, 0);
+  const timeLabel = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(dateWithTime);
+  return `${dateLabel}, ${timeLabel}`;
+};
+
+const diffMinutes = (start: string, end: string): number => {
+  const startParts = parseTimeToParts(start);
+  const endParts = parseTimeToParts(end);
+  if (!startParts || !endParts) return 0;
+  return endParts.hour * 60 + endParts.minute - (startParts.hour * 60 + startParts.minute);
+};
+
+const toHHMM = (hour: number, minute: number): string => {
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+};
+
 interface InstructorCardProps {
   instructor: Instructor;
-  nextAvailableSlot?: {
-    date: string;
-
-    time: string;
-    displayText: string;
-  };
+  availabilityData?: InstructorAvailabilityData;
   onViewProfile?: () => void;
   onBookNow?: (e?: React.MouseEvent) => void;
   compact?: boolean;
@@ -44,7 +119,7 @@ interface InstructorCardProps {
 }
 export default function InstructorCard({
   instructor,
-  nextAvailableSlot,
+  availabilityData,
   onViewProfile,
   onBookNow,
   compact = false,
@@ -62,6 +137,22 @@ export default function InstructorCard({
   const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
   const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
   const [pricingPreviewError, setPricingPreviewError] = useState<string | null>(null);
+  const primaryService = instructor.services?.[0];
+  const rawDurationOptions = primaryService?.duration_options;
+  const durationOptions: number[] = Array.isArray(rawDurationOptions) ? rawDurationOptions : [];
+  const fallbackDurationMinutes = durationOptions[0] ?? 60;
+  const [selectedDuration, setSelectedDuration] = useState<number>(fallbackDurationMinutes);
+  const resolvedDurationMinutes = selectedDuration ?? fallbackDurationMinutes;
+  const rawHourlyRate = primaryService?.hourly_rate as unknown;
+  const hourlyRateNumber =
+    typeof rawHourlyRate === 'number' ? rawHourlyRate : parseFloat(String(rawHourlyRate ?? '0'));
+  const safeHourlyRate = Number.isNaN(hourlyRateNumber) ? 0 : hourlyRateNumber;
+  const getLessonAmountForDuration = (durationMinutes: number): number =>
+    Number(((safeHourlyRate * durationMinutes) / 60).toFixed(2));
+
+  useEffect(() => {
+    setSelectedDuration(fallbackDurationMinutes);
+  }, [fallbackDurationMinutes, instructor.user_id]);
   const effectiveAppliedCreditCents = useMemo(
     () => Math.max(0, Math.round(appliedCreditCents ?? 0)),
     [appliedCreditCents]
@@ -173,22 +264,57 @@ export default function InstructorCard({
     };
   }, [bookingDraftId, effectiveAppliedCreditCents]);
 
+  // Helper function to calculate end time
+const findNextAvailableSlot = (
+  availabilityByDate: Record<string, AvailabilityDay>,
+  requiredMinutes: number
+): NextSlotResult | null => {
+    const sortedDates = Object.keys(availabilityByDate).sort();
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    for (const dateStr of sortedDates) {
+      const day = availabilityByDate[dateStr];
+      if (!day || day.is_blackout) continue;
+      const availableSlots = (day.available_slots || []).slice().sort((a, b) => a.start_time.localeCompare(b.start_time));
+      const parsedDate = parseIsoDateToLocal(dateStr);
+      if (!parsedDate || parsedDate < startOfToday) continue;
+
+      for (const slot of availableSlots) {
+        const slotDuration = diffMinutes(slot.start_time, slot.end_time);
+        if (slotDuration < requiredMinutes) continue;
+        const timeParts = parseTimeToParts(slot.start_time);
+        if (!timeParts) continue;
+
+        const slotStartDate = new Date(parsedDate);
+        slotStartDate.setHours(timeParts.hour, timeParts.minute, 0, 0);
+        if (parsedDate.getTime() === startOfToday.getTime() && slotStartDate <= now) {
+          continue;
+        }
+
+        return {
+          date: dateStr,
+          time: toHHMM(timeParts.hour, timeParts.minute),
+          displayText: formatDisplayText(parsedDate, timeParts.hour, timeParts.minute),
+        };
+      }
+    }
+
+    return null;
+  };
+
   // Helper function to get service name from catalog
   const getServiceName = (serviceId: string): string => {
     const service = serviceCatalog.find((s) => s.id === serviceId);
     return service?.name || '';
   };
 
-  // Helper function to calculate end time
-  const calculateEndTime = (startTime: string, durationMinutes: number): string => {
-    const parts = startTime.split(':');
-    const hours = Number(at(parts, 0) || 0);
-    const minutes = Number(at(parts, 1) || 0);
-    const totalMinutes = hours * 60 + minutes + durationMinutes;
-    const endHours = Math.floor(totalMinutes / 60);
-    const endMinutes = totalMinutes % 60;
-    return `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
-  };
+  const nextAvailableSlot = useMemo(() => {
+    if (availabilityData?.availabilityByDate) {
+      return findNextAvailableSlot(availabilityData.availabilityByDate, resolvedDurationMinutes);
+    }
+    return null;
+  }, [availabilityData, resolvedDurationMinutes]);
 
 
   const handleFavoriteClick = async () => {
@@ -534,11 +660,11 @@ export default function InstructorCard({
           )}
 
           {/* Session Duration Selection - Only show if instructor offers multiple durations */}
-          {instructor.services?.[0]?.duration_options && instructor.services[0].duration_options.length > 1 && (
+          {durationOptions.length > 1 && (
             <div className={`flex items-center gap-2 ${compact ? 'mb-2' : 'mb-4'}`}>
               <p className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-gray-700`}>Duration:</p>
               <div className={`flex ${compact ? 'gap-2' : 'gap-4'}`}>
-                {at(instructor.services, 0)?.duration_options?.map((duration, index) => {
+                {durationOptions.map((duration) => {
                   const service = at(instructor.services, 0);
                   const rateRaw = service ? (service.hourly_rate as unknown) : 0;
                   const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
@@ -550,7 +676,8 @@ export default function InstructorCard({
                         type="radio"
                         name={`duration-${instructor.user_id}`}
                         value={duration}
-                        defaultChecked={index === 0}
+                        checked={selectedDuration === duration}
+                        onChange={() => setSelectedDuration(duration)}
                         className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-[#7E22CE] accent-purple-700 border-gray-300 focus:ring-[#7E22CE]`}
                       />
                       <span className={`ml-1 ${compact ? 'text-xs' : 'text-sm'} text-gray-700`}>{duration} min (${price})</span>
@@ -614,24 +741,12 @@ export default function InstructorCard({
                     lessonType: getServiceName(at(instructor.services, 0)?.service_catalog_id || '') || 'Service',
                     date: nextAvailableSlot.date,
                     startTime: nextAvailableSlot.time,
-                    endTime: calculateEndTime(nextAvailableSlot.time, instructor.services[0]?.duration_options?.[0] || 60),
-                    duration: instructor.services[0]?.duration_options?.[0] || 60,
+                    endTime: calculateEndTime(nextAvailableSlot.time, resolvedDurationMinutes),
+                    duration: resolvedDurationMinutes,
                     location: '', // Leave empty to let user enter their address
-                    basePrice: (() => {
-                      const rawRate = instructor.services[0]?.hourly_rate as unknown;
-                      const rate = typeof rawRate === 'number' ? rawRate : parseFloat(String(rawRate ?? '0'));
-                      const safeRate = Number.isNaN(rate) ? 0 : rate;
-                      const durationMinutes = instructor.services[0]?.duration_options?.[0] || 60;
-                      return Number(((safeRate * durationMinutes) / 60).toFixed(2));
-                    })(),
-                    totalAmount: (() => {
-                      const rawRate = instructor.services[0]?.hourly_rate as unknown;
-                      const rate = typeof rawRate === 'number' ? rawRate : parseFloat(String(rawRate ?? '0'));
-                      const safeRate = Number.isNaN(rate) ? 0 : rate;
-                      const durationMinutes = instructor.services[0]?.duration_options?.[0] || 60;
-                      return Number(((safeRate * durationMinutes) / 60).toFixed(2));
-                    })(),
-                    freeCancellationUntil: new Date(nextAvailableSlot.date),
+                    basePrice: getLessonAmountForDuration(resolvedDurationMinutes),
+                    totalAmount: getLessonAmountForDuration(resolvedDurationMinutes),
+                    freeCancellationUntil: parseIsoDateToLocal(nextAvailableSlot.date) ?? new Date(),
                   };
 
                   // Store booking data in sessionStorage

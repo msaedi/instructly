@@ -803,17 +803,34 @@ function SearchPageContent() {
   }, [hasMore, loadingMore, loading, page, fetchResults]);
 
   // Fetch next available slot for each instructor
-  const [nextAvailableByInstructor, setNextAvailableByInstructor] = useState<Record<string, {date: string; time: string; displayText: string}>>({});
+  interface InstructorAvailabilitySummary {
+    timezone?: string;
+    availabilityByDate: Record<
+      string,
+      {
+        available_slots: Array<{ start_time: string; end_time: string }>;
+        is_blackout?: boolean;
+      }
+    >;
+  }
+  const [availabilityByInstructor, setAvailabilityByInstructor] = useState<Record<string, InstructorAvailabilitySummary>>({});
 
   useEffect(() => {
+    const formatDate = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const normalizeTime = (value?: string | null) => {
+      if (!value) return '00:00';
+      const [h = '0', m = '0'] = value.split(':');
+      return `${String(parseInt(h, 10) || 0).padStart(2, '0')}:${String(parseInt(m, 10) || 0).padStart(2, '0')}`;
+    };
+
     const fetchAvailabilities = async () => {
       try {
-        const updates: Record<string, {date: string; time: string; displayText: string}> = {};
+        const updates: Record<string, InstructorAvailabilitySummary> = {};
         const today = new Date();
         const startDate = new Date(today);
         const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 14); // look ahead 2 weeks
-        const formatDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        endDate.setDate(startDate.getDate() + 14);
 
         await Promise.all(
           instructors.map(async (i) => {
@@ -826,52 +843,24 @@ function SearchPageContent() {
                 return;
               }
               const byDate = data.availability_by_date || {};
-              const dates = Object.keys(byDate).sort();
-
-              // Find the first available slot
-              for (const d of dates) {
-                const day = byDate[d];
-                if (day?.is_blackout || !day?.available_slots?.length) continue;
-
-                const firstSlot = day.available_slots[0];
-                if (!firstSlot) continue;
-
-                const date = new Date(d);
-
-                // Skip if the date is in the past
-                const now = new Date();
-                now.setHours(0, 0, 0, 0);
-                if (date < now) continue;
-
-                const timeParts = firstSlot.start_time.split(':');
-                const hours = parseInt(timeParts[0] || '0', 10);
-                const minutes = parseInt(timeParts[1] || '0', 10);
-
-                // If it's today, check if the time has already passed
-                if (date.toDateString() === now.toDateString()) {
-                  const currentTime = new Date();
-                  const slotTime = new Date();
-                  slotTime.setHours(hours || 0, minutes || 0, 0, 0);
-                  if (slotTime <= currentTime) continue;
-                }
-                const dateStr = date.toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric'
-                });
-                const timeStr = new Date(2000, 0, 1, hours || 0, minutes || 0).toLocaleTimeString('en-US', {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  hour12: true
-                });
-
-                updates[i.user_id] = {
-                  date: d,
-                  time: firstSlot.start_time,
-                  displayText: `${dateStr}, ${timeStr}`
+              const normalizedEntries = Object.entries(byDate).reduce<
+                Record<string, { available_slots: Array<{ start_time: string; end_time: string }>; is_blackout?: boolean }>
+              >((acc, [date, day]) => {
+                if (!day) return acc;
+                acc[date] = {
+                  available_slots: (day.available_slots || []).map((slot) => ({
+                    start_time: normalizeTime(slot.start_time),
+                    end_time: normalizeTime(slot.end_time),
+                  })),
+                  is_blackout: day.is_blackout,
                 };
-                break;
-              }
+                return acc;
+              }, {});
+
+              updates[i.user_id] = {
+                timezone: data.timezone ?? undefined,
+                availabilityByDate: normalizedEntries,
+              };
             } catch {
               // ignore errors for individual instructors
             }
@@ -879,7 +868,7 @@ function SearchPageContent() {
         );
 
         if (Object.keys(updates).length) {
-          setNextAvailableByInstructor(updates);
+          setAvailabilityByInstructor((prev) => ({ ...prev, ...updates }));
         }
       } catch {
         // ignore batch errors
@@ -1011,7 +1000,9 @@ function SearchPageContent() {
                         <InstructorCard
                           instructor={enhancedInstructor}
                           {...(highlightServiceCatalogId ? { highlightServiceCatalogId } : {})}
-                          {...(nextAvailableByInstructor[instructor.user_id] && { nextAvailableSlot: nextAvailableByInstructor[instructor.user_id] })}
+                          {...(availabilityByInstructor[instructor.user_id] && {
+                            availabilityData: availabilityByInstructor[instructor.user_id],
+                          })}
                           onViewProfile={() => handleInteraction('view_profile')}
                           compact={isStacked}
                           onBookNow={(e) => {
