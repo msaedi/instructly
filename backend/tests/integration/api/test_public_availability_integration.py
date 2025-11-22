@@ -172,10 +172,12 @@ class TestPublicAvailabilityIntegration:
         result = response.json()
 
         # PENDING bookings should hold the slot. After booking 09:00-10:00,
-        # availability should begin at 10:00 and extend to 17:00 once afternoon slots are added.
+        # with a 15-minute buffer, availability should begin at 10:15 (not 10:00)
+        # and extend to 17:00 once afternoon slots are added.
         available_slots = result["availability_by_date"][tomorrow_str]["available_slots"]
         windows = {(s["start_time"], s["end_time"]) for s in available_slots}
-        assert ("10:00", "12:00") in windows
+        # With a 15-minute buffer and a 9-10 booking, morning window becomes 10:15-12:00
+        assert ("10:15", "12:00") in windows
         assert ("14:00", "17:00") in windows or {
             ("14:00", "15:00"),
             ("15:00", "16:00"),
