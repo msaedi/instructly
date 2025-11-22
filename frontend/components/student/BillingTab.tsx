@@ -34,6 +34,20 @@ interface Transaction {
   created_at: string;
 }
 
+const calculateServiceFee = (transaction: Transaction): number => {
+  const lessonAmount = Number(transaction?.total_price ?? 0);
+  const finalAmount = Number(transaction?.final_amount ?? 0);
+  const creditApplied = Number(transaction?.credit_applied ?? 0);
+
+  if ([lessonAmount, finalAmount, creditApplied].some((value) => Number.isNaN(value))) {
+    return 0;
+  }
+
+  const computedFee = finalAmount - lessonAmount + creditApplied;
+  // Clamp at zero and round to two decimals to avoid negative pennies from float math
+  return Math.max(0, Number(computedFee.toFixed(2)));
+};
+
 const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
   const queryClient = useQueryClient();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -336,7 +350,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Service fee</span>
-                    <span>{formatCurrency(transaction.platform_fee)}</span>
+                    <span>{formatCurrency(calculateServiceFee(transaction))}</span>
                   </div>
                   {transaction.credit_applied > 0 && (
                     <div className="flex justify-between">
