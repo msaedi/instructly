@@ -148,14 +148,32 @@ describe('TimeSelectionModal duration changes', () => {
     expect(screen.queryByText(/No 45-min slots/)).toBeNull();
   });
 
-  it('shows notice and jump action when current date lacks availability for new duration', async () => {
+  it('renders backend-provided half-hour start times', async () => {
     availabilityMock.mockResolvedValue(
       buildAvailabilityResponse({
         '2030-10-17': {
-          available_slots: [{ start_time: '09:00', end_time: '09:30' }],
+          available_slots: [{ start_time: '13:30', end_time: '15:30' }],
         },
-        '2030-10-18': {
-          available_slots: [{ start_time: '10:00', end_time: '11:30' }],
+      })
+    );
+
+    render(<TimeSelectionModal {...baseProps} />);
+
+    await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
+    const timeButtons = await screen.findAllByRole('button', { name: /1:30pm/i });
+    const firstHalfHourButton = timeButtons[0];
+    if (!firstHalfHourButton) {
+      throw new Error('Expected at least one 1:30pm option');
+    }
+    fireEvent.click(firstHalfHourButton);
+    await screen.findByText(/2:00pm/i);
+  });
+
+  it('shows half-hour starts for 60-minute duration', async () => {
+    availabilityMock.mockResolvedValue(
+      buildAvailabilityResponse({
+        '2030-10-17': {
+          available_slots: [{ start_time: '10:30', end_time: '12:30' }],
         },
       })
     );
@@ -164,26 +182,21 @@ describe('TimeSelectionModal duration changes', () => {
 
     await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
 
-    await screen.findAllByText(/9:00am/i);
-    const duration60 = screen.getAllByLabelText(/60 min/)[0];
+    const duration60Buttons = screen.getAllByLabelText(/60 min/);
+    const duration60 = duration60Buttons[0];
     if (!duration60) {
-      throw new Error('Expected 60 min option to be present');
+      throw new Error('Expected 60 min button');
     }
     fireEvent.click(duration60);
 
-    const notices = await screen.findAllByText(/No 60-min slots on Oct 17/i);
-    expect(notices.length).toBeGreaterThan(0);
-
-    await waitFor(() => expect(screen.getAllByText(/No times available for this date/i).length).toBeGreaterThan(0));
-
-    const jumpButton = screen.getAllByRole('button', { name: /Jump to Oct 18/i })[0];
-    if (!jumpButton) {
-      throw new Error('Expected jump button to be present');
+    const timeButtons = await screen.findAllByRole('button', { name: /10:30am/i });
+    const firstTimeButton = timeButtons[0];
+    if (!firstTimeButton) {
+      throw new Error('Expected at least one 10:30am option');
     }
-    fireEvent.click(jumpButton);
+    fireEvent.click(firstTimeButton);
 
-    await waitFor(() => expect(screen.getAllByText(/October 18/i).length).toBeGreaterThan(0));
-    await waitFor(() => expect(screen.getAllByText(/10:00am/i).length).toBeGreaterThan(0));
-    await waitFor(() => expect(screen.queryAllByText(/No 60-min slots/)).toHaveLength(0));
+    await screen.findAllByText(/10:30am/i);
+    expect(screen.queryByText(/10:00am/i)).toBeNull();
   });
 });

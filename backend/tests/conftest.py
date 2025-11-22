@@ -31,6 +31,7 @@ from typing import Dict, List, Sequence, Tuple
 
 from fastapi.testclient import TestClient
 import pytest
+import pytz
 from ulid import ULID
 
 # CRITICAL: Set testing mode BEFORE any app imports!
@@ -1013,6 +1014,23 @@ def _public_profile_kwargs(**profile_kwargs):
     }
     defaults.update(profile_kwargs)
     return defaults
+
+
+@pytest.fixture(autouse=True)
+def freeze_availability_now(monkeypatch):
+    """Ensure availability computations see a consistent 'current' time in tests."""
+
+    def _fake_get_user_now_by_id(user_id: str, db_session) -> datetime:
+        user = db_session.query(User).filter(User.id == user_id).first()
+        tz_name = getattr(user, "timezone", "America/New_York") if user else "America/New_York"
+        tz = pytz.timezone(tz_name)
+        today = datetime.now(tz).date()
+        return tz.localize(datetime.combine(today, time(5, 0)))
+
+    monkeypatch.setattr(
+        "app.services.availability_service.get_user_now_by_id",
+        _fake_get_user_now_by_id,
+    )
 
 
 @pytest.fixture

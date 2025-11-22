@@ -31,6 +31,8 @@ interface AvailabilitySlot {
   end_time: string;
 }
 
+const SLOT_STEP_MINUTES = 30;
+
 // Helper function to expand discrete time slots
 const expandDiscreteStarts = (
   start: string,
@@ -158,15 +160,6 @@ export default function TimeSelectionModal({
     } as Intl.DateTimeFormatOptions).format(d);
   };
 
-  const nowHHMMInTz = (tz: string) => {
-    return new Intl.DateTimeFormat('en-GB', {
-      timeZone: tz,
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-    } as Intl.DateTimeFormatOptions).format(new Date());
-  };
-
   const selectedService = useMemo(() => {
     if (!instructor.services.length) return null;
     if (serviceId) {
@@ -244,6 +237,11 @@ export default function TimeSelectionModal({
     selectedServiceId: selectedService?.id,
   });
 
+  const durationValues = useMemo(
+    () => Array.from(new Set(durationOptions.map((option) => option.duration))),
+    [durationOptions]
+  );
+
   const effectiveAppliedCreditCents = useMemo(
     () => Math.max(0, Math.round(appliedCreditCents ?? 0)),
     [appliedCreditCents]
@@ -288,7 +286,6 @@ export default function TimeSelectionModal({
     [key: string]: unknown;
   } | null>(null);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
-  const lastChangeWasDurationRef = useRef<boolean>(false);
   const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
   const [isPricingPreviewLoading, setIsPricingPreviewLoading] = useState(false);
   const [pricingPreviewError, setPricingPreviewError] = useState<string | null>(null);
@@ -330,44 +327,110 @@ export default function TimeSelectionModal({
     selectedDurationRef.current = selectedDuration;
   }, [selectedDuration]);
 
-  const getTimesForDate = useCallback(
-    (targetDate: string | null, durationMinutes: number): string[] => {
-      if (!targetDate || !availabilityData || !availabilityData[targetDate]) {
+  const chooseValidTime = useCallback(
+    (slots: string[], previous: string | null, preferred: string | null) => {
+      if (!slots.length) {
+        return null;
+      }
+      if (previous && slots.includes(previous)) {
+        return previous;
+      }
+      if (preferred && slots.includes(preferred)) {
+        return preferred;
+      }
+      return at(slots, 0) ?? null;
+    },
+    []
+  );
+
+  const getSlotsForDate = useCallback(
+    (targetDate: string | null): AvailabilitySlot[] => {
+      if (!targetDate || !availabilityData) {
         return [];
       }
-
-      const dayData = availabilityData[targetDate] as {
-        available_slots?: AvailabilitySlot[];
-      };
-      const slots = (dayData?.available_slots ?? []) as AvailabilitySlot[];
-
-      const now = new Date();
-      const isToday = targetDate === formatDateInTz(now, studentTimezone);
-
-      const validSlots = slots.filter((slot) => {
-        if (isToday) {
-          const currentHHMM = nowHHMMInTz(studentTimezone);
-          if (slot.start_time.slice(0, 5) <= currentHHMM) {
-            return false;
-          }
-        }
-
-        const startParts = slot.start_time.split(':');
-        const endParts = slot.end_time.split(':');
-        const sh = parseInt(at(startParts, 0) || '0', 10);
-        const sm = parseInt(at(startParts, 1) || '0', 10);
-        const eh = parseInt(at(endParts, 0) || '0', 10);
-        const em = parseInt(at(endParts, 1) || '0', 10);
-        const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
-        return slotDuration >= durationMinutes;
-      });
-
-      return validSlots.flatMap((slot) =>
-        expandDiscreteStarts(slot.start_time, slot.end_time, 60, durationMinutes)
-      );
+      const dayData = availabilityData[targetDate] as { available_slots?: AvailabilitySlot[] };
+      return (dayData?.available_slots ?? []) as AvailabilitySlot[];
     },
-    [availabilityData, studentTimezone]
+    [availabilityData]
   );
+
+  const buildSlotsByDuration = useCallback(
+    (slots: AvailabilitySlot[], durations: number[]) => {
+      const uniqueDurations = Array.from(new Set(durations));
+      const slotsByDuration: Record<number, string[]> = {};
+      uniqueDurations.forEach((dur) => {
+        slotsByDuration[dur] = slots.flatMap((slot) =>
+          expandDiscreteStarts(slot.start_time, slot.end_time, SLOT_STEP_MINUTES, dur)
+        );
+      });
+      return slotsByDuration;
+    },
+    []
+  );
+
+  const getTimesForDate = useCallback(
+    (targetDate: string | null, durationMinutes: number): string[] => {
+      const slots = getSlotsForDate(targetDate);
+      if (!slots.length) {
+        return [];
+      }
+      const slotsByDuration = buildSlotsByDuration(slots, [durationMinutes]);
+      return slotsByDuration[durationMinutes] ?? [];
+    },
+    [buildSlotsByDuration, getSlotsForDate]
+  );
+
+  const applySlotsForDate = useCallback(
+    (slots: AvailabilitySlot[], options?: { preferredTime?: string | null }) => {
+      const slotsByDuration = buildSlotsByDuration(slots, durationValues);
+      const baseDisabledDurations = durationValues.filter(
+        (dur) => (slotsByDuration[dur] ?? []).length === 0
+      );
+      const formattedSlots = slotsByDuration[selectedDuration] ?? [];
+
+      setDisabledDurations(baseDisabledDurations);
+      setTimeSlots(formattedSlots);
+      setSelectedTime((prev) => {
+        const chosen = chooseValidTime(formattedSlots, prev, options?.preferredTime ?? null);
+        return chosen;
+      });
+      return { slotsByDuration, formattedSlots };
+    },
+    [buildSlotsByDuration, durationValues, selectedDuration, chooseValidTime]
+  );
+
+  // Reconciliation effect: Enforce invariant that selectedTime ∈ timeSlots or null
+  // This ensures the UI can never display an invalid time selection
+  useEffect(() => {
+    // When there are no slots, clear selection
+    if (timeSlots.length === 0) {
+      if (selectedTime !== null) {
+        setSelectedTime(null);
+      }
+      return;
+    }
+
+    // If current selection is still valid, keep it
+    if (selectedTime && timeSlots.includes(selectedTime)) {
+      return;
+    }
+
+    // If the initial/preferred time is valid for this slot list, use it
+    const preferred = effectiveInitialTimeDisplayRef.current ?? null;
+    if (preferred && timeSlots.includes(preferred)) {
+      setSelectedTime(preferred);
+      return;
+    }
+
+    // Otherwise default to the first available slot
+    if (!selectedTime || !timeSlots.includes(selectedTime)) {
+      const firstSlot = timeSlots[0];
+      if (firstSlot) {
+        setSelectedTime(firstSlot);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeSlots]);  // Intentionally exclude selectedTime to avoid circular updates
 
   const setDate = useCallback(
     (reason: string, nextDate: string | null) => {
@@ -519,43 +582,19 @@ export default function TimeSelectionModal({
         const availabilityByDate = response.data.availability_by_date;
         setAvailabilityData(availabilityByDate);
 
-        // Extract available dates - only include dates with actual time slots
-        const datesWithSlots: string[] = [];
-        Object.keys(availabilityByDate).forEach((date) => {
+        // Extract available dates - rely on backend-filtered slots
+        const datesWithSlots: string[] = Object.keys(availabilityByDate).filter((date) => {
           const dayData = availabilityByDate[date];
-          if (!dayData) return;
-          const slots = dayData.available_slots || [];
-          // Filter out past times if it's today
-          const now = new Date();
-          const nowLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-          const isToday = date === nowLocalStr;
-
-          const validSlots = slots.filter((slot: AvailabilitySlot) => {
-            if (!isToday) return true;
-            const timeParts = slot.start_time.split(':');
-            const hours = at(timeParts, 0);
-            const minutes = at(timeParts, 1);
-            if (!hours || !minutes) return false;
-            const slotTime = new Date();
-            slotTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-            return slotTime > now;
-          });
-
-          if (validSlots.length > 0) {
-            datesWithSlots.push(date);
-          }
+          return Boolean(dayData?.available_slots?.length);
         });
         setAvailableDates(datesWithSlots);
 
         const firstAvailableDate = at(datesWithSlots, 0) ?? null;
         const initialDateValue = effectiveInitialDateRef.current;
         const initialTimeDisplay = effectiveInitialTimeDisplayRef.current;
-        const durationMinutes = selectedDurationRef.current ?? 60;
         const preselectedIsAvailable = Boolean(
           initialDateValue && availabilityByDate[initialDateValue]
         );
-
-        let shouldAutoSelectFirstTime = false;
 
         if (!hasUserChosenDateRef.current) {
           const initialDate = preselectedIsAvailable ? initialDateValue : firstAvailableDate;
@@ -564,9 +603,6 @@ export default function TimeSelectionModal({
             setDateRef.current?.(initReason, initialDate);
             selectedDateRef.current = initialDate;
             hasUserChosenDateRef.current = true;
-            if (!initialTimeDisplay) {
-              shouldAutoSelectFirstTime = true;
-            }
           }
         }
 
@@ -579,36 +615,18 @@ export default function TimeSelectionModal({
           setShowTimeDropdown(true);
           const dayData = availabilityByDate[activeDate];
           if (dayData) {
-            const slots = dayData.available_slots || [];
-            const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
-              expandDiscreteStarts(slot.start_time, slot.end_time, 60, durationMinutes)
-            );
-
-            setTimeSlots(formattedSlots);
-
-            if (
-              initialTimeDisplay &&
-              activeDate === initialDateValue &&
-              !selectedTimeRef.current
-            ) {
-              setSelectedTime(initialTimeDisplay);
-              selectedTimeRef.current = initialTimeDisplay;
-            } else if (
-              (shouldAutoSelectFirstTime || (!selectedTimeRef.current && !initialTimeDisplay)) &&
-              formattedSlots.length > 0
-            ) {
-              const firstSlot = at(formattedSlots, 0);
-              if (firstSlot) {
-                setSelectedTime(firstSlot);
-                selectedTimeRef.current = firstSlot;
-              }
-            }
+            applySlotsForDate(dayData.available_slots || [], {
+              preferredTime:
+                activeDate === initialDateValue ? initialTimeDisplay ?? null : null,
+            });
           } else {
             setTimeSlots([]);
+            setSelectedTime(null);
           }
         } else {
           setShowTimeDropdown(false);
           setTimeSlots([]);
+          setSelectedTime(null);
         }
       }
     } catch (error) {
@@ -616,7 +634,7 @@ export default function TimeSelectionModal({
     } finally {
       // Loading state cleared
     }
-  }, [instructor.user_id, studentTimezone]);
+  }, [instructor.user_id, studentTimezone, applySlotsForDate]);
 
   // Fetch availability data when modal opens
   useEffect(() => {
@@ -638,8 +656,6 @@ export default function TimeSelectionModal({
       return;
     }
 
-    const timesForInitial = getTimesForDate(effectiveInitialDate, normalizedInitialDurationValue);
-
     if (selectedDuration !== normalizedInitialDurationValue) {
       setSelectedDuration(normalizedInitialDurationValue);
     }
@@ -650,14 +666,6 @@ export default function TimeSelectionModal({
     }
 
     hasUserChosenDateRef.current = true;
-
-    if (normalizedInitialTimeDisplay && timesForInitial.includes(normalizedInitialTimeDisplay)) {
-      setSelectedTime(normalizedInitialTimeDisplay);
-      selectedTimeRef.current = normalizedInitialTimeDisplay;
-    } else if (normalizedInitialTimeDisplay) {
-      setSelectedTime(null);
-      selectedTimeRef.current = null;
-    }
 
     initialSelectionAppliedRef.current = true;
   }, [
@@ -950,62 +958,15 @@ export default function TimeSelectionModal({
 
     // Get time slots from availability data
     if (availabilityData && availabilityData[date]) {
-      const slots = (availabilityData[date] as Record<string, unknown>)?.['available_slots'] || [];
-
-      // Filter out past times if selecting today
-      const now = new Date();
-      const nowLocalStr = formatDateInTz(now, studentTimezone);
-      const isToday = date === nowLocalStr;
-
-      const validSlots = (slots as unknown as AvailabilitySlot[]).filter((slot: AvailabilitySlot) => {
-        // Check if slot is in the past (for today)
-        if (isToday) {
-          const currentHHMM = nowHHMMInTz(studentTimezone);
-          if (slot.start_time.slice(0, 5) <= currentHHMM) return false;
-        }
-
-        // Check if slot has enough time for selected duration
-        const slotStart = new Date(`${date}T${slot.start_time}`);
-        const slotEnd = new Date(`${date}T${slot.end_time}`);
-        const slotDurationMinutes = (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60);
-
-        const hasEnoughTime = slotDurationMinutes >= selectedDuration;
-        if (!hasEnoughTime) {
-          logger.debug('Filtering out slot - insufficient duration', {
-            slot: slot.start_time,
-            slotDuration: slotDurationMinutes,
-            requiredDuration: selectedDuration,
-          });
-        }
-
-        return hasEnoughTime;
+      const slots = getSlotsForDate(date);
+      const { formattedSlots } = applySlotsForDate(slots, {
+        preferredTime:
+          date === (effectiveInitialDateRef.current ?? null)
+            ? effectiveInitialTimeDisplayRef.current ?? null
+            : null,
       });
-
-      const uniqueDurations = Array.from(new Set(durationOptions.map((o) => o.duration)));
-      const slotsByDuration: Record<number, string[]> = {};
-      uniqueDurations.forEach((dur) => {
-        slotsByDuration[dur] = validSlots.flatMap((slot: AvailabilitySlot) =>
-          expandDiscreteStarts(slot.start_time, slot.end_time, 60, dur)
-        );
-      });
-      // Base disabled durations for the whole day (no slots at all for that duration)
-      const baseDisabledDurations = uniqueDurations.filter((d) => (slotsByDuration[d] || []).length === 0);
-
-      // Build formatted slots for currently selected duration
-      const formattedSlots = slotsByDuration[selectedDuration] || [];
-      setDisabledDurations(baseDisabledDurations);
-      setTimeSlots(formattedSlots);
-
-      // Auto-select first available time slot
-      if (formattedSlots.length > 0 && !selectedTime) {
-        const firstSlot = formattedSlots[0];
-        if (firstSlot) {
-          setSelectedTime(firstSlot);
-        }
-      }
-
       setLoadingTimeSlots(false);
-      logger.info('Date selected', { date, slotsGenerated: formattedSlots.length, isToday });
+      logger.info('Date selected', { date, slotsGenerated: formattedSlots.length });
     } else {
       // Fetch specific date availability if not in cache
       try {
@@ -1016,82 +977,18 @@ export default function TimeSelectionModal({
 
         if (response.data?.availability_by_date?.[date]) {
           const dayData = response.data.availability_by_date[date];
-          const slots = dayData.available_slots || [];
-
-          // Update availability data cache
           setAvailabilityData((prev) => ({
             ...prev,
             [date]: dayData,
           }));
 
           // Process slots
-          const now = new Date();
-          const isToday = date === formatDateInTz(now, studentTimezone);
-
-          const validSlots = slots.filter((slot: AvailabilitySlot) => {
-            // Check if slot is in the past (for today)
-            if (isToday) {
-              const currentHHMM = nowHHMMInTz(studentTimezone);
-              if (slot.start_time.slice(0, 5) <= currentHHMM) return false;
-            }
-
-            // Check if slot has enough time for selected duration
-            const slotStart = new Date(`${date}T${slot.start_time}`);
-            const slotEnd = new Date(`${date}T${slot.end_time}`);
-            const slotDurationMinutes = (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60);
-
-            const hasEnoughTime = slotDurationMinutes >= selectedDuration;
-            if (!hasEnoughTime) {
-              logger.debug('Filtering out slot - insufficient duration', {
-                slot: slot.start_time,
-                slotDuration: slotDurationMinutes,
-                requiredDuration: selectedDuration,
-              });
-            }
-
-            return hasEnoughTime;
+          const { formattedSlots } = applySlotsForDate(dayData.available_slots || [], {
+            preferredTime:
+              date === (effectiveInitialDateRef.current ?? null)
+                ? effectiveInitialTimeDisplayRef.current ?? null
+                : null,
           });
-
-          const uniqueDurations = Array.from(new Set(durationOptions.map((o) => o.duration)));
-          const slotsByDuration: Record<number, string[]> = {};
-          uniqueDurations.forEach((dur) => {
-            slotsByDuration[dur] = validSlots.flatMap((slot: AvailabilitySlot) =>
-              (() => {
-                const startParts = slot.start_time.split(':');
-                const endParts = slot.end_time.split(':');
-                const sh = parseInt(at(startParts, 0) || '0', 10);
-                const sm = parseInt(at(startParts, 1) || '0', 10);
-                const eh = parseInt(at(endParts, 0) || '0', 10);
-                const em = parseInt(at(endParts, 1) || '0', 10);
-                const startTotal = sh * 60 + (sm || 0);
-                const endTotal = eh * 60 + (em || 0);
-                const times: string[] = [];
-                for (let t = startTotal; t + dur <= endTotal; t += 60) {
-                  const h = Math.floor(t / 60);
-                  const m = t % 60;
-                  const ampm = h >= 12 ? 'pm' : 'am';
-                  const displayHour = (h % 12) || 12;
-                  times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
-                }
-                return times;
-              })()
-            );
-          });
-          // Base disabled durations for the whole day (no slots at all for that duration)
-          const baseDisabledDurations = uniqueDurations.filter((d) => (slotsByDuration[d] || []).length === 0);
-
-          const formattedSlots = slotsByDuration[selectedDuration] || [];
-          setDisabledDurations(baseDisabledDurations);
-          setTimeSlots(formattedSlots);
-
-          // Auto-select first available time slot
-          if (formattedSlots.length > 0 && !selectedTime) {
-            const firstSlot = at(formattedSlots, 0);
-            if (firstSlot) {
-              setSelectedTime(firstSlot);
-            }
-          }
-
           setLoadingTimeSlots(false);
           logger.info('Fetched date-specific availability', { date, slots: formattedSlots.length });
         } else {
@@ -1117,69 +1014,31 @@ export default function TimeSelectionModal({
 
   // Handle time selection
   const handleTimeSelect = (time: string) => {
-    setSelectedTime(time);
-    logger.info('Time selected', { time });
-  };
-
-  // Auto-select first available time when time slots load
-  useEffect(() => {
-    if (timeSlots.length > 0 && !selectedTime && !loadingTimeSlots) {
-      if (lastChangeWasDurationRef.current) {
-        // Skip auto-select when list changed due to a duration change
-        lastChangeWasDurationRef.current = false;
-      } else {
-        const firstSlot = at(timeSlots, 0);
-        if (firstSlot) {
-          setSelectedTime(firstSlot);
-          logger.info('Auto-selected first available time', { time: firstSlot });
-        }
-      }
-    } else if (!loadingTimeSlots) {
-      // Reset the flag once loading settles to avoid stale state
-      lastChangeWasDurationRef.current = false;
+    // Defensive: Only accept times that are in the current timeSlots
+    if (timeSlots.includes(time)) {
+      setSelectedTime(time);
+      logger.info('Time selected', { time });
+    } else {
+      logger.warn('Attempted to select invalid time', { time, timeSlots });
     }
-  }, [timeSlots, selectedTime, loadingTimeSlots]);
+  };
 
   // Recalculate available dates when duration changes
   useEffect(() => {
     if (availabilityData && selectedDuration) {
-      const datesWithSlotsForDuration: string[] = [];
-      const now = new Date();
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-      Object.keys(availabilityData).forEach((date) => {
-        const slots = (availabilityData[date] as Record<string, unknown>)?.['available_slots'] || [];
-
-        // Check if any slot on this date can accommodate the selected duration
-        const hasValidSlot = (slots as unknown as AvailabilitySlot[]).some((slot: AvailabilitySlot) => {
-          // Check if it's in the past
-          if (date === todayStr) {
-            const currentHHMM = nowHHMMInTz(studentTimezone);
-            if (slot.start_time.slice(0, 5) <= currentHHMM) return false;
-          }
-
-          // Check if slot duration is enough
-          const startParts = slot.start_time.split(':');
-          const endParts = slot.end_time.split(':');
-          const sh = parseInt(at(startParts, 0) || '0', 10);
-          const sm = parseInt(at(startParts, 1) || '0', 10);
-          const eh = parseInt(at(endParts, 0) || '0', 10);
-          const em = parseInt(at(endParts, 1) || '0', 10);
-          const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
-          return slotDuration >= selectedDuration;
-        });
-
-        if (hasValidSlot) {
-          datesWithSlotsForDuration.push(date);
-        }
-      });
-
+      const datesWithSlotsForDuration = Object.keys(availabilityData).filter(
+        (dateKey) => getTimesForDate(dateKey, selectedDuration).length > 0
+      );
       setAvailableDates(datesWithSlotsForDuration);
-      logger.info('Updated available dates for duration', { duration: selectedDuration, availableDates: datesWithSlotsForDuration });
+      logger.info('Updated available dates for duration', {
+        duration: selectedDuration,
+        availableDates: datesWithSlotsForDuration,
+      });
     }
-  }, [selectedDuration, availabilityData, studentTimezone]);
+  }, [selectedDuration, availabilityData, getTimesForDate]);
 
   // Handle duration selection
+
   const handleDurationSelect = (duration: number) => {
     const previousDuration = selectedDuration;
     setSelectedDuration(duration);
@@ -1196,50 +1055,15 @@ export default function TimeSelectionModal({
     }
 
     try {
-      const currentDateData = availabilityData[selectedDate];
-      if (!currentDateData) {
+      const slots = getSlotsForDate(selectedDate);
+      if (!slots.length) {
         void handleDateSelect(selectedDate, 'auto');
         return;
       }
 
-      const slots = (currentDateData as Record<string, unknown>)?.['available_slots'] || [];
-      const now = new Date();
-      const isToday = selectedDate === formatDateInTz(now, studentTimezone);
-
-      const validSlots = (slots as unknown as AvailabilitySlot[]).filter((slot: AvailabilitySlot) => {
-        if (isToday) {
-          const currentHHMM = nowHHMMInTz(studentTimezone);
-          if (slot.start_time.slice(0, 5) <= currentHHMM) return false;
-        }
-        return true;
-      });
-
-      const uniqueDurations = Array.from(new Set(durationOptions.map((o) => o.duration)));
-      const slotsByDuration: Record<number, string[]> = {};
-      uniqueDurations.forEach((dur) => {
-        slotsByDuration[dur] = validSlots.flatMap((slot: AvailabilitySlot) => {
-          const startParts = slot.start_time.split(':');
-          const endParts = slot.end_time.split(':');
-          const sh = parseInt(at(startParts, 0) || '0', 10);
-          const sm = parseInt(at(startParts, 1) || '0', 10);
-          const eh = parseInt(at(endParts, 0) || '0', 10);
-          const em = parseInt(at(endParts, 1) || '0', 10);
-          const startTotal = sh * 60 + (sm || 0);
-          const endTotal = eh * 60 + (em || 0);
-          const times: string[] = [];
-          for (let t = startTotal; t + dur <= endTotal; t += 60) {
-            const h = Math.floor(t / 60);
-            const m = t % 60;
-            const ampm = h >= 12 ? 'pm' : 'am';
-            const displayHour = (h % 12) || 12;
-            times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
-          }
-          return times;
-        });
-      });
-
+      const slotsByDuration = buildSlotsByDuration(slots, durationValues);
       const newSlots = slotsByDuration[duration] || [];
-      const baseDisabled = uniqueDurations.filter((d) => (slotsByDuration[d] || []).length === 0);
+      const baseDisabled = durationValues.filter((d) => (slotsByDuration[d] || []).length === 0);
 
       const additionalDisabled: number[] = [];
       if (selectedTime) {
@@ -1260,7 +1084,7 @@ export default function TimeSelectionModal({
         const selectedStartMins = parseDisplayTimeToMinutes(selectedTime);
 
         const isDurationValidForSelectedTime = (dur: number): boolean => {
-          return validSlots.some((slot: AvailabilitySlot) => {
+          return slots.some((slot: AvailabilitySlot) => {
             const startParts = slot.start_time.split(':');
             const endParts = slot.end_time.split(':');
             const sh = parseInt(at(startParts, 0) || '0', 10);
@@ -1273,7 +1097,7 @@ export default function TimeSelectionModal({
           });
         };
 
-        uniqueDurations.forEach((dur) => {
+        durationValues.forEach((dur) => {
           if (!isDurationValidForSelectedTime(dur)) {
             additionalDisabled.push(dur);
           }
@@ -1286,41 +1110,16 @@ export default function TimeSelectionModal({
 
       if (newSlots.length === 0) {
         const sortedDates = Object.keys(availabilityData).sort();
-        let nextAvailableDate: string | null = null;
-
-        for (const date of sortedDates) {
-          if (date === selectedDate) {
-            continue;
-          }
-          const dayData = availabilityData[date];
-          const daySlots = (dayData as Record<string, unknown>)?.['available_slots'] || [];
-          const canAccommodate = (daySlots as unknown as AvailabilitySlot[]).some((slot: AvailabilitySlot) => {
-            const startParts = slot.start_time.split(':');
-            const endParts = slot.end_time.split(':');
-            const sh = parseInt(at(startParts, 0) || '0', 10);
-            const sm = parseInt(at(startParts, 1) || '0', 10);
-            const eh = parseInt(at(endParts, 0) || '0', 10);
-            const em = parseInt(at(endParts, 1) || '0', 10);
-            const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
-            return slotDuration >= duration;
-          });
-
-          if (canAccommodate) {
-            const today = new Date();
-            const candidate = new Date(date);
-            if (candidate >= new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-              nextAvailableDate = date;
-              break;
-            }
-          }
-        }
+        const nextAvailableDate =
+          sortedDates
+            .filter((dateKey) => dateKey !== selectedDate)
+            .find((dateKey) => getTimesForDate(dateKey, duration).length > 0) ?? null;
 
         setDurationAvailabilityNotice({
           duration,
           date: selectedDate,
           nextDate: nextAvailableDate,
         });
-        lastChangeWasDurationRef.current = true;
         setDisabledDurations(combinedDisabled);
         setTimeSlots([]);
         setSelectedTime(null);
@@ -1328,12 +1127,8 @@ export default function TimeSelectionModal({
       }
 
       setDurationAvailabilityNotice(null);
-      lastChangeWasDurationRef.current = true;
       setTimeSlots(newSlots);
-      if (!selectedTime || !newSlots.includes(selectedTime)) {
-        const firstSlot = at(newSlots, 0);
-        setSelectedTime(firstSlot ?? null);
-      }
+      setSelectedTime((prev) => chooseValidTime(newSlots, prev, null));
       setDisabledDurations(combinedDisabled);
     } catch (e) {
       logger.error('Failed to recompute slots on duration change', e);
@@ -1341,53 +1136,22 @@ export default function TimeSelectionModal({
     }
   };
 
+
   // Recompute disabled durations whenever the selected time changes
   useEffect(() => {
-    if (!selectedDate || !availabilityData || !availabilityData[selectedDate]) {
+    if (!selectedDate) {
       return;
     }
 
     try {
-      const dayData = availabilityData[selectedDate];
-      const slots = (dayData as Record<string, unknown>)?.['available_slots'] || [];
+      const slots = getSlotsForDate(selectedDate);
+      if (!slots.length) {
+        setDisabledDurations([]);
+        return;
+      }
 
-      const now = new Date();
-      const isToday = selectedDate === formatDateInTz(now, studentTimezone);
-
-      const validSlots = (slots as unknown as AvailabilitySlot[]).filter((slot: AvailabilitySlot) => {
-        if (isToday) {
-          const currentHHMM = nowHHMMInTz(studentTimezone);
-          if (slot.start_time.slice(0, 5) <= currentHHMM) return false;
-        }
-        return true;
-      });
-
-      const uniqueDurations = Array.from(new Set(durationOptions.map((o) => o.duration)));
-
-      const slotsByDuration: Record<number, string[]> = {};
-      uniqueDurations.forEach((dur) => {
-        slotsByDuration[dur] = validSlots.flatMap((slot: AvailabilitySlot) => {
-          const startParts = slot.start_time.split(':');
-          const endParts = slot.end_time.split(':');
-          const sh = parseInt(startParts[0] || '0', 10);
-          const sm = parseInt(startParts[1] || '0', 10);
-          const eh = parseInt(endParts[0] || '0', 10);
-          const em = parseInt(endParts[1] || '0', 10);
-          const startTotal = (sh || 0) * 60 + (sm || 0);
-          const endTotal = (eh || 0) * 60 + (em || 0);
-          const times: string[] = [];
-          for (let t = startTotal; t + dur <= endTotal; t += 60) {
-            const h = Math.floor(t / 60);
-            const m = t % 60;
-            const ampm = h >= 12 ? 'pm' : 'am';
-            const displayHour = (h % 12) || 12;
-            times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
-          }
-          return times;
-        });
-      });
-
-      const baseDisabled = uniqueDurations.filter((d) => (slotsByDuration[d] || []).length === 0);
+      const slotsByDuration = buildSlotsByDuration(slots, durationValues);
+      const baseDisabled = durationValues.filter((d) => (slotsByDuration[d] || []).length === 0);
 
       const additionalDisabled: number[] = [];
       if (selectedTime) {
@@ -1400,14 +1164,14 @@ export default function TimeSelectionModal({
           let hour = parseInt(hh || '0', 10);
           const minute = parseInt(mm || '0', 10);
           if (isPM && hour !== 12) hour += 12;
-          if (isAM && hour === 12) hour = 0;
+          if (!isPM && isAM && hour === 12) hour = 0;
           return hour * 60 + minute;
         };
 
         const selectedStartMins = parseDisplayTimeToMinutes(selectedTime);
 
         const isDurationValidForSelectedTime = (dur: number): boolean => {
-          return validSlots.some((slot: AvailabilitySlot) => {
+          return slots.some((slot: AvailabilitySlot) => {
             const startParts = slot.start_time.split(':');
             const endParts = slot.end_time.split(':');
             const sh = parseInt(at(startParts, 0) || '0', 10);
@@ -1420,7 +1184,7 @@ export default function TimeSelectionModal({
           });
         };
 
-        uniqueDurations.forEach((dur) => {
+        durationValues.forEach((dur) => {
           if (!isDurationValidForSelectedTime(dur)) {
             additionalDisabled.push(dur);
           }
@@ -1429,7 +1193,6 @@ export default function TimeSelectionModal({
 
       const combined = Array.from(new Set([...baseDisabled, ...additionalDisabled]));
 
-      // Only update state if the computed list actually changed
       const areSetsEqual = (a: number[], b: number[]) => {
         if (a.length !== b.length) return false;
         const setA = new Set(a);
@@ -1443,7 +1206,7 @@ export default function TimeSelectionModal({
     } catch (e) {
       logger.error('Failed to recompute disabled durations on time change', e);
     }
-  }, [selectedTime, selectedDate, availabilityData, studentTimezone, durationOptions]);
+  }, [selectedTime, selectedDate, durationValues, getSlotsForDate, buildSlotsByDuration]);
 
   if (!isOpen) return null;
 

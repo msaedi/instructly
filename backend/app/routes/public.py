@@ -16,19 +16,7 @@ Key Design Decisions:
 from datetime import date, datetime, time, timedelta
 import hashlib
 import logging
-from typing import (
-    Any,
-    Dict,
-    List,
-    Mapping,
-    Optional,
-    Protocol,
-    Sequence,
-    Tuple,
-    TypedDict,
-    Union,
-    cast,
-)
+from typing import Any, Dict, List, Mapping, Optional, Tuple, TypedDict, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
@@ -56,17 +44,6 @@ from ..utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/public", tags=["public"])
-
-
-class SlotLike(Protocol):
-    specific_date: date
-    start_time: time
-    end_time: time
-
-
-class BookingLike(Protocol):
-    start_time: time
-    end_time: time
 
 
 class AvailabilitySummaryEntry(TypedDict):
@@ -520,64 +497,38 @@ async def get_next_available_slot(
             current_date += timedelta(days=1)
             continue
 
-        # Get available slots for this date
-        slots = availability_service.get_week_windows_as_slot_like(
+        availability_map = availability_service.compute_public_availability(
             instructor_id, current_date, current_date
         )
+        slots = availability_map.get(current_date.isoformat(), [])
 
         if slots:
-            # Get booked times
-            booked_bookings = cast(
-                Sequence[BookingLike],
-                conflict_checker.repository.get_bookings_for_date(instructor_id, current_date),
-            )
-
-            # Convert to time format
-            booked_times: List[Dict[str, time]] = []
-            for booking in booked_bookings:
-                booked_times.append(
-                    {"start_time": booking.start_time, "end_time": booking.end_time}
-                )
-
             # Find first slot that can accommodate the duration
-            for slot in sorted(slots, key=lambda s: s["start_time"]):
+            for slot_start_time, slot_end_time in sorted(slots, key=lambda s: s[0]):
                 # Calculate slot duration in minutes
-                slot_start_time = slot["start_time"]
-                slot_end_time = slot["end_time"]
                 slot_duration = (
                     datetime.combine(date.min, slot_end_time)
                     - datetime.combine(date.min, slot_start_time)
                 ).seconds // 60
 
                 if slot_duration >= duration_minutes:
-                    # Check if this slot is booked
-                    is_booked = False
-                    for booked in booked_times:
-                        if (
-                            slot_start_time < booked["end_time"]
-                            and slot_end_time > booked["start_time"]
-                        ):
-                            is_booked = True
-                            break
+                    # Found an available slot!
+                    # Return the requested duration from the start of the slot
+                    end_time = (
+                        datetime.combine(date.min, slot_start_time)
+                        + timedelta(minutes=duration_minutes)
+                    ).time()
 
-                    if not is_booked:
-                        # Found an available slot!
-                        # Return the requested duration from the start of the slot
-                        end_time = (
-                            datetime.combine(date.min, slot_start_time)
-                            + timedelta(minutes=duration_minutes)
-                        ).time()
+                    # Set cache headers for successful results (2 minutes for next-available)
+                    response_obj.headers["Cache-Control"] = "public, max-age=120"
 
-                        # Set cache headers for successful results (2 minutes for next-available)
-                        response_obj.headers["Cache-Control"] = "public, max-age=120"
-
-                        return NextAvailableSlotResponse(
-                            found=True,
-                            date=current_date.isoformat(),
-                            start_time=slot_start_time.strftime("%H:%M:%S"),
-                            end_time=end_time.strftime("%H:%M:%S"),
-                            duration_minutes=duration_minutes,
-                        )
+                    return NextAvailableSlotResponse(
+                        found=True,
+                        date=current_date.isoformat(),
+                        start_time=slot_start_time.strftime("%H:%M:%S"),
+                        end_time=end_time.strftime("%H:%M:%S"),
+                        duration_minutes=duration_minutes,
+                    )
 
         current_date += timedelta(days=1)
 

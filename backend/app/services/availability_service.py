@@ -55,6 +55,7 @@ from ..schemas.availability_window import (
     WeekSpecificScheduleCreate,
 )
 from ..utils.bitset import (
+    SLOTS_PER_DAY,
     bits_from_windows,
     new_empty_bits,
     pack_indexes,
@@ -180,6 +181,7 @@ class AvailabilityService(BaseService):
         self.conflict_repository = (
             conflict_repository or RepositoryFactory.create_conflict_checker_repository(db)
         )
+        self.instructor_repository = RepositoryFactory.create_instructor_profile_repository(db)
         self.event_outbox_repository = RepositoryFactory.create_event_outbox_repository(db)
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
         self.audit_repository = RepositoryFactory.create_audit_repository(db)
@@ -1703,6 +1705,33 @@ class AvailabilityService(BaseService):
 
         Returns dict: { 'YYYY-MM-DD': [(start_time, end_time), ...] }
         """
+        slot_minutes = (24 * 60) // SLOTS_PER_DAY
+        profile = self.instructor_repository.get_by_user_id(instructor_id)
+        min_advance_hours = int(getattr(profile, "min_advance_booking_hours", 0) or 0)
+        buffer_minutes = int(getattr(profile, "buffer_time_minutes", 0) or 0)
+        earliest_allowed_local: Optional[datetime] = None
+        earliest_allowed_date: Optional[date] = None
+        earliest_allowed_minutes: Optional[int] = None
+        if min_advance_hours > 0:
+            earliest_allowed_local = get_user_now_by_id(instructor_id, self.db) + timedelta(
+                hours=min_advance_hours
+            )
+            earliest_allowed_local = earliest_allowed_local.replace(second=0, microsecond=0)
+            minutes_since_midnight = (
+                earliest_allowed_local.hour * 60 + earliest_allowed_local.minute
+            )
+            aligned_minutes = (
+                (minutes_since_midnight + slot_minutes - 1) // slot_minutes
+            ) * slot_minutes
+            base_midnight = earliest_allowed_local.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            earliest_allowed_local = base_midnight + timedelta(minutes=aligned_minutes)
+            earliest_allowed_date = earliest_allowed_local.date()
+            earliest_allowed_minutes = (
+                earliest_allowed_local.hour * 60 + earliest_allowed_local.minute
+            )
+
         # Fetch availability windows from bitmap
         bitmap_repo = self._bitmap_repo()
         by_date: dict[date, list[tuple[time, time]]] = {}
@@ -1775,16 +1804,57 @@ class AvailabilityService(BaseService):
                     out.append((dtime(s // 60, s % 60), dtime(e // 60, e % 60)))
             return merge_intervals(out)
 
+        def minutes_from_time(value: time) -> int:
+            return value.hour * 60 + value.minute
+
+        def minutes_to_time(minute_value: int) -> time:
+            clamped = max(0, min(minute_value, (24 * 60) - 1))
+            return dtime(clamped // 60, clamped % 60)
+
+        def expand_booking_interval(start: time, end: time) -> tuple[time, time]:
+            if buffer_minutes <= 0:
+                return start, end
+            start_min = max(0, minutes_from_time(start) - buffer_minutes)
+            end_min = min(24 * 60, minutes_from_time(end) + buffer_minutes)
+            if end_min <= start_min:
+                end_min = min(24 * 60, start_min + slot_minutes)
+            return minutes_to_time(start_min), minutes_to_time(end_min)
+
+        def trim_intervals_for_min_start(
+            intervals: list[tuple[time, time]], min_start_minutes: int
+        ) -> list[tuple[time, time]]:
+            trimmed: list[tuple[time, time]] = []
+            for start, end in intervals:
+                start_min = minutes_from_time(start)
+                end_min = minutes_from_time(end)
+                if end_min <= min_start_minutes:
+                    continue
+                if start_min < min_start_minutes:
+                    start = minutes_to_time(min_start_minutes)
+                trimmed.append((start, end))
+            return trimmed
+
         # Build result
         result: dict[str, list[tuple[time, time]]] = {}
         cur = start_date
         while cur <= end_date:
             bases = merge_intervals(by_date.get(cur, []))
+            booked_rows = self.conflict_repository.get_bookings_for_date(instructor_id, cur)
             booked = [
-                (b.start_time, b.end_time)
-                for b in self.conflict_repository.get_bookings_for_date(instructor_id, cur)
+                expand_booking_interval(b.start_time, b.end_time)
+                for b in booked_rows
+                if b.start_time and b.end_time
             ]
+
             remaining = subtract(bases, booked)
+
+            if earliest_allowed_date:
+                if cur < earliest_allowed_date:
+                    result[cur.isoformat()] = []
+                    cur += timedelta(days=1)
+                    continue
+                if cur == earliest_allowed_date and earliest_allowed_minutes is not None:
+                    remaining = trim_intervals_for_min_start(remaining, earliest_allowed_minutes)
             result[cur.isoformat()] = remaining
             cur += timedelta(days=1)
         return result

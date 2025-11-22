@@ -20,6 +20,8 @@ interface AvailabilitySlot {
   end_time: string;
 }
 
+const SLOT_STEP_MINUTES = 30;
+
 type AvailabilityByDate = Record<string, { date: string; available_slots: AvailabilitySlot[]; is_blackout: boolean }>;
 
 type State = {
@@ -343,7 +345,7 @@ export default function RescheduleTimeSelectionModal({
 
           const requiredMinutes = selectedDurationRef.current ?? 60;
           const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
-            expandDiscreteStarts(slot.start_time, slot.end_time, 60, requiredMinutes)
+            expandDiscreteStarts(slot.start_time, slot.end_time, SLOT_STEP_MINUTES, requiredMinutes)
           );
 
           nextSelectedDate = firstDate;
@@ -427,7 +429,7 @@ export default function RescheduleTimeSelectionModal({
         };
 
         const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
-          expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
+          expandDiscreteStarts(slot.start_time, slot.end_time, SLOT_STEP_MINUTES, selectedDuration)
         );
 
         if (!isMountedRef.current) return;

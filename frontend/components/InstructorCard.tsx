@@ -292,11 +292,13 @@ const findNextAvailableSlot = (
           continue;
         }
 
-        return {
+        const result = {
           date: dateStr,
           time: toHHMM(timeParts.hour, timeParts.minute),
           displayText: formatDisplayText(parsedDate, timeParts.hour, timeParts.minute),
         };
+
+        return result;
       }
     }
 
@@ -311,7 +313,9 @@ const findNextAvailableSlot = (
 
   const nextAvailableSlot = useMemo(() => {
     if (availabilityData?.availabilityByDate) {
-      return findNextAvailableSlot(availabilityData.availabilityByDate, resolvedDurationMinutes);
+      const slot = findNextAvailableSlot(availabilityData.availabilityByDate, resolvedDurationMinutes);
+
+      return slot;
     }
     return null;
   }, [availabilityData, resolvedDurationMinutes]);

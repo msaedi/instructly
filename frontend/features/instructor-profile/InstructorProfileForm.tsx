@@ -34,7 +34,7 @@ function buildInstructorProfilePayload(profile: ProfileFormState): InstructorUpd
     bio: profile.bio.trim(),
     years_experience: Number(profile.years_experience) || 0,
     min_advance_booking_hours: profile.min_advance_booking_hours ?? 2,
-    buffer_time_minutes: Math.round(((profile.buffer_time_hours ?? 0.5) * 60)),
+    buffer_time_minutes: Math.round((profile.buffer_time_hours ?? 0) * 60),
   };
 }
 
@@ -267,7 +267,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           service_area_neighborhoods: neighborhoods,
           years_experience: data['years_experience'] ?? 0,
           min_advance_booking_hours: data['min_advance_booking_hours'] ?? 2,
-          buffer_time_hours: Math.max(0.5, Math.min(24, Number(((data['buffer_time_minutes'] ?? 0) / 60) || 0.5))),
+          buffer_time_hours: Math.max(0, Math.min(24, Number((data['buffer_time_minutes'] ?? 0) / 60))),
         });
 
         const teachingFromApi = Array.isArray(data?.['preferred_teaching_locations'])
@@ -977,14 +977,14 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                       </div>
                       <input
                         type="number"
-                        min={0.5}
+                        min={0}
                         max={24}
                         step={0.5}
                         inputMode="decimal"
-                        value={profile.buffer_time_hours ?? 0.5}
+                        value={profile.buffer_time_hours ?? 0}
                         onChange={(e) => {
-                          const raw = parseFloat(e.target.value || '0.5');
-                          const n = Math.max(0.5, Math.min(24, isNaN(raw) ? 0.5 : raw));
+                          const raw = parseFloat(e.target.value || '0');
+                          const n = Math.max(0, Math.min(24, isNaN(raw) ? 0 : raw));
                           setProfile((p) => ({ ...p, buffer_time_hours: n }));
                         }}
                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 focus:border-purple-500"
