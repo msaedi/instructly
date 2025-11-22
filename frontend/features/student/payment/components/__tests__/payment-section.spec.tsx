@@ -147,7 +147,7 @@ const { mockPreviewController } = jest.requireMock('../../hooks/usePricingPrevie
   mockPreviewController: MockPreviewController;
 };
 
-jest.mock('../../hooks/useCredits', () => ({
+jest.mock('@/features/shared/payment/hooks/useCredits', () => ({
   useCredits: jest.fn(() => ({
     data: { available: 45, expires_at: null, pending: 0 },
     isLoading: false,

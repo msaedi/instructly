@@ -19,7 +19,7 @@ import { protectedApi, type Booking } from '@/features/shared/api/client';
 import { ApiProblemError } from '@/lib/api/fetch';
 import { PricingPreviewContext, usePricingPreviewController, type PreviewCause } from '../hooks/usePricingPreview';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
-import { useCredits } from '../hooks/useCredits';
+import { useCredits } from '@/features/shared/payment/hooks/useCredits';
 import { buildCreateBookingPayload } from '../utils/buildCreateBookingPayload';
 import {
   buildPricingPreviewQuotePayload,

@@ -11,7 +11,7 @@ import { paymentService } from '@/services/api/payments';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import PaymentMethods from '@/components/student/PaymentMethods';
-import { useCredits } from '@/features/student/payment/hooks/useCredits';
+import { useCredits } from '@/features/shared/payment/hooks/useCredits';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 
