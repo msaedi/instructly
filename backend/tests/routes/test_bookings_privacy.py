@@ -5,6 +5,8 @@ from datetime import date, timedelta
 from backend.tests._utils.bitmap_avail import seed_day
 import pytest
 
+from app.models.booking import Booking
+
 
 @pytest.fixture(autouse=True)
 def _seed_availability_for_privacy_tests(db, test_instructor):
@@ -26,6 +28,13 @@ def _no_min_advance_requirement(db, test_instructor):
         profile.min_advance_booking_hours = 0
         db.add(profile)
         db.commit()
+
+
+@pytest.fixture(autouse=True)
+def _reset_bookings_for_privacy_tests(db, test_instructor):
+    """Ensure prior tests don't leave overlapping bookings for this instructor."""
+    db.query(Booking).filter(Booking.instructor_id == test_instructor.id).delete()
+    # No commit needed - pytest handles transaction rollback
 
 
 @pytest.fixture(autouse=True)

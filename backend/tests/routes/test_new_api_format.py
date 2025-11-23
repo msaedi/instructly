@@ -21,6 +21,8 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.models.booking import Booking
+
 
 @pytest.fixture(autouse=True)
 def _no_price_floors(disable_price_floors):
@@ -47,6 +49,13 @@ def _zero_min_advance_for_new_api(db: Session, test_instructor_with_availability
         profile.min_advance_booking_hours = 0
         db.add(profile)
         db.commit()
+
+
+@pytest.fixture(autouse=True)
+def _reset_bookings_for_new_api_tests(db: Session, test_instructor_with_availability):
+    """Remove leftover bookings so availability/min-advance rules aren't tripped."""
+    db.query(Booking).filter(Booking.instructor_id == test_instructor_with_availability.id).delete()
+    # No commit needed - pytest handles transaction rollback
 
 
 class TestBookingRoutesNewFormat:

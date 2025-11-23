@@ -653,6 +653,9 @@ async def get_booking_details(
                 payment_repo=payment_repo,
                 review_tip_repo=tip_repo,
             )
+            # Convert to dict to avoid Pydantic validation issues when STRICT_SCHEMAS is enabled
+            if payment_summary:
+                payment_summary = payment_summary.model_dump()
 
         return BookingResponse.from_booking(booking, payment_summary=payment_summary)
     except DomainException as e:

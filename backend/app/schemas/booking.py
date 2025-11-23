@@ -12,7 +12,13 @@ from datetime import date, datetime, time, timedelta
 import re
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
@@ -352,12 +358,24 @@ class BookingResponse(BookingBase):
     Clean Architecture: No availability slot references.
     """
 
+    model_config = ConfigDict(from_attributes=True, validate_assignment=False)
+
     student: StudentInfo  # Students see their own full info
     instructor: InstructorInfo  # Privacy-aware: only has last_initial
     instructor_service: ServiceInfo
     # Minimal info to display "Rescheduled from ..." on detail page
     rescheduled_from: Optional["RescheduledFromInfo"] = None
     payment_summary: Optional[PaymentSummary] = None
+
+    @field_validator("payment_summary", mode="before")
+    @classmethod
+    def _validate_payment_summary(cls, v: Any) -> Any:
+        """Ensure payment_summary accepts both dict and PaymentSummary instances."""
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return PaymentSummary(**v)
+        return v
 
     @classmethod
     def from_booking(
