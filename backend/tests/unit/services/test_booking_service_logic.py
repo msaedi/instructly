@@ -9,7 +9,7 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 UPDATED FOR WORK STREAM #11: Time-based booking (no slot IDs).
 """
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -34,6 +34,8 @@ from app.repositories.booking_repository import BookingRepository
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
 from app.utils.bitset import bits_from_windows
+
+REAL_DATETIME = datetime
 
 
 @pytest.fixture(autouse=True)
@@ -329,6 +331,108 @@ class TestBookingServiceUnit:
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
             await booking_service.create_booking(
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
+            )
+
+    def _freeze_time(self, monkeypatch: pytest.MonkeyPatch, target: datetime) -> None:
+        class _FixedDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                if tz:
+                    return target.astimezone(tz)
+                if target.tzinfo:
+                    return target.replace(tzinfo=None)
+                return target
+
+            @classmethod
+            def combine(cls, *args, **kwargs):
+                return REAL_DATETIME.combine(*args, **kwargs)
+
+        monkeypatch.setattr("app.services.booking_service.datetime", _FixedDateTime)
+
+    @pytest.mark.asyncio
+    async def test_advance_notice_respects_instructor_timezone(
+        self,
+        booking_service,
+        mock_student,
+        mock_service,
+        mock_instructor_profile,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        mock_instructor_profile.min_advance_booking_hours = 1
+        if not hasattr(mock_instructor_profile, "user") or mock_instructor_profile.user is None:
+            mock_instructor_profile.user = Mock()
+        mock_instructor_profile.user.timezone = "America/New_York"
+
+        self._freeze_time(monkeypatch, datetime(2025, 11, 23, 1, 51, 46, tzinfo=timezone.utc))
+
+        booking_service.repository.check_time_conflict.return_value = False
+        booking_service.repository.check_student_time_conflict.return_value = []
+
+        first_booking = BookingCreate(
+            instructor_id=mock_instructor_profile.user_id,
+            instructor_service_id=mock_service.id,
+            booking_date=date(2025, 11, 22),
+            start_time=time(22, 0),
+            end_time=time(22, 30),
+            selected_duration=30,
+        )
+
+        await booking_service._check_conflicts_and_rules(
+            first_booking,
+            mock_service,
+            mock_instructor_profile,
+            mock_student,
+        )
+
+        second_booking = BookingCreate(
+            instructor_id=mock_instructor_profile.user_id,
+            instructor_service_id=mock_service.id,
+            booking_date=date(2025, 11, 22),
+            start_time=time(23, 0),
+            end_time=time(23, 30),
+            selected_duration=30,
+        )
+
+        await booking_service._check_conflicts_and_rules(
+            second_booking,
+            mock_service,
+            mock_instructor_profile,
+            mock_student,
+        )
+
+    @pytest.mark.asyncio
+    async def test_advance_notice_blocks_too_close_booking(
+        self,
+        booking_service,
+        mock_student,
+        mock_service,
+        mock_instructor_profile,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        mock_instructor_profile.min_advance_booking_hours = 1
+        if not hasattr(mock_instructor_profile, "user") or mock_instructor_profile.user is None:
+            mock_instructor_profile.user = Mock()
+        mock_instructor_profile.user.timezone = "America/New_York"
+
+        self._freeze_time(monkeypatch, datetime(2025, 11, 23, 1, 51, 46, tzinfo=timezone.utc))
+
+        too_close_booking = BookingCreate(
+            instructor_id=mock_instructor_profile.user_id,
+            instructor_service_id=mock_service.id,
+            booking_date=date(2025, 11, 22),
+            start_time=time(21, 0),
+            end_time=time(21, 30),
+            selected_duration=30,
+        )
+
+        with pytest.raises(
+            BusinessRuleException, match="Bookings must be made at least 1 hours in advance"
+        ):
+            await booking_service._check_conflicts_and_rules(
+                too_close_booking,
+                mock_service,
+                mock_instructor_profile,
+                mock_student,
             )
 
     @pytest.mark.asyncio

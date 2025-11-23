@@ -1555,20 +1555,32 @@ class BookingService(BaseService):
         # Check minimum advance booking time
         # For instructors with >=24 hour min advance, enforce on date granularity to avoid HH:MM boundary flakiness
         min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
+        user = getattr(instructor_profile, "user", None)
+        tz_name = getattr(user, "timezone", None) or "America/New_York"
+        try:
+            instructor_zone = ZoneInfo(tz_name)
+        except Exception:
+            instructor_zone = ZoneInfo("America/New_York")
+
+        now_utc = datetime.now(timezone.utc)
+
         if min_advance_hours >= 24:
             required_days = min_advance_hours // 24
-            today = datetime.now(timezone.utc).date()
-            min_date = today + timedelta(days=required_days)
+            local_now = now_utc.astimezone(instructor_zone)
+            min_date = local_now.date() + timedelta(days=required_days)
             if booking_data.booking_date < min_date:
                 raise BusinessRuleException(
                     f"Bookings must be made at least {min_advance_hours} hours in advance"
                 )
         else:
-            booking_datetime = datetime.combine(
-                booking_data.booking_date, booking_data.start_time, tzinfo=timezone.utc
+            booking_local = datetime.combine(
+                booking_data.booking_date,
+                booking_data.start_time,
+                tzinfo=instructor_zone,
             )
-            min_booking_time = datetime.now(timezone.utc) + timedelta(hours=min_advance_hours)
-            if booking_datetime < min_booking_time:
+            booking_datetime_utc = booking_local.astimezone(timezone.utc)
+            min_booking_time = now_utc + timedelta(hours=min_advance_hours)
+            if booking_datetime_utc < min_booking_time:
                 raise BusinessRuleException(
                     f"Bookings must be made at least {min_advance_hours} hours in advance"
                 )

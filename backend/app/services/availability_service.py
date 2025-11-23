@@ -1825,13 +1825,18 @@ class AvailabilityService(BaseService):
         ) -> list[tuple[time, time]]:
             trimmed: list[tuple[time, time]] = []
             for start, end in intervals:
-                start_min = minutes_from_time(start)
-                end_min = minutes_from_time(end)
+                start_min, end_min = self._minutes_range(start, end)
                 if end_min <= min_start_minutes:
                     continue
                 if start_min < min_start_minutes:
-                    start = minutes_to_time(min_start_minutes)
-                trimmed.append((start, end))
+                    start_min = min_start_minutes
+
+                new_start = minutes_to_time(start_min)
+                if end_min >= 24 * 60:
+                    new_end = dtime(0, 0)
+                else:
+                    new_end = minutes_to_time(end_min)
+                trimmed.append((new_start, new_end))
             return trimmed
 
         # Build result
