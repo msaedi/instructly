@@ -120,7 +120,9 @@ class TestStudentConflictValidation:
     @pytest.fixture
     def mock_availability_repository(self):
         """Create a mock availability repository."""
-        return Mock()
+        repo = Mock()
+        repo.get_day_bits = Mock(return_value=b"\xff\xff\xff\xff\xff\xff")
+        return repo
 
     @pytest.fixture
     def mock_conflict_checker_repository(self):

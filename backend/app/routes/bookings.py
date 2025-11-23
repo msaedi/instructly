@@ -531,7 +531,9 @@ async def create_booking(
 
         # Build response with SetupIntent details
         setup_intent_client_secret = getattr(booking, "setup_intent_client_secret", None)
-        response = BookingCreateResponse.from_booking(booking, setup_intent_client_secret)
+        response = BookingCreateResponse.from_booking(
+            booking, setup_intent_client_secret=setup_intent_client_secret
+        )
 
         return response
     except DomainException as e:

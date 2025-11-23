@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Step4Verification from '@/app/(auth)/instructor/onboarding/verification/page';
 import { toast } from 'sonner';
 
@@ -65,6 +66,11 @@ jest.mock('@/features/shared/hooks/useAuth', () => {
   };
 });
 
+const renderWithClient = (ui: ReactNode) => {
+  const queryClient = new QueryClient();
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+};
+
 describe('Verification page', () => {
   beforeEach(() => {
     mockPush.mockClear();
@@ -95,7 +101,7 @@ describe('Verification page', () => {
   });
 
   it('renders background check step and no upload UI', async () => {
-    render(<Step4Verification />);
+    renderWithClient(<Step4Verification />);
 
     await waitFor(() => expect(screen.getByTestId('bgc-step')).toBeInTheDocument());
     expect(screen.queryByText(/choose file/i)).not.toBeInTheDocument();
@@ -103,7 +109,7 @@ describe('Verification page', () => {
 
   it('navigates back to status when coming from status', async () => {
     currentSearchParams = new URLSearchParams('from=status');
-    render(<Step4Verification />);
+    renderWithClient(<Step4Verification />);
 
     await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
@@ -111,7 +117,7 @@ describe('Verification page', () => {
   });
 
   it('navigates to payment setup by default', async () => {
-    render(<Step4Verification />);
+    renderWithClient(<Step4Verification />);
 
     await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled());
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
@@ -120,7 +126,7 @@ describe('Verification page', () => {
 
   it('refreshes identity and shows toast when returning from Stripe', async () => {
     currentSearchParams = new URLSearchParams('identity_return=true');
-    render(<Step4Verification />);
+    renderWithClient(<Step4Verification />);
 
     await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith('/api/payments/identity/refresh', { method: 'POST' }));
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification'));

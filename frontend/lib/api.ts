@@ -212,7 +212,7 @@ export const API_ENDPOINTS = {
 
   // Instructor endpoints
   INSTRUCTORS: '/instructors',
-  INSTRUCTOR_PROFILE: '/instructors/me',
+  INSTRUCTOR_PROFILE: '/api/instructors/me',
   // Onboarding helpers
   NYC_ZIP_CHECK: '/api/addresses/zip/is-nyc',
   STRIPE_IDENTITY_SESSION: '/api/payments/identity/session',

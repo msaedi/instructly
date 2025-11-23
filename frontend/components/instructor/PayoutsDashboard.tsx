@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   DollarSign,
   TrendingUp,
@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
 import { paymentService } from '@/services/api/payments';
+import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import type { EarningsResponse } from '@/services/api/payments';
 
 interface PayoutsDashboardProps {
@@ -30,6 +31,19 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openingDashboard, setOpeningDashboard] = useState(false);
+  const { config: pricingConfig } = usePricingConfig();
+  const platformFeePct = useMemo(() => {
+    const tiers = pricingConfig?.instructor_tiers ?? [];
+    if (!tiers.length) return null;
+    const sorted = [...tiers].sort((a, b) => (a.min ?? 0) - (b.min ?? 0));
+    const pct = sorted[0]?.pct;
+    return typeof pct === 'number' ? pct : null;
+  }, [pricingConfig]);
+  const platformFeeLabel = useMemo(() => {
+    if (platformFeePct == null) return null;
+    const percent = platformFeePct * 100;
+    return percent % 1 === 0 ? `${percent.toFixed(0)}%` : `${percent.toFixed(1)}%`;
+  }, [platformFeePct]);
 
   // Load earnings data
   useEffect(() => {
@@ -153,7 +167,7 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => 
                     {formatCurrency(earnings.total_fees)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    15% service fee
+                    {platformFeeLabel ? `${platformFeeLabel} service fee` : 'Platform fees withheld'}
                   </p>
                 </div>
                 <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
@@ -253,9 +267,10 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => 
             <DollarSign className="h-5 w-5 text-gray-400 mt-0.5" />
             <div>
               <p className="font-medium text-gray-900">Platform Fee Structure</p>
-              <p className="text-sm text-gray-600">
-                iNSTAiNSTRU charges a 15% service fee on each booking. This covers payment processing, platform maintenance, and customer support.
-              </p>
+        <p className="text-sm text-gray-600">
+          iNSTAiNSTRU charges a {platformFeeLabel ?? 'standard'} service fee on each booking. This covers payment
+          processing, platform maintenance, and customer support.
+        </p>
             </div>
           </div>
 

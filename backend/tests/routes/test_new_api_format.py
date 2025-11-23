@@ -33,6 +33,22 @@ def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _zero_min_advance_for_new_api(db: Session, test_instructor_with_availability):
+    """Ensure new API format tests are not blocked by min advance enforcement."""
+    from app.models.instructor import InstructorProfile
+
+    profile = (
+        db.query(InstructorProfile)
+        .filter(InstructorProfile.user_id == test_instructor_with_availability.id)
+        .first()
+    )
+    if profile:
+        profile.min_advance_booking_hours = 0
+        db.add(profile)
+        db.commit()
+
+
 class TestBookingRoutesNewFormat:
     """Test booking endpoints with new time-based format."""
 

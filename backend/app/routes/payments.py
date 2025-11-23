@@ -15,6 +15,7 @@ Key Features:
 """
 
 from datetime import datetime, timezone
+from decimal import Decimal
 import logging
 from typing import Any, Dict, List, Optional, cast
 from urllib.parse import ParseResult, parse_qsl, urlencode, urljoin, urlparse
@@ -44,6 +45,7 @@ from ..schemas.payment_schemas import (
     IdentityRefreshResponse,
     IdentitySessionResponse,
     InstantPayoutResponse,
+    InstructorInvoiceSummary,
     OnboardingResponse,
     OnboardingStatusResponse,
     PaymentMethodResponse,
@@ -1024,13 +1026,90 @@ async def get_instructor_earnings(
         # Get earnings data (using instructor user ID for now)
         earnings = stripe_service.get_instructor_earnings(current_user.id)
 
+        payment_repo = stripe_service.payment_repository
+        pricing_config, _ = stripe_service.config_service.get_pricing_config()
+        tip_repo = ReviewTipRepository(db)
+        instructor_payments = payment_repo.get_instructor_payment_history(
+            instructor_id=current_user.id,
+            limit=100,
+        )
+
+        def _money_to_cents(value: Optional[Any]) -> int:
+            if value is None:
+                return 0
+            try:
+                return int((Decimal(value) * Decimal("100")).quantize(Decimal("1")))
+            except Exception:
+                return 0
+
+        invoices: List[InstructorInvoiceSummary] = []
+        total_minutes = 0
+
+        for payment in instructor_payments:
+            booking = payment.booking
+            if not booking:
+                continue
+
+            minutes = int(getattr(booking, "duration_minutes", 0) or 0)
+            total_minutes += minutes
+
+            student = getattr(booking, "student", None)
+            student_name = None
+            if student:
+                last_initial = (student.last_name or "").strip()[:1]
+                student_name = (
+                    f"{student.first_name} {last_initial}." if last_initial else student.first_name
+                )
+
+            try:
+                summary = build_student_payment_summary(
+                    booking=booking,
+                    pricing_config=pricing_config,
+                    payment_repo=payment_repo,
+                    review_tip_repo=tip_repo,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to build instructor invoice summary for booking %s: %s",
+                    getattr(booking, "id", "unknown"),
+                    exc,
+                )
+                summary = None
+
+            total_paid_cents = int(payment.amount or 0)
+            tip_cents = _money_to_cents(summary.tip_paid if summary else None)
+
+            invoices.append(
+                InstructorInvoiceSummary(
+                    booking_id=booking.id,
+                    lesson_date=booking.booking_date,
+                    start_time=booking.start_time,
+                    service_name=booking.service_name,
+                    student_name=student_name,
+                    duration_minutes=minutes or None,
+                    total_paid_cents=total_paid_cents,
+                    tip_cents=tip_cents,
+                    instructor_share_cents=max(
+                        0,
+                        int(payment.amount or 0) - int(payment.application_fee or 0),
+                    ),
+                    status="paid" if payment.status == "succeeded" else payment.status,
+                    created_at=payment.created_at,
+                )
+            )
+
+        hours_invoiced = total_minutes / 60.0 if total_minutes else 0.0
+
         response_payload = {
             "total_earned": earnings.get("total_earned"),
             "total_fees": earnings.get("total_fees"),
             "booking_count": earnings.get("booking_count"),
             "average_earning": earnings.get("average_earning"),
+            "hours_invoiced": hours_invoiced,
+            "service_count": len(instructor_payments),
             "period_start": earnings.get("period_start"),
             "period_end": earnings.get("period_end"),
+            "invoices": invoices,
         }
 
         return EarningsResponse(**model_filter(EarningsResponse, response_payload))

@@ -6,7 +6,7 @@ import { publicApi } from '@/features/shared/api/client';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
-import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { evaluatePriceFloorViolations, formatCents, type FloorViolation } from '@/lib/pricing/priceFloors';
 
 type CatalogService = { id: string; name: string };
@@ -35,11 +35,25 @@ export default function SkillsPricingInline({ className }: Props) {
   const [svcLoading, setSvcLoading] = useState(false);
   const [svcSaving, setSvcSaving] = useState(false);
   const [error, setError] = useState('');
-  const { floors: pricingFloors } = usePricingFloors();
+  const { config: pricingConfig } = usePricingConfig();
+  const pricingFloors = pricingConfig?.price_floor_cents ?? null;
   const [skillsFilter, setSkillsFilter] = useState('');
   const [requestedSkill, setRequestedSkill] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
+  const entryTierPct = useMemo(() => {
+    const tiers = pricingConfig?.instructor_tiers ?? [];
+    if (!tiers.length) return null;
+    const sorted = [...tiers].sort((a, b) => (a.min ?? 0) - (b.min ?? 0));
+    const pct = sorted[0]?.pct;
+    return typeof pct === 'number' ? pct : null;
+  }, [pricingConfig]);
+  const instructorTakeHomePct = entryTierPct != null ? 1 - entryTierPct : null;
+  const platformFeeLabel = useMemo(() => {
+    if (entryTierPct == null) return null;
+    const percent = entryTierPct * 100;
+    return percent % 1 === 0 ? `${percent.toFixed(0)}%` : `${percent.toFixed(1)}%`;
+  }, [entryTierPct]);
 
   const serviceFloorViolations = useMemo(() => {
     const map = new Map<string, FloorViolation[]>();
@@ -412,7 +426,17 @@ export default function SkillsPricingInline({ className }: Props) {
                   </div>
                   {s.hourly_rate && Number(s.hourly_rate) > 0 && (
                     <div className="mt-2 text-xs text-gray-600">
-                      You&apos;ll earn <span className="font-semibold text-[#7E22CE]">${(Number(s.hourly_rate) * 0.85).toFixed(2)}</span> after the 15% platform fee
+                      {instructorTakeHomePct != null ? (
+                        <>
+                          You&apos;ll earn{' '}
+                          <span className="font-semibold text-[#7E22CE]">
+                            ${(Number(s.hourly_rate) * instructorTakeHomePct).toFixed(2)}
+                          </span>{' '}
+                          after the {platformFeeLabel ?? 'platform'} fee
+                        </>
+                      ) : (
+                        <>Platform fee details will appear once pricing config loads.</>
+                      )}
                     </div>
                   )}
                 </div>

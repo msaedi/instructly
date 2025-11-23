@@ -12,7 +12,7 @@ endpoints in instructors.py.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -21,7 +21,7 @@ from app.api.dependencies import get_current_active_user
 from app.api.dependencies.auth import require_beta_access
 from app.core.enums import PermissionName
 from app.database import get_db
-from app.models.booking import BookingStatus
+from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
 from app.schemas.base_responses import PaginatedResponse
@@ -29,10 +29,9 @@ from app.schemas.booking import BookingResponse
 from app.services.badge_award_service import BadgeAwardService
 from app.services.permission_service import PermissionService
 
-router = APIRouter(
-    prefix="/instructors/bookings",
-    tags=["instructor-bookings"],
-)
+router = APIRouter(prefix="/instructors/bookings", tags=["instructor-bookings"])
+# Mirror routes under /api for environments that mount the backend behind that prefix
+api_router = APIRouter(prefix="/api", tags=["instructor-bookings"])
 
 
 def check_permission(user: User, permission: PermissionName, db: Session) -> None:
@@ -43,6 +42,27 @@ def check_permission(user: User, permission: PermissionName, db: Session) -> Non
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"User does not have required permission: {permission}",
         )
+
+
+def _paginate_bookings(
+    bookings: List[Booking],
+    *,
+    page: int,
+    per_page: int,
+) -> PaginatedResponse[BookingResponse]:
+    total = len(bookings)
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated = bookings[start:end]
+
+    return PaginatedResponse(
+        items=[BookingResponse.from_booking(b) for b in paginated],
+        total=total,
+        page=page,
+        per_page=per_page,
+        has_next=end < total,
+        has_prev=page > 1,
+    )
 
 
 @router.post(
@@ -74,6 +94,8 @@ async def mark_lesson_complete(
         404: Booking not found
         422: Booking cannot be marked complete (wrong status, not instructor's booking)
     """
+    # NOTE: This route is currently the only mechanism that transitions a booking
+    # from CONFIRMED to COMPLETED. Automated completion has not been implemented yet.
     # Check permission
     check_permission(current_user, PermissionName.COMPLETE_BOOKINGS, db)
 
@@ -174,42 +196,72 @@ async def get_pending_completion_bookings(
     - Are confirmed status
     - Have ended (based on date/time)
     - Haven't been marked complete yet
-
-    Returns:
-        List of bookings pending completion
     """
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
 
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
-    # Get instructor's confirmed bookings
     bookings = booking_repo.get_instructor_bookings(
         instructor_id=current_user.id, status=BookingStatus.CONFIRMED
     )
 
-    # Filter to only past lessons
     now = datetime.now(timezone.utc)
-    pending_bookings = []
+    pending_bookings = [
+        booking
+        for booking in bookings
+        if datetime.combine(booking.booking_date, booking.end_time) <= now
+    ]
 
-    for booking in bookings:
-        lesson_end = datetime.combine(booking.booking_date, booking.end_time)
-        if lesson_end <= now:
-            pending_bookings.append(booking)
+    return _paginate_bookings(pending_bookings, page=page, per_page=per_page)
 
-    # Calculate pagination
-    total = len(pending_bookings)
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated_bookings = pending_bookings[start:end]
 
-    # Return paginated response
-    return PaginatedResponse(
-        items=[BookingResponse.from_booking(b) for b in paginated_bookings],
-        total=total,
+@router.get(
+    "/",
+    response_model=PaginatedResponse[BookingResponse],
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
+async def list_instructor_bookings(
+    status: Optional[BookingStatus] = Query(
+        None, description="Filter by booking status (COMPLETED, CONFIRMED, etc.)"
+    ),
+    upcoming: bool = Query(False, description="Only include upcoming confirmed bookings"),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    include_past_confirmed: bool = False,
+) -> PaginatedResponse[BookingResponse]:
+    check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
+    booking_repo = RepositoryFactory.get_booking_repository(db)
+
+    bookings = booking_repo.get_instructor_bookings(
+        instructor_id=current_user.id,
+        status=status,
+        upcoming_only=upcoming,
+        include_past_confirmed=include_past_confirmed,
+    )
+    return _paginate_bookings(bookings, page=page, per_page=per_page)
+
+
+@router.get(
+    "/upcoming",
+    response_model=PaginatedResponse[BookingResponse],
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
+async def get_upcoming_bookings(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> PaginatedResponse[BookingResponse]:
+    """Return instructor's upcoming confirmed bookings."""
+    return await list_instructor_bookings(
+        status=BookingStatus.CONFIRMED,
+        upcoming=True,
         page=page,
         per_page=per_page,
-        has_next=end < total,
-        has_prev=page > 1,
+        db=db,
+        current_user=current_user,
     )
 
 
@@ -234,28 +286,14 @@ async def get_completed_bookings(
     Returns:
         List of completed bookings
     """
-    check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
-
-    booking_repo = RepositoryFactory.get_booking_repository(db)
-
-    # Calculate pagination
-    offset = (page - 1) * per_page
-
-    all_bookings = booking_repo.get_instructor_bookings(
-        instructor_id=current_user.id, status=BookingStatus.COMPLETED
-    )
-    total = len(all_bookings)
-
-    bookings = all_bookings[offset : offset + per_page]
-
-    # Return paginated response
-    return PaginatedResponse(
-        items=[BookingResponse.from_booking(b) for b in bookings],
-        total=total,
+    return await list_instructor_bookings(
+        status=BookingStatus.COMPLETED,
+        upcoming=False,
         page=page,
         per_page=per_page,
-        has_next=page * per_page < total,
-        has_prev=page > 1,
+        db=db,
+        current_user=current_user,
+        include_past_confirmed=True,
     )
 
 
@@ -320,3 +358,6 @@ async def dispute_completion(
     # Return the updated booking
     db.refresh(booking)
     return BookingResponse.from_booking(booking)
+
+
+api_router.include_router(router)  # type: ignore[attr-defined]

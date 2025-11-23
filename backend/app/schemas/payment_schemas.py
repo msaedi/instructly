@@ -6,7 +6,7 @@ including customer management, connected accounts, payment methods,
 and payment processing.
 """
 
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -264,6 +264,25 @@ class DeleteResponse(StrictModel):
     success: bool = Field(..., description="Whether deletion was successful")
 
 
+class InstructorInvoiceSummary(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    """Summary of an instructor invoice/payment."""
+
+    booking_id: str = Field(..., description="Associated booking ID")
+    lesson_date: date = Field(..., description="Date of the lesson")
+    start_time: Optional[time] = Field(None, description="Lesson start time")
+    service_name: Optional[str] = Field(None, description="Name of the service taught")
+    student_name: Optional[str] = Field(None, description="Student name (privacy aware)")
+    duration_minutes: Optional[int] = Field(None, description="Duration of the lesson in minutes")
+    total_paid_cents: int = Field(..., description="Total amount paid by the student in cents")
+    tip_cents: int = Field(..., description="Tip amount included with the payment in cents")
+    instructor_share_cents: int = Field(
+        ..., description="Net payout to the instructor after fees (in cents)"
+    )
+    status: str = Field(..., description="Invoice/payment status")
+    created_at: datetime = Field(..., description="When the payment was completed")
+
+
 class EarningsResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for earnings data."""
@@ -272,5 +291,14 @@ class EarningsResponse(StrictModel):
     total_fees: Optional[int] = Field(None, description="Total fees in cents")
     booking_count: Optional[int] = Field(None, description="Number of bookings")
     average_earning: Optional[float] = Field(None, description="Average earning per booking")
+    hours_invoiced: Optional[float] = Field(
+        None, description="Total hours invoiced for completed lessons"
+    )
+    service_count: Optional[int] = Field(
+        None, description="Number of completed services contributing to earnings"
+    )
+    invoices: List[InstructorInvoiceSummary] = Field(
+        default_factory=list, description="Recent invoices contributing to earnings"
+    )
     period_start: Optional[datetime] = Field(None, description="Start of period")
     period_end: Optional[datetime] = Field(None, description="End of period")

@@ -67,6 +67,7 @@ from ..services.stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/instructors", tags=["instructors"])
+api_router = APIRouter(prefix="/api", tags=["instructors"])
 
 
 @router.get(
@@ -435,3 +436,6 @@ async def get_instructor_coverage(
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
     )
+
+
+api_router.include_router(router)  # type: ignore[attr-defined]

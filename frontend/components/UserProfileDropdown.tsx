@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { User, Calendar, LogOut, ChevronDown, AlertCircle, Gift } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { createPortal } from 'react-dom';
 import { RoleName } from '@/types/enums';
 import { UserAvatar } from '@/components/user/UserAvatar';
-import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 
 interface UserProfileDropdownProps {
   hideDashboardItem?: boolean;
@@ -20,9 +20,28 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
   const [isMounted, setIsMounted] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const [isMobileViewport] = useState(false);
-  const [instructorOnboardingComplete, setInstructorOnboardingComplete] = useState(true);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const isInstructor = (user?.roles || []).includes(RoleName.INSTRUCTOR);
+  const { data: instructorProfile } = useInstructorProfileMe(isInstructor && isMounted);
+  const instructorOnboardingComplete = useMemo(() => {
+    if (!isInstructor) return true;
+    if (!instructorProfile) return false;
+    const services = Array.isArray(instructorProfile.services) ? instructorProfile.services : [];
+    const stripeEnabled = Boolean(
+      (instructorProfile as { stripe_connect_enabled?: boolean }).stripe_connect_enabled
+    );
+    const identityVerified =
+      Boolean((instructorProfile as { identity_verified_at?: string | null }).identity_verified_at) ||
+      Boolean(
+        (instructorProfile as { identity_verification_session_id?: string | null })
+          .identity_verification_session_id
+      );
+    return (
+      instructorProfile.is_live === true ||
+      (stripeEnabled && identityVerified && services.length > 0)
+    );
+  }, [instructorProfile, isInstructor]);
 
 
 
@@ -32,32 +51,6 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
   }, []);
 
   // No-op viewport effect (reverted to desktop-style dropdown only)
-
-  // Check instructor onboarding status
-  useEffect(() => {
-    const checkOnboardingStatus = async () => {
-      if (user && (user.roles || []).includes(RoleName.INSTRUCTOR)) {
-        try {
-          const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-          if (response.ok) {
-            const profile = await response.json();
-            // Check if all onboarding steps are complete
-            const isComplete =
-              profile.is_live === true ||
-              (profile.stripe_connect_enabled === true &&
-               profile.identity_verified_at !== null &&
-               profile.services && profile.services.length > 0);
-            setInstructorOnboardingComplete(isComplete);
-          }
-        } catch {
-          // If we can't fetch profile, assume onboarding incomplete
-          setInstructorOnboardingComplete(false);
-        }
-      }
-    };
-
-    void checkOnboardingStatus();
-  }, [user]);
 
   // Calculate dropdown position and handle open/close side-effects
   useEffect(() => {

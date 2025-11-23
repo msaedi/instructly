@@ -73,8 +73,25 @@ export interface EarningsResponse {
   total_fees: number;
   booking_count: number;
   average_earning: number;
+  hours_invoiced?: number;
+  service_count?: number;
   period_start?: string;
   period_end?: string;
+  invoices?: InstructorInvoice[];
+}
+
+export interface InstructorInvoice {
+  booking_id: string;
+  lesson_date: string;
+  start_time?: string | null;
+  service_name?: string | null;
+  student_name?: string | null;
+  duration_minutes?: number | null;
+  total_paid_cents: number;
+  tip_cents: number;
+  instructor_share_cents: number;
+  status: string;
+  created_at: string;
 }
 
 class PaymentService {

@@ -20,9 +20,9 @@ import Modal from '@/components/Modal';
 import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Bell, Menu, X, ChevronDown } from 'lucide-react';
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 import { getCurrentWeekRange } from '@/types/common';
-import { protectedApi } from '@/features/shared/api/client';
+import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
 import EditProfileModal from '@/components/modals/EditProfileModal';
-import { fetchWithAuth, API_ENDPOINTS, getConnectStatus, createStripeIdentitySession, createSignedUpload } from '@/lib/api';
+import { getConnectStatus, createStripeIdentitySession, createSignedUpload, fetchWithAuth } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import { InstructorProfile } from '@/types/instructor';
@@ -32,6 +32,9 @@ import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { httpPut } from '@/features/shared/api/http';
 import { messageService } from '@/services/messageService';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
+import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
+import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
@@ -130,7 +133,7 @@ export default function InstructorDashboardNew() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [profile, setProfile] = useState<InstructorProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isHydratingProfile, setIsHydratingProfile] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editVariant] = useState<'about' | 'areas' | 'services' | 'full'>('full');
@@ -152,6 +155,7 @@ export default function InstructorDashboardNew() {
       setActivePanelState((prev) => (prev === 'dashboard' ? prev : 'dashboard'));
     }
   }, [searchParams]);
+
   const handlePanelChange = useCallback(
     (panel: DashboardPanel, options?: { replace?: boolean }) => {
       setActivePanelState(panel);
@@ -338,10 +342,31 @@ export default function InstructorDashboardNew() {
   const [serviceAreaSelections, setServiceAreaSelections] = useState<NeighborhoodSelection[]>([]);
   const [preferredTeachingLocations, setPreferredTeachingLocations] = useState<PreferredTeachingLocation[]>([]);
   const [preferredPublicSpaces, setPreferredPublicSpaces] = useState<PreferredPublicSpace[]>([]);
-  const [bookedMinutes, setBookedMinutes] = useState(0);
-  const [hasUpcomingBookings, setHasUpcomingBookings] = useState<boolean | null>(null);
-  const [upcomingBookingsCount, setUpcomingBookingsCount] = useState<number>(0);
-  const [completedBookingsCount, setCompletedBookingsCount] = useState<number>(0);
+  const {
+    data: instructorProfile,
+    isLoading: isProfileLoading,
+    error: profileQueryError,
+    refetch: refetchInstructorProfile,
+  } = useInstructorProfileMe(true);
+  const { data: serviceAreaResponse } = useInstructorServiceAreas(Boolean(instructorProfile));
+  const {
+    data: earningsSummary,
+    isLoading: isEarningsPending,
+  } = useInstructorEarnings(Boolean(instructorProfile));
+  const isLoading = isProfileLoading || isHydratingProfile;
+  const isEarningsLoading = isEarningsPending && !earningsSummary;
+  useEffect(() => {
+    if (profileQueryError) {
+      setError(profileQueryError.message);
+    }
+  }, [profileQueryError]);
+
+  useEffect(() => {
+    const status = (profileQueryError as Error & { status?: number })?.status;
+    if (status === 401) {
+      router.push('/login?redirect=/instructor/dashboard');
+    }
+  }, [profileQueryError, router]);
   const { data: ratingsData } = useInstructorRatingsQuery(profile?.user_id ?? '');
   const reviewCount = ratingsData?.overall?.total_reviews ?? 0;
   const reviewAverageDisplay =
@@ -359,117 +384,8 @@ export default function InstructorDashboardNew() {
   const [bgFileInfo, setBgFileInfo] = useState<{ name: string; size: number } | null>(null);
   // Optional items removed; no longer used
 
-  const fetchProfile = useCallback(async () => {
-    try {
-      logger.info('Fetching instructor profile');
-      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-
-      if (response.status === 401) {
-        logger.warn('Not authenticated, redirecting to login');
-        router.push('/login?redirect=/instructor/dashboard');
-        return;
-      }
-
-      if (response.status === 404) {
-        logger.warn('No instructor profile found');
-        setError('No instructor profile found. Please complete your profile setup.');
-        setIsLoading(false);
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch profile');
-      }
-
-      const data: InstructorProfile = await response.json();
-      if (!data.user || !data.services) {
-        logger.error('Invalid profile data structure', undefined, { data });
-        throw new Error('Invalid profile data received');
-      }
-
-      const profileRecord = data as unknown as Record<string, unknown>;
-      const teachingFromApi = Array.isArray(profileRecord['preferred_teaching_locations'])
-        ? (profileRecord['preferred_teaching_locations'] as Array<Record<string, unknown>>)
-        : [];
-      const nextTeaching: PreferredTeachingLocation[] = [];
-      const teachingSeen = new Set<string>();
-      for (const entry of teachingFromApi) {
-        const rawAddress = typeof entry?.['address'] === 'string' ? entry['address'].trim() : '';
-        if (!rawAddress) continue;
-        const key = rawAddress.toLowerCase();
-        if (teachingSeen.has(key)) continue;
-        teachingSeen.add(key);
-        const rawLabel = typeof entry?.['label'] === 'string' ? entry['label'].trim() : '';
-        nextTeaching.push(rawLabel ? { address: rawAddress, label: rawLabel } : { address: rawAddress });
-        if (nextTeaching.length === 2) break;
-      }
-      setPreferredTeachingLocations(nextTeaching);
-
-      const publicFromApi = Array.isArray(profileRecord['preferred_public_spaces'])
-        ? (profileRecord['preferred_public_spaces'] as Array<Record<string, unknown>>)
-        : [];
-      const nextPublic: PreferredPublicSpace[] = [];
-      const publicSeen = new Set<string>();
-      for (const entry of publicFromApi) {
-        const rawAddress = typeof entry?.['address'] === 'string' ? entry['address'].trim() : '';
-        if (!rawAddress) continue;
-        const key = rawAddress.toLowerCase();
-        if (publicSeen.has(key)) continue;
-        publicSeen.add(key);
-        nextPublic.push({ address: rawAddress });
-        if (nextPublic.length === 2) break;
-      }
-      setPreferredPublicSpaces(nextPublic);
-
-      const serviceAreaBoroughs = getServiceAreaBoroughs(data);
-
-      logger.info('Instructor profile loaded successfully', {
-        userId: data.user_id,
-        servicesCount: data.services.length,
-        boroughCount: serviceAreaBoroughs.length,
-      });
-
-      const normalizedServices = await normalizeInstructorServices(data.services);
-      setProfile({ ...data, services: normalizedServices });
-      // Fetch canonical service areas (exact neighborhoods)
-      try {
-        const areasRes = await fetchWithAuth('/api/addresses/service-areas/me');
-        if (areasRes.ok) {
-          const areasJson = await areasRes.json();
-          const items = (areasJson.items || []) as Array<Record<string, unknown>>;
-          const selectionMap = new Map<string, NeighborhoodSelection>();
-          for (const item of items) {
-            const rawId = item?.['neighborhood_id'] ?? item?.['id'];
-            if (typeof rawId !== 'string' && typeof rawId !== 'number') continue;
-            const id = String(rawId);
-            const rawName = typeof item?.['name'] === 'string' ? (item['name'] as string).trim() : '';
-            selectionMap.set(id, { neighborhood_id: id, name: rawName || id });
-          }
-          const selections = Array.from(selectionMap.values());
-          setServiceAreaSelections(selections);
-          // no-op: names previously displayed; now removed
-        } else {
-          // no-op
-          setServiceAreaSelections([]);
-        }
-      } catch {
-        // no-op
-        setServiceAreaSelections([]);
-      }
-    } catch (err) {
-      logger.error('Error fetching instructor profile', err);
-      setPreferredTeachingLocations([]);
-      setPreferredPublicSpaces([]);
-      setServiceAreaSelections([]);
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [router]);
-
   useEffect(() => {
     logger.info('Instructor dashboard (new) loaded');
-    void fetchProfile();
     void (async () => {
       try {
         const s = await getConnectStatus();
@@ -478,13 +394,125 @@ export default function InstructorDashboardNew() {
         logger.warn('Failed to load connect status');
       }
     })();
-  }, [router, fetchProfile]);
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    if (!instructorProfile) {
+      if (!isProfileLoading) {
+        setProfile(null);
+        setPreferredTeachingLocations([]);
+        setPreferredPublicSpaces([]);
+        setIsHydratingProfile(false);
+      }
+      return () => {
+        ignore = true;
+      };
+    }
+    setIsHydratingProfile(true);
+    (async () => {
+      try {
+        if (!instructorProfile.user || !instructorProfile.services) {
+          throw new Error('Invalid profile data received');
+        }
+        const profileRecord = instructorProfile as unknown as Record<string, unknown>;
+        const teachingFromApi = Array.isArray(profileRecord['preferred_teaching_locations'])
+          ? (profileRecord['preferred_teaching_locations'] as Array<Record<string, unknown>>)
+          : [];
+        const nextTeaching: PreferredTeachingLocation[] = [];
+        const teachingSeen = new Set<string>();
+        for (const entry of teachingFromApi) {
+          const rawAddress = typeof entry?.['address'] === 'string' ? entry['address'].trim() : '';
+          if (!rawAddress) continue;
+          const key = rawAddress.toLowerCase();
+          if (teachingSeen.has(key)) continue;
+          teachingSeen.add(key);
+          const rawLabel = typeof entry?.['label'] === 'string' ? entry['label'].trim() : '';
+          nextTeaching.push(rawLabel ? { address: rawAddress, label: rawLabel } : { address: rawAddress });
+          if (nextTeaching.length === 2) break;
+        }
+        setPreferredTeachingLocations(nextTeaching);
+
+        const publicFromApi = Array.isArray(profileRecord['preferred_public_spaces'])
+          ? (profileRecord['preferred_public_spaces'] as Array<Record<string, unknown>>)
+          : [];
+        const nextPublic: PreferredPublicSpace[] = [];
+        const publicSeen = new Set<string>();
+        for (const entry of publicFromApi) {
+          const rawAddress = typeof entry?.['address'] === 'string' ? entry['address'].trim() : '';
+          if (!rawAddress) continue;
+          const key = rawAddress.toLowerCase();
+          if (publicSeen.has(key)) continue;
+          publicSeen.add(key);
+          nextPublic.push({ address: rawAddress });
+          if (nextPublic.length === 2) break;
+        }
+        setPreferredPublicSpaces(nextPublic);
+
+        const serviceAreaBoroughs = getServiceAreaBoroughs(instructorProfile);
+
+        logger.info('Instructor profile loaded successfully', {
+          userId: instructorProfile.user_id,
+          servicesCount: instructorProfile.services.length,
+          boroughCount: serviceAreaBoroughs.length,
+        });
+
+        const normalizedServices = await normalizeInstructorServices(instructorProfile.services);
+        if (ignore) return;
+        setProfile({ ...instructorProfile, services: normalizedServices });
+        setError(null);
+      } catch (err) {
+        if (!ignore) {
+          logger.error('Error hydrating instructor profile', err);
+          setPreferredTeachingLocations([]);
+          setPreferredPublicSpaces([]);
+          setProfile(null);
+          setError(err instanceof Error ? err.message : 'An error occurred');
+        }
+      } finally {
+        if (!ignore) {
+          setIsHydratingProfile(false);
+        }
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [instructorProfile, isProfileLoading]);
+
+  useEffect(() => {
+    if (!serviceAreaResponse?.items || serviceAreaResponse.items.length === 0) {
+      setServiceAreaSelections([]);
+      return;
+    }
+    const selectionMap = new Map<string, NeighborhoodSelection>();
+    for (const item of serviceAreaResponse.items) {
+      const rawId = item.neighborhood_id ?? item.id;
+      if (typeof rawId !== 'string' && typeof rawId !== 'number') continue;
+      const id = String(rawId);
+      const rawName = typeof item?.name === 'string' ? item.name.trim() : '';
+      selectionMap.set(id, { neighborhood_id: id, name: rawName || id });
+    }
+    setServiceAreaSelections(Array.from(selectionMap.values()));
+  }, [serviceAreaResponse]);
 
   // Left sidebar is inline with content; no fixed positioning logic
 
   // Weekly range for availability/bookings (Mon–Sun)
   const weekRange = getCurrentWeekRange(1);
   const { data: availability } = useInstructorAvailability(profile?.user_id || '', weekRange.start_date);
+  const upcomingBookingsQuery = useInstructorBookings({
+    status: 'CONFIRMED',
+    upcoming: true,
+    page: 1,
+    enabled: Boolean(profile?.user_id),
+  });
+  const completedBookingsQuery = useInstructorBookings({
+    status: 'COMPLETED',
+    upcoming: false,
+    page: 1,
+    enabled: Boolean(profile?.user_id),
+  });
 
   // Helpers to calculate minutes from HH:MM or HH:MM:SS
   const parseTimeToMinutes = useCallback((time: string): number => {
@@ -492,21 +520,6 @@ export default function InstructorDashboardNew() {
     const h = parseInt(parts[0] || '0', 10);
     const m = parseInt(parts[1] || '0', 10);
     return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
-  }, []);
-
-  // Total completed bookings count (uses paginated total)
-  useEffect(() => {
-    let ignore = false;
-    (async () => {
-      try {
-        const res = await protectedApi.getInstructorCompletedBookings(1, 1);
-        const total = typeof res.data?.total === 'number' ? res.data.total : 0;
-        if (!ignore) setCompletedBookingsCount(Math.max(0, total));
-      } catch {
-        if (!ignore) setCompletedBookingsCount(0);
-      }
-    })();
-    return () => { ignore = true; };
   }, []);
 
   useEffect(() => {
@@ -521,11 +534,44 @@ export default function InstructorDashboardNew() {
     })();
     return () => { ignore = true; };
   }, []);
+
   const diffMinutes = useCallback((start: string, end: string): number => {
     const s = parseTimeToMinutes(start);
     const e = parseTimeToMinutes(end);
     return Math.max(0, e - s);
   }, [parseTimeToMinutes]);
+
+  const completedBookingsCount = useMemo(
+    () => Math.max(0, completedBookingsQuery.data?.total ?? 0),
+    [completedBookingsQuery.data]
+  );
+
+  const upcomingWeekBookings = useMemo(() => {
+    if (!Array.isArray(upcomingBookingsQuery.data?.items)) return [];
+    return (upcomingBookingsQuery.data!.items as Array<{
+      booking_date?: string;
+      start_time?: string;
+      end_time?: string;
+    }>).filter(
+      (booking) =>
+        typeof booking.booking_date === 'string' &&
+        booking.booking_date >= weekRange.start_date &&
+        booking.booking_date <= weekRange.end_date
+    );
+  }, [upcomingBookingsQuery.data, weekRange.start_date, weekRange.end_date]);
+
+  const bookedMinutes = useMemo(
+    () =>
+      upcomingWeekBookings.reduce((total, booking) => {
+        const start = booking.start_time ?? '00:00';
+        const end = booking.end_time ?? start;
+        return total + diffMinutes(start, end);
+      }, 0),
+    [upcomingWeekBookings, diffMinutes]
+  );
+
+  const upcomingBookingsCount = upcomingWeekBookings.length;
+  const hasUpcomingBookings = upcomingBookingsQuery.isLoading ? null : upcomingBookingsCount > 0;
 
   // Sum available minutes from weekly availability
   const availableMinutes = useMemo(() => {
@@ -541,38 +587,15 @@ export default function InstructorDashboardNew() {
     return total;
   }, [availability, diffMinutes]);
 
-  // Fetch upcoming bookings for the week and compute booked minutes
-  useEffect(() => {
-    let ignore = false;
-    (async () => {
-      try {
-        const res = await protectedApi.getBookings({ upcoming: true, limit: 100 });
-        const items = (res.data?.items || []) as Array<{
-          booking_date: string; start_time: string; end_time: string;
-        }>;
-        const withinWeek = items.filter(
-          (b) => b.booking_date >= weekRange.start_date && b.booking_date <= weekRange.end_date
-        );
-        let mins = 0;
-        withinWeek.forEach((b) => { mins += diffMinutes(b.start_time, b.end_time); });
-        if (!ignore) {
-          setBookedMinutes(mins);
-          setUpcomingBookingsCount(withinWeek.length);
-          setHasUpcomingBookings(withinWeek.length > 0);
-        }
-      } catch {
-        if (!ignore) {
-          setBookedMinutes(0);
-          setUpcomingBookingsCount(0);
-          setHasUpcomingBookings(false);
-        }
-      }
-    })();
-    return () => { ignore = true; };
-  }, [weekRange.start_date, weekRange.end_date, profile?.user_id, diffMinutes]);
-
   const availableHours = Math.round(availableMinutes / 60);
   const bookedHours = Math.round(bookedMinutes / 60);
+  const formatCurrencyFromCents = (value?: number | null) => {
+    if (typeof value !== 'number') return '$0.00';
+    return `$${(value / 100).toFixed(2)}`;
+  };
+  const earningsCardValue = earningsSummary && typeof earningsSummary.total_earned === 'number'
+    ? formatCurrencyFromCents(earningsSummary.total_earned)
+    : (isEarningsLoading ? '—' : '$0.00');
 
   // Gate access until cleared to go live
   useEffect(() => {
@@ -593,7 +616,7 @@ export default function InstructorDashboardNew() {
 
   const handleProfileUpdate = () => {
     logger.info('Profile updated, refreshing data');
-    void fetchProfile();
+    void refetchInstructorProfile();
     setShowEditModal(false);
   };
 
@@ -1027,7 +1050,7 @@ export default function InstructorDashboardNew() {
             <div className="flex items-start justify-between h-full">
               <div>
                 <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Earnings</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900">$0</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{earningsCardValue}</p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />

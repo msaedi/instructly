@@ -172,6 +172,27 @@ export default function LessonDetailsPage() {
     }
     return value.toFixed(2);
   };
+  const safeNumber = (value: unknown): number | undefined =>
+    typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  const fallbackLessonAmount = safeNumber((lesson as { total_price?: number }).total_price) ?? 0;
+  const fallbackServiceFee = safeNumber((lesson as { service_fee?: number }).service_fee);
+  const fallbackCreditApplied = safeNumber((lesson as { credit_applied?: number }).credit_applied);
+  const fallbackTipAmount = safeNumber((lesson as { tip_amount?: number }).tip_amount);
+  const fallbackTipPaid = safeNumber((lesson as { tip_paid?: number }).tip_paid);
+  const fallbackTotalPaid = safeNumber((lesson as { final_amount?: number }).final_amount);
+  const resolvedLessonAmount = paymentSummary?.lesson_amount ?? fallbackLessonAmount;
+  const resolvedServiceFee = paymentSummary?.service_fee ?? fallbackServiceFee ?? 0;
+  const resolvedCreditApplied = paymentSummary?.credit_applied ?? fallbackCreditApplied ?? 0;
+  const resolvedTipAmount = paymentSummary?.tip_amount ?? fallbackTipAmount ?? 0;
+  const resolvedTipPaid = paymentSummary?.tip_paid ?? fallbackTipPaid ?? 0;
+  const tipDisplayAmount = resolvedTipPaid > 0 ? resolvedTipPaid : resolvedTipAmount;
+  const hasCreditApplied = resolvedCreditApplied > 0;
+  const hasTip = resolvedTipAmount > 0 || resolvedTipPaid > 0;
+  const tipPending = hasTip && resolvedTipPaid < resolvedTipAmount;
+  const totalPaid =
+    paymentSummary?.total_paid ??
+    fallbackTotalPaid ??
+    resolvedLessonAmount + resolvedServiceFee - resolvedCreditApplied + Math.max(tipDisplayAmount, 0);
 
   return (
     <div className="min-h-screen">
@@ -403,38 +424,38 @@ export default function LessonDetailsPage() {
                   <span className="text-gray-500">
                     ${lesson.hourly_rate.toFixed(2)}/hr x {lesson.duration_minutes / 60} hr
                   </span>
-                  <span className="text-gray-700">${formatCurrency(paymentSummary?.lesson_amount ?? Number(lesson.total_price))}</span>
+                  <span className="text-gray-700">${formatCurrency(resolvedLessonAmount)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Service fee</span>
-                  <span className="text-gray-700">${formatCurrency(paymentSummary?.service_fee ?? Number(lesson.total_price) * 0.12)}</span>
+                  <span className="text-gray-700">${formatCurrency(resolvedServiceFee)}</span>
                 </div>
-                {paymentSummary?.credit_applied && paymentSummary.credit_applied > 0 && (
+                {hasCreditApplied && (
                   <div className="flex justify-between">
                     <span className="text-gray-500">Credit applied</span>
-                    <span className="text-gray-700">-${formatCurrency(paymentSummary.credit_applied)}</span>
+                    <span className="text-gray-700">-${formatCurrency(resolvedCreditApplied)}</span>
                   </div>
                 )}
-                {paymentSummary && paymentSummary.tip_amount > 0 && (
+                {hasTip && (
                   <div className="flex justify-between">
                     <span className="text-gray-500">
-                      Tip{paymentSummary.tip_paid < paymentSummary.tip_amount ? ' (pending)' : ''}
+                      Tip{tipPending ? ' (pending)' : ''}
                     </span>
                     <span className="text-gray-700">
-                      ${formatCurrency(paymentSummary.tip_paid > 0 ? paymentSummary.tip_paid : paymentSummary.tip_amount)}
+                      ${formatCurrency(tipDisplayAmount)}
                     </span>
                   </div>
                 )}
                 <Separator />
                 <div className="flex justify-between font-semibold text-gray-900">
                   <span>Total</span>
-                  <span>${formatCurrency(paymentSummary?.total_paid ?? Number(lesson.total_price) * 1.12)}</span>
+                  <span>${formatCurrency(totalPaid)}</span>
                 </div>
                 <div className="flex justify-between text-gray-500">
                   <span>Paid</span>
-                  <span>${formatCurrency(paymentSummary?.total_paid ?? Number(lesson.total_price) * 1.12)}</span>
+                  <span>${formatCurrency(totalPaid)}</span>
                 </div>
-                {paymentSummary && paymentSummary.tip_paid < paymentSummary.tip_amount && paymentSummary.tip_amount > 0 && (
+                {tipPending && (
                   <p className="text-xs text-gray-500 pt-2">
                     Tip will be finalized once your payment method is confirmed.
                   </p>

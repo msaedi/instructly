@@ -482,7 +482,10 @@ class BookingCreateResponse(BookingResponse):
 
     @classmethod
     def from_booking(
-        cls, booking: Any, setup_intent_client_secret: Optional[str] = None
+        cls,
+        booking: Any,
+        payment_summary: Optional[PaymentSummary] = None,
+        setup_intent_client_secret: Optional[str] = None,
     ) -> "BookingCreateResponse":
         """
         Create BookingCreateResponse from Booking ORM model.
@@ -540,6 +543,7 @@ class BookingCreateResponse(BookingResponse):
             "setup_intent_client_secret": setup_intent_client_secret
             or getattr(booking, "setup_intent_client_secret", None),
             "requires_payment_method": True,
+            "payment_summary": payment_summary,
         }
 
         return cls(**response_data)

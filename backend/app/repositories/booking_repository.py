@@ -22,7 +22,7 @@ from datetime import date, datetime, time, timedelta, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
 
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query, Session, joinedload
 
@@ -452,13 +452,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             )
 
             # Handle status filter
-            if status:
-                query = query.filter(Booking.status == status)
+            status_filter = status
+            if include_past_confirmed and status == BookingStatus.COMPLETED:
+                status_filter = None
+
+            if status_filter:
+                query = query.filter(Booking.status == status_filter)
 
             # Handle upcoming_only filter
             if upcoming_only:
-                from sqlalchemy import and_, or_
-
                 # Get user's current datetime in their timezone
                 user_now = get_user_now_by_id(student_id, self.db)
                 today = user_now.date()
@@ -480,8 +482,6 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             elif exclude_future_confirmed:
                 # Include: past bookings (any status) + future cancelled/no-show bookings
                 # Exclude: future confirmed bookings
-                from sqlalchemy import and_, or_
-
                 # Get user's current datetime in their timezone
                 user_now = get_user_now_by_id(student_id, self.db)
                 today = user_now.date()
@@ -515,8 +515,6 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             # Handle include_past_confirmed (for BookAgain - only completed past bookings)
             elif include_past_confirmed:
                 # Only past bookings with COMPLETED status
-                from sqlalchemy import and_, or_
-
                 # Get student's current datetime in their timezone
                 user_now = get_user_now_by_id(student_id, self.db)
                 today = user_now.date()
@@ -582,14 +580,24 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .filter(Booking.instructor_id == instructor_id)
             )
 
-            # Handle status filter
-            if status:
-                query = query.filter(Booking.status == status)
+            include_past_confirmed_mode = (
+                include_past_confirmed and status == BookingStatus.COMPLETED
+            )
+            status_filter = None if include_past_confirmed_mode else status
+
+            if include_past_confirmed_mode:
+                self.logger.debug(
+                    "Including chronologically past confirmed lessons for instructor",
+                    extra={
+                        "instructor_id": instructor_id,
+                        "upcoming_only": upcoming_only,
+                        "exclude_future_confirmed": exclude_future_confirmed,
+                        "status": getattr(status, "value", status),
+                    },
+                )
 
             # Handle upcoming_only filter
             if upcoming_only:
-                from sqlalchemy import and_, or_
-
                 # Get instructor's current datetime in their timezone
                 user_now = get_user_now_by_id(instructor_id, self.db)
                 today = user_now.date()
@@ -611,8 +619,6 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             elif exclude_future_confirmed:
                 # Include: past bookings (any status) + future cancelled/no-show bookings
                 # Exclude: future confirmed bookings
-                from sqlalchemy import and_, or_
-
                 # Get instructor's current datetime in their timezone
                 user_now = get_user_now_by_id(instructor_id, self.db)
                 today = user_now.date()
@@ -642,11 +648,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 )
 
             # Handle include_past_confirmed (for BookAgain - only completed past bookings)
-            elif include_past_confirmed:
-                # Only past bookings with COMPLETED status
-                from sqlalchemy import and_, or_
-
-                # Get instructor's current datetime in their timezone
+            elif include_past_confirmed_mode:
+                # Include confirmed/completed lessons that have already finished
                 user_now = get_user_now_by_id(instructor_id, self.db)
                 today = user_now.date()
                 current_time = user_now.time()
@@ -656,11 +659,21 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                         Booking.booking_date < today,
                         and_(
                             Booking.booking_date == today,
-                            Booking.start_time <= current_time.isoformat(),
+                            Booking.end_time <= current_time.isoformat(),
                         ),
                     ),
-                    Booking.status == BookingStatus.COMPLETED,
+                    Booking.status.in_(
+                        [
+                            BookingStatus.CONFIRMED,
+                            BookingStatus.COMPLETED,
+                            BookingStatus.NO_SHOW,
+                        ]
+                    ),
                 )
+
+            # Apply basic status filtering only when not using include_past_confirmed overrides
+            if status_filter:
+                query = query.filter(Booking.status == status_filter)
 
             # For upcoming lessons, show nearest first (ASC). For history, show latest first (DESC)
             if upcoming_only:

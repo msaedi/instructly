@@ -19,8 +19,16 @@ import type { CatalogServiceMinimal } from '@/features/shared/api/types';
 
 // Type aliases for generated types
 // Keep generated type imports for future use
-type PaginatedBookingResponse = components['schemas']['PaginatedResponse_BookingResponse_'];
+export type PaginatedBookingResponse = components['schemas']['PaginatedResponse_BookingResponse_'];
 type InstructorProfileResponse = components['schemas']['InstructorProfileResponse'];
+
+export type InstructorBookingsParams = {
+  page?: number;
+  per_page?: number;
+  status?: BookingStatus;
+  upcoming?: boolean;
+  signal?: AbortSignal | undefined;
+};
 
 // Browser calls go through Next.js proxy to avoid CORS and middleware redirects
 // Ensure an absolute base URL for URL construction
@@ -64,7 +72,9 @@ export const PROTECTED_ENDPOINTS = {
   },
   instructor: {
     bookings: {
-      completed: '/instructors/bookings/completed',
+      list: '/api/instructors/bookings/',
+      completed: '/api/instructors/bookings/completed',
+      upcoming: '/api/instructors/bookings/upcoming',
     },
   },
 } as const;
@@ -760,6 +770,35 @@ const normalizeBookingStatus = (
 /**
  * Protected API client for authenticated features
  */
+async function fetchInstructorBookings(
+  params: InstructorBookingsParams = {},
+): Promise<ApiResponse<PaginatedBookingResponse>> {
+  const { signal, ...rest } = params;
+  const options: FetchOptions = {};
+  if (signal) {
+    options.signal = signal;
+  }
+  const normalized: Record<string, string | number | boolean> = {};
+  Object.entries(rest).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      normalized[key] = value as string | number | boolean;
+    }
+  });
+  if (typeof normalized['per_page'] === 'number' && normalized['per_page'] > 100) {
+    normalized['per_page'] = 100;
+  }
+  if (Object.keys(normalized).length > 0) {
+    options.params = normalized;
+  }
+  return authFetch<PaginatedBookingResponse>(
+    PROTECTED_ENDPOINTS.instructor.bookings.list,
+    options,
+  );
+}
+
+/**
+ * Protected API client for authenticated features
+ */
 export const protectedApi = {
   /**
    * Create a new booking
@@ -814,14 +853,22 @@ export const protectedApi = {
     return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.get(bookingId));
   },
 
+  async getInstructorBookings(params: InstructorBookingsParams = {}) {
+    return fetchInstructorBookings(params);
+  },
+
+  async getInstructorUpcomingBookings(page: number = 1, perPage: number = 50, signal?: AbortSignal) {
+    return authFetch<PaginatedBookingResponse>(PROTECTED_ENDPOINTS.instructor.bookings.upcoming, {
+      params: { page, per_page: Math.min(perPage, 100) },
+      signal: signal ?? null,
+    });
+  },
+
   async getInstructorCompletedBookings(page: number = 1, perPage: number = 50, signal?: AbortSignal) {
-    const options: FetchOptions = {
-      params: { page, per_page: perPage },
-    };
-    if (signal) {
-      options.signal = signal;
-    }
-    return authFetch<PaginatedBookingResponse>(PROTECTED_ENDPOINTS.instructor.bookings.completed, options);
+    return authFetch<PaginatedBookingResponse>(PROTECTED_ENDPOINTS.instructor.bookings.completed, {
+      params: { page, per_page: Math.min(perPage, 100) },
+      signal: signal ?? null,
+    });
   },
 
   /**

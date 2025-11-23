@@ -1,16 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
-import { protectedApi } from '@/features/shared/api/client';
-import { paymentService, EarningsResponse } from '@/services/api/payments';
 import Modal from '@/components/Modal';
 import { Download, DollarSign, Info, ArrowLeft } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
+import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 
 function EarningsPageImpl() {
   const embedded = useEmbedded();
@@ -79,10 +77,7 @@ function EarningsPageImpl() {
       </div>
     );
   }
-  const [serviceCount, setServiceCount] = useState<number>(0);
-  const [hoursInvoiced, setHoursInvoiced] = useState<number>(0);
-  const [earnings, setEarnings] = useState<EarningsResponse | null>(null);
-  const [isLoadingEarnings, setIsLoadingEarnings] = useState(true);
+  const { data: earnings, isLoading: isLoadingEarnings } = useInstructorEarnings(true);
   const [activeTab, setActiveTab] = useState<'invoices' | 'payouts'>('invoices');
   const [exportOpen, setExportOpen] = useState(false);
   const [exportYear, setExportYear] = useState<string>('');
@@ -98,66 +93,39 @@ function EarningsPageImpl() {
     return list;
   }, []);
 
-  // Fetch services count
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-        if (res.ok) {
-          const data = await res.json();
-          const count = Array.isArray(data?.services) ? data.services.length : 0;
-          setServiceCount(count);
-        }
-      } catch {
-        setServiceCount(0);
-      }
-    })();
-  }, []);
-
-  // Compute hours from completed bookings (best-effort)
-  const parseTimeToMinutes = useCallback((t: string): number => {
-    const [h, m] = String(t || '').split(':');
-    const hh = parseInt(h || '0', 10);
-    const mm = parseInt(m || '0', 10);
-    return (Number.isFinite(hh) ? hh : 0) * 60 + (Number.isFinite(mm) ? mm : 0);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await protectedApi.getInstructorCompletedBookings(1, 200);
-        const items = (resp.data as { items?: Array<{ start_time?: string; end_time?: string }> })?.items || [];
-        let mins = 0;
-        for (const b of items) {
-          mins += Math.max(0, parseTimeToMinutes(b?.end_time || '0:0') - parseTimeToMinutes(b?.start_time || '0:0'));
-        }
-        if (!cancelled) setHoursInvoiced(Math.round(mins / 60));
-      } catch {
-        if (!cancelled) setHoursInvoiced(0);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [parseTimeToMinutes]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await paymentService.getEarnings();
-        if (!cancelled) setEarnings(data);
-      } catch {
-        if (!cancelled) setEarnings(null);
-      } finally {
-        if (!cancelled) setIsLoadingEarnings(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
   const formatAmount = (value?: number) => `$${((value ?? 0) / 100).toFixed(2)}`;
+  const formatCents = (value?: number | null) => `$${(((value ?? 0)) / 100).toFixed(2)}`;
+  const formatInvoiceDate = (lessonDate?: string, start?: string | null) => {
+    if (!lessonDate) return '—';
+    const baseIso = `${lessonDate}T${start ?? '00:00:00'}`;
+    const parsed = new Date(baseIso);
+    if (Number.isNaN(parsed.valueOf())) return lessonDate;
+    return parsed.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
   const grossVolume = (earnings?.total_earned ?? 0) + (earnings?.total_fees ?? 0);
   const netVolume = earnings?.total_earned ?? 0;
+  const resolvedServiceCount = typeof earnings?.service_count === 'number'
+    ? earnings.service_count
+    : (typeof earnings?.booking_count === 'number' ? earnings.booking_count : 0);
+  const resolvedHoursInvoiced = typeof earnings?.hours_invoiced === 'number' ? earnings.hours_invoiced : 0;
+  const formatHours = (value: number) => {
+    if (!Number.isFinite(value)) return '0';
+    return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+  };
+  const invoices = Array.isArray(earnings?.invoices) ? earnings!.invoices : [];
+  const formatDuration = (mins?: number | null) => {
+    if (!mins) return '—';
+    return `${mins} min`;
+  };
+  const formatStatusLabel = (value?: string) => {
+    if (!value) return '—';
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  };
 
   return (
     <div className="min-h-screen">
@@ -222,11 +190,13 @@ function EarningsPageImpl() {
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Service count</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{serviceCount}</p>
+            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : resolvedServiceCount}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Hours invoiced</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{hoursInvoiced}</p>
+            <p className="text-3xl font-bold text-[#7E22CE] uppercase">
+              {isLoadingEarnings ? '—' : formatHours(resolvedHoursInvoiced)}
+            </p>
           </div>
         </div>
 
@@ -261,9 +231,60 @@ function EarningsPageImpl() {
           </div>
           <div className="p-4 sm:p-6">
             {activeTab === 'invoices' ? (
-              <div className="text-sm text-gray-600">You haven&apos;t submitted any invoices yet</div>
+              invoices.length === 0 ? (
+                <div className="text-sm text-gray-600">You haven&apos;t submitted any invoices yet</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead>
+                      <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <th className="py-2 pr-4">Date</th>
+                        <th className="py-2 pr-4">Student</th>
+                        <th className="py-2 pr-4">Service</th>
+                        <th className="py-2 pr-4">Duration</th>
+                        <th className="py-2 pr-4">Total Paid</th>
+                        <th className="py-2 pr-4">Platform Fee</th>
+                        <th className="py-2 pr-4">Your Share</th>
+                        <th className="py-2 pr-4">Tip</th>
+                        <th className="py-2 pr-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {invoices.map((invoice) => {
+                        const platformFeeCents = Math.max(
+                          0,
+                          (invoice.total_paid_cents ?? 0) -
+                            (invoice.instructor_share_cents ?? 0) -
+                            (invoice.tip_cents ?? 0)
+                        );
+                        return (
+                          <tr key={`${invoice.booking_id}-${invoice.created_at}`}>
+                            <td className="py-3 pr-4 text-gray-900">
+                              {formatInvoiceDate(invoice.lesson_date, invoice.start_time)}
+                            </td>
+                            <td className="py-3 pr-4 text-gray-700">{invoice.student_name ?? 'Student'}</td>
+                            <td className="py-3 pr-4 text-gray-700">{invoice.service_name ?? 'Lesson'}</td>
+                            <td className="py-3 pr-4 text-gray-700">{formatDuration(invoice.duration_minutes)}</td>
+                            <td className="py-3 pr-4 font-semibold text-gray-900">{formatCents(invoice.total_paid_cents)}</td>
+                            <td className="py-3 pr-4 text-gray-700">{formatCents(platformFeeCents)}</td>
+                            <td className="py-3 pr-4 text-gray-700">{formatCents(invoice.instructor_share_cents)}</td>
+                            <td className="py-3 pr-4 text-gray-700">{formatCents(invoice.tip_cents)}</td>
+                            <td className="py-3 pr-4">
+                              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                                {formatStatusLabel(invoice.status)}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
             ) : (
-              <div className="text-sm text-gray-600">No payouts yet.</div>
+              <div className="text-sm text-gray-600">
+                Payouts are coming soon. Your lesson earnings are tracked above and will be sent automatically when payouts launch.
+              </div>
             )}
           </div>
         </div>

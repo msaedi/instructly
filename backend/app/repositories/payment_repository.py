@@ -19,7 +19,7 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from sqlalchemy import and_, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 import ulid
 
 from ..core.exceptions import RepositoryException
@@ -705,7 +705,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
 
     def get_instructor_earnings(
         self,
-        instructor_profile_id: str,
+        instructor_id: str,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
@@ -713,7 +713,7 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         Calculate instructor earnings after platform fees.
 
         Args:
-            instructor_profile_id: Instructor profile ID
+            instructor_id: Instructor user ID (Booking.instructor_id FK)
             start_date: Optional start date filter
             end_date: Optional end date filter
 
@@ -737,8 +737,8 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 .filter(
                     and_(
                         PaymentIntent.status == "succeeded",
-                        Booking.instructor_id
-                        == instructor_profile_id,  # Assuming instructor_id maps to profile
+                        # Booking.instructor_id references users.id (the instructor's user_id)
+                        Booking.instructor_id == instructor_id,
                     )
                 )
             )
@@ -808,6 +808,41 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         except Exception as e:
             self.logger.error(f"Failed to get user payment history: {str(e)}")
             raise RepositoryException(f"Failed to get user payment history: {str(e)}")
+
+    def get_instructor_payment_history(
+        self,
+        instructor_id: str,
+        limit: int = 50,
+    ) -> List[PaymentIntent]:
+        """
+        Get successful payments associated with a specific instructor's bookings.
+
+        Args:
+            instructor_id: Instructor's user ID
+            limit: Maximum number of payment intents to return
+        """
+        try:
+            query = (
+                self.db.query(PaymentIntent)
+                .join(Booking, PaymentIntent.booking_id == Booking.id)
+                .options(
+                    joinedload(PaymentIntent.booking).joinedload(Booking.student),
+                    joinedload(PaymentIntent.booking).joinedload(Booking.instructor_service),
+                )
+                .filter(
+                    PaymentIntent.status == "succeeded",
+                    Booking.instructor_id == instructor_id,
+                )
+                .order_by(PaymentIntent.created_at.desc())
+            )
+
+            if limit:
+                query = query.limit(limit)
+
+            return cast(List[PaymentIntent], query.all())
+        except Exception as e:
+            self.logger.error(f"Failed to get instructor payment history: {str(e)}")
+            raise RepositoryException(f"Failed to get instructor payment history: {str(e)}")
 
     # ========== Payment Events (Phase 1.1) ==========
 

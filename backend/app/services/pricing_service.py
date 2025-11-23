@@ -450,8 +450,10 @@ class PricingService(BaseService):
             entry_tier = min(tiers, key=lambda tier: tier.get("min", 0))
             pct = entry_tier.get("pct", 0)
             return Decimal(str(pct)).quantize(Decimal("0.0001"))
-        # Fallback to 15% if no tier data is available
-        return Decimal("0.15").quantize(Decimal("0.0001"))
+        # Fallback to the default config's entry tier (only used when no pricing config exists)
+        default_tiers = DEFAULT_PRICING_CONFIG.get("instructor_tiers", [])
+        fallback_pct = default_tiers[0].get("pct", 0.15) if default_tiers else 0.15
+        return Decimal(str(fallback_pct)).quantize(Decimal("0.0001"))
 
     @staticmethod
     def _build_line_items(

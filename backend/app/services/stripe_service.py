@@ -2173,7 +2173,7 @@ class StripeService(BaseService):
     @BaseService.measure_operation("stripe_get_instructor_earnings")
     def get_instructor_earnings(
         self,
-        instructor_profile_id: str,
+        instructor_id: str,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
@@ -2181,7 +2181,7 @@ class StripeService(BaseService):
         Get instructor earnings statistics.
 
         Args:
-            instructor_profile_id: Instructor profile ID
+            instructor_id: Instructor user ID
             start_date: Optional start date filter
             end_date: Optional end date filter
 
@@ -2190,9 +2190,7 @@ class StripeService(BaseService):
         """
         try:
             return dict(
-                self.payment_repository.get_instructor_earnings(
-                    instructor_profile_id, start_date, end_date
-                )
+                self.payment_repository.get_instructor_earnings(instructor_id, start_date, end_date)
             )
         except Exception as e:
             self.logger.error(f"Error getting instructor earnings: {str(e)}")

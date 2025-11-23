@@ -3,14 +3,13 @@
 import Link from 'next/link';
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Calendar } from 'lucide-react';
 
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 import { BookingList, type BookingListItem } from '@/features/bookings/components/BookingList';
-import { protectedApi } from '@/features/shared/api/client';
-import { queryKeys } from '@/lib/react-query/queryClient';
+import type { PaginatedBookingResponse } from '@/features/shared/api/client';
+import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 
@@ -38,29 +37,24 @@ function BookingsPageImpl() {
     [router, searchParams]
   );
 
-  const upcomingQuery = useQuery({
-    queryKey: queryKeys.bookings.instructor.upcoming,
-    queryFn: async ({ signal }) => protectedApi.getBookings({ upcoming: true, per_page: PAGE_SIZE, signal }),
-    staleTime: 60 * 1000,
+  const upcomingQuery = useInstructorBookings({
+    status: 'CONFIRMED',
+    upcoming: true,
+    page: 1,
+    perPage: PAGE_SIZE,
   });
 
-  const pastQuery = useQuery({
-    queryKey: queryKeys.bookings.instructor.past,
-    queryFn: async ({ signal }) =>
-      protectedApi.getInstructorCompletedBookings(1, PAGE_SIZE, signal),
-    staleTime: 60 * 1000,
+  const pastQuery = useInstructorBookings({
+    status: 'COMPLETED',
+    upcoming: false,
+    page: 1,
+    perPage: PAGE_SIZE,
   });
 
-  const pluckBookings = useCallback(
-    (payload?: Awaited<ReturnType<typeof protectedApi.getBookings>>): BookingListItem[] => {
-      if (!payload?.data) return [];
-      const record = payload.data as unknown as { items?: BookingListItem[]; data?: BookingListItem[] };
-      if (Array.isArray(record.items)) return record.items;
-      if (Array.isArray(record.data)) return record.data;
-      return [];
-    },
-    []
-  );
+  const pluckBookings = useCallback((payload?: PaginatedBookingResponse): BookingListItem[] => {
+    if (!Array.isArray(payload?.items)) return [];
+    return payload.items as BookingListItem[];
+  }, []);
 
   const upcomingItems = useMemo(() => pluckBookings(upcomingQuery.data), [pluckBookings, upcomingQuery.data]);
   const pastItems = useMemo(() => pluckBookings(pastQuery.data), [pluckBookings, pastQuery.data]);
