@@ -24,11 +24,23 @@ export interface CreateCheckoutRequest {
 
 export interface Transaction {
   id: string;
-  amount: number;
+  booking_id: string;
+  service_name: string;
+  instructor_name: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  hourly_rate: number;
+  lesson_amount: number;
+  service_fee: number;
+  credit_applied: number;
+  tip_amount: number;
+  tip_paid: number;
+  tip_status?: string | null;
+  total_paid: number;
   status: string;
   created_at: string;
-  description?: string;
-  booking_id?: string;
 }
 
 export interface CheckoutResponse {

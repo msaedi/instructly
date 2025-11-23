@@ -40,13 +40,14 @@ import logging
 from typing import Any, Awaitable, Callable, NoReturn, Optional, ParamSpec, TypeVar
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
+from sqlalchemy.orm import Session
 
 from app.api.dependencies.authz import (
     requires_roles as _requires_roles,
     requires_scopes as _requires_scopes,
 )
 
-from ..api.dependencies import get_booking_service, get_current_active_user
+from ..api.dependencies import get_booking_service, get_current_active_user, get_db
 from ..api.dependencies.auth import require_beta_phase_access
 from ..core.config import settings
 from ..core.enums import PermissionName, RoleName
@@ -55,6 +56,8 @@ from ..dependencies.permissions import require_permission
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.booking import BookingStatus
 from ..models.user import User
+from ..repositories.factory import RepositoryFactory
+from ..repositories.review_repository import ReviewTipRepository
 from ..schemas.base_responses import PaginatedResponse
 from ..schemas.booking import (
     AvailabilityCheckRequest,
@@ -72,6 +75,8 @@ from ..schemas.booking import (
 )
 from ..schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
 from ..services.booking_service import BookingService
+from ..services.config_service import ConfigService
+from ..services.payment_summary_service import build_student_payment_summary
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -626,6 +631,7 @@ async def get_booking_details(
     booking_id: str,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
+    db: Session = Depends(get_db),
 ) -> BookingResponse:
     """Get full booking details with privacy protection for students."""
     try:
@@ -633,7 +639,20 @@ async def get_booking_details(
         if not booking:
             raise NotFoundException("Booking not found")
 
-        return BookingResponse.from_booking(booking)
+        payment_summary = None
+        if booking.student_id == current_user.id:
+            config_service = ConfigService(db)
+            pricing_config, _ = config_service.get_pricing_config()
+            payment_repo = RepositoryFactory.create_payment_repository(db)
+            tip_repo = ReviewTipRepository(db)
+            payment_summary = build_student_payment_summary(
+                booking=booking,
+                pricing_config=pricing_config,
+                payment_repo=payment_repo,
+                review_tip_repo=tip_repo,
+            )
+
+        return BookingResponse.from_booking(booking, payment_summary=payment_summary)
     except DomainException as e:
         handle_domain_exception(e)
 

@@ -47,7 +47,7 @@ function BookingsPageImpl() {
   const pastQuery = useQuery({
     queryKey: queryKeys.bookings.instructor.past,
     queryFn: async ({ signal }) =>
-      protectedApi.getBookings({ exclude_future_confirmed: true, per_page: PAGE_SIZE, signal }),
+      protectedApi.getInstructorCompletedBookings(1, PAGE_SIZE, signal),
     staleTime: 60 * 1000,
   });
 

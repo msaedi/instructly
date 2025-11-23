@@ -24,6 +24,9 @@ def instructor_setup(db: Session, test_instructor: User):
     instructor = test_instructor
     profile = db.query(InstructorProfile).filter_by(user_id=instructor.id).first()
     assert profile is not None, "Instructor profile not found"
+    profile.min_advance_booking_hours = 0
+    db.add(profile)
+    db.commit()
     service = db.query(Service).filter_by(instructor_profile_id=profile.id, is_active=True).first()
     assert service is not None, "Active instructor service not found"
     return instructor, profile, service
@@ -191,6 +194,7 @@ class TestBookingPaymentRoutes:
             bio="Test instructor",
             years_experience=5,
         )
+        profile.min_advance_booking_hours = 0
         db.add(profile)
         db.flush()
 

@@ -351,7 +351,9 @@ class BookingService(BaseService):
             raise BusinessRuleException("Requested time is not available")
 
         local_day = self._resolve_local_booking_day(booking_data, instructor_profile)
-        repo = AvailabilityDayRepository(self.db)
+        repo = getattr(self, "availability_repository", None)
+        if repo is None or not hasattr(repo, "get_day_bits"):
+            repo = AvailabilityDayRepository(self.db)
         bits = repo.get_day_bits(booking_data.instructor_id, local_day) or b""
 
         for idx in range(start_index, end_index):
@@ -1564,22 +1566,25 @@ class BookingService(BaseService):
 
         now_utc = datetime.now(timezone.utc)
 
+        booking_local = datetime.combine(
+            booking_data.booking_date,
+            booking_data.start_time,
+            tzinfo=instructor_zone,
+        )
+
         if min_advance_hours >= 24:
-            # At day granularity, be conservative: assume booking is earliest time on that date,
-            # and "now" is latest time today. Add 1 day to ensure full hour requirement.
-            required_days = min_advance_hours // 24
             local_now = now_utc.astimezone(instructor_zone)
-            min_date = local_now.date() + timedelta(days=required_days + 1)
-            if booking_data.booking_date < min_date:
+            min_local_dt = local_now + timedelta(hours=min_advance_hours)
+            booking_date_only = booking_data.booking_date
+            min_date_only = min_local_dt.date()
+
+            if booking_date_only < min_date_only or (
+                booking_date_only == min_date_only and booking_local.time() < min_local_dt.time()
+            ):
                 raise BusinessRuleException(
                     f"Bookings must be made at least {min_advance_hours} hours in advance"
                 )
         else:
-            booking_local = datetime.combine(
-                booking_data.booking_date,
-                booking_data.start_time,
-                tzinfo=instructor_zone,
-            )
             booking_datetime_utc = booking_local.astimezone(timezone.utc)
             min_booking_time = now_utc + timedelta(hours=min_advance_hours)
             if booking_datetime_utc < min_booking_time:

@@ -33,6 +33,7 @@ from ..models.user import User
 from ..monitoring.prometheus_metrics import prometheus_metrics
 from ..ratelimit.dependency import rate_limit
 from ..ratelimit.locks import acquire_lock, release_lock
+from ..repositories.review_repository import ReviewTipRepository
 from ..schemas.payment_schemas import (
     CheckoutResponse,
     CreateCheckoutRequest,
@@ -55,6 +56,7 @@ from ..services.booking_service import BookingService
 from ..services.cache_service import CacheService, get_cache_service
 from ..services.config_service import ConfigService
 from ..services.dependencies import get_booking_service
+from ..services.payment_summary_service import build_student_payment_summary
 from ..services.pricing_service import PricingService
 from ..services.stripe_service import StripeService
 from ..utils.strict import model_filter
@@ -1054,6 +1056,7 @@ async def get_transaction_history(
     stripe_service: StripeService = Depends(get_stripe_service),
     limit: int = 20,
     offset: int = 0,
+    db: Session = Depends(get_db),
 ) -> List[TransactionHistoryItem]:
     """
     Get user's transaction history
@@ -1062,88 +1065,72 @@ async def get_transaction_history(
     """
     try:
         # Get payment intents for this user
-        transactions = stripe_service.payment_repository.get_user_payment_history(
-            user_id=current_user.id, limit=limit, offset=offset
+        payment_repo = stripe_service.payment_repository
+        fetch_limit = max(limit + offset + 10, limit)
+        transactions = payment_repo.get_user_payment_history(
+            user_id=current_user.id,
+            limit=fetch_limit,
+            offset=0,
         )
 
-        # Format response with booking details
-        result = []
+        tip_repo = ReviewTipRepository(db)
+        pricing_config, _ = stripe_service.config_service.get_pricing_config()
+
+        result: List[TransactionHistoryItem] = []
+        seen_bookings: set[str] = set()
+
         for payment in transactions:
-            try:
-                booking = payment.booking
-                if not booking:
-                    logger.warning(f"Payment {payment.id} has no associated booking")
-                    continue
-
-                # Get instructor service and related data
-                instructor_service = booking.instructor_service
-                if not instructor_service:
-                    logger.warning(f"Booking {booking.id} has no instructor service")
-                    continue
-
-                # Get the catalog entry (the actual service details)
-                catalog_entry = instructor_service.catalog_entry
-                instructor_profile = instructor_service.instructor_profile
-                instructor = instructor_profile.user if instructor_profile else None
-
-                # Determine credits applied from payment events
-                credit_applied_cents = 0
-                try:
-                    events = stripe_service.payment_repository.get_payment_events_for_booking(
-                        booking.id
-                    )
-                    # Prefer explicit credits_applied event
-                    for ev in events:
-                        if ev.event_type == "credits_applied":
-                            data = ev.event_data or {}
-                            credit_applied_cents = int(data.get("applied_cents", 0) or 0)
-                    # Fallback: full credit authorization event
-                    if credit_applied_cents == 0:
-                        for ev in events:
-                            if ev.event_type == "auth_succeeded_credits_only":
-                                data = ev.event_data or {}
-                                credit_applied_cents = int(
-                                    data.get(
-                                        "credits_applied_cents",
-                                        data.get("original_amount_cents", 0),
-                                    )
-                                    or 0
-                                )
-                except Exception:
-                    credit_applied_cents = 0
-
-                # Build transaction history item
-                # Final charged amount: payment.amount (cents) is what the student was charged
-                # total_price = lesson price (from booking)
-                # platform_fee = application_fee (from payment record)
-                # credit_applied = credits applied prior to charge
-                result.append(
-                    TransactionHistoryItem(
-                        id=payment.id,
-                        service_name=catalog_entry.name if catalog_entry else "Service",
-                        instructor_name=(
-                            f"{instructor.first_name} {instructor.last_name[0]}."
-                            if instructor and instructor.last_name
-                            else "Instructor"
-                        ),
-                        booking_date=booking.booking_date.isoformat(),
-                        start_time=booking.start_time.isoformat(),
-                        end_time=booking.end_time.isoformat(),
-                        duration_minutes=booking.duration_minutes,
-                        hourly_rate=float(booking.hourly_rate),
-                        total_price=round(float(booking.total_price), 2),
-                        platform_fee=round((payment.application_fee or 0) / 100, 2),
-                        credit_applied=credit_applied_cents / 100,
-                        final_amount=round((payment.amount or 0) / 100, 2),
-                        status=payment.status,
-                        created_at=payment.created_at.isoformat(),
-                    )
-                )
-            except Exception as e:
-                logger.error(f"Error formatting transaction {payment.id}: {str(e)}")
+            booking = payment.booking
+            if not booking or booking.id in seen_bookings:
                 continue
 
-        return result
+            seen_bookings.add(booking.id)
+
+            try:
+                summary = build_student_payment_summary(
+                    booking=booking,
+                    pricing_config=pricing_config,
+                    payment_repo=payment_repo,
+                    review_tip_repo=tip_repo,
+                )
+            except Exception as exc:
+                logger.error("Failed to build payment summary for booking %s: %s", booking.id, exc)
+                continue
+
+            instructor = booking.instructor
+            instructor_name = "Instructor"
+            if instructor and instructor.last_name:
+                instructor_name = f"{instructor.first_name} {instructor.last_name[0]}."
+            elif instructor and instructor.first_name:
+                instructor_name = instructor.first_name
+
+            result.append(
+                TransactionHistoryItem(
+                    id=payment.id,
+                    booking_id=booking.id,
+                    service_name=booking.service_name,
+                    instructor_name=instructor_name,
+                    booking_date=booking.booking_date.isoformat(),
+                    start_time=booking.start_time.isoformat(),
+                    end_time=booking.end_time.isoformat(),
+                    duration_minutes=booking.duration_minutes,
+                    hourly_rate=float(booking.hourly_rate),
+                    lesson_amount=summary.lesson_amount,
+                    service_fee=summary.service_fee,
+                    credit_applied=summary.credit_applied,
+                    tip_amount=summary.tip_amount,
+                    tip_paid=summary.tip_paid,
+                    tip_status=summary.tip_status,
+                    total_paid=summary.total_paid,
+                    status=payment.status,
+                    created_at=payment.created_at.isoformat(),
+                )
+            )
+
+            if len(result) >= offset + limit:
+                break
+
+        return result[offset : offset + limit]
 
     except Exception as e:
         logger.error(f"Error getting transaction history: {str(e)}")

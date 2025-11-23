@@ -329,6 +329,20 @@ class ServiceInfo(StandardizedModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PaymentSummary(StandardizedModel):
+    """Student-facing payment breakdown for a booking."""
+
+    lesson_amount: Money
+    service_fee: Money
+    credit_applied: Money
+    subtotal: Money
+    tip_amount: Money
+    tip_paid: Money
+    total_paid: Money
+    tip_status: Optional[str] = None
+    tip_last_updated: Optional[datetime] = None
+
+
 class BookingResponse(BookingBase):
     """
     Complete booking response with privacy protection.
@@ -343,9 +357,12 @@ class BookingResponse(BookingBase):
     instructor_service: ServiceInfo
     # Minimal info to display "Rescheduled from ..." on detail page
     rescheduled_from: Optional["RescheduledFromInfo"] = None
+    payment_summary: Optional[PaymentSummary] = None
 
     @classmethod
-    def from_booking(cls, booking: Any) -> "BookingResponse":
+    def from_booking(
+        cls, booking: Any, payment_summary: Optional[PaymentSummary] = None
+    ) -> "BookingResponse":
         """
         Create BookingResponse from Booking ORM model.
         Handles privacy transformation automatically.
@@ -429,6 +446,8 @@ class BookingResponse(BookingBase):
         except Exception:
             # If anything is off (e.g., mocks), omit the optional annotation
             response_data["rescheduled_from"] = None
+
+        response_data["payment_summary"] = payment_summary
 
         return cls(**response_data)
 

@@ -1,4 +1,5 @@
 # backend/app/routes/reviews.py
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
@@ -8,6 +9,7 @@ from ..api.dependencies.auth import get_current_active_user, get_current_student
 from ..database import get_db
 from ..models.user import User
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
+from ..repositories.review_repository import ReviewTipRepository
 from ..schemas.review import (
     ExistingReviewIdsResponse,
     InstructorRatingsResponse,
@@ -59,6 +61,13 @@ async def submit_review(
         tip_client_secret: Optional[str] = None
         tip_status: Optional[str] = None
 
+        tip_repo = ReviewTipRepository(db)
+        tip_record = None
+        try:
+            tip_record = tip_repo.get_by_review_id(review.id)
+        except Exception:
+            tip_record = None
+
         # If tip provided, create a standalone PaymentIntent for the tip
         if payload.tip_amount_cents and payload.tip_amount_cents > 0:
             try:
@@ -95,6 +104,13 @@ async def submit_review(
                     charge_context=None,
                 )
 
+                if tip_record:
+                    tip_repo.set_payment_intent_details(
+                        tip_record.id,
+                        stripe_payment_intent_id=pi_record.stripe_payment_intent_id,
+                        status=pi_record.status,
+                    )
+
                 # Try auto-confirm with student's default payment method
                 default_pm = stripe_service.payment_repository.get_default_payment_method(
                     current_user.id
@@ -105,6 +121,15 @@ async def submit_review(
                             pi_record.stripe_payment_intent_id, default_pm.stripe_payment_method_id
                         )
                         tip_status = pi_after_confirm.status
+                        if tip_record:
+                            tip_repo.set_payment_intent_details(
+                                tip_record.id,
+                                stripe_payment_intent_id=pi_after_confirm.id,
+                                status=pi_after_confirm.status,
+                                processed_at=datetime.now(timezone.utc)
+                                if pi_after_confirm.status == "succeeded"
+                                else None,
+                            )
                         # If further action required (SCA), provide client_secret for client-side confirmation
                         if tip_status in ("requires_action", "requires_confirmation"):
                             try:
@@ -121,16 +146,34 @@ async def submit_review(
                         # If confirm failed, allow client to attempt confirmation if possible
                         tip_status = "requires_payment_method"
                         tip_client_secret = None
+                        if tip_record:
+                            tip_repo.set_payment_intent_details(
+                                tip_record.id,
+                                stripe_payment_intent_id=pi_record.stripe_payment_intent_id,
+                                status=tip_status,
+                            )
                 else:
                     # No default payment method; client would need to add one to complete tip
                     tip_status = "requires_payment_method"
                     tip_client_secret = None
+                    if tip_record:
+                        tip_repo.set_payment_intent_details(
+                            tip_record.id,
+                            stripe_payment_intent_id=pi_record.stripe_payment_intent_id,
+                            status=tip_status,
+                        )
             except HTTPException:
                 raise
             except Exception:
                 # Non-blocking; allow review submission even if tip intent fails
                 tip_status = "failed"
                 tip_client_secret = None
+                if tip_record:
+                    tip_repo.set_payment_intent_details(
+                        tip_record.id,
+                        stripe_payment_intent_id=tip_record.stripe_payment_intent_id,
+                        status=tip_status,
+                    )
 
         return ReviewSubmitResponse(
             id=review.id,

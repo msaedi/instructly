@@ -342,3 +342,48 @@ class ReviewTipRepository(BaseRepository[ReviewTip]):
             return tip
         except Exception as e:
             raise RepositoryException(f"Failed to update tip status: {e}")
+
+    def get_by_review_id(self, review_id: str) -> Optional[ReviewTip]:
+        try:
+            return cast(
+                Optional[ReviewTip],
+                self.db.query(ReviewTip).filter(ReviewTip.review_id == review_id).first(),
+            )
+        except Exception as e:
+            raise RepositoryException(f"Failed to fetch review tip: {e}")
+
+    def get_by_booking_id(self, booking_id: str) -> Optional[ReviewTip]:
+        try:
+            return cast(
+                Optional[ReviewTip],
+                (
+                    self.db.query(ReviewTip)
+                    .join(Review, ReviewTip.review_id == Review.id)
+                    .filter(Review.booking_id == booking_id)
+                    .first()
+                ),
+            )
+        except Exception as e:
+            raise RepositoryException(f"Failed to fetch review tip by booking: {e}")
+
+    def set_payment_intent_details(
+        self,
+        tip_id: str,
+        *,
+        stripe_payment_intent_id: Optional[str],
+        status: Optional[str] = None,
+        processed_at: Optional[datetime] = None,
+    ) -> Optional[ReviewTip]:
+        try:
+            tip: ReviewTip | None = self.db.query(ReviewTip).filter(ReviewTip.id == tip_id).first()
+            if not tip:
+                return None
+            if stripe_payment_intent_id:
+                tip.stripe_payment_intent_id = stripe_payment_intent_id
+            if status:
+                tip.status = status
+            if processed_at is not None:
+                tip.processed_at = processed_at
+            return tip
+        except Exception as e:
+            raise RepositoryException(f"Failed to update tip payment metadata: {e}")

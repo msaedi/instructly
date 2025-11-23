@@ -499,9 +499,8 @@ export default function InstructorDashboardNew() {
     let ignore = false;
     (async () => {
       try {
-        const res = await protectedApi.getBookings({ status: 'COMPLETED', limit: 1 });
-        const raw = res.data as unknown as { total?: number; items?: unknown[] } | undefined;
-        const total = typeof raw?.total === 'number' ? raw!.total : Array.isArray(raw?.items) ? raw!.items!.length : 0;
+        const res = await protectedApi.getInstructorCompletedBookings(1, 1);
+        const total = typeof res.data?.total === 'number' ? res.data.total : 0;
         if (!ignore) setCompletedBookingsCount(Math.max(0, total));
       } catch {
         if (!ignore) setCompletedBookingsCount(0);

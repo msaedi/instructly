@@ -59,9 +59,14 @@ def test_display_policy_thresholds():
     assert display_policy(4.7, 2, cfg) is None
     assert display_policy(4.7, 3, cfg) is not None
     # for low counts >= 3, includes (New)
-    assert "New" in display_policy(4.7, 3, cfg)
-    # for higher counts, no (New)
-    assert "New" not in display_policy(4.7, 10, cfg)
+    display_with_new = display_policy(4.75, 3, cfg)
+    assert display_with_new and "New" in display_with_new and "4.75" in display_with_new
+    # for counts under 10, keep two decimal precision but drop (New)
+    display_mid = display_policy(4.75, 8, cfg)
+    assert display_mid and "4.75" in display_mid and "New" not in display_mid
+    # for higher counts, drop to single decimal
+    display_high = display_policy(4.75, 12, cfg)
+    assert display_high and "4.8★" in display_high
 
 
 def test_confidence_label():
@@ -69,3 +74,12 @@ def test_confidence_label():
     assert confidence_label(10) == "establishing"
     assert confidence_label(50) == "established"
     assert confidence_label(1000) == "trusted"
+
+
+def test_rating_increases_with_additional_five_star_reviews():
+    cfg = RatingsConfig()
+    initial_reviews = [_Review(5), _Review(4), _Review(5)]
+    first = compute_dirichlet_rating(initial_reviews, config=cfg)
+    updated_reviews = initial_reviews + [_Review(5), _Review(5)]
+    second = compute_dirichlet_rating(updated_reviews, config=cfg)
+    assert second["rating"] > first["rating"]

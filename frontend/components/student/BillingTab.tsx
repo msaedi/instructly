@@ -26,27 +26,16 @@ interface Transaction {
   booking_date: string;
   duration_minutes: number;
   hourly_rate: number;
-  total_price: number;
-  platform_fee: number;
+  lesson_amount: number;
+  service_fee: number;
   credit_applied: number;
-  final_amount: number;
+  tip_amount: number;
+  tip_paid: number;
+  tip_status?: string | null;
+  total_paid: number;
   status: string;
   created_at: string;
 }
-
-const calculateServiceFee = (transaction: Transaction): number => {
-  const lessonAmount = Number(transaction?.total_price ?? 0);
-  const finalAmount = Number(transaction?.final_amount ?? 0);
-  const creditApplied = Number(transaction?.credit_applied ?? 0);
-
-  if ([lessonAmount, finalAmount, creditApplied].some((value) => Number.isNaN(value))) {
-    return 0;
-  }
-
-  const computedFee = finalAmount - lessonAmount + creditApplied;
-  // Clamp at zero and round to two decimals to avoid negative pennies from float math
-  return Math.max(0, Number(computedFee.toFixed(2)));
-};
 
 const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
   const queryClient = useQueryClient();
@@ -145,16 +134,17 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
 
       // For now, create a CSV from the existing transaction data
       const csvContent = [
-        ['Date', 'Service', 'Instructor', 'Duration (min)', 'Total Price', 'Platform Fee', 'Credit Applied', 'Final Amount', 'Status'],
+        ['Date', 'Service', 'Instructor', 'Duration (min)', 'Lesson Amount', 'Service Fee', 'Credit Applied', 'Tip Paid', 'Total Paid', 'Status'],
         ...transactions.map(t => [
           format(new Date(t.booking_date), 'yyyy-MM-dd'),
           t.service_name,
           t.instructor_name,
           t.duration_minutes,
-          t.total_price,
-          t.platform_fee,
+          t.lesson_amount,
+          t.service_fee,
           t.credit_applied,
-          t.final_amount,
+          t.tip_paid,
+          t.total_paid,
           t.status
         ])
       ].map(row => row.join(',')).join('\n');
@@ -346,11 +336,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Lesson ({transaction.duration_minutes} min)</span>
-                    <span className="font-medium">{formatCurrency(transaction.total_price)}</span>
+                    <span className="font-medium">{formatCurrency(transaction.lesson_amount)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Service fee</span>
-                    <span>{formatCurrency(calculateServiceFee(transaction))}</span>
+                    <span>{formatCurrency(transaction.service_fee)}</span>
                   </div>
                   {transaction.credit_applied > 0 && (
                     <div className="flex justify-between">
@@ -358,12 +348,29 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
                       <span className="text-green-600">-{formatCurrency(transaction.credit_applied)}</span>
                     </div>
                   )}
+                  {transaction.tip_amount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">
+                        Tip{transaction.tip_paid < transaction.tip_amount ? ' (pending)' : ''}
+                      </span>
+                      <span>
+                        {formatCurrency(
+                          transaction.tip_paid > 0 ? transaction.tip_paid : transaction.tip_amount
+                        )}
+                      </span>
+                    </div>
+                  )}
                   <div className="pt-2 border-t border-gray-200">
                     <div className="flex justify-between">
                       <span className="font-semibold">Total:</span>
-                      <span className="font-semibold">{formatCurrency(transaction.final_amount)}</span>
+                      <span className="font-semibold">{formatCurrency(transaction.total_paid)}</span>
                     </div>
                   </div>
+                  {transaction.tip_paid < transaction.tip_amount && transaction.tip_amount > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Tip will be charged once payment method is confirmed.
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

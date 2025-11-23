@@ -18,6 +18,17 @@ def _seed_availability_for_privacy_tests(db, test_instructor):
 
 
 @pytest.fixture(autouse=True)
+def _no_min_advance_requirement(db, test_instructor):
+    from app.models.instructor import InstructorProfile
+
+    profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
+    if profile:
+        profile.min_advance_booking_hours = 0
+        db.add(profile)
+        db.commit()
+
+
+@pytest.fixture(autouse=True)
 def _no_price_floors(disable_price_floors):
     """Privacy scenarios create $50 bookings intentionally."""
     yield

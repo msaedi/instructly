@@ -183,9 +183,10 @@ class ReviewService(BaseService):
                 booking_completed_at=effective_completed_at_utc,
             )
 
+            tip_record = None
             if tip_amount_cents and tip_amount_cents > 0:
                 try:
-                    self.tip_repository.create_tip(
+                    tip_record = self.tip_repository.create_tip(
                         review_id=review.id,
                         amount_cents=int(tip_amount_cents),
                         status="pending",
@@ -193,6 +194,13 @@ class ReviewService(BaseService):
                 except Exception:
                     # Non-blocking; log and continue
                     self.logger.warning("Failed to create review tip record; continuing")
+
+            if tip_record is not None:
+                try:
+                    review.tip = tip_record
+                except Exception:
+                    # Relationship assignment is best-effort; continue even if it fails
+                    pass
 
         # Invalidate caches
         self._invalidate_instructor_caches(booking.instructor_id)

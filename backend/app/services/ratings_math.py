@@ -91,9 +91,11 @@ def display_policy(
 ) -> Optional[str]:
     if count < config.min_reviews_to_display:
         return None
+    precision = 2 if count < 10 else 1
+    formatted = f"{rating:.{precision}f}"
     if count < 5:
-        return f"{round(rating, 1)}★ (New)"
-    return f"{round(rating, 1)}★"
+        return f"{formatted}★ (New)"
+    return f"{formatted}★"
 
 
 def confidence_label(count: int) -> str:

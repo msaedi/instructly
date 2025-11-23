@@ -20,6 +20,17 @@ import { isApiError } from '@/lib/react-query/api';
 import { StatusBadge } from '@/components/ui/status-badge';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 
+type LessonPaymentSummary = {
+  lesson_amount: number;
+  service_fee: number;
+  credit_applied: number;
+  subtotal: number;
+  tip_amount: number;
+  tip_paid: number;
+  total_paid: number;
+  tip_status?: string | null;
+};
+
 export default function LessonDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -153,6 +164,14 @@ export default function LessonDetailsPage() {
       rescheduledFromText = null;
     }
   }
+
+  const paymentSummary = (lesson as typeof lesson & { payment_summary?: LessonPaymentSummary }).payment_summary;
+  const formatCurrency = (value: number | undefined) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return '0.00';
+    }
+    return value.toFixed(2);
+  };
 
   return (
     <div className="min-h-screen">
@@ -384,21 +403,42 @@ export default function LessonDetailsPage() {
                   <span className="text-gray-500">
                     ${lesson.hourly_rate.toFixed(2)}/hr x {lesson.duration_minutes / 60} hr
                   </span>
-                  <span className="text-gray-700">${lesson.total_price.toFixed(2)}</span>
+                  <span className="text-gray-700">${formatCurrency(paymentSummary?.lesson_amount ?? Number(lesson.total_price))}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Platform Fee</span>
-                  <span className="text-gray-700">${(lesson.total_price * 0.15).toFixed(2)}</span>
+                  <span className="text-gray-500">Service fee</span>
+                  <span className="text-gray-700">${formatCurrency(paymentSummary?.service_fee ?? Number(lesson.total_price) * 0.12)}</span>
                 </div>
+                {paymentSummary?.credit_applied && paymentSummary.credit_applied > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Credit applied</span>
+                    <span className="text-gray-700">-${formatCurrency(paymentSummary.credit_applied)}</span>
+                  </div>
+                )}
+                {paymentSummary && paymentSummary.tip_amount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">
+                      Tip{paymentSummary.tip_paid < paymentSummary.tip_amount ? ' (pending)' : ''}
+                    </span>
+                    <span className="text-gray-700">
+                      ${formatCurrency(paymentSummary.tip_paid > 0 ? paymentSummary.tip_paid : paymentSummary.tip_amount)}
+                    </span>
+                  </div>
+                )}
                 <Separator />
                 <div className="flex justify-between font-semibold text-gray-900">
                   <span>Total</span>
-                  <span>${(lesson.total_price * 1.15).toFixed(2)}</span>
+                  <span>${formatCurrency(paymentSummary?.total_paid ?? Number(lesson.total_price) * 1.12)}</span>
                 </div>
                 <div className="flex justify-between text-gray-500">
                   <span>Paid</span>
-                  <span>${(lesson.total_price * 1.15).toFixed(2)}</span>
+                  <span>${formatCurrency(paymentSummary?.total_paid ?? Number(lesson.total_price) * 1.12)}</span>
                 </div>
+                {paymentSummary && paymentSummary.tip_paid < paymentSummary.tip_amount && paymentSummary.tip_amount > 0 && (
+                  <p className="text-xs text-gray-500 pt-2">
+                    Tip will be finalized once your payment method is confirmed.
+                  </p>
+                )}
                 {wasCancelledLate && (
                   <p className="text-xs text-gray-500 pt-2">
                     This lesson was cancelled less than 12 hours before the scheduled time and was charged in full.

@@ -82,6 +82,7 @@ class TestBookingServiceUnit:
         """Create a mock availability repository."""
         repository = Mock()
         repository.get_slots_by_date.return_value = []
+        repository.get_day_bits.return_value = b"\xff" * 6  # 48 half-hour slots
         return repository
 
     @pytest.fixture
@@ -523,8 +524,9 @@ class TestBookingServiceUnit:
         target_day = date.today() + timedelta(days=5)
         mock_instructor_profile.user.timezone = "America/New_York"
 
-        monkeypatch.setattr("app.services.booking_service.BITMAP_V2", True)
-        AvailabilityDayRepository(booking_service.db).upsert_week(
+        real_repo = AvailabilityDayRepository(booking_service.db)
+        booking_service.availability_repository = real_repo
+        real_repo.upsert_week(
             instructor_id,
             [(target_day, bits_from_windows([("09:00", "11:00")]))],
         )
@@ -577,8 +579,9 @@ class TestBookingServiceUnit:
         target_day = date.today() + timedelta(days=6)
         mock_instructor_profile.user.timezone = "America/New_York"
 
-        monkeypatch.setattr("app.services.booking_service.BITMAP_V2", True)
-        AvailabilityDayRepository(booking_service.db).upsert_week(
+        real_repo = AvailabilityDayRepository(booking_service.db)
+        booking_service.availability_repository = real_repo
+        real_repo.upsert_week(
             instructor_id,
             [(target_day, bits_from_windows([("09:00", "11:00")]))],
         )

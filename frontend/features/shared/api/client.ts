@@ -62,6 +62,11 @@ export const PROTECTED_ENDPOINTS = {
     cancel: (id: string) => `/bookings/${id}/cancel`,
     reschedule: (id: string) => `/bookings/${id}/reschedule`,
   },
+  instructor: {
+    bookings: {
+      completed: '/instructors/bookings/completed',
+    },
+  },
 } as const;
 
 /**
@@ -807,6 +812,16 @@ export const protectedApi = {
    */
   async getBooking(bookingId: string) {
     return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.get(bookingId));
+  },
+
+  async getInstructorCompletedBookings(page: number = 1, perPage: number = 50, signal?: AbortSignal) {
+    const options: FetchOptions = {
+      params: { page, per_page: perPage },
+    };
+    if (signal) {
+      options.signal = signal;
+    }
+    return authFetch<PaginatedBookingResponse>(PROTECTED_ENDPOINTS.instructor.bookings.completed, options);
   },
 
   /**

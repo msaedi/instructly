@@ -311,6 +311,48 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.logger.error(f"Failed to get payment by booking ID: {str(e)}")
             raise RepositoryException(f"Failed to get payment by booking ID: {str(e)}")
 
+    def get_payment_intents_for_booking(self, booking_id: str) -> List[PaymentIntent]:
+        """Return all payment intent records for a booking ordered newest first."""
+
+        try:
+            return cast(
+                List[PaymentIntent],
+                (
+                    self.db.query(PaymentIntent)
+                    .filter(PaymentIntent.booking_id == booking_id)
+                    .order_by(PaymentIntent.created_at.desc())
+                    .all()
+                ),
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get payment intents for booking: {str(e)}")
+            raise RepositoryException(f"Failed to get payment intents for booking: {str(e)}")
+
+    def find_payment_by_booking_and_amount(
+        self, booking_id: str, amount_cents: int
+    ) -> Optional[PaymentIntent]:
+        """Return the most recent payment intent for a booking that matches amount."""
+
+        try:
+            payment = (
+                self.db.query(PaymentIntent)
+                .filter(
+                    PaymentIntent.booking_id == booking_id,
+                    PaymentIntent.amount == amount_cents,
+                )
+                .order_by(PaymentIntent.created_at.desc())
+                .first()
+            )
+            return cast(Optional[PaymentIntent], payment)
+        except Exception as e:
+            self.logger.error(
+                "Failed to find payment intent for booking %s amount %s: %s",
+                booking_id,
+                amount_cents,
+                e,
+            )
+            raise RepositoryException("Failed to find payment intent by amount")
+
     def get_payment_by_booking_prefix(self, booking_prefix: str) -> Optional[PaymentIntent]:
         """Get payment record by booking ID prefix (used for truncated references)."""
 

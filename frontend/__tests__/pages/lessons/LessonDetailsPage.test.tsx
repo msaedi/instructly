@@ -99,6 +99,16 @@ describe('LessonDetailsPage', () => {
       rating_count: 20,
       completed_lesson_count: 100,
     },
+    payment_summary: {
+      lesson_amount: 60,
+      service_fee: 7.2,
+      credit_applied: 0,
+      subtotal: 67.2,
+      tip_amount: 0,
+      tip_paid: 0,
+      total_paid: 67.2,
+      tip_status: null,
+    },
   };
 
   beforeEach(() => {
@@ -393,6 +403,14 @@ describe('LessonDetailsPage', () => {
     const completedLesson = {
       ...mockLesson,
       status: 'COMPLETED',
+      payment_summary: {
+        ...mockLesson.payment_summary,
+        lesson_amount: 60,
+        service_fee: 7.2,
+        tip_amount: 10,
+        tip_paid: 10,
+        total_paid: 77.2,
+      },
     };
 
     const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
@@ -408,12 +426,13 @@ describe('LessonDetailsPage', () => {
     expect(screen.getByText('Date of Lesson')).toBeInTheDocument();
     // Receipt shows combined text with currency symbol
     expect(screen.getByText(/\$?60\.00\/hr x 1 hr/)).toBeInTheDocument();
-    expect(screen.getByText('Platform Fee')).toBeInTheDocument();
-    expect(screen.getByText('$9.00')).toBeInTheDocument(); // 15% of $60
+    expect(screen.getByText('Service fee')).toBeInTheDocument();
+    expect(screen.getByText('$7.20')).toBeInTheDocument();
+    expect(screen.getByText('Tip')).toBeInTheDocument();
+    expect(screen.getByText('$10.00')).toBeInTheDocument();
     expect(screen.getByText('Total')).toBeInTheDocument();
-    // There might be multiple $69.00 values (total and paid), so use getAllByText
-    const total69 = screen.getAllByText('$69.00');
-    expect(total69.length).toBeGreaterThan(0);
+    const totalValues = screen.getAllByText('$77.20');
+    expect(totalValues.length).toBeGreaterThan(0);
   });
 
   it('shows receipt section for completed lessons', () => {

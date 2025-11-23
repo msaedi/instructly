@@ -211,6 +211,7 @@ class TransactionHistoryItem(BaseModel):
     """Individual transaction in payment history."""
 
     id: str = Field(..., description="Payment intent ID")
+    booking_id: str = Field(..., description="Booking ID")
     service_name: str = Field(..., description="Service name")
     instructor_name: str = Field(..., description="Instructor name (first name + last initial)")
     booking_date: str = Field(..., description="Date of the booking")
@@ -218,10 +219,13 @@ class TransactionHistoryItem(BaseModel):
     end_time: str = Field(..., description="End time of the booking")
     duration_minutes: int = Field(..., description="Duration in minutes")
     hourly_rate: float = Field(..., description="Hourly rate charged")
-    total_price: float = Field(..., description="Total price before fees")
-    platform_fee: float = Field(..., description="Platform fee charged")
+    lesson_amount: float = Field(..., description="Lesson price before fees")
+    service_fee: float = Field(..., description="Student service fee amount")
     credit_applied: float = Field(..., description="Credits applied to this transaction")
-    final_amount: float = Field(..., description="Final amount charged")
+    tip_amount: float = Field(..., description="Tip amount recorded")
+    tip_paid: float = Field(..., description="Tip amount successfully charged")
+    tip_status: Optional[str] = Field(None, description="Status of the tip payment")
+    total_paid: float = Field(..., description="Final amount charged including tips")
     status: str = Field(..., description="Payment status")
     created_at: str = Field(..., description="When the payment was created")
 

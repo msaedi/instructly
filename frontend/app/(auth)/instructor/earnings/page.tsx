@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { protectedApi } from '@/features/shared/api/client';
+import { paymentService, EarningsResponse } from '@/services/api/payments';
 import Modal from '@/components/Modal';
 import { Download, DollarSign, Info, ArrowLeft } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
@@ -80,6 +81,8 @@ function EarningsPageImpl() {
   }
   const [serviceCount, setServiceCount] = useState<number>(0);
   const [hoursInvoiced, setHoursInvoiced] = useState<number>(0);
+  const [earnings, setEarnings] = useState<EarningsResponse | null>(null);
+  const [isLoadingEarnings, setIsLoadingEarnings] = useState(true);
   const [activeTab, setActiveTab] = useState<'invoices' | 'payouts'>('invoices');
   const [exportOpen, setExportOpen] = useState(false);
   const [exportYear, setExportYear] = useState<string>('');
@@ -123,8 +126,8 @@ function EarningsPageImpl() {
     let cancelled = false;
     (async () => {
       try {
-        const resp = await protectedApi.getBookings({ status: 'COMPLETED', limit: 200 });
-        const items = (resp.data as unknown as { items?: Array<{ start_time?: string; end_time?: string }> })?.items || [];
+        const resp = await protectedApi.getInstructorCompletedBookings(1, 200);
+        const items = (resp.data as { items?: Array<{ start_time?: string; end_time?: string }> })?.items || [];
         let mins = 0;
         for (const b of items) {
           mins += Math.max(0, parseTimeToMinutes(b?.end_time || '0:0') - parseTimeToMinutes(b?.start_time || '0:0'));
@@ -136,6 +139,25 @@ function EarningsPageImpl() {
     })();
     return () => { cancelled = true; };
   }, [parseTimeToMinutes]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await paymentService.getEarnings();
+        if (!cancelled) setEarnings(data);
+      } catch {
+        if (!cancelled) setEarnings(null);
+      } finally {
+        if (!cancelled) setIsLoadingEarnings(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const formatAmount = (value?: number) => `$${((value ?? 0) / 100).toFixed(2)}`;
+  const grossVolume = (earnings?.total_earned ?? 0) + (earnings?.total_fees ?? 0);
+  const netVolume = earnings?.total_earned ?? 0;
 
   return (
     <div className="min-h-screen">
@@ -192,11 +214,11 @@ function EarningsPageImpl() {
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Total earned</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">$0</p>
+            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(grossVolume)}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Sent to bank</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">$0</p>
+            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(netVolume)}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Service count</h3>
