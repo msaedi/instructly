@@ -1565,9 +1565,11 @@ class BookingService(BaseService):
         now_utc = datetime.now(timezone.utc)
 
         if min_advance_hours >= 24:
+            # At day granularity, be conservative: assume booking is earliest time on that date,
+            # and "now" is latest time today. Add 1 day to ensure full hour requirement.
             required_days = min_advance_hours // 24
             local_now = now_utc.astimezone(instructor_zone)
-            min_date = local_now.date() + timedelta(days=required_days)
+            min_date = local_now.date() + timedelta(days=required_days + 1)
             if booking_data.booking_date < min_date:
                 raise BusinessRuleException(
                     f"Bookings must be made at least {min_advance_hours} hours in advance"
