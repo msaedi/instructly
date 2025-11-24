@@ -333,5 +333,129 @@ Phase 2 explicitly **did not** refactor frontend components. That's Phase 3:
 
 ---
 
-**Status:** Phases 0, 1, 2 Complete ✅
-**Ready for:** Phase 3 Frontend Migration (NOT started yet)
+## Phase 3 - Core Frontend Infrastructure
+
+**Status:** ✅ Complete
+**Date:** November 23, 2025
+
+### Implementation Summary
+
+1. **Created Core Infrastructure Files:**
+   - `src/api/queryKeys.ts` - Centralized React Query key factory
+   - `src/api/hooks/useSession.ts` - Canonical session hook (sole `/auth/me` consumer)
+   - `src/api/services/instructors.ts` - Service layer wrapping Orval-generated instructor hooks
+
+2. **Fixed Module Import Paths:**
+   - Identified path alias issue: files in `src/` require `@/src/...` not `@/api/...`
+   - Fixed imports in all three new infrastructure files
+   - Aligned with existing codebase patterns (e.g., `@/src/types/api`)
+
+3. **Migrated Vertical Slice Feature:**
+   - **Target:** `hooks/queries/useInstructorProfileMe.ts`
+   - **Reason:** Small (36 lines), focused, used by real components (dashboard, dropdown)
+   - **Strategy:** Maintain exact backward compatibility while using new architecture
+   - **Implementation:**
+     - Uses Orval-generated `useGetMyProfileApiV1InstructorsMeGet` hook
+     - Uses centralized `queryKeys.instructors.me` from query key factory
+     - Properly passes `enabled` parameter through to React Query
+     - Casts response to `InstructorProfile` type for backward compatibility
+   - **Consumers Updated:**
+     - Fixed `app/(auth)/instructor/dashboard/page.tsx` to properly type-cast error
+
+4. **Fixed Type Issues:**
+   - Changed `SessionUser` from empty interface to type alias (ESLint requirement)
+   - Removed unused imports
+   - Added proper error type casting in dashboard
+
+### Architecture Files
+
+**Query Key Factory** (`src/api/queryKeys.ts`):
+```typescript
+export const queryKeys = {
+  auth: {
+    me: ['auth', 'me'] as const,
+  },
+  instructors: {
+    list: (filters?) => ['instructors', 'list', filters ?? {}] as const,
+    detail: (id: string) => ['instructors', 'detail', id] as const,
+    me: ['instructors', 'me'] as const,
+    coverage: (id: string) => ['instructors', 'coverage', id] as const,
+  },
+  bookings: { /* ... */ },
+  services: { /* ... */ },
+  availability: { /* ... */ },
+};
+```
+
+**Session Hook** (`src/api/hooks/useSession.ts`):
+- Wraps `useReadUsersMeAuthMeGet()` from `@/src/api/generated/auth/auth`
+- Uses `queryKeys.auth.me` for cache key
+- Session-long caching (`staleTime: Infinity`, `gcTime: Infinity`)
+- No automatic refetching
+- Exports convenience functions: `useCurrentUser()`, `useIsAuthenticated()`, `useUserPermissions()`, `useHasPermission()`
+
+**Instructor Service Layer** (`src/api/services/instructors.ts`):
+- Wraps all Orval-generated instructor hooks
+- Applies consistent query options (stale times, query keys)
+- Domain-friendly function names (e.g., `useInstructorMe()` instead of `useGetMyProfileApiV1InstructorsMeGet()`)
+- Exports type aliases for convenience
+
+**Migrated Hook** (`hooks/queries/useInstructorProfileMe.ts`):
+```typescript
+export function useInstructorProfileMe(enabled: boolean = true) {
+  const result = useGetMyProfileApiV1InstructorsMeGet({
+    query: {
+      queryKey: queryKeys.instructors.me,
+      staleTime: 1000 * 60 * 15, // 15 minutes
+      enabled,
+    },
+  });
+
+  return {
+    ...result,
+    data: result.data as InstructorProfile | undefined,
+  };
+}
+```
+
+### Verification Results
+
+**ESLint:**
+```bash
+npm run lint
+# Result: 0 errors, 0 warnings ✅
+```
+
+**TypeScript Compilation:**
+```bash
+npm run typecheck           # ✅ Pass
+npm run typecheck:strict    # ✅ Pass
+npm run typecheck:strict-all # ✅ Pass
+```
+
+**Pre-commit Hooks:**
+```bash
+pre-commit run frontend-eslint --files <modified files>
+# Result: Passed ✅
+```
+
+### Key Learnings
+
+1. **Path Aliases:** Files in `src/` directory must use `@/src/...` import pattern
+2. **Backward Compatibility:** Migrated hooks must preserve exact interface (including `enabled` parameter)
+3. **Service Layer Optional:** For hooks needing custom options (like `enabled`), can call Orval hooks directly
+4. **Error Typing:** Orval-generated hooks may have loose error types (`{}`), require type assertion in consumers
+5. **Type Aliases Over Empty Interfaces:** ESLint enforces type aliases for single-type extensions
+
+### What's NOT Done Yet (Phase 4)
+
+Phase 3 established **infrastructure and proof-of-concept only**. Remaining work:
+- Migrate remaining hooks to use Orval-generated clients
+- Remove raw `/api/` strings from components
+- Replace direct `fetch()` calls with React Query hooks
+- Update all components to use new service layer
+
+---
+
+**Status:** Phases 0, 1, 2, 3 Complete ✅
+**Ready for:** Phase 4 Full Frontend Migration

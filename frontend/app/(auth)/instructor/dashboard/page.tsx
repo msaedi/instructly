@@ -357,7 +357,7 @@ export default function InstructorDashboardNew() {
   const isEarningsLoading = isEarningsPending && !earningsSummary;
   useEffect(() => {
     if (profileQueryError) {
-      setError(profileQueryError.message);
+      setError((profileQueryError as Error).message);
     }
   }, [profileQueryError]);
 
