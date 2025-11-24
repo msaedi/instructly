@@ -100,7 +100,6 @@ from .routes import (
     gated,
     instructor_background_checks,
     instructor_bookings,
-    instructors,
     internal,
     messages,
     metrics,
@@ -126,6 +125,7 @@ from .routes import (
     users_profile_picture,
     webhooks_checkr,
 )
+from .routes.v1 import instructors as instructors_v1
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
     FINAL_ADVERSE_JOB_TYPE,
@@ -922,6 +922,12 @@ class SSEAwareGZipMiddleware(GZipMiddleware):
 
 app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 
+# Create API v1 router
+api_v1 = APIRouter(prefix="/api/v1")
+
+# Mount v1 routes
+api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
+
 # Include routers
 PUBLIC_OPEN_PATHS = {
     "/",
@@ -941,6 +947,7 @@ PUBLIC_OPEN_PREFIXES = (
     "/api/auth/password-reset/verify",
     "/api/config",
     "/r/",
+    "/api/v1/instructors",  # v1 instructors endpoints are public (some require auth via dependency)
 )
 
 public_guard_dependency = public_guard(
@@ -949,10 +956,16 @@ public_guard_dependency = public_guard(
 )
 
 
+# Mount API v1 first
+app.include_router(api_v1)
+
 app.include_router(auth.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(two_factor_auth.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(instructors.router)
-app.include_router(instructors.api_router)
+
+# Legacy instructor routes - DEPRECATED, use /api/v1/instructors instead
+# app.include_router(instructors.router)  # Was: /instructors
+# app.include_router(instructors.api_router)  # Was: /api/instructors
+
 app.include_router(instructor_background_checks.router)
 app.include_router(instructor_bookings.router)
 app.include_router(instructor_bookings.api_router)
