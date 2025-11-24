@@ -2,7 +2,7 @@ import { useQuery, useQueries } from '@tanstack/react-query';
 import { queryFn, convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi, TopServicesResponse } from '@/features/shared/api/client';
-import { useUser } from './useUser';
+import { useCurrentUser } from '@/src/api/hooks/useSession';
 import type { BookingListResponse } from '@/features/shared/api/types';
 import { SearchHistoryItem } from '@/lib/searchTracking';
 import { httpJson } from '@/features/shared/api/http';
@@ -32,7 +32,7 @@ import { loadBookingListSchema } from '@/features/shared/api/schemas/bookingList
  * ```
  */
 export function useUpcomingBookings(limit: number = 2) {
-  const { data: user } = useUser();
+  const user = useCurrentUser();
   const isAuthenticated = !!user;
 
   return useQuery<BookingListResponse>({
@@ -116,7 +116,7 @@ export function useFeaturedServices() {
  * Only for authenticated users
  */
 export function useBookingHistory(limit: number = 50) {
-  const { data: user } = useUser();
+  const user = useCurrentUser();
   const isAuthenticated = !!user;
 
   return useQuery({
@@ -189,7 +189,7 @@ interface HomepageData {
  * ```
  */
 export function useHomepageData(): HomepageData {
-  const { data: user } = useUser();
+  const user = useCurrentUser();
   const isAuthenticated = !!user;
 
   // Define all queries

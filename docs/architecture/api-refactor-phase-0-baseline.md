@@ -457,5 +457,124 @@ Phase 3 established **infrastructure and proof-of-concept only**. Remaining work
 
 ---
 
-**Status:** Phases 0, 1, 2, 3 Complete ✅
-**Ready for:** Phase 4 Full Frontend Migration
+## Phase 4 - Expand Usage + Guardrails
+
+**Status:** ✅ Complete
+**Date:** November 24, 2025
+
+### Implementation Summary
+
+Phase 4 focused on consolidating auth usage, expanding the service layer pattern, and adding guardrails to prevent regressions.
+
+### 1. Auth/Session Consolidation
+
+**Goal:** Consolidate all `/auth/me` calls to use the canonical `useSession` hook.
+
+**Changes:**
+1. **Migrated `hooks/queries/useHomepage.ts`:**
+   - Replaced `useUser()` with `useCurrentUser()` from `@/src/api/hooks/useSession`
+   - Updated 3 functions: `useUpcomingBookings`, `useBookingHistory`, `useHomepageData`
+   - Simplified auth checks: `const user = useCurrentUser()` instead of `const { data: user } = useUser()`
+
+2. **Deprecated old `hooks/queries/useUser.ts`:**
+   - Added `@deprecated` JSDoc comments to all exports
+   - Provided migration guide for each function
+   - Kept file functional for backward compatibility during transition
+
+3. **Updated documentation and examples:**
+   - Updated `lib/react-query/README.md` to reference new hooks
+   - Updated `lib/react-query/example-usage.tsx` with new patterns
+
+**Result:**
+- ✅ `useSession` is now the ONLY hook that directly calls `/auth/me`
+- ✅ All new code must use hooks from `@/src/api/hooks/useSession`
+- ✅ Clear deprecation path for old hooks
+
+### 2. Expanded Instructor Service Usage
+
+**Goal:** Migrate additional instructor features to the new Orval-based service layer.
+
+**Migrated Feature:**
+- **Onboarding Go-Live** (`app/(auth)/instructor/onboarding/status/page.tsx:165-173`):
+  - **Before:** `fetchWithAuth('/instructors/me/go-live', { method: 'POST' })`
+  - **After:** `useGoLiveInstructor()` mutation hook from service layer
+  - Proper error handling with logger instead of console.error
+
+**Result:**
+- ✅ Demonstrated service layer pattern works beyond initial dashboard migration
+- ✅ One more endpoint migrated from raw fetch to Orval-generated hooks
+- ✅ Cleaner, type-safe implementation with React Query mutation
+
+### 3. Guardrails Against Raw `/api/` Strings
+
+**Goal:** Prevent new raw `/api/...` string literals in app code.
+
+**Implementation:**
+- Created pre-commit hook: `frontend/scripts/precommit_no_raw_api.sh`
+- Added to `.pre-commit-config.yaml` as `frontend-no-raw-api-strings`
+- Blocks commits containing `"/api/"`, `'/api/'`, or `` `/api/` `` in:
+  - Components, hooks, app, features, lib, services
+
+**Exclusions (allowed to have `/api/` strings):**
+- `src/api/generated/**/*` - Orval-generated files
+- `src/api/orval-mutator.ts` - Orval configuration
+- `orval.config.ts` - Configuration
+- Test files (`__tests__/`, `*.test.*`, `*.spec.*`, `e2e/`)
+- Legacy files being migrated: `lib/api.ts`, `lib/apiBase.ts`, `lib/betaApi.ts`
+- API client layer: `features/shared/api/**/*`
+
+**Error Message:**
+```
+❌ Phase 4 API Guardrail: Raw /api/ strings detected
+
+The following files contain raw /api/ path strings:
+  - path/to/file.ts
+      123: const url = '/api/instructors/me';
+
+❌ Use Orval-generated hooks from @/src/api/services/* instead of raw /api/ strings.
+   See: docs/architecture/api-refactor-phase-4.md
+```
+
+**Result:**
+- ✅ Pre-commit hook prevents new violations
+- ✅ Developers guided to use Orval-generated clients
+- ✅ Legacy files excluded during migration period
+
+### 4. Verification & Testing
+
+**All checks passing:**
+```bash
+npm run lint                    # ✅ 0 errors, 0 warnings
+npm run typecheck               # ✅ Pass
+npm run typecheck:strict        # ✅ Pass
+npm run typecheck:strict-all    # ✅ Pass
+pre-commit run --all-files      # ✅ All hooks pass
+```
+
+**Pre-commit hooks:**
+- ✅ `frontend-eslint` - Pass
+- ✅ `frontend-no-console` - Pass
+- ✅ `frontend-no-raw-api-strings` - Pass (new)
+- ✅ `frontend-public-env` - Pass
+
+### Summary
+
+**What Changed:**
+1. Auth consolidated: `useSession` is now the canonical source for `/auth/me`
+2. Service layer expanded: Go-live endpoint migrated to Orval pattern
+3. Guardrails added: Pre-commit hook prevents raw `/api/` strings
+
+**What's Protected:**
+- ✅ No new raw `/api/` strings can be committed to app code
+- ✅ All `/auth/me` access goes through one canonical hook
+- ✅ New features must use Orval-generated clients
+
+**Migration Strategy:**
+- Legacy files explicitly excluded from guardrails
+- Deprecation notices guide developers to new patterns
+- Clear error messages when violations detected
+
+---
+
+**Status:** Phases 0, 1, 2, 3, 4 Complete ✅
+**Ready for:** Phase 5 (Full Migration - Remaining Endpoints)

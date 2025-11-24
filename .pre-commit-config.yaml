@@ -102,6 +102,14 @@ repos:
         pass_filenames: true
         description: Fail commit if console.* is used in staged frontend TS/TSX files (tests/e2e excluded)
 
+      - id: frontend-no-raw-api-strings
+        name: Frontend no raw /api/ strings (Phase 4 guardrail)
+        entry: frontend/scripts/precommit_no_raw_api.sh
+        language: script
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: true
+        description: Block raw /api/ strings in app code - use Orval-generated hooks instead
+
       - id: backend-no-focused-tests
         name: Backend block focused tests
         entry: backend/scripts/precommit_block_only_tests.sh

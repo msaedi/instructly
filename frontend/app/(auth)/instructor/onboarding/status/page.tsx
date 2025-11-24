@@ -11,10 +11,13 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { BGCStep } from '@/components/instructor/BGCStep';
 import type { BGCStatus } from '@/lib/api/bgc';
 import { ShieldCheck } from 'lucide-react';
+import { useGoLiveInstructor } from '@/src/api/services/instructors';
+import { logger } from '@/lib/logger';
 
 export default function OnboardingStatusPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+  const goLiveMutation = useGoLiveInstructor();
   const [connectStatus, setConnectStatus] = useState<{
     has_account: boolean;
     onboarding_completed: boolean;
@@ -162,11 +165,11 @@ export default function OnboardingStatusPage() {
   const goLive = async () => {
     try {
       setSaving(true);
-      const res = await fetchWithAuth('/instructors/me/go-live', { method: 'POST' });
-      if (res.ok) {
-        window.location.href = '/instructor/dashboard';
-        return;
-      }
+      await goLiveMutation.mutateAsync();
+      window.location.href = '/instructor/dashboard';
+    } catch (error) {
+      // Mutation will handle error state
+      logger.error('Failed to go live', error as Error);
     } finally {
       setSaving(false);
     }
