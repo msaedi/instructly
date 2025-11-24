@@ -157,7 +157,7 @@ export const deleteProfileApiV1InstructorsMeDelete = (
 
 
 
-export const getDeleteProfileApiV1InstructorsMeDeleteMutationOptions = <TError = ErrorType<unknown>,
+export const getDeleteProfileApiV1InstructorsMeDeleteMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>, TError,void, TContext>, }
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>, TError,void, TContext> => {
 
@@ -184,12 +184,12 @@ const {mutation: mutationOptions} = options ?
 
     export type DeleteProfileApiV1InstructorsMeDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>>
 
-    export type DeleteProfileApiV1InstructorsMeDeleteMutationError = ErrorType<unknown>
+    export type DeleteProfileApiV1InstructorsMeDeleteMutationError = ErrorType<void>
 
     /**
  * @summary Delete Profile
  */
-export const useDeleteProfileApiV1InstructorsMeDelete = <TError = ErrorType<unknown>,
+export const useDeleteProfileApiV1InstructorsMeDelete = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>, TError,void, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>,
@@ -228,7 +228,7 @@ export const getGetMyProfileApiV1InstructorsMeGetQueryKey = () => {
     }
 
 
-export const getGetMyProfileApiV1InstructorsMeGetQueryOptions = <TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>>, }
+export const getGetMyProfileApiV1InstructorsMeGetQueryOptions = <TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
@@ -247,10 +247,10 @@ const {query: queryOptions} = options ?? {};
 }
 
 export type GetMyProfileApiV1InstructorsMeGetQueryResult = NonNullable<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>>
-export type GetMyProfileApiV1InstructorsMeGetQueryError = ErrorType<unknown>
+export type GetMyProfileApiV1InstructorsMeGetQueryError = ErrorType<void>
 
 
-export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<unknown>>(
+export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<void>>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>,
@@ -260,7 +260,7 @@ export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<unknown>>(
+export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<void>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>,
@@ -270,7 +270,7 @@ export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<unknown>>(
+export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<void>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -278,7 +278,7 @@ export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<
  * @summary Get My Profile
  */
 
-export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<unknown>>(
+export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<void>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -315,7 +315,7 @@ export const createProfileApiV1InstructorsMePost = (
 
 
 
-export const getCreateProfileApiV1InstructorsMePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getCreateProfileApiV1InstructorsMePostMutationOptions = <TError = ErrorType<void | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>, TError,{data: InstructorProfileCreate}, TContext>, }
 ): UseMutationOptions<Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>, TError,{data: InstructorProfileCreate}, TContext> => {
 
@@ -342,12 +342,12 @@ const {mutation: mutationOptions} = options ?
 
     export type CreateProfileApiV1InstructorsMePostMutationResult = NonNullable<Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>>
     export type CreateProfileApiV1InstructorsMePostMutationBody = InstructorProfileCreate
-    export type CreateProfileApiV1InstructorsMePostMutationError = ErrorType<HTTPValidationError>
+    export type CreateProfileApiV1InstructorsMePostMutationError = ErrorType<void | HTTPValidationError>
 
     /**
  * @summary Create Profile
  */
-export const useCreateProfileApiV1InstructorsMePost = <TError = ErrorType<HTTPValidationError>,
+export const useCreateProfileApiV1InstructorsMePost = <TError = ErrorType<void | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>, TError,{data: InstructorProfileCreate}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>,
@@ -379,7 +379,7 @@ export const updateProfileApiV1InstructorsMePut = (
 
 
 
-export const getUpdateProfileApiV1InstructorsMePutMutationOptions = <TError = ErrorType<HTTPValidationError>,
+export const getUpdateProfileApiV1InstructorsMePutMutationOptions = <TError = ErrorType<void | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>, TError,{data: InstructorProfileUpdate}, TContext>, }
 ): UseMutationOptions<Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>, TError,{data: InstructorProfileUpdate}, TContext> => {
 
@@ -406,12 +406,12 @@ const {mutation: mutationOptions} = options ?
 
     export type UpdateProfileApiV1InstructorsMePutMutationResult = NonNullable<Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>>
     export type UpdateProfileApiV1InstructorsMePutMutationBody = InstructorProfileUpdate
-    export type UpdateProfileApiV1InstructorsMePutMutationError = ErrorType<HTTPValidationError>
+    export type UpdateProfileApiV1InstructorsMePutMutationError = ErrorType<void | HTTPValidationError>
 
     /**
  * @summary Update Profile
  */
-export const useUpdateProfileApiV1InstructorsMePut = <TError = ErrorType<HTTPValidationError>,
+export const useUpdateProfileApiV1InstructorsMePut = <TError = ErrorType<void | HTTPValidationError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>, TError,{data: InstructorProfileUpdate}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>,
@@ -448,7 +448,7 @@ export const goLiveApiV1InstructorsMeGoLivePost = (
 
 
 
-export const getGoLiveApiV1InstructorsMeGoLivePostMutationOptions = <TError = ErrorType<unknown>,
+export const getGoLiveApiV1InstructorsMeGoLivePostMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>, TError,void, TContext>, }
 ): UseMutationOptions<Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>, TError,void, TContext> => {
 
@@ -475,12 +475,12 @@ const {mutation: mutationOptions} = options ?
 
     export type GoLiveApiV1InstructorsMeGoLivePostMutationResult = NonNullable<Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>>
 
-    export type GoLiveApiV1InstructorsMeGoLivePostMutationError = ErrorType<unknown>
+    export type GoLiveApiV1InstructorsMeGoLivePostMutationError = ErrorType<void>
 
     /**
  * @summary Go Live
  */
-export const useGoLiveApiV1InstructorsMeGoLivePost = <TError = ErrorType<unknown>,
+export const useGoLiveApiV1InstructorsMeGoLivePost = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>, TError,void, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>,
@@ -519,7 +519,7 @@ export const getGetInstructorApiV1InstructorsInstructorIdGetQueryKey = (instruct
     }
 
 
-export const getGetInstructorApiV1InstructorsInstructorIdGetQueryOptions = <TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<HTTPValidationError>>(instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>>, }
+export const getGetInstructorApiV1InstructorsInstructorIdGetQueryOptions = <TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<void | HTTPValidationError>>(instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
@@ -538,10 +538,10 @@ const {query: queryOptions} = options ?? {};
 }
 
 export type GetInstructorApiV1InstructorsInstructorIdGetQueryResult = NonNullable<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>>
-export type GetInstructorApiV1InstructorsInstructorIdGetQueryError = ErrorType<HTTPValidationError>
+export type GetInstructorApiV1InstructorsInstructorIdGetQueryError = ErrorType<void | HTTPValidationError>
 
 
-export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
  instructorId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
@@ -551,7 +551,7 @@ export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
  instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
@@ -561,7 +561,7 @@ export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
  instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -569,7 +569,7 @@ export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<
  * @summary Get Instructor
  */
 
-export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
  instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -612,7 +612,7 @@ export const getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryKey = (in
     }
 
 
-export const getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryOptions = <TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<HTTPValidationError>>(instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>>, }
+export const getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryOptions = <TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<void | HTTPValidationError>>(instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
@@ -631,10 +631,10 @@ const {query: queryOptions} = options ?? {};
 }
 
 export type GetCoverageApiV1InstructorsInstructorIdCoverageGetQueryResult = NonNullable<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>>
-export type GetCoverageApiV1InstructorsInstructorIdCoverageGetQueryError = ErrorType<HTTPValidationError>
+export type GetCoverageApiV1InstructorsInstructorIdCoverageGetQueryError = ErrorType<void | HTTPValidationError>
 
 
-export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<void | HTTPValidationError>>(
  instructorId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
@@ -644,7 +644,7 @@ export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Aw
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<void | HTTPValidationError>>(
  instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
@@ -654,7 +654,7 @@ export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Aw
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<void | HTTPValidationError>>(
  instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -662,7 +662,7 @@ export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Aw
  * @summary Get Coverage
  */
 
-export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<void | HTTPValidationError>>(
  instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {

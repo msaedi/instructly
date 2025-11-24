@@ -592,6 +592,10 @@ export interface BlackoutDateResponse {
   reason?: BlackoutDateResponseReason;
 }
 
+export interface BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost {
+  reason: string;
+}
+
 export type BodyLoginAuthLoginPostClientId = string | null;
 
 export type BodyLoginAuthLoginPostClientSecret = string | null;
@@ -5112,6 +5116,100 @@ variant?: 'original' | 'display' | 'thumb' | null;
 
 export type GetProfilePictureUrlApiUsersUserIdProfilePictureUrlGetParams = {
 variant?: 'original' | 'display' | 'thumb' | null;
+};
+
+export type GetBookingsApiV1BookingsGetParams = {
+status?: BookingStatus | null;
+upcoming_only?: boolean | null;
+upcoming?: boolean | null;
+exclude_future_confirmed?: boolean;
+include_past_confirmed?: boolean;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+per_page?: number;
+};
+
+export type GetUpcomingBookingsApiV1BookingsUpcomingGetParams = {
+/**
+ * @minimum 1
+ * @maximum 20
+ */
+limit?: number;
+};
+
+export type ListInstructorBookingsApiV1InstructorBookingsGetParams = {
+/**
+ * Filter by booking status (COMPLETED, CONFIRMED, etc.)
+ */
+status?: BookingStatus | null;
+/**
+ * Only include upcoming confirmed bookings
+ */
+upcoming?: boolean;
+/**
+ * Page number
+ * @minimum 1
+ */
+page?: number;
+/**
+ * Items per page
+ * @minimum 1
+ * @maximum 100
+ */
+per_page?: number;
+include_past_confirmed?: boolean;
+};
+
+export type GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams = {
+/**
+ * Page number
+ * @minimum 1
+ */
+page?: number;
+/**
+ * Items per page
+ * @minimum 1
+ * @maximum 100
+ */
+per_page?: number;
+};
+
+export type GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams = {
+/**
+ * Page number
+ * @minimum 1
+ */
+page?: number;
+/**
+ * Items per page
+ * @minimum 1
+ * @maximum 100
+ */
+per_page?: number;
+};
+
+export type GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams = {
+/**
+ * Page number
+ * @minimum 1
+ */
+page?: number;
+/**
+ * Items per page
+ * @minimum 1
+ * @maximum 100
+ */
+per_page?: number;
+};
+
+export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams = {
+notes?: string | null;
 };
 
 export type ListInstructorsApiV1InstructorsGetParams = {

@@ -42,7 +42,11 @@ from app.routes import (
     uploads,
     users_profile_picture,
 )
-from app.routes.v1 import instructors as instructors_v1
+from app.routes.v1 import (
+    bookings as bookings_v1,
+    instructor_bookings as instructor_bookings_v1,
+    instructors as instructors_v1,
+)
 
 
 def build_openapi_app() -> FastAPI:
@@ -59,6 +63,8 @@ def build_openapi_app() -> FastAPI:
     # Create API v1 router
     api_v1 = APIRouter(prefix="/api/v1")
     api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
+    api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
+    api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
 
     # Mount v1 API first
     app.include_router(api_v1)

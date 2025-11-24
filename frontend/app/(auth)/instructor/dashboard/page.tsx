@@ -362,7 +362,16 @@ export default function InstructorDashboardNew() {
   }, [profileQueryError]);
 
   useEffect(() => {
-    const status = (profileQueryError as Error & { status?: number })?.status;
+    // Type guard for error with status
+    function getErrorStatus(error: unknown): number | undefined {
+      if (error && typeof error === 'object' && 'status' in error) {
+        const maybeStatus = (error as { status?: unknown }).status;
+        return typeof maybeStatus === 'number' ? maybeStatus : undefined;
+      }
+      return undefined;
+    }
+
+    const status = getErrorStatus(profileQueryError);
     if (status === 401) {
       router.push('/login?redirect=/instructor/dashboard');
     }

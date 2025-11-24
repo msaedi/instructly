@@ -55,9 +55,7 @@ def _is_excluded_path(path: str) -> bool:
         "/prometheus/",
         # Legacy paths - will be migrated in later phases
         "/auth/",
-        "/bookings/",
         "/api/auth/",
-        "/api/bookings/",
         "/api/public/",
         "/api/config/",
         "/api/search/",
@@ -77,9 +75,8 @@ def _is_excluded_path(path: str) -> bool:
         "/api/availability-windows/",
         "/api/pricing/",
         "/api/instructor/",
-        "/api/instructors/bookings/",  # Legacy instructor bookings
         "/api/instructors/{instructor_id}/bgc/",  # BGC admin endpoints - to be migrated
-        "/instructors/",  # Legacy non-versioned
+        "/instructors/",  # Legacy non-versioned (note: /api/v1/instructors is the migrated version)
         "/availability/",
         "/password-reset/",
         "/admin/",
@@ -108,8 +105,8 @@ class TestRoutingInvariants:
         """
         Ensure all JSON API endpoints are under /api/v1.
 
-        Currently enforced only for migrated domains (instructors).
-        Other domains will be migrated in future phases.
+        Currently enforced only for fully migrated domains (instructors).
+        Bookings domain is in migration - legacy routes exist temporarily.
 
         This ensures:
         - Clean versioned API surface for new endpoints
@@ -119,10 +116,19 @@ class TestRoutingInvariants:
         routes = _get_api_routes()
         non_v1_routes = []
 
-        # Domains that have been migrated to v1
-        migrated_domains = [
+        # Domains that have been FULLY migrated to v1 (no legacy routes allowed)
+        fully_migrated_domains = [
             "/instructors/",  # Should no longer exist as legacy
             "/api/instructors/",  # Should no longer exist as legacy
+        ]
+
+        # Domains in migration (legacy routes temporarily allowed)
+        # These will be removed once frontend/tests are migrated
+        migrating_domains_legacy_allowed = [
+            "/bookings/",  # TODO: Remove after frontend migration
+            "/api/bookings/",  # TODO: Remove after frontend migration
+            "/instructors/bookings/",  # TODO: Remove after frontend migration
+            "/api/instructors/bookings/",  # TODO: Remove after frontend migration
         ]
 
         for route in routes:
@@ -132,21 +138,32 @@ class TestRoutingInvariants:
             if _is_excluded_path(path):
                 continue
 
-            # Check if this is a migrated domain that should be v1
-            is_migrated_domain = False
-            for domain in migrated_domains:
+            # Skip paths that are in migrating domains (temporarily allowed)
+            is_migrating_domain = False
+            for domain in migrating_domains_legacy_allowed:
                 if path.startswith(domain):
-                    is_migrated_domain = True
+                    is_migrating_domain = True
                     break
 
-            # Only fail if it's a migrated domain that's not using v1
-            if is_migrated_domain and not path.startswith("/api/v1"):
+            if is_migrating_domain:
+                continue
+
+            # Check if this is a fully migrated domain (strict check)
+            is_fully_migrated_domain = False
+            for domain in fully_migrated_domains:
+                if path.startswith(domain):
+                    is_fully_migrated_domain = True
+                    break
+
+            # Only fail if it's a fully migrated domain that's not using v1
+            if is_fully_migrated_domain and not path.startswith("/api/v1"):
                 non_v1_routes.append(path)
 
         if non_v1_routes:
             error_msg = (
-                f"Found {len(non_v1_routes)} instructor routes not using /api/v1. "
-                "All instructor endpoints must be under /api/v1/instructors.\n"
+                f"Found {len(non_v1_routes)} routes in fully migrated domains not using /api/v1. "
+                "All endpoints in fully migrated domains must be under /api/v1/*.\n"
+                "Fully migrated domains: instructors\n"
                 "Non-compliant routes:\n"
             )
             for path in sorted(non_v1_routes):
@@ -215,7 +232,15 @@ class TestRoutingInvariants:
             ("/api/v1/instructors/{instructor_id}", "/api/v1/instructors/me"),
             # The static "me" route is defined before the dynamic {instructor_id} route
             # in the v1 router, so FastAPI correctly matches "me" first.
-            # TODO: Consider moving to /api/v1/instructor-profile/me in future refactor
+            # Bookings v1: Static routes defined before dynamic {booking_id}
+            ("/api/v1/bookings/upcoming", "/api/v1/bookings/{booking_id}"),
+            ("/api/v1/bookings/{booking_id}", "/api/v1/bookings/upcoming"),
+            ("/api/v1/bookings/stats", "/api/v1/bookings/{booking_id}"),
+            ("/api/v1/bookings/{booking_id}", "/api/v1/bookings/stats"),
+            ("/api/v1/bookings/check-availability", "/api/v1/bookings/{booking_id}"),
+            ("/api/v1/bookings/{booking_id}", "/api/v1/bookings/check-availability"),
+            ("/api/v1/bookings/send-reminders", "/api/v1/bookings/{booking_id}"),
+            ("/api/v1/bookings/{booking_id}", "/api/v1/bookings/send-reminders"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):
@@ -320,4 +345,87 @@ class TestRoutingInvariants:
                 "Found legacy instructor endpoints that should be removed:\n"
                 + "\n".join(f"  - {path}" for path in found_legacy)
                 + "\n\nUse /api/v1/instructors instead."
+            )
+
+    def test_v1_bookings_endpoints_exist(self):
+        """Verify v1 bookings endpoints are properly mounted."""
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_bookings_endpoints = [
+            "/api/v1/bookings",  # GET list, POST create
+            "/api/v1/bookings/upcoming",  # GET
+            "/api/v1/bookings/stats",  # GET
+            "/api/v1/bookings/check-availability",  # POST
+            "/api/v1/bookings/{booking_id}",  # GET
+            "/api/v1/bookings/{booking_id}/preview",  # GET
+            "/api/v1/bookings/{booking_id}/cancel",  # POST
+            "/api/v1/bookings/{booking_id}/complete",  # POST
+            "/api/v1/bookings/{booking_id}/confirm-payment",  # POST
+        ]
+
+        missing = []
+        for expected in expected_bookings_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 bookings endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_v1_instructor_bookings_endpoints_exist(self):
+        """Verify v1 instructor-bookings endpoints are properly mounted."""
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_instructor_bookings_endpoints = [
+            "/api/v1/instructor-bookings",  # GET list
+            "/api/v1/instructor-bookings/pending-completion",  # GET
+            "/api/v1/instructor-bookings/upcoming",  # GET
+            "/api/v1/instructor-bookings/completed",  # GET
+            "/api/v1/instructor-bookings/{booking_id}/complete",  # POST
+            "/api/v1/instructor-bookings/{booking_id}/dispute",  # POST
+        ]
+
+        missing = []
+        for expected in expected_instructor_bookings_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 instructor-bookings endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_bookings_endpoints_still_exist_temporarily(self):
+        """
+        Verify legacy bookings endpoints still exist during migration.
+
+        NOTE: Once frontend and tests are migrated to v1, we can remove
+        the legacy endpoints and delete this test.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should exist during migration
+        # Note: These have trailing slashes in the actual routes
+        legacy_bookings_endpoints = [
+            "/bookings/",  # Note: Has trailing slash
+            "/bookings/{booking_id}",
+            "/instructors/bookings/",  # Note: Has trailing slash
+        ]
+
+        missing = []
+        for legacy in legacy_bookings_endpoints:
+            if legacy not in paths:
+                missing.append(legacy)
+
+        if missing:
+            pytest.fail(
+                "Expected legacy bookings endpoints to exist during migration:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+                + "\n\nThese will be removed after frontend migration is complete."
             )

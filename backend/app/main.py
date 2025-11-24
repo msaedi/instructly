@@ -125,7 +125,11 @@ from .routes import (
     users_profile_picture,
     webhooks_checkr,
 )
-from .routes.v1 import instructors as instructors_v1
+from .routes.v1 import (
+    bookings as bookings_v1,
+    instructor_bookings as instructor_bookings_v1,
+    instructors as instructors_v1,
+)
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
     FINAL_ADVERSE_JOB_TYPE,
@@ -927,6 +931,8 @@ api_v1 = APIRouter(prefix="/api/v1")
 
 # Mount v1 routes
 api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
+api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
+api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {

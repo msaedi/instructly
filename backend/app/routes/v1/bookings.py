@@ -1,65 +1,49 @@
-# backend/app/routes/bookings.py
+# backend/app/routes/v1/bookings.py
 """
-Booking routes for InstaInstru platform - Clean Architecture Implementation.
+Student booking routes - API v1
 
-COMPLETELY REWRITTEN for time-based bookings without slot references.
-All legacy patterns removed. No backward compatibility.
+Versioned booking endpoints under /api/v1/bookings.
+All business logic delegated to BookingService.
 
-Key Changes:
-- Bookings created with instructor_id, date, and time range
-- No availability_slot_id references
-- Proper schema serialization (no manual response building)
-- Removed dead code and unused endpoints
-
-Key Features:
-    - Instant booking with time-based creation
-    - Self-contained bookings (no slot dependencies)
-    - Booking lifecycle management (create, cancel, complete)
-    - Availability checking using time ranges
-    - Booking statistics for instructors
-    - Preview and full details endpoints
-    - Pagination support for listing bookings
-
-Router Endpoints:
-    GET /{booking_id}/preview - Quick preview for calendar display
-    GET /{booking_id} - Full booking details
-    POST / - Create instant booking with time range
-    GET / - List bookings with filters and pagination
+Endpoints:
     GET /upcoming - Dashboard widget for upcoming bookings
-    GET /stats - Instructor booking statistics
-    PATCH /{booking_id} - Update booking (instructor notes/location)
-    POST /{booking_id}/cancel - Cancel a booking
-    POST /{booking_id}/complete - Mark booking as completed
+    GET /stats - Booking statistics
     POST /check-availability - Check if time range is available
     POST /send-reminders - Admin endpoint for reminder emails
+    GET / - List bookings with filters and pagination
+    POST / - Create instant booking with time range
+    GET /{booking_id}/preview - Quick preview for calendar display
+    GET /{booking_id} - Full booking details
+    PATCH /{booking_id} - Update booking (instructor notes/location)
+    POST /{booking_id}/cancel - Cancel a booking
+    POST /{booking_id}/reschedule - Reschedule a booking
+    POST /{booking_id}/complete - Mark booking as completed
+    POST /{booking_id}/confirm-payment - Confirm payment method
+    PATCH /{booking_id}/payment-method - Update booking payment method
 """
 
 from datetime import datetime, timedelta
-from functools import wraps
 import logging
-from typing import Any, Awaitable, Callable, NoReturn, Optional, ParamSpec, TypeVar
+from typing import Any, NoReturn, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
+from fastapi.params import Path
 from sqlalchemy.orm import Session
 
-from app.api.dependencies.authz import (
-    requires_roles as _requires_roles,
-    requires_scopes as _requires_scopes,
-)
-
-from ..api.dependencies import get_booking_service, get_current_active_user, get_db
-from ..api.dependencies.auth import require_beta_phase_access
-from ..core.config import settings
-from ..core.enums import PermissionName, RoleName
-from ..core.exceptions import DomainException, NotFoundException, ValidationException
-from ..dependencies.permissions import require_permission
-from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ..models.booking import BookingStatus
-from ..models.user import User
-from ..repositories.factory import RepositoryFactory
-from ..repositories.review_repository import ReviewTipRepository
-from ..schemas.base_responses import PaginatedResponse
-from ..schemas.booking import (
+from ...api.dependencies import get_booking_service, get_current_active_user, get_db
+from ...api.dependencies.auth import require_beta_phase_access
+from ...core.config import settings
+from ...core.enums import PermissionName
+from ...core.exceptions import DomainException, NotFoundException, ValidationException
+from ...dependencies.permissions import require_permission
+from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
+from ...models.booking import BookingStatus
+from ...models.user import User
+from ...ratelimit.dependency import rate_limit as new_rate_limit
+from ...repositories.factory import RepositoryFactory
+from ...repositories.review_repository import ReviewTipRepository
+from ...schemas.base_responses import PaginatedResponse
+from ...schemas.booking import (
     AvailabilityCheckRequest,
     AvailabilityCheckResponse,
     BookingCancel,
@@ -74,58 +58,17 @@ from ..schemas.booking import (
     PaymentSummary,
     UpcomingBookingResponse,
 )
-from ..schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
-from ..services.booking_service import BookingService
-from ..services.config_service import ConfigService
-from ..services.payment_summary_service import build_student_payment_summary
-
-P = ParamSpec("P")
-R = TypeVar("R")
-
-
-def requires_roles(
-    *roles: str,
-) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
-    """Typed shim around authz.requires_roles for mypy route slice."""
-    real_decorator = _requires_roles(*roles)
-
-    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
-        setattr(func, "_required_roles", list(roles))
-        decorated: Callable[P, Awaitable[R]] = real_decorator(func)
-
-        @wraps(func)
-        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            return await decorated(*args, **kwargs)
-
-        setattr(wrapper, "_required_roles", getattr(decorated, "_required_roles", list(roles)))
-        return wrapper
-
-    return decorator
-
-
-def requires_scopes(
-    *scopes: str,
-) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
-    """Typed shim around authz.requires_scopes for mypy route slice."""
-    real_decorator = _requires_scopes(*scopes)
-
-    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
-        setattr(func, "_required_scopes", list(scopes))
-        decorated: Callable[P, Awaitable[R]] = real_decorator(func)
-
-        @wraps(func)
-        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            return await decorated(*args, **kwargs)
-
-        setattr(wrapper, "_required_scopes", getattr(decorated, "_required_scopes", list(scopes)))
-        return wrapper
-
-    return decorator
-
+from ...schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
+from ...services.booking_service import BookingService
+from ...services.config_service import ConfigService
+from ...services.payment_summary_service import build_student_payment_summary
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/bookings", tags=["bookings"])
+# V1 router - no prefix here, will be added when mounting in main.py
+router = APIRouter(tags=["bookings-v1"])
+
+ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 
 
 def handle_domain_exception(exc: DomainException) -> NoReturn:
@@ -135,10 +78,16 @@ def handle_domain_exception(exc: DomainException) -> NoReturn:
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
 
-# 1. First: all specific routes
+# ============================================================================
+# SECTION 1: Static routes (no path parameters)
+# ============================================================================
 
 
-@router.get("/upcoming", response_model=PaginatedResponse[UpcomingBookingResponse])
+@router.get(
+    "/upcoming",
+    response_model=PaginatedResponse[UpcomingBookingResponse],
+    dependencies=[Depends(new_rate_limit("read"))],
+)
 async def get_upcoming_bookings(
     limit: int = Query(5, ge=1, le=20),
     current_user: User = Depends(get_current_active_user),
@@ -154,12 +103,10 @@ async def get_upcoming_bookings(
         )
 
         # Transform bookings to include names from relationships
-        # Handle both SQLAlchemy objects and cached dictionaries
         upcoming_bookings = []
         for booking in bookings:
             if isinstance(booking, dict):
                 # Handle cached dictionary
-                # Privacy check: show full last name only if viewing your own info
                 is_student = current_user.id == booking.get("student_id")
                 is_instructor = current_user.id == booking.get("instructor_id")
 
@@ -183,6 +130,7 @@ async def get_upcoming_bookings(
                     )
                 except Exception:
                     _tp = 0.0
+
                 upcoming_bookings.append(
                     UpcomingBookingResponse(
                         id=booking["id"],
@@ -215,7 +163,6 @@ async def get_upcoming_bookings(
                 )
             else:
                 # Handle SQLAlchemy object
-                # Privacy check: show full last name only if viewing your own info
                 is_student = current_user.id == booking.student_id
                 is_instructor = current_user.id == booking.instructor_id
 
@@ -228,6 +175,7 @@ async def get_upcoming_bookings(
                     )
                 except Exception:
                     _tp = 0.0
+
                 upcoming_bookings.append(
                     UpcomingBookingResponse(
                         id=booking.id,
@@ -257,52 +205,31 @@ async def get_upcoming_bookings(
                     )
                 )
 
-        # Return standardized paginated response
         return PaginatedResponse(
             items=upcoming_bookings,
             total=len(upcoming_bookings),
             page=1,
             per_page=limit,
-            has_next=False,  # Single page for dashboard widget
+            has_next=False,
             has_prev=False,
         )
     except DomainException as e:
         handle_domain_exception(e)
 
 
-@router.patch("/{booking_id}/payment-method", response_model=BookingResponse)
-async def update_booking_payment_method(
-    booking_id: str,
-    payment_data: BookingPaymentMethodUpdate = Body(...),
-    current_user: User = Depends(get_current_active_user),
-    booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
-    """
-    Update booking payment method and retry authorization immediately.
-
-    - Verifies ownership (student)
-    - Saves payment method (optional set_as_default)
-    - Retries authorization off-session (immediate if <24h)
-    """
-    try:
-        booking = await booking_service.confirm_booking_payment(
-            booking_id=booking_id,
-            student=current_user,
-            payment_method_id=payment_data.payment_method_id,
-            save_payment_method=payment_data.set_as_default,
-        )
-        return BookingResponse.from_booking(booking)
-    except DomainException as e:
-        handle_domain_exception(e)
-
-
-@router.get("/stats", response_model=BookingStatsResponse)
+@router.get(
+    "/stats",
+    response_model=BookingStatsResponse,
+    dependencies=[Depends(new_rate_limit("read"))],
+)
 async def get_booking_stats(
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingStatsResponse:
-    """Get booking statistics for instructors."""
+    """Get booking statistics (requires instructor role)."""
     try:
+        from ...core.enums import RoleName
+
         if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
             raise ValidationException("Only instructors can view booking stats")
 
@@ -312,14 +239,18 @@ async def get_booking_stats(
         handle_domain_exception(e)
 
 
-@router.post("/check-availability", response_model=AvailabilityCheckResponse)
+@router.post(
+    "/check-availability",
+    response_model=AvailabilityCheckResponse,
+    dependencies=[Depends(new_rate_limit("search"))],
+)
 @rate_limit(
     "30/minute",
     key_type=RateLimitKeyType.USER,
     error_message="Too many availability checks. Please slow down.",
 )
 async def check_availability(
-    request: Request,  # ADD THIS for rate limiting
+    request: Request,
     check_data: AvailabilityCheckRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
@@ -327,20 +258,15 @@ async def check_availability(
     """
     Check if a time range is available for booking.
 
-    CLEAN ARCHITECTURE: Uses time-based checking.
-    No slot references. Direct time conflict checking.
-
     Rate limited to prevent abuse of expensive availability checks.
     """
     try:
-        # AvailabilityCheckRequest now has: instructor_id, booking_date, start_time, end_time, instructor_service_id
         result = await booking_service.check_availability(
             instructor_id=check_data.instructor_id,
             booking_date=check_data.booking_date,
             start_time=check_data.start_time,
             end_time=check_data.end_time,
             service_id=check_data.instructor_service_id,
-            # If a booking_id param is ever added to this endpoint, pass it to exclude conflicts with itself
             exclude_booking_id=None,
         )
 
@@ -349,9 +275,11 @@ async def check_availability(
         handle_domain_exception(e)
 
 
-# Admin endpoint - consider moving to separate admin routes in future
 @router.post(
-    "/send-reminders", response_model=SendRemindersResponse, status_code=status.HTTP_200_OK
+    "/send-reminders",
+    response_model=SendRemindersResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(new_rate_limit("write"))],
 )
 @rate_limit(
     "1/hour",
@@ -359,7 +287,7 @@ async def check_availability(
     error_message="Reminder emails can only be triggered once per hour.",
 )
 async def send_reminder_emails(
-    request: Request,  # ADD THIS for rate limiting
+    request: Request,
     current_user: User = Depends(require_permission(PermissionName.MANAGE_ALL_BOOKINGS)),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> SendRemindersResponse:
@@ -371,7 +299,6 @@ async def send_reminder_emails(
 
     Requires: MANAGE_ALL_BOOKINGS permission (admin only)
     """
-
     try:
         count = await booking_service.send_booking_reminders()
         return SendRemindersResponse(
@@ -387,20 +314,20 @@ async def send_reminder_emails(
         )
 
 
-# 2. Then: routes without path params
+# ============================================================================
+# SECTION 2: Root routes (no path parameters, but placed after static routes)
+# ============================================================================
 
 
 @router.get(
-    "/",
+    "",
     response_model=PaginatedResponse[BookingResponse],
-    dependencies=[Depends(require_beta_phase_access())],
+    dependencies=[Depends(require_beta_phase_access()), Depends(new_rate_limit("read"))],
 )
 async def get_bookings(
     status: Optional[BookingStatus] = None,
     upcoming_only: Optional[bool] = None,
-    upcoming: Optional[
-        bool
-    ] = None,  # Support both upcoming and upcoming_only for frontend compatibility
+    upcoming: Optional[bool] = None,
     exclude_future_confirmed: bool = False,
     include_past_confirmed: bool = False,
     page: int = Query(1, ge=1),
@@ -447,10 +374,8 @@ async def get_bookings(
             try:
                 if isinstance(booking, dict) and booking.get("_from_cache", False):
                     # Cached data might need privacy adjustments
-                    # Check if user is the instructor for this booking
                     is_instructor = current_user.id == booking.get("instructor_id")
 
-                    # Adjust instructor last_initial based on viewer
                     if "instructor" in booking and isinstance(booking["instructor"], dict):
                         instructor_last_name = booking["instructor"].get("last_name", "")
                         booking["instructor"]["last_initial"] = (
@@ -460,21 +385,15 @@ async def get_bookings(
                             if instructor_last_name
                             else ""
                         )
-                        # Remove full last_name from response if it exists
                         if "last_name" in booking["instructor"]:
                             del booking["instructor"]["last_name"]
 
                     booking_responses.append(booking)
                 else:
-                    # Fresh SQLAlchemy object - use from_orm for privacy protection
+                    # Fresh SQLAlchemy object - use from_booking for privacy protection
                     booking_responses.append(BookingResponse.from_booking(booking))
             except Exception as e:
                 logger.error(f"Failed to process booking {getattr(booking, 'id', 'unknown')}: {e}")
-                logger.error(f"Booking type: {type(booking)}, is_dict: {isinstance(booking, dict)}")
-                if isinstance(booking, dict):
-                    logger.error(f"Dict keys: {list(booking.keys())}")
-                    logger.error(f"Has _from_cache: {booking.get('_from_cache', False)}")
-                # Skip problematic bookings rather than crashing
                 continue
 
         return PaginatedResponse(
@@ -490,20 +409,18 @@ async def get_bookings(
 
 
 @router.post(
-    "/",
+    "",
     response_model=BookingCreateResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_beta_phase_access())],
+    dependencies=[Depends(require_beta_phase_access()), Depends(new_rate_limit("booking"))],
 )
-@requires_roles("student")
-@requires_scopes("booking:create")
 @rate_limit(
     f"{settings.rate_limit_booking_per_minute}/minute",
     key_type=RateLimitKeyType.USER,
     error_message="Too many booking attempts. Please wait a moment and try again.",
 )
 async def create_booking(
-    request: Request,  # Required for rate limiting
+    request: Request,
     booking_data: BookingCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
@@ -517,12 +434,16 @@ async def create_booking(
     3. Frontend collects card details
     4. Call /bookings/{id}/confirm-payment to complete
 
-    CLEAN ARCHITECTURE: Uses instructor_id, date, and time range.
-    No slot references. Bookings are self-contained.
-
     Rate limited per user to prevent booking spam.
     """
     try:
+        # Check roles and scopes (inline since decorators don't work on dependencies)
+        if not any(role.name == "student" for role in current_user.roles):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only students can create bookings",
+            )
+
         selected_duration = booking_data.selected_duration
 
         # Create booking with pending_payment status
@@ -541,56 +462,27 @@ async def create_booking(
         handle_domain_exception(e)
 
 
-# 3. Finally: routes with path parameters
+# ============================================================================
+# SECTION 3: Dynamic routes (with path parameters - placed last)
+# ============================================================================
 
 
-@router.post("/{booking_id}/confirm-payment", response_model=BookingResponse)
-async def confirm_booking_payment(
-    booking_id: str,
-    payment_data: BookingConfirmPayment = Body(...),
-    current_user: User = Depends(get_current_active_user),
-    booking_service: BookingService = Depends(get_booking_service),
-) -> BookingResponse:
-    """
-    Confirm payment method for a booking (Phase 2.1).
-
-    Called after frontend collects card details via SetupIntent.
-    This completes the booking creation flow:
-    1. Saves payment method to booking
-    2. Schedules authorization based on lesson timing
-    3. Updates booking status from 'pending_payment' to 'confirmed'
-
-    Args:
-        booking_id: The booking to confirm payment for
-        payment_data: Payment method ID and save preference
-
-    Returns:
-        Updated BookingResponse with confirmed status
-    """
-    try:
-        booking = await booking_service.confirm_booking_payment(
-            booking_id=booking_id,
-            student=current_user,
-            payment_method_id=payment_data.payment_method_id,
-            save_payment_method=payment_data.save_payment_method,
-        )
-
-        return BookingResponse.from_booking(booking)
-    except DomainException as e:
-        handle_domain_exception(e)
-
-
-@router.get("/{booking_id}/preview", response_model=BookingPreviewResponse)
+@router.get(
+    "/{booking_id}/preview",
+    response_model=BookingPreviewResponse,
+    dependencies=[Depends(new_rate_limit("read"))],
+)
 async def get_booking_preview(
-    booking_id: str,
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingPreviewResponse:
-    """
-    Get preview information for a booking.
-
-    Clean implementation - returns only meaningful data.
-    """
+    """Get preview information for a booking."""
     try:
         booking = booking_service.get_booking_for_user(booking_id, current_user)
         if not booking:
@@ -599,7 +491,6 @@ async def get_booking_preview(
         # Determine if the current user is the instructor to show full name
         is_instructor = current_user.id == booking.instructor_id
 
-        # Return privacy-aware preview data
         return BookingPreviewResponse(
             booking_id=booking.id,
             student_first_name=booking.student.first_name,
@@ -629,9 +520,18 @@ async def get_booking_preview(
         handle_domain_exception(e)
 
 
-@router.get("/{booking_id}", response_model=BookingResponse)
+@router.get(
+    "/{booking_id}",
+    response_model=BookingResponse,
+    dependencies=[Depends(new_rate_limit("read"))],
+)
 async def get_booking_details(
-    booking_id: str,
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
     db: Session = Depends(get_db),
@@ -660,9 +560,18 @@ async def get_booking_details(
         handle_domain_exception(e)
 
 
-@router.patch("/{booking_id}", response_model=BookingResponse)
+@router.patch(
+    "/{booking_id}",
+    response_model=BookingResponse,
+    dependencies=[Depends(new_rate_limit("write"))],
+)
 async def update_booking(
-    booking_id: str,
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
     update_data: BookingUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
@@ -677,9 +586,18 @@ async def update_booking(
         handle_domain_exception(e)
 
 
-@router.post("/{booking_id}/cancel", response_model=BookingResponse)
+@router.post(
+    "/{booking_id}/cancel",
+    response_model=BookingResponse,
+    dependencies=[Depends(new_rate_limit("write"))],
+)
 async def cancel_booking(
-    booking_id: str,
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
     cancel_data: BookingCancel = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
@@ -694,9 +612,18 @@ async def cancel_booking(
         handle_domain_exception(e)
 
 
-@router.post("/{booking_id}/reschedule", response_model=BookingResponse)
+@router.post(
+    "/{booking_id}/reschedule",
+    response_model=BookingResponse,
+    dependencies=[Depends(new_rate_limit("write"))],
+)
 async def reschedule_booking(
-    booking_id: str,
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
     payload: BookingRescheduleRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
@@ -704,20 +631,17 @@ async def reschedule_booking(
     """
     Reschedule flow (server-orchestrated):
     - Validates access to the original booking
-    - Cancels the original booking according to policy (releasing/capturing as needed)
-    - Creates a new booking with the requested time (using original instructor/service unless overridden)
-    - Links audit events via payment history; returns the new booking
-
-    Note: This keeps UI simple and makes payment windows naturally align to the new schedule.
+    - Cancels the original booking according to policy
+    - Creates a new booking with the requested time
+    - Returns the new booking
     """
     try:
-        # 1) Load original booking for user
+        # Load original booking
         original = booking_service.get_booking_for_user(booking_id, current_user)
         if not original:
             raise NotFoundException("Booking not found")
 
-        # 2) Pre-validate the requested slot BEFORE cancelling original
-        # Compute proposed end_time from selected_duration
+        # Pre-validate the requested slot
         start_dt = datetime.combine(payload.booking_date, payload.start_time)
         end_dt = start_dt + timedelta(minutes=payload.selected_duration)
         proposed_end_time = end_dt.time()
@@ -728,28 +652,25 @@ async def reschedule_booking(
             start_time=payload.start_time,
             end_time=proposed_end_time,
             service_id=payload.instructor_service_id or original.instructor_service_id,
-            exclude_booking_id=original.id,  # Ignore conflict with the original booking itself
+            exclude_booking_id=original.id,
         )
+
         if isinstance(availability, dict):
             available_flag = availability.get("available", False)
         else:
-            # Handle tests that may mock this as an AsyncMock; treat Falsey as unavailable
             try:
                 available_flag = bool(availability)
             except Exception:
                 available_flag = False
 
         if not available_flag:
-            # Do NOT cancel original if new slot is unavailable
-            from fastapi import HTTPException
-
             reason = None
             if isinstance(availability, dict):
                 reason = availability.get("reason")
             reason = reason or "Requested time is unavailable"
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
 
-        # Additional guard: student self-conflict (another booking at that time)
+        # Check student self-conflict
         try:
             has_student_conflict = bool(
                 booking_service.repository.check_student_time_conflict(
@@ -764,18 +685,15 @@ async def reschedule_booking(
             has_student_conflict = False
 
         if has_student_conflict:
-            from fastapi import HTTPException
-
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="You already have a booking scheduled at this time",
             )
 
-        # 3) PREFLIGHT: Check if student has a valid payment method BEFORE canceling original
-        # This ensures we don't cancel the original if we can't create a valid new booking
-        from ..services.config_service import ConfigService as _ConfigService
-        from ..services.pricing_service import PricingService as _PricingService
-        from ..services.stripe_service import StripeService as _StripeService
+        # Preflight: Check payment method
+        from ...services.config_service import ConfigService as _ConfigService
+        from ...services.pricing_service import PricingService as _PricingService
+        from ...services.stripe_service import StripeService as _StripeService
 
         config_service = _ConfigService(booking_service.db)
         pricing_service = _PricingService(booking_service.db)
@@ -788,10 +706,6 @@ async def reschedule_booking(
         default_pm = stripe_service.payment_repository.get_default_payment_method(current_user.id)
 
         if not default_pm or not default_pm.stripe_payment_method_id:
-            # No payment method on file - cannot reschedule
-            # Do NOT cancel original booking
-            from fastapi import HTTPException
-
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
@@ -800,8 +714,7 @@ async def reschedule_booking(
                 },
             )
 
-        # 4) Create the new booking using requested slot (service defaults to original unless provided)
-        # Sanitize carried-over optional fields from original which may be mocks in tests
+        # Create new booking
         _student_note = (
             original.student_note
             if isinstance(getattr(original, "student_note", None), str)
@@ -826,13 +739,11 @@ async def reschedule_booking(
             booking_date=payload.booking_date,
             start_time=payload.start_time,
             selected_duration=payload.selected_duration,
-            # Carry over location/note if they existed
             student_note=_student_note,
             meeting_location=_meeting_location,
             location_type=_location_type,
         )
 
-        # Create booking with payment setup
         new_booking = await booking_service.create_booking_with_payment_setup(
             student=current_user,
             booking_data=new_booking_data,
@@ -840,7 +751,7 @@ async def reschedule_booking(
             rescheduled_from_booking_id=original.id,
         )
 
-        # Auto-confirm payment with the verified payment method
+        # Auto-confirm payment
         try:
             new_booking = await booking_service.confirm_booking_payment(
                 booking_id=new_booking.id,
@@ -849,18 +760,12 @@ async def reschedule_booking(
                 save_payment_method=False,
             )
         except Exception as e:
-            # Payment confirmation failed - delete the new booking and don't cancel original
-            import logging
-
-            logging.error(f"Failed to confirm payment for rescheduled booking: {e}")
+            logger.error(f"Failed to confirm payment for rescheduled booking: {e}")
             try:
-                # Clean up the failed new booking
                 booking_service.db.delete(new_booking)
                 booking_service.db.commit()
             except Exception:
                 pass
-
-            from fastapi import HTTPException
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -870,17 +775,14 @@ async def reschedule_booking(
                 },
             )
 
-        # 5) Only after successful creation AND payment confirmation, cancel the original booking
+        # Cancel original booking
         try:
             await booking_service.cancel_booking(
                 booking_id=booking_id, user=current_user, reason="Rescheduled"
             )
         except DomainException as e:
-            # Business rule violations (e.g., late reschedule) should propagate as 422 via handler
             raise e
         except Exception:
-            # Non-domain errors: return the new booking but include that original remains active
-            # Frontend can surface a message and allow user to manually cancel.
             pass
 
         return BookingResponse.from_booking(new_booking)
@@ -888,9 +790,18 @@ async def reschedule_booking(
         handle_domain_exception(e)
 
 
-@router.post("/{booking_id}/complete", response_model=BookingResponse)
+@router.post(
+    "/{booking_id}/complete",
+    response_model=BookingResponse,
+    dependencies=[Depends(new_rate_limit("write"))],
+)
 async def complete_booking(
-    booking_id: str,
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
     current_user: User = Depends(require_permission(PermissionName.COMPLETE_BOOKINGS)),
     booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingResponse:
@@ -901,6 +812,76 @@ async def complete_booking(
     """
     try:
         booking = booking_service.complete_booking(booking_id=booking_id, instructor=current_user)
+        return BookingResponse.from_booking(booking)
+    except DomainException as e:
+        handle_domain_exception(e)
+
+
+@router.post(
+    "/{booking_id}/confirm-payment",
+    response_model=BookingResponse,
+    dependencies=[Depends(new_rate_limit("payment"))],
+)
+async def confirm_booking_payment(
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
+    payment_data: BookingConfirmPayment = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
+) -> BookingResponse:
+    """
+    Confirm payment method for a booking (Phase 2.1).
+
+    Called after frontend collects card details via SetupIntent.
+    This completes the booking creation flow.
+    """
+    try:
+        booking = await booking_service.confirm_booking_payment(
+            booking_id=booking_id,
+            student=current_user,
+            payment_method_id=payment_data.payment_method_id,
+            save_payment_method=payment_data.save_payment_method,
+        )
+
+        return BookingResponse.from_booking(booking)
+    except DomainException as e:
+        handle_domain_exception(e)
+
+
+@router.patch(
+    "/{booking_id}/payment-method",
+    response_model=BookingResponse,
+    dependencies=[Depends(new_rate_limit("payment"))],
+)
+async def update_booking_payment_method(
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
+    payment_data: BookingPaymentMethodUpdate = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
+) -> BookingResponse:
+    """
+    Update booking payment method and retry authorization immediately.
+
+    - Verifies ownership (student)
+    - Saves payment method (optional set_as_default)
+    - Retries authorization off-session (immediate if <24h)
+    """
+    try:
+        booking = await booking_service.confirm_booking_payment(
+            booking_id=booking_id,
+            student=current_user,
+            payment_method_id=payment_data.payment_method_id,
+            save_payment_method=payment_data.set_as_default,
+        )
         return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
