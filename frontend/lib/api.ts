@@ -203,6 +203,8 @@ export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
  *
  * Centralized endpoint definitions to avoid typos and make refactoring easier.
  * Organized by feature area for better maintainability.
+ *
+ * ✅ MIGRATED TO V1 - Instructor endpoints now use /api/v1/instructors
  */
 export const API_ENDPOINTS = {
   // Auth endpoints
@@ -210,9 +212,9 @@ export const API_ENDPOINTS = {
   REGISTER: '/auth/register',
   ME: '/auth/me',
 
-  // Instructor endpoints
-  INSTRUCTORS: '/instructors',
-  INSTRUCTOR_PROFILE: '/api/instructors/me',
+  // Instructor endpoints (migrated to v1)
+  INSTRUCTORS: '/api/v1/instructors',
+  INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
   // Onboarding helpers
   NYC_ZIP_CHECK: '/api/addresses/zip/is-nyc',
   STRIPE_IDENTITY_SESSION: '/api/payments/identity/session',

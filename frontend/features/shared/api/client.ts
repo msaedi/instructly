@@ -50,11 +50,13 @@ export interface ApiResponse<T> {
 
 /**
  * Public API endpoints (no authentication required)
+ *
+ * ✅ MIGRATED TO V1 - All instructor endpoints now use /api/v1/instructors
  */
 export const PUBLIC_ENDPOINTS = {
   instructors: {
-    list: '/instructors', // Note: This is the actual backend endpoint
-    profile: (id: string) => `/instructors/${id}`,
+    list: '/api/v1/instructors', // Migrated to v1
+    profile: (id: string) => `/api/v1/instructors/${id}`, // Migrated to v1
     availability: (id: string) => `/api/public/instructors/${id}/availability`,
   },
 } as const;
