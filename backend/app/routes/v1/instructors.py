@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import logging
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi.params import Path
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import (
@@ -59,6 +60,8 @@ logger = logging.getLogger(__name__)
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["instructors-v1"])
+
+ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 
 
 def get_address_service(db: Session = Depends(get_db)) -> AddressService:
@@ -138,6 +141,11 @@ async def list_instructors(
     response_model=InstructorProfileResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
+    responses={
+        401: {"description": "Not authenticated"},
+        403: {"description": "Insufficient permissions"},
+        400: {"description": "Profile already exists or validation error"},
+    },
 )
 async def create_profile(
     profile: InstructorProfileCreate = Body(...),
@@ -162,6 +170,11 @@ async def create_profile(
     "/me",
     response_model=InstructorProfileResponse,
     dependencies=[Depends(rate_limit("read"))],
+    responses={
+        401: {"description": "Not authenticated"},
+        403: {"description": "User is not an instructor"},
+        404: {"description": "Profile not found"},
+    },
 )
 async def get_my_profile(
     current_user: User = Depends(get_current_active_user),
@@ -189,6 +202,11 @@ async def get_my_profile(
     "/me",
     response_model=InstructorProfileResponse,
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
+    responses={
+        401: {"description": "Not authenticated"},
+        403: {"description": "User is not an instructor or insufficient permissions"},
+        404: {"description": "Profile not found"},
+    },
 )
 async def update_profile(
     profile_update: InstructorProfileUpdate = Body(...),
@@ -225,6 +243,11 @@ async def update_profile(
     "/me/go-live",
     response_model=InstructorProfileResponse,
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
+    responses={
+        401: {"description": "Not authenticated"},
+        403: {"description": "User is not an instructor or insufficient permissions"},
+        400: {"description": "Prerequisites not met for going live"},
+    },
 )
 async def go_live(
     current_user: User = Depends(get_current_active_user),
@@ -329,6 +352,11 @@ async def go_live(
     "/me",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
+    responses={
+        401: {"description": "Not authenticated"},
+        403: {"description": "User is not an instructor or insufficient permissions"},
+        404: {"description": "Profile not found"},
+    },
 )
 async def delete_profile(
     current_user: User = Depends(get_current_active_user),
@@ -359,9 +387,17 @@ async def delete_profile(
     "/{instructor_id}",
     response_model=InstructorProfileResponse,
     dependencies=[Depends(rate_limit("read"))],
+    responses={
+        404: {"description": "Instructor profile not found"},
+    },
 )
 async def get_instructor(
-    instructor_id: str,
+    instructor_id: str = Path(
+        ...,
+        description="Instructor profile ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
     instructor_service: InstructorService = Depends(get_instructor_service),
     favorites_service: FavoritesService = Depends(get_favorites_service),
     current_user: User = Depends(get_current_active_user_optional),
@@ -397,10 +433,21 @@ async def get_instructor(
         raise
 
 
-@router.get("/{instructor_id}/coverage", response_model=CoverageFeatureCollectionResponse)
+@router.get(
+    "/{instructor_id}/coverage",
+    response_model=CoverageFeatureCollectionResponse,
+    responses={
+        400: {"description": "Invalid instructor ID"},
+    },
+)
 @legacy_rate_limit("30/minute", key_type=RateLimitKeyType.IP)
 async def get_coverage(
-    instructor_id: str,
+    instructor_id: str = Path(
+        ...,
+        description="Instructor profile ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
     address_service: AddressService = Depends(get_address_service),
 ) -> CoverageFeatureCollectionResponse:
     """Get instructor service area coverage as GeoJSON."""

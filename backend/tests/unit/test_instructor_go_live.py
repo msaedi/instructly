@@ -88,7 +88,7 @@ def test_go_live_blocked_when_bgc_not_passed(client, db):
         app.dependency_overrides[get_current_active_user] = lambda: user
 
         headers = _csrf_headers(client)
-        response = client.post("/instructors/me/go-live", headers=headers, json={})
+        response = client.post("/api/v1/instructors/me/go-live", headers=headers, json={})
         assert response.status_code == 400
         payload = response.json()
         missing = []
@@ -113,7 +113,7 @@ def test_go_live_succeeds_with_passed_bgc(client, db):
         app.dependency_overrides[get_current_active_user] = lambda: user
 
         headers = _csrf_headers(client)
-        response = client.post("/instructors/me/go-live", headers=headers, json={})
+        response = client.post("/api/v1/instructors/me/go-live", headers=headers, json={})
         assert response.status_code == 200
         payload = response.json()
         assert payload["is_live"] is True

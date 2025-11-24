@@ -19,6 +19,8 @@ def _clear_env(monkeypatch):
         "CHECKR_WEBHOOK_URL",
         "SIM_ENV_FILE",
         "SIM_ENV_NAME",
+        "CHECKR_API_KEY",
+        "CHECKR_WEBHOOK_SECRET",
     ]:
         monkeypatch.delenv(key, raising=False)
 
@@ -257,6 +259,7 @@ def test_requests_post_uses_raw_body(monkeypatch, tmp_path):
 
     monkeypatch.setattr(sim, "_dispatch_webhook", fake_dispatch)
     monkeypatch.setattr(sim, "_post_webhook_via_asgi", lambda *a, **k: (200, "{}"))
+    monkeypatch.setattr(sim, "_resolve_signing_secret", lambda *a, **k: "secret-val")
 
     monkeypatch.setattr(
         sys,

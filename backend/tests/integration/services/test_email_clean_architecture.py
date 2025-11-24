@@ -18,6 +18,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.services.notification_service import NotificationService
 
+pytestmark = pytest.mark.anyio
 
 class TestEmailCleanArchitecture:
     """Test email templates follow clean architecture principles."""

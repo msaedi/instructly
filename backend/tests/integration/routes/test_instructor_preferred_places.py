@@ -26,14 +26,14 @@ def test_put_and_get_preferred_places_ok(
         ],
     }
 
-    response = client.put("/instructors/me", json=payload, headers=auth_headers_instructor)
+    response = client.put("/api/v1/instructors/me", json=payload, headers=auth_headers_instructor)
     assert response.status_code == 200, response.text
     data = response.json()
 
     assert data["preferred_teaching_locations"] == payload["preferred_teaching_locations"]
     assert data["preferred_public_spaces"] == payload["preferred_public_spaces"]
 
-    follow_up = client.get("/instructors/me", headers=auth_headers_instructor)
+    follow_up = client.get("/api/v1/instructors/me", headers=auth_headers_instructor)
     assert follow_up.status_code == 200, follow_up.text
     follow_data = follow_up.json()
     assert follow_data["preferred_teaching_locations"] == payload["preferred_teaching_locations"]
@@ -55,7 +55,7 @@ def test_enforce_max_two_per_kind(
         ]
     }
 
-    response = client.put("/instructors/me", json=payload, headers=auth_headers_instructor)
+    response = client.put("/api/v1/instructors/me", json=payload, headers=auth_headers_instructor)
     assert response.status_code == 422
     body = response.json()
     detail = body.get("detail") if isinstance(body, dict) else None
@@ -87,7 +87,7 @@ def test_dedupe_on_address(
         ]
     }
 
-    response = client.put("/instructors/me", json=payload, headers=auth_headers_instructor)
+    response = client.put("/api/v1/instructors/me", json=payload, headers=auth_headers_instructor)
     assert response.status_code == 422
     body = response.json()
     detail = body.get("detail") if isinstance(body, dict) else {}
@@ -123,20 +123,20 @@ def test_delete_all_preferred_places(
             {"address": "Central Park"},
         ],
     }
-    set_resp = client.put("/instructors/me", json=seed_payload, headers=auth_headers_instructor)
+    set_resp = client.put("/api/v1/instructors/me", json=seed_payload, headers=auth_headers_instructor)
     assert set_resp.status_code == 200, set_resp.text
 
     clear_payload = {
         "preferred_teaching_locations": [],
         "preferred_public_spaces": [],
     }
-    clear_resp = client.put("/instructors/me", json=clear_payload, headers=auth_headers_instructor)
+    clear_resp = client.put("/api/v1/instructors/me", json=clear_payload, headers=auth_headers_instructor)
     assert clear_resp.status_code == 200, clear_resp.text
     cleared = clear_resp.json()
     assert cleared["preferred_teaching_locations"] == []
     assert cleared["preferred_public_spaces"] == []
 
-    follow_up = client.get("/instructors/me", headers=auth_headers_instructor)
+    follow_up = client.get("/api/v1/instructors/me", headers=auth_headers_instructor)
     assert follow_up.status_code == 200
     follow_data = follow_up.json()
     assert follow_data["preferred_teaching_locations"] == []

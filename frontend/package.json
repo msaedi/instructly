@@ -68,7 +68,8 @@
     "lhci": "lhci autorun --config=lhci.config.js || true",
     "api:schema": "python ../backend/scripts/export_openapi.py",
     "api:generate": "orval --config orval.config.ts",
-    "api:sync": "npm run api:schema && npm run api:generate"
+    "api:sync": "npm run api:schema && npm run api:generate",
+    "api:lint": "spectral lint ../backend/openapi/openapi.json -r ../backend/openapi/spectral.yaml"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

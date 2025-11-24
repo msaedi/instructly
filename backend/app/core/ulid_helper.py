@@ -14,7 +14,7 @@ def generate_ulid() -> str:
 def parse_ulid(ulid_str: str) -> Optional[ulid.ULID]:
     """Parse and validate a ULID string."""
     try:
-        return ulid.from_str(ulid_str)
+        return ulid.ULID.from_str(str(ulid_str).upper())
     except (ValueError, AttributeError):
         return None
 

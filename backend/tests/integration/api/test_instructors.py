@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
+from app.core.ulid_helper import generate_ulid
 from app.models.address import InstructorServiceArea
 from app.models.instructor import InstructorProfile
 from app.models.region_boundary import RegionBoundary
@@ -44,7 +45,7 @@ class TestInstructorRoutes:
         db.add(service)
         db.commit()
 
-        response = client.get(f"/instructors/?service_catalog_id={service.id}")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service.id}")
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "items" in data
@@ -132,7 +133,7 @@ class TestInstructorRoutes:
         db.commit()
 
         # Get instructors for this service - should return only those with active services for this service
-        response = client.get(f"/instructors/?service_catalog_id={service.id}")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service.id}")
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
@@ -226,7 +227,7 @@ class TestInstructorRoutes:
         db.commit()
 
         # Test pagination with service_catalog_id
-        response = client.get(f"/instructors/?service_catalog_id={test_service.id}&page=1&per_page=2")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={test_service.id}&page=1&per_page=2")
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "items" in data
@@ -258,7 +259,7 @@ class TestInstructorRoutes:
             ],
         }
 
-        response = client.post("/instructors/me", json=profile_data, headers=auth_headers_student)
+        response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_201_CREATED
 
         data = response.json()
@@ -290,14 +291,14 @@ class TestInstructorRoutes:
             "services": [{"service_catalog_id": catalog_service.id, "hourly_rate": 50.0}],
         }
 
-        response = client.post("/instructors/me", json=profile_data, headers=auth_headers_instructor)
+        response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "already exists" in response.json()["detail"]
 
     def test_create_instructor_profile_invalid_data(self, client: TestClient, auth_headers_student: dict):
         """Test creating profile with invalid data."""
         # Test missing required fields
-        response = client.post("/instructors/me", json={}, headers=auth_headers_student)
+        response = client.post("/api/v1/instructors/me", json={}, headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
         # Test empty services
@@ -306,7 +307,7 @@ class TestInstructorRoutes:
             "years_experience": 5,
             "services": [],  # Empty services not allowed
         }
-        response = client.post("/instructors/me", json=profile_data, headers=auth_headers_student)
+        response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_get_my_profile_success(
@@ -317,7 +318,7 @@ class TestInstructorRoutes:
         db: Session,
     ):
         """Test getting own profile as instructor."""
-        response = client.get("/instructors/me", headers=auth_headers_instructor)
+        response = client.get("/api/v1/instructors/me", headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
@@ -352,7 +353,7 @@ class TestInstructorRoutes:
 
     def test_get_my_profile_forbidden_for_student(self, client: TestClient, auth_headers_student: dict):
         """Test that students cannot access profile endpoint."""
-        response = client.get("/instructors/me", headers=auth_headers_student)
+        response = client.get("/api/v1/instructors/me", headers=auth_headers_student)
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "Only instructors can access profiles" in response.json()["detail"]
 
@@ -364,7 +365,7 @@ class TestInstructorRoutes:
         db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).delete()
         db.commit()
 
-        response = client.get("/instructors/me", headers=auth_headers_instructor)
+        response = client.get("/api/v1/instructors/me", headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "Profile not found" in response.json()["detail"]
 
@@ -376,7 +377,7 @@ class TestInstructorRoutes:
         db: Session,
     ):
         """Ensure public profile endpoint returns catalog names."""
-        response = client.get(f"/instructors/{test_instructor.id}", headers=auth_headers_student)
+        response = client.get(f"/api/v1/instructors/{test_instructor.id}", headers=auth_headers_student)
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
@@ -426,7 +427,7 @@ class TestInstructorRoutes:
             ],
         }
 
-        response = client.put("/instructors/me", json=update_data, headers=auth_headers_instructor)
+        response = client.put("/api/v1/instructors/me", json=update_data, headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
@@ -446,7 +447,7 @@ class TestInstructorRoutes:
         # Only update bio
         update_data = {"bio": "Just updating the bio"}
 
-        response = client.put("/instructors/me", json=update_data, headers=auth_headers_instructor)
+        response = client.put("/api/v1/instructors/me", json=update_data, headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
@@ -457,7 +458,7 @@ class TestInstructorRoutes:
     def test_update_profile_forbidden_for_student(self, client: TestClient, auth_headers_student: dict):
         """Test that students cannot update profiles."""
         response = client.put(
-            "/instructors/me", json={"bio": "New bio that is long enough"}, headers=auth_headers_student
+            "/api/v1/instructors/me", json={"bio": "New bio that is long enough"}, headers=auth_headers_student
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -465,7 +466,7 @@ class TestInstructorRoutes:
         self, client: TestClient, test_instructor: User, auth_headers_instructor: dict, db: Session
     ):
         """Test deleting instructor profile."""
-        response = client.delete("/instructors/me", headers=auth_headers_instructor)
+        response = client.delete("/api/v1/instructors/me", headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
         # Verify user role changed to student
@@ -478,12 +479,12 @@ class TestInstructorRoutes:
 
     def test_delete_profile_forbidden_for_student(self, client: TestClient, auth_headers_student: dict):
         """Test that students cannot delete profiles."""
-        response = client.delete("/instructors/me", headers=auth_headers_student)
+        response = client.delete("/api/v1/instructors/me", headers=auth_headers_student)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_get_instructor_by_id_success(self, client: TestClient, test_instructor: User):
         """Test getting specific instructor by ID."""
-        response = client.get(f"/instructors/{test_instructor.id}")
+        response = client.get(f"/api/v1/instructors/{test_instructor.id}")
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
@@ -506,13 +507,14 @@ class TestInstructorRoutes:
 
     def test_get_instructor_by_id_not_found(self, client: TestClient):
         """Test getting non-existent instructor."""
-        response = client.get("/instructors/99999")
+        missing_id = generate_ulid()
+        response = client.get(f"/api/v1/instructors/{missing_id}")
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "Instructor profile not found" in response.json()["detail"]
 
     def test_get_instructor_by_id_student_user(self, client: TestClient, test_student: User):
         """Test getting profile of a student user (not an instructor)."""
-        response = client.get(f"/instructors/{test_student.id}")
+        response = client.get(f"/api/v1/instructors/{test_student.id}")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_profile_with_duplicate_services(self, client: TestClient, auth_headers_student: dict, db: Session):
@@ -531,7 +533,7 @@ class TestInstructorRoutes:
             ],
         }
 
-        response = client.post("/instructors/me", json=profile_data, headers=auth_headers_student)
+        response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         assert "Duplicate services" in str(response.json()["detail"])
 
@@ -541,7 +543,7 @@ class TestInstructorRoutes:
         """Test updating profile with empty services list (should soft-delete all)."""
         update_data = {"services": []}
 
-        response = client.put("/instructors/me", json=update_data, headers=auth_headers_instructor)
+        response = client.put("/api/v1/instructors/me", json=update_data, headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
@@ -556,7 +558,7 @@ class TestInstructorRoutes:
             "services": [{"skill": "Test", "hourly_rate": 50.0}],
         }
 
-        response = client.post("/instructors/me", json=profile_data, headers=auth_headers_student)
+        response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_201_CREATED
 
         data = response.json()
@@ -576,7 +578,7 @@ class TestInstructorRoutes:
             ],
         }
 
-        response = client.post("/instructors/me", json=profile_data, headers=auth_headers_student)
+        response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_201_CREATED
 
         data = response.json()
@@ -597,46 +599,47 @@ class TestInstructorRoutes:
             "years_experience": 5,
             "services": [{"service_catalog_id": catalog_service.id, "hourly_rate": 50.0}],
         }
-        response = client.post("/instructors/me", json=profile_data, headers=auth_headers_student)
+        response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
         # Test negative experience
         profile_data["bio"] = "Valid bio that is long enough"
         profile_data["years_experience"] = -1
-        response = client.post("/instructors/me", json=profile_data, headers=auth_headers_student)
+        response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
         # Test hourly rate too high
         profile_data["years_experience"] = 5
         profile_data["services"][0]["hourly_rate"] = 1500.0  # Over max
-        response = client.post("/instructors/me", json=profile_data, headers=auth_headers_student)
+        response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_unauthenticated_access(self, client: TestClient):
         """Test that unauthenticated requests are rejected for protected endpoints."""
         # Create profile
-        response = client.post("/instructors/me", json={})
+        response = client.post("/api/v1/instructors/me", json={})
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
         # Get my profile
-        response = client.get("/instructors/me")
+        response = client.get("/api/v1/instructors/me")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
         # Update profile
-        response = client.put("/instructors/me", json={})
+        response = client.put("/api/v1/instructors/me", json={})
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
         # Delete profile
-        response = client.delete("/instructors/me")
+        response = client.delete("/api/v1/instructors/me")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
         # Public endpoints should work but require service_catalog_id parameter
         # Test that 422 is returned for missing required parameter (not auth error)
-        response = client.get("/instructors/")
+        response = client.get("/api/v1/instructors/")
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-        response = client.get("/instructors/1")
-        assert response.status_code in [status.HTTP_200_OK, status.HTTP_404_NOT_FOUND]
+        nonexistent_id = generate_ulid()
+        response = client.get(f"/api/v1/instructors/{nonexistent_id}")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.skip(reason="Known SQLAlchemy session conflict - needs fix in service layer")
     def test_create_instructor_profile_simplified(self, client: TestClient, db: Session):
@@ -676,7 +679,7 @@ class TestInstructorRoutes:
             ],
         }
 
-        response = client.post("/instructors/me", json=profile_data, headers=headers)
+        response = client.post("/api/v1/instructors/me", json=profile_data, headers=headers)
 
         # Due to a known issue with bulk_save_objects in the service layer,
         # this test expects a 500 error. This should be fixed in production.

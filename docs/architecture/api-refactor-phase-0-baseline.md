@@ -576,5 +576,201 @@ pre-commit run --all-files      # ✅ All hooks pass
 
 ---
 
-**Status:** Phases 0, 1, 2, 3, 4 Complete ✅
-**Ready for:** Phase 5 (Full Migration - Remaining Endpoints)
+## Phase 5 - Backend Testing Hardening
+
+**Status:** ✅ Complete
+**Date:** November 24, 2025
+
+### Implementation Summary
+
+Phase 5 added automated API contract testing and schema validation using Schemathesis and Spectral to ensure our FastAPI application conforms to its OpenAPI schema.
+
+### 1. Schemathesis API Contract Tests
+
+**Goal:** Automatically validate that `/api/v1` endpoints conform to their OpenAPI schema through property-based testing.
+
+**Implementation:**
+1. **Added Schemathesis as backend dev dependency:**
+   - Updated `backend/requirements-dev.txt` with `schemathesis>=3.34.0`
+
+2. **Created Schemathesis test module** (`backend/tests/integration/test_schemathesis_api_v1.py`):
+   - Uses `schemathesis.from_asgi()` to load OpenAPI schema directly from the ASGI app
+   - Filters tests to `/api/v1/instructors.*` endpoints initially (focused scope)
+   - Configures Hypothesis with `max_examples=5` for fast feedback
+   - Validates responses match schema and checks for server errors
+
+3. **Added pytest marker configuration** (`backend/pyproject.toml`):
+   ```toml
+   [tool.pytest.ini_options]
+   markers = [
+       "schemathesis: Schemathesis-based API contract tests",
+       "unit: Unit tests",
+       "integration: Integration tests",
+   ]
+   ```
+
+**Test Structure:**
+```python
+@schema.parametrize(endpoint="/api/v1/instructors.*")
+@hypothesis_settings(max_examples=5, deadline=None)
+def test_api_v1_instructors_schema_compliance(case):
+    """Test /api/v1/instructors/** endpoints conform to OpenAPI schema."""
+    response = case.call_asgi()
+    case.validate_response(response)
+    not_a_server_error(response, case)
+```
+
+**Running Tests:**
+```bash
+# Run only Schemathesis tests
+cd backend && pytest -m schemathesis -v
+
+# Or via Makefile
+make api-test
+```
+
+### 2. Spectral OpenAPI Linting
+
+**Goal:** Ensure OpenAPI schema quality through static analysis and style enforcement.
+
+**Implementation:**
+1. **Installed Spectral CLI** as frontend dev dependency:
+   - `npm install --save-dev @stoplight/spectral-cli`
+
+2. **Created Spectral configuration** (`backend/openapi/spectral.yaml`):
+   - Extends `spectral:oas` ruleset
+   - Enforces operation descriptions and tags
+   - Validates operation IDs (uniqueness, URL-safe)
+   - Custom rule: No trailing slashes in paths (matches routing invariants)
+   - Disabled noisy rules: `info-contact`, `info-license`
+
+3. **Added npm script** (`frontend/package.json`):
+   ```json
+   "api:lint": "spectral lint ../backend/openapi/openapi.json -r ../backend/openapi/spectral.yaml"
+   ```
+
+**Running Linter:**
+```bash
+# From frontend directory
+npm run api:lint
+
+# Or via Makefile
+make api-lint
+```
+
+**Linter Output Example:**
+```
+/Users/.../backend/openapi/openapi.json
+    1:1    warning  oas3-api-servers             OpenAPI "servers" must be present and non-empty array.
+  1:67270    error  oas3-valid-schema-example    "profile" property must have required property "id"
+  1:194506  warning  operation-description        Operation "description" must be present and non-empty string.
+```
+
+### 3. Makefile Convenience Commands
+
+**Added to root `Makefile`:**
+```makefile
+api-test:
+	@echo "Running Schemathesis API contract tests..."
+	cd backend && pytest -m schemathesis -v
+
+api-lint:
+	@echo "Running Spectral OpenAPI linter..."
+	cd frontend && npm run api:lint
+
+api-check:
+	@echo "Running full API validation (tests + lint)..."
+	$(MAKE) api-test
+	$(MAKE) api-lint
+```
+
+**Usage:**
+```bash
+make api-test    # Run Schemathesis contract tests
+make api-lint    # Run Spectral OpenAPI linter
+make api-check   # Run both tests and linter
+```
+
+### 4. Benefits
+
+**Automated Contract Validation:**
+- Catches schema drift between implementation and documentation
+- Finds edge cases and invalid responses through property-based testing
+- Ensures type safety between backend and frontend
+
+**Schema Quality Enforcement:**
+- Prevents trailing slashes (routing invariant compliance)
+- Enforces documentation completeness (descriptions, tags)
+- Validates operation ID conventions
+- Catches schema definition errors
+
+**Fast Feedback Loop:**
+- Schemathesis: ~5 examples per endpoint (fast iteration)
+- Spectral: Sub-second linting
+- Both run locally without server startup
+
+### 5. Current Status
+
+**Schemathesis Tests:**
+- ✅ Test module created and configured
+- ✅ Scoped to `/api/v1/instructors.*` initially
+- ✅ Pytest marker registered
+- ✅ Fast test execution (5 examples per endpoint)
+- 📋 Broader `/api/v1/.*` test available but skipped (enable when ready)
+
+**Spectral Linting:**
+- ✅ Configuration created with sane defaults
+- ✅ Custom rules for project conventions
+- ✅ Finds 12 errors and 140+ warnings in current schema
+- 📋 Warnings can be addressed incrementally
+
+### 6. Next Steps (Optional)
+
+**For Schemathesis:**
+- Increase `max_examples` for more thorough testing (when needed)
+- Enable broader `/api/v1/.*` test coverage
+- Add authentication fixtures for protected endpoints
+- Configure custom data generation strategies
+
+**For Spectral:**
+- Address schema validation errors (example mismatches)
+- Add missing operation descriptions
+- Enable additional rules as needed (info-contact, etc.)
+- Consider CI integration with exit-on-error
+
+### Phase 5c – Test Regression Cleanup
+
+**Overview:**
+- Schemathesis introduced database pollution because tests bypassed our standard fixtures.
+- Manual performance/email scripts were being collected by pytest, causing SSL, async, and network failures.
+- Event outbox cleanup logic and instructor ID validation needed to be tightened for v1 routes.
+
+**Fixes:**
+- Added reusable helpers (`create_test_session`, `cleanup_test_database`) for isolated Schemathesis calls and switched the tests to use our FastAPI test client overrides.
+- Restricted instructor path parameters with FastAPI `Path` metadata and fixed `is_valid_ulid` to use `ULID.from_str` so coverage endpoints accept valid IDs.
+- Ignored dev/performance script suites that are not meant for pytest, and forced `anyio`-based tests to run under asyncio (`anyio_backend` fixture) while marking async modules appropriately.
+- Configured pytest to skip script harnesses under `scripts/*` and `tests/performance/*`, and cleaned up MyPy issues in bookings/payment summaries and instructor routes.
+- Ensured `pre-commit`/mypy gates stay green and documented the regression cleanup here for future reference.
+- Documented test collection intent:
+  - `scripts/dev/test_*.py`, `scripts/test_*.py`, and `scripts/monitoring/test_*.py` are dev/ops harnesses that hit running services or send alerts, so they remain out of the automated suite via `collect_ignore_glob`.
+  - `tests/performance/test_*.py` hosts manual perf harnesses (FastAPI apps, long‑running scripts) and stays opt-in for engineers; these are ignored by default to avoid Redis/API dependencies during CI.
+  - Added `.hypothesis` back to `norecursedirs` so Hypothesis no longer warns during collection.
+
+### 7. Files Changed
+
+**Backend:**
+- `requirements-dev.txt` - Added schemathesis
+- `pyproject.toml` - Added pytest markers
+- `tests/integration/test_schemathesis_api_v1.py` - New test module
+- `openapi/spectral.yaml` - New linter configuration
+
+**Frontend:**
+- `package.json` - Added `@stoplight/spectral-cli` and `api:lint` script
+
+**Root:**
+- `Makefile` - Added `api-test`, `api-lint`, `api-check` commands
+
+---
+
+**Status:** Phases 0, 1, 2, 3, 4, 5 Complete ✅
+**Ready for:** Phase 6 (Full Migration - Remaining Endpoints) or Production Deployment

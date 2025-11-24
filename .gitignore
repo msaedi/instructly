@@ -118,3 +118,6 @@ backend/.mypy_bisect_logs/
 .census_headsha.txt
 TEST_INVENTORY.json
 backend/TEST_INVENTORY.json
+
+# Test caches
+.hypothesis/

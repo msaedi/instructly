@@ -18,6 +18,8 @@ from app.main import fastapi_app as app
 from app.models.search_event import SearchEvent
 from app.models.search_history import SearchHistory
 from app.models.search_interaction import SearchInteraction
+
+pytestmark = pytest.mark.anyio
 from app.models.user import User
 
 

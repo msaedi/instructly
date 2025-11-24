@@ -10,13 +10,14 @@ from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.services.booking_service import BookingService
 
+pytestmark = pytest.mark.anyio
 
 @pytest.fixture(autouse=True)
 def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
     yield
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_student, test_instructor):
     """Booking at now + 23h59m => immediate (authorizing)."""
     # Build instructor+service from standard test fixtures in conftest
@@ -78,7 +79,7 @@ async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_stud
     assert confirmed.payment_status == expected_status
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_confirm_booking_payment_boundary_beyond_24h(db, auth_headers_student, test_instructor):
     """Booking at now + 24h01m => scheduled."""
     instructor = test_instructor

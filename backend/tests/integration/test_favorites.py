@@ -491,7 +491,7 @@ class TestFavoritesAPI:
     ):
         """Test that GET /instructors/{id} includes is_favorited flag."""
         # Get profile before favoriting
-        response = client.get(f"/instructors/{test_instructor.id}", headers=auth_headers_student)
+        response = client.get(f"/api/v1/instructors/{test_instructor.id}", headers=auth_headers_student)
         assert response.status_code == 200
         data = response.json()
         assert data["is_favorited"] is False
@@ -519,7 +519,7 @@ class TestFavoritesAPI:
             "app.services.favorites_service.FavoritesService.is_favorited",
             return_value=True,
         ):
-            response = client.get(f"/instructors/{test_instructor.id}", headers=refreshed_headers)
+            response = client.get(f"/api/v1/instructors/{test_instructor.id}", headers=refreshed_headers)
         assert response.status_code == 200
         data = response.json()
         if not data.get("is_favorited"):

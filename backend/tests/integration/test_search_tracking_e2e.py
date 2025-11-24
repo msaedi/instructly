@@ -21,6 +21,7 @@ from app.models.search_history import SearchHistory
 from app.models.search_interaction import SearchInteraction
 from app.models.user import User
 
+pytestmark = pytest.mark.anyio
 
 @pytest.fixture
 def client():

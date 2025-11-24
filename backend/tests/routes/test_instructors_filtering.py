@@ -2,7 +2,7 @@
 """
 API tests for instructor filtering functionality.
 
-These tests verify the GET /instructors/ endpoint with query parameters,
+These tests verify the GET /api/v1/instructors/ endpoint with query parameters,
 including validation, backward compatibility, and response format.
 """
 
@@ -141,8 +141,8 @@ class TestInstructorsFilteringAPI:
         return instructors
 
     def test_get_all_instructors_requires_service(self, client, sample_instructors):
-        """Test GET /instructors/ requires service_catalog_id parameter."""
-        response = client.get("/instructors/")
+        """Test GET /api/v1/instructors/ requires service_catalog_id parameter."""
+        response = client.get("/api/v1/instructors/")
 
         # Should fail without service_catalog_id
         assert response.status_code == 422  # Unprocessable Entity - missing required field
@@ -154,7 +154,7 @@ class TestInstructorsFilteringAPI:
         assert piano_catalog is not None
 
         # Test with only price filters (should fail)
-        response = client.get("/instructors/?min_price=50&max_price=100")
+        response = client.get("/api/v1/instructors/?min_price=50&max_price=100")
         assert response.status_code == 422  # Missing required service_catalog_id
 
     def test_skill_filter(self, client, sample_instructors, db: Session):
@@ -164,7 +164,7 @@ class TestInstructorsFilteringAPI:
 
         assert piano_catalog is not None, "Piano service should exist in seeded catalog"
 
-        response = client.get(f"/instructors/?service_catalog_id={piano_catalog.id}")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={piano_catalog.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -184,7 +184,7 @@ class TestInstructorsFilteringAPI:
 
     def test_price_range_filter(self, client, sample_instructors):
         """Test min_price and max_price query parameters without service_catalog_id."""
-        response = client.get("/instructors/?min_price=70&max_price=90")
+        response = client.get("/api/v1/instructors/?min_price=70&max_price=90")
 
         # This should fail - service_catalog_id is required
         assert response.status_code == 422
@@ -195,7 +195,7 @@ class TestInstructorsFilteringAPI:
         service_catalog = db.query(ServiceCatalog).first()
         assert service_catalog is not None
 
-        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&min_price=50&max_price=100")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&min_price=50&max_price=100")
 
         assert response.status_code == 200
         data = response.json()
@@ -222,7 +222,7 @@ class TestInstructorsFilteringAPI:
         db.commit()
 
         # With kids filter we should get at least that instructor
-        resp = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&age_group=kids")
+        resp = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&age_group=kids")
         assert resp.status_code == 200
         data = resp.json()
         assert "items" in data
@@ -231,7 +231,7 @@ class TestInstructorsFilteringAPI:
 
     def test_age_group_filter_validation(self, client, sample_instructors, db: Session):
         service_catalog = db.query(ServiceCatalog).first()
-        resp = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&age_group=unknown")
+        resp = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&age_group=unknown")
         # Pydantic validation error
         assert resp.status_code in (400, 422)
 
@@ -242,7 +242,7 @@ class TestInstructorsFilteringAPI:
         assert service_catalog is not None
 
         # Get first page
-        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&page=1&per_page=2")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&page=1&per_page=2")
         assert response.status_code == 200
         data = response.json()
 
@@ -251,7 +251,7 @@ class TestInstructorsFilteringAPI:
         assert data["per_page"] == 2
 
         # Get second page
-        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&page=2&per_page=2")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&page=2&per_page=2")
         assert response.status_code == 200
         data = response.json()
 
@@ -260,7 +260,7 @@ class TestInstructorsFilteringAPI:
     def test_validation_error_price_range(self, client, sample_instructors, db: Session):
         """Test validation error when max_price < min_price."""
         service_catalog = db.query(ServiceCatalog).first()
-        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&min_price=100&max_price=50")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&min_price=100&max_price=50")
 
         assert response.status_code == 400
         error = response.json()
@@ -268,13 +268,13 @@ class TestInstructorsFilteringAPI:
 
     def test_validation_error_negative_price(self, client, sample_instructors):
         """Test validation error for negative prices."""
-        response = client.get("/instructors/?min_price=-10")
+        response = client.get("/api/v1/instructors/?min_price=-10")
 
         assert response.status_code == 422  # FastAPI validation error
 
     def test_validation_error_price_too_high(self, client, sample_instructors):
         """Test validation error for prices exceeding limit."""
-        response = client.get("/instructors/?max_price=1001")
+        response = client.get("/api/v1/instructors/?max_price=1001")
 
         assert response.status_code == 422  # Exceeds max of 1000
 
@@ -296,7 +296,7 @@ class TestInstructorsFilteringAPI:
         db.add(unused_service)
         db.commit()
 
-        response = client.get(f"/instructors/?service_catalog_id={unused_service.id}")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={unused_service.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -310,7 +310,7 @@ class TestInstructorsFilteringAPI:
         service_catalog = db.query(ServiceCatalog).first()
 
         # Test with low price range
-        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&max_price=80")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&max_price=80")
         assert response.status_code == 200
         data = response.json()
 
@@ -327,7 +327,7 @@ class TestInstructorsFilteringAPI:
         """Test that response always has standardized format."""
         service_catalog = db.query(ServiceCatalog).first()
 
-        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}")
         assert response.status_code == 200
         data = response.json()
 
@@ -349,7 +349,7 @@ class TestInstructorsFilteringAPI:
         if not music_theory_catalog:
             pytest.skip("Music Theory catalog not found")
 
-        response = client.get(f"/instructors/?service_catalog_id={music_theory_catalog.id}")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={music_theory_catalog.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -360,7 +360,7 @@ class TestInstructorsFilteringAPI:
     def test_response_format_consistency(self, client, sample_instructors, db: Session):
         """Test that response format is consistent."""
         service_catalog = db.query(ServiceCatalog).first()
-        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -381,18 +381,18 @@ class TestInstructorsFilteringAPI:
         service_catalog = db.query(ServiceCatalog).first()
 
         # Test max per_page
-        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&per_page=101")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&per_page=101")
         assert response.status_code == 422  # Exceeds max of 100
 
         # Test min per_page
-        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&per_page=0")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&per_page=0")
         assert response.status_code == 422  # Below min of 1
 
     def test_page_validation(self, client, sample_instructors, db: Session):
         """Test page parameter validation."""
         service_catalog = db.query(ServiceCatalog).first()
 
-        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&page=0")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={service_catalog.id}&page=0")
         assert response.status_code == 422  # Page must be >= 1
 
     def test_metadata_accuracy(self, client, db: Session, sample_instructors):
@@ -454,7 +454,7 @@ class TestInstructorsFilteringAPI:
         db.commit()
 
         # Test with the active service
-        response = client.get(f"/instructors/?service_catalog_id={active_catalog.id}")
+        response = client.get(f"/api/v1/instructors/?service_catalog_id={active_catalog.id}")
 
         assert response.status_code == 200
         data = response.json()
