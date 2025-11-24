@@ -158,6 +158,38 @@ export function useMarkLessonComplete() {
 }
 
 /**
+ * Imperative API functions for use in useEffect or other non-hook contexts.
+ *
+ * Use these when you need to call the API directly without React Query hooks.
+ */
+
+/**
+ * Fetch instructor bookings list imperatively.
+ *
+ * @example
+ * ```tsx
+ * useEffect(() => {
+ *   async function fetchData() {
+ *     const data = await fetchInstructorBookingsList({ page: 1, per_page: 25 });
+ *     setBookings(data.items);
+ *   }
+ *   fetchData();
+ * }, []);
+ * ```
+ */
+export { listInstructorBookingsApiV1InstructorBookingsGet as fetchInstructorBookingsList } from '@/src/api/generated/instructor-bookings-v1/instructor-bookings-v1';
+
+/**
+ * Fetch upcoming instructor bookings imperatively.
+ */
+export { getUpcomingBookingsApiV1InstructorBookingsUpcomingGet as fetchInstructorUpcomingBookings } from '@/src/api/generated/instructor-bookings-v1/instructor-bookings-v1';
+
+/**
+ * Fetch completed instructor bookings imperatively.
+ */
+export { getCompletedBookingsApiV1InstructorBookingsCompletedGet as fetchInstructorCompletedBookings } from '@/src/api/generated/instructor-bookings-v1/instructor-bookings-v1';
+
+/**
  * Type exports for convenience
  */
 export type {

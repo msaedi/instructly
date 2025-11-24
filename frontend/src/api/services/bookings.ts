@@ -17,6 +17,8 @@ import {
   useCancelBookingApiV1BookingsBookingIdCancelPost,
   useConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost,
   useCheckAvailabilityApiV1BookingsCheckAvailabilityPost,
+  useRescheduleBookingApiV1BookingsBookingIdReschedulePost,
+  useCompleteBookingApiV1BookingsBookingIdCompletePost,
 } from '@/src/api/generated/bookings-v1/bookings-v1';
 import type {
   GetBookingsApiV1BookingsGetParams,
@@ -227,6 +229,187 @@ export function useConfirmBookingPayment() {
 export function useCheckAvailability() {
   return useCheckAvailabilityApiV1BookingsCheckAvailabilityPost();
 }
+
+/**
+ * Get booking history (completed, cancelled, past lessons).
+ *
+ * Uses exclude_future_confirmed to filter out upcoming confirmed bookings.
+ *
+ * @param page - Page number (1-based)
+ * @param perPage - Items per page
+ * @example
+ * ```tsx
+ * function BookingHistory() {
+ *   const { data, isLoading } = useBookingsHistory(1, 50);
+ *
+ *   if (isLoading) return <div>Loading...</div>;
+ *
+ *   return <div>{data?.items.length} past bookings</div>;
+ * }
+ * ```
+ */
+export function useBookingsHistory(page: number = 1, perPage: number = 50) {
+  return useGetBookingsApiV1BookingsGet(
+    {
+      exclude_future_confirmed: true,
+      page,
+      per_page: perPage,
+    },
+    {
+      query: {
+        queryKey: queryKeys.bookings.student({ status: 'history' }),
+        staleTime: 1000 * 60 * 15, // 15 minutes for history
+      },
+    }
+  );
+}
+
+/**
+ * Get cancelled bookings only.
+ *
+ * @param page - Page number (1-based)
+ * @param perPage - Items per page
+ * @example
+ * ```tsx
+ * function CancelledBookings() {
+ *   const { data, isLoading } = useCancelledBookings(1, 20);
+ *
+ *   if (isLoading) return <div>Loading...</div>;
+ *
+ *   return <div>{data?.items.length} cancelled bookings</div>;
+ * }
+ * ```
+ */
+export function useCancelledBookings(page: number = 1, perPage: number = 20) {
+  return useGetBookingsApiV1BookingsGet(
+    {
+      status: 'CANCELLED',
+      upcoming_only: false,
+      page,
+      per_page: perPage,
+    },
+    {
+      query: {
+        queryKey: queryKeys.bookings.student({ status: 'CANCELLED' }),
+        staleTime: 1000 * 60 * 15, // 15 minutes for cancelled
+      },
+    }
+  );
+}
+
+/**
+ * Reschedule booking mutation.
+ *
+ * @example
+ * ```tsx
+ * function RescheduleButton({ bookingId }: { bookingId: string }) {
+ *   const rescheduleBooking = useRescheduleBooking();
+ *
+ *   const handleReschedule = async () => {
+ *     await rescheduleBooking.mutateAsync({
+ *       bookingId,
+ *       data: {
+ *         booking_date: '2025-01-15',
+ *         start_time: '10:00:00',
+ *         selected_duration: 60
+ *       }
+ *     });
+ *   };
+ *
+ *   return <button onClick={handleReschedule}>Reschedule</button>;
+ * }
+ * ```
+ */
+export function useRescheduleBooking() {
+  return useRescheduleBookingApiV1BookingsBookingIdReschedulePost();
+}
+
+/**
+ * Complete booking mutation (instructor only).
+ *
+ * @example
+ * ```tsx
+ * function CompleteButton({ bookingId }: { bookingId: string }) {
+ *   const completeBooking = useCompleteBooking();
+ *
+ *   const handleComplete = async () => {
+ *     await completeBooking.mutateAsync({ bookingId });
+ *   };
+ *
+ *   return <button onClick={handleComplete}>Mark Complete</button>;
+ * }
+ * ```
+ */
+export function useCompleteBooking() {
+  return useCompleteBookingApiV1BookingsBookingIdCompletePost();
+}
+
+/**
+ * Imperative API functions for use in useEffect or other non-hook contexts.
+ *
+ * Use these when you need to call the API directly without React Query hooks.
+ */
+
+/**
+ * Fetch bookings list imperatively.
+ *
+ * @example
+ * ```tsx
+ * const data = await fetchBookingsList({ upcoming_only: true, per_page: 25 });
+ * setBookings(data.items);
+ * ```
+ */
+export { getBookingsApiV1BookingsGet as fetchBookingsList } from '@/src/api/generated/bookings-v1/bookings-v1';
+
+/**
+ * Fetch single booking details imperatively.
+ *
+ * @example
+ * ```tsx
+ * const booking = await fetchBookingDetails('01ABC...');
+ * ```
+ */
+export { getBookingDetailsApiV1BookingsBookingIdGet as fetchBookingDetails } from '@/src/api/generated/bookings-v1/bookings-v1';
+
+/**
+ * Create a new booking imperatively.
+ *
+ * @example
+ * ```tsx
+ * const booking = await createBookingImperative({
+ *   instructor_id: 'abc',
+ *   instructor_service_id: 'def',
+ *   booking_date: '2025-01-01',
+ *   start_time: '10:00',
+ *   selected_duration: 60
+ * });
+ * ```
+ */
+export { createBookingApiV1BookingsPost as createBookingImperative } from '@/src/api/generated/bookings-v1/bookings-v1';
+
+/**
+ * Cancel a booking imperatively.
+ *
+ * @example
+ * ```tsx
+ * await cancelBookingImperative('01ABC...', { reason: 'Schedule conflict' });
+ * ```
+ */
+export { cancelBookingApiV1BookingsBookingIdCancelPost as cancelBookingImperative } from '@/src/api/generated/bookings-v1/bookings-v1';
+
+/**
+ * Reschedule a booking imperatively.
+ *
+ * @example
+ * ```tsx
+ * const rescheduled = await rescheduleBookingImperative('01ABC...', {
+ *   booking_date: '2025-01-15',
+ *   start_time: '10:00',
+ *   selected_duration: 60
+ * });
+ * ```
+ */
+export { rescheduleBookingApiV1BookingsBookingIdReschedulePost as rescheduleBookingImperative } from '@/src/api/generated/bookings-v1/bookings-v1';
 
 /**
  * Type exports for convenience

@@ -976,4 +976,183 @@ This migration establishes the pattern for all future bookings migrations:
 
 ---
 
-**Phase 7 Status:** ✅ **Complete** - First vertical slice successfully migrated with zero regressions.
+## Phase 7b-7e – Complete Bookings Migration
+
+**Date:** November 24, 2025
+**Status:** ✅ Complete (with documented follow-up items)
+
+### Overview
+
+Completed the full migration of student bookings, instructor bookings, and booking mutations from legacy endpoints to v1 API + service-layer pattern.
+
+### Phase 7b – Student Lesson History & Details → v1
+
+**Goal:** Migrate all student-facing booking reads (except already-migrated "upcoming lessons") to v1.
+
+**Migrated Hooks:**
+| Hook | Legacy Endpoint | V1 Endpoint |
+|------|----------------|-------------|
+| `useCompletedLessons()` | `/bookings/?exclude_future_confirmed=true` | `/api/v1/bookings?exclude_future_confirmed=true` |
+| `useCancelledLessons()` | `/bookings/?status=CANCELLED` | `/api/v1/bookings?status=CANCELLED` |
+| `useLessonDetails()` | `/bookings/${id}` | `/api/v1/bookings/${id}` |
+
+**Service Layer Extensions:**
+- Added `useBookingsHistory()` – Fetches completed/cancelled/past lessons
+- Added `useCancelledBookings()` – Fetches cancelled lessons only
+- Uses existing `useBooking()` for lesson details
+
+### Phase 7c – Student Booking Mutations → v1
+
+**Goal:** Migrate all student booking write operations to v1.
+
+**Migrated Hooks:**
+| Hook | Legacy Endpoint | V1 Endpoint |
+|------|----------------|-------------|
+| `useCancelLesson()` | `/bookings/${id}/cancel` | `/api/v1/bookings/${id}/cancel` |
+| `useRescheduleLesson()` | `/bookings/${id}/reschedule` | `/api/v1/bookings/${id}/reschedule` |
+| `useCompleteLesson()` | `bookingsApi.completeBooking()` | `/api/v1/bookings/${id}/complete` |
+| `useMarkNoShow()` | `bookingsApi.markNoShow()` | Uses `useMarkLessonComplete()` (no v1 no-show endpoint) |
+
+**Key Implementation Details:**
+
+1. **Duration Calculation for Reschedule:**
+   - Legacy API accepted `start_time` + `end_time`
+   - V1 API uses `start_time` + `selected_duration`
+   - Added `calculateDurationMinutes()` helper to maintain backward compatibility
+
+2. **No-Show Endpoint:**
+   - ⚠️ No v1 endpoint exists for no-show
+   - Temporarily uses `useMarkLessonComplete()` as fallback
+   - TODO: Add `/api/v1/bookings/${id}/no-show` endpoint to backend
+
+### Phase 7d – Instructor Bookings → v1
+
+**Goal:** Migrate all instructor booking flows to v1 services.
+
+**Migrated Hook:** `hooks/queries/useInstructorBookings.ts`
+
+**Implementation:**
+```typescript
+// Routes to appropriate v1 endpoint based on parameters
+if (status === 'CONFIRMED' && upcoming === true) {
+  return useInstructorUpcomingBookings(page, perPage);
+} else if (status === 'COMPLETED' && upcoming === false) {
+  return useInstructorCompletedBookings(page, perPage);
+} else {
+  return useInstructorBookingsList(params);
+}
+```
+
+**V1 Endpoints Used:**
+- `/api/v1/instructor-bookings` (general list)
+- `/api/v1/instructor-bookings/upcoming`
+- `/api/v1/instructor-bookings/completed`
+
+### Phase 7e – Additional Migrations & Imperative Wrappers
+
+**Goal:** Complete hook migrations and enable imperative API usage.
+
+**Additional Migrations:**
+| Component | Legacy Usage | V1 Migration |
+|-----------|-------------|--------------|
+| `instructor/messages/page.tsx` | `bookingsApi.getMyBookings()` | `fetchInstructorUpcomingBookings()`, `fetchInstructorBookingsList()` |
+| `UpcomingLessons.tsx` | `queryFn('/bookings/upcoming')` | `useUpcomingBookings(limit)` |
+
+**Imperative API Wrappers Added:**
+
+For use in non-hook contexts (useEffect, server components):
+
+**bookings.ts:**
+```typescript
+export { fetchBookingsList } from '@/src/api/generated/bookings-v1/...';
+export { fetchBookingDetails } from '@/src/api/generated/bookings-v1/...';
+export { createBookingImperative } from '@/src/api/generated/bookings-v1/...';
+export { cancelBookingImperative } from '@/src/api/generated/bookings-v1/...';
+export { rescheduleBookingImperative } from '@/src/api/generated/bookings-v1/...';
+```
+
+**instructor-bookings.ts:**
+```typescript
+export { fetchInstructorBookingsList } from '@/src/api/generated/instructor-bookings-v1/...';
+export { fetchInstructorUpcomingBookings } from '@/src/api/generated/instructor-bookings-v1/...';
+export { fetchInstructorCompletedBookings } from '@/src/api/generated/instructor-bookings-v1/...';
+```
+
+### Remaining Legacy Consumers (Follow-up Phase)
+
+The following components still use `protectedApi` for bookings and need migration in a follow-up:
+
+| File | Legacy Usage | Recommended Migration |
+|------|-------------|----------------------|
+| `components/lessons/modals/RescheduleModal.tsx` | `protectedApi.rescheduleBooking` | `rescheduleBookingImperative()` |
+| `app/booking/confirmation/page.tsx` | `protectedApi.getBooking` | `fetchBookingDetails()` |
+| `features/student/payment/PaymentConfirmation.tsx` | `protectedApi.getBookings` | `fetchBookingsList()` |
+| `features/student/payment/PaymentSection.tsx` | `protectedApi.getBooking`, `cancelBooking` | `fetchBookingDetails()`, `cancelBookingImperative()` |
+| `app/(auth)/student/booking/confirmation/page.tsx` | `protectedApi.getBooking` | `fetchBookingDetails()` |
+| `features/student/booking/hooks/useCreateBooking.ts` | `protectedApi.createBooking` | `createBookingImperative()` |
+
+These are imperative API calls in payment/confirmation flows. The v1 imperative wrappers are ready for migration.
+
+### Test Updates
+
+**Updated Tests:**
+- `__tests__/hooks/useMyLessons.test.tsx` – Complete rewrite to mock v1 services
+- Removed legacy `queryFn`, `mutationFn`, `bookingsApi` mocks
+- Added comprehensive mocks for all v1 service hooks
+
+**Test Coverage:**
+- All 13 useMyLessons hook tests passing ✅
+- All 403 frontend tests passing ✅
+
+### Quality Gate Results
+
+**Frontend:**
+- ✅ `npm run build` – Build successful
+- ✅ `npm run lint` – 0 errors
+- ✅ `npm run typecheck` – Pass
+- ✅ `npm run typecheck:strict` – Pass
+- ✅ `npm run typecheck:strict-all` – Pass
+- ✅ `npm run test` – 403 tests passing
+
+### Files Changed
+
+**Frontend - Modified:**
+- `hooks/useMyLessons.ts` – Full migration to v1 services
+- `hooks/queries/useInstructorBookings.ts` – Migration to v1 services
+- `components/UpcomingLessons.tsx` – Migration to v1 `useUpcomingBookings`
+- `app/(auth)/instructor/messages/page.tsx` – Migration to v1 imperative APIs
+- `src/api/services/bookings.ts` – Added wrappers and imperative exports
+- `src/api/services/instructor-bookings.ts` – Added imperative exports
+- `__tests__/hooks/useMyLessons.test.tsx` – Updated mocks for v1
+
+**Removed Legacy Imports:**
+- `bookingsApi` from `@/lib/api/bookings`
+- `queryFn`, `mutationFn` from `@/lib/react-query/api`
+- `useQuery`, `useMutation` direct imports (for migrated hooks)
+- `protectedApi` for instructor messages page
+
+### Architecture Patterns Reinforced
+
+1. **Hook Migrations:**
+   - Preserve existing hook signatures for backward compatibility
+   - Map v1 response shapes to legacy shapes when needed
+   - Use v1 services, not Orval hooks directly in app code
+
+2. **Imperative API Usage:**
+   - Export non-hook functions for useEffect/server component patterns
+   - Name with `fetch*` or `*Imperative` suffix for clarity
+   - Re-export from Orval-generated code, not duplicate implementation
+
+3. **Cache Invalidation:**
+   - Use both old and new query key patterns during transition
+   - Invalidate all related keys after mutations
+   - Include `['bookings', 'student']` and `['bookings', 'instructor']` patterns
+
+4. **Type Compatibility:**
+   - Handle `null` vs `undefined` differences between v1 and legacy
+   - Use `?? undefined` pattern to convert null to undefined
+   - Cast response data when shapes are compatible but types differ
+
+---
+
+**Phase 7b-7e Status:** ✅ **Complete** – All hook-based bookings consumers migrated. Imperative API consumers documented for follow-up.
