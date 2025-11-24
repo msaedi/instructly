@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Pre-commit hook: Block raw /api/ strings in frontend app code
-# Part of Phase 4 API architecture refactor
+# Pre-commit hook: Block raw /api/ and /bookings strings in frontend app code
+# Part of Phase 4+ API architecture refactor (Phase 7: bookings v1 migration)
 #
 # Usage: Called by pre-commit with staged files as arguments
 #
@@ -19,7 +19,7 @@ if [ ${#FILES_TO_CHECK[@]} -eq 0 ]; then
   exit 0
 fi
 
-# Patterns to exclude (these are allowed to have /api/ strings)
+# Patterns to exclude (these are allowed to have /api/ and /bookings strings)
 ALLOWED_PATTERNS=(
   "src/api/generated/"
   "src/api/orval-mutator.ts"
@@ -33,6 +33,7 @@ ALLOWED_PATTERNS=(
   "lib/api.ts"
   "lib/apiBase.ts"
   "lib/betaApi.ts"
+  "lib/api/bookings.ts"
   "features/shared/api/"
 )
 
@@ -47,9 +48,10 @@ should_exclude() {
   return 1  # Should NOT exclude
 }
 
-VIOLATIONS=()
+VIOLATIONS_API=()
+VIOLATIONS_BOOKINGS=()
 
-# Check each file for raw /api/ strings
+# Check each file for raw /api/ and /bookings strings
 for file in "${FILES_TO_CHECK[@]}"; do
   # Skip if file should be excluded
   if should_exclude "$file"; then
@@ -62,25 +64,42 @@ for file in "${FILES_TO_CHECK[@]}"; do
   fi
 
   # Search for /api/ in string literals
-  # Using grep with Perl regex to match strings containing /api/
   if grep -nP '["'\''`]/api/' "$file" > /dev/null 2>&1; then
-    VIOLATIONS+=("$file")
+    VIOLATIONS_API+=("$file")
+  fi
+
+  # Search for /bookings in string literals (Phase 7: block legacy bookings endpoints)
+  if grep -nP '["'\''`]/bookings' "$file" > /dev/null 2>&1; then
+    VIOLATIONS_BOOKINGS+=("$file")
   fi
 done
 
 # If violations found, report and exit with error
-if [ ${#VIOLATIONS[@]} -gt 0 ]; then
-  echo "❌ Phase 4 API Guardrail: Raw /api/ strings detected"
+if [ ${#VIOLATIONS_API[@]} -gt 0 ] || [ ${#VIOLATIONS_BOOKINGS[@]} -gt 0 ]; then
+  echo "❌ API Architecture Guardrail: Raw endpoint strings detected"
   echo ""
-  echo "The following files contain raw /api/ path strings:"
-  for file in "${VIOLATIONS[@]}"; do
-    echo "  - $file"
-    # Show the offending lines
-    grep -nP '["'\''`]/api/' "$file" | head -3 | sed 's/^/      /'
-    echo ""
-  done
-  echo "❌ Use Orval-generated hooks from @/src/api/services/* instead of raw /api/ strings."
-  echo "   See: docs/architecture/api-refactor-phase-4.md"
+
+  if [ ${#VIOLATIONS_API[@]} -gt 0 ]; then
+    echo "Files with raw /api/ strings:"
+    for file in "${VIOLATIONS_API[@]}"; do
+      echo "  - $file"
+      grep -nP '["'\''`]/api/' "$file" | head -3 | sed 's/^/      /'
+      echo ""
+    done
+  fi
+
+  if [ ${#VIOLATIONS_BOOKINGS[@]} -gt 0 ]; then
+    echo "Files with raw /bookings strings (Phase 7 migration):"
+    for file in "${VIOLATIONS_BOOKINGS[@]}"; do
+      echo "  - $file"
+      grep -nP '["'\''`]/bookings' "$file" | head -3 | sed 's/^/      /'
+      echo ""
+    done
+  fi
+
+  echo "❌ Use Orval-generated hooks from @/src/api/services/* instead of raw endpoint strings."
+  echo "   For bookings: import from @/src/api/services/bookings or @/src/api/services/instructor-bookings"
+  echo "   See: docs/architecture/api-refactor-phase-7.md"
   exit 1
 fi
 

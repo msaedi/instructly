@@ -20,31 +20,76 @@ jest.mock('@/lib/api/bookings', () => ({
     cancelBooking: jest.fn(),
     rescheduleBooking: jest.fn(),
   },
+  bookingsApi: {
+    completeBooking: jest.fn(() => Promise.resolve({ id: 1, status: 'COMPLETED' })),
+    markNoShow: jest.fn(() => Promise.resolve({ id: 1, status: 'NO_SHOW' })),
+  },
 }));
 
-// Mock the queryFn
+// Mock the v1 bookings service (now used by useCurrentLessons)
+jest.mock('@/src/api/services/bookings', () => ({
+  useBookingsList: jest.fn((params?: { upcoming_only?: boolean; per_page?: number }) => {
+    const isUpcoming = params?.upcoming_only === true;
+    return {
+      data: isUpcoming ? {
+        items: [
+          {
+            id: 1,
+            booking_date: '2024-12-25',
+            start_time: '14:00:00',
+            status: 'CONFIRMED',
+            total_price: 60,
+          },
+        ],
+        total: 1,
+        page: 1,
+        per_page: 20,
+        has_next: false,
+        has_prev: false,
+      } : {
+        items: [
+          {
+            id: 2,
+            booking_date: '2024-12-20',
+            start_time: '10:00:00',
+            status: 'COMPLETED',
+            total_price: 60,
+          },
+        ],
+        total: 1,
+        page: 1,
+        per_page: 20,
+        has_next: false,
+        has_prev: false,
+      },
+      isSuccess: true,
+      isLoading: false,
+      isError: false,
+      error: null,
+      // Add React Query properties
+      dataUpdatedAt: Date.now(),
+      errorUpdatedAt: 0,
+      failureCount: 0,
+      failureReason: null,
+      isFetched: true,
+      isFetchedAfterMount: true,
+      isFetching: false,
+      isPaused: false,
+      isPending: false,
+      isPlaceholderData: false,
+      isRefetchError: false,
+      isRefetching: false,
+      isStale: false,
+      refetch: jest.fn(),
+      status: 'success' as const,
+    };
+  }),
+}));
+
+// Mock the legacy queryFn for hooks that haven't been migrated yet
 jest.mock('@/lib/react-query/api', () => ({
-  queryFn: jest.fn((endpoint: string, options?: { params?: Record<string, unknown> }) => {
+  queryFn: jest.fn((_endpoint: string, _options?: { params?: Record<string, unknown> }) => {
     return async () => {
-      // Updated: upcoming lessons now use /bookings/upcoming with limit param
-      const isUpcoming = typeof endpoint === 'string' && endpoint.includes('/bookings/upcoming');
-      const legacyUpcoming = options?.params?.['status'] === 'CONFIRMED' && options?.params?.['upcoming_only'] === true;
-      if (isUpcoming || legacyUpcoming) {
-        return {
-          items: [
-            {
-              id: 1,
-              booking_date: '2024-12-25',
-              start_time: '14:00:00',
-              status: 'CONFIRMED',
-              total_price: 60,
-            },
-          ],
-          total: 1,
-          page: 1,
-          per_page: 20,
-        };
-      }
       return {
         items: [
           {

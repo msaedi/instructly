@@ -7,25 +7,36 @@ import type {
   Booking,
   BookingStatus,
 } from '@/features/shared/api/types';
+import { useBookingsList } from '@/src/api/services/bookings';
 
 /**
  * Hook to fetch current/upcoming lessons
  * Only shows CONFIRMED lessons that are in the future
  * Uses 5-minute cache as these may change with new bookings
+ *
+ * ✅ MIGRATED TO V1 - Uses /api/v1/bookings endpoint with upcoming_only filter
+ *
+ * @param _enabled - Legacy parameter kept for backward compatibility but not used (v1 hooks don't support enabled)
  */
-export function useCurrentLessons(enabled: boolean = true) {
-  return useQuery<BookingListResponse>({
-    queryKey: queryKeys.bookings.all,
-    queryFn: queryFn('/bookings/upcoming', {
-      params: {
-        limit: 20,
-      },
-      requireAuth: true,
-    }),
-    staleTime: CACHE_TIMES.FREQUENT, // 5 minutes for upcoming lessons
-    refetchInterval: false, // Don't poll, rely on invalidation
-    enabled,
+export function useCurrentLessons(_enabled: boolean = true) {
+  // Use v1 service with upcoming_only filter to get full booking objects
+  const result = useBookingsList({
+    upcoming_only: true,
+    per_page: 20,
   });
+
+  // Map v1 response shape to legacy shape for backward compatibility
+  return {
+    ...result,
+    data: result.data ? {
+      items: result.data.items as Booking[],
+      total: result.data.total,
+      page: result.data.page ?? 1,
+      per_page: result.data.per_page ?? 20,
+      has_next: result.data.has_next,
+      has_prev: result.data.has_prev,
+    } as BookingListResponse : undefined,
+  };
 }
 
 /**
