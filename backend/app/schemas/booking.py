@@ -10,7 +10,7 @@ availability changes.
 
 from datetime import date, datetime, time, timedelta
 import re
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Mapping, Optional
 
 from pydantic import (
     BaseModel,
@@ -373,8 +373,15 @@ class BookingResponse(BookingBase):
         """Ensure payment_summary accepts both dict and PaymentSummary instances."""
         if v is None:
             return None
+        if isinstance(v, PaymentSummary):
+            return v
+        if isinstance(v, BaseModel):
+            # Handles PaymentSummary instances from reloaded modules
+            return PaymentSummary(**v.model_dump())
         if isinstance(v, dict):
             return PaymentSummary(**v)
+        if isinstance(v, Mapping):
+            return PaymentSummary(**dict(v))
         return v
 
     @classmethod
