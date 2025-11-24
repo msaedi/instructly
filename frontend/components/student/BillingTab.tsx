@@ -339,7 +339,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
                     <span className="font-medium">{formatCurrency(transaction.lesson_amount)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Service fee</span>
+                    <span className="text-gray-600">Platform fee</span>
                     <span>{formatCurrency(transaction.service_fee)}</span>
                   </div>
                   {transaction.credit_applied > 0 && (

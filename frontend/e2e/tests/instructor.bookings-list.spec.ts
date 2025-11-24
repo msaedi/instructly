@@ -33,14 +33,14 @@ test.describe('[instructor] bookings list', () => {
       resolvePast = resolve;
     });
 
-    await page.route('**://*/bookings/**', async (route) => {
+    await page.route('**/api/instructors/bookings/**', async (route) => {
       const url = new URL(route.request().url());
-      if (url.pathname.startsWith('/instructor/bookings')) {
-        await route.continue();
-        return;
-      }
-      const params = url.searchParams;
-      if (params.get('upcoming') === 'true') {
+      const pathname = url.pathname;
+
+      const isUpcomingCall = pathname.endsWith('/upcoming');
+      const isPastCall = pathname.endsWith('/completed');
+
+      if (isUpcomingCall) {
         resolveUpcoming?.();
         await respondJson(route, {
           items: [
@@ -63,7 +63,8 @@ test.describe('[instructor] bookings list', () => {
         });
         return;
       }
-      if (params.get('exclude_future_confirmed') === 'true') {
+
+      if (isPastCall) {
         resolvePast?.();
         await respondJson(route, {
           items: [
@@ -86,7 +87,8 @@ test.describe('[instructor] bookings list', () => {
         });
         return;
       }
-      await respondJson(route, { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false });
+
+      await route.continue();
     });
 
     const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';

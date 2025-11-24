@@ -112,7 +112,7 @@ describe('BillingTab service fee display', () => {
 
     await renderComponent(transactions);
 
-    const serviceFeeLabels = await screen.findAllByText('Service fee');
+    const serviceFeeLabels = await screen.findAllByText('Platform fee');
     serviceFeeLabels.forEach((label) => {
       expect(label.nextElementSibling?.textContent).toBe('$14.40');
     });

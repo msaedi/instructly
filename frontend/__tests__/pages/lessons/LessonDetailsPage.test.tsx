@@ -426,7 +426,7 @@ describe('LessonDetailsPage', () => {
     expect(screen.getByText('Date of Lesson')).toBeInTheDocument();
     // Receipt shows combined text with currency symbol
     expect(screen.getByText(/\$?60\.00\/hr x 1 hr/)).toBeInTheDocument();
-    expect(screen.getByText('Service fee')).toBeInTheDocument();
+    expect(screen.getByText('Platform fee')).toBeInTheDocument();
     expect(screen.getByText('$7.20')).toBeInTheDocument();
     expect(screen.getByText('Tip')).toBeInTheDocument();
     expect(screen.getByText('$10.00')).toBeInTheDocument();

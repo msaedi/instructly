@@ -187,7 +187,7 @@ export default function LessonDetailsPage() {
   const resolvedTipPaid = paymentSummary?.tip_paid ?? fallbackTipPaid ?? 0;
   const tipDisplayAmount = resolvedTipPaid > 0 ? resolvedTipPaid : resolvedTipAmount;
   const hasCreditApplied = resolvedCreditApplied > 0;
-  const hasTip = resolvedTipAmount > 0 || resolvedTipPaid > 0;
+  const hasTip = tipDisplayAmount > 0;
   const tipPending = hasTip && resolvedTipPaid < resolvedTipAmount;
   const totalPaid =
     paymentSummary?.total_paid ??
@@ -427,7 +427,7 @@ export default function LessonDetailsPage() {
                   <span className="text-gray-700">${formatCurrency(resolvedLessonAmount)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Service fee</span>
+                  <span className="text-gray-500">Platform fee</span>
                   <span className="text-gray-700">${formatCurrency(resolvedServiceFee)}</span>
                 </div>
                 {hasCreditApplied && (
