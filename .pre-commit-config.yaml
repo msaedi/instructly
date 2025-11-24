@@ -42,6 +42,7 @@ repos:
         entry: scripts/precommit_frontend_eslint.sh
         language: script
         files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        exclude: ^frontend/src/api/generated/
         pass_filenames: true
         description: Run ESLint on staged frontend files only
 

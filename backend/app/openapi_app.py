@@ -5,9 +5,9 @@ This avoids importing heavyweight production dependencies like prometheus_client
 Sentry, etc. that are not needed for schema generation.
 """
 
-from fastapi import FastAPI
-
 # Import only the routers, not the full main app
+from fastapi import APIRouter, FastAPI
+
 from app.routes import (
     account_management,
     addresses,
@@ -23,7 +23,6 @@ from app.routes import (
     favorites,
     gated,
     instructor_bookings,
-    instructors,
     messages,
     metrics,
     monitoring,
@@ -43,6 +42,7 @@ from app.routes import (
     uploads,
     users_profile_picture,
 )
+from app.routes.v1 import instructors as instructors_v1
 
 
 def build_openapi_app() -> FastAPI:
@@ -56,10 +56,18 @@ def build_openapi_app() -> FastAPI:
         redoc_url=None,  # Don't need redoc for schema generation
     )
 
+    # Create API v1 router
+    api_v1 = APIRouter(prefix="/api/v1")
+    api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
+
+    # Mount v1 API first
+    app.include_router(api_v1)
+
     # Include all routers in the same order as main.py
     app.include_router(auth.router)
     app.include_router(two_factor_auth.router)
-    app.include_router(instructors.router)
+    # Instructors v1 is mounted above in api_v1
+    # app.include_router(instructors.router)  # Legacy - now /api/v1/instructors
     app.include_router(instructor_bookings.router)
     app.include_router(account_management.router)
     app.include_router(services.router)

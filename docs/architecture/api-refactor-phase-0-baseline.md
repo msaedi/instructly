@@ -162,3 +162,176 @@ api_router = APIRouter(prefix="/api", tags=["instructor-bookings"])
 
 **Status:** Phase 0 Complete ✅
 **Ready for:** Phase 1 Implementation
+
+## Phase 1 - Service Layer + `/api/v1` Routing
+
+**Status:** ✅ Complete
+**Date:** November 23, 2025
+
+### Implementation Summary
+
+1. **Created v1 Router Structure:**
+   - New directory: `backend/app/routes/v1/`
+   - Created `backend/app/routes/v1/instructors.py` with all instructor endpoints
+   - All endpoints mounted under `/api/v1/instructors`
+
+2. **Leveraged Existing Service Layer:**
+   - Found `InstructorService` already exists with all business logic
+   - All route handlers delegate to service methods
+   - Clean separation maintained: routes → services → repositories
+
+3. **Updated Main App:**
+   - Created `api_v1 = APIRouter(prefix="/api/v1")` in `main.py`
+   - Mounted v1 instructors router under api_v1
+   - Deprecated legacy instructor routes (commented out)
+   - Added `/api/v1/instructors` to `PUBLIC_OPEN_PREFIXES`
+
+4. **Updated OpenAPI App:**
+   - Modified `backend/app/openapi_app.py` to include v1 routes
+   - Ensures OpenAPI schema reflects new v1 structure
+   - Removed legacy instructor route mounts
+
+5. **Added Routing Invariants Tests:**
+   - Created `backend/tests/test_routes_invariants.py` (289 lines)
+   - Tests enforce:
+     - All JSON routes under `/api/v1` (with legacy exclusions)
+     - No trailing slashes
+     - Static routes before dynamic routes
+     - v1 instructors endpoints exist
+     - Legacy instructors endpoints removed
+
+6. **Updated Existing Tests:**
+   - Fixed `test_privacy_protection.py` to use `/api/v1/instructors` paths
+   - All tests passing ✅
+
+### V1 Instructor Endpoints
+
+All mounted at `/api/v1/instructors`:
+- `GET /api/v1/instructors` - List instructors (with service filter)
+- `GET /api/v1/instructors/me` - Get instructor profile
+- `POST /api/v1/instructors/me` - Create instructor profile
+- `PUT /api/v1/instructors/me` - Update instructor profile
+- `DELETE /api/v1/instructors/me` - Delete instructor profile
+- `POST /api/v1/instructors/me/go-live` - Activate instructor profile
+- `GET /api/v1/instructors/{id}` - Get instructor by ID
+- `GET /api/v1/instructors/{id}/coverage` - Get service area coverage
+
+### Test Results
+
+**Backend Tests:**
+- All existing tests passing ✅
+- New routing invariants tests: 7 passed ✅
+- Privacy protection tests updated and passing ✅
+- mypy clean (0 new errors) ✅
+
+**Type Safety:**
+- Fixed mypy errors in v1 routes
+- Added appropriate `# type: ignore` comments for known FastAPI/mypy issues
+
+---
+
+## Phase 2 - OpenAPI + Orval Integration
+
+**Status:** ✅ Complete
+**Date:** November 23, 2025
+
+### Implementation Summary
+
+1. **OpenAPI Schema Export:**
+   - Found existing `backend/scripts/export_openapi.py` (already working)
+   - Updated `backend/app/openapi_app.py` to include v1 routes
+   - Schema exports to `backend/openapi/openapi.json` (344KB)
+
+2. **Orval Installation & Configuration:**
+   - Installed `orval@^7.16.1` as dev dependency
+   - Created `frontend/orval.config.ts`:
+     - Input: `../backend/openapi/openapi.json`
+     - Output: `src/api/generated/instructly.ts`
+     - Client: `react-query`
+     - Mode: `tags-split` (generates separate files per OpenAPI tag)
+
+3. **Custom Fetch Mutator:**
+   - Created `frontend/src/api/orval-mutator.ts`
+   - Uses existing `withApiBase()` infrastructure from `@/lib/apiBase`
+   - Handles:
+     - Base URL resolution (environment-aware)
+     - Cookie-based authentication (`credentials: 'include'`)
+     - JSON request/response handling
+     - Query string building
+     - Error normalization
+     - AbortSignal support
+
+4. **NPM Scripts:**
+   - `api:schema` - Export OpenAPI schema from backend
+   - `api:generate` - Run Orval to generate TypeScript + React Query clients
+   - `api:sync` - Run both schema export and client generation
+
+5. **Generated Files:**
+   - Orval successfully generated 29 tag-split files in `src/api/generated/`
+   - Instructor v1 routes: `src/api/generated/instructors-v1/instructors-v1.ts`
+   - All URLs use correct `/api/v1/instructors` paths
+   - Removed stale `instructors/instructors.ts` (legacy routes no longer exist)
+
+### Generated React Query Hooks (Example)
+
+From `instructors-v1/instructors-v1.ts`:
+- `useListInstructorsApiV1InstructorsGet()` - List instructors query
+- `useGetMyProfileInstructorsMeGet()` - Get my profile query
+- `useCreateInstructorProfileInstructorsMePost()` - Create profile mutation
+- `useUpdateProfileInstructorsMePut()` - Update profile mutation
+- `useDeleteInstructorProfileInstructorsMeDelete()` - Delete profile mutation
+- `useGoLiveInstructorsMeGoLivePost()` - Go live mutation
+- Plus query key factories and options builders
+
+### Custom Mutator Implementation
+
+```typescript
+export async function customFetch<T>(config: {
+  url: string;
+  method: string;
+  params?: Record<string, unknown>;
+  data?: unknown;
+  headers?: HeadersInit;
+  signal?: AbortSignal;
+}): Promise<T> {
+  // Build query string from params
+  // Build full URL with withApiBase()
+  // Handle credentials, JSON, errors
+  // Support AbortSignal for cancellation
+}
+```
+
+### Verification
+
+**TypeScript Compilation:**
+```bash
+npm run typecheck
+# Result: 0 errors ✅
+```
+
+**Generated URLs Verified:**
+All instructor v1 endpoints use correct paths:
+- `/api/v1/instructors`
+- `/api/v1/instructors/me`
+- `/api/v1/instructors/me/go-live`
+- `/api/v1/instructors/{instructorId}`
+- `/api/v1/instructors/{instructorId}/coverage`
+
+**OpenAPI Tags:**
+- No "instructors" tag (legacy removed)
+- New "instructors-v1" tag present
+- 29 total tags generating separate client files
+
+### What's NOT Done Yet (Phase 3)
+
+Phase 2 explicitly **did not** refactor frontend components. That's Phase 3:
+- Migrate existing components to use Orval-generated hooks
+- Create `useSession` canonical hook
+- Create query key factories
+- Remove raw `/api/` strings from app code
+- Update React Query usage patterns
+
+---
+
+**Status:** Phases 0, 1, 2 Complete ✅
+**Ready for:** Phase 3 Frontend Migration (NOT started yet)
