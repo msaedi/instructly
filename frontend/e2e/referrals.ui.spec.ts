@@ -77,7 +77,7 @@ test.describe('Referral surfaces', () => {
   test('rewards page share + copy works and passes axe smoke', async ({ page }) => {
     const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
 
-    await page.route('**/api/referrals/me', async (route) => {
+    await page.route('**/api/v1/referrals/me', async (route) => {
       if (route.request().method() === 'OPTIONS') {
         await route.fulfill({ status: 204 });
         return;
@@ -272,7 +272,7 @@ test.describe('Referral surfaces', () => {
     await page.goto(`${base}/checkout?orderId=ORDER-SMALL&subtotalCents=5000`, { waitUntil: 'networkidle' });
     await expect(page.getByText('Spend $75+ to use your $20 credit.')).toBeVisible();
 
-    await page.route('**/api/referrals/checkout/apply-referral', async (route) => {
+    await page.route('**/api/v1/referrals/checkout/apply-referral', async (route) => {
       if (route.request().method() === 'OPTIONS') {
         await route.fulfill({ status: 204 });
         return;
@@ -289,6 +289,6 @@ test.describe('Referral surfaces', () => {
     const appliedMessage = page.locator('p', { hasText: 'Referral credit applied' }).first();
     await expect(appliedMessage).toBeVisible();
 
-    await page.unroute('**/api/referrals/checkout/apply-referral');
+    await page.unroute('**/api/v1/referrals/checkout/apply-referral');
   });
 });

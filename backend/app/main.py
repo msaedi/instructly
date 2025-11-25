@@ -81,7 +81,6 @@ from .ratelimit.identity import resolve_identity
 from .repositories.background_job_repository import BackgroundJobRepository
 from .repositories.instructor_profile_repository import InstructorProfileRepository
 from .routes import (
-    account_management,
     admin_audit,
     admin_background_checks,
     admin_badges,
@@ -109,7 +108,6 @@ from .routes import (
     public,
     ready,
     redis_monitor,
-    referrals,
     stripe_webhooks,
     student_badges,
     two_factor_auth,
@@ -118,12 +116,14 @@ from .routes import (
     webhooks_checkr,
 )
 from .routes.v1 import (
+    account as account_v1,
     addresses as addresses_v1,
     bookings as bookings_v1,
     favorites as favorites_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
+    referrals as referrals_v1,
     reviews as reviews_v1,
     search as search_v1,
     search_history as search_history_v1,
@@ -942,6 +942,8 @@ api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[
 api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[attr-defined]
 api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
 api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
+api_v1.include_router(referrals_v1.router, prefix="/referrals")  # type: ignore[attr-defined]
+api_v1.include_router(account_v1.router, prefix="/account")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
@@ -954,7 +956,7 @@ PUBLIC_OPEN_PATHS = {
     "/api/auth/password-reset/request",
     "/api/auth/password-reset/confirm",
     "/api/auth/2fa/verify-login",
-    "/api/referrals/claim",
+    "/api/v1/referrals/claim",
 }
 
 PUBLIC_OPEN_PREFIXES = (
@@ -991,7 +993,8 @@ app.include_router(instructor_background_checks.router)
 # Legacy instructor_bookings routes - DEPRECATED, use /api/v1/instructor-bookings instead
 # app.include_router(instructor_bookings.router)  # Was: /instructors/bookings
 # app.include_router(instructor_bookings.api_router)  # Was: /api/instructors/bookings
-app.include_router(account_management.router)
+# Legacy account_management routes - DEPRECATED, use /api/v1/account instead
+# app.include_router(account_management.router)  # Was: /api/account
 # Legacy services routes - DEPRECATED, use /api/v1/services instead
 # app.include_router(services.router)  # Was: /services
 app.include_router(availability_windows.router, dependencies=[Depends(public_guard_dependency)])
@@ -1014,9 +1017,13 @@ app.include_router(alerts.router)
 app.include_router(analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(codebase_metrics.router)
 app.include_router(public.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(referrals.public_router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(referrals.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(referrals.admin_router)
+# Legacy referrals routes - DEPRECATED, use /api/v1/referrals instead
+# app.include_router(referrals.public_router, dependencies=[Depends(public_guard_dependency)])  # Was: /r/{slug}
+# app.include_router(referrals.router, dependencies=[Depends(public_guard_dependency)])  # Was: /api/referrals
+# app.include_router(referrals.admin_router)  # Was: /api/admin/referrals
+# Mount v1 referrals public router (slug redirect) and admin router
+app.include_router(referrals_v1.public_router, dependencies=[Depends(public_guard_dependency)])
+app.include_router(referrals_v1.admin_router, prefix="/api/v1/admin/referrals")
 # Legacy search routes - DEPRECATED, use /api/v1/search instead
 # app.include_router(search.router, prefix="/api/search", tags=["search"])
 # Legacy search-history routes - DEPRECATED, use /api/v1/search-history instead

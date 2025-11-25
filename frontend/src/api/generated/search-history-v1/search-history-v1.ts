@@ -62,7 +62,7 @@ export const getRecentSearchesApiV1SearchHistoryGet = (
 
 
       return customFetch<SearchHistoryResponse[]>(
-      {url: `/api/v1/search-history/`, method: 'GET',
+      {url: `/api/v1/search-history`, method: 'GET',
         params, signal
     },
       );
@@ -73,7 +73,7 @@ export const getRecentSearchesApiV1SearchHistoryGet = (
 
 export const getGetRecentSearchesApiV1SearchHistoryGetQueryKey = (params?: GetRecentSearchesApiV1SearchHistoryGetParams,) => {
     return [
-    `/api/v1/search-history/`, ...(params ? [params]: [])
+    `/api/v1/search-history`, ...(params ? [params]: [])
     ] as const;
     }
 
@@ -170,7 +170,7 @@ export const recordSearchApiV1SearchHistoryPost = (
 
 
       return customFetch<SearchHistoryResponse>(
-      {url: `/api/v1/search-history/`, method: 'POST',
+      {url: `/api/v1/search-history`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: searchHistoryCreate, signal
     },

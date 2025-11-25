@@ -7,12 +7,14 @@ All new endpoints should be added here.
 """
 
 from . import (
+    account,
     addresses,
     bookings,
     favorites,
     instructor_bookings,
     instructors,
     messages,
+    referrals,
     reviews,
     search,
     search_history,
@@ -20,12 +22,14 @@ from . import (
 )
 
 __all__ = [
+    "account",
     "addresses",
     "bookings",
     "favorites",
     "instructor_bookings",
     "instructors",
     "messages",
+    "referrals",
     "reviews",
     "search",
     "search_history",

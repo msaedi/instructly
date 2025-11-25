@@ -19,7 +19,7 @@ INSTRUCTOR_PASSWORD = os.getenv("PREVIEW_INSTRUCTOR_PASSWORD", "Test1234")
 PROBE_SPECS = [
     {"label": "instructors_me", "path": "/instructors/me"},
     {"label": "addresses_me", "path": "/api/v1/addresses/me"},
-    {"label": "referrals_me", "path": "/api/referrals/me"},
+    {"label": "referrals_me", "path": "/api/v1/referrals/me"},
     {"label": "payments_connect_status", "path": "/api/payments/connect/status"},
     {
         "label": "availability_week",

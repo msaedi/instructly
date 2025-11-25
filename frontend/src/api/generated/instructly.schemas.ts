@@ -5020,10 +5020,6 @@ export type GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet
 duration_minutes?: number;
 };
 
-export type ApplyReferralCreditApiReferralsCheckoutApplyReferralPost200 = CheckoutApplyResponse | ReferralErrorResponse;
-
-export type ClaimReferralCodeApiReferralsClaimPost200 = ReferralClaimResponse | ReferralErrorResponse;
-
 export type GetProfilePictureUrlsBatchApiUsersProfilePictureUrlsGetParams = {
 /**
  * Comma-separated list of user IDs (ids=1,2,3) or repeated ids parameters.
@@ -5205,6 +5201,10 @@ offset?: number;
 export type StreamMessagesApiV1MessagesStreamBookingIdGetParams = {
 token?: string | null;
 };
+
+export type ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPost200 = CheckoutApplyResponse | ReferralErrorResponse;
+
+export type ClaimReferralCodeApiV1ReferralsClaimPost200 = ReferralClaimResponse | ReferralErrorResponse;
 
 export type GetReviewForBookingApiV1ReviewsBookingBookingIdGet200 = ReviewItem | null;
 

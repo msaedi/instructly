@@ -1913,9 +1913,188 @@ All quality gates pass:
 
 ---
 
-### Phase 14+ Candidates
+---
 
-- **Addresses**: User addresses with spatial features
+## Phase 14 – Addresses, Search & Search History → v1
+
+**Date:** November 25, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Migrated three related domains to v1 API: Addresses (user address management with spatial features), Search (instructor search), and Search History (search analytics and tracking).
+
+### Addresses Domain Migration
+
+**Legacy Path:** `/api/addresses/*`
+**V1 Path:** `/api/v1/addresses/*`
+
+**V1 Endpoints:**
+```
+GET    /api/v1/addresses/zip/is-nyc                → Check if ZIP is in NYC (public)
+GET    /api/v1/addresses/me                        → List user addresses (protected)
+POST   /api/v1/addresses/me                        → Create address (protected)
+PATCH  /api/v1/addresses/me/{address_id}           → Update address (protected)
+DELETE /api/v1/addresses/me/{address_id}           → Delete address (protected)
+GET    /api/v1/addresses/service-areas/me          → List instructor service areas (protected)
+PUT    /api/v1/addresses/service-areas/me          → Replace service areas (protected)
+GET    /api/v1/addresses/places/autocomplete       → Address autocomplete (public)
+GET    /api/v1/addresses/places/details            → Place details (public)
+GET    /api/v1/addresses/coverage/bulk             → Bulk coverage GeoJSON (rate limited)
+GET    /api/v1/addresses/regions/neighborhoods     → List neighborhoods (public)
+```
+
+### Search Domain Migration
+
+**Legacy Path:** `/api/search/*`
+**V1 Path:** `/api/v1/search/*`
+
+**V1 Endpoints:**
+```
+GET    /api/v1/search/instructors                  → Natural language instructor search (beta)
+```
+
+### Search History Domain Migration
+
+**Legacy Path:** `/api/search-history/*`
+**V1 Path:** `/api/v1/search-history/*`
+
+**V1 Endpoints:**
+```
+GET    /api/v1/search-history                      → Get recent searches (auth/guest)
+POST   /api/v1/search-history                      → Record a search (auth/guest)
+POST   /api/v1/search-history/guest                → Record guest search (guest only)
+DELETE /api/v1/search-history/{search_id}          → Delete a search (auth/guest)
+POST   /api/v1/search-history/interaction          → Track search result interaction (auth/guest)
+```
+
+### Files Changed
+
+**Backend - Added/Modified:**
+- `backend/app/routes/v1/addresses.py` (NEW) - V1 addresses router
+- `backend/app/routes/v1/search.py` (NEW) - V1 search router
+- `backend/app/routes/v1/search_history.py` (NEW) - V1 search history router
+- `backend/app/routes/v1/__init__.py` - Added exports for new modules
+- `backend/app/main.py` - Mount v1 routers, comment out legacy
+- `backend/app/openapi_app.py` - Same updates for OpenAPI generation
+- `backend/tests/test_routes_invariants.py` - Updated for v1 endpoints
+
+**Frontend:**
+- `frontend/src/api/generated/addresses-v1/` (NEW) - Generated v1 client
+- `frontend/src/api/generated/search-v1/` (NEW) - Generated v1 client
+- `frontend/src/api/generated/search-history-v1/` (NEW) - Generated v1 client
+- Updated frontend consumers to use v1 endpoints
+
+### Quality Gates
+
+All quality gates passed:
+- ✅ 2052 backend tests passed
+- ✅ mypy clean (no type errors)
+- ✅ TypeScript strict compilation passed
+- ✅ Pre-commit hooks passed
+
+**Phase 14 Status:** ✅ **Complete** – Addresses, Search, and Search History domains fully migrated to v1 API.
+
+---
+
+## Phase 15 – Referrals & Account Management → v1
+
+**Date:** November 25, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Migrated two domains to v1 API: Referrals (referral code system with public, protected, and admin endpoints) and Account Management (instructor account lifecycle operations).
+
+### Referrals Domain Migration
+
+**Legacy Paths:**
+- `/r/{slug}` (public_router)
+- `/api/referrals/*` (router)
+- `/api/admin/referrals/*` (admin_router)
+
+**V1 Paths:**
+- `/r/{slug}` (kept for backwards compatibility with referral links)
+- `/api/v1/referrals/*`
+- `/api/v1/admin/referrals/*`
+
+**V1 Endpoints:**
+```
+# Public (slug redirect)
+GET    /r/{slug}                               → Resolve referral slug (redirect/JSON)
+
+# Protected (user operations)
+POST   /api/v1/referrals/claim                 → Claim referral code
+GET    /api/v1/referrals/me                    → Get user's referral ledger
+POST   /api/v1/referrals/checkout/apply-referral → Apply referral credit
+
+# Admin
+GET    /api/v1/admin/referrals/config          → Get referral config (admin only)
+GET    /api/v1/admin/referrals/summary         → Get referral summary (admin only)
+GET    /api/v1/admin/referrals/health          → Get referral health (admin only)
+```
+
+### Account Management Domain Migration
+
+**Legacy Path:** `/api/account/*`
+**V1 Path:** `/api/v1/account/*`
+
+**V1 Endpoints:**
+```
+POST   /api/v1/account/suspend                 → Suspend instructor account
+POST   /api/v1/account/deactivate              → Permanently deactivate account
+POST   /api/v1/account/reactivate              → Reactivate suspended account
+GET    /api/v1/account/status                  → Check account status
+```
+
+### Files Changed
+
+**Backend - Added:**
+- `backend/app/routes/v1/referrals.py` (NEW) - V1 referrals router with public, protected, and admin endpoints
+- `backend/app/routes/v1/account.py` (NEW) - V1 account management router
+
+**Backend - Modified:**
+- `backend/app/routes/v1/__init__.py` - Added exports for new modules
+- `backend/app/main.py` - Mount v1 routers, comment out legacy
+- `backend/app/openapi_app.py` - Same updates for OpenAPI generation
+- `backend/tests/referrals/test_api.py` - Updated to use v1 endpoints
+- `backend/tests/integration/api/test_account_lifecycle.py` - Updated to use v1 endpoints
+- `backend/tests/integration/test_auth_surface_matrix.py` - Updated referrals path
+- `backend/tests/test_routes_invariants.py` - Updated excluded prefixes
+
+**Frontend - Modified:**
+- `frontend/features/shared/referrals/api.ts` - Updated to v1 endpoints
+- `frontend/app/(admin)/admin/referrals/ReferralsAdminClient.tsx` - Updated admin endpoints
+- `frontend/app/(admin)/admin/referrals/__tests__/referrals-page.spec.tsx` - Updated test mocks
+- `frontend/e2e/referrals.ui.spec.ts` - Updated E2E mocks
+- `frontend/components/security/PauseAccountModal.tsx` - Updated account endpoint
+
+### Quality Gates
+
+All quality gates passed:
+- ✅ 18 referral tests passed
+- ✅ 19 account lifecycle tests passed
+- ✅ 20 route invariants tests passed
+- ✅ ruff check clean
+- ✅ mypy clean for v1 routes
+- ✅ TypeScript typecheck passed
+- ✅ Frontend build passed
+- ✅ Frontend lint passed
+
+### Audits
+
+All 4 mandatory audits passed:
+- ✅ Audit 1: Legacy Path Audit - No referrals/account legacy paths in frontend
+- ✅ Audit 2: E2E Mock Audit - All E2E mocks updated to v1
+- ✅ Audit 3: Parameter Validation Patterns - No issues
+- ✅ Audit 4: Final Verification - Zero legacy endpoint references
+
+**Phase 15 Status:** ✅ **Complete** – Referrals and Account Management domains fully migrated to v1 API.
+
+---
+
+### Phase 16+ Candidates
+
 - **Payments**: Complex Stripe integration, requires careful planning
-- **Search**: Core discovery experience
 - **Auth**: Authentication (complex, multiple providers)
+- **Admin**: Admin-only endpoints (background checks, config, etc.)

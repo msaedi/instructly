@@ -69,7 +69,8 @@ def _is_excluded_path(path: str) -> bool:
         "/api/reviews/",
         "/api/webhooks/",
         "/api/admin/",
-        "/api/referrals/",
+        # "/api/referrals/",  # Phase 15: Referrals migrated to /api/v1/referrals
+        # "/api/account/",  # Phase 15: Account migrated to /api/v1/account
         # "/api/addresses/",  # Phase 14: Addresses migrated to /api/v1/addresses
         # "/api/services/",  # Phase 13: Services migrated to /api/v1/services
         "/api/availability-windows/",

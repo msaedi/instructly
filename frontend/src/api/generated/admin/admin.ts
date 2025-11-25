@@ -33,16 +33,17 @@ import type { ErrorType } from '../../orval-mutator';
 
 
 /**
+ * Get referral configuration (admin only).
  * @summary Get Referral Config
  */
-export const getReferralConfigApiAdminReferralsConfigGet = (
+export const getReferralConfigApiV1AdminReferralsConfigGet = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<AdminReferralsConfigOut>(
-      {url: `/api/admin/referrals/config`, method: 'GET', signal
+      {url: `/api/v1/admin/referrals/config`, method: 'GET', signal
     },
       );
     }
@@ -50,69 +51,69 @@ export const getReferralConfigApiAdminReferralsConfigGet = (
 
 
 
-export const getGetReferralConfigApiAdminReferralsConfigGetQueryKey = () => {
+export const getGetReferralConfigApiV1AdminReferralsConfigGetQueryKey = () => {
     return [
-    `/api/admin/referrals/config`
+    `/api/v1/admin/referrals/config`
     ] as const;
     }
 
 
-export const getGetReferralConfigApiAdminReferralsConfigGetQueryOptions = <TData = Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError, TData>>, }
+export const getGetReferralConfigApiV1AdminReferralsConfigGetQueryOptions = <TData = Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetReferralConfigApiAdminReferralsConfigGetQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetReferralConfigApiV1AdminReferralsConfigGetQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>> = ({ signal }) => getReferralConfigApiAdminReferralsConfigGet(signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>> = ({ signal }) => getReferralConfigApiV1AdminReferralsConfigGet(signal);
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetReferralConfigApiAdminReferralsConfigGetQueryResult = NonNullable<Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>>
-export type GetReferralConfigApiAdminReferralsConfigGetQueryError = ErrorType<unknown>
+export type GetReferralConfigApiV1AdminReferralsConfigGetQueryResult = NonNullable<Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>>
+export type GetReferralConfigApiV1AdminReferralsConfigGetQueryError = ErrorType<unknown>
 
 
-export function useGetReferralConfigApiAdminReferralsConfigGet<TData = Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError, TData>> & Pick<
+export function useGetReferralConfigApiV1AdminReferralsConfigGet<TData = Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>,
+          Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>,
           TError,
-          Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>
+          Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetReferralConfigApiAdminReferralsConfigGet<TData = Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError, TData>> & Pick<
+export function useGetReferralConfigApiV1AdminReferralsConfigGet<TData = Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>,
+          Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>,
           TError,
-          Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>
+          Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetReferralConfigApiAdminReferralsConfigGet<TData = Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError, TData>>, }
+export function useGetReferralConfigApiV1AdminReferralsConfigGet<TData = Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get Referral Config
  */
 
-export function useGetReferralConfigApiAdminReferralsConfigGet<TData = Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiAdminReferralsConfigGet>>, TError, TData>>, }
+export function useGetReferralConfigApiV1AdminReferralsConfigGet<TData = Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralConfigApiV1AdminReferralsConfigGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetReferralConfigApiAdminReferralsConfigGetQueryOptions(options)
+  const queryOptions = getGetReferralConfigApiV1AdminReferralsConfigGetQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -125,16 +126,17 @@ export function useGetReferralConfigApiAdminReferralsConfigGet<TData = Awaited<R
 
 
 /**
+ * Get referral system health (admin only).
  * @summary Get Referral Health
  */
-export const getReferralHealthApiAdminReferralsHealthGet = (
+export const getReferralHealthApiV1AdminReferralsHealthGet = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<AdminReferralsHealthOut>(
-      {url: `/api/admin/referrals/health`, method: 'GET', signal
+      {url: `/api/v1/admin/referrals/health`, method: 'GET', signal
     },
       );
     }
@@ -142,69 +144,69 @@ export const getReferralHealthApiAdminReferralsHealthGet = (
 
 
 
-export const getGetReferralHealthApiAdminReferralsHealthGetQueryKey = () => {
+export const getGetReferralHealthApiV1AdminReferralsHealthGetQueryKey = () => {
     return [
-    `/api/admin/referrals/health`
+    `/api/v1/admin/referrals/health`
     ] as const;
     }
 
 
-export const getGetReferralHealthApiAdminReferralsHealthGetQueryOptions = <TData = Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError, TData>>, }
+export const getGetReferralHealthApiV1AdminReferralsHealthGetQueryOptions = <TData = Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetReferralHealthApiAdminReferralsHealthGetQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetReferralHealthApiV1AdminReferralsHealthGetQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>> = ({ signal }) => getReferralHealthApiAdminReferralsHealthGet(signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>> = ({ signal }) => getReferralHealthApiV1AdminReferralsHealthGet(signal);
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetReferralHealthApiAdminReferralsHealthGetQueryResult = NonNullable<Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>>
-export type GetReferralHealthApiAdminReferralsHealthGetQueryError = ErrorType<unknown>
+export type GetReferralHealthApiV1AdminReferralsHealthGetQueryResult = NonNullable<Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>>
+export type GetReferralHealthApiV1AdminReferralsHealthGetQueryError = ErrorType<unknown>
 
 
-export function useGetReferralHealthApiAdminReferralsHealthGet<TData = Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError, TData>> & Pick<
+export function useGetReferralHealthApiV1AdminReferralsHealthGet<TData = Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>,
+          Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>,
           TError,
-          Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>
+          Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetReferralHealthApiAdminReferralsHealthGet<TData = Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError, TData>> & Pick<
+export function useGetReferralHealthApiV1AdminReferralsHealthGet<TData = Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>,
+          Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>,
           TError,
-          Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>
+          Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetReferralHealthApiAdminReferralsHealthGet<TData = Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError, TData>>, }
+export function useGetReferralHealthApiV1AdminReferralsHealthGet<TData = Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get Referral Health
  */
 
-export function useGetReferralHealthApiAdminReferralsHealthGet<TData = Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiAdminReferralsHealthGet>>, TError, TData>>, }
+export function useGetReferralHealthApiV1AdminReferralsHealthGet<TData = Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralHealthApiV1AdminReferralsHealthGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetReferralHealthApiAdminReferralsHealthGetQueryOptions(options)
+  const queryOptions = getGetReferralHealthApiV1AdminReferralsHealthGetQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -217,16 +219,17 @@ export function useGetReferralHealthApiAdminReferralsHealthGet<TData = Awaited<R
 
 
 /**
+ * Get referral summary statistics (admin only).
  * @summary Get Referral Summary
  */
-export const getReferralSummaryApiAdminReferralsSummaryGet = (
+export const getReferralSummaryApiV1AdminReferralsSummaryGet = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<AdminReferralsSummaryOut>(
-      {url: `/api/admin/referrals/summary`, method: 'GET', signal
+      {url: `/api/v1/admin/referrals/summary`, method: 'GET', signal
     },
       );
     }
@@ -234,69 +237,69 @@ export const getReferralSummaryApiAdminReferralsSummaryGet = (
 
 
 
-export const getGetReferralSummaryApiAdminReferralsSummaryGetQueryKey = () => {
+export const getGetReferralSummaryApiV1AdminReferralsSummaryGetQueryKey = () => {
     return [
-    `/api/admin/referrals/summary`
+    `/api/v1/admin/referrals/summary`
     ] as const;
     }
 
 
-export const getGetReferralSummaryApiAdminReferralsSummaryGetQueryOptions = <TData = Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError, TData>>, }
+export const getGetReferralSummaryApiV1AdminReferralsSummaryGetQueryOptions = <TData = Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetReferralSummaryApiAdminReferralsSummaryGetQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetReferralSummaryApiV1AdminReferralsSummaryGetQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>> = ({ signal }) => getReferralSummaryApiAdminReferralsSummaryGet(signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>> = ({ signal }) => getReferralSummaryApiV1AdminReferralsSummaryGet(signal);
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetReferralSummaryApiAdminReferralsSummaryGetQueryResult = NonNullable<Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>>
-export type GetReferralSummaryApiAdminReferralsSummaryGetQueryError = ErrorType<unknown>
+export type GetReferralSummaryApiV1AdminReferralsSummaryGetQueryResult = NonNullable<Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>>
+export type GetReferralSummaryApiV1AdminReferralsSummaryGetQueryError = ErrorType<unknown>
 
 
-export function useGetReferralSummaryApiAdminReferralsSummaryGet<TData = Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError, TData>> & Pick<
+export function useGetReferralSummaryApiV1AdminReferralsSummaryGet<TData = Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>,
+          Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>,
           TError,
-          Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>
+          Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetReferralSummaryApiAdminReferralsSummaryGet<TData = Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError, TData>> & Pick<
+export function useGetReferralSummaryApiV1AdminReferralsSummaryGet<TData = Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>,
+          Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>,
           TError,
-          Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>
+          Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetReferralSummaryApiAdminReferralsSummaryGet<TData = Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError, TData>>, }
+export function useGetReferralSummaryApiV1AdminReferralsSummaryGet<TData = Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get Referral Summary
  */
 
-export function useGetReferralSummaryApiAdminReferralsSummaryGet<TData = Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiAdminReferralsSummaryGet>>, TError, TData>>, }
+export function useGetReferralSummaryApiV1AdminReferralsSummaryGet<TData = Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSummaryApiV1AdminReferralsSummaryGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetReferralSummaryApiAdminReferralsSummaryGetQueryOptions(options)
+  const queryOptions = getGetReferralSummaryApiV1AdminReferralsSummaryGetQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

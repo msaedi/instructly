@@ -9,7 +9,7 @@ Sentry, etc. that are not needed for schema generation.
 from fastapi import APIRouter, FastAPI
 
 from app.routes import (
-    account_management,
+    # account_management - DEPRECATED, use /api/v1/account instead
     # addresses - DEPRECATED, use /api/v1/addresses instead
     admin_config,
     alerts,
@@ -32,7 +32,7 @@ from app.routes import (
     prometheus,
     public,
     redis_monitor,
-    referrals,
+    # referrals - DEPRECATED, use /api/v1/referrals instead
     # reviews - DEPRECATED, use /api/v1/reviews instead
     # search - DEPRECATED, use /api/v1/search instead
     # search_history - DEPRECATED, use /api/v1/search-history instead
@@ -43,12 +43,14 @@ from app.routes import (
     users_profile_picture,
 )
 from app.routes.v1 import (
+    account as account_v1,
     addresses as addresses_v1,
     bookings as bookings_v1,
     favorites as favorites_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
+    referrals as referrals_v1,
     reviews as reviews_v1,
     search as search_v1,
     search_history as search_history_v1,
@@ -79,6 +81,8 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[attr-defined]
     api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
     api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
+    api_v1.include_router(referrals_v1.router, prefix="/referrals")  # type: ignore[attr-defined]
+    api_v1.include_router(account_v1.router, prefix="/account")  # type: ignore[attr-defined]
 
     # Mount v1 API first
     app.include_router(api_v1)
@@ -90,7 +94,8 @@ def build_openapi_app() -> FastAPI:
     # app.include_router(instructors.router)  # Legacy - now /api/v1/instructors
     # Legacy instructor_bookings - now /api/v1/instructor-bookings
     # app.include_router(instructor_bookings.router)  # Was: /instructors/bookings
-    app.include_router(account_management.router)
+    # Legacy account_management - now /api/v1/account
+    # app.include_router(account_management.router)  # Was: /api/account
     # Legacy services - now /api/v1/services
     # app.include_router(services.router)  # Was: /services
     app.include_router(availability_windows.router)
@@ -108,9 +113,13 @@ def build_openapi_app() -> FastAPI:
     app.include_router(analytics.router, prefix="/api", tags=["analytics"])
     app.include_router(codebase_metrics.router)
     app.include_router(public.router)
-    app.include_router(referrals.public_router)
-    app.include_router(referrals.router)
-    app.include_router(referrals.admin_router)
+    # Legacy referrals - now /api/v1/referrals
+    # app.include_router(referrals.public_router)  # Was: /r/{slug}
+    # app.include_router(referrals.router)  # Was: /api/referrals
+    # app.include_router(referrals.admin_router)  # Was: /api/admin/referrals
+    # Mount v1 referrals public router (slug redirect) and admin router
+    app.include_router(referrals_v1.public_router)
+    app.include_router(referrals_v1.admin_router, prefix="/api/v1/admin/referrals")
     # Legacy search - now /api/v1/search
     # app.include_router(search.router, prefix="/api/search", tags=["search"])
     # Legacy search-history - now /api/v1/search-history

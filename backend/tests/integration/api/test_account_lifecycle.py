@@ -78,7 +78,7 @@ class TestAccountLifecycleEndpoints:
         self, client: TestClient, instructor_with_no_bookings: User, auth_headers_instructor: dict
     ):
         """Test successful account suspension."""
-        response = client.post("/api/account/suspend", headers=auth_headers_instructor)
+        response = client.post("/api/v1/account/suspend", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -91,14 +91,14 @@ class TestAccountLifecycleEndpoints:
         self, client: TestClient, instructor_with_future_booking: User, auth_headers_instructor: dict
     ):
         """Test suspension fails with future bookings."""
-        response = client.post("/api/account/suspend", headers=auth_headers_instructor)
+        response = client.post("/api/v1/account/suspend", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_409_CONFLICT
         assert "future bookings" in response.json()["detail"].lower()
 
     def test_suspend_account_unauthorized(self, client: TestClient, test_instructor: User):
         """Test suspension without authentication."""
-        response = client.post("/api/account/suspend")
+        response = client.post("/api/v1/account/suspend")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_suspend_account_other_instructor(
@@ -107,7 +107,7 @@ class TestAccountLifecycleEndpoints:
         """Test instructor can only suspend their own account (not another instructor's)."""
         # The API doesn't support suspending other users' accounts by design
         # Instructor_2 calling suspend will suspend instructor_2, not instructor_1
-        response = client.post("/api/account/suspend", headers=auth_headers_instructor_2)
+        response = client.post("/api/v1/account/suspend", headers=auth_headers_instructor_2)
 
         # Should succeed since instructor_2 is suspending their own account
         assert response.status_code == status.HTTP_200_OK
@@ -119,7 +119,7 @@ class TestAccountLifecycleEndpoints:
     def test_suspend_account_as_student(self, client: TestClient, test_student: User, auth_headers_student: dict):
         """Test student cannot suspend an instructor account."""
         # Students trying to use instructor endpoints should be forbidden
-        response = client.post("/api/account/suspend", headers=auth_headers_student)
+        response = client.post("/api/v1/account/suspend", headers=auth_headers_student)
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "only instructors can suspend" in response.json()["detail"].lower()
@@ -129,11 +129,11 @@ class TestAccountLifecycleEndpoints:
     ):
         """Test suspending an already suspended account."""
         # First suspend the account
-        response = client.post("/api/account/suspend", headers=auth_headers_instructor)
+        response = client.post("/api/v1/account/suspend", headers=auth_headers_instructor)
         assert response.status_code == status.HTTP_200_OK
 
         # Try to suspend again - should succeed (idempotent)
-        response = client.post("/api/account/suspend", headers=auth_headers_instructor)
+        response = client.post("/api/v1/account/suspend", headers=auth_headers_instructor)
 
         # Should still succeed with same status
         assert response.status_code == status.HTTP_200_OK
@@ -147,7 +147,7 @@ class TestAccountLifecycleEndpoints:
         self, client: TestClient, instructor_with_no_bookings: User, auth_headers_instructor: dict
     ):
         """Test successful account deactivation."""
-        response = client.post("/api/account/deactivate", headers=auth_headers_instructor)
+        response = client.post("/api/v1/account/deactivate", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -164,7 +164,7 @@ class TestAccountLifecycleEndpoints:
         instructor_with_no_bookings.account_status = "suspended"
         db.commit()
 
-        response = client.post("/api/account/deactivate", headers=auth_headers_instructor)
+        response = client.post("/api/v1/account/deactivate", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -175,14 +175,14 @@ class TestAccountLifecycleEndpoints:
         self, client: TestClient, instructor_with_future_booking: User, auth_headers_instructor: dict
     ):
         """Test deactivation fails with future bookings."""
-        response = client.post("/api/account/deactivate", headers=auth_headers_instructor)
+        response = client.post("/api/v1/account/deactivate", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_409_CONFLICT
         assert "future bookings" in response.json()["detail"].lower()
 
     def test_deactivate_account_as_student(self, client: TestClient, test_instructor: User, auth_headers_student: dict):
         """Test student cannot deactivate an instructor account."""
-        response = client.post("/api/account/deactivate", headers=auth_headers_student)
+        response = client.post("/api/v1/account/deactivate", headers=auth_headers_student)
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
@@ -196,7 +196,7 @@ class TestAccountLifecycleEndpoints:
         test_instructor.account_status = "suspended"
         db.commit()
 
-        response = client.post("/api/account/reactivate", headers=auth_headers_instructor)
+        response = client.post("/api/v1/account/reactivate", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -213,7 +213,7 @@ class TestAccountLifecycleEndpoints:
         test_instructor.account_status = "deactivated"
         db.commit()
 
-        response = client.post("/api/account/reactivate", headers=auth_headers_instructor)
+        response = client.post("/api/v1/account/reactivate", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -224,7 +224,7 @@ class TestAccountLifecycleEndpoints:
         self, client: TestClient, test_instructor: User, auth_headers_instructor: dict
     ):
         """Test reactivation fails when already active."""
-        response = client.post("/api/account/reactivate", headers=auth_headers_instructor)
+        response = client.post("/api/v1/account/reactivate", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "already active" in response.json()["detail"].lower()
@@ -243,7 +243,7 @@ class TestAccountLifecycleEndpoints:
         db.commit()
 
         # Instructor_2 reactivating their own account should succeed
-        response = client.post("/api/account/reactivate", headers=auth_headers_instructor_2)
+        response = client.post("/api/v1/account/reactivate", headers=auth_headers_instructor_2)
 
         # Should succeed with 200
         assert response.status_code == status.HTTP_200_OK
@@ -257,7 +257,7 @@ class TestAccountLifecycleEndpoints:
         self, client: TestClient, instructor_with_no_bookings: User, auth_headers_instructor: dict
     ):
         """Test status check for active instructor with no bookings."""
-        response = client.get("/api/account/status", headers=auth_headers_instructor)
+        response = client.get("/api/v1/account/status", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -275,7 +275,7 @@ class TestAccountLifecycleEndpoints:
         self, client: TestClient, instructor_with_future_booking: User, auth_headers_instructor: dict
     ):
         """Test status check when instructor has future bookings."""
-        response = client.get("/api/account/status", headers=auth_headers_instructor)
+        response = client.get("/api/v1/account/status", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -292,7 +292,7 @@ class TestAccountLifecycleEndpoints:
         test_instructor.account_status = "suspended"
         db.commit()
 
-        response = client.get("/api/account/status", headers=auth_headers_instructor)
+        response = client.get("/api/v1/account/status", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -307,7 +307,7 @@ class TestAccountLifecycleEndpoints:
     ):
         """Test instructor can only check their own status."""
         # The API only returns the status of the authenticated user
-        response = client.get("/api/account/status", headers=auth_headers_instructor_2)
+        response = client.get("/api/v1/account/status", headers=auth_headers_instructor_2)
 
         # Should succeed and return instructor_2's status
         assert response.status_code == status.HTTP_200_OK
@@ -316,7 +316,7 @@ class TestAccountLifecycleEndpoints:
 
     def test_can_change_status_as_student(self, client: TestClient, test_student: User, auth_headers_student: dict):
         """Test student can check their own status."""
-        response = client.get("/api/account/status", headers=auth_headers_student)
+        response = client.get("/api/v1/account/status", headers=auth_headers_student)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()

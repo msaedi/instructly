@@ -43,7 +43,7 @@ def test_preview_session_cookie_powers_api_routes(
     addresses = client.get("/api/v1/addresses/me")
     assert addresses.status_code == 200
 
-    referrals = client.get("/api/referrals/me")
+    referrals = client.get("/api/v1/referrals/me")
     assert referrals.status_code == 200
 
     fake_created = datetime.now(timezone.utc)

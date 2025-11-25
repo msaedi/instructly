@@ -7,7 +7,7 @@ import type {
   ReferralErrorResponse,
 } from '@/features/shared/api/types';
 
-export const REFERRALS_ME_KEY = '/api/referrals/me';
+export const REFERRALS_ME_KEY = '/api/v1/referrals/me';
 
 export type RewardOut = components['schemas']['RewardOut'];
 export type ReferralLedger = ReferralLedgerResponse;
@@ -88,7 +88,7 @@ export async function applyReferralCredit(orderId: string): Promise<ReferralChec
     return normalizeError('disabled', 'Order ID is required');
   }
 
-  const response = await fetch(buildUrl('/api/referrals/checkout/apply-referral'), {
+  const response = await fetch(buildUrl('/api/v1/referrals/checkout/apply-referral'), {
     method: 'POST',
     credentials: 'include',
     headers: {

@@ -37,7 +37,7 @@ describe('AdminReferralsPage', () => {
       if (url.includes('/api/admin/bgc/counts')) {
         return Promise.resolve(createJsonResponse({ review: 3, pending: 2 }));
       }
-      if (url.includes('/api/admin/referrals/health')) {
+      if (url.includes('/api/v1/admin/referrals/health')) {
         return Promise.resolve(
           createJsonResponse({
             workers_alive: 3,
@@ -50,7 +50,7 @@ describe('AdminReferralsPage', () => {
           }),
         );
       }
-      if (url.includes('/api/admin/referrals/summary')) {
+      if (url.includes('/api/v1/admin/referrals/summary')) {
         return Promise.resolve(
           createJsonResponse({
             counts_by_status: {
