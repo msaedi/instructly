@@ -632,7 +632,7 @@ function SearchPageContent() {
           return;
         }
         const params = new URLSearchParams({ ids: ids.join(',') });
-        const coverageUrl = withApiBase(`/api/addresses/coverage/bulk?${params.toString()}`);
+        const coverageUrl = withApiBase(`/api/v1/addresses/coverage/bulk?${params.toString()}`);
         const res = await fetch(coverageUrl, { credentials: 'include' });
         if (!res.ok) {
           setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });

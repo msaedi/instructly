@@ -137,6 +137,36 @@ Catches patterns like `useHook(condition ? 2 : 0)` where `0` may cause 422 valid
 
 **Why these audits exist:** Domain-specific grep (e.g., `/api/reviews/`) only catches paths for the domain being migrated. Pre-existing bugs in OTHER domains, relative paths, E2E mocks, and semantic parameter bugs slip through without comprehensive audits.
 
+### 🚨 MANDATORY: Global Legacy Path Audit (RUN THIS EVERY TIME)
+
+**CRITICAL**: Before declaring ANY migration complete, run this single command that catches ALL legacy API paths:
+
+```bash
+# Find ALL /api/ calls that are NOT /api/v1 (the definitive audit)
+grep -rn '"/api/' frontend/ --include="*.ts" --include="*.tsx" | \
+  grep -v '/api/v1' | grep -v node_modules | grep -v '.d.ts' | grep -v '.next/' | \
+  grep -v '/api/auth' | grep -v '/api/admin' | grep -v '/api/config' | \
+  grep -v '/api/public' | grep -v '/api/payments' | grep -v '/api/uploads' | \
+  grep -v '/api/users' | grep -v 'import.*from'
+```
+
+**This audit is non-negotiable.** It catches:
+- Direct fetch calls: `fetch('/api/bookings')`
+- Auth fetch: `fetchWithAuth('/api/addresses/me')`
+- API base: `withApiBase('/api/favorites')`
+- HTTP helpers: `httpGet('/api/reviews')`
+- String templates: `` `/api/addresses/${id}` ``
+- Constants: `API_ENDPOINTS.NYC_ZIP_CHECK: '/api/addresses/...'`
+
+**The output MUST be empty** (or only show intentionally non-v1 endpoints like auth/payments).
+
+**Why previous audits failed:**
+1. Domain-scoped greps (`/api/referrals`) miss other domains' legacy paths
+2. Pattern-based greps (`fetchWithAuth\(`) miss string templates and constants
+3. Trusting "previous migrations were complete" without verification
+
+**Browser verification is also mandatory** - one page load catches 404s that grep misses.
+
 ### Dual-Mode Request Validation
 Backend supports two validation modes for request DTOs:
 

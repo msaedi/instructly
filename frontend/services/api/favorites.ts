@@ -36,7 +36,7 @@ export const favoritesApi = {
    * @returns Promise with operation result
    */
   add: async (instructorId: string): Promise<FavoriteOperationResponse> => {
-    const response = await fetchWithAuth(`/api/favorites/${instructorId}`, {
+    const response = await fetchWithAuth(`/api/v1/favorites/${instructorId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -49,7 +49,7 @@ export const favoritesApi = {
    * @returns Promise with operation result
    */
   remove: async (instructorId: string): Promise<FavoriteOperationResponse> => {
-    const response = await fetchWithAuth(`/api/favorites/${instructorId}`, {
+    const response = await fetchWithAuth(`/api/v1/favorites/${instructorId}`, {
       method: 'DELETE',
     });
     return response.json();
@@ -60,7 +60,7 @@ export const favoritesApi = {
    * @returns Promise with list of favorited instructors
    */
   list: async (): Promise<FavoritesListResponse> => {
-    const response = await fetchWithAuth('/api/favorites');
+    const response = await fetchWithAuth('/api/v1/favorites');
     return response.json();
   },
 
@@ -70,7 +70,7 @@ export const favoritesApi = {
    * @returns Promise with favorite status
    */
   check: async (instructorId: string): Promise<FavoriteStatusResponse> => {
-    const response = await fetchWithAuth(`/api/favorites/check/${instructorId}`);
+    const response = await fetchWithAuth(`/api/v1/favorites/check/${instructorId}`);
     return response.json();
   },
 

@@ -27,7 +27,7 @@ jest.mock('@/lib/profileServiceAreas', () => ({
 
 jest.mock('@/lib/api', () => ({
   fetchWithAuth: jest.fn(async (url: string) => {
-    if (url === '/api/addresses/service-areas/me') {
+    if (url === '/api/v1/addresses/service-areas/me') {
       return {
         ok: true,
         status: 200,

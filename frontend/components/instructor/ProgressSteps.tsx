@@ -20,8 +20,8 @@ export function ProgressSteps(_: { currentStep: 1 | 2 | 3 | 4 }) {
         const [meRes, profileRes, areasRes, addrsRes] = await Promise.all([
           fetchWithAuth(API_ENDPOINTS.ME),
           fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE),
-          fetchWithAuth('/api/addresses/service-areas/me'),
-          fetchWithAuth('/api/addresses/me'),
+          fetchWithAuth('/api/v1/addresses/service-areas/me'),
+          fetchWithAuth('/api/v1/addresses/me'),
         ]);
         const me = meRes.ok ? await meRes.json() : {};
         const profile = profileRes.ok ? await profileRes.json() : {};

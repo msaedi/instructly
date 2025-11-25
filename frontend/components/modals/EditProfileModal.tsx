@@ -320,7 +320,7 @@ export default function EditProfileModal({
       // Fetch default address postal code
       let postalCode = '';
       try {
-        const addrRes = await fetchWithAuth('/api/addresses/me');
+        const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
           const items = list.items || [];
@@ -359,7 +359,7 @@ export default function EditProfileModal({
       // Prefill selected neighborhoods from backend when opening areas-only variant
       void (async () => {
         try {
-          const areasRes = await fetchWithAuth('/api/addresses/service-areas/me');
+          const areasRes = await fetchWithAuth('/api/v1/addresses/service-areas/me');
           if (areasRes.ok) {
             const json = await areasRes.json();
             const items = (json.items || []) as ServiceAreaItem[];
@@ -526,7 +526,7 @@ export default function EditProfileModal({
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
-      const url = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
+      const url = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
       const r = await fetch(url);
       if (r.ok) {
         const data = await r.json();
@@ -666,7 +666,7 @@ export default function EditProfileModal({
         return;
       }
 
-      await fetchWithAuth('/api/addresses/service-areas/me', {
+      await fetchWithAuth('/api/v1/addresses/service-areas/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ neighborhood_ids: neighborhoodIds }),
@@ -812,7 +812,7 @@ export default function EditProfileModal({
 
       // Update default address postal code
       try {
-        const addrRes = await fetchWithAuth('/api/addresses/me');
+        const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
           const items = (list.items || []) as AddressItem[];
@@ -820,14 +820,14 @@ export default function EditProfileModal({
           const newZip = (profileData.postal_code || '').trim();
           if (def && def.id) {
             if (newZip && newZip !== (def.postal_code || '')) {
-              await fetchWithAuth(`/api/addresses/me/${def.id}`, {
+              await fetchWithAuth(`/api/v1/addresses/me/${def.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ postal_code: newZip }),
               });
             }
           } else if (newZip) {
-            await fetchWithAuth('/api/addresses/me', {
+            await fetchWithAuth('/api/v1/addresses/me', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ postal_code: newZip, is_default: true }),
@@ -972,7 +972,7 @@ export default function EditProfileModal({
       } catch {}
 
       try {
-        const addrRes = await fetchWithAuth('/api/addresses/me');
+        const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
           const items = (list.items || []) as AddressItem[];
@@ -980,14 +980,14 @@ export default function EditProfileModal({
           const newZip = (profileData.postal_code || '').trim();
           if (def && def.id) {
             if (newZip && newZip !== (def.postal_code || '')) {
-              await fetchWithAuth(`/api/addresses/me/${def.id}`, {
+              await fetchWithAuth(`/api/v1/addresses/me/${def.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ postal_code: newZip }),
               });
             }
           } else if (newZip) {
-            await fetchWithAuth('/api/addresses/me', {
+            await fetchWithAuth('/api/v1/addresses/me', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ postal_code: newZip, is_default: true }),

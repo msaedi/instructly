@@ -20,7 +20,7 @@ export async function submitServiceAreasOnce({
   inFlightRef.current = true;
   setSaving(true);
   try {
-    await fetcher('/api/addresses/service-areas/me', {
+    await fetcher('/api/v1/addresses/service-areas/me', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

@@ -258,7 +258,7 @@ export async function getPlaceDetails(params: {
     options.signal = signal;
   }
 
-  return cleanFetch<Record<string, unknown>>(`/api/addresses/places/details?${searchParams.toString()}`, options);
+  return cleanFetch<Record<string, unknown>>(`/api/v1/addresses/places/details?${searchParams.toString()}`, options);
 }
 
 /**

@@ -216,7 +216,7 @@ export const API_ENDPOINTS = {
   INSTRUCTORS: '/api/v1/instructors',
   INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
   // Onboarding helpers
-  NYC_ZIP_CHECK: '/api/addresses/zip/is-nyc',
+  NYC_ZIP_CHECK: '/api/v1/addresses/zip/is-nyc',
   STRIPE_IDENTITY_SESSION: '/api/payments/identity/session',
   STRIPE_IDENTITY_REFRESH: '/api/payments/identity/refresh',
   R2_SIGNED_UPLOAD: '/api/uploads/r2/signed-url',

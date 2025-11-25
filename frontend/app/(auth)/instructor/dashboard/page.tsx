@@ -636,7 +636,7 @@ export default function InstructorDashboardNew() {
   }) => {
     try {
       const neighborhoodIds = payload.neighborhoods.map((item) => item.neighborhood_id);
-      await httpPut('/api/addresses/service-areas/me', { neighborhood_ids: neighborhoodIds });
+      await httpPut('/api/v1/addresses/service-areas/me', { neighborhood_ids: neighborhoodIds });
       await httpPut('/instructors/me', {
         preferred_teaching_locations: payload.preferredTeaching,
         preferred_public_spaces: payload.preferredPublic,

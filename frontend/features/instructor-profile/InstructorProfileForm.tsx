@@ -216,8 +216,8 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         // Get postal code from default address
         let postalCode = '';
         try {
-          const addrRes = await fetchWithAuth('/api/addresses/me');
-          logger.debug('Prefill: /api/addresses/me status', { status: addrRes.status });
+          const addrRes = await fetchWithAuth('/api/v1/addresses/me');
+          logger.debug('Prefill: /api/v1/addresses/me status', { status: addrRes.status });
           if (addrRes.ok) {
             const list = await addrRes.json();
             const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
@@ -308,8 +308,8 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
         // Prefill service areas (neighborhoods)
         try {
-          const areasRes = await fetchWithAuth('/api/addresses/service-areas/me');
-          logger.debug('Prefill: /api/addresses/service-areas/me status', { status: areasRes.status });
+          const areasRes = await fetchWithAuth('/api/v1/addresses/service-areas/me');
+          logger.debug('Prefill: /api/v1/addresses/service-areas/me status', { status: areasRes.status });
           if (areasRes.ok) {
             const areas: ServiceAreasResponse = await areasRes.json();
             const items = (areas.items || []) as ServiceAreaItem[];
@@ -331,7 +331,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
         // Detect NYC from default address postal code if available
         try {
-          const addrRes = await fetchWithAuth('/api/addresses/me');
+          const addrRes = await fetchWithAuth('/api/v1/addresses/me');
           if (addrRes.ok) {
             const list = await addrRes.json();
             const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
@@ -421,7 +421,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
-      const url = withApiBase(`/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
+      const url = withApiBase(`/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
       const r = await fetch(url, { credentials: 'include' });
       if (r.ok) {
         const data = await r.json();
@@ -568,7 +568,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       }
 
       try {
-        const addrRes = await fetchWithAuth('/api/addresses/me');
+        const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
           const items = (list.items || []) as Record<string, unknown>[];
@@ -577,7 +577,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             const currentZip = def['postal_code'] || '';
             const newZip = (profile.postal_code || '').trim();
             if (newZip && newZip !== currentZip) {
-              const patchRes = await fetchWithAuth(`/api/addresses/me/${def['id']}`, {
+              const patchRes = await fetchWithAuth(`/api/v1/addresses/me/${def['id']}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ postal_code: newZip }),
@@ -590,7 +590,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               }
             }
           } else if (addressPayload) {
-            const createRes = await fetchWithAuth('/api/addresses/me', {
+            const createRes = await fetchWithAuth('/api/v1/addresses/me', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(addressPayload),
@@ -604,7 +604,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           }
         } else if (addrRes.status === 404) {
           if (addressPayload) {
-            const createRes = await fetchWithAuth('/api/addresses/me', {
+            const createRes = await fetchWithAuth('/api/v1/addresses/me', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(addressPayload),

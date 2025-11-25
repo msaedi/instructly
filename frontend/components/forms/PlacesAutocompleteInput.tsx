@@ -134,7 +134,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
           if (suggestionScope && suggestionScope !== 'default') {
             params.set('scope', suggestionScope);
           }
-          const url = withApiBase(`/api/addresses/places/autocomplete?${params.toString()}`);
+          const url = withApiBase(`/api/v1/addresses/places/autocomplete?${params.toString()}`);
           const response = await fetch(url, {
             method: 'GET',
             credentials: 'include',

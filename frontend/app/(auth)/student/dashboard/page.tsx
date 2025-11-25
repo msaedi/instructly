@@ -220,7 +220,7 @@ function StudentDashboardContent() {
   const loadAddresses = async () => {
     try {
       setIsLoadingAddresses(true);
-      const res = await fetchWithAuth('/api/addresses/me');
+      const res = await fetchWithAuth('/api/v1/addresses/me');
       if (!res.ok) {
         setAddresses([]);
         return;
@@ -480,7 +480,7 @@ function StudentDashboardContent() {
                                   modal.querySelector('#confirmBtn')?.addEventListener('click', () => { cleanup(); resolve(true); });
                                 });
                                 if (!ok) return;
-                                const res = await fetchWithAuth(`/api/addresses/me/${a.id}`, { method: 'DELETE' });
+                                const res = await fetchWithAuth(`/api/v1/addresses/me/${a.id}`, { method: 'DELETE' });
                                 if (res.ok) {
                                   toast.success('Address removed', {
                                     style: {
@@ -1421,7 +1421,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetchWithAuth(`/api/addresses/places/autocomplete?q=${encodeURIComponent(query)}`);
+        const res = await fetchWithAuth(`/api/v1/addresses/places/autocomplete?q=${encodeURIComponent(query)}`);
         if (!res.ok) return;
         const data = await res.json();
         setSuggestions(data.items || []);
@@ -1435,7 +1435,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
       const payload = { ...form } as Record<string, unknown>;
       // Trim empty strings
       Object.keys(payload).forEach((k) => { if (payload[k] === '') delete payload[k]; });
-      const endpoint = mode === 'create' ? '/api/addresses/me' : `/api/addresses/me/${address?.id}`;
+      const endpoint = mode === 'create' ? '/api/v1/addresses/me' : `/api/v1/addresses/me/${address?.id}`;
       const method = mode === 'create' ? 'POST' : 'PATCH';
       const res = await fetchWithAuth(endpoint, {
         method,
@@ -1514,7 +1514,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
                         // Fetch normalized place details and auto-fill fields
                         const providerQuery = s.provider ? `&provider=${encodeURIComponent(s.provider)}` : '';
                         const res = await fetchWithAuth(
-                          `/api/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}${providerQuery}`,
+                          `/api/v1/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}${providerQuery}`,
                         );
                         if (res.ok) {
                           const d = (await res.json()) as Record<string, unknown>;
