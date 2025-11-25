@@ -1790,3 +1790,78 @@ Added `POST /{booking_id}/no-show` endpoint:
 
 **Status:** Phases 0–11 Complete ✅
 **Ready for:** Production deployment with hardened API contracts
+
+---
+
+## Phase 12+ Roadmap: Remaining Domain Migrations
+
+### Inventory of Remaining Domains
+
+**Already Migrated to v1:**
+| Domain | V1 Path | Status |
+|--------|---------|--------|
+| Instructors | `/api/v1/instructors` | ✅ Phase 5-6 |
+| Bookings | `/api/v1/bookings` | ✅ Phase 7a-7c |
+| Instructor Bookings | `/api/v1/instructor-bookings` | ✅ Phase 7d |
+| Messages | `/api/v1/messages` | ✅ Phase 10 |
+
+**Candidate Domains for v1 Migration:**
+
+| Priority | Domain | Current Path | Endpoints | Notes |
+|----------|--------|--------------|-----------|-------|
+| **1** | Reviews | `/api/reviews` | 8 | High user impact, trust/conversion critical |
+| **2** | Services | `/services` | 6 | Service catalog, powers search/browsing |
+| **3** | Payments | `/api/payments` | 15+ | Stripe integration, complex but important |
+| **4** | Favorites | `/api/favorites` | 3 | Simple CRUD, quick win |
+| **5** | Addresses | `/api/addresses` | 5 | User addresses with geocoding |
+| **6** | Search | `/api/search` | 3 | Instructor/service search |
+| **7** | Search History | `/api/search-history` | 3 | Search analytics |
+| **8** | Referrals | Multiple | 6 | Referral system |
+| **9** | Auth | `/api/auth` | 8 | Authentication (complex, defer) |
+| **10** | Account | `/api/account` | 5 | Account management |
+
+**De-prioritized (Admin/Internal/Webhooks):**
+- `admin_*` routers (admin-only, no user impact)
+- `metrics`, `monitoring`, `prometheus` (internal observability)
+- `webhooks_*` (external integrations, no user-facing)
+- `beta`, `gated` (feature flags)
+- `internal`, `ready` (health checks)
+
+### Phase 12 – Reviews → v1 (Next)
+
+**Goal:** Migrate reviews domain to `/api/v1/reviews`.
+
+**Why Reviews First:**
+1. **High User Impact**: Reviews are critical for marketplace trust and conversion
+2. **Well-defined Scope**: 8 endpoints with clear responsibilities
+3. **Mixed Auth**: Public (ratings) + authenticated (submit) - good v1 practice
+4. **Existing Consumers**: Review submission modal, instructor profile pages
+5. **Schemathesis Candidate**: Public rating endpoints safe for fuzz testing
+
+**V1 Endpoints:**
+```
+POST   /api/v1/reviews                           → Submit review (student)
+GET    /api/v1/reviews/instructor/{id}/ratings   → Get instructor ratings (public)
+GET    /api/v1/reviews/instructor/{id}/recent    → Recent reviews with pagination (public)
+GET    /api/v1/reviews/instructor/{id}/search-rating → Rating for search context (public)
+GET    /api/v1/reviews/booking/{id}              → Get review for booking (student)
+POST   /api/v1/reviews/booking/existing          → Check existing reviews (student)
+POST   /api/v1/reviews/{id}/respond              → Instructor responds (instructor)
+POST   /api/v1/reviews/ratings/batch             → Batch ratings lookup (public)
+```
+
+### Phase 13 – Services (Catalog) → v1
+
+**Goal:** Migrate service catalog to `/api/v1/services`.
+
+**Why Services:**
+1. **Foundation for Search**: Powers instructor search and browsing
+2. **Public Endpoints**: Good Schemathesis coverage opportunity
+3. **Simple Structure**: Categories + catalog services
+
+### Phase 14+ Candidates
+
+- **Favorites**: Quick win, simple 3-endpoint domain
+- **Addresses**: User addresses with spatial features
+- **Payments**: Complex Stripe integration, requires careful planning
+- **Search**: Core discovery experience

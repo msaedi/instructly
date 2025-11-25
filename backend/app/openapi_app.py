@@ -33,7 +33,7 @@ from app.routes import (
     public,
     redis_monitor,
     referrals,
-    reviews,
+    # reviews - DEPRECATED, use /api/v1/reviews instead
     search,
     search_history,
     services,
@@ -47,6 +47,7 @@ from app.routes.v1 import (
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
+    reviews as reviews_v1,
 )
 
 
@@ -67,6 +68,7 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
     api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
     api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
+    api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
 
     # Mount v1 API first
     app.include_router(api_v1)
@@ -109,7 +111,8 @@ def build_openapi_app() -> FastAPI:
     app.include_router(uploads.router)
     app.include_router(users_profile_picture.router)
     app.include_router(beta.router)
-    app.include_router(reviews.router)
+    # Legacy reviews - now /api/v1/reviews
+    # app.include_router(reviews.router)
     app.include_router(gated.router)
 
     return app

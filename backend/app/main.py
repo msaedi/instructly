@@ -111,7 +111,6 @@ from .routes import (
     ready,
     redis_monitor,
     referrals,
-    reviews,
     search,
     search_history,
     services,
@@ -127,6 +126,7 @@ from .routes.v1 import (
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
+    reviews as reviews_v1,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
@@ -935,6 +935,7 @@ api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ign
 api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
 api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
 api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
+api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
@@ -1017,7 +1018,7 @@ app.include_router(prometheus.router)
 app.include_router(uploads.router)
 app.include_router(users_profile_picture.router)
 app.include_router(beta.router)
-app.include_router(reviews.router)
+# app.include_router(reviews.router)  # Migrated to /api/v1/reviews
 app.include_router(admin_badges.router)
 app.include_router(gated.router)
 app.include_router(internal.router)

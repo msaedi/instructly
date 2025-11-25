@@ -619,6 +619,10 @@ export interface BodyProxyUploadToR2ApiUploadsR2ProxyPost {
   key: string;
 }
 
+export interface BodyRespondToReviewApiV1ReviewsReviewIdRespondPost {
+  response_text: string;
+}
+
 export type BookedSlotsResponseBookedSlotsItem = { [key: string]: unknown };
 
 export interface BookedSlotsResponse {
@@ -5046,32 +5050,6 @@ export type ApplyReferralCreditApiReferralsCheckoutApplyReferralPost200 = Checko
 
 export type ClaimReferralCodeApiReferralsClaimPost200 = ReferralClaimResponse | ReferralErrorResponse;
 
-export type GetReviewForBookingApiReviewsBookingBookingIdGet200 = ReviewItem | null;
-
-export type GetRecentReviewsApiReviewsInstructorInstructorIdRecentGetParams = {
-instructor_service_id?: string | null;
-/**
- * @minimum 1
- * @maximum 50
- */
-limit?: number;
-/**
- * @minimum 1
- */
-page?: number;
-min_rating?: number | null;
-rating?: number | null;
-with_text?: boolean | null;
-};
-
-export type GetSearchRatingApiReviewsInstructorInstructorIdSearchRatingGetParams = {
-instructor_service_id?: string | null;
-};
-
-export type RespondToReviewApiReviewsReviewsReviewIdRespondPostParams = {
-response_text: string;
-};
-
 export type GetRecentSearchesApiSearchHistoryGetParams = {
 limit?: number;
 };
@@ -5244,6 +5222,28 @@ offset?: number;
 
 export type StreamMessagesApiV1MessagesStreamBookingIdGetParams = {
 token?: string | null;
+};
+
+export type GetReviewForBookingApiV1ReviewsBookingBookingIdGet200 = ReviewItem | null;
+
+export type GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams = {
+instructor_service_id?: string | null;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+limit?: number;
+/**
+ * @minimum 1
+ */
+page?: number;
+min_rating?: number | null;
+rating?: number | null;
+with_text?: boolean | null;
+};
+
+export type GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams = {
+instructor_service_id?: string | null;
 };
 
 export type GetAllAvailabilityInstructorsAvailabilityGetParams = {
