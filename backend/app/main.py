@@ -82,7 +82,6 @@ from .repositories.background_job_repository import BackgroundJobRepository
 from .repositories.instructor_profile_repository import InstructorProfileRepository
 from .routes import (
     account_management,
-    addresses,
     admin_audit,
     admin_background_checks,
     admin_badges,
@@ -111,9 +110,6 @@ from .routes import (
     ready,
     redis_monitor,
     referrals,
-    search,
-    search_history,
-    # services - DEPRECATED, use /api/v1/services instead
     stripe_webhooks,
     student_badges,
     two_factor_auth,
@@ -122,12 +118,15 @@ from .routes import (
     webhooks_checkr,
 )
 from .routes.v1 import (
+    addresses as addresses_v1,
     bookings as bookings_v1,
     favorites as favorites_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
     reviews as reviews_v1,
+    search as search_v1,
+    search_history as search_history_v1,
     services as services_v1,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
@@ -940,6 +939,9 @@ api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[at
 api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
 api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
 api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
+api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[attr-defined]
+api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
+api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
@@ -962,6 +964,11 @@ PUBLIC_OPEN_PREFIXES = (
     "/r/",
     "/api/v1/instructors",  # v1 instructors endpoints are public (some require auth via dependency)
     "/api/v1/services",  # v1 services endpoints are public (catalog browsing)
+    "/api/v1/search",  # v1 search endpoints are public (require_beta_phase_access via dependency)
+    "/api/v1/addresses/zip",  # ZIP lookup is public
+    "/api/v1/addresses/places",  # Place autocomplete/details are public
+    "/api/v1/addresses/coverage",  # Coverage GeoJSON is public (rate limited)
+    "/api/v1/addresses/regions",  # Neighborhood list is public
 )
 
 public_guard_dependency = public_guard(
@@ -1010,9 +1017,12 @@ app.include_router(public.router, dependencies=[Depends(public_guard_dependency)
 app.include_router(referrals.public_router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(referrals.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(referrals.admin_router)
-app.include_router(search.router, prefix="/api/search", tags=["search"])
-app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
-app.include_router(addresses.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy search routes - DEPRECATED, use /api/v1/search instead
+# app.include_router(search.router, prefix="/api/search", tags=["search"])
+# Legacy search-history routes - DEPRECATED, use /api/v1/search-history instead
+# app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
+# Legacy addresses routes - DEPRECATED, use /api/v1/addresses instead
+# app.include_router(addresses.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(redis_monitor.router)
 app.include_router(ready.router)
 app.include_router(database_monitor.router)

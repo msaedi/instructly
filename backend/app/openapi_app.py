@@ -10,7 +10,7 @@ from fastapi import APIRouter, FastAPI
 
 from app.routes import (
     account_management,
-    addresses,
+    # addresses - DEPRECATED, use /api/v1/addresses instead
     admin_config,
     alerts,
     analytics,
@@ -34,8 +34,8 @@ from app.routes import (
     redis_monitor,
     referrals,
     # reviews - DEPRECATED, use /api/v1/reviews instead
-    search,
-    search_history,
+    # search - DEPRECATED, use /api/v1/search instead
+    # search_history - DEPRECATED, use /api/v1/search-history instead
     # services - DEPRECATED, use /api/v1/services instead
     stripe_webhooks,
     two_factor_auth,
@@ -43,12 +43,15 @@ from app.routes import (
     users_profile_picture,
 )
 from app.routes.v1 import (
+    addresses as addresses_v1,
     bookings as bookings_v1,
     favorites as favorites_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
     reviews as reviews_v1,
+    search as search_v1,
+    search_history as search_history_v1,
     services as services_v1,
 )
 
@@ -73,6 +76,9 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
     api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
     api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
+    api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[attr-defined]
+    api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
+    api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
 
     # Mount v1 API first
     app.include_router(api_v1)
@@ -105,9 +111,12 @@ def build_openapi_app() -> FastAPI:
     app.include_router(referrals.public_router)
     app.include_router(referrals.router)
     app.include_router(referrals.admin_router)
-    app.include_router(search.router, prefix="/api/search", tags=["search"])
-    app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
-    app.include_router(addresses.router)
+    # Legacy search - now /api/v1/search
+    # app.include_router(search.router, prefix="/api/search", tags=["search"])
+    # Legacy search-history - now /api/v1/search-history
+    # app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
+    # Legacy addresses - now /api/v1/addresses
+    # app.include_router(addresses.router)
     app.include_router(redis_monitor.router)
     app.include_router(database_monitor.router)
     app.include_router(admin_config.router)

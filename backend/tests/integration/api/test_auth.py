@@ -200,7 +200,7 @@ class TestAuth:
         cookie_token = create_access_token({"sub": test_student.email})
         client.cookies.set(settings.session_cookie_name, cookie_token)
         # Cookie-only should succeed for API routes in hosted environments
-        r2 = client.get("/api/addresses/me")
+        r2 = client.get("/api/v1/addresses/me")
         assert r2.status_code == 200
         # header path still works
         token = r.json().get("access_token")

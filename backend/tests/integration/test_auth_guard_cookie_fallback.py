@@ -17,7 +17,7 @@ def _login(client: TestClient, email: str, password: str) -> None:
 
 def test_cookie_allows_api_addresses(client: TestClient, test_student: User, test_password: str) -> None:
     _login(client, test_student.email, test_password)
-    resp = client.get("/api/addresses/me")
+    resp = client.get("/api/v1/addresses/me")
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert "items" in body
@@ -26,5 +26,5 @@ def test_cookie_allows_api_addresses(client: TestClient, test_student: User, tes
 def test_missing_cookie_returns_401(client: TestClient, test_student: User, test_password: str) -> None:
     _login(client, test_student.email, test_password)
     client.cookies.clear()
-    resp = client.get("/api/addresses/me")
+    resp = client.get("/api/v1/addresses/me")
     assert resp.status_code == 401

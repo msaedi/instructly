@@ -31,7 +31,7 @@ def test_addresses_crud_flow(db, client):
     headers = {"Authorization": f"Bearer {token}"}
 
     # Empty list
-    r = client.get("/api/addresses/me", headers=headers)
+    r = client.get("/api/v1/addresses/me", headers=headers)
     assert r.status_code == 200
     data = r.json()
     assert data["total"] == 0
@@ -45,27 +45,27 @@ def test_addresses_crud_flow(db, client):
         "country_code": "US",
         "is_default": True,
     }
-    r = client.post("/api/addresses/me", json=payload, headers=headers)
+    r = client.post("/api/v1/addresses/me", json=payload, headers=headers)
     assert r.status_code == 201
     a1 = r.json()
     assert a1["is_default"] is True
 
     # List now has one
-    r = client.get("/api/addresses/me", headers=headers)
+    r = client.get("/api/v1/addresses/me", headers=headers)
     assert r.status_code == 200
     data = r.json()
     assert data["total"] == 1
 
     # Update to set non-default
-    r = client.patch(f"/api/addresses/me/{a1['id']}", json={"is_default": False}, headers=headers)
+    r = client.patch(f"/api/v1/addresses/me/{a1['id']}", json={"is_default": False}, headers=headers)
     assert r.status_code == 200
     a1u = r.json()
     assert a1u["is_default"] is False
 
     # Delete (soft)
-    r = client.delete(f"/api/addresses/me/{a1['id']}", headers=headers)
+    r = client.delete(f"/api/v1/addresses/me/{a1['id']}", headers=headers)
     assert r.status_code == 200
-    r = client.get("/api/addresses/me", headers=headers)
+    r = client.get("/api/v1/addresses/me", headers=headers)
     assert r.status_code == 200
     assert r.json()["total"] == 0
 
@@ -105,7 +105,7 @@ def test_address_create_with_google_place_id_verifies(db, client):
         "place_id": place_id,
         "is_default": True,
     }
-    r = client.post("/api/addresses/me", json=payload, headers=headers)
+    r = client.post("/api/v1/addresses/me", json=payload, headers=headers)
     assert r.status_code == 201, r.text
     a = r.json()
     assert a["verification_status"] == "verified"
@@ -151,7 +151,7 @@ def test_address_create_with_mapbox_feature_id_verifies(db, client):
         "place_id": feature_id,
         "is_default": True,
     }
-    r = client.post("/api/addresses/me", json=payload, headers=headers)
+    r = client.post("/api/v1/addresses/me", json=payload, headers=headers)
     assert r.status_code == 201, r.text
     a = r.json()
     assert a["verification_status"] == "verified"
@@ -188,7 +188,7 @@ def test_address_create_with_mock_provider_verifies_and_fallback(db, client, mon
         "place_id": "mock:times_square",
         "is_default": True,
     }
-    r1 = client.post("/api/addresses/me", json=payload1, headers=headers)
+    r1 = client.post("/api/v1/addresses/me", json=payload1, headers=headers)
     assert r1.status_code == 201, r1.text
     a1 = r1.json()
     assert a1["verification_status"] == "verified"
@@ -203,7 +203,7 @@ def test_address_create_with_mock_provider_verifies_and_fallback(db, client, mon
         "country_code": "US",
         "place_id": "mock:needs_fallback",
     }
-    r2 = client.post("/api/addresses/me", json=payload2, headers=headers)
+    r2 = client.post("/api/v1/addresses/me", json=payload2, headers=headers)
     assert r2.status_code == 201, r2.text
     a2 = r2.json()
     assert a2["verification_status"] == "verified"
@@ -215,7 +215,7 @@ def test_places_autocomplete_with_mock_provider(db, client, monkeypatch):
     monkeypatch.setenv("GEOCODING_PROVIDER", "mock")
     monkeypatch.setattr(settings, "geocoding_provider", "mock", raising=False)
 
-    r = client.get("/api/addresses/places/autocomplete", params={"q": "Times"})
+    r = client.get("/api/v1/addresses/places/autocomplete", params={"q": "Times"})
     assert r.status_code == 200
     data = r.json()
     assert data["total"] >= 1
@@ -259,7 +259,7 @@ def test_places_autocomplete_google_no_mapbox_ids(db, client, monkeypatch):
 
     monkeypatch.setattr("app.services.geocoding.factory.create_geocoding_provider", fake_factory)
 
-    r = client.get("/api/addresses/places/autocomplete", params={"q": "Main St", "provider": "google"})
+    r = client.get("/api/v1/addresses/places/autocomplete", params={"q": "Main St", "provider": "google"})
     assert r.status_code == 200
     data = r.json()
     assert data["total"] >= 0
@@ -308,7 +308,7 @@ def test_places_details_invalid_provider_returns_422(db, client, monkeypatch):
     monkeypatch.setattr("app.services.geocoding.factory.create_geocoding_provider", fake_factory)
 
     r = client.get(
-        "/api/addresses/places/details",
+        "/api/v1/addresses/places/details",
         params={"place_id": "address.fake", "provider": "google"},
     )
     assert r.status_code == 422
@@ -355,7 +355,7 @@ def test_places_details_fallback_when_provider_unspecified(db, client, monkeypat
 
     monkeypatch.setattr("app.services.geocoding.factory.create_geocoding_provider", fake_factory)
 
-    r = client.get("/api/addresses/places/details", params={"place_id": "address.fake"})
+    r = client.get("/api/v1/addresses/places/details", params={"place_id": "address.fake"})
     assert r.status_code == 200
     data = r.json()
     assert data["provider_id"].startswith("mapbox:")
@@ -417,7 +417,7 @@ def test_enrichment_uses_region_boundaries(db, client, monkeypatch):
         "place_id": "mock:times_square",
         "is_default": True,
     }
-    r = client.post("/api/addresses/me", json=payload, headers=headers)
+    r = client.post("/api/v1/addresses/me", json=payload, headers=headers)
     assert r.status_code == 201, r.text
     a = r.json()
     assert a["verification_status"] == "verified"

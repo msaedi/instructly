@@ -34,6 +34,6 @@ def test_session_cookie_auth_on_api_addresses():
     token = create_access_token({"sub": email})
     client.cookies.set(settings.session_cookie_name, token)
 
-    response = client.get("/api/addresses/me")
+    response = client.get("/api/v1/addresses/me")
 
     assert response.status_code == 200

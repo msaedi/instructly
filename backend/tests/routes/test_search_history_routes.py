@@ -25,13 +25,13 @@ class TestGuestSearchEndpoints:
     """Test guest search history endpoints."""
 
     def test_record_guest_search(self, client: TestClient, db: Session):
-        """Test POST /api/search-history/ endpoint with guest header."""
+        """Test POST /api/v1/search-history/ endpoint with guest header."""
         import uuid
 
         guest_session_id = f"test-guest-endpoint-{uuid.uuid4().hex[:8]}"
 
         response = client.post(
-            "/api/search-history/",
+            "/api/v1/search-history/",
             headers={"X-Guest-Session-ID": guest_session_id},
             json={"search_query": "piano lessons", "search_type": "natural_language", "results_count": 5},
         )
@@ -55,19 +55,19 @@ class TestGuestSearchEndpoints:
     def test_record_guest_search_validation(self, client: TestClient):
         """Test validation for guest search recording."""
         # Missing guest header should fail
-        response = client.post("/api/search-history/", json={"search_query": "test", "search_type": "natural_language"})
+        response = client.post("/api/v1/search-history/", json={"search_query": "test", "search_type": "natural_language"})
         assert response.status_code == 400  # No user context
 
         # Invalid search type
         response = client.post(
-            "/api/search-history/",
+            "/api/v1/search-history/",
             headers={"X-Guest-Session-ID": "test-123"},
             json={"search_query": "test", "search_type": "invalid_type"},
         )
         assert response.status_code == 422
 
     def test_get_guest_recent_searches(self, client: TestClient, db: Session):
-        """Test GET /api/search-history/ endpoint with guest header."""
+        """Test GET /api/v1/search-history/ endpoint with guest header."""
         import uuid
 
         unique_id = uuid.uuid4().hex[:8]
@@ -92,7 +92,7 @@ class TestGuestSearchEndpoints:
         db.commit()
 
         # Get recent searches
-        response = client.get("/api/search-history/?limit=3", headers={"X-Guest-Session-ID": guest_session_id})
+        response = client.get("/api/v1/search-history/?limit=3", headers={"X-Guest-Session-ID": guest_session_id})
 
         assert response.status_code == 200
         data = response.json()
@@ -105,7 +105,7 @@ class TestGuestSearchEndpoints:
 
     def test_get_guest_searches_empty(self, client: TestClient):
         """Test getting searches for non-existent guest session."""
-        response = client.get("/api/search-history/", headers={"X-Guest-Session-ID": "non-existent-session"})
+        response = client.get("/api/v1/search-history/", headers={"X-Guest-Session-ID": "non-existent-session"})
 
         assert response.status_code == 200
         data = response.json()
@@ -254,7 +254,7 @@ class TestAuthenticatedSearchEndpoints:
     def test_record_search_authenticated(self, client: TestClient, db: Session, auth_headers: dict):
         """Test recording search for authenticated user."""
         response = client.post(
-            "/api/search-history/",
+            "/api/v1/search-history/",
             json={"search_query": "violin lessons", "search_type": "natural_language", "results_count": 3},
             headers=auth_headers,
         )
@@ -269,13 +269,13 @@ class TestAuthenticatedSearchEndpoints:
         # First record some searches
         for query in ["search1", "search2", "search3"]:
             client.post(
-                "/api/search-history/",
+                "/api/v1/search-history/",
                 json={"search_query": query, "search_type": "natural_language"},
                 headers=auth_headers,
             )
 
         # Get recent searches
-        response = client.get("/api/search-history/?limit=2", headers=auth_headers)
+        response = client.get("/api/v1/search-history/?limit=2", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -288,14 +288,14 @@ class TestAuthenticatedSearchEndpoints:
         """Test soft deleting a search."""
         # Create a search
         response = client.post(
-            "/api/search-history/",
+            "/api/v1/search-history/",
             json={"search_query": "to be deleted", "search_type": "natural_language"},
             headers=auth_headers,
         )
         search_id = response.json()["id"]
 
         # Delete it
-        response = client.delete(f"/api/search-history/{search_id}", headers=auth_headers)
+        response = client.delete(f"/api/v1/search-history/{search_id}", headers=auth_headers)
         assert response.status_code == 204
 
         # Verify it's soft deleted in DB
@@ -304,25 +304,28 @@ class TestAuthenticatedSearchEndpoints:
         assert search.deleted_at is not None
 
         # Verify it doesn't appear in recent searches
-        response = client.get("/api/search-history/", headers=auth_headers)
+        response = client.get("/api/v1/search-history/", headers=auth_headers)
         searches = response.json()
         assert not any(s["id"] == search_id for s in searches)
 
     def test_delete_nonexistent_search(self, client: TestClient, auth_headers: dict):
         """Test deleting non-existent search returns 404."""
-        response = client.delete("/api/search-history/99999", headers=auth_headers)
+        # Use a valid ULID format that doesn't exist (exactly 26 chars)
+        nonexistent_ulid = "01K2H999999999999999999999"
+        response = client.delete(f"/api/v1/search-history/{nonexistent_ulid}", headers=auth_headers)
         assert response.status_code == 404
 
     def test_unauthorized_access(self, client: TestClient):
         """Test unified endpoints work without authentication (returns empty or needs headers)."""
-        # GET without auth or guest ID should fail
-        response = client.get("/api/search-history/")
+        # GET without auth or guest ID should fail (no trailing slash in v1)
+        response = client.get("/api/v1/search-history")
         assert response.status_code == 400
 
-        # POST without auth or guest ID fails
-        response = client.post("/api/search-history/", json={"search_query": "test", "search_type": "natural_language"})
+        # POST without auth or guest ID fails (no trailing slash in v1)
+        response = client.post("/api/v1/search-history", json={"search_query": "test", "search_type": "natural_language"})
         assert response.status_code == 400  # Bad request - no user context
 
-        # DELETE without auth fails
-        response = client.delete("/api/search-history/1")
+        # DELETE without auth fails (use valid ULID format, exactly 26 chars)
+        test_ulid = "01K2H999999999999999999999"
+        response = client.delete(f"/api/v1/search-history/{test_ulid}")
         assert response.status_code == 400  # Bad request - no user context

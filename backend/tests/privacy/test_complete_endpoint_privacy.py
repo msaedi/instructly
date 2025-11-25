@@ -38,7 +38,7 @@ class TestCompleteEndpointPrivacy:
             ("GET", "/api/bookings/{id}"),
             ("GET", "/api/bookings/upcoming"),
             ("GET", "/api/bookings/{id}/preview"),
-            ("GET", "/api/search/instructors"),
+            ("GET", "/api/v1/search/instructors"),
             ("GET", "/api/public/instructors/{id}/availability"),
         ]
 
@@ -185,9 +185,9 @@ class TestCompleteEndpointPrivacy:
         violations = []
 
         # Test instructor search
-        response = client.get("/api/search/instructors?q=yoga", headers=auth_headers_student)
+        response = client.get("/api/v1/search/instructors?q=yoga", headers=auth_headers_student)
         if response.status_code == 200:
-            violation = self._check_response_for_instructor_names(response, "GET /api/search/instructors")
+            violation = self._check_response_for_instructor_names(response, "GET /api/v1/search/instructors")
             if violation:
                 violations.append(violation)
 
@@ -280,7 +280,7 @@ class TestCompleteEndpointPrivacy:
         [
             ("/api/instructors/", "GET"),
             ("/api/bookings/", "GET"),
-            ("/api/search/instructors", "GET"),
+            ("/api/v1/search/instructors", "GET"),
         ],
     )
     def test_critical_endpoints_parametrized(self, client, test_instructor, auth_headers_student, endpoint, method):

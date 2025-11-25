@@ -183,7 +183,7 @@ test.describe('Referral surfaces', () => {
       await route.continue();
     });
 
-    await page.route('**/api/addresses/me', async (route) => {
+    await page.route('**/api/v1/addresses/me', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,

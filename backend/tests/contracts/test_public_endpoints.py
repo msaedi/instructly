@@ -15,8 +15,8 @@ def _any_instructor_id() -> str | None:
             first = items[0]
             return first.get("id") or first.get("instructor_id")
 
-    # Fall back to search
-    r = client.get("/api/search?service_name=Yoga")
+    # Fall back to search (Phase 14: Search migrated to /api/v1/search)
+    r = client.get("/api/v1/search/instructors?q=Yoga")
     if r.status_code == 200:
         data = r.json()
         if isinstance(data, dict):
@@ -27,7 +27,7 @@ def _any_instructor_id() -> str | None:
             items = []
         if items:
             cand = items[0]
-            return cand.get("instructor_id") or cand.get("id")
+            return cand.get("instructor_id") or cand.get("id") or (cand.get("instructor") or {}).get("id")
     return None
 
 
@@ -67,8 +67,8 @@ def test_instructor_detail_serializes():
 
 
 def test_search_serializes():
-    # Search endpoint
-    r = client.get("/api/search?service_name=Yoga")
+    # Search endpoint (Phase 14: migrated to /api/v1/search)
+    r = client.get("/api/v1/search/instructors?q=Yoga")
     if r.status_code == 200:
         return
     # If search doesn't exist, don't fail the suite; these are smoke/contract checks

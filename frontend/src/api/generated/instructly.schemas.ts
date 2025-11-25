@@ -4833,32 +4833,6 @@ export interface AppSchemasSearchResponsesInstructorInfo {
   years_experience?: AppSchemasSearchResponsesInstructorInfoYearsExperience;
 }
 
-export type GetBulkCoverageGeojsonApiAddressesCoverageBulkGetParams = {
-ids: string;
-};
-
-export type PlacesAutocompleteApiAddressesPlacesAutocompleteGetParams = {
-q: string;
-provider?: string | null;
-scope?: string | null;
-};
-
-export type PlaceDetailsApiAddressesPlacesDetailsGetParams = {
-place_id: string;
-provider?: string | null;
-};
-
-export type ListNeighborhoodsApiAddressesRegionsNeighborhoodsGetParams = {
-region_type?: string;
-borough?: string | null;
-page?: number;
-per_page?: number;
-};
-
-export type IsNycZipApiAddressesZipIsNycGetParams = {
-zip: string;
-};
-
 export type ExportAnalyticsApiAnalyticsExportPostParams = {
 format?: string;
 };
@@ -5050,24 +5024,6 @@ export type ApplyReferralCreditApiReferralsCheckoutApplyReferralPost200 = Checko
 
 export type ClaimReferralCodeApiReferralsClaimPost200 = ReferralClaimResponse | ReferralErrorResponse;
 
-export type GetRecentSearchesApiSearchHistoryGetParams = {
-limit?: number;
-};
-
-export type TrackInteractionApiSearchHistoryInteractionPostBody = { [key: string]: unknown };
-
-export type SearchInstructorsApiSearchInstructorsGetParams = {
-/**
- * Search query
- * @minLength 1
- */
-q: string;
-/**
- * Maximum results to return
- */
-limit?: number | null;
-};
-
 export type GetProfilePictureUrlsBatchApiUsersProfilePictureUrlsGetParams = {
 /**
  * Comma-separated list of user IDs (ids=1,2,3) or repeated ids parameters.
@@ -5078,6 +5034,32 @@ variant?: 'original' | 'display' | 'thumb' | null;
 
 export type GetProfilePictureUrlApiUsersUserIdProfilePictureUrlGetParams = {
 variant?: 'original' | 'display' | 'thumb' | null;
+};
+
+export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams = {
+ids: string;
+};
+
+export type PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams = {
+q: string;
+provider?: string | null;
+scope?: string | null;
+};
+
+export type PlaceDetailsApiV1AddressesPlacesDetailsGetParams = {
+place_id: string;
+provider?: string | null;
+};
+
+export type ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams = {
+region_type?: string;
+borough?: string | null;
+page?: number;
+per_page?: number;
+};
+
+export type IsNycZipApiV1AddressesZipIsNycGetParams = {
+zip: string;
 };
 
 export type GetBookingsApiV1BookingsGetParams = {
@@ -5244,6 +5226,24 @@ with_text?: boolean | null;
 
 export type GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams = {
 instructor_service_id?: string | null;
+};
+
+export type GetRecentSearchesApiV1SearchHistoryGetParams = {
+limit?: number;
+};
+
+export type TrackInteractionApiV1SearchHistoryInteractionPostBody = { [key: string]: unknown };
+
+export type SearchInstructorsApiV1SearchInstructorsGetParams = {
+/**
+ * Search query
+ * @minLength 1
+ */
+q: string;
+/**
+ * Maximum results to return
+ */
+limit?: number | null;
 };
 
 export type GetCatalogServicesApiV1ServicesCatalogGetParams = {

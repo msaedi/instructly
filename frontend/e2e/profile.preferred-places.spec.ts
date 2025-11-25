@@ -136,7 +136,7 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
       return route.continue();
     });
 
-    await page.route('**/api/addresses/me', (route) => {
+    await page.route('**/api/v1/addresses/me', (route) => {
       const method = route.request().method();
       if (method === 'GET') {
         return fulfillJson(route, {
@@ -160,11 +160,11 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
       return fulfillJson(route, {});
     });
 
-    await page.route('**/api/addresses/zip/is-nyc*', (route) =>
+    await page.route('**/api/v1/addresses/zip/is-nyc*', (route) =>
       fulfillJson(route, { is_nyc: true, borough: 'Manhattan' })
     );
 
-    await page.route('**/api/addresses/service-areas/me', (route) => {
+    await page.route('**/api/v1/addresses/service-areas/me', (route) => {
       const method = route.request().method();
       if (method === 'GET') {
         return fulfillJson(route, { items: [], total: 0 });
@@ -175,11 +175,11 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
       return fulfillJson(route, { items: [], total: 0 });
     });
 
-    await page.route('**/api/addresses/regions/neighborhoods*', (route) =>
+    await page.route('**/api/v1/addresses/regions/neighborhoods*', (route) =>
       fulfillJson(route, { items: [], total: 0, page: 1, per_page: 0 })
     );
 
-    await page.route('**/api/addresses/places/autocomplete*', (route) =>
+    await page.route('**/api/v1/addresses/places/autocomplete*', (route) =>
       fulfillJson(route, { items: [] })
     );
   } else {

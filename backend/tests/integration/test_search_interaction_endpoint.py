@@ -2,7 +2,7 @@
 """
 Integration test for search interaction tracking endpoint.
 
-Tests the /api/search-history/interaction endpoint to ensure
+Tests the /api/v1/search-history/interaction endpoint to ensure
 it properly saves search interactions to the database.
 """
 
@@ -51,7 +51,7 @@ class TestSearchInteractionEndpoint:
         }
 
         response = client.post(
-            "/api/search-history/interaction",
+            "/api/v1/search-history/interaction",
             json=interaction_data,
             headers={**auth_headers_student, "X-Session-ID": "test-session-123"},
         )
@@ -94,7 +94,7 @@ class TestSearchInteractionEndpoint:
         }
 
         response = client.post(
-            "/api/search-history/interaction",
+            "/api/v1/search-history/interaction",
             json=interaction_data,
             headers={"X-Guest-Session-ID": "guest-123", "X-Session-ID": "browser-session-456"},
         )
@@ -114,7 +114,7 @@ class TestSearchInteractionEndpoint:
 
         # Missing search_event_id
         response = client.post(
-            "/api/search-history/interaction",
+            "/api/v1/search-history/interaction",
             json={"interaction_type": "click", "instructor_id": 123},
             headers=auth_headers_student,
         )
@@ -128,7 +128,7 @@ class TestSearchInteractionEndpoint:
         # Invalid search event ID (non-existent ULID)
         invalid_ulid = "01K2H9999999999999999999999"
         response = client.post(
-            "/api/search-history/interaction",
+            "/api/v1/search-history/interaction",
             json={"search_event_id": invalid_ulid, "interaction_type": "click", "instructor_id": test_instructor.id},
             headers=auth_headers_student,
         )
@@ -145,7 +145,7 @@ class TestSearchInteractionEndpoint:
 
         for interaction_type in interaction_types:
             response = client.post(
-                "/api/search-history/interaction",
+                "/api/v1/search-history/interaction",
                 json={
                     "search_event_id": test_search_event.id,
                     "interaction_type": interaction_type,

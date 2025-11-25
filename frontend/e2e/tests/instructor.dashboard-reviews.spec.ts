@@ -51,7 +51,7 @@ async function mockDashboardApis(page: Page) {
     });
   });
 
-  await page.route('**/api/addresses/service-areas/me', async (route) => {
+  await page.route('**/api/v1/addresses/service-areas/me', async (route) => {
     await respondJson(route, { items: [] });
   });
 

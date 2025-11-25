@@ -58,8 +58,8 @@ def _is_excluded_path(path: str) -> bool:
         "/api/auth/",
         "/api/public/",
         "/api/config/",
-        "/api/search/",
-        "/api/search-history/",
+        # "/api/search/",  # Phase 14: Search migrated to /api/v1/search
+        # "/api/search-history/",  # Phase 14: Search history migrated to /api/v1/search-history
         "/api/analytics/",
         "/api/privacy/",
         "/api/payments/",
@@ -70,7 +70,7 @@ def _is_excluded_path(path: str) -> bool:
         "/api/webhooks/",
         "/api/admin/",
         "/api/referrals/",
-        "/api/addresses/",
+        # "/api/addresses/",  # Phase 14: Addresses migrated to /api/v1/addresses
         # "/api/services/",  # Phase 13: Services migrated to /api/v1/services
         "/api/availability-windows/",
         "/api/pricing/",
@@ -261,6 +261,12 @@ class TestRoutingInvariants:
             # Reviews v1: Static routes defined before dynamic {booking_id}
             ("/api/v1/reviews/booking/existing", "/api/v1/reviews/booking/{booking_id}"),
             ("/api/v1/reviews/booking/{booking_id}", "/api/v1/reviews/booking/existing"),
+            # Search history v1: Static routes defined before dynamic {search_id}
+            # Phase 14: /guest and /interaction defined before /{search_id}
+            ("/api/v1/search-history/guest", "/api/v1/search-history/{search_id}"),
+            ("/api/v1/search-history/{search_id}", "/api/v1/search-history/guest"),
+            ("/api/v1/search-history/interaction", "/api/v1/search-history/{search_id}"),
+            ("/api/v1/search-history/{search_id}", "/api/v1/search-history/interaction"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):
@@ -649,4 +655,178 @@ class TestRoutingInvariants:
                 "Found legacy favorites endpoints that should be removed:\n"
                 + "\n".join(f"  - {path}" for path in found_legacy)
                 + "\n\nUse /api/v1/favorites instead."
+            )
+
+    def test_v1_search_endpoints_exist(self):
+        """
+        Verify v1 search endpoints are properly mounted.
+
+        Phase 14: Search domain migrated to /api/v1/search.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_search_endpoints = [
+            "/api/v1/search/instructors",  # GET
+        ]
+
+        missing = []
+        for expected in expected_search_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 search endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_search_endpoints_removed(self):
+        """
+        Verify legacy search endpoints are REMOVED.
+
+        Phase 14: Search migration is complete. All search endpoints
+        must now use /api/v1/search.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_search_endpoints = [
+            "/api/search/instructors",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_search_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy search endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/search instead."
+            )
+
+    def test_v1_search_history_endpoints_exist(self):
+        """
+        Verify v1 search-history endpoints are properly mounted.
+
+        Phase 14: Search history domain migrated to /api/v1/search-history.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_search_history_endpoints = [
+            "/api/v1/search-history",  # GET, POST
+            "/api/v1/search-history/guest",  # POST
+            "/api/v1/search-history/{search_id}",  # DELETE
+            "/api/v1/search-history/interaction",  # POST
+        ]
+
+        missing = []
+        for expected in expected_search_history_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 search-history endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_search_history_endpoints_removed(self):
+        """
+        Verify legacy search-history endpoints are REMOVED.
+
+        Phase 14: Search history migration is complete. All search-history endpoints
+        must now use /api/v1/search-history.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_search_history_endpoints = [
+            "/api/search-history",
+            "/api/search-history/",
+            "/api/search-history/guest",
+            "/api/search-history/{search_id}",
+            "/api/search-history/interaction",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_search_history_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy search-history endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/search-history instead."
+            )
+
+    def test_v1_addresses_endpoints_exist(self):
+        """
+        Verify v1 addresses endpoints are properly mounted.
+
+        Phase 14: Addresses domain migrated to /api/v1/addresses.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_addresses_endpoints = [
+            "/api/v1/addresses/zip/is-nyc",  # GET
+            "/api/v1/addresses/me",  # GET, POST
+            "/api/v1/addresses/me/{address_id}",  # GET, PATCH, DELETE
+            "/api/v1/addresses/service-areas/me",  # GET, PUT
+            "/api/v1/addresses/places/autocomplete",  # GET
+            "/api/v1/addresses/places/details",  # GET
+            "/api/v1/addresses/coverage/bulk",  # GET
+            "/api/v1/addresses/regions/neighborhoods",  # GET
+        ]
+
+        missing = []
+        for expected in expected_addresses_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 addresses endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_addresses_endpoints_removed(self):
+        """
+        Verify legacy addresses endpoints are REMOVED.
+
+        Phase 14: Addresses migration is complete. All addresses endpoints
+        must now use /api/v1/addresses.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_addresses_endpoints = [
+            "/api/addresses/zip/is-nyc",
+            "/api/addresses/me",
+            "/api/addresses/me/{address_id}",
+            "/api/addresses/service-areas/me",
+            "/api/addresses/places/autocomplete",
+            "/api/addresses/places/details",
+            "/api/addresses/coverage/bulk",
+            "/api/addresses/regions/neighborhoods",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_addresses_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy addresses endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/addresses instead."
             )

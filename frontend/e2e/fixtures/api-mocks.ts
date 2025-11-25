@@ -380,7 +380,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // Mock the search endpoint FIRST (before the general instructors handler)
-  await routeContext.route('**/api/search/instructors**', async (route: Route) => {
+  await routeContext.route('**/api/v1/search/instructors**', async (route: Route) => {
     // Reduce noisy logs
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
@@ -569,7 +569,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // First set up search-history mock (called on homepage load)
-  await routeContext.route('**/search-history**', async (route: Route) => {
+  await routeContext.route('**/api/v1/search-history**', async (route: Route) => {
     const req = route.request();
     const origin = req.headers()['origin'] || 'http://localhost:3100';
     if (req.method() === 'OPTIONS') {
@@ -1129,7 +1129,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // Address coverage bulk
-  await routeContext.route('**/api/addresses/coverage/bulk**', async (route: Route) => {
+  await routeContext.route('**/api/v1/addresses/coverage/bulk**', async (route: Route) => {
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
       status: 200,

@@ -11,7 +11,7 @@ class TestSearchAPI:
 
     def test_search_instructors_success(self, client: TestClient):
         """Test successful instructor search."""
-        response = client.get("/api/search/instructors", params={"q": "piano lessons"})
+        response = client.get("/api/v1/search/instructors", params={"q": "piano lessons"})
 
         assert response.status_code == 200
         data = response.json()
@@ -26,7 +26,7 @@ class TestSearchAPI:
 
     def test_search_instructors_with_limit(self, client: TestClient):
         """Test search with custom limit."""
-        response = client.get("/api/search/instructors", params={"q": "math tutor", "limit": 5})
+        response = client.get("/api/v1/search/instructors", params={"q": "math tutor", "limit": 5})
 
         assert response.status_code == 200
         data = response.json()
@@ -36,7 +36,7 @@ class TestSearchAPI:
 
     def test_search_instructors_empty_query(self, client: TestClient):
         """Test search with empty query."""
-        response = client.get("/api/search/instructors", params={"q": ""})
+        response = client.get("/api/v1/search/instructors", params={"q": ""})
 
         assert response.status_code == 422  # FastAPI validation error for min_length=1
         error_detail = response.json()["detail"]
@@ -44,20 +44,20 @@ class TestSearchAPI:
 
     def test_search_instructors_missing_query(self, client: TestClient):
         """Test search without query parameter."""
-        response = client.get("/api/search/instructors")
+        response = client.get("/api/v1/search/instructors")
 
         assert response.status_code == 422  # FastAPI validation error
 
     def test_search_instructors_whitespace_query(self, client: TestClient):
         """Test search with whitespace-only query."""
-        response = client.get("/api/search/instructors", params={"q": "   "})
+        response = client.get("/api/v1/search/instructors", params={"q": "   "})
 
         assert response.status_code == 400
         assert "empty" in response.json()["detail"].lower()
 
     def test_search_instructors_complex_query(self, client: TestClient):
         """Test search with complex natural language query."""
-        response = client.get("/api/search/instructors", params={"q": "piano lessons under $50 near brooklyn"})
+        response = client.get("/api/v1/search/instructors", params={"q": "piano lessons under $50 near brooklyn"})
 
         assert response.status_code == 200
         data = response.json()
@@ -71,13 +71,13 @@ class TestSearchAPI:
     def test_search_instructors_invalid_limit(self, client: TestClient):
         """Test search with invalid limit values."""
         # Limit too high
-        response = client.get("/api/search/instructors", params={"q": "yoga", "limit": 1000})
+        response = client.get("/api/v1/search/instructors", params={"q": "yoga", "limit": 1000})
         assert response.status_code == 422  # Validation error
 
         # Limit too low
-        response = client.get("/api/search/instructors", params={"q": "yoga", "limit": 0})
+        response = client.get("/api/v1/search/instructors", params={"q": "yoga", "limit": 0})
         assert response.status_code == 422  # Validation error
 
         # Negative limit
-        response = client.get("/api/search/instructors", params={"q": "yoga", "limit": -1})
+        response = client.get("/api/v1/search/instructors", params={"q": "yoga", "limit": -1})
         assert response.status_code == 422  # Validation error

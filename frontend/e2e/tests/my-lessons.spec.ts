@@ -54,7 +54,7 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock search history - this is required for homepage
-  await page.route('**/api/search-history*', async (route) => {
+  await page.route('**/api/v1/search-history*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -545,7 +545,7 @@ test.describe('My Lessons Page', () => {
     });
 
     // Mock other required endpoints for the homepage
-    await context.route('**/api/search-history*', async (route) => {
+    await context.route('**/api/v1/search-history*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

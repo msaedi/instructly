@@ -30,7 +30,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 1. Mock search history (for homepage)
-    await context.route('**/api/search-history/**', async (route) => {
+    await context.route('**/api/v1/search-history/**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -95,7 +95,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 2. Mock search results with correct natural language API structure
-    await context.route('**/api/search/instructors**', async (route) => {
+    await context.route('**/api/v1/search/instructors**', async (route) => {
       const url = route.request().url();
       const searchQuery = new URL(url).searchParams.get('q');
 

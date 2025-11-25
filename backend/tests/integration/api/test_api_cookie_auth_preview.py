@@ -40,7 +40,7 @@ def test_preview_session_cookie_powers_api_routes(
     client.cookies.clear()
     _set_session_cookie(client, test_student)
 
-    addresses = client.get("/api/addresses/me")
+    addresses = client.get("/api/v1/addresses/me")
     assert addresses.status_code == 200
 
     referrals = client.get("/api/referrals/me")
