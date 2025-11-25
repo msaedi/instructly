@@ -19,7 +19,7 @@
     "e2e/**"
   ],
   "ignore": ["types/reference/**","reference/dormant/**","**/*.stories.@(ts|tsx)","examples/**"],
-  "ignoreBinaries": ["jq","python","lint-staged"],
+  "ignoreBinaries": ["jq","python","lint-staged","spectral"],
   "ignoreDependencies": [
     "@tanstack/react-query-devtools",
     "eslint-config-next",

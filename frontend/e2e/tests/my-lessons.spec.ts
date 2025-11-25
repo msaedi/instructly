@@ -62,8 +62,8 @@ async function setupMocksAndAuth(page: Page) {
     });
   });
 
-  // Mock upcoming lessons for homepage (returns paginated format, matching BookingListResponse)
-  await page.route('**/bookings/upcoming*', async (route) => {
+  // Mock v1 upcoming lessons for homepage (returns paginated format, matching BookingListResponse)
+  await page.route('**/api/v1/bookings/upcoming*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -105,8 +105,8 @@ async function setupMocksAndAuth(page: Page) {
     });
   });
 
-  // Mock bookings endpoint for completed lessons (BookAgain component)
-  await page.route('**/bookings/?status=COMPLETED*', async (route) => {
+  // Mock v1 bookings endpoint for completed lessons (BookAgain component)
+  await page.route('**/api/v1/bookings?status=COMPLETED*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -121,8 +121,8 @@ async function setupMocksAndAuth(page: Page) {
     });
   });
 
-  // Precise mock for history list used by My Lessons
-  await page.route('**/bookings?*exclude_future_confirmed=true*', async (route) => {
+  // Precise mock for history list used by My Lessons (v1 bookings)
+  await page.route('**/api/v1/bookings?*exclude_future_confirmed=true*', async (route) => {
     const url = new URL(route.request().url());
     await route.fulfill({
       status: 200,
@@ -158,8 +158,8 @@ async function setupMocksAndAuth(page: Page) {
 
   // (Reverted) Do not intercept generic /bookings?* here; specific mocks below handle scenarios
 
-  // Mock upcoming lessons and booking details (ULID-friendly)
-  await page.route('**/bookings/*', async (route) => {
+  // Mock v1 booking details (ULID-friendly)
+  await page.route('**/api/v1/bookings/*', async (route) => {
     const url = new URL(route.request().url());
     const pathname = url.pathname;
 
@@ -553,7 +553,7 @@ test.describe('My Lessons Page', () => {
       });
     });
 
-    await context.route('**/bookings/upcoming*', async (route) => {
+    await context.route('**/api/v1/bookings/upcoming*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -579,7 +579,7 @@ test.describe('My Lessons Page', () => {
       });
     });
 
-    await context.route('**/bookings/?status=COMPLETED*', async (route) => {
+    await context.route('**/api/v1/bookings?status=COMPLETED*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -740,8 +740,8 @@ test.describe('My Lessons Page', () => {
   });
 
   test('should show empty state when no upcoming lessons', async ({ page }) => {
-    // Override mock to return empty lessons
-    await page.route('**/bookings/upcoming*', async (route) => {
+    // Override mock to return empty lessons (v1 bookings)
+    await page.route('**/api/v1/bookings/upcoming*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -755,7 +755,7 @@ test.describe('My Lessons Page', () => {
         }),
       });
     });
-    await page.route('**/bookings/*', async (route) => {
+    await page.route('**/api/v1/bookings/*', async (route) => {
       const url = new URL(route.request().url());
       const pathname = url.pathname;
       // Let the specific '/bookings/upcoming' empty override handle that path
@@ -816,8 +816,8 @@ test.describe('My Lessons Page', () => {
   });
 
   test('should show empty state message when no upcoming lessons', async ({ page }) => {
-    // Mock empty upcoming but leave history populated
-    await page.route('**/bookings/upcoming*', async (route) => {
+    // Mock empty upcoming but leave history populated (v1 bookings)
+    await page.route('**/api/v1/bookings/upcoming*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -831,7 +831,7 @@ test.describe('My Lessons Page', () => {
         }),
       });
     });
-    await page.route('**/bookings/*', async (route) => {
+    await page.route('**/api/v1/bookings/*', async (route) => {
       const url = new URL(route.request().url());
       const pathname = url.pathname;
       if (pathname.endsWith('/bookings/upcoming')) {
@@ -1123,8 +1123,8 @@ test.describe('Error Handling', () => {
     });
 
     const authPattern = '**/auth/me';
-    const historyPattern = '**/bookings?*exclude_future_confirmed=true*';
-    const upcomingPattern = '**/bookings/upcoming*';
+    const historyPattern = '**/api/v1/bookings?*exclude_future_confirmed=true*';
+    const upcomingPattern = '**/api/v1/bookings/upcoming*';
 
     const authHandler = async (route: Route) => {
       await route.fulfill({
@@ -1257,8 +1257,8 @@ test.describe('Error Handling', () => {
       }
     });
 
-    // Also mock the bookings for after login
-    await page.route('**/bookings/*', async (route) => {
+    // Also mock the v1 bookings for after login
+    await page.route('**/api/v1/bookings/*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

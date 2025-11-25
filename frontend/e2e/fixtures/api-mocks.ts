@@ -853,8 +853,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   // NOTE: Removed generic '**/api/**' catch-all to avoid double-handling routes.
   // Specific mocks above handle needed endpoints; others will fall through to network.
 
-  // Mock booking creation to allow confirmation step to proceed
-  await routeContext.route('**/bookings**', async (route: Route) => {
+  // Mock v1 booking creation to allow confirmation step to proceed
+  await routeContext.route('**/api/v1/bookings**', async (route: Route) => {
     const req = route.request();
     if (req.method() === 'POST') {
       await route.fulfill({
@@ -880,8 +880,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     await route.continue();
   });
 
-  // Also register page-level booking route to ensure interception regardless of context routing
-  await page.route('**/bookings*', async (route: Route) => {
+  // Also register page-level v1 booking route to ensure interception regardless of context routing
+  await page.route('**/api/v1/bookings*', async (route: Route) => {
     const req = route.request();
     if (req.method() === 'POST') {
       await route.fulfill({

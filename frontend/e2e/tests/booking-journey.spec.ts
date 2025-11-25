@@ -38,8 +38,8 @@ test.describe('Student Booking Journey', () => {
       });
     });
 
-    // 1b. Mock upcoming bookings for homepage (paginated format)
-    await context.route('**/bookings/upcoming**', async (route) => {
+    // 1b. Mock v1 upcoming bookings for homepage (paginated format)
+    await context.route('**/api/v1/bookings/upcoming**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -246,8 +246,8 @@ test.describe('Student Booking Journey', () => {
       });
     });
 
-    // 5. Mock booking creation
-    await context.route('**/api/bookings', async (route) => {
+    // 5. Mock v1 booking creation
+    await context.route('**/api/v1/bookings', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 201,

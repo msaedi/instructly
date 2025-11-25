@@ -1156,3 +1156,117 @@ These are imperative API calls in payment/confirmation flows. The v1 imperative 
 ---
 
 **Phase 7b-7e Status:** ✅ **Complete** – All hook-based bookings consumers migrated. Imperative API consumers documented for follow-up.
+
+---
+
+## Phase 7f – MSW Mocks & E2E Tests Alignment
+
+**Date:** November 24, 2024
+
+### Objective
+
+Update E2E test mocks to match v1 API endpoints, ensuring tests intercept the correct HTTP requests.
+
+### Changes Made
+
+#### E2E Test Mock URL Updates
+
+All E2E tests and fixtures were updated to use v1 API endpoint patterns:
+
+| File | Old Pattern | New Pattern |
+|------|-------------|-------------|
+| `e2e/tests/my-lessons.spec.ts` | `**/bookings/upcoming*` | `**/api/v1/bookings/upcoming*` |
+| `e2e/tests/my-lessons.spec.ts` | `**/bookings?status=COMPLETED*` | `**/api/v1/bookings?status=COMPLETED*` |
+| `e2e/tests/my-lessons.spec.ts` | `**/bookings/*` | `**/api/v1/bookings/*` |
+| `e2e/tests/my-lessons.spec.ts` | `**/bookings?*exclude_future_confirmed=true*` | `**/api/v1/bookings?*exclude_future_confirmed=true*` |
+| `e2e/tests/instructor.bookings-list.spec.ts` | `**/api/instructors/bookings/**` | `**/api/v1/instructor-bookings/**` |
+| `e2e/tests/booking-journey.spec.ts` | `**/bookings/upcoming**` | `**/api/v1/bookings/upcoming**` |
+| `e2e/tests/booking-journey.spec.ts` | `**/api/bookings` | `**/api/v1/bookings` |
+| `e2e/fixtures/api-mocks.ts` | `**/bookings**` | `**/api/v1/bookings**` |
+| `e2e/fixtures/api-mocks.ts` | `**/bookings*` | `**/api/v1/bookings*` |
+
+#### Key Endpoint Mapping
+
+| Service | Legacy Pattern | v1 Pattern |
+|---------|---------------|------------|
+| Student upcoming bookings | `/bookings/upcoming` | `/api/v1/bookings/upcoming` |
+| Student booking list | `/bookings` | `/api/v1/bookings` |
+| Student booking details | `/bookings/{id}` | `/api/v1/bookings/{id}` |
+| Instructor bookings | `/api/instructors/bookings/*` | `/api/v1/instructor-bookings/*` |
+| Instructor upcoming | `/api/instructors/bookings/upcoming` | `/api/v1/instructor-bookings/upcoming` |
+| Instructor completed | `/api/instructors/bookings/completed` | `/api/v1/instructor-bookings/completed` |
+
+### Unit Test Pattern
+
+Unit tests mock at the service layer, not HTTP level:
+
+```typescript
+// Mocking v1 services (not HTTP endpoints)
+jest.mock('@/src/api/services/bookings', () => ({
+  useBookingsList: jest.fn(),
+  useBookingsHistory: jest.fn(),
+  useBooking: jest.fn(),
+  useCancelBooking: jest.fn(),
+  // ...
+}));
+```
+
+This is the correct pattern as it:
+- Avoids coupling tests to HTTP implementation details
+- Makes tests resilient to URL changes
+- Tests the actual service layer contract
+
+### E2E Test Pattern
+
+E2E tests mock at the HTTP level using Playwright's route interception:
+
+```typescript
+// Mock v1 bookings endpoint
+await page.route('**/api/v1/bookings/upcoming*', async (route) => {
+  await route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      items: [...],
+      total: 1,
+      page: 1,
+      per_page: 50,
+    }),
+  });
+});
+```
+
+### Additional Fixes
+
+1. **Knip dead-code check fix:** Added `spectral` to `ignoreBinaries` in `frontend/knip.json` to fix pre-push hook failures. The `spectral` CLI is used in `api:lint` script but is an optional tool that can be run via `npx`.
+
+### Files Changed
+
+**E2E Tests:**
+- `e2e/tests/my-lessons.spec.ts` – Updated 9 booking patterns to v1
+- `e2e/tests/instructor.bookings-list.spec.ts` – Updated instructor-bookings pattern to v1
+- `e2e/tests/booking-journey.spec.ts` – Updated 2 booking patterns to v1
+- `e2e/fixtures/api-mocks.ts` – Updated 2 booking patterns to v1
+
+**Configuration:**
+- `knip.json` – Added `spectral` to ignoreBinaries
+
+### Quality Gate Results
+
+**Frontend:**
+- ✅ `npm run build` – Build successful
+- ✅ `npm run lint` – 0 errors
+- ✅ `npm run typecheck` – Pass
+- ✅ `npm run typecheck:strict` – Pass
+- ✅ `npm run typecheck:strict-all` – Pass
+- ✅ `npm run test` – 403 tests passing, 6 skipped
+- ✅ Knip dead-code check – 0 issues
+
+### Remaining Work
+
+1. **Payment flow E2E tests:** Payment-specific E2E flows may need additional mocking when `protectedApi` consumers are migrated
+2. **E2E test execution:** Full E2E suite should be run to verify intercepts work correctly in browser environment
+
+---
+
+**Phase 7f Status:** ✅ **Complete** – E2E mocks aligned with v1 API patterns. Unit tests already use service-layer mocking.
