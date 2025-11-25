@@ -4,17 +4,16 @@ import PaymentConfirmation from '../PaymentConfirmation';
 import { PaymentMethod, PaymentStatus } from '../../types';
 import { BookingType } from '@/features/shared/types/booking';
 
-const mockGetBookings = jest.fn();
+const mockFetchBookingsList = jest.fn();
 
 jest.mock('@/lib/pricing/usePricingFloors', () => ({
   usePricingFloors: () => ({ floors: null }),
   usePricingConfig: () => ({ config: { student_fee_pct: 0.12 }, isLoading: false, error: null }),
 }));
 
-jest.mock('@/features/shared/api/client', () => ({
-  protectedApi: {
-    getBookings: (...args: Parameters<typeof mockGetBookings>) => mockGetBookings(...args),
-  },
+// Mock v1 bookings service for conflict check
+jest.mock('@/src/api/services/bookings', () => ({
+  fetchBookingsList: (...args: unknown[]) => mockFetchBookingsList(...args),
 }));
 
 jest.mock('@/features/shared/api/http', () => ({
@@ -128,11 +127,14 @@ function createBooking(overrides: Partial<BookingWithMetadata> = {}): BookingWit
   };
 }
 
+// v1 fetchBookingsList returns PaginatedBookingResponse directly
 const resolveBookings = (items: Array<Record<string, unknown>>) =>
   Promise.resolve({
-    data: {
-      items,
-    },
+    items,
+    total: items.length,
+    page: 1,
+    page_size: 50,
+    pages: 1,
   });
 
 const flushConflicts = async () => {
@@ -147,7 +149,7 @@ describe('PaymentConfirmation conflict checks', () => {
 
   beforeEach(() => {
     jest.useFakeTimers();
-    mockGetBookings.mockReset();
+    mockFetchBookingsList.mockReset();
     fetchMock = jest
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue({
@@ -163,7 +165,7 @@ describe('PaymentConfirmation conflict checks', () => {
   });
 
   it('disables CTA when an overlapping booking exists', async () => {
-    mockGetBookings.mockResolvedValueOnce(
+    mockFetchBookingsList.mockImplementation(() =>
       resolveBookings([
         {
           booking_date: '2025-05-06',
@@ -185,13 +187,14 @@ describe('PaymentConfirmation conflict checks', () => {
 
     await flushConflicts();
 
-    expect(mockGetBookings).toHaveBeenCalledWith({ upcoming: true, signal: expect.any(AbortSignal) });
+    // v1 service uses upcoming_only parameter
+    expect(mockFetchBookingsList).toHaveBeenCalledWith({ upcoming_only: true });
     const button = await screen.findByRole('button', { name: /conflict/i });
     expect(button).toBeDisabled();
   });
 
   it('keeps CTA enabled when there is no overlap', async () => {
-    mockGetBookings.mockResolvedValueOnce(
+    mockFetchBookingsList.mockImplementation(() =>
       resolveBookings([
         {
           booking_date: '2025-05-06',

@@ -27,7 +27,13 @@ jest.mock('next/navigation', () => ({
   })),
 }));
 
-// Mock API client used by the modal
+// Mock v1 bookings service used by the modal
+const mockRescheduleBookingImperative = jest.fn();
+jest.mock('@/src/api/services/bookings', () => ({
+  rescheduleBookingImperative: (...args: unknown[]) => mockRescheduleBookingImperative(...args),
+}));
+
+// Mock API client used by availability modal
 jest.mock('@/features/shared/api/client', () => {
   const { format } = jest.requireActual('date-fns') as typeof dateFns;
   const today = new Date();
@@ -58,9 +64,6 @@ jest.mock('@/features/shared/api/client', () => {
           },
         },
       }),
-    },
-    protectedApi: {
-      rescheduleBooking: jest.fn().mockResolvedValue({ status: 200, data: { id: '01KNEWBOOKINGID' } }),
     },
   };
 });
@@ -114,6 +117,8 @@ describe('RescheduleModal', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default successful reschedule response
+    mockRescheduleBookingImperative.mockResolvedValue({ id: '01KNEWBOOKINGID123456789' });
   });
 
   it('renders modal when isOpen is true', async () => {

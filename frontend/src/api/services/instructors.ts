@@ -210,6 +210,32 @@ export function useGoLiveInstructor() {
 }
 
 /**
+ * Imperative API functions for use in useEffect or other non-hook contexts.
+ *
+ * Use these when you need to call the API directly without React Query hooks.
+ */
+
+/**
+ * Fetch instructor profile imperatively.
+ *
+ * @example
+ * ```tsx
+ * const instructor = await fetchInstructorProfile('01ABC...');
+ * ```
+ */
+export { getInstructorApiV1InstructorsInstructorIdGet as fetchInstructorProfile } from '@/src/api/generated/instructors-v1/instructors-v1';
+
+/**
+ * Fetch instructor list imperatively.
+ *
+ * @example
+ * ```tsx
+ * const instructors = await fetchInstructorsList({ service_catalog_id: 'abc' });
+ * ```
+ */
+export { listInstructorsApiV1InstructorsGet as fetchInstructorsList } from '@/src/api/generated/instructors-v1/instructors-v1';
+
+/**
  * Type exports for convenience
  */
 export type {

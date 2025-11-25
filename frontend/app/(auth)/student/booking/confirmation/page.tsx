@@ -3,9 +3,21 @@
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
-import { protectedApi } from '@/features/shared/api/client';
-import type { Booking } from '@/types/booking';
+import { fetchBookingDetails } from '@/src/api/services/bookings';
+import type { BookingResponse } from '@/src/api/generated/instructly.schemas';
 import { at } from '@/lib/ts/safe';
+
+// Map BookingResponse to component-expected shape
+type Booking = BookingResponse & {
+  instructor?: {
+    full_name?: string;
+    first_name?: string;
+    last_initial?: string;
+  };
+  service?: {
+    skill?: string;
+  };
+};
 
 function BookingConfirmationContent() {
   const searchParams = useSearchParams();
@@ -16,7 +28,7 @@ function BookingConfirmationContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchBooking = async () => {
+    const loadBooking = async () => {
       if (!bookingId) {
         setError('No booking ID provided');
         setLoading(false);
@@ -24,13 +36,9 @@ function BookingConfirmationContent() {
       }
 
       try {
-        const response = await protectedApi.getBooking(bookingId);
-        if (response.error) {
-          throw new Error(response.error);
-        }
-        if (response.data) {
-          setBooking(response.data as unknown as Booking);
-        }
+        // Use v1 bookings service
+        const response = await fetchBookingDetails(bookingId);
+        setBooking(response as Booking);
       } catch {
         setError('Failed to load booking details');
       } finally {
@@ -38,7 +46,7 @@ function BookingConfirmationContent() {
       }
     };
 
-    void fetchBooking();
+    void loadBooking();
   }, [bookingId]);
 
   const generateICSFile = () => {

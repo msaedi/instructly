@@ -6,10 +6,9 @@ import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, Info } from 'l
 import { BookingPayment, PaymentMethod } from '../types';
 import { BookingType } from '@/features/shared/types/booking';
 import { format } from 'date-fns';
-import { protectedApi, getPlaceDetails } from '@/features/shared/api/client';
-import { httpJson } from '@/features/shared/api/http';
-import { withApiBase } from '@/lib/apiBase';
-import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instructorProfile';
+import { getPlaceDetails } from '@/features/shared/api/client';
+import { fetchBookingsList } from '@/src/api/services/bookings';
+import { fetchInstructorProfile } from '@/src/api/services/instructors';
 import type { InstructorService } from '@/types/instructor';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
@@ -1026,15 +1025,9 @@ export default function PaymentConfirmation({
         items = cached.items;
       } else {
         try {
-          const response = await protectedApi.getBookings({ upcoming: true, signal: controller.signal });
-          if (response.error) {
-            const errMessage =
-              typeof response.error === 'string'
-                ? response.error
-                : (response.error as { message?: string })?.message ?? 'Failed to load bookings';
-            throw new Error(errMessage);
-          }
-          items = (response.data?.items as ConflictListItem[]) ?? [];
+          // Use v1 bookings service
+          const response = await fetchBookingsList({ upcoming_only: true });
+          items = (response.items as ConflictListItem[]) ?? [];
           conflictCacheRef.current.set(cacheKey, {
             fetchedAt: Date.now(),
             items,
@@ -1104,22 +1097,18 @@ export default function PaymentConfirmation({
 
   // Fetch instructor profile to get the actual service duration options
   useEffect(() => {
-    const fetchInstructorProfile = async () => {
+    const loadInstructorProfile = async () => {
       if (!booking.instructorId) return;
 
       setLoadingInstructor(true);
       try {
-        const data = await httpJson<Record<string, unknown>>(
-          withApiBase(`/instructors/${booking.instructorId}`),
-          { method: 'GET' },
-          loadInstructorProfileSchema,
-          { endpoint: 'GET /instructors/:id' }
-        );
-        const services = (data as { services?: unknown[] }).services || [];
+        // Use v1 instructors service
+        const data = await fetchInstructorProfile(booking.instructorId);
+        const services = data.services || [];
         if (services.length) {
-          setInstructorServices(services.map((service: unknown) => ({
-            ...(typeof service === 'object' && service !== null ? service : {}),
-            description: (service as Record<string, unknown>)?.['description'] ?? null
+          setInstructorServices(services.map((service) => ({
+            ...service,
+            description: service.description ?? null
           } as InstructorService)));
           logger.debug('Fetched instructor services', {
             services,
@@ -1133,7 +1122,7 @@ export default function PaymentConfirmation({
       }
     };
 
-    void fetchInstructorProfile();
+    void loadInstructorProfile();
   }, [booking.instructorId]);
 
 
