@@ -68,7 +68,7 @@ export async function fetchPricingPreview(
   options: { signal?: AbortSignal | null } = {}
 ): Promise<PricingPreviewResponse> {
   const normalizedCredits = Math.max(0, Math.round(appliedCreditCents));
-  const endpoint = `/api/bookings/${bookingId}/pricing?applied_credit_cents=${normalizedCredits}`;
+  const endpoint = `/api/v1/bookings/${bookingId}/pricing?applied_credit_cents=${normalizedCredits}`;
   try {
     return await fetchJson<PricingPreviewResponse>(endpoint, { signal: options.signal ?? null });
   } catch (error) {

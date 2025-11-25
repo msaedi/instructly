@@ -60,6 +60,53 @@ The frontend uses TypeScript's strictest configuration with ZERO errors allowed:
 
 **NEVER import generated types directly - always use the shim.**
 
+### API Endpoint Migration Checklist (CRITICAL)
+
+**Problem This Solves:** When migrating endpoints from `/api/...` to `/api/v1/...`, it's easy to create new service layers but miss existing consumers that continue calling old endpoints, resulting in 404 errors at runtime.
+
+**Root Cause:** The codebase has multiple API client patterns:
+- Generated Orval hooks in `src/api/generated/`
+- Service layers in `src/api/services/`
+- Legacy imperative clients in `services/api/`
+- Direct fetch calls in components
+- E2E test mocks
+
+**MANDATORY Migration Steps:**
+
+1. **Before migration - Find ALL consumers:**
+   ```bash
+   # Search for ALL references to the endpoint path
+   grep -r "/api/reviews" frontend/ --include="*.ts" --include="*.tsx" | grep -v node_modules | grep -v ".d.ts"
+   ```
+
+2. **Update ALL consumers (not just create new ones):**
+   - Generated Orval clients (`src/api/generated/`)
+   - Service layer files (`src/api/services/` AND `services/api/`)
+   - Direct fetch calls in components
+   - API client constants (`features/shared/api/client.ts`)
+
+3. **Update ALL test mocks:**
+   - E2E fixtures (`e2e/fixtures/api-mocks.ts`)
+   - E2E test files (`e2e/tests/*.spec.ts`)
+   - Unit test mocks
+
+4. **Verify no legacy references remain:**
+   ```bash
+   # This should return NO results for migrated endpoints
+   grep -r "/api/reviews/" frontend/ --include="*.ts" --include="*.tsx" | grep -v node_modules | grep -v ".d.ts" | grep -v "/api/v1/"
+   ```
+
+5. **Test in browser:** Navigate to pages that use the endpoints and check Network tab for 404s.
+
+**Example of what goes wrong:**
+```
+❌ Created: src/api/services/reviews.ts (new v1 hooks)
+❌ Missed:  services/api/reviews.ts (legacy client still calling /api/reviews/)
+❌ Result:  Components using legacy client get 404 errors
+```
+
+**The rule:** A migration is NOT complete until `grep` for the old endpoint path returns ZERO results in non-generated TypeScript files.
+
 ### Dual-Mode Request Validation
 Backend supports two validation modes for request DTOs:
 

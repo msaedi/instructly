@@ -63,7 +63,7 @@ async function mockDashboardApis(page: Page) {
     });
   });
 
-  await page.route('**/api/messages/unread-count', async (route) => {
+  await page.route('**/api/v1/messages/unread-count', async (route) => {
     await respondJson(route, { unread_count: 0, user_id: instructorUser.id });
   });
 
@@ -93,7 +93,7 @@ async function mockDashboardApis(page: Page) {
     });
   });
 
-  await page.route('**/api/reviews/instructor/*/ratings', async (route) => {
+  await page.route('**/api/v1/reviews/instructor/*/ratings', async (route) => {
     await respondJson(route, {
       overall: { rating: 4.53, total_reviews: 3, display_rating: '4.5' },
       by_service: [],

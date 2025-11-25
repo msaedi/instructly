@@ -74,9 +74,9 @@ export const PROTECTED_ENDPOINTS = {
   },
   instructor: {
     bookings: {
-      list: '/api/instructors/bookings/',
-      completed: '/api/instructors/bookings/completed',
-      upcoming: '/api/instructors/bookings/upcoming',
+      list: '/api/v1/instructor-bookings/',
+      completed: '/api/v1/instructor-bookings/completed',
+      upcoming: '/api/v1/instructor-bookings/upcoming',
     },
   },
 } as const;

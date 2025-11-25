@@ -1091,7 +1091,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // Reviews endpoints (ratings, recent, search-rating)
-  await routeContext.route('**/api/reviews/instructor/**', async (route: Route) => {
+  await routeContext.route('**/api/v1/reviews/instructor/**', async (route: Route) => {
     const url = route.request().url();
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     if (url.includes('/ratings')) {
