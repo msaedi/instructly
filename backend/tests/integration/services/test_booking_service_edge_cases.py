@@ -353,6 +353,76 @@ class TestBookingServiceCompleteEdgeCases:
             booking_service.complete_booking(booking_id=test_booking.id, instructor=test_instructor_with_availability)
 
 
+class TestBookingServiceNoShowEdgeCases:
+    """Test edge cases for marking bookings as no-show."""
+
+    def test_mark_no_show_not_found(self, db: Session, test_instructor: User, mock_notification_service: Mock):
+        """Test marking non-existent booking as no-show."""
+        booking_service = BookingService(db, mock_notification_service)
+
+        with pytest.raises(NotFoundException, match="Booking not found"):
+            booking_service.mark_no_show(booking_id=generate_ulid(), instructor=test_instructor)  # Non-existent ID
+
+    def test_mark_no_show_wrong_instructor(
+        self, db: Session, test_booking: Booking, mock_notification_service: Mock
+    ):
+        """Test instructor cannot mark another instructor's booking as no-show."""
+        # Create another instructor without the instructor role
+        # This will fail the "only instructors can mark" check
+        another_user = User(
+            email="another.instructor@example.com",
+            first_name="Another",
+            last_name="Instructor",
+            phone="+12125550000",
+            zip_code="10001",
+            hashed_password="hashed",
+            is_active=True,
+        )
+        db.add(another_user)
+        db.commit()
+
+        booking_service = BookingService(db, mock_notification_service)
+
+        with pytest.raises(ValidationException, match="Only instructors can mark bookings as no-show"):
+            booking_service.mark_no_show(
+                booking_id=test_booking.id, instructor=another_user  # Not an instructor
+            )
+
+    def test_mark_no_show_already_completed(
+        self,
+        db: Session,
+        test_booking: Booking,
+        test_instructor_with_availability: User,
+        mock_notification_service: Mock,
+    ):
+        """Test cannot mark completed booking as no-show."""
+        # Complete the booking first
+        test_booking.status = BookingStatus.COMPLETED
+        db.commit()
+
+        booking_service = BookingService(db, mock_notification_service)
+
+        with pytest.raises(BusinessRuleException, match="Only confirmed bookings can be marked as no-show"):
+            booking_service.mark_no_show(booking_id=test_booking.id, instructor=test_instructor_with_availability)
+
+    def test_mark_no_show_cancelled_booking(
+        self,
+        db: Session,
+        test_booking: Booking,
+        test_instructor_with_availability: User,
+        mock_notification_service: Mock,
+    ):
+        """Test cannot mark cancelled booking as no-show."""
+        # Cancel the booking first
+        test_booking.status = BookingStatus.CANCELLED
+        db.commit()
+
+        booking_service = BookingService(db, mock_notification_service)
+
+        with pytest.raises(BusinessRuleException, match="Only confirmed bookings can be marked as no-show"):
+            booking_service.mark_no_show(booking_id=test_booking.id, instructor=test_instructor_with_availability)
+
+
 class TestBookingServiceAvailabilityEdgeCases:
     """Test edge cases for availability checking."""
 

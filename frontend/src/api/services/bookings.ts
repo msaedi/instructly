@@ -19,6 +19,7 @@ import {
   useCheckAvailabilityApiV1BookingsCheckAvailabilityPost,
   useRescheduleBookingApiV1BookingsBookingIdReschedulePost,
   useCompleteBookingApiV1BookingsBookingIdCompletePost,
+  useMarkBookingNoShowApiV1BookingsBookingIdNoShowPost,
 } from '@/src/api/generated/bookings-v1/bookings-v1';
 import type {
   GetBookingsApiV1BookingsGetParams,
@@ -345,6 +346,28 @@ export function useCompleteBooking() {
 }
 
 /**
+ * Mark booking as no-show mutation (instructor only).
+ *
+ * Marks a booking as no-show when the student didn't attend.
+ *
+ * @example
+ * ```tsx
+ * function NoShowButton({ bookingId }: { bookingId: string }) {
+ *   const markNoShow = useMarkBookingNoShow();
+ *
+ *   const handleNoShow = async () => {
+ *     await markNoShow.mutateAsync({ bookingId });
+ *   };
+ *
+ *   return <button onClick={handleNoShow}>Mark No-Show</button>;
+ * }
+ * ```
+ */
+export function useMarkBookingNoShow() {
+  return useMarkBookingNoShowApiV1BookingsBookingIdNoShowPost();
+}
+
+/**
  * Imperative API functions for use in useEffect or other non-hook contexts.
  *
  * Use these when you need to call the API directly without React Query hooks.
@@ -410,6 +433,16 @@ export { cancelBookingApiV1BookingsBookingIdCancelPost as cancelBookingImperativ
  * ```
  */
 export { rescheduleBookingApiV1BookingsBookingIdReschedulePost as rescheduleBookingImperative } from '@/src/api/generated/bookings-v1/bookings-v1';
+
+/**
+ * Mark a booking as no-show imperatively.
+ *
+ * @example
+ * ```tsx
+ * await markBookingNoShowImperative('01ABC...');
+ * ```
+ */
+export { markBookingNoShowApiV1BookingsBookingIdNoShowPost as markBookingNoShowImperative } from '@/src/api/generated/bookings-v1/bookings-v1';
 
 /**
  * Type exports for convenience

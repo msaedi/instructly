@@ -148,8 +148,10 @@ def test_api_v1_messages_schema_compliance(case):
 
 
 # Additional test for all /api/v1/** endpoints (not just specific domains)
-# Can be enabled later when ready for broader testing
-@pytest.mark.skip(reason="Broader API v1 testing - enable when ready")
+# Reserved for nightly/CI contract suite - see architecture doc for details
+@pytest.mark.skip(
+    reason="Skipped: full-API Schemathesis fuzzing - reserved for nightly contract suite"
+)
 @schema.include(path_regex="/api/v1/.*").parametrize()
 @settings(max_examples=5, deadline=None)
 @pytest.mark.schemathesis
@@ -158,6 +160,11 @@ def test_api_v1_all_endpoints_schema_compliance(case):
     Test that all /api/v1/** endpoints conform to OpenAPI schema.
 
     This is a broader test that covers all v1 endpoints.
-    Currently skipped to keep initial test scope focused.
+    Reserved for nightly/CI contract suite due to:
+    - Most endpoints require authentication
+    - Full fuzzing is time-consuming
+    - Schema compliance already verified per-domain via integration tests
+
+    See: docs/architecture/api-refactor-phase-0-baseline.md for skip justification.
     """
     _run_schemathesis_case(case)

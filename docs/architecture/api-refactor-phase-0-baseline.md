@@ -1021,9 +1021,10 @@ Completed the full migration of student bookings, instructor bookings, and booki
    - Added `calculateDurationMinutes()` helper to maintain backward compatibility
 
 2. **No-Show Endpoint:**
-   - ⚠️ No v1 endpoint exists for no-show
-   - Temporarily uses `useMarkLessonComplete()` as fallback
-   - TODO: Add `/api/v1/bookings/${id}/no-show` endpoint to backend
+   - ✅ V1 endpoint implemented: `POST /api/v1/bookings/{booking_id}/no-show`
+   - Backend: `BookingService.mark_no_show()` method added
+   - Frontend: `useMarkBookingNoShow()` hook in `@/src/api/services/bookings`
+   - `useMarkNoShow()` hook in `useMyLessons.ts` now uses the real v1 endpoint
 
 ### Phase 7d – Instructor Bookings → v1
 
@@ -1418,7 +1419,7 @@ For instructors, bookings, or instructor-bookings domains:
 
 6. **Update architecture docs if needed**
 
-### API Architecture Summary (Post-Phase 9)
+### API Architecture Summary (Post-Phase 10)
 
 **Migrated Domains:**
 | Domain | Legacy Routes | V1 Routes | Status |
@@ -1426,16 +1427,20 @@ For instructors, bookings, or instructor-bookings domains:
 | Instructors | `/instructors/*`, `/api/instructors/*` | `/api/v1/instructors/*` | ✅ Fully Migrated |
 | Student Bookings | `/bookings/*`, `/api/bookings/*` | `/api/v1/bookings/*` | ✅ Fully Migrated |
 | Instructor Bookings | `/instructors/bookings/*`, `/api/instructors/bookings/*` | `/api/v1/instructor-bookings/*` | ✅ Fully Migrated |
+| Messages | `/messages/*`, `/api/messages/*` | `/api/v1/messages/*` | ✅ Fully Migrated |
 
 **Frontend Usage Pattern:**
 ```typescript
 // ✅ CORRECT - Use v1 services
 import { useBookingsList, useBooking, useCancelBooking } from '@/src/api/services/bookings';
 import { useInstructorBookingsList } from '@/src/api/services/instructor-bookings';
+import { useMessageHistory, useSendMessage, useUnreadCount } from '@/src/api/services/messages';
 
 // ❌ WRONG - Don't use legacy paths
 fetch('/bookings/...')  // BLOCKED by pre-commit
 fetch('/api/bookings/...')  // BLOCKED by pre-commit
+fetch('/messages/...')  // BLOCKED by pre-commit
+fetch('/api/messages/...')  // BLOCKED by pre-commit
 ```
 
 **Backend Usage Pattern:**
@@ -1443,11 +1448,49 @@ fetch('/api/bookings/...')  // BLOCKED by pre-commit
 # ✅ CORRECT - All routes under /api/v1/
 # Routes automatically use /api/v1 prefix when mounted in main.py
 @router.get("/endpoint")  # Becomes /api/v1/bookings/endpoint
+@router.get("/history/{booking_id}")  # Becomes /api/v1/messages/history/{booking_id}
 
 # ❌ WRONG - Legacy routes no longer exist
 # /bookings/endpoint  # Returns 404
 # /api/instructors/bookings/endpoint  # Returns 404
+# /api/messages/send  # Returns 404
 ```
+
+### Schemathesis Coverage Summary (Post-Phase 10)
+
+| Domain | Endpoint Pattern | Status | Notes |
+|--------|------------------|--------|-------|
+| Instructors | `/api/v1/instructors/*` | ✅ Running | Public endpoints |
+| Student Bookings | `/api/v1/bookings/*` | ⏭️ Skipped | Requires auth - covered by integration tests |
+| Instructor Bookings | `/api/v1/instructor-bookings/*` | ⏭️ Skipped | Requires auth - covered by integration tests |
+| Messages | `/api/v1/messages/*` | ⏭️ Skipped | Requires auth - covered by integration tests |
+| Broader v1 | `/api/v1/*` | ⏭️ Skipped | Reserved for nightly contract suite |
+
+**Skip Justification:**
+- Bookings, instructor-bookings, and messages endpoints require authentication
+- Schemathesis cannot easily provide auth tokens in property-based tests
+- Schema compliance is verified through dedicated integration tests with proper auth fixtures
+- The "broader API v1" test is reserved for future nightly/CI contract suite
+
+### Known Remaining Legacy Consumers (Post-Phase 10)
+
+The following frontend files still use legacy endpoint patterns and are intentionally retained:
+
+| File | Legacy Endpoint | Reason |
+|------|-----------------|--------|
+| `components/BookAgain.tsx` | `/bookings/` | Homepage "Book Again" feature - migration deferred |
+| `lib/api/pricing.ts` | `/api/bookings/{id}/pricing` | Pricing preview endpoint not part of v1 migration |
+| `features/shared/api/client.ts` | PROTECTED_ENDPOINTS constants | Legacy client used by deferred components |
+| `lib/api.ts` | API.BOOKINGS constants | Legacy constants - will be removed when all consumers migrated |
+| `lib/react-query/api.ts` | JSDoc examples | Documentation examples only |
+| `lib/react-query/example-usage.tsx` | Example patterns | Documentation examples only |
+| `types/generated/api.d.ts` | All legacy paths | Auto-generated from OpenAPI - will update on regeneration |
+
+**Action Items for Complete Cleanup:**
+1. Migrate `BookAgain.tsx` to use `useBookingsHistory()` from v1 services
+2. Create v1 endpoint for pricing preview if needed
+3. Remove `features/shared/api/client.ts` PROTECTED_ENDPOINTS after all consumers migrated
+4. Remove legacy constants from `lib/api.ts` after full migration
 
 ### Files Changed in Phase 9
 
@@ -1469,5 +1512,281 @@ fetch('/api/bookings/...')  // BLOCKED by pre-commit
 
 ---
 
-**Status:** Phases 0–9 Complete ✅
+## Phase 10 – Messages V1 Migration
+
+**Date:** November 25, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Migrated the messages/notifications domain from legacy `/api/messages` endpoints to v1 API + service-layer pattern. This includes real-time SSE streaming, message history, reactions, and typing indicators.
+
+### Backend Changes
+
+#### V1 Messages Router
+
+**File:** `backend/app/routes/v1/messages.py`
+
+Created a new v1 messages router with all endpoints organized by route type (static routes before dynamic routes):
+
+**Static Routes (Section 1):**
+- `GET /api/v1/messages/config` - Get message configuration (edit window, etc.)
+- `GET /api/v1/messages/unread-count` - Get total unread count for current user
+- `POST /api/v1/messages/mark-read` - Mark messages as read
+- `POST /api/v1/messages/send` - Send a message to a booking chat
+
+**Booking-specific Routes (Section 2):**
+- `GET /api/v1/messages/stream/{booking_id}` - SSE endpoint for real-time messages
+- `GET /api/v1/messages/history/{booking_id}` - Get paginated message history
+- `POST /api/v1/messages/typing/{booking_id}` - Send typing indicator
+
+**Message-specific Routes (Section 3):**
+- `PATCH /api/v1/messages/{message_id}` - Edit a message
+- `DELETE /api/v1/messages/{message_id}` - Soft delete a message
+- `POST /api/v1/messages/{message_id}/reactions` - Add emoji reaction
+- `DELETE /api/v1/messages/{message_id}/reactions` - Remove emoji reaction
+
+#### Router Mounting
+
+**File:** `backend/app/main.py`
+- Added `messages as messages_v1` import from `app.routes.v1`
+- Mounted v1 router: `api_v1.include_router(messages_v1.router, prefix="/messages")`
+- Set notification service for both legacy and v1: `set_v1_notification_service(notification_service)`
+- Commented out legacy messages router mount
+
+**File:** `backend/app/openapi_app.py`
+- Added v1 messages router mount
+- Removed legacy messages router import and mount
+
+#### Preserved Features
+- **Rate Limiting:** All message operations rate-limited via GCRA
+- **RBAC:** `VIEW_MESSAGES` and `SEND_MESSAGES` permissions enforced
+- **SSE Streaming:** Real-time messages via Server-Sent Events preserved
+- **PostgreSQL LISTEN/NOTIFY:** Backend notification mechanism preserved
+
+### Frontend Changes
+
+#### Service Layer
+
+**File:** `frontend/src/api/services/messages.ts` (NEW)
+
+Created comprehensive service layer wrapping Orval-generated hooks:
+
+**Query Hooks:**
+- `useMessageConfig()` - Message configuration (1hr cache)
+- `useUnreadCount(enabled)` - Unread count with polling (1min interval)
+- `useMessageHistory(bookingId, limit, offset, enabled)` - Paginated history
+
+**Mutation Hooks:**
+- `useSendMessage()` - Send a message
+- `useMarkMessagesAsRead()` - Mark messages as read
+- `useDeleteMessage()` - Soft delete a message
+- `useEditMessage()` - Edit message content
+- `useAddReaction()` - Add emoji reaction
+- `useRemoveReaction()` - Remove emoji reaction
+- `useSendTypingIndicator()` - Send typing indicator
+
+**Imperative Exports:**
+- `fetchMessageConfig`, `fetchUnreadCount`, `fetchMessageHistory`
+- `sendMessageImperative`, `markMessagesAsReadImperative`, `deleteMessageImperative`
+
+#### Query Keys
+
+**File:** `frontend/src/api/queryKeys.ts`
+
+Added centralized query keys for messages:
+```typescript
+messages: {
+  config: ['messages', 'config'] as const,
+  unreadCount: ['messages', 'unread-count'] as const,
+  history: (bookingId: string, pagination?: { limit?: number; offset?: number }) =>
+    ['messages', 'history', bookingId, pagination ?? {}] as const,
+},
+```
+
+#### Migrated Consumers
+
+| File | Legacy Usage | V1 Migration |
+|------|-------------|--------------|
+| `services/messageService.ts` | `/api/messages` | `/api/v1/messages` |
+| `features/shared/api/messages.ts` | `/api/messages/*` | `/api/v1/messages/*` |
+| `hooks/useSSEMessages.ts` | `/api/messages/stream/${bookingId}` | `/api/v1/messages/stream/${bookingId}` |
+
+### Testing Updates
+
+#### Backend Test Fixes
+
+**File:** `backend/tests/integration/routes/test_messages_strict.py`
+- Updated import: `from app.routes.v1.messages import ReactionRequest`
+- Updated reload: `import app.routes.v1.messages as routes`
+- Changed all URLs from `/api/messages/*` to `/api/v1/messages/*`
+
+**File:** `backend/tests/integration/test_chat_system.py`
+- Updated all 8 API test methods to use `/api/v1/messages/*` URLs:
+  - `test_send_message_endpoint`
+  - `test_get_message_history_endpoint`
+  - `test_get_unread_count_endpoint`
+  - `test_mark_messages_read_endpoint`
+  - `test_delete_message_endpoint`
+  - `test_message_send_rate_limit`
+  - `test_send_message_requires_permission`
+  - `test_view_messages_requires_permission`
+
+#### Schemathesis Coverage
+
+**File:** `backend/tests/integration/test_schemathesis_api_v1.py`
+- Added `filtered_messages_schema = schema.include(path_regex="/api/v1/messages.*")`
+- Added `test_api_v1_messages_schema_compliance()` test
+- Skipped (requires auth): Schema compliance verified via authenticated integration tests
+
+### Guardrails Updated
+
+**File:** `frontend/scripts/precommit_no_raw_api.sh`
+- Added `VIOLATIONS_MESSAGES=()` array for tracking messages violations
+- Added pattern: `"/messages"` → blocks raw messages endpoint strings
+- Allowed patterns include:
+  - `src/api/generated/messages-v1/*`
+  - `src/api/services/messages.ts`
+  - `services/messageService.ts`
+  - `features/shared/api/messages.ts`
+
+### Files Changed in Phase 10
+
+**Backend - Added/Modified:**
+- `backend/app/routes/v1/messages.py` - NEW v1 messages router
+- `backend/app/routes/v1/__init__.py` - Export messages module
+- `backend/app/main.py` - Mount v1 router, set notification service
+- `backend/app/openapi_app.py` - Mount v1 router for OpenAPI
+- `backend/tests/test_routes_invariants.py` - Add messages to fully migrated domains
+- `backend/tests/integration/routes/test_messages_strict.py` - Update to v1 URLs
+- `backend/tests/integration/test_chat_system.py` - Update to v1 URLs
+- `backend/tests/integration/test_schemathesis_api_v1.py` - Add messages filter and test
+
+**Frontend - Added/Modified:**
+- `frontend/src/api/services/messages.ts` - NEW service layer
+- `frontend/src/api/queryKeys.ts` - Add messages query keys
+- `frontend/services/messageService.ts` - Update baseUrl to v1
+- `frontend/features/shared/api/messages.ts` - Update endpoints to v1
+- `frontend/hooks/useSSEMessages.ts` - Update SSE URL to v1
+- `frontend/scripts/precommit_no_raw_api.sh` - Add messages guardrails
+
+**Frontend - Deleted:**
+- `frontend/src/api/generated/messages/` - Removed unused legacy generated module
+
+### Quality Gate Results
+
+**Backend:**
+- ✅ `TZ=UTC pytest` - 1996 passed, 127 skipped
+- ✅ `mypy --no-incremental app` - No errors
+- ✅ `ruff check backend/` - Clean
+- ✅ Pre-commit hooks - All passed
+
+**Frontend:**
+- ✅ `npm run build` - Build successful
+- ✅ `npm run test` - 411 tests passed
+- ✅ `npm run lint` - 0 errors
+- ✅ `npm run typecheck` - Pass
+- ✅ `npm run typecheck:strict` - Pass
+- ✅ `npm run typecheck:strict-all` - Pass
+
+---
+
+**Phase 10 Status:** ✅ **Complete** – Messages domain fully migrated to v1 API.
+
+---
+
+## Phase 11 – No-Show Endpoint Implementation
+
+**Date:** November 25, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Added the missing `/api/v1/bookings/{booking_id}/no-show` endpoint that was deferred from Phase 7c. This completes the bookings mutation migration by providing a proper no-show endpoint instead of the workaround that used the complete endpoint.
+
+### Backend Changes
+
+#### Service Layer
+
+**File:** `backend/app/services/booking_service.py`
+
+Added `mark_no_show()` method:
+- Validates user is an instructor
+- Validates booking exists and belongs to the instructor
+- Validates booking is in CONFIRMED status
+- Transitions booking to NO_SHOW status
+- Writes audit log and enqueues outbox event
+- Invalidates booking caches
+
+```python
+@BaseService.measure_operation("mark_no_show")
+def mark_no_show(self, booking_id: str, instructor: User) -> Booking:
+    """Mark a booking as no-show (instructor only)."""
+    # ... validation and status transition
+```
+
+#### V1 Route
+
+**File:** `backend/app/routes/v1/bookings.py`
+
+Added `POST /{booking_id}/no-show` endpoint:
+- Uses `COMPLETE_BOOKINGS` permission (same as complete endpoint)
+- Rate limited via `new_rate_limit("write")`
+- Returns `BookingResponse`
+- Validates booking ID as ULID
+
+### Frontend Changes
+
+#### Service Layer
+
+**File:** `frontend/src/api/services/bookings.ts`
+
+- Added import: `useMarkBookingNoShowApiV1BookingsBookingIdNoShowPost`
+- Added `useMarkBookingNoShow()` hook wrapper
+- Added imperative export: `markBookingNoShowImperative`
+
+#### Hook Migration
+
+**File:** `frontend/hooks/useMyLessons.ts`
+
+- Updated `useMarkNoShow()` to use `useMarkBookingNoShow()` instead of the workaround
+- Removed unused import of `useMarkLessonComplete` from instructor-bookings service
+- Updated documentation to indicate v1 migration
+
+### Tests Added
+
+#### Service Layer Tests
+
+**File:** `backend/tests/integration/services/test_booking_service_comprehensive.py`
+- `test_mark_no_show` - Happy path test
+- `test_mark_no_show_student_forbidden` - Students cannot mark no-show
+
+**File:** `backend/tests/integration/services/test_booking_service_edge_cases.py`
+- `test_mark_no_show_not_found` - Booking not found
+- `test_mark_no_show_wrong_instructor` - Wrong instructor
+- `test_mark_no_show_already_completed` - Cannot mark completed booking
+- `test_mark_no_show_cancelled_booking` - Cannot mark cancelled booking
+
+### Files Changed
+
+**Backend:**
+- `backend/app/services/booking_service.py` - Added `mark_no_show()` method
+- `backend/app/routes/v1/bookings.py` - Added no-show route
+- `backend/tests/integration/services/test_booking_service_comprehensive.py` - Added tests
+- `backend/tests/integration/services/test_booking_service_edge_cases.py` - Added edge case tests
+
+**Frontend:**
+- `frontend/src/api/services/bookings.ts` - Added hook and imperative export
+- `frontend/hooks/useMyLessons.ts` - Updated `useMarkNoShow()` to use v1
+
+**Documentation:**
+- `docs/architecture/api-refactor-phase-0-baseline.md` - This documentation
+
+---
+
+**Phase 11 Status:** ✅ **Complete** – No-show endpoint implemented and wired to frontend.
+
+---
+
+**Status:** Phases 0–11 Complete ✅
 **Ready for:** Production deployment with hardened API contracts

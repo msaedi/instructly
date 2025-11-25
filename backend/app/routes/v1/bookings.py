@@ -18,6 +18,7 @@ Endpoints:
     POST /{booking_id}/cancel - Cancel a booking
     POST /{booking_id}/reschedule - Reschedule a booking
     POST /{booking_id}/complete - Mark booking as completed
+    POST /{booking_id}/no-show - Mark booking as no-show (instructor only)
     POST /{booking_id}/confirm-payment - Confirm payment method
     PATCH /{booking_id}/payment-method - Update booking payment method
 """
@@ -812,6 +813,36 @@ async def complete_booking(
     """
     try:
         booking = booking_service.complete_booking(booking_id=booking_id, instructor=current_user)
+        return BookingResponse.from_booking(booking)
+    except DomainException as e:
+        handle_domain_exception(e)
+
+
+@router.post(
+    "/{booking_id}/no-show",
+    response_model=BookingResponse,
+    dependencies=[Depends(new_rate_limit("write"))],
+)
+async def mark_booking_no_show(
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
+    current_user: User = Depends(require_permission(PermissionName.COMPLETE_BOOKINGS)),
+    booking_service: BookingService = Depends(get_booking_service),
+) -> BookingResponse:
+    """
+    Mark a booking as no-show (student didn't attend).
+
+    Only the instructor for this booking can mark it as no-show.
+    The booking must be in CONFIRMED status.
+
+    Requires: COMPLETE_BOOKINGS permission (instructor only)
+    """
+    try:
+        booking = booking_service.mark_no_show(booking_id=booking_id, instructor=current_user)
         return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)

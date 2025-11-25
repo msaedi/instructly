@@ -908,6 +908,74 @@ export const useConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost = 
       return useMutation(mutationOptions, queryClient);
     }
     /**
+ * Mark a booking as no-show (student didn't attend).
+
+Only the instructor for this booking can mark it as no-show.
+The booking must be in CONFIRMED status.
+
+Requires: COMPLETE_BOOKINGS permission (instructor only)
+ * @summary Mark Booking No Show
+ */
+export const markBookingNoShowApiV1BookingsBookingIdNoShowPost = (
+    bookingId: string,
+ signal?: AbortSignal
+) => {
+
+
+      return customFetch<BookingResponse>(
+      {url: `/api/v1/bookings/${bookingId}/no-show`, method: 'POST', signal
+    },
+      );
+    }
+
+
+
+export const getMarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>, TError,{bookingId: string}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>, TError,{bookingId: string}, TContext> => {
+
+const mutationKey = ['markBookingNoShowApiV1BookingsBookingIdNoShowPost'];
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>, {bookingId: string}> = (props) => {
+          const {bookingId} = props ?? {};
+
+          return  markBookingNoShowApiV1BookingsBookingIdNoShowPost(bookingId,)
+        }
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationResult = NonNullable<Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>>
+
+    export type MarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationError = ErrorType<HTTPValidationError>
+
+    /**
+ * @summary Mark Booking No Show
+ */
+export const useMarkBookingNoShowApiV1BookingsBookingIdNoShowPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>, TError,{bookingId: string}, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
+        TError,
+        {bookingId: string},
+        TContext
+      > => {
+
+      const mutationOptions = getMarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
  * Update booking payment method and retry authorization immediately.
 
 - Verifies ownership (student)

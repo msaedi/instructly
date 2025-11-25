@@ -13,10 +13,8 @@ import {
   useCancelBooking,
   useRescheduleBooking,
   useCompleteBooking,
+  useMarkBookingNoShow,
 } from '@/src/api/services/bookings';
-import {
-  useMarkLessonComplete,
-} from '@/src/api/services/instructor-bookings';
 
 /**
  * Hook to fetch current/upcoming lessons
@@ -295,26 +293,19 @@ export function useCompleteLesson() {
 /**
  * Hook to mark a lesson as no-show (instructor only)
  *
- * ⚠️ NOTE: No v1 endpoint exists for no-show yet. Uses legacy endpoint.
- * TODO: Add /api/v1/bookings/{bookingId}/no-show endpoint to backend v1 router.
+ * ✅ MIGRATED TO V1 - Uses /api/v1/bookings/{bookingId}/no-show endpoint
  */
 export function useMarkNoShow() {
   const queryClient = useQueryClient();
-  const markCompleteMutation = useMarkLessonComplete();
-
-  // Note: Since there's no v1 no-show endpoint, we use the mark complete mutation
-  // with a workaround. In practice, the instructor dashboard should handle no-shows
-  // through a different flow. For now, this hook is kept for backward compatibility
-  // but components should prefer using the instructor-bookings v1 service directly.
+  const markNoShowMutation = useMarkBookingNoShow();
 
   return {
-    ...markCompleteMutation,
+    ...markNoShowMutation,
     mutate: (
       lessonId: string,
       options?: { onSuccess?: () => void; onError?: (error: Error) => void }
     ) => {
-      // Use mark complete as a fallback - no-show handling may need backend work
-      markCompleteMutation.mutate(
+      markNoShowMutation.mutate(
         { bookingId: lessonId },
         {
           onSuccess: async (data) => {
@@ -334,7 +325,7 @@ export function useMarkNoShow() {
       );
     },
     mutateAsync: async (lessonId: string) => {
-      const result = await markCompleteMutation.mutateAsync({ bookingId: lessonId });
+      const result = await markNoShowMutation.mutateAsync({ bookingId: lessonId });
       // Update cache - invalidate ALL booking-related queries
       await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
       await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming() });
