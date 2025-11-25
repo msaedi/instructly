@@ -57,7 +57,8 @@ export function useUpcomingBookings(
       query: {
         queryKey: queryKeys.bookings.student({ status: 'upcoming' }),
         staleTime: 1000 * 60 * 5, // 5 minutes
-        enabled: options?.enabled,
+        // Only include enabled when explicitly set (exactOptionalPropertyTypes compliance)
+        ...(options?.enabled !== undefined && { enabled: options.enabled }),
       },
     }
   );
