@@ -73,16 +73,17 @@ export function useRecentReviews(params: {
   rating?: number;
   withText?: boolean;
 }) {
-  const { instructorId, instructorServiceId, limit, page, minRating, rating, withText } = params;
+  const { instructorId, instructorServiceId, limit = 10, page = 1, minRating, rating, withText } =
+    params;
   return useGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet(
     instructorId,
     {
-      instructor_service_id: instructorServiceId,
+      instructor_service_id: instructorServiceId ?? null,
       limit,
       page,
-      min_rating: minRating,
-      rating,
-      with_text: withText,
+      min_rating: minRating ?? null,
+      rating: rating ?? null,
+      with_text: withText ?? null,
     },
     {
       query: {
@@ -110,7 +111,7 @@ export function useRecentReviews(params: {
 export function useSearchRating(instructorId: string, instructorServiceId?: string) {
   return useGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet(
     instructorId,
-    { instructor_service_id: instructorServiceId },
+    { instructor_service_id: instructorServiceId ?? null },
     {
       query: {
         enabled: !!instructorId,
