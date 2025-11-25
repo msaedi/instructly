@@ -319,7 +319,7 @@ class TestBookingResponseFormat:
         booking_id = booking["id"]
         get_response = client.get(f"/api/v1/bookings/{booking_id}", headers=auth_headers_student)
 
-        assert get_response.status_code == 200
+        assert get_response.status_code == 200, f"GET /api/v1/bookings/{booking_id} failed: {get_response.text}"
         booking_details = get_response.json()
 
         # Verify no slot_id

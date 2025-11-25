@@ -106,7 +106,7 @@ async def test_student_sees_instructor_last_initial_only(
 
     # Test 2: GET /bookings/{id} - Single booking
     response = client.get(f"/api/v1/bookings/{booking_id}", headers=auth_headers_student)
-    assert response.status_code == 200
+    assert response.status_code == 200, f"GET /api/v1/bookings/{booking_id} failed: {response.text}"
     data = response.json()
 
     instructor_info = data["instructor"]
