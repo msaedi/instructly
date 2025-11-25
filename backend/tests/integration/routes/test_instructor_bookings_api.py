@@ -83,7 +83,6 @@ def _seed_booking(
     return booking.id
 
 
-@pytest.mark.parametrize("base_prefix", ["", "/api"])
 @pytest.mark.parametrize(
     "endpoint,status_filter",
     [("/completed", BookingStatus.COMPLETED), ("/upcoming", BookingStatus.CONFIRMED)],
@@ -97,7 +96,6 @@ def test_instructor_booking_endpoints_filter_by_current_instructor(
     auth_headers_instructor: dict,
     endpoint: str,
     status_filter: BookingStatus,
-    base_prefix: str,
 ):
     """Ensure instructor booking endpoints only return the authenticated instructor's bookings."""
     primary_service = _service_for(db, test_instructor)
@@ -133,8 +131,9 @@ def test_instructor_booking_endpoints_filter_by_current_instructor(
         day_offset=-4 if status_filter == BookingStatus.COMPLETED else 4,
     )
 
-    prefix = f"{base_prefix}/instructors/bookings{endpoint}" if base_prefix else f"/instructors/bookings{endpoint}"
-    response = client.get(prefix, headers=auth_headers_instructor)
+    # Use v1 API path exclusively - legacy paths removed in Phase 9
+    path = f"/api/v1/instructor-bookings{endpoint}"
+    response = client.get(path, headers=auth_headers_instructor)
     assert response.status_code == 200, response.text
     payload = response.json()
     returned_ids = {item["id"] for item in payload.get("items", [])}
@@ -143,7 +142,6 @@ def test_instructor_booking_endpoints_filter_by_current_instructor(
         assert item["instructor_id"] == test_instructor.id
 
 
-@pytest.mark.parametrize("base_prefix", ["", "/api"])
 def test_completed_endpoint_includes_past_confirmed_lessons(
     client: TestClient,
     db: Session,
@@ -151,7 +149,6 @@ def test_completed_endpoint_includes_past_confirmed_lessons(
     test_student: User,
     auth_headers_instructor: dict,
     monkeypatch: pytest.MonkeyPatch,
-    base_prefix: str,
 ):
     """Past lessons endpoint should include chronologically past CONFIRMED bookings."""
     service = _service_for(db, test_instructor)
@@ -186,23 +183,14 @@ def test_completed_endpoint_includes_past_confirmed_lessons(
         end_time_override=time(22, 0),
     )
 
-    completed_path = (
-        f"{base_prefix}/api/v1/instructor-bookings/completed"
-        if base_prefix
-        else "/api/v1/instructor-bookings/completed"
-    )
-    response = client.get(completed_path, headers=auth_headers_instructor)
+    # Use v1 API paths exclusively - legacy paths removed in Phase 9
+    response = client.get("/api/v1/instructor-bookings/completed", headers=auth_headers_instructor)
     assert response.status_code == 200
     payload = response.json()
     returned_ids = {item["id"] for item in payload.get("items", [])}
     assert returned_ids == {past_booking_id}
 
-    upcoming_path = (
-        f"{base_prefix}/api/v1/instructor-bookings/upcoming"
-        if base_prefix
-        else "/api/v1/instructor-bookings/upcoming"
-    )
-    response = client.get(upcoming_path, headers=auth_headers_instructor)
+    response = client.get("/api/v1/instructor-bookings/upcoming", headers=auth_headers_instructor)
     assert response.status_code == 200
     payload = response.json()
     upcoming_ids = {item["id"] for item in payload.get("items", [])}

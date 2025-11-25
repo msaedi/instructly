@@ -87,7 +87,7 @@ def test_pricing_preview_returns_expected_totals(
     )
 
     response = client.get(
-        f"/api/bookings/{booking.id}/pricing",
+        f"/api/v1/bookings/{booking.id}/pricing",
         params={"applied_credit_cents": 500},
         headers=auth_headers_student,
     )
@@ -131,7 +131,7 @@ def test_pricing_preview_rejects_unauthorized_users(
     )
 
     response = client.get(
-        f"/api/bookings/{booking.id}/pricing",
+        f"/api/v1/bookings/{booking.id}/pricing",
         headers=auth_headers_instructor_2,
     )
 
@@ -156,7 +156,7 @@ def test_pricing_preview_propagates_floor_validation(
     )
 
     response = client.get(
-        f"/api/bookings/{booking.id}/pricing",
+        f"/api/v1/bookings/{booking.id}/pricing",
         headers=auth_headers_student,
     )
 

@@ -865,8 +865,9 @@ class TestBookingRoutes:
     def test_get_preview_not_found(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test preview for non-existent booking."""
         mock_booking_service.get_booking_for_user.return_value = None
-
-        response = client_with_mock_booking_service.get("/api/v1/bookings/999/preview", headers=auth_headers_student)
+        # Use a valid ULID format - v1 routes validate ULID path parameters
+        nonexistent_booking_id = generate_ulid()
+        response = client_with_mock_booking_service.get(f"/api/v1/bookings/{nonexistent_booking_id}/preview", headers=auth_headers_student)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_get_upcoming_empty(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):

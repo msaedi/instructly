@@ -241,6 +241,9 @@ class TestRoutingInvariants:
             ("/api/v1/bookings/{booking_id}", "/api/v1/bookings/check-availability"),
             ("/api/v1/bookings/send-reminders", "/api/v1/bookings/{booking_id}"),
             ("/api/v1/bookings/{booking_id}", "/api/v1/bookings/send-reminders"),
+            # Pricing endpoint uses same {booking_id} path parameter
+            ("/api/v1/bookings/{booking_id}/pricing", "/api/v1/bookings/{booking_id}/preview"),
+            ("/api/v1/bookings/{booking_id}/preview", "/api/v1/bookings/{booking_id}/pricing"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):

@@ -68,13 +68,14 @@ def test_bookings_problem_contract(monkeypatch):
         },
     )
     try:
-        resp = client.post('/bookings/', json={})
+        # Use v1 API path - legacy /bookings/ removed in Phase 9
+        resp = client.post('/api/v1/bookings', json={})
         assert resp.status_code == 422
         body = resp.json()
         assert body.get('code') == 'validation_error'
         assert body.get('status') == 422
         assert body.get('title') == 'Unprocessable Entity'
-        assert body.get('instance') == '/bookings/'
+        assert body.get('instance') == '/api/v1/bookings'
         assert 'errors' in body
     finally:
         main.fastapi_app.dependency_overrides.clear()

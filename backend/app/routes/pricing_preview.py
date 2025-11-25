@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.params import Path
 
 from ..api.dependencies import get_current_active_user
 from ..api.dependencies.services import get_pricing_service
@@ -17,10 +18,17 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["pricing"])
 
+# ULID validation pattern for path parameters (v1 API standard)
+ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 
-@router.get("/api/bookings/{booking_id}/pricing", response_model=PricingPreviewOut)
+
+@router.get("/api/v1/bookings/{booking_id}/pricing", response_model=PricingPreviewOut)
 def preview_booking_pricing(
-    booking_id: str,
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+    ),
     applied_credit_cents: int = Query(0, ge=0),
     current_user: User = Depends(get_current_active_user),
     pricing_service: PricingService = Depends(get_pricing_service),

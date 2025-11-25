@@ -41,7 +41,8 @@ class TestBookingsPhaseBlocking:
 
         token = _make_token_for_user(u.email)
         headers = {"Authorization": f"Bearer {token}"}
-        res = client.get("/bookings", headers={**headers, "x-enforce-beta-checks": "1"})
+        # Use v1 path - legacy /bookings removed in Phase 9
+        res = client.get("/api/v1/bookings", headers={**headers, "x-enforce-beta-checks": "1"})
         assert res.status_code == 403
 
     def test_create_booking_blocked_without_open_beta(self, client: TestClient, db):
@@ -69,6 +70,7 @@ class TestBookingsPhaseBlocking:
             "start_time": time(10, 0).isoformat(),
             "selected_duration": 60,
         }
-        res = client.post("/bookings", headers={**headers, "x-enforce-beta-checks": "1"}, json=payload)
+        # Use v1 path - legacy /bookings removed in Phase 9
+        res = client.post("/api/v1/bookings", headers={**headers, "x-enforce-beta-checks": "1"}, json=payload)
         # Some validation might occur before dependency triggers; accept either 403 or 422
         assert res.status_code in (403, 422)
