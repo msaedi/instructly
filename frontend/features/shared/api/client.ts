@@ -66,11 +66,11 @@ export const PUBLIC_ENDPOINTS = {
  */
 export const PROTECTED_ENDPOINTS = {
   bookings: {
-    create: '/bookings/',
-    list: '/bookings/',
-    get: (id: string) => `/bookings/${id}`,
-    cancel: (id: string) => `/bookings/${id}/cancel`,
-    reschedule: (id: string) => `/bookings/${id}/reschedule`,
+    create: '/api/v1/bookings',
+    list: '/api/v1/bookings',
+    get: (id: string) => `/api/v1/bookings/${id}`,
+    cancel: (id: string) => `/api/v1/bookings/${id}/cancel`,
+    reschedule: (id: string) => `/api/v1/bookings/${id}/reschedule`,
   },
   instructor: {
     bookings: {
@@ -668,14 +668,14 @@ export const publicApi = {
    * Get all service categories
    */
   async getServiceCategories() {
-    return cleanFetch<ServiceCategory[]>('/services/categories');
+    return cleanFetch<ServiceCategory[]>('/api/v1/services/categories');
   },
 
   /**
    * Get catalog services, optionally filtered by category
    */
   async getCatalogServices(categorySlug?: string) {
-    return cleanFetch<CatalogService[]>('/services/catalog', {
+    return cleanFetch<CatalogService[]>('/api/v1/services/catalog', {
       params: categorySlug ? { category: categorySlug } : {},
     });
   },
@@ -685,7 +685,7 @@ export const publicApi = {
    * Returns all categories with their top services in a single request
    */
   async getTopServicesPerCategory() {
-    return cleanFetch<TopServicesResponse>('/services/catalog/top-per-category');
+    return cleanFetch<TopServicesResponse>('/api/v1/services/catalog/top-per-category');
   },
 
   /**
@@ -718,7 +718,7 @@ export const publicApi = {
         cached_for_seconds: number;
         updated_at: string;
       };
-    }>('/services/catalog/all-with-instructors');
+    }>('/api/v1/services/catalog/all-with-instructors');
   },
 
   /**
@@ -726,7 +726,7 @@ export const publicApi = {
    * Returns minimal entries for pills: { id, name, slug }
    */
   async getKidsAvailableServices() {
-    return cleanFetch<CatalogServiceMinimal[]>('/services/catalog/kids-available');
+    return cleanFetch<CatalogServiceMinimal[]>('/api/v1/services/catalog/kids-available');
   },
 };
 

@@ -5246,6 +5246,30 @@ export type GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetPara
 instructor_service_id?: string | null;
 };
 
+export type GetCatalogServicesApiV1ServicesCatalogGetParams = {
+/**
+ * Filter by category slug
+ */
+category?: string | null;
+};
+
+export type GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams = {
+/**
+ * Number of top services per category
+ * @minimum 1
+ * @maximum 20
+ */
+limit?: number;
+};
+
+export type SearchServicesApiV1ServicesSearchGetParams = {
+/**
+ * Search query
+ * @minLength 2
+ */
+q: string;
+};
+
 export type GetAllAvailabilityInstructorsAvailabilityGetParams = {
 start_date?: string | null;
 end_date?: string | null;
@@ -5286,28 +5310,4 @@ export type TestRateLimitOpsRateLimitsTestGetParams = {
  * @maximum 20
  */
 requests?: number;
-};
-
-export type GetCatalogServicesServicesCatalogGetParams = {
-/**
- * Filter by category slug
- */
-category?: string | null;
-};
-
-export type GetTopServicesPerCategoryServicesCatalogTopPerCategoryGetParams = {
-/**
- * Number of top services per category
- * @minimum 1
- * @maximum 20
- */
-limit?: number;
-};
-
-export type SearchServicesServicesSearchGetParams = {
-/**
- * Search query
- * @minLength 2
- */
-q: string;
 };

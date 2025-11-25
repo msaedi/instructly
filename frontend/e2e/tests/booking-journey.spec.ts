@@ -74,7 +74,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 1e. Mock top services per category for homepage
-    await context.route('**/api/services/top-per-category**', async (route) => {
+    await context.route('**/api/v1/services/catalog/top-per-category**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

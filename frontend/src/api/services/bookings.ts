@@ -35,6 +35,7 @@ import type {
  * Returns a limited number of upcoming confirmed bookings.
  *
  * @param limit - Maximum number of bookings to return (1-20)
+ * @param options - Optional query configuration (e.g., enabled)
  * @example
  * ```tsx
  * function UpcomingBookingsWidget() {
@@ -46,13 +47,17 @@ import type {
  * }
  * ```
  */
-export function useUpcomingBookings(limit: number = 5) {
+export function useUpcomingBookings(
+  limit: number = 5,
+  options?: { enabled?: boolean }
+) {
   return useGetUpcomingBookingsApiV1BookingsUpcomingGet(
     { limit },
     {
       query: {
         queryKey: queryKeys.bookings.student({ status: 'upcoming' }),
         staleTime: 1000 * 60 * 5, // 5 minutes
+        enabled: options?.enabled,
       },
     }
   );

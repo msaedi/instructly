@@ -242,9 +242,9 @@ export const API_ENDPOINTS = {
   // Student availability checking
   CHECK_AVAILABILITY: '/api/availability/slots',
 
-  // Booking endpoints
-  BOOKINGS: '/bookings',
-  BOOKINGS_UPCOMING: '/bookings/upcoming',
+  // Booking endpoints - Phase 9: Migrated to /api/v1/bookings
+  BOOKINGS: '/api/v1/bookings',
+  BOOKINGS_UPCOMING: '/api/v1/bookings/upcoming',
 
   // Add more endpoints as needed
 } as const;

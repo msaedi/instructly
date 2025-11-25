@@ -32,7 +32,8 @@ def test_add_service_rejects_extra_field(client: TestClient):
         "duration_options": [60],
         "unexpected": 1,
     }
-    resp = client.post("/services/instructor/add", json=body)
+    # Phase 13: Services migrated to /api/v1/services
+    resp = client.post("/api/v1/services/instructor/add", json=body)
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422

@@ -107,6 +107,36 @@ The frontend uses TypeScript's strictest configuration with ZERO errors allowed:
 
 **The rule:** A migration is NOT complete until `grep` for the old endpoint path returns ZERO results in non-generated TypeScript files.
 
+### Post-Migration Comprehensive Audit (MANDATORY)
+
+After ANY API migration, run these THREE audits to catch bugs that domain-specific grep misses:
+
+**1. Legacy Path Audit (all API call patterns):**
+```bash
+# Find queryFn/fetch calls NOT using /api/v1 (excluding auth/admin/users)
+grep -rE "(queryFn|fetch|httpGet|httpPost|httpJson|authFetch|withApiBase)\(['\"][^'\"]*['\"]" frontend/ \
+  --include="*.ts" --include="*.tsx" | grep -v node_modules | grep -v ".d.ts" | \
+  grep -v "/api/v1" | grep -v "/api/auth" | grep -v "/api/admin" | grep -v "/api/users"
+```
+This catches relative paths like `/bookings/` that bypass domain-specific grep patterns.
+
+**2. E2E Mock Audit:**
+```bash
+# Find route mocks NOT using /api/v1
+grep -rE "\.route\(['\"][^'\"]*" frontend/e2e/ --include="*.ts" | \
+  grep -v "/api/v1" | grep -v "localhost:3000" | grep -v "_next"
+```
+E2E mocks use `page.route()` patterns and need separate verification.
+
+**3. Parameter Validation Patterns (manual review):**
+```bash
+# Find conditional parameters that could pass invalid values (e.g., limit=0)
+grep -rE "\? \d+ : 0\)" frontend/ --include="*.ts" --include="*.tsx" | grep -v node_modules
+```
+Catches patterns like `useHook(condition ? 2 : 0)` where `0` may cause 422 validation errors.
+
+**Why these audits exist:** Domain-specific grep (e.g., `/api/reviews/`) only catches paths for the domain being migrated. Pre-existing bugs in OTHER domains, relative paths, E2E mocks, and semantic parameter bugs slip through without comprehensive audits.
+
 ### Dual-Mode Request Validation
 Backend supports two validation modes for request DTOs:
 

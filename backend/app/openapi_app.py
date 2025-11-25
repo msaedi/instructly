@@ -20,7 +20,7 @@ from app.routes import (
     # bookings - DEPRECATED, use /api/v1/bookings instead
     codebase_metrics,
     database_monitor,
-    favorites,
+    # favorites - DEPRECATED, use /api/v1/favorites instead
     gated,
     # instructor_bookings - DEPRECATED, use /api/v1/instructor-bookings instead
     # messages - DEPRECATED, use /api/v1/messages instead
@@ -36,7 +36,7 @@ from app.routes import (
     # reviews - DEPRECATED, use /api/v1/reviews instead
     search,
     search_history,
-    services,
+    # services - DEPRECATED, use /api/v1/services instead
     stripe_webhooks,
     two_factor_auth,
     uploads,
@@ -44,10 +44,12 @@ from app.routes import (
 )
 from app.routes.v1 import (
     bookings as bookings_v1,
+    favorites as favorites_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
     reviews as reviews_v1,
+    services as services_v1,
 )
 
 
@@ -69,6 +71,8 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
     api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
     api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
+    api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
+    api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
 
     # Mount v1 API first
     app.include_router(api_v1)
@@ -81,12 +85,14 @@ def build_openapi_app() -> FastAPI:
     # Legacy instructor_bookings - now /api/v1/instructor-bookings
     # app.include_router(instructor_bookings.router)  # Was: /instructors/bookings
     app.include_router(account_management.router)
-    app.include_router(services.router)
+    # Legacy services - now /api/v1/services
+    # app.include_router(services.router)  # Was: /services
     app.include_router(availability_windows.router)
     app.include_router(password_reset.router)
     # Legacy bookings - now /api/v1/bookings
     # app.include_router(bookings.router)  # Was: /bookings
-    app.include_router(favorites.router)
+    # Legacy favorites - now /api/v1/favorites
+    # app.include_router(favorites.router)  # Was: /api/favorites
     app.include_router(payments.router)
     # Legacy messages - now /api/v1/messages
     # app.include_router(messages.router)

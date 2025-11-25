@@ -8,7 +8,11 @@
  * - Domain-first organization (auth, instructors, bookings, etc.)
  * - Hierarchical keys: ['domain', 'operation', ...params]
  * - Use 'as const' for type safety
+ *
+ * CACHE_VERSION: Increment when API endpoints change to bust stale caches.
+ * This prevents React Query from serving cached responses made to old endpoints.
  */
+const CACHE_VERSION = 'v1' as const;
 
 export const queryKeys = {
   /**
@@ -39,17 +43,19 @@ export const queryKeys = {
 
   /**
    * Bookings domain
+   * Note: CACHE_VERSION included to bust stale caches after API migrations
    */
   bookings: {
     /** List student bookings */
-    student: (filters?: { status?: string }) => ['bookings', 'student', filters ?? {}] as const,
+    student: (filters?: { status?: string }) =>
+      ['bookings', CACHE_VERSION, 'student', filters ?? {}] as const,
 
     /** List instructor bookings */
     instructor: (filters?: { status?: string }) =>
-      ['bookings', 'instructor', filters ?? {}] as const,
+      ['bookings', CACHE_VERSION, 'instructor', filters ?? {}] as const,
 
     /** Get booking by ID */
-    detail: (id: string) => ['bookings', 'detail', id] as const,
+    detail: (id: string) => ['bookings', CACHE_VERSION, 'detail', id] as const,
   },
 
   /**

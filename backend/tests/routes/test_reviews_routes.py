@@ -1,3 +1,6 @@
+"""
+Reviews routes tests - Phase 12: Migrated to /api/v1/reviews
+"""
 from datetime import datetime, timedelta, timezone
 
 
@@ -12,7 +15,8 @@ def test_submit_review_route(client, db, test_booking, auth_headers):
         "rating": 5,
         "review_text": "Great!",
     }
-    res = client.post("/api/reviews/submit", json=payload, headers=auth_headers)
+    # Phase 12: Reviews migrated to /api/v1/reviews
+    res = client.post("/api/v1/reviews", json=payload, headers=auth_headers)
     assert res.status_code in (200, 201)
     data = res.json()
     assert data["rating"] == 5
@@ -23,13 +27,14 @@ def test_get_instructor_ratings_route(client, db, test_booking, auth_headers):
     test_booking.status = "COMPLETED"
     test_booking.completed_at = datetime.now(timezone.utc) - timedelta(days=1)
     db.flush()
+    # Phase 12: Reviews migrated to /api/v1/reviews
     client.post(
-        "/api/reviews/submit",
+        "/api/v1/reviews",
         json={"booking_id": test_booking.id, "rating": 4},
         headers=auth_headers,
     )
 
-    res = client.get(f"/api/reviews/instructor/{test_booking.instructor_id}/ratings")
+    res = client.get(f"/api/v1/reviews/instructor/{test_booking.instructor_id}/ratings")
     assert res.status_code == 200
     data = res.json()
     assert "overall" in data
@@ -39,12 +44,13 @@ def test_recent_reviews_route(client, db, test_booking, auth_headers):
     test_booking.status = "COMPLETED"
     test_booking.completed_at = datetime.now(timezone.utc) - timedelta(days=1)
     db.flush()
+    # Phase 12: Reviews migrated to /api/v1/reviews
     client.post(
-        "/api/reviews/submit",
+        "/api/v1/reviews",
         json={"booking_id": test_booking.id, "rating": 5},
         headers=auth_headers,
     )
-    res = client.get(f"/api/reviews/instructor/{test_booking.instructor_id}/recent")
+    res = client.get(f"/api/v1/reviews/instructor/{test_booking.instructor_id}/recent")
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data.get("reviews"), list)
@@ -58,8 +64,9 @@ def test_respond_to_review_route(
     test_booking.completed_at = datetime.now(timezone.utc) - timedelta(days=1)
     db.flush()
 
+    # Phase 12: Reviews migrated to /api/v1/reviews
     submit = client.post(
-        "/api/reviews/submit",
+        "/api/v1/reviews",
         json={"booking_id": test_booking.id, "rating": 4, "review_text": "solid"},
         headers=auth_headers,
     )
@@ -67,7 +74,12 @@ def test_respond_to_review_route(
     review_id = submit.json()["id"]
 
     # Instructor (owner) responds
-    res = client.post(f"/api/reviews/reviews/{review_id}/respond?response_text=thanks", headers=auth_headers_instructor)
+    # Phase 13: v1 endpoint expects response_text in body (embed=True), not query params
+    res = client.post(
+        f"/api/v1/reviews/{review_id}/respond",
+        json={"response_text": "thanks"},
+        headers=auth_headers_instructor,
+    )
     assert res.status_code == 200
     body = res.json()
     assert body["review_id"] == review_id
@@ -75,6 +87,8 @@ def test_respond_to_review_route(
 
     # Another instructor cannot respond
     res2 = client.post(
-        f"/api/reviews/reviews/{review_id}/respond?response_text=notallowed", headers=auth_headers_instructor_2
+        f"/api/v1/reviews/{review_id}/respond",
+        json={"response_text": "notallowed"},
+        headers=auth_headers_instructor_2,
     )
     assert res2.status_code in (400, 403)

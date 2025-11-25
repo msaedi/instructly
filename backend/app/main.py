@@ -95,7 +95,7 @@ from .routes import (
     beta,
     codebase_metrics,
     database_monitor,
-    favorites,
+    # favorites - DEPRECATED, use /api/v1/favorites instead
     gated,
     instructor_background_checks,
     internal,
@@ -113,7 +113,7 @@ from .routes import (
     referrals,
     search,
     search_history,
-    services,
+    # services - DEPRECATED, use /api/v1/services instead
     stripe_webhooks,
     student_badges,
     two_factor_auth,
@@ -123,10 +123,12 @@ from .routes import (
 )
 from .routes.v1 import (
     bookings as bookings_v1,
+    favorites as favorites_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
     reviews as reviews_v1,
+    services as services_v1,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
@@ -936,6 +938,8 @@ api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[at
 api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
 api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
 api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
+api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
+api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
@@ -957,6 +961,7 @@ PUBLIC_OPEN_PREFIXES = (
     "/api/config",
     "/r/",
     "/api/v1/instructors",  # v1 instructors endpoints are public (some require auth via dependency)
+    "/api/v1/services",  # v1 services endpoints are public (catalog browsing)
 )
 
 public_guard_dependency = public_guard(
@@ -980,7 +985,8 @@ app.include_router(instructor_background_checks.router)
 # app.include_router(instructor_bookings.router)  # Was: /instructors/bookings
 # app.include_router(instructor_bookings.api_router)  # Was: /api/instructors/bookings
 app.include_router(account_management.router)
-app.include_router(services.router)
+# Legacy services routes - DEPRECATED, use /api/v1/services instead
+# app.include_router(services.router)  # Was: /services
 app.include_router(availability_windows.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(password_reset.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy bookings routes - DEPRECATED, use /api/v1/bookings instead
@@ -988,7 +994,8 @@ app.include_router(password_reset.router, dependencies=[Depends(public_guard_dep
 app.include_router(student_badges.router)
 app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(favorites.router)
+# Legacy favorites routes - DEPRECATED, use /api/v1/favorites instead
+# app.include_router(favorites.router)  # Was: /api/favorites
 app.include_router(payments.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy messages routes - DEPRECATED, use /api/v1/messages instead
 # app.include_router(messages.router)

@@ -420,8 +420,9 @@ class TestFavoritesAPI:
     """Test the favorites API endpoints."""
 
     def test_add_favorite_endpoint(self, client, auth_headers_student, test_instructor, db: Session):
-        """Test POST /api/favorites/{instructor_id}."""
-        response = client.post(f"/api/favorites/{test_instructor.id}", headers=auth_headers_student)
+        """Test POST /api/v1/favorites/{instructor_id}."""
+        # Phase 13: Favorites migrated to /api/v1/favorites
+        response = client.post(f"/api/v1/favorites/{test_instructor.id}", headers=auth_headers_student)
 
         assert response.status_code == 200
         data = response.json()
@@ -432,12 +433,13 @@ class TestFavoritesAPI:
         assert stats["favorite_count"] >= 1
 
     def test_remove_favorite_endpoint(self, client, auth_headers_student, test_instructor):
-        """Test DELETE /api/favorites/{instructor_id}."""
+        """Test DELETE /api/v1/favorites/{instructor_id}."""
+        # Phase 13: Favorites migrated to /api/v1/favorites
         # Add favorite first
-        client.post(f"/api/favorites/{test_instructor.id}", headers=auth_headers_student)
+        client.post(f"/api/v1/favorites/{test_instructor.id}", headers=auth_headers_student)
 
         # Remove it
-        response = client.delete(f"/api/favorites/{test_instructor.id}", headers=auth_headers_student)
+        response = client.delete(f"/api/v1/favorites/{test_instructor.id}", headers=auth_headers_student)
 
         assert response.status_code == 200
         data = response.json()
@@ -445,13 +447,14 @@ class TestFavoritesAPI:
         assert "removed from favorites" in data["message"]
 
     def test_get_favorites_list_endpoint(self, client, auth_headers_student, multiple_instructors_with_profiles, db):
-        """Test GET /api/favorites."""
+        """Test GET /api/v1/favorites."""
+        # Phase 13: Favorites migrated to /api/v1/favorites
         # Add some favorites first
         for instructor in multiple_instructors_with_profiles[:3]:
-            client.post(f"/api/favorites/{instructor.id}", headers=auth_headers_student)
+            client.post(f"/api/v1/favorites/{instructor.id}", headers=auth_headers_student)
 
         # Get favorites list
-        response = client.get("/api/favorites", headers=auth_headers_student)
+        response = client.get("/api/v1/favorites", headers=auth_headers_student)
 
         assert response.status_code == 200
         data = response.json()
@@ -466,17 +469,18 @@ class TestFavoritesAPI:
             assert "last_name" in fav
 
     def test_check_favorite_status_endpoint(self, client, auth_headers_student, test_instructor):
-        """Test GET /api/favorites/check/{instructor_id}."""
+        """Test GET /api/v1/favorites/check/{instructor_id}."""
+        # Phase 13: Favorites migrated to /api/v1/favorites
         # Initially not favorited
-        response = client.get(f"/api/favorites/check/{test_instructor.id}", headers=auth_headers_student)
+        response = client.get(f"/api/v1/favorites/check/{test_instructor.id}", headers=auth_headers_student)
         assert response.status_code == 200
         assert response.json()["is_favorited"] is False
 
         # Add favorite
-        client.post(f"/api/favorites/{test_instructor.id}", headers=auth_headers_student)
+        client.post(f"/api/v1/favorites/{test_instructor.id}", headers=auth_headers_student)
 
         # Now should be favorited
-        response = client.get(f"/api/favorites/check/{test_instructor.id}", headers=auth_headers_student)
+        response = client.get(f"/api/v1/favorites/check/{test_instructor.id}", headers=auth_headers_student)
         assert response.status_code == 200
         assert response.json()["is_favorited"] is True
 
@@ -528,11 +532,13 @@ class TestFavoritesAPI:
 
     def test_unauthenticated_cannot_favorite(self, client, test_instructor):
         """Test that unauthenticated users can't add favorites."""
-        response = client.post(f"/api/favorites/{test_instructor.id}")
+        # Phase 13: Favorites migrated to /api/v1/favorites
+        response = client.post(f"/api/v1/favorites/{test_instructor.id}")
         assert response.status_code == 401  # Unauthorized
 
     def test_instructor_cannot_favorite_themselves(self, client, auth_headers_instructor, test_instructor):
         """Test that instructors can't favorite themselves."""
-        response = client.post(f"/api/favorites/{test_instructor.id}", headers=auth_headers_instructor)
+        # Phase 13: Favorites migrated to /api/v1/favorites
+        response = client.post(f"/api/v1/favorites/{test_instructor.id}", headers=auth_headers_instructor)
         # Should fail validation
         assert response.status_code in [400, 403]

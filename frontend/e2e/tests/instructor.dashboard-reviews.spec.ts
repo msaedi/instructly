@@ -67,7 +67,7 @@ async function mockDashboardApis(page: Page) {
     await respondJson(route, { unread_count: 0, user_id: instructorUser.id });
   });
 
-  await page.route('**/bookings/**', async (route) => {
+  await page.route('**/api/v1/bookings**', async (route) => {
     const url = new URL(route.request().url());
     const params = url.searchParams;
     if (params.get('status') === 'COMPLETED') {

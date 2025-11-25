@@ -120,7 +120,7 @@ export async function mockAvailability(page: Page) {
 }
 
 export async function mockBookingCreation(page: Page) {
-  await page.route('http://localhost:8000/bookings', async (route: Route) => {
+  await page.route('**/api/v1/bookings', async (route: Route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 201,
@@ -438,8 +438,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     });
   });
 
-  // Mock services catalog endpoints (consistent response shapes)
-  await routeContext.route('**/services/catalog**', async (route: Route) => {
+  // Mock services catalog endpoints (consistent response shapes) - v1 API
+  await routeContext.route('**/api/v1/services/catalog**', async (route: Route) => {
     const req = route.request();
     const url = req.url();
     const origin = req.headers()['origin'] || 'http://localhost:3100';
@@ -522,8 +522,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     });
   });
 
-  // Mock service categories (homepage depends on this)
-  await routeContext.route('**/services/categories', async (route: Route) => {
+  // Mock service categories (homepage depends on this) - v1 API
+  await routeContext.route('**/api/v1/services/categories', async (route: Route) => {
     const req = route.request();
     const origin = req.headers()['origin'] || 'http://localhost:3100';
     if (req.method() === 'OPTIONS') {
@@ -903,8 +903,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     await route.continue();
   });
 
-  // Set up route handler for services endpoints
-  await routeContext.route('**/services/**', async (route: Route) => {
+  // Set up route handler for services endpoints - v1 API
+  await routeContext.route('**/api/v1/services/**', async (route: Route) => {
     const req = route.request();
     const url = req.url();
     const origin = req.headers()['origin'] || 'http://localhost:3100';

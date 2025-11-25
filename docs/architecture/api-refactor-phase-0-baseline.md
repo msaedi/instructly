@@ -1827,16 +1827,11 @@ Added `POST /{booking_id}/no-show` endpoint:
 - `beta`, `gated` (feature flags)
 - `internal`, `ready` (health checks)
 
-### Phase 12 – Reviews → v1 (Next)
+### Phase 12 – Reviews → v1 ✅ COMPLETE
 
 **Goal:** Migrate reviews domain to `/api/v1/reviews`.
 
-**Why Reviews First:**
-1. **High User Impact**: Reviews are critical for marketplace trust and conversion
-2. **Well-defined Scope**: 8 endpoints with clear responsibilities
-3. **Mixed Auth**: Public (ratings) + authenticated (submit) - good v1 practice
-4. **Existing Consumers**: Review submission modal, instructor profile pages
-5. **Schemathesis Candidate**: Public rating endpoints safe for fuzz testing
+**Status:** ✅ Complete (November 25, 2025)
 
 **V1 Endpoints:**
 ```
@@ -1850,18 +1845,77 @@ POST   /api/v1/reviews/{id}/respond              → Instructor responds (instru
 POST   /api/v1/reviews/ratings/batch             → Batch ratings lookup (public)
 ```
 
-### Phase 13 – Services (Catalog) → v1
+---
 
-**Goal:** Migrate service catalog to `/api/v1/services`.
+## Phase 13 – Services & Favorites → v1 ✅ COMPLETE
 
-**Why Services:**
-1. **Foundation for Search**: Powers instructor search and browsing
-2. **Public Endpoints**: Good Schemathesis coverage opportunity
-3. **Simple Structure**: Categories + catalog services
+**Date:** November 25, 2025
+
+**Goal:** Migrate service catalog and favorites domains to `/api/v1`.
+
+### Services Domain Migration
+
+**Legacy Path:** `/services/*`
+**V1 Path:** `/api/v1/services/*`
+
+**V1 Endpoints:**
+```
+GET    /api/v1/services/categories               → Get all service categories (public)
+GET    /api/v1/services/catalog                  → Get catalog services (public)
+GET    /api/v1/services/catalog/top-per-category → Top services per category (public)
+GET    /api/v1/services/catalog/all-with-instructors → All services with counts (public)
+GET    /api/v1/services/catalog/kids-available   → Kids-capable services (public)
+GET    /api/v1/services/search                   → Search services (public)
+POST   /api/v1/services/instructor/add           → Add service to profile (instructor)
+```
+
+### Favorites Domain Migration
+
+**Legacy Path:** `/api/favorites/*`
+**V1 Path:** `/api/v1/favorites/*`
+
+**V1 Endpoints:**
+```
+GET    /api/v1/favorites                         → List user favorites
+POST   /api/v1/favorites/{instructor_id}         → Add favorite
+DELETE /api/v1/favorites/{instructor_id}         → Remove favorite
+GET    /api/v1/favorites/check/{instructor_id}   → Check if favorited
+```
+
+### Files Changed
+
+**Backend:**
+- `backend/app/routes/v1/services.py` (NEW) - V1 services router
+- `backend/app/routes/v1/favorites.py` (NEW) - V1 favorites router
+- `backend/app/routes/v1/__init__.py` - Added exports
+- `backend/app/main.py` - Mount v1 routers, comment out legacy
+- `backend/app/openapi_app.py` - Same updates for OpenAPI generation
+- `backend/tests/test_routes_invariants.py` - Updated tests for v1 endpoints
+- `backend/tests/contracts/test_public_endpoints.py` - Updated tests to use v1
+
+**Frontend:**
+- `frontend/features/shared/api/client.ts` - Updated to `/api/v1/services/*`
+- `frontend/e2e/fixtures/api-mocks.ts` - Updated mocks to v1 paths
+- `frontend/src/api/generated/services-v1/` (NEW) - Generated v1 client
+- `frontend/src/api/generated/favorites-v1/` (NEW) - Generated v1 client
+- `frontend/src/api/generated/favorites/` (REMOVED) - Legacy generated client
+
+### Quality Gates
+
+All quality gates pass:
+- ✅ `ruff check --fix` - No issues
+- ✅ `pre-commit run --all-files` - All checks passed
+- ✅ `mypy --no-incremental app` - No type errors
+- ✅ Route invariants tests - All 14 tests pass
+- ✅ Legacy path verification - grep returns 0 legacy paths
+
+**Phase 13 Status:** ✅ **Complete** – Services and Favorites domains fully migrated to v1 API.
+
+---
 
 ### Phase 14+ Candidates
 
-- **Favorites**: Quick win, simple 3-endpoint domain
 - **Addresses**: User addresses with spatial features
 - **Payments**: Complex Stripe integration, requires careful planning
 - **Search**: Core discovery experience
+- **Auth**: Authentication (complex, multiple providers)

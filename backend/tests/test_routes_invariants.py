@@ -63,7 +63,7 @@ def _is_excluded_path(path: str) -> bool:
         "/api/analytics/",
         "/api/privacy/",
         "/api/payments/",
-        "/api/favorites/",
+        # "/api/favorites/",  # Phase 13: Favorites migrated to /api/v1/favorites
         # "/api/messages/",  # Phase 10: Messages migrated to /api/v1/messages
         "/api/uploads/",
         "/api/reviews/",
@@ -71,7 +71,7 @@ def _is_excluded_path(path: str) -> bool:
         "/api/admin/",
         "/api/referrals/",
         "/api/addresses/",
-        "/api/services/",
+        # "/api/services/",  # Phase 13: Services migrated to /api/v1/services
         "/api/availability-windows/",
         "/api/pricing/",
         "/api/instructor/",
@@ -124,6 +124,8 @@ class TestRoutingInvariants:
             "/api/bookings/",  # Phase 9: Should no longer exist as legacy
             "/messages/",  # Phase 10: Should no longer exist as legacy
             "/api/messages/",  # Phase 10: Should no longer exist as legacy
+            "/services/",  # Phase 13: Should no longer exist as legacy
+            "/api/favorites/",  # Phase 13: Should no longer exist as legacy
         ]
 
         # Domains in migration (legacy routes temporarily allowed)
@@ -256,6 +258,9 @@ class TestRoutingInvariants:
             ("/api/v1/messages/{message_id}", "/api/v1/messages/mark-read"),
             ("/api/v1/messages/send", "/api/v1/messages/{message_id}"),
             ("/api/v1/messages/{message_id}", "/api/v1/messages/send"),
+            # Reviews v1: Static routes defined before dynamic {booking_id}
+            ("/api/v1/reviews/booking/existing", "/api/v1/reviews/booking/{booking_id}"),
+            ("/api/v1/reviews/booking/{booking_id}", "/api/v1/reviews/booking/existing"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):
@@ -526,4 +531,122 @@ class TestRoutingInvariants:
                 "Found legacy messages endpoints that should be removed:\n"
                 + "\n".join(f"  - {path}" for path in found_legacy)
                 + "\n\nUse /api/v1/messages instead."
+            )
+
+    def test_v1_services_endpoints_exist(self):
+        """
+        Verify v1 services endpoints are properly mounted.
+
+        Phase 13: Services domain migrated to /api/v1/services.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_services_endpoints = [
+            "/api/v1/services/categories",  # GET
+            "/api/v1/services/catalog",  # GET
+            "/api/v1/services/catalog/top-per-category",  # GET
+            "/api/v1/services/catalog/all-with-instructors",  # GET
+            "/api/v1/services/catalog/kids-available",  # GET
+            "/api/v1/services/search",  # GET
+            "/api/v1/services/instructor/add",  # POST
+        ]
+
+        missing = []
+        for expected in expected_services_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 services endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_services_endpoints_removed(self):
+        """
+        Verify legacy services endpoints are REMOVED.
+
+        Phase 13: Services migration is complete. All services endpoints
+        must now use /api/v1/services.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_services_endpoints = [
+            "/services/categories",
+            "/services/catalog",
+            "/services/catalog/top-per-category",
+            "/services/catalog/all-with-instructors",
+            "/services/catalog/kids-available",
+            "/services/search",
+            "/services/instructor/add",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_services_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy services endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/services instead."
+            )
+
+    def test_v1_favorites_endpoints_exist(self):
+        """
+        Verify v1 favorites endpoints are properly mounted.
+
+        Phase 13: Favorites domain migrated to /api/v1/favorites.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_favorites_endpoints = [
+            "/api/v1/favorites",  # GET
+            "/api/v1/favorites/{instructor_id}",  # POST, DELETE
+            "/api/v1/favorites/check/{instructor_id}",  # GET
+        ]
+
+        missing = []
+        for expected in expected_favorites_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 favorites endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_favorites_endpoints_removed(self):
+        """
+        Verify legacy favorites endpoints are REMOVED.
+
+        Phase 13: Favorites migration is complete. All favorites endpoints
+        must now use /api/v1/favorites.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_favorites_endpoints = [
+            "/api/favorites",
+            "/api/favorites/{instructor_id}",
+            "/api/favorites/check/{instructor_id}",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_favorites_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy favorites endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/favorites instead."
             )

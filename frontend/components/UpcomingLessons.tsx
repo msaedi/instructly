@@ -18,12 +18,14 @@ export function UpcomingLessons() {
   }, []);
 
   // Use v1 bookings service to fetch upcoming bookings
+  // Note: Always pass valid limit (minimum 1) to avoid 422 validation error.
+  // The enabled option in the underlying hook controls whether the request is made.
   const shouldFetch = isClient && !isAuthLoading && isAuthenticated;
   const {
     data: response,
     isLoading,
     error,
-  } = useUpcomingBookings(shouldFetch ? 2 : 0);
+  } = useUpcomingBookings(2, { enabled: shouldFetch });
 
   // Extract bookings from response
   const bookings = response?.items ?? [];
