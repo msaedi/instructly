@@ -264,7 +264,8 @@ export function useSSEMessages({
 
     try {
       // Cookie-based session: connect without localStorage token
-      const url = withApiBase(`/api/messages/stream/${bookingId}`);
+      // Phase 10: Migrated to v1 messages endpoint
+      const url = withApiBase(`/api/v1/messages/stream/${bookingId}`);
 
       const eventSource = new EventSource(url, { withCredentials: true } as EventSourceInit);
       eventSourceRef.current = eventSource;

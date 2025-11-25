@@ -36,6 +36,9 @@ filtered_instructors_schema = schema.include(path_regex="/api/v1/instructors/.*"
 filtered_bookings_schema = schema.include(path_regex="/api/v1/bookings.*")
 filtered_instructor_bookings_schema = schema.include(path_regex="/api/v1/instructor-bookings.*")
 
+# Phase 10: Add filter for messages v1 endpoints
+filtered_messages_schema = schema.include(path_regex="/api/v1/messages.*")
+
 
 def _run_schemathesis_case(case):
     """Common test execution logic for Schemathesis cases."""
@@ -117,6 +120,27 @@ def test_api_v1_instructor_bookings_schema_compliance(case):
     Test that /api/v1/instructor-bookings/** endpoints conform to OpenAPI schema.
 
     Phase 9 addition: Validates instructor-facing booking endpoints.
+    Note: Skipped because these endpoints require authentication.
+    Schema compliance is verified via integration tests with proper auth setup.
+    """
+    _run_schemathesis_case(case)
+
+
+@filtered_messages_schema.parametrize()
+@settings(
+    max_examples=5,
+    deadline=None,
+    phases=[Phase.generate, Phase.target],
+)
+@pytest.mark.schemathesis
+@pytest.mark.skip(
+    reason="Messages v1 endpoints require authentication - covered by integration tests with auth"
+)
+def test_api_v1_messages_schema_compliance(case):
+    """
+    Test that /api/v1/messages/** endpoints conform to OpenAPI schema.
+
+    Phase 10 addition: Validates messaging endpoints.
     Note: Skipped because these endpoints require authentication.
     Schema compliance is verified via integration tests with proper auth setup.
     """

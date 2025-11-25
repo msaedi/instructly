@@ -99,7 +99,6 @@ from .routes import (
     gated,
     instructor_background_checks,
     internal,
-    messages,
     metrics,
     monitoring,
     password_reset,
@@ -127,6 +126,7 @@ from .routes.v1 import (
     bookings as bookings_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
+    messages as messages_v1,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
@@ -365,13 +365,16 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await ProductionStartup.initialize()
 
     # Initialize message notification service
-    from .routes.messages import set_notification_service
+    from .routes.messages import set_notification_service as set_legacy_notification_service
+    from .routes.v1.messages import set_notification_service as set_v1_notification_service
     from .services.message_notification_service import MessageNotificationService
 
     notification_service = MessageNotificationService()
     try:
         await notification_service.start()
-        set_notification_service(notification_service)
+        # Set notification service for both legacy and v1 routers during migration
+        set_legacy_notification_service(notification_service)
+        set_v1_notification_service(notification_service)
         logger.info("Message notification service started successfully")
     except Exception as e:
         logger.error(f"Failed to start message notification service: {str(e)}")
@@ -931,6 +934,7 @@ api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
 api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
 api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
+api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
@@ -985,7 +989,8 @@ app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_de
 app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(favorites.router)
 app.include_router(payments.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(messages.router)
+# Legacy messages routes - DEPRECATED, use /api/v1/messages instead
+# app.include_router(messages.router)
 app.include_router(metrics.router)
 if os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}:
     app.include_router(metrics.metrics_lite_router, include_in_schema=False)

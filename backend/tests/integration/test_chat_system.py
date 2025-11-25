@@ -295,7 +295,7 @@ class TestMessageAPI:
     ):
         """Test the send message API endpoint."""
         response = client.post(
-            "/api/messages/send",
+            "/api/v1/messages/send",
             json={
                 "booking_id": test_booking.id,
                 "content": "Test message via API",
@@ -328,7 +328,7 @@ class TestMessageAPI:
         db.commit()
 
         response = client.get(
-            f"/api/messages/history/{test_booking.id}",
+            f"/api/v1/messages/history/{test_booking.id}",
             headers=auth_headers_student,
         )
 
@@ -345,7 +345,7 @@ class TestMessageAPI:
     ):
         """Test the unread count API endpoint."""
         response = client.get(
-            "/api/messages/unread-count",
+            "/api/v1/messages/unread-count",
             headers=auth_headers_instructor,
         )
 
@@ -378,7 +378,7 @@ class TestMessageAPI:
 
         # Mark as read by instructor
         response = client.post(
-            "/api/messages/mark-read",
+            "/api/v1/messages/mark-read",
             json={"message_ids": [str(message.id)]},  # Ensure it's a string
             headers=auth_headers_instructor,
         )
@@ -408,7 +408,7 @@ class TestMessageAPI:
 
         # Delete it
         response = client.delete(
-            f"/api/messages/{message.id}",
+            f"/api/v1/messages/{message.id}",
             headers=auth_headers_student,
         )
 
@@ -442,7 +442,7 @@ class TestRateLimiting:
         # Send messages up to the limit (10 per minute)
         for i in range(10):
             response = client.post(
-                "/api/messages/send",
+                "/api/v1/messages/send",
                 json={
                     "booking_id": test_booking.id,
                     "content": f"Message {i + 1}",
@@ -453,7 +453,7 @@ class TestRateLimiting:
 
         # The 11th message should be rate limited
         response = client.post(
-            "/api/messages/send",
+            "/api/v1/messages/send",
             json={
                 "booking_id": test_booking.id,
                 "content": "Rate limited message",
@@ -477,7 +477,7 @@ class TestPermissions:
     ):
         """Test that sending messages requires authentication."""
         response = client.post(
-            "/api/messages/send",
+            "/api/v1/messages/send",
             json={
                 "booking_id": test_booking.id,
                 "content": "Unauthorized message",
@@ -493,7 +493,7 @@ class TestPermissions:
     ):
         """Test that viewing messages requires authentication."""
         response = client.get(
-            f"/api/messages/history/{test_booking.id}",
+            f"/api/v1/messages/history/{test_booking.id}",
         )
 
         assert response.status_code == 401

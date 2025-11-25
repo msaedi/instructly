@@ -6,6 +6,6 @@ Versioned API endpoints under /api/v1.
 All new endpoints should be added here.
 """
 
-from . import instructors
+from . import bookings, instructor_bookings, instructors, messages
 
-__all__ = ["instructors"]
+__all__ = ["bookings", "instructor_bookings", "instructors", "messages"]

@@ -75,6 +75,21 @@ export const queryKeys = {
     week: (instructorId: string, weekStart: string) =>
       ['availability', 'week', instructorId, weekStart] as const,
   },
+
+  /**
+   * Messages domain (Phase 10)
+   */
+  messages: {
+    /** Message config */
+    config: ['messages', 'config'] as const,
+
+    /** Unread count for current user */
+    unreadCount: ['messages', 'unread-count'] as const,
+
+    /** Message history for a booking */
+    history: (bookingId: string, pagination?: { limit?: number; offset?: number }) =>
+      ['messages', 'history', bookingId, pagination ?? {}] as const,
+  },
 } as const;
 
 /**

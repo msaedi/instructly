@@ -4973,22 +4973,6 @@ invite_code?: string | null;
 email?: string | null;
 };
 
-export type GetMessageHistoryApiMessagesHistoryBookingIdGetParams = {
-/**
- * @minimum 1
- * @maximum 100
- */
-limit?: number;
-/**
- * @minimum 0
- */
-offset?: number;
-};
-
-export type StreamMessagesApiMessagesStreamBookingIdGetParams = {
-token?: string | null;
-};
-
 export type GetLiveAlertsApiMonitoringAlertsLiveGetParams = {
 /**
  * Get alerts from last N minutes
@@ -5246,29 +5230,20 @@ page?: number;
 per_page?: number;
 };
 
-export type GetBookingsBookingsGetParams = {
-status?: BookingStatus | null;
-upcoming_only?: boolean | null;
-upcoming?: boolean | null;
-exclude_future_confirmed?: boolean;
-include_past_confirmed?: boolean;
-/**
- * @minimum 1
- */
-page?: number;
+export type GetMessageHistoryApiV1MessagesHistoryBookingIdGetParams = {
 /**
  * @minimum 1
  * @maximum 100
  */
-per_page?: number;
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
 };
 
-export type GetUpcomingBookingsBookingsUpcomingGetParams = {
-/**
- * @minimum 1
- * @maximum 20
- */
-limit?: number;
+export type StreamMessagesApiV1MessagesStreamBookingIdGetParams = {
+token?: string | null;
 };
 
 export type GetAllAvailabilityInstructorsAvailabilityGetParams = {
@@ -5295,79 +5270,6 @@ export type GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetParams = 
  * Start date (Monday) of the week
  */
 start_date: string;
-};
-
-export type ListInstructorBookingsInstructorsBookingsGetParams = {
-/**
- * Filter by booking status (COMPLETED, CONFIRMED, etc.)
- */
-status?: BookingStatus | null;
-/**
- * Only include upcoming confirmed bookings
- */
-upcoming?: boolean;
-/**
- * Page number
- * @minimum 1
- */
-page?: number;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: number;
-include_past_confirmed?: boolean;
-};
-
-export type GetCompletedBookingsInstructorsBookingsCompletedGetParams = {
-/**
- * Page number
- * @minimum 1
- */
-page?: number;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: number;
-};
-
-export type GetPendingCompletionBookingsInstructorsBookingsPendingCompletionGetParams = {
-/**
- * Page number
- * @minimum 1
- */
-page?: number;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: number;
-};
-
-export type GetUpcomingBookingsInstructorsBookingsUpcomingGetParams = {
-/**
- * Page number
- * @minimum 1
- */
-page?: number;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: number;
-};
-
-export type MarkLessonCompleteInstructorsBookingsBookingIdCompletePostParams = {
-notes?: string | null;
-};
-
-export type DisputeCompletionInstructorsBookingsBookingIdDisputePostParams = {
-reason: string;
 };
 
 export type ResetRateLimitsOpsRateLimitsResetPostParams = {

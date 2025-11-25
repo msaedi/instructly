@@ -64,7 +64,7 @@ def _is_excluded_path(path: str) -> bool:
         "/api/privacy/",
         "/api/payments/",
         "/api/favorites/",
-        "/api/messages/",
+        # "/api/messages/",  # Phase 10: Messages migrated to /api/v1/messages
         "/api/uploads/",
         "/api/reviews/",
         "/api/webhooks/",
@@ -122,6 +122,8 @@ class TestRoutingInvariants:
             "/api/instructors/",  # Should no longer exist as legacy
             "/bookings/",  # Phase 9: Should no longer exist as legacy
             "/api/bookings/",  # Phase 9: Should no longer exist as legacy
+            "/messages/",  # Phase 10: Should no longer exist as legacy
+            "/api/messages/",  # Phase 10: Should no longer exist as legacy
         ]
 
         # Domains in migration (legacy routes temporarily allowed)
@@ -244,6 +246,16 @@ class TestRoutingInvariants:
             # Pricing endpoint uses same {booking_id} path parameter
             ("/api/v1/bookings/{booking_id}/pricing", "/api/v1/bookings/{booking_id}/preview"),
             ("/api/v1/bookings/{booking_id}/preview", "/api/v1/bookings/{booking_id}/pricing"),
+            # Messages v1: Static routes defined before dynamic {message_id}
+            # Phase 10: /config, /unread-count, /mark-read, /send defined before /{message_id}
+            ("/api/v1/messages/config", "/api/v1/messages/{message_id}"),
+            ("/api/v1/messages/{message_id}", "/api/v1/messages/config"),
+            ("/api/v1/messages/unread-count", "/api/v1/messages/{message_id}"),
+            ("/api/v1/messages/{message_id}", "/api/v1/messages/unread-count"),
+            ("/api/v1/messages/mark-read", "/api/v1/messages/{message_id}"),
+            ("/api/v1/messages/{message_id}", "/api/v1/messages/mark-read"),
+            ("/api/v1/messages/send", "/api/v1/messages/{message_id}"),
+            ("/api/v1/messages/{message_id}", "/api/v1/messages/send"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):
@@ -447,4 +459,71 @@ class TestRoutingInvariants:
                 "Found legacy bookings endpoints that should be removed:\n"
                 + "\n".join(f"  - {path}" for path in found_legacy)
                 + "\n\nUse /api/v1/bookings or /api/v1/instructor-bookings instead."
+            )
+
+    def test_v1_messages_endpoints_exist(self):
+        """
+        Verify v1 messages endpoints are properly mounted.
+
+        Phase 10: Messages domain migrated to /api/v1/messages.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_messages_endpoints = [
+            "/api/v1/messages/config",  # GET
+            "/api/v1/messages/unread-count",  # GET
+            "/api/v1/messages/mark-read",  # POST
+            "/api/v1/messages/send",  # POST
+            "/api/v1/messages/stream/{booking_id}",  # GET (SSE)
+            "/api/v1/messages/history/{booking_id}",  # GET
+            "/api/v1/messages/typing/{booking_id}",  # POST
+            "/api/v1/messages/{message_id}",  # PATCH, DELETE
+            "/api/v1/messages/{message_id}/reactions",  # POST, DELETE
+        ]
+
+        missing = []
+        for expected in expected_messages_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 messages endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_messages_endpoints_removed(self):
+        """
+        Verify legacy messages endpoints are REMOVED.
+
+        Phase 10: Messages migration is complete. All messages endpoints
+        must now use /api/v1/messages.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_messages_endpoints = [
+            "/api/messages/config",
+            "/api/messages/unread-count",
+            "/api/messages/mark-read",
+            "/api/messages/send",
+            "/api/messages/stream/{booking_id}",
+            "/api/messages/history/{booking_id}",
+            "/api/messages/typing/{booking_id}",
+            "/api/messages/{message_id}",
+            "/api/messages/{message_id}/reactions",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_messages_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy messages endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/messages instead."
             )

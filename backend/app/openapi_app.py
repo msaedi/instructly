@@ -23,7 +23,7 @@ from app.routes import (
     favorites,
     gated,
     # instructor_bookings - DEPRECATED, use /api/v1/instructor-bookings instead
-    messages,
+    # messages - DEPRECATED, use /api/v1/messages instead
     metrics,
     monitoring,
     password_reset,
@@ -46,6 +46,7 @@ from app.routes.v1 import (
     bookings as bookings_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
+    messages as messages_v1,
 )
 
 
@@ -65,6 +66,7 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
     api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
     api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
+    api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
 
     # Mount v1 API first
     app.include_router(api_v1)
@@ -84,7 +86,8 @@ def build_openapi_app() -> FastAPI:
     # app.include_router(bookings.router)  # Was: /bookings
     app.include_router(favorites.router)
     app.include_router(payments.router)
-    app.include_router(messages.router)
+    # Legacy messages - now /api/v1/messages
+    # app.include_router(messages.router)
     app.include_router(metrics.router)
     app.include_router(monitoring.router)
     app.include_router(alerts.router)
