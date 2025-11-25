@@ -122,7 +122,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
     return null;
   }
 
-  logger.info('BookAgain: Rendering component', {
+  logger.debug('BookAgain: Rendering component', {
     uniqueInstructorsLength: uniqueInstructors.length,
     instructors: uniqueInstructors.map((i) => ({
       id: i.instructorId,
