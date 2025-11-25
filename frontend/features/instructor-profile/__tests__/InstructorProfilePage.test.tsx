@@ -36,6 +36,22 @@ jest.mock('@/services/api/favorites', () => ({
   },
 }));
 
+// Mock the reviews API
+jest.mock('@/services/api/reviews', () => ({
+  reviewsApi: {
+    getInstructorRatings: jest.fn().mockResolvedValue({
+      overall: { rating: 4.8, total_reviews: 5, display_rating: '4.8' },
+      by_service: [],
+      confidence_level: 'trusted',
+    }),
+    getSearchRating: jest.fn().mockResolvedValue({
+      primary_rating: 4.8,
+      review_count: 5,
+      is_service_specific: false,
+    }),
+  },
+}));
+
 const mockInstructor = {
   id: '01K2MAY484FQGFEQVN3VKGYZ58',
   user_id: '01K2MAY484FQGFEQVN3VKGYZ58',
