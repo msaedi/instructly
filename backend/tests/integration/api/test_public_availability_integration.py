@@ -100,7 +100,7 @@ class TestPublicAvailabilityIntegration:
             "student_note": "Morning lesson",
         }
 
-        response = client.post("/bookings/", json=booking_data, headers=auth_headers_student)  # Note the trailing slash
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)  # Note the trailing slash
         assert (
             response.status_code == 201 or response.status_code == 200
         )  # Some endpoints return 200, f"Expected 201, got {response.status_code}: {response.json()}"
@@ -285,7 +285,7 @@ class TestPublicAvailabilityIntegration:
             "end_time": "10:00",
         }
 
-        response = client.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
         assert response.status_code == 201
 
         # Second public check - cache should reflect booking

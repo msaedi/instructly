@@ -93,13 +93,11 @@ from .routes import (
     auth,
     availability_windows,
     beta,
-    bookings,
     codebase_metrics,
     database_monitor,
     favorites,
     gated,
     instructor_background_checks,
-    instructor_bookings,
     internal,
     messages,
     metrics,
@@ -973,13 +971,15 @@ app.include_router(two_factor_auth.router, dependencies=[Depends(public_guard_de
 # app.include_router(instructors.api_router)  # Was: /api/instructors
 
 app.include_router(instructor_background_checks.router)
-app.include_router(instructor_bookings.router)
-app.include_router(instructor_bookings.api_router)
+# Legacy instructor_bookings routes - DEPRECATED, use /api/v1/instructor-bookings instead
+# app.include_router(instructor_bookings.router)  # Was: /instructors/bookings
+# app.include_router(instructor_bookings.api_router)  # Was: /api/instructors/bookings
 app.include_router(account_management.router)
 app.include_router(services.router)
 app.include_router(availability_windows.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(password_reset.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(bookings.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy bookings routes - DEPRECATED, use /api/v1/bookings instead
+# app.include_router(bookings.router, dependencies=[Depends(public_guard_dependency)])  # Was: /bookings
 app.include_router(student_badges.router)
 app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_dependency)])
 app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])

@@ -33,7 +33,7 @@ def test_create_booking_rejects_extra_field(client: TestClient):
         "selected_duration": 60,
         "unexpected": 1,
     }
-    resp = client.post("/bookings/", json=payload)
+    resp = client.post("/api/v1/bookings/", json=payload)
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422
@@ -50,7 +50,7 @@ def test_check_availability_rejects_extra_field(client: TestClient):
         "end_time": "10:00",
         "plus_one": True,
     }
-    resp = client.post("/bookings/check-availability", json=payload)
+    resp = client.post("/api/v1/bookings/check-availability", json=payload)
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422
@@ -58,7 +58,7 @@ def test_check_availability_rejects_extra_field(client: TestClient):
 
 def test_bookings_list_query_param_strictness(client: TestClient):
     # Supply an unexpected query parameter to the bookings list
-    resp = client.get("/bookings/?page=1&per_page=10&unexpected=1")
+    resp = client.get("/api/v1/bookings/?page=1&per_page=10&unexpected=1")
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     # Our current route does not enforce query param rejection; allow 200

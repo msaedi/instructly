@@ -1270,3 +1270,204 @@ await page.route('**/api/v1/bookings/upcoming*', async (route) => {
 ---
 
 **Phase 7f Status:** ✅ **Complete** – E2E mocks aligned with v1 API patterns. Unit tests already use service-layer mocking.
+
+---
+
+## Phase 8 – Booking Creation & Payment Flows Migration
+
+**Date:** November 24, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Migrated all booking creation and payment confirmation flows to v1 services.
+
+### Migrated Components
+
+| Component | Legacy Usage | V1 Migration |
+|-----------|-------------|--------------|
+| `useCreateBooking.ts` | `protectedApi.createBooking()` | `createBookingImperative()` from v1 services |
+| `RescheduleModal.tsx` | `protectedApi.rescheduleBooking()` | `rescheduleBookingImperative()` from v1 services |
+| `PaymentSection.tsx` | `protectedApi.getBooking()`, `cancelBooking()` | `fetchBookingDetails()`, `cancelBookingImperative()` |
+| `PaymentConfirmation.tsx` | `protectedApi.getBookings()` | `fetchBookingsList()` |
+| `booking/confirmation/page.tsx` | `protectedApi.getBooking()` | `fetchBookingDetails()` |
+| `student/booking/confirmation/page.tsx` | `protectedApi.getBooking()` | `fetchBookingDetails()` |
+
+---
+
+**Phase 8 Status:** ✅ **Complete** – All booking creation and payment flows migrated to v1 services.
+
+---
+
+## Phase 9 – Legacy Router Cleanup & Contract Hardening
+
+**Date:** November 24, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Phase 9 completes the cleanup of legacy instructors and bookings routers, hardens API contracts via Schemathesis testing, and removes unused frontend legacy code.
+
+### 9a – Legacy Backend Router Removal
+
+**Goal:** Remove legacy JSON routers that have been superseded by v1 routes.
+
+**Changes Made:**
+
+1. **backend/app/main.py:**
+   - Commented out `instructor_bookings.router` and `instructor_bookings.api_router`
+   - Commented out `bookings.router`
+   - All legacy instructor/bookings routes now return 404
+
+2. **backend/app/openapi_app.py:**
+   - Removed imports of `bookings` and `instructor_bookings` legacy routers
+   - OpenAPI schema no longer includes legacy endpoints
+
+3. **backend/tests/test_routes_invariants.py:**
+   - Updated `fully_migrated_domains` to include `/bookings/` and `/api/bookings/`
+   - Cleared `migrating_domains_legacy_allowed` (no more legacy routes allowed)
+   - Renamed `test_legacy_bookings_endpoints_still_exist_temporarily` to `test_legacy_bookings_endpoints_removed`
+   - Test now verifies legacy endpoints are REMOVED, not that they exist
+
+**V1 Endpoints (now the ONLY endpoints):**
+
+| Resource | V1 Endpoint Pattern |
+|----------|-------------------|
+| Instructors | `/api/v1/instructors/*` |
+| Student Bookings | `/api/v1/bookings/*` |
+| Instructor Bookings | `/api/v1/instructor-bookings/*` |
+
+### 9b – Frontend Legacy Client Removal
+
+**Goal:** Remove unused legacy frontend API clients and generated code.
+
+**Files Removed:**
+- `frontend/lib/api/bookings.ts` – Legacy bookings API client (confirmed unused)
+- `frontend/src/api/generated/bookings/` – Legacy Orval-generated client
+- `frontend/src/api/generated/instructor-bookings/` – Legacy Orval-generated client
+
+**Files Kept (v1 versions):**
+- `frontend/src/api/generated/bookings-v1/` – Uses `/api/v1/bookings` endpoints
+- `frontend/src/api/generated/instructor-bookings-v1/` – Uses `/api/v1/instructor-bookings` endpoints
+
+**Guardrails Updated:**
+- Removed `lib/api/bookings.ts` from allowed patterns in `precommit_no_raw_api.sh`
+
+### 9c – Schemathesis Coverage Extension
+
+**Goal:** Extend API contract testing to cover bookings v1 endpoints.
+
+**Changes to `backend/tests/integration/test_schemathesis_api_v1.py`:**
+
+1. Added `filtered_bookings_schema` filter for `/api/v1/bookings.*`
+2. Added `filtered_instructor_bookings_schema` filter for `/api/v1/instructor-bookings.*`
+3. Created `_run_schemathesis_case()` helper function to reduce code duplication
+4. Added `test_api_v1_bookings_schema_compliance()` test
+5. Added `test_api_v1_instructor_bookings_schema_compliance()` test
+
+**Schemathesis Coverage:**
+| Domain | Endpoint Pattern | Status |
+|--------|-----------------|--------|
+| Instructors | `/api/v1/instructors/*` | ✅ Tested |
+| Student Bookings | `/api/v1/bookings/*` | ✅ Tested (Phase 9) |
+| Instructor Bookings | `/api/v1/instructor-bookings/*` | ✅ Tested (Phase 9) |
+
+### How to Add a New v1 Endpoint
+
+For instructors, bookings, or instructor-bookings domains:
+
+1. **Add route under v1 router:**
+   ```python
+   # backend/app/routes/v1/bookings.py (example)
+   @router.get("/new-endpoint", response_model=NewResponse)
+   async def new_endpoint(...):
+       ...
+   ```
+
+2. **Add proper response documentation:**
+   ```python
+   @router.get(
+       "/new-endpoint",
+       response_model=NewResponse,
+       responses={
+           401: {"description": "Not authenticated"},
+           403: {"description": "Not authorized"},
+           404: {"description": "Resource not found"},
+           422: {"description": "Validation error"},
+       },
+   )
+   ```
+
+3. **Regenerate OpenAPI + Orval:**
+   ```bash
+   cd frontend && npm run api:sync
+   ```
+
+4. **Add service wrapper if needed:**
+   ```typescript
+   // frontend/src/api/services/bookings.ts
+   export function useNewEndpoint() {
+     return useGeneratedHook();
+   }
+   ```
+
+5. **Add tests:**
+   - Backend: Integration tests for the endpoint
+   - Schemathesis: Automatically covered by existing filters
+   - Frontend: Service layer tests
+
+6. **Update architecture docs if needed**
+
+### API Architecture Summary (Post-Phase 9)
+
+**Migrated Domains:**
+| Domain | Legacy Routes | V1 Routes | Status |
+|--------|--------------|-----------|--------|
+| Instructors | `/instructors/*`, `/api/instructors/*` | `/api/v1/instructors/*` | ✅ Fully Migrated |
+| Student Bookings | `/bookings/*`, `/api/bookings/*` | `/api/v1/bookings/*` | ✅ Fully Migrated |
+| Instructor Bookings | `/instructors/bookings/*`, `/api/instructors/bookings/*` | `/api/v1/instructor-bookings/*` | ✅ Fully Migrated |
+
+**Frontend Usage Pattern:**
+```typescript
+// ✅ CORRECT - Use v1 services
+import { useBookingsList, useBooking, useCancelBooking } from '@/src/api/services/bookings';
+import { useInstructorBookingsList } from '@/src/api/services/instructor-bookings';
+
+// ❌ WRONG - Don't use legacy paths
+fetch('/bookings/...')  // BLOCKED by pre-commit
+fetch('/api/bookings/...')  // BLOCKED by pre-commit
+```
+
+**Backend Usage Pattern:**
+```python
+# ✅ CORRECT - All routes under /api/v1/
+# Routes automatically use /api/v1 prefix when mounted in main.py
+@router.get("/endpoint")  # Becomes /api/v1/bookings/endpoint
+
+# ❌ WRONG - Legacy routes no longer exist
+# /bookings/endpoint  # Returns 404
+# /api/instructors/bookings/endpoint  # Returns 404
+```
+
+### Files Changed in Phase 9
+
+**Backend:**
+- `backend/app/main.py` – Commented out legacy router mounts
+- `backend/app/openapi_app.py` – Removed legacy router imports and mounts
+- `backend/tests/test_routes_invariants.py` – Tightened invariants, removed legacy allowances
+- `backend/tests/integration/test_schemathesis_api_v1.py` – Extended Schemathesis coverage
+
+**Frontend:**
+- `frontend/lib/api/bookings.ts` – **DELETED**
+- `frontend/src/api/generated/bookings/` – **DELETED**
+- `frontend/src/api/generated/instructor-bookings/` – **DELETED**
+- `frontend/scripts/precommit_no_raw_api.sh` – Updated allowlist
+
+---
+
+**Phase 9 Status:** ✅ **Complete** – Legacy routers removed, Schemathesis coverage extended, frontend cleaned up.
+
+---
+
+**Status:** Phases 0–9 Complete ✅
+**Ready for:** Production deployment with hardened API contracts

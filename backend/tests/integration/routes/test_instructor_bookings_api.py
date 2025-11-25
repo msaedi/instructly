@@ -187,9 +187,9 @@ def test_completed_endpoint_includes_past_confirmed_lessons(
     )
 
     completed_path = (
-        f"{base_prefix}/instructors/bookings/completed"
+        f"{base_prefix}/api/v1/instructor-bookings/completed"
         if base_prefix
-        else "/instructors/bookings/completed"
+        else "/api/v1/instructor-bookings/completed"
     )
     response = client.get(completed_path, headers=auth_headers_instructor)
     assert response.status_code == 200
@@ -198,9 +198,9 @@ def test_completed_endpoint_includes_past_confirmed_lessons(
     assert returned_ids == {past_booking_id}
 
     upcoming_path = (
-        f"{base_prefix}/instructors/bookings/upcoming"
+        f"{base_prefix}/api/v1/instructor-bookings/upcoming"
         if base_prefix
-        else "/instructors/bookings/upcoming"
+        else "/api/v1/instructor-bookings/upcoming"
     )
     response = client.get(upcoming_path, headers=auth_headers_instructor)
     assert response.status_code == 200

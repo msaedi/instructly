@@ -29,7 +29,7 @@ class TestPreviewNoGates:
         _set_env("preview", "beta")
         headers = _auth_headers_for(test_student)
         r = client.get(
-            "/bookings/?exclude_future_confirmed=true&per_page=1&page=1",
+            "/api/v1/bookings/?exclude_future_confirmed=true&per_page=1&page=1",
             headers=headers,
         )
         # Should not be gated in preview, auth still required (we provided it)
@@ -61,7 +61,7 @@ class TestProdPhaseBehavior:
         # Disable the default testing bypass so beta checks are enforced in tests
         headers["x-enforce-beta-checks"] = "1"
         r = client.get(
-            "/bookings/?exclude_future_confirmed=true&per_page=1&page=1",
+            "/api/v1/bookings/?exclude_future_confirmed=true&per_page=1&page=1",
             headers=headers,
         )
         assert r.status_code == 403
@@ -83,7 +83,7 @@ class TestProdPhaseBehavior:
 
         headers = _auth_headers_for(test_student)
         r = client.get(
-            "/bookings/?exclude_future_confirmed=true&per_page=1&page=1",
+            "/api/v1/bookings/?exclude_future_confirmed=true&per_page=1&page=1",
             headers=headers,
         )
         assert r.status_code in (200, 204), r.text

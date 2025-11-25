@@ -120,15 +120,15 @@ class TestRoutingInvariants:
         fully_migrated_domains = [
             "/instructors/",  # Should no longer exist as legacy
             "/api/instructors/",  # Should no longer exist as legacy
+            "/bookings/",  # Phase 9: Should no longer exist as legacy
+            "/api/bookings/",  # Phase 9: Should no longer exist as legacy
         ]
 
         # Domains in migration (legacy routes temporarily allowed)
-        # These will be removed once frontend/tests are migrated
-        migrating_domains_legacy_allowed = [
-            "/bookings/",  # TODO: Remove after frontend migration
-            "/api/bookings/",  # TODO: Remove after frontend migration
-            "/instructors/bookings/",  # TODO: Remove after frontend migration
-            "/api/instructors/bookings/",  # TODO: Remove after frontend migration
+        # Phase 9: Bookings migration complete - no legacy routes allowed
+        migrating_domains_legacy_allowed: list[str] = [
+            # All bookings and instructor_bookings domains are now fully migrated
+            # No legacy routes are allowed for these domains anymore
         ]
 
         for route in routes:
@@ -400,32 +400,48 @@ class TestRoutingInvariants:
                 + "\n".join(f"  - {path}" for path in missing)
             )
 
-    def test_legacy_bookings_endpoints_still_exist_temporarily(self):
+    def test_legacy_bookings_endpoints_removed(self):
         """
-        Verify legacy bookings endpoints still exist during migration.
+        Verify legacy bookings endpoints are REMOVED.
 
-        NOTE: Once frontend and tests are migrated to v1, we can remove
-        the legacy endpoints and delete this test.
+        Phase 9: Frontend migration is complete. All bookings endpoints
+        must now use /api/v1/bookings and /api/v1/instructor-bookings.
         """
         routes = _get_api_routes()
         paths = {route.path for route in routes}
 
-        # Legacy endpoints that should exist during migration
-        # Note: These have trailing slashes in the actual routes
+        # Legacy endpoints that should NO LONGER exist
         legacy_bookings_endpoints = [
-            "/bookings/",  # Note: Has trailing slash
+            "/bookings/",
             "/bookings/{booking_id}",
-            "/instructors/bookings/",  # Note: Has trailing slash
+            "/bookings/{booking_id}/preview",
+            "/bookings/{booking_id}/cancel",
+            "/bookings/{booking_id}/complete",
+            "/bookings/{booking_id}/reschedule",
+            "/bookings/{booking_id}/confirm-payment",
+            "/bookings/{booking_id}/payment-method",
+            "/bookings/upcoming",
+            "/bookings/stats",
+            "/bookings/check-availability",
+            "/bookings/send-reminders",
+            "/instructors/bookings/",
+            "/instructors/bookings/{booking_id}",
+            "/instructors/bookings/{booking_id}/complete",
+            "/instructors/bookings/{booking_id}/dispute",
+            "/instructors/bookings/pending-completion",
+            "/instructors/bookings/upcoming",
+            "/instructors/bookings/completed",
+            "/api/instructors/bookings/",
         ]
 
-        missing = []
+        found_legacy = []
         for legacy in legacy_bookings_endpoints:
-            if legacy not in paths:
-                missing.append(legacy)
+            if legacy in paths:
+                found_legacy.append(legacy)
 
-        if missing:
+        if found_legacy:
             pytest.fail(
-                "Expected legacy bookings endpoints to exist during migration:\n"
-                + "\n".join(f"  - {path}" for path in missing)
-                + "\n\nThese will be removed after frontend migration is complete."
+                "Found legacy bookings endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/bookings or /api/v1/instructor-bookings instead."
             )

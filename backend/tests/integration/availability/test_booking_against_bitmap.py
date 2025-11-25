@@ -166,14 +166,14 @@ def test_bookings_respect_bitmap_availability_windows(
         }
 
     inside_resp = bitmap_booking_client.post(
-        "/bookings/",
+        "/api/v1/bookings/",
         json=booking_payload("09:30", 30, target_day),
         headers=auth_headers_student,
     )
     assert inside_resp.status_code == 201, inside_resp.text
 
     outside_resp = bitmap_booking_client.post(
-        "/bookings/",
+        "/api/v1/bookings/",
         json=booking_payload("12:00", 30, target_day),
         headers=auth_headers_student,
     )
@@ -181,14 +181,14 @@ def test_bookings_respect_bitmap_availability_windows(
     assert _error_message(outside_resp) == "Requested time is not available"
 
     midnight_inside = bitmap_booking_client.post(
-        "/bookings/",
+        "/api/v1/bookings/",
         json=booking_payload("23:30", 30, target_day),
         headers=auth_headers_student,
     )
     assert midnight_inside.status_code == 201, midnight_inside.text
 
     midnight_outside = bitmap_booking_client.post(
-        "/bookings/",
+        "/api/v1/bookings/",
         # This request targets the first half-hour immediately after midnight (24:00–24:30).
         json=booking_payload("00:00", 30, target_day),
         headers=auth_headers_student,

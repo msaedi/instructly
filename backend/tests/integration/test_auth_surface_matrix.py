@@ -28,12 +28,12 @@ PROBE_SPECS = [
     },
     {
         "label": "bookings_status_completed_lower",
-        "path": "/bookings",
+        "path": "/api/v1/bookings",
         "params": {"status": "completed"},
     },
     {
         "label": "bookings_status_COMPLETED_upper",
-        "path": "/bookings",
+        "path": "/api/v1/bookings",
         "params": {"status": "COMPLETED"},
     },
 ]

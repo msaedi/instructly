@@ -89,7 +89,7 @@ def test_confirm_booking_payment_boundary_route(
     mod.datetime = FixedDT
     try:
         resp = client.post(
-            f"/bookings/{booking.id}/confirm-payment",
+            f"/api/v1/bookings/{booking.id}/confirm-payment",
             json={"payment_method_id": "pm_test", "save_payment_method": False},
             headers=auth_headers_student,
         )
@@ -288,7 +288,7 @@ class TestBookingPaymentRoutes:
         }
 
         # Create booking
-        response = authenticated_client.post("/bookings/", json=booking_data)
+        response = authenticated_client.post("/api/v1/bookings/", json=booking_data)
 
         assert response.status_code == 201
         data = response.json()
@@ -324,7 +324,7 @@ class TestBookingPaymentRoutes:
             "student_note": "Test booking",
         }
 
-        response = authenticated_client.post("/bookings/", json=booking_data)
+        response = authenticated_client.post("/api/v1/bookings/", json=booking_data)
 
         assert response.status_code == 422  # BusinessRuleException returns 422
         error_detail = response.json()["detail"]
@@ -350,7 +350,7 @@ class TestBookingPaymentRoutes:
             "selected_duration": 60,
         }
 
-        response = client.post("/bookings/", json=booking_data)
+        response = client.post("/api/v1/bookings/", json=booking_data)
         assert response.status_code == 401
 
     def test_create_booking_rejects_price_below_floor(
@@ -379,7 +379,7 @@ class TestBookingPaymentRoutes:
             "location_type": "neutral",
         }
 
-        response = authenticated_client.post("/bookings/", json=booking_data)
+        response = authenticated_client.post("/api/v1/bookings/", json=booking_data)
 
         assert response.status_code == 422
         detail = response.json()
@@ -432,7 +432,7 @@ class TestBookingPaymentRoutes:
         }
 
         response = authenticated_client.post(
-            f"/bookings/{booking.id}/confirm-payment",
+            f"/api/v1/bookings/{booking.id}/confirm-payment",
             json=payment_data,
         )
 
@@ -501,7 +501,7 @@ class TestBookingPaymentRoutes:
             }
 
             response = authenticated_client.post(
-                f"/bookings/{booking.id}/confirm-payment",
+                f"/api/v1/bookings/{booking.id}/confirm-payment",
                 json=payment_data,
             )
 
@@ -562,7 +562,7 @@ class TestBookingPaymentRoutes:
         }
 
         response = authenticated_client.post(
-            f"/bookings/{booking.id}/confirm-payment",
+            f"/api/v1/bookings/{booking.id}/confirm-payment",
             json=payment_data,
         )
 
@@ -602,7 +602,7 @@ class TestBookingPaymentRoutes:
         }
 
         response = authenticated_client.post(
-            f"/bookings/{booking.id}/confirm-payment",
+            f"/api/v1/bookings/{booking.id}/confirm-payment",
             json=payment_data,
         )
 
@@ -623,7 +623,7 @@ class TestBookingPaymentRoutes:
         }
 
         response = authenticated_client.post(
-            f"/bookings/{ulid.ULID()}/confirm-payment",
+            f"/api/v1/bookings/{ulid.ULID()}/confirm-payment",
             json=payment_data,
         )
 
@@ -668,7 +668,7 @@ class TestBookingPaymentRoutes:
         }
 
         response = authenticated_client.post(
-            f"/bookings/{booking.id}/confirm-payment",
+            f"/api/v1/bookings/{booking.id}/confirm-payment",
             json=payment_data,
         )
 

@@ -20,6 +20,7 @@ if [ ${#FILES_TO_CHECK[@]} -eq 0 ]; then
 fi
 
 # Patterns to exclude (these are allowed to have /api/, /bookings, and /instructors strings)
+# Phase 9: Removed lib/api/bookings.ts from allowlist (file deleted)
 ALLOWED_PATTERNS=(
   "src/api/generated/"
   "src/api/orval-mutator.ts"
@@ -33,7 +34,6 @@ ALLOWED_PATTERNS=(
   "lib/api.ts"
   "lib/apiBase.ts"
   "lib/betaApi.ts"
-  "lib/api/bookings.ts"
   "lib/beta-config.ts"
   "features/shared/api/"
 )

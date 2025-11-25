@@ -81,7 +81,7 @@ class TestBookingRoutesNewFormat:
         tomorrow = date.today() + timedelta(days=1)
 
         response = client.post(
-            "/bookings/",  # With trailing slash
+            "/api/v1/bookings/",  # With trailing slash
             json={
                 "instructor_id": instructor.id,
                 "instructor_service_id": service.id,
@@ -111,7 +111,7 @@ class TestBookingRoutesNewFormat:
     def test_old_format_rejected(self, client, auth_headers_student):
         """Verify old slot-based format is rejected."""
         response = client.post(
-            "/bookings/",  # With trailing slash
+            "/api/v1/bookings/",  # With trailing slash
             json={"availability_slot_id": 123, "instructor_service_id": 1, "student_note": "This should fail"},
             headers=auth_headers_student,
         )
@@ -139,7 +139,7 @@ class TestBookingRoutesNewFormat:
         tomorrow = date.today() + timedelta(days=1)
 
         response = client.post(
-            "/bookings/check-availability",
+            "/api/v1/bookings/check-availability",
             json={
                 "instructor_id": instructor.id,
                 "instructor_service_id": service.id,
@@ -158,7 +158,7 @@ class TestBookingRoutesNewFormat:
     def test_check_availability_old_format_rejected(self, client, auth_headers_student):
         """Verify old availability check format is rejected."""
         response = client.post(
-            "/bookings/check-availability",
+            "/api/v1/bookings/check-availability",
             json={"availability_slot_id": 123, "instructor_service_id": 1},
             headers=auth_headers_student,
         )
@@ -298,7 +298,7 @@ class TestBookingResponseFormat:
 
         # Create a booking
         create_response = client.post(
-            "/bookings/",
+            "/api/v1/bookings/",
             json={
                 "instructor_id": instructor.id,
                 "instructor_service_id": service.id,
@@ -317,7 +317,7 @@ class TestBookingResponseFormat:
 
         # Get booking details
         booking_id = booking["id"]
-        get_response = client.get(f"/bookings/{booking_id}", headers=auth_headers_student)
+        get_response = client.get(f"/api/v1/bookings/{booking_id}", headers=auth_headers_student)
 
         assert get_response.status_code == 200
         booking_details = get_response.json()
@@ -366,7 +366,7 @@ def test_full_booking_flow_clean_architecture(
 
     # Step 2: Student checks availability
     check_response = client.post(
-        "/bookings/check-availability",
+        "/api/v1/bookings/check-availability",
         json={
             "instructor_id": instructor.id,
             "instructor_service_id": service.id,
@@ -383,7 +383,7 @@ def test_full_booking_flow_clean_architecture(
 
     # Step 3: Student creates booking
     booking_response = client.post(
-        "/bookings/",
+        "/api/v1/bookings/",
         json={
             "instructor_id": instructor.id,
             "instructor_service_id": service.id,

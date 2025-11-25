@@ -17,12 +17,12 @@ from app.routes import (
     auth,
     availability_windows,
     beta,
-    bookings,
+    # bookings - DEPRECATED, use /api/v1/bookings instead
     codebase_metrics,
     database_monitor,
     favorites,
     gated,
-    instructor_bookings,
+    # instructor_bookings - DEPRECATED, use /api/v1/instructor-bookings instead
     messages,
     metrics,
     monitoring,
@@ -74,12 +74,14 @@ def build_openapi_app() -> FastAPI:
     app.include_router(two_factor_auth.router)
     # Instructors v1 is mounted above in api_v1
     # app.include_router(instructors.router)  # Legacy - now /api/v1/instructors
-    app.include_router(instructor_bookings.router)
+    # Legacy instructor_bookings - now /api/v1/instructor-bookings
+    # app.include_router(instructor_bookings.router)  # Was: /instructors/bookings
     app.include_router(account_management.router)
     app.include_router(services.router)
     app.include_router(availability_windows.router)
     app.include_router(password_reset.router)
-    app.include_router(bookings.router)
+    # Legacy bookings - now /api/v1/bookings
+    # app.include_router(bookings.router)  # Was: /bookings
     app.include_router(favorites.router)
     app.include_router(payments.router)
     app.include_router(messages.router)

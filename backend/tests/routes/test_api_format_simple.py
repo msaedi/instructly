@@ -18,7 +18,7 @@ class TestSchemaValidation:
         """Verify BookingCreate requires instructor_id, date, and time fields."""
         # Send old format with availability_slot_id
         response = client.post(
-            "/bookings/",  # With trailing slash as per route definition
+            "/api/v1/bookings/",  # With trailing slash as per route definition
             json={"availability_slot_id": 123, "instructor_service_id": 1, "student_note": "This uses old format"},
             headers=auth_headers_student,
         )
@@ -41,7 +41,7 @@ class TestSchemaValidation:
         """Verify AvailabilityCheckRequest requires time-based fields."""
         # Send old format
         response = client.post(
-            "/bookings/check-availability",  # No trailing slash for this endpoint
+            "/api/v1/bookings/check-availability",  # No trailing slash for this endpoint
             json={"availability_slot_id": 123, "instructor_service_id": 1},
             headers=auth_headers_student,
         )
@@ -107,7 +107,7 @@ class TestAPIBehavior:
         """Verify that trailing slashes are handled correctly."""
         # Based on debug output, /bookings/ has trailing slash for POST
         response_with = client.post(
-            "/bookings/", json={}, headers=auth_headers_student  # With trailing slash  # Empty to trigger validation
+            "/api/v1/bookings/", json={}, headers=auth_headers_student  # With trailing slash  # Empty to trigger validation
         )
 
         # Should get 422 for missing fields (not 404)
@@ -124,7 +124,7 @@ class TestAPIBehavior:
     def test_error_messages_are_clear(self, client, auth_headers_student):
         """Verify error messages clearly indicate what's wrong."""
         response = client.post(
-            "/bookings/",
+            "/api/v1/bookings/",
             json={"instructor_service_id": 1},
             headers=auth_headers_student,  # Missing all time-based fields
         )
@@ -167,7 +167,7 @@ class TestCleanArchitectureValidation:
 
         # This will fail at service level but validates schema accepts fields
         response = client.post(
-            "/bookings/",
+            "/api/v1/bookings/",
             json={
                 "instructor_id": instructor_id,
                 "instructor_service_id": service_id,
@@ -200,7 +200,7 @@ class TestCleanArchitectureValidation:
         service_id = generate_ulid()
 
         response = client.post(
-            "/bookings/check-availability",
+            "/api/v1/bookings/check-availability",
             json={
                 "instructor_id": instructor_id,
                 "instructor_service_id": service_id,

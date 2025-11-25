@@ -37,7 +37,7 @@ def test_csrf_blocks_cross_origin_on_state_change(monkeypatch):
     client = TestClient(app)
     # Cross-site origin should be blocked before hitting route
     r = client.post(
-        "/bookings/",
+        "/api/v1/bookings/",
         json={},
         headers={"Origin": "https://evil.example.com"},
     )

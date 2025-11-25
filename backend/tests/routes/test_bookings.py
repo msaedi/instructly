@@ -165,7 +165,7 @@ class TestBookingRoutes:
         mock_booking_service.create_booking_with_payment_setup.return_value = mock_booking
 
         # Execute
-        response = client_with_mock_booking_service.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client_with_mock_booking_service.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Verify
         if response.status_code == 422:
@@ -184,7 +184,7 @@ class TestBookingRoutes:
         booking_data["availability_slot_id"] = generate_ulid()
 
         # Execute
-        response = client_with_mock_booking_service.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client_with_mock_booking_service.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Should return 422 due to extra field with extra='forbid'
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -196,7 +196,7 @@ class TestBookingRoutes:
         booking_data["booking_date"] = yesterday.isoformat()
 
         # Execute
-        response = client.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Verify - validation moved to service layer, should return 400 BAD REQUEST
         # (or 404 if instructor/service not found)
@@ -216,7 +216,7 @@ class TestBookingRoutes:
         )
 
         # Execute
-        response = client_with_mock_booking_service.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client_with_mock_booking_service.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Verify - ConflictException should result in 409
         assert response.status_code == status.HTTP_409_CONFLICT
@@ -228,7 +228,7 @@ class TestBookingRoutes:
         mock_booking_service.create_booking_with_payment_setup.side_effect = NotFoundException("Instructor not found")
 
         # Execute
-        response = client_with_mock_booking_service.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client_with_mock_booking_service.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Verify
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -239,7 +239,7 @@ class TestBookingRoutes:
         booking_data["end_time"] = "09:00"
 
         # Execute
-        response = client.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Should fail validation
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -331,7 +331,7 @@ class TestBookingRoutes:
         ]
 
         # Execute
-        response = client_with_mock_booking_service.get("/bookings/", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get("/api/v1/bookings/", headers=auth_headers_student)
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -348,7 +348,7 @@ class TestBookingRoutes:
         mock_booking_service.get_bookings_for_user.return_value = []
 
         # Execute with status filter - MUST USE UPPERCASE
-        response = client_with_mock_booking_service.get("/bookings/?status=COMPLETED", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get("/api/v1/bookings/?status=COMPLETED", headers=auth_headers_student)
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -398,7 +398,7 @@ class TestBookingRoutes:
 
         # Execute
         response = client_with_mock_booking_service.post(
-            f"/bookings/{booking_id}/cancel", json={"reason": "Schedule conflict"}, headers=auth_headers_student
+            f"/api/v1/bookings/{booking_id}/cancel", json={"reason": "Schedule conflict"}, headers=auth_headers_student
         )
 
         # Verify
@@ -415,7 +415,7 @@ class TestBookingRoutes:
 
         # Execute
         response = client_with_mock_booking_service.post(
-            f"/bookings/{booking_id}/cancel", json={"reason": "Not needed"}, headers=auth_headers_student
+            f"/api/v1/bookings/{booking_id}/cancel", json={"reason": "Not needed"}, headers=auth_headers_student
         )
 
         # Verify
@@ -426,7 +426,7 @@ class TestBookingRoutes:
         booking_id = generate_ulid()
 
         # Execute - missing reason
-        response = client.post(f"/bookings/{booking_id}/cancel", json={}, headers=auth_headers_student)
+        response = client.post(f"/api/v1/bookings/{booking_id}/cancel", json={}, headers=auth_headers_student)
 
         # Verify
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -474,7 +474,7 @@ class TestBookingRoutes:
 
         # Execute
         response = client_with_mock_booking_service.post(
-            f"/bookings/{booking_id}/complete", headers=auth_headers_instructor
+            f"/api/v1/bookings/{booking_id}/complete", headers=auth_headers_instructor
         )
 
         # Verify
@@ -485,7 +485,7 @@ class TestBookingRoutes:
         """Test that availability check requires authentication."""
         # Execute without auth headers
         response = client.post(
-            "/bookings/check-availability",
+            "/api/v1/bookings/check-availability",
             json={
                 "instructor_id": generate_ulid(),
                 "instructor_service_id": generate_ulid(),
@@ -511,7 +511,7 @@ class TestBookingRoutes:
 
         # Execute with auth
         response = client_with_mock_booking_service.post(
-            "/bookings/check-availability",
+            "/api/v1/bookings/check-availability",
             json={
                 "instructor_id": generate_ulid(),
                 "instructor_service_id": generate_ulid(),
@@ -545,7 +545,7 @@ class TestBookingRoutes:
         mock_booking_service.get_booking_stats_for_instructor.return_value = mock_stats
 
         # Execute
-        response = client_with_mock_booking_service.get("/bookings/stats", headers=auth_headers_instructor)
+        response = client_with_mock_booking_service.get("/api/v1/bookings/stats", headers=auth_headers_instructor)
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -563,7 +563,7 @@ class TestBookingRoutes:
         )
 
         # Execute
-        response = client_with_mock_booking_service.get("/bookings/stats", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get("/api/v1/bookings/stats", headers=auth_headers_student)
 
         # Verify - the route should return 400 for ValidationException
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -571,7 +571,7 @@ class TestBookingRoutes:
     def test_send_booking_reminders_admin_only(self, client_with_mock_booking_service, auth_headers_student):
         """Test that only admin can send reminders."""
         # Execute as regular user
-        response = client_with_mock_booking_service.post("/bookings/send-reminders", headers=auth_headers_student)
+        response = client_with_mock_booking_service.post("/api/v1/bookings/send-reminders", headers=auth_headers_student)
 
         # Should be forbidden (403) or rate limited (429)
         assert response.status_code in [status.HTTP_403_FORBIDDEN, status.HTTP_429_TOO_MANY_REQUESTS]
@@ -611,7 +611,7 @@ class TestBookingRoutes:
         mock_booking_service.get_bookings_for_user.return_value = upcoming
 
         # Execute - no query param should work
-        response = client_with_mock_booking_service.get("/bookings/upcoming", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get("/api/v1/bookings/upcoming", headers=auth_headers_student)
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -654,7 +654,7 @@ class TestBookingRoutes:
         mock_booking_service.get_booking_for_user.return_value = mock_booking
 
         # Execute
-        response = client_with_mock_booking_service.get(f"/bookings/{booking_id}/preview", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get(f"/api/v1/bookings/{booking_id}/preview", headers=auth_headers_student)
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -705,7 +705,7 @@ class TestBookingRoutes:
 
         # Execute
         response = client_with_mock_booking_service.patch(
-            f"/bookings/{booking_id}",
+            f"/api/v1/bookings/{booking_id}",
             json={"instructor_note": "Updated note", "meeting_location": "New location"},
             headers=auth_headers_instructor,
         )
@@ -755,7 +755,7 @@ class TestBookingRoutes:
 
         mock_booking_service.get_booking_for_user.return_value = mock_booking
 
-        response = client_with_mock_booking_service.get(f"/bookings/{booking_id}", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get(f"/api/v1/bookings/{booking_id}", headers=auth_headers_student)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -768,7 +768,7 @@ class TestBookingRoutes:
         """Test getting non-existent booking."""
         mock_booking_service.get_booking_for_user.return_value = None
 
-        response = client_with_mock_booking_service.get("/bookings/999", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get("/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ0", headers=auth_headers_student)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_update_booking_student_forbidden(
@@ -780,7 +780,7 @@ class TestBookingRoutes:
         )
 
         response = client_with_mock_booking_service.patch(
-            "/bookings/123", json={"instructor_note": "Note"}, headers=auth_headers_student
+            "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1", json={"instructor_note": "Note"}, headers=auth_headers_student
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
@@ -789,7 +789,7 @@ class TestBookingRoutes:
     ):
         """Test that students cannot complete bookings."""
         # With RBAC, students are blocked at permission level (403) before service validation (400)
-        response = client_with_mock_booking_service.post("/bookings/123/complete", headers=auth_headers_student)
+        response = client_with_mock_booking_service.post("/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/complete", headers=auth_headers_student)
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_get_bookings_pagination_edge_cases(
@@ -799,7 +799,7 @@ class TestBookingRoutes:
         # Empty result on high page number
         mock_booking_service.get_bookings_for_user.return_value = []
 
-        response = client_with_mock_booking_service.get("/bookings/?page=100&per_page=20", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get("/api/v1/bookings/?page=100&per_page=20", headers=auth_headers_student)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["total"] == 0
@@ -808,11 +808,11 @@ class TestBookingRoutes:
     def test_get_bookings_invalid_pagination(self, client, auth_headers_student):
         """Test invalid pagination parameters."""
         # Negative page
-        response = client.get("/bookings/?page=-1", headers=auth_headers_student)
+        response = client.get("/api/v1/bookings/?page=-1", headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
         # Per page too large
-        response = client.get("/bookings/?per_page=1000", headers=auth_headers_student)
+        response = client.get("/api/v1/bookings/?per_page=1000", headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_all_endpoints_require_auth(self, client):
@@ -820,14 +820,14 @@ class TestBookingRoutes:
         tomorrow = date.today() + timedelta(days=1)
 
         endpoints = [
-            ("GET", "/bookings/"),
-            ("GET", "/bookings/123"),
-            ("GET", "/bookings/123/preview"),
-            ("GET", "/bookings/upcoming"),
-            ("GET", "/bookings/stats"),
+            ("GET", "/api/v1/bookings/"),
+            ("GET", "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1"),
+            ("GET", "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/preview"),
+            ("GET", "/api/v1/bookings/upcoming"),
+            ("GET", "/api/v1/bookings/stats"),
             (
                 "POST",
-                "/bookings/",
+                "/api/v1/bookings/",
                 {
                     "instructor_id": 1,
                     "instructor_service_id": 1,
@@ -836,12 +836,12 @@ class TestBookingRoutes:
                     "end_time": "10:00",
                 },
             ),
-            ("PATCH", "/bookings/123", {"instructor_note": "Note"}),
-            ("POST", "/bookings/123/cancel", {"reason": "Test"}),
-            ("POST", "/bookings/123/complete", {}),
+            ("PATCH", "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1", {"instructor_note": "Note"}),
+            ("POST", "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/cancel", {"reason": "Test"}),
+            ("POST", "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/complete", {}),
             (
                 "POST",
-                "/bookings/check-availability",
+                "/api/v1/bookings/check-availability",
                 {
                     "instructor_id": 1,
                     "instructor_service_id": 1,
@@ -866,7 +866,7 @@ class TestBookingRoutes:
         """Test preview for non-existent booking."""
         mock_booking_service.get_booking_for_user.return_value = None
 
-        response = client_with_mock_booking_service.get("/bookings/999/preview", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get("/api/v1/bookings/999/preview", headers=auth_headers_student)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_get_upcoming_empty(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
@@ -874,7 +874,7 @@ class TestBookingRoutes:
         mock_booking_service.get_bookings_for_user.return_value = []
 
         # No query params
-        response = client_with_mock_booking_service.get("/bookings/upcoming", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get("/api/v1/bookings/upcoming", headers=auth_headers_student)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "items" in data
@@ -894,7 +894,7 @@ class TestBookingRoutes:
 
         tomorrow = date.today() + timedelta(days=1)
         response = client_with_mock_booking_service.post(
-            "/bookings/check-availability",
+            "/api/v1/bookings/check-availability",
             json={
                 "instructor_id": generate_ulid(),
                 "instructor_service_id": generate_ulid(),
@@ -923,7 +923,7 @@ class TestBookingRoutes:
         mock_booking_service.cancel_booking = AsyncMock(side_effect=mock_cancel)
 
         response = client_with_mock_booking_service.post(
-            "/bookings/123/cancel", json={"reason": "Already cancelled"}, headers=auth_headers_student
+            "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/cancel", json={"reason": "Already cancelled"}, headers=auth_headers_student
         )
         # BusinessRuleException returns 422 in current implementation
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -939,7 +939,7 @@ class TestBookingRoutes:
             "Only confirmed bookings can be completed - current status: COMPLETED"
         )
 
-        response = client_with_mock_booking_service.post("/bookings/123/complete", headers=auth_headers_instructor)
+        response = client_with_mock_booking_service.post("/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/complete", headers=auth_headers_instructor)
         # BusinessRuleException returns 422 in current implementation
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
@@ -950,7 +950,7 @@ class TestBookingRoutes:
         mock_booking_service.update_booking.side_effect = NotFoundException("Booking not found")
 
         response = client_with_mock_booking_service.patch(
-            "/bookings/999", json={"instructor_note": "Note"}, headers=auth_headers_instructor
+            "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ0", json={"instructor_note": "Note"}, headers=auth_headers_instructor
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -985,7 +985,7 @@ class TestBookingRoutes:
         # send_booking_reminders is async
         mock_booking_service.send_booking_reminders = AsyncMock(return_value=5)
 
-        response = client_with_mock_booking_service.post("/bookings/send-reminders", headers=admin_headers)
+        response = client_with_mock_booking_service.post("/api/v1/bookings/send-reminders", headers=admin_headers)
 
         # May get rate limited (429) during testing
         if response.status_code == 429:
@@ -1001,13 +1001,13 @@ class TestBookingRoutes:
     def test_create_booking_invalid_location_type(self, client, auth_headers_student, booking_data):
         """Test booking with invalid location type."""
         booking_data["location_type"] = "invalid_type"
-        response = client.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_create_booking_missing_fields(self, client, auth_headers_student):
         """Test booking creation with missing required fields."""
         incomplete_data = {"instructor_id": 1}  # Missing other fields
-        response = client.post("/bookings/", json=incomplete_data, headers=auth_headers_student)
+        response = client.post("/api/v1/bookings/", json=incomplete_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_booking_validation_edge_cases(self, client, auth_headers_student):
@@ -1024,7 +1024,7 @@ class TestBookingRoutes:
             "end_time": "10:00",
             "student_note": "x" * 1001,  # Too long
         }
-        response = client.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_create_booking_business_rule_violation(
@@ -1037,7 +1037,7 @@ class TestBookingRoutes:
             "Bookings must be made at least 2 hours in advance"
         )
 
-        response = client_with_mock_booking_service.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client_with_mock_booking_service.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
         # BusinessRuleException may return 422 (current implementation)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         error_data = response.json()
@@ -1086,7 +1086,7 @@ class TestBookingRoutes:
 
         mock_booking_service.get_bookings_for_user.return_value = mock_bookings
 
-        response = client_with_mock_booking_service.get("/bookings/", headers=auth_headers_instructor)
+        response = client_with_mock_booking_service.get("/api/v1/bookings/", headers=auth_headers_instructor)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -1104,7 +1104,7 @@ class TestBookingRoutes:
         }
 
         response = client_with_mock_booking_service.post(
-            "/bookings/check-availability",
+            "/api/v1/bookings/check-availability",
             json={
                 "instructor_id": generate_ulid(),
                 "instructor_service_id": generate_ulid(),
@@ -1160,7 +1160,7 @@ class TestBookingRoutes:
         mock_booking_service.cancel_booking.return_value = cancelled_booking
 
         response = client_with_mock_booking_service.post(
-            "/bookings/123/cancel", json={"reason": "Emergency"}, headers=auth_headers_student
+            "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/cancel", json={"reason": "Emergency"}, headers=auth_headers_student
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -1270,7 +1270,7 @@ class TestBookingRoutes:
             "selected_duration": 60,
         }
         response = client_with_mock_booking_service.post(
-            f"/bookings/{original_id}/reschedule", json=payload, headers=auth_headers_student
+            f"/api/v1/bookings/{original_id}/reschedule", json=payload, headers=auth_headers_student
         )
 
         # Verify
@@ -1313,7 +1313,7 @@ class TestBookingRoutes:
             "selected_duration": 60,
         }
         response = client_with_mock_booking_service.post(
-            f"/bookings/{generate_ulid()}/reschedule", json=payload, headers=auth_headers_student
+            f"/api/v1/bookings/{generate_ulid()}/reschedule", json=payload, headers=auth_headers_student
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -1325,7 +1325,7 @@ class TestBookingRoutes:
             "start_time": "11:00",
             "selected_duration": 60,
         }
-        response = client.post(f"/bookings/{generate_ulid()}/reschedule", json=payload)
+        response = client.post(f"/api/v1/bookings/{generate_ulid()}/reschedule", json=payload)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     @patch('app.services.stripe_service.StripeService')
@@ -1380,7 +1380,7 @@ class TestBookingRoutes:
             "selected_duration": 60,
         }
         response = client_with_mock_booking_service.post(
-            f"/bookings/{original.id}/reschedule", json=payload, headers=auth_headers_student
+            f"/api/v1/bookings/{original.id}/reschedule", json=payload, headers=auth_headers_student
         )
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -1423,18 +1423,18 @@ class TestBookingIntegration:
             "meeting_location": "Test Location",
         }
 
-        response = client.post("/bookings/", json=booking_data, headers=student_headers)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=student_headers)
         assert response.status_code == status.HTTP_201_CREATED
         booking_id = response.json()["id"]
 
         # Verify booking appears in student's list
-        response = client.get("/bookings/", headers=student_headers)
+        response = client.get("/api/v1/bookings/", headers=student_headers)
         assert response.status_code == status.HTTP_200_OK
         bookings = response.json()["items"]
         assert any(b["id"] == booking_id for b in bookings)
 
         # Verify booking appears in instructor's list
-        response = client.get("/bookings/", headers=instructor_headers)
+        response = client.get("/api/v1/bookings/", headers=instructor_headers)
         assert response.status_code == status.HTTP_200_OK
         bookings = response.json()["items"]
         assert any(b["id"] == booking_id for b in bookings)
@@ -1449,14 +1449,14 @@ class TestBookingIntegration:
                 "save_payment_method": False,
             }
             response = client.post(
-                f"/bookings/{booking_id}/confirm-payment", json=payment_data, headers=student_headers
+                f"/api/v1/bookings/{booking_id}/confirm-payment", json=payment_data, headers=student_headers
             )
             # If endpoint doesn't exist or fails, booking might already be confirmed
             if response.status_code == 200:
                 assert response.json()["status"] == BookingStatus.CONFIRMED.value
 
         # Complete the booking (as instructor)
-        response = client.post(f"/bookings/{booking_id}/complete", headers=instructor_headers)
+        response = client.post(f"/api/v1/bookings/{booking_id}/complete", headers=instructor_headers)
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["status"] == BookingStatus.COMPLETED.value
 
@@ -1524,11 +1524,11 @@ class TestBookingIntegration:
             "meeting_location": "Test Location",
         }
 
-        response = client.post("/bookings/", json=booking_data, headers=student1_headers)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=student1_headers)
         assert response.status_code == status.HTTP_201_CREATED
 
         # Second booking for same time should fail
-        response = client.post("/bookings/", json=booking_data, headers=student2_headers)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=student2_headers)
         assert response.status_code == status.HTTP_409_CONFLICT
         # Check for conflict message - handle both string and dict detail
         error_data = response.json()
@@ -1566,13 +1566,13 @@ class TestBookingIntegration:
             "meeting_location": "Park",
         }
 
-        response = client.post("/bookings/", json=booking_data, headers=student_headers)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=student_headers)
         assert response.status_code == status.HTTP_201_CREATED
         booking_id = response.json()["id"]
 
         # Student cancels booking
         response = client.post(
-            f"/bookings/{booking_id}/cancel", json={"reason": "Schedule conflict"}, headers=student_headers
+            f"/api/v1/bookings/{booking_id}/cancel", json={"reason": "Schedule conflict"}, headers=student_headers
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["status"] == BookingStatus.CANCELLED.value
@@ -1581,13 +1581,13 @@ class TestBookingIntegration:
         # Create another booking
         booking_data["start_time"] = "16:00"
         booking_data["end_time"] = "17:00"
-        response = client.post("/bookings/", json=booking_data, headers=student_headers)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=student_headers)
         assert response.status_code == status.HTTP_201_CREATED
         booking_id2 = response.json()["id"]
 
         # Instructor cancels booking
         response = client.post(
-            f"/bookings/{booking_id2}/cancel", json={"reason": "Instructor unavailable"}, headers=instructor_headers
+            f"/api/v1/bookings/{booking_id2}/cancel", json={"reason": "Instructor unavailable"}, headers=instructor_headers
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["status"] == BookingStatus.CANCELLED.value
@@ -1670,7 +1670,7 @@ class TestBookingIntegration:
         db.commit()
 
         # Get stats
-        response = client.get("/bookings/stats", headers=instructor_headers)
+        response = client.get("/api/v1/bookings/stats", headers=instructor_headers)
         assert response.status_code == status.HTTP_200_OK
 
         stats = response.json()
