@@ -39,7 +39,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     if (!(embedded && openSecurity)) return;
     void (async () => {
       try {
-        const res = await fetchWithAuth('/api/auth/2fa/status');
+        const res = await fetchWithAuth('/api/v1/2fa/status');
         if (res.ok) {
           const body = await res.json();
           setTfaEnabled(Boolean(body?.enabled));
@@ -435,7 +435,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     onClose={() => setShowTfaModal(false)}
                     onChanged={async () => {
                       try {
-                        const res = await fetchWithAuth('/api/auth/2fa/status');
+                        const res = await fetchWithAuth('/api/v1/2fa/status');
                         if (res.ok) {
                           const data = await res.json();
                           setTfaEnabled(Boolean(data.enabled));

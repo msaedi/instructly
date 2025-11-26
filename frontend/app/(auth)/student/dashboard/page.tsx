@@ -239,7 +239,7 @@ function StudentDashboardContent() {
     // Preload TFA status in background
     void (async () => {
       try {
-        const res = await fetchWithAuth('/api/auth/2fa/status');
+        const res = await fetchWithAuth('/api/v1/2fa/status');
         if (res.ok) {
           const data = await res.json();
           setTfaStatus({ enabled: !!data.enabled, verified_at: data.verified_at || null, last_used_at: data.last_used_at || null });
@@ -729,7 +729,7 @@ function StudentDashboardContent() {
           onClose={() => setShowTfaModal(false)}
           onChanged={async () => {
             try {
-              const res = await fetchWithAuth('/api/auth/2fa/status');
+              const res = await fetchWithAuth('/api/v1/2fa/status');
               if (res.ok) {
                 const data = await res.json();
                 setTfaStatus({ enabled: !!data.enabled, verified_at: data.verified_at || null, last_used_at: data.last_used_at || null });
@@ -1196,7 +1196,7 @@ function NotificationsTab() {
     // Load current status; if disabled, immediately initiate and show QR (no confirmation step)
     (async () => {
       try {
-        const res = await fetchWithAuth('/api/auth/2fa/status');
+        const res = await fetchWithAuth('/api/v1/2fa/status');
         if (res.ok) {
           const data = await res.json();
           if (data.enabled) {
@@ -1213,7 +1213,7 @@ function NotificationsTab() {
   const initiate = async () => {
     setError(null); setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/setup/initiate', { method: 'POST' });
+      const res = await fetchWithAuth('/api/v1/2fa/setup/initiate', { method: 'POST' });
       if (!res.ok) {
         setError('Failed to initiate 2FA.'); setLoading(false); return;
       }
@@ -1227,7 +1227,7 @@ function NotificationsTab() {
   const verify = async () => {
     setError(null); setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/setup/verify', {
+      const res = await fetchWithAuth('/api/v1/2fa/setup/verify', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code })
       });
       if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.detail || 'That code didn\'t work. Please try again.'); setLoading(false); return; }
@@ -1241,7 +1241,7 @@ function NotificationsTab() {
   const disable = async () => {
     setError(null); setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/disable', {
+      const res = await fetchWithAuth('/api/v1/2fa/disable', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current_password: currentPassword })
       });
       if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.detail || 'Failed to disable'); setLoading(false); return; }
@@ -1253,7 +1253,7 @@ function NotificationsTab() {
   const regen = async () => {
     setError(null); setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/regenerate-backup-codes', { method: 'POST' });
+      const res = await fetchWithAuth('/api/v1/2fa/regenerate-backup-codes', { method: 'POST' });
       if (!res.ok) { setError('Failed to regenerate'); setLoading(false); return; }
       const data = await res.json();
       setBackupCodes(data.backup_codes || []);

@@ -185,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearGuestSession();
 
     // Request backend to clear cookies
-    http('POST', '/api/public/logout')
+    http('POST', '/api/v1/public/logout')
       .catch(() => {})
       .finally(() => {
         // Navigate home after clearing
