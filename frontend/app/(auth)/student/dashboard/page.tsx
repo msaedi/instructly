@@ -1611,7 +1611,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
       }
 
       // Soft delete account
-      const delRes = await fetchWithAuth('/api/privacy/delete/me', {
+      const delRes = await fetchWithAuth('/api/v1/privacy/delete/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ delete_account: true }),

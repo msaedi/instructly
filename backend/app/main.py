@@ -81,11 +81,6 @@ from .ratelimit.identity import resolve_identity
 from .repositories.background_job_repository import BackgroundJobRepository
 from .repositories.instructor_profile_repository import InstructorProfileRepository
 from .routes import (
-    # admin_audit - DEPRECATED, use v1/admin/audit instead
-    # admin_background_checks - DEPRECATED, use v1/admin/background_checks instead
-    # admin_badges - DEPRECATED, use v1/admin/badges instead
-    # admin_config - DEPRECATED, use v1/admin/config instead
-    # admin_instructors - DEPRECATED, use v1/admin/instructors instead
     alerts,
     analytics,
     availability_windows,

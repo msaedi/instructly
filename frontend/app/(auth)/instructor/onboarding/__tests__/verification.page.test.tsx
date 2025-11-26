@@ -29,8 +29,8 @@ const mockFetchWithAuth = jest.fn();
 
 jest.mock('@/lib/api', () => ({
   API_ENDPOINTS: {
-    INSTRUCTOR_PROFILE: '/api/instructors/me',
-    STRIPE_IDENTITY_REFRESH: '/api/payments/identity/refresh',
+    INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
+    STRIPE_IDENTITY_REFRESH: '/api/v1/payments/identity/refresh',
   },
   fetchWithAuth: (...args: unknown[]) => mockFetchWithAuth(...args),
   createStripeIdentitySession: jest.fn().mockResolvedValue({ verification_session_id: 'vs_123', client_secret: 'cs_123' }),
@@ -81,13 +81,13 @@ describe('Verification page', () => {
     (toast.error as jest.Mock).mockClear();
     (toast.info as jest.Mock).mockClear();
     mockFetchWithAuth.mockImplementation(async (url: unknown) => {
-      if (url === '/api/instructors/me') {
+      if (url === '/api/v1/instructors/me') {
         return {
           ok: true,
           json: async () => ({ id: 'inst-1', identity_verified_at: null }),
         } as unknown as Response;
       }
-      if (url === '/api/payments/identity/refresh') {
+      if (url === '/api/v1/payments/identity/refresh') {
         return {
           ok: true,
           json: async () => ({ verified: true }),
@@ -128,7 +128,7 @@ describe('Verification page', () => {
     currentSearchParams = new URLSearchParams('identity_return=true');
     renderWithClient(<Step4Verification />);
 
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith('/api/payments/identity/refresh', { method: 'POST' }));
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith('/api/v1/payments/identity/refresh', { method: 'POST' }));
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification'));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Identity check complete', {
       description: 'Next, start your background check.',

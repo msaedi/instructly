@@ -132,7 +132,7 @@ export async function sendReferralInvites({ emails, shareUrl, fromName }: SendRe
     throw new Error('Referral link not available. Please try again.');
   }
 
-  const response = await fetchAPI('/api/public/referrals/send', {
+  const response = await fetchAPI('/api/v1/public/referrals/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

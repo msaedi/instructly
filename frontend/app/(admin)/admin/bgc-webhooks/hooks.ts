@@ -74,7 +74,7 @@ export function useBGCWebhookLogs(filters: WebhookFilterState) {
 export function useBGCWebhookStats() {
   return useQuery({
     queryKey: ['admin', 'bgc', 'webhooks', 'stats'],
-    queryFn: async () => httpGet<{ error_count_24h: number }>('/api/admin/bgc/webhooks/stats'),
+    queryFn: async () => httpGet<{ error_count_24h: number }>('/api/v1/admin/background-checks/webhooks/stats'),
     refetchInterval: 60_000,
   });
 }

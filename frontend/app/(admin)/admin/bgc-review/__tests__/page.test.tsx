@@ -248,11 +248,11 @@ describe('AdminBGCReviewPage', () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
 
-      if (url.includes('/api/admin/bgc/counts')) {
+      if (url.includes('/api/v1/admin/background-checks/counts')) {
         return createJsonResponse({ review: reviewItems.length, pending: pendingItems.length });
       }
 
-      if (url.includes('/api/admin/bgc/cases')) {
+      if (url.includes('/api/v1/admin/background-checks/cases')) {
         const requestUrl = new URL(url, 'http://localhost');
         const status = requestUrl.searchParams.get('status') ?? 'review';
         const qParam = (requestUrl.searchParams.get('q') ?? '').trim().toLowerCase();
@@ -302,12 +302,12 @@ describe('AdminBGCReviewPage', () => {
         });
       }
 
-      if (url.includes('/api/admin/instructors/')) {
+      if (url.includes('/api/v1/admin/instructors/')) {
         return createJsonResponse(serializeAdminDetailForApi(reviewDetail));
       }
 
       if (url.includes('/dispute/open')) {
-        const match = url.match(/\/api\/admin\/bgc\/([^/]+)\/dispute\/open/);
+        const match = url.match(/\/api\/v1\/admin\/background-checks\/([^/]+)\/dispute\/open/);
         const notePayload = (() => {
           if (init && typeof init.body === 'string') {
             try {
@@ -350,7 +350,7 @@ describe('AdminBGCReviewPage', () => {
       }
 
       if (url.includes('/dispute/resolve')) {
-        const match = url.match(/\/api\/admin\/bgc\/([^/]+)\/dispute\/resolve/);
+        const match = url.match(/\/api\/v1\/admin\/background-checks\/([^/]+)\/dispute\/resolve/);
         const notePayload = (() => {
           if (init && typeof init.body === 'string') {
             try {
@@ -475,7 +475,7 @@ describe('AdminBGCReviewPage', () => {
 
     const fetchMock = global.fetch as jest.Mock;
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/admin/bgc/01TEST0INSTRUCTOR/override'),
+      expect.stringContaining('/api/v1/admin/background-checks/01TEST0INSTRUCTOR/override'),
       expect.objectContaining({ method: 'POST' }),
     );
   });
