@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
     try {
       logger.time('passwordResetRequest');
       const requestData: PasswordResetRequest = { email: trimmedEmail };
-      const response = await fetchAPI('/api/auth/password-reset/request', {
+      const response = await fetchAPI('/api/v1/password-reset/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData),

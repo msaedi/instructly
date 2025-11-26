@@ -302,7 +302,7 @@ test.describe('2FA flows', () => {
       await respondJson(route, responseBody);
     });
 
-    await routeOnce(context, '**/api/auth/2fa/verify-login', async (route) => {
+    await routeOnce(context, '**/api/v1/2fa/verify-login', async (route) => {
       if (await handlePreflight(route)) return;
       const payload = { access_token: 'fake.jwt.2', token_type: 'bearer' };
       const requestOrigin = new URL(route.request().url()).origin;
@@ -350,7 +350,7 @@ test.describe('2FA flows', () => {
       await respondJson(route, responseBody);
     });
 
-    await routeOnce(context, '**/api/auth/2fa/verify-login', async (route) => {
+    await routeOnce(context, '**/api/v1/2fa/verify-login', async (route) => {
       if (await handlePreflight(route)) return;
       const payload = { access_token: 'fake.jwt.3', token_type: 'bearer' };
       const requestOrigin = new URL(route.request().url()).origin;

@@ -82,7 +82,7 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     csrf_headers = _csrf_headers(client)
     csrf_headers["X-Trust-Browser"] = "true"
     verify_response = client.post(
-        "/api/auth/2fa/verify-login",
+        "/api/v1/2fa/verify-login",
         json={"temp_token": payload["temp_token"], "code": totp.now()},
         headers=csrf_headers,
     )

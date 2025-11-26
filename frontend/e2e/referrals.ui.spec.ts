@@ -195,7 +195,7 @@ test.describe('Referral surfaces', () => {
       await route.continue();
     });
 
-    await page.route('**/api/auth/2fa/status', async (route) => {
+    await page.route('**/api/v1/2fa/status', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,

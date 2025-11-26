@@ -93,13 +93,11 @@ from .routes import (
     beta,
     codebase_metrics,
     database_monitor,
-    # favorites - DEPRECATED, use /api/v1/favorites instead
     gated,
     instructor_background_checks,
     internal,
     metrics,
     monitoring,
-    password_reset,
     payments,
     pricing_config_public,
     pricing_preview,
@@ -110,7 +108,6 @@ from .routes import (
     redis_monitor,
     stripe_webhooks,
     student_badges,
-    two_factor_auth,
     uploads,
     users_profile_picture,
     webhooks_checkr,
@@ -123,11 +120,13 @@ from .routes.v1 import (
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
+    password_reset as password_reset_v1,
     referrals as referrals_v1,
     reviews as reviews_v1,
     search as search_v1,
     search_history as search_history_v1,
     services as services_v1,
+    two_factor_auth as two_factor_auth_v1,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
@@ -944,6 +943,8 @@ api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-d
 api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
 api_v1.include_router(referrals_v1.router, prefix="/referrals")  # type: ignore[attr-defined]
 api_v1.include_router(account_v1.router, prefix="/account")  # type: ignore[attr-defined]
+api_v1.include_router(password_reset_v1.router, prefix="/password-reset")  # type: ignore[attr-defined]
+api_v1.include_router(two_factor_auth_v1.router, prefix="/2fa")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
@@ -953,15 +954,15 @@ PUBLIC_OPEN_PATHS = {
     "/auth/login",
     "/auth/login-with-session",
     "/auth/register",
-    "/api/auth/password-reset/request",
-    "/api/auth/password-reset/confirm",
-    "/api/auth/2fa/verify-login",
+    "/api/v1/password-reset/request",
+    "/api/v1/password-reset/confirm",
+    "/api/v1/2fa/verify-login",
     "/api/v1/referrals/claim",
 }
 
 PUBLIC_OPEN_PREFIXES = (
     "/api/public",
-    "/api/auth/password-reset/verify",
+    "/api/v1/password-reset/verify",  # v1 password reset token verification
     "/api/config",
     "/r/",
     "/api/v1/instructors",  # v1 instructors endpoints are public (some require auth via dependency)
@@ -983,7 +984,8 @@ public_guard_dependency = public_guard(
 app.include_router(api_v1)
 
 app.include_router(auth.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(two_factor_auth.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy two_factor_auth routes - DEPRECATED, use /api/v1/2fa instead
+# app.include_router(two_factor_auth.router, dependencies=[Depends(public_guard_dependency)])
 
 # Legacy instructor routes - DEPRECATED, use /api/v1/instructors instead
 # app.include_router(instructors.router)  # Was: /instructors
@@ -998,7 +1000,8 @@ app.include_router(instructor_background_checks.router)
 # Legacy services routes - DEPRECATED, use /api/v1/services instead
 # app.include_router(services.router)  # Was: /services
 app.include_router(availability_windows.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(password_reset.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy password_reset routes - DEPRECATED, use /api/v1/password-reset instead
+# app.include_router(password_reset.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy bookings routes - DEPRECATED, use /api/v1/bookings instead
 # app.include_router(bookings.router, dependencies=[Depends(public_guard_dependency)])  # Was: /bookings
 app.include_router(student_badges.router)

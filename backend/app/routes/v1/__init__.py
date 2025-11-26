@@ -14,11 +14,13 @@ from . import (
     instructor_bookings,
     instructors,
     messages,
+    password_reset,
     referrals,
     reviews,
     search,
     search_history,
     services,
+    two_factor_auth,
 )
 
 __all__ = [
@@ -29,9 +31,11 @@ __all__ = [
     "instructor_bookings",
     "instructors",
     "messages",
+    "password_reset",
     "referrals",
     "reviews",
     "search",
     "search_history",
     "services",
+    "two_factor_auth",
 ]

@@ -56,7 +56,7 @@ class TestPasswordResetRoutes:
     def test_request_password_reset_success(self, client_with_mock_service, mock_password_reset_service):
         """Test successful password reset request."""
         # Execute
-        response = client_with_mock_service.post("/api/auth/password-reset/request", json={"email": "test@example.com"})
+        response = client_with_mock_service.post("/api/v1/password-reset/request", json={"email": "test@example.com"})
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -67,7 +67,7 @@ class TestPasswordResetRoutes:
     def test_request_password_reset_invalid_email(self, client):
         """Test password reset request with invalid email format."""
         # Execute
-        response = client.post("/api/auth/password-reset/request", json={"email": "invalid-email"})
+        response = client.post("/api/v1/password-reset/request", json={"email": "invalid-email"})
 
         # Verify
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -77,7 +77,7 @@ class TestPasswordResetRoutes:
     def test_request_password_reset_missing_email(self, client):
         """Test password reset request without email."""
         # Execute
-        response = client.post("/api/auth/password-reset/request", json={})
+        response = client.post("/api/v1/password-reset/request", json={})
 
         # Verify
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -86,7 +86,7 @@ class TestPasswordResetRoutes:
         """Test successful password reset confirmation."""
         # Execute
         response = client_with_mock_service.post(
-            "/api/auth/password-reset/confirm",
+            "/api/v1/password-reset/confirm",
             json={"token": "valid_token_123", "new_password": "NewSecurePassword123!"},
         )
 
@@ -107,7 +107,7 @@ class TestPasswordResetRoutes:
 
         # Execute
         response = client_with_mock_service.post(
-            "/api/auth/password-reset/confirm", json={"token": "invalid_token", "new_password": "NewSecurePassword123!"}
+            "/api/v1/password-reset/confirm", json={"token": "invalid_token", "new_password": "NewSecurePassword123!"}
         )
 
         # Verify
@@ -119,7 +119,7 @@ class TestPasswordResetRoutes:
         """Test password reset with weak password."""
         # Execute - password too short
         response = client.post(
-            "/api/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "weak"}
+            "/api/v1/password-reset/confirm", json={"token": "valid_token", "new_password": "weak"}
         )
 
         # Verify
@@ -129,7 +129,7 @@ class TestPasswordResetRoutes:
 
         # Execute - password without digit
         response = client.post(
-            "/api/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "NoDigitsHere"}
+            "/api/v1/password-reset/confirm", json={"token": "valid_token", "new_password": "NoDigitsHere"}
         )
 
         # Verify
@@ -137,7 +137,7 @@ class TestPasswordResetRoutes:
 
         # Execute - password without uppercase
         response = client.post(
-            "/api/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "nouppercase123"}
+            "/api/v1/password-reset/confirm", json={"token": "valid_token", "new_password": "nouppercase123"}
         )
 
         # Verify
@@ -150,7 +150,7 @@ class TestPasswordResetRoutes:
 
         # Execute
         response = client_with_mock_service.post(
-            "/api/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "NewSecurePassword123!"}
+            "/api/v1/password-reset/confirm", json={"token": "valid_token", "new_password": "NewSecurePassword123!"}
         )
 
         # Verify
@@ -161,7 +161,7 @@ class TestPasswordResetRoutes:
     def test_verify_reset_token_valid(self, client_with_mock_service, mock_password_reset_service):
         """Test verification of valid reset token."""
         # Execute
-        response = client_with_mock_service.get("/api/auth/password-reset/verify/valid_token_123")
+        response = client_with_mock_service.get("/api/v1/password-reset/verify/valid_token_123")
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -176,7 +176,7 @@ class TestPasswordResetRoutes:
         mock_password_reset_service.verify_reset_token = Mock(return_value=(False, None))
 
         # Execute
-        response = client_with_mock_service.get("/api/auth/password-reset/verify/invalid_token")
+        response = client_with_mock_service.get("/api/v1/password-reset/verify/invalid_token")
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -190,7 +190,7 @@ class TestPasswordResetRoutes:
         token_with_special = "token_with-special.chars~123"
 
         # Execute
-        response = client_with_mock_service.get(f"/api/auth/password-reset/verify/{token_with_special}")
+        response = client_with_mock_service.get(f"/api/v1/password-reset/verify/{token_with_special}")
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -202,7 +202,7 @@ class TestPasswordResetRoutes:
 
         # Execute multiple requests
         for _ in range(5):
-            response = client_with_mock_service.post("/api/auth/password-reset/request", json={"email": email})
+            response = client_with_mock_service.post("/api/v1/password-reset/request", json={"email": email})
             assert response.status_code == status.HTTP_200_OK
 
         # All requests should succeed
@@ -211,22 +211,22 @@ class TestPasswordResetRoutes:
     def test_confirm_password_reset_missing_fields(self, client):
         """Test confirmation with missing required fields."""
         # Missing token
-        response = client.post("/api/auth/password-reset/confirm", json={"new_password": "NewSecurePassword123!"})
+        response = client.post("/api/v1/password-reset/confirm", json={"new_password": "NewSecurePassword123!"})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
         # Missing password
-        response = client.post("/api/auth/password-reset/confirm", json={"token": "valid_token"})
+        response = client.post("/api/v1/password-reset/confirm", json={"token": "valid_token"})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
         # Empty payload
-        response = client.post("/api/auth/password-reset/confirm", json={})
+        response = client.post("/api/v1/password-reset/confirm", json={})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_password_validation_edge_cases(self, client_with_mock_service, mock_password_reset_service):
         """Test edge cases in password validation."""
         # Test valid password (should pass validation and call service)
         response = client_with_mock_service.post(
-            "/api/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "Valid1234"}
+            "/api/v1/password-reset/confirm", json={"token": "valid_token", "new_password": "Valid1234"}
         )
         # Should succeed with mocked service
         assert response.status_code == status.HTTP_200_OK
@@ -255,7 +255,7 @@ class TestPasswordResetIntegration:
 
         try:
             # Step 1: Request password reset
-            response = client.post("/api/auth/password-reset/request", json={"email": test_student.email})
+            response = client.post("/api/v1/password-reset/request", json={"email": test_student.email})
             assert response.status_code == status.HTTP_200_OK
 
             # Step 2: Get the token from database
@@ -270,7 +270,7 @@ class TestPasswordResetIntegration:
             assert token_record.used is False
 
             # Step 3: Verify the token
-            response = client.get(f"/api/auth/password-reset/verify/{token_record.token}")
+            response = client.get(f"/api/v1/password-reset/verify/{token_record.token}")
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["valid"] is True
@@ -278,7 +278,7 @@ class TestPasswordResetIntegration:
             # Step 4: Reset password with the token
             new_password = "MyNewSecurePassword123!"
             response = client.post(
-                "/api/auth/password-reset/confirm", json={"token": token_record.token, "new_password": new_password}
+                "/api/v1/password-reset/confirm", json={"token": token_record.token, "new_password": new_password}
             )
             assert response.status_code == status.HTTP_200_OK
 
@@ -293,7 +293,7 @@ class TestPasswordResetIntegration:
 
             # Step 6: Verify old token cannot be reused
             response = client.post(
-                "/api/auth/password-reset/confirm",
+                "/api/v1/password-reset/confirm",
                 json={"token": token_record.token, "new_password": "AnotherPassword123!"},
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST

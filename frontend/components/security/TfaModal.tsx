@@ -25,7 +25,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
     setMounted(true);
     (async () => {
       try {
-        const res = await fetchWithAuth('/api/auth/2fa/status');
+        const res = await fetchWithAuth('/api/v1/2fa/status');
         if (!res.ok) return;
         const data = await res.json();
         if (data.enabled) {
@@ -51,7 +51,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/setup/initiate', { method: 'POST' });
+      const res = await fetchWithAuth('/api/v1/2fa/setup/initiate', { method: 'POST' });
       if (!res.ok) {
         setError('Failed to initiate 2FA.');
         setLoading(false);
@@ -72,7 +72,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/setup/verify', {
+      const res = await fetchWithAuth('/api/v1/2fa/setup/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
@@ -99,7 +99,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/disable', {
+      const res = await fetchWithAuth('/api/v1/2fa/disable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ current_password: currentPassword }),
@@ -124,7 +124,7 @@ export default function TfaModal({ onClose, onChanged }: Props) {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/regenerate-backup-codes', { method: 'POST' });
+      const res = await fetchWithAuth('/api/v1/2fa/regenerate-backup-codes', { method: 'POST' });
       if (!res.ok) {
         setError('Failed to regenerate');
         setLoading(false);

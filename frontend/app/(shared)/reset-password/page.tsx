@@ -40,7 +40,7 @@ function ResetPasswordForm() {
   const verifyToken = useCallback(async () => {
     if (!token) { setIsVerifying(false); return; }
     try {
-      const response = await fetchAPI(`/api/auth/password-reset/verify/${token}`);
+      const response = await fetchAPI(`/api/v1/password-reset/verify/${token}`);
       const data: TokenValidationResponse = await response.json();
       if (data.valid) { setTokenValid(true); }
       else { setError('This reset link is invalid or has expired.'); }
@@ -60,7 +60,7 @@ function ResetPasswordForm() {
     setRequestStatus(RequestStatus.LOADING);
     try {
       const resetData: PasswordResetConfirm = { token: token!, new_password: password, password_confirm: confirmPassword };
-      const response = await fetchAPI('/api/auth/password-reset/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: resetData.token, new_password: resetData.new_password }) });
+      const response = await fetchAPI('/api/v1/password-reset/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: resetData.token, new_password: resetData.new_password }) });
       if (!response.ok) { const data = await response.json(); if (response.status === 400 && data.detail?.includes('expired')) { throw new Error('This reset link has expired. Please request a new one.'); } throw new Error(data.detail || 'Failed to reset password'); }
       setRequestStatus(RequestStatus.SUCCESS); setIsSuccess(true);
     } catch (err) { setError(getErrorMessage(err)); setRequestStatus(RequestStatus.ERROR); }

@@ -2093,8 +2093,111 @@ All 4 mandatory audits passed:
 
 ---
 
-### Phase 16+ Candidates
+## Phase 16 – Password Reset & Two Factor Auth → v1
+
+**Date:** November 25, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Migrated **Password Reset** and **Two Factor Authentication (2FA)** domains from legacy `/api/auth/password-reset/*` and `/api/auth/2fa/*` endpoints to v1 API architecture.
+
+### Migrated Domains
+
+#### Password Reset
+- **Legacy Prefix:** `/api/auth/password-reset`
+- **V1 Prefix:** `/api/v1/password-reset`
+
+| Method | Legacy Path | V1 Path | Description |
+|--------|-------------|---------|-------------|
+| POST | `/api/auth/password-reset/request` | `/api/v1/password-reset/request` | Request password reset email |
+| POST | `/api/auth/password-reset/confirm` | `/api/v1/password-reset/confirm` | Confirm password reset with token |
+| GET | `/api/auth/password-reset/verify/{token}` | `/api/v1/password-reset/verify/{token}` | Verify reset token validity |
+
+#### Two Factor Authentication (2FA)
+- **Legacy Prefix:** `/api/auth/2fa`
+- **V1 Prefix:** `/api/v1/2fa`
+
+| Method | Legacy Path | V1 Path | Description |
+|--------|-------------|---------|-------------|
+| POST | `/api/auth/2fa/setup/initiate` | `/api/v1/2fa/setup/initiate` | Initialize 2FA setup |
+| POST | `/api/auth/2fa/setup/verify` | `/api/v1/2fa/setup/verify` | Verify 2FA code during setup |
+| POST | `/api/auth/2fa/disable` | `/api/v1/2fa/disable` | Disable 2FA |
+| GET | `/api/auth/2fa/status` | `/api/v1/2fa/status` | Get 2FA status |
+| POST | `/api/auth/2fa/regenerate-backup-codes` | `/api/v1/2fa/regenerate-backup-codes` | Regenerate backup codes |
+| POST | `/api/auth/2fa/verify-login` | `/api/v1/2fa/verify-login` | Validate 2FA during login |
+
+### Files Changed
+
+#### Backend (New V1 Routers)
+- `backend/app/routes/v1/password_reset.py` – New v1 password reset router
+- `backend/app/routes/v1/two_factor_auth.py` – New v1 2FA router
+- `backend/app/routes/v1/__init__.py` – Added new router imports
+- `backend/app/main.py` – Mount v1 routers, update PUBLIC_OPEN_PATHS/PREFIXES, comment out legacy routers
+- `backend/app/openapi_app.py` – Mount v1 routers for OpenAPI generation
+
+#### Frontend (Updated Consumers)
+- `frontend/app/(shared)/forgot-password/page.tsx` – Updated to `/api/v1/password-reset/request`
+- `frontend/app/(shared)/reset-password/page.tsx` – Updated to `/api/v1/password-reset/verify` and `/confirm`
+- `frontend/components/security/TfaModal.tsx` – Updated all 2FA endpoints to v1
+- `frontend/app/(shared)/login/LoginClient.tsx` – Updated 2FA verify-login to v1
+
+#### Tests Updated
+- `backend/tests/routes/test_password_reset_routes.py` – All tests updated to v1 paths
+- `backend/tests/integration/api/test_auth_2fa_login_with_session.py` – Updated 2FA tests to v1
+- `backend/tests/integration/api/test_auth_preview_smoke.py` – Updated 2FA test to v1
+
+#### E2E Mocks Updated
+- `frontend/e2e/tests/login-2fa.spec.ts` – Updated 2FA mock routes
+- `frontend/e2e/referrals.ui.spec.ts` – Updated 2FA status mock route
+
+### Configuration Changes
+
+#### PUBLIC_OPEN_PATHS Updated
+```python
+# Removed:
+"/api/auth/password-reset/request",
+"/api/auth/password-reset/confirm",
+"/api/auth/2fa/verify-login",
+
+# Added:
+"/api/v1/password-reset/request",
+"/api/v1/password-reset/confirm",
+"/api/v1/2fa/verify-login",
+```
+
+#### PUBLIC_OPEN_PREFIXES Updated
+```python
+# Removed:
+"/api/auth/password-reset/verify",
+
+# Added:
+"/api/v1/password-reset/verify",
+```
+
+### Quality Gates
+
+All quality gates passed:
+- ✅ Pre-commit hooks passed
+- ✅ ruff check passed
+- ✅ mypy strict passed
+- ✅ Backend tests passed (19/19)
+- ✅ Frontend build passed
+
+### Audits
+
+All mandatory audits passed:
+- ✅ Audit 1: Global Legacy Path Audit - No legacy paths in frontend
+- ✅ Audit 2: Backend Config Audit - Clean (only comments)
+- ✅ Audit 3: E2E Mock Audit - All mocks updated to v1
+- ✅ Audit 4: Backend Test Audit - All tests updated to v1
+
+**Phase 16 Status:** ✅ **Complete** – Password Reset and Two Factor Auth domains fully migrated to v1 API.
+
+---
+
+### Phase 17+ Candidates
 
 - **Payments**: Complex Stripe integration, requires careful planning
-- **Auth**: Authentication (complex, multiple providers)
+- **Auth**: Core authentication (login, register, session management)
 - **Admin**: Admin-only endpoints (background checks, config, etc.)

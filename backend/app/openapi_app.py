@@ -26,7 +26,7 @@ from app.routes import (
     # messages - DEPRECATED, use /api/v1/messages instead
     metrics,
     monitoring,
-    password_reset,
+    # password_reset - DEPRECATED, use /api/v1/password-reset instead
     payments,
     privacy,
     prometheus,
@@ -38,7 +38,7 @@ from app.routes import (
     # search_history - DEPRECATED, use /api/v1/search-history instead
     # services - DEPRECATED, use /api/v1/services instead
     stripe_webhooks,
-    two_factor_auth,
+    # two_factor_auth - DEPRECATED, use /api/v1/2fa instead
     uploads,
     users_profile_picture,
 )
@@ -50,11 +50,13 @@ from app.routes.v1 import (
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
+    password_reset as password_reset_v1,
     referrals as referrals_v1,
     reviews as reviews_v1,
     search as search_v1,
     search_history as search_history_v1,
     services as services_v1,
+    two_factor_auth as two_factor_auth_v1,
 )
 
 
@@ -83,13 +85,16 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
     api_v1.include_router(referrals_v1.router, prefix="/referrals")  # type: ignore[attr-defined]
     api_v1.include_router(account_v1.router, prefix="/account")  # type: ignore[attr-defined]
+    api_v1.include_router(password_reset_v1.router, prefix="/password-reset")  # type: ignore[attr-defined]
+    api_v1.include_router(two_factor_auth_v1.router, prefix="/2fa")  # type: ignore[attr-defined]
 
     # Mount v1 API first
     app.include_router(api_v1)
 
     # Include all routers in the same order as main.py
     app.include_router(auth.router)
-    app.include_router(two_factor_auth.router)
+    # Legacy two_factor_auth - now /api/v1/2fa
+    # app.include_router(two_factor_auth.router)
     # Instructors v1 is mounted above in api_v1
     # app.include_router(instructors.router)  # Legacy - now /api/v1/instructors
     # Legacy instructor_bookings - now /api/v1/instructor-bookings
@@ -99,7 +104,8 @@ def build_openapi_app() -> FastAPI:
     # Legacy services - now /api/v1/services
     # app.include_router(services.router)  # Was: /services
     app.include_router(availability_windows.router)
-    app.include_router(password_reset.router)
+    # Legacy password_reset - now /api/v1/password-reset
+    # app.include_router(password_reset.router)
     # Legacy bookings - now /api/v1/bookings
     # app.include_router(bookings.router)  # Was: /bookings
     # Legacy favorites - now /api/v1/favorites

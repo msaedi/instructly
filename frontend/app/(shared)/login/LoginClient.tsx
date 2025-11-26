@@ -176,7 +176,7 @@ function LoginForm({ redirect }: { redirect: string }) {
 
     setIsVerifying2FA(true);
     try {
-      await http('POST', '/api/auth/2fa/verify-login', {
+      await http('POST', '/api/v1/2fa/verify-login', {
         headers: {
           'Content-Type': 'application/json',
           'X-Trust-Browser': trustThisBrowser ? 'true' : 'false',
