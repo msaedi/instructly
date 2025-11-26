@@ -215,11 +215,11 @@ class TestPerformanceOverhead:
 
         # Generate a lot of metrics
         endpoints = [
-            "/api/users",
-            "/api/instructors",
-            "/api/bookings",
-            "/api/availability",
-            "/api/auth/login",
+            "/api/v1/users",
+            "/api/v1/instructors",
+            "/api/v1/bookings",
+            "/api/v1/availability",
+            "/api/v1/auth/login",
             "/health",
         ]
 

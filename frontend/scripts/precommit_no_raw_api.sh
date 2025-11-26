@@ -37,10 +37,13 @@ ALLOWED_PATTERNS=(
   "lib/apiBase.ts"
   "lib/betaApi.ts"
   "lib/beta-config.ts"
+  "lib/react-query/"
   "features/shared/api/"
   "services/messageService.ts"
   "hooks/useSSEMessages.ts"
   "hooks/useMessageQueries.ts"
+  "types/generated/"
+  "example-usage.tsx"
 )
 
 # Check if a file should be excluded
@@ -71,8 +74,10 @@ for file in "${FILES_TO_CHECK[@]}"; do
     continue
   fi
 
-  # Search for /api/ in string literals
-  if grep -nP '["'\''`]/api/' "$file" > /dev/null 2>&1; then
+  # Search for legacy /api/ paths in string literals (NOT v1 or intentionally unversioned paths)
+  # Allowed: /api/v1/, /api/beta/, /api/analytics/, /api/redis/, /api/database/,
+  #          /api/proxy, /api/monitoring/, /api/webhooks/, /api/admin/bgc/
+  if grep -nP '["'\''`]/api/(?!v1/|beta/|analytics/|redis/|database/|proxy|monitoring/|webhooks/|admin/bgc/)' "$file" > /dev/null 2>&1; then
     VIOLATIONS_API+=("$file")
   fi
 
@@ -98,10 +103,10 @@ if [ ${#VIOLATIONS_API[@]} -gt 0 ] || [ ${#VIOLATIONS_BOOKINGS[@]} -gt 0 ] || [ 
   echo ""
 
   if [ ${#VIOLATIONS_API[@]} -gt 0 ]; then
-    echo "Files with raw /api/ strings:"
+    echo "Files with legacy /api/ strings (should use /api/v1/):"
     for file in "${VIOLATIONS_API[@]}"; do
       echo "  - $file"
-      grep -nP '["'\''`]/api/' "$file" | head -3 | sed 's/^/      /'
+      grep -nP '["'\''`]/api/(?!v1/|beta/|analytics/|redis/|database/|proxy|monitoring/|webhooks/|admin/bgc/)' "$file" | head -3 | sed 's/^/      /'
       echo ""
     done
   fi

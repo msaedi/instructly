@@ -255,7 +255,7 @@ class TestPaymentRoutes:
 
     @patch("stripe.Webhook.construct_event")
     @patch("app.services.stripe_service.StripeService.handle_webhook_event")
-    @patch("app.routes.payments.settings")
+    @patch("app.routes.v1.payments.settings")
     def test_webhook_with_valid_signature(
         self, mock_settings, mock_handle_event, mock_construct_event, client: TestClient, db: Session
     ):
@@ -285,7 +285,7 @@ class TestPaymentRoutes:
         mock_handle_event.assert_called_once()
 
     @patch("stripe.Webhook.construct_event")
-    @patch("app.routes.payments.settings")
+    @patch("app.routes.v1.payments.settings")
     def test_webhook_invalid_signature(self, mock_settings, mock_construct_event, client: TestClient, db: Session):
         """Test webhook endpoint with invalid signature."""
 
@@ -308,7 +308,7 @@ class TestPaymentRoutes:
 
     @patch("stripe.Webhook.construct_event")
     @patch("app.services.stripe_service.StripeService.handle_webhook_event")
-    @patch("app.routes.payments.settings")
+    @patch("app.routes.v1.payments.settings")
     def test_webhook_processing_error_returns_200(
         self, mock_settings, mock_handle_event, mock_construct_event, client: TestClient, db: Session
     ):
