@@ -434,6 +434,8 @@ export interface TopServicesResponse {
   categories: CategoryWithTopServices[];
 }
 
+const SEARCH_HISTORY_API_BASE = '/api/v1/search-history';
+
 export const publicApi = {
   /**
    * Natural language search for instructors and services
@@ -465,7 +467,7 @@ export const publicApi = {
         last_searched_at: string;
         search_count: number;
       }>
-    >('/api/search-history/', {
+    >(SEARCH_HISTORY_API_BASE, {
       params: { limit },
     });
   },
@@ -475,7 +477,7 @@ export const publicApi = {
    * For guests, pass X-Guest-Session-ID header
    */
   async deleteSearchHistory(searchId: number) {
-    return unifiedFetch<void>('/api/search-history/' + String(searchId), {
+    return unifiedFetch<void>(`${SEARCH_HISTORY_API_BASE}/${String(searchId)}`, {
       method: 'DELETE',
     });
   },
@@ -513,7 +515,7 @@ export const publicApi = {
       first_searched_at: string;
       last_searched_at: string;
       search_count: number;
-    }>('/api/search-history/', {
+    }>(SEARCH_HISTORY_API_BASE, {
       method: 'POST',
       body: JSON.stringify(searchData),
     });
@@ -536,7 +538,7 @@ export const publicApi = {
       results_count: number | null;
       created_at: string;
       guest_session_id: string;
-    }>('/api/search-history/guest', {
+    }>(`${SEARCH_HISTORY_API_BASE}/guest`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -554,7 +556,7 @@ export const publicApi = {
         results_count: number | null;
         created_at: string;
       }>
-    >('/api/search-history/guest/' + guestSessionId, {
+    >(`${SEARCH_HISTORY_API_BASE}/guest/${guestSessionId}`, {
       params: { limit },
     });
   },
@@ -563,7 +565,7 @@ export const publicApi = {
    * @deprecated Use deleteSearchHistory with appropriate headers instead
    */
   async deleteGuestSearchHistory(guestSessionId: string, searchId: number) {
-    return cleanFetch<void>(`/api/search-history/guest/${guestSessionId}/${searchId}`, {
+    return cleanFetch<void>(`${SEARCH_HISTORY_API_BASE}/guest/${guestSessionId}/${searchId}`, {
       method: 'DELETE',
     });
   },
