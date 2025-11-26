@@ -11,7 +11,7 @@
  * - No automatic refetching (explicit invalidation only)
  */
 
-import { useReadUsersMeAuthMeGet } from '@/src/api/generated/auth/auth';
+import { useReadUsersMeApiV1AuthMeGet } from '@/src/api/generated/auth-v1/auth-v1';
 import { queryKeys } from '@/src/api/queryKeys';
 import type { AuthUserWithPermissionsResponse } from '@/src/api/generated/instructly.schemas';
 
@@ -37,7 +37,7 @@ export type SessionUser = AuthUserWithPermissionsResponse;
  * ```
  */
 export function useSession() {
-  return useReadUsersMeAuthMeGet({
+  return useReadUsersMeApiV1AuthMeGet({
     query: {
       queryKey: queryKeys.auth.me,
       staleTime: Infinity,
