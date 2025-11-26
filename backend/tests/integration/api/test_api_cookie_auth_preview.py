@@ -69,10 +69,10 @@ def test_preview_session_cookie_powers_api_routes(
     _set_session_cookie(client, test_instructor)
     start_date = "2024-01-01"
 
-    week = client.get(f"/instructors/availability/week?start_date={start_date}")
+    week = client.get(f"/api/v1/instructors/availability/week?start_date={start_date}")
     assert week.status_code == 200
 
-    booked = client.get(f"/instructors/availability/week/booked-slots?start_date={start_date}")
+    booked = client.get(f"/api/v1/instructors/availability/week/booked-slots?start_date={start_date}")
     assert booked.status_code == 200
 
     payload = {
@@ -91,7 +91,7 @@ def test_preview_session_cookie_powers_api_routes(
         "Referer": "https://preview.instainstru.com/instructors/dashboard",
     }
     save_resp = client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=payload,
         headers=csrf_headers,
     )

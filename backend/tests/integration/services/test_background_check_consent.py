@@ -102,7 +102,7 @@ def owner_auth_override():
 
 def _record_consent(client, profile_id: str, headers):
     response = client.post(
-        f"/api/instructors/{profile_id}/bgc/consent",
+        f"/api/v1/instructors/{profile_id}/bgc/consent",
         headers=headers,
         json={
             "consent_version": DISCLOSURE_VERSION,
@@ -119,7 +119,7 @@ def test_invite_blocked_without_recent_consent(client, db, owner_auth_override):
     headers = _csrf_headers(client)
 
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )
@@ -157,7 +157,7 @@ def test_invite_succeeds_after_recent_consent(client, db, owner_auth_override):
     _record_consent(client, profile.id, headers)
 
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )

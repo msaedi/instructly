@@ -9,7 +9,7 @@ from app.api.dependencies.repositories import get_background_job_repo
 from app.api.dependencies.services import get_background_check_workflow_service
 from app.core.config import settings
 from app.main import fastapi_app as app
-from app.routes.webhooks_checkr import _compute_signature, _delivery_cache
+from app.routes.v1.webhooks_checkr import _compute_signature, _delivery_cache
 
 
 class _StubRepo:
@@ -106,11 +106,11 @@ def test_duplicate_delivery_is_ignored(monkeypatch, client):
         headers = _webhook_headers(body)
         headers["X-Checkr-Delivery-Id"] = "delivery-1"
 
-        first = client.post("/webhooks/checkr/", content=body, headers=headers)
+        first = client.post("/api/v1/webhooks/checkr", content=body, headers=headers)
         assert first.status_code == 200
         assert workflow.report_completed_calls == 1
 
-        second = client.post("/webhooks/checkr/", content=body, headers=headers)
+        second = client.post("/api/v1/webhooks/checkr", content=body, headers=headers)
         assert second.status_code == 200
         assert workflow.report_completed_calls == 1
     finally:

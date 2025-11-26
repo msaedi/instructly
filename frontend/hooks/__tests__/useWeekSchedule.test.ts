@@ -8,7 +8,7 @@ jest.mock('@/lib/api', () => {
     ...original,
     fetchWithAuth: jest.fn(async (url: string) => {
       // Return minimal successful shapes for week and detailed endpoints
-      if (url.includes('/instructors/availability/week')) {
+      if (url.includes('/api/v1/instructors/availability/week')) {
         return {
           ok: true,
           json: async () => ({}),
@@ -18,7 +18,7 @@ jest.mock('@/lib/api', () => {
           ]) as unknown as Headers,
         } as Partial<Response> as Response;
       }
-      if (url.includes('/instructors/availability/?')) {
+      if (url.includes('/api/v1/instructors/availability/?')) {
         return {
           ok: true,
           json: async () => [],

@@ -67,17 +67,17 @@ def _is_excluded_path(path: str) -> bool:
         # "/api/messages/",  # Phase 10: Messages migrated to /api/v1/messages
         # "/api/uploads/",  # Phase 18: Uploads migrated to /api/v1/uploads
         "/api/reviews/",
-        "/api/webhooks/",
+        # "/api/webhooks/",  # Phase 23: Webhooks migrated to /api/v1/webhooks
         # "/api/admin/",  # Phase 19: Admin migrated to /api/v1/admin
         # "/api/referrals/",  # Phase 15: Referrals migrated to /api/v1/referrals
         # "/api/account/",  # Phase 15: Account migrated to /api/v1/account
         # "/api/addresses/",  # Phase 14: Addresses migrated to /api/v1/addresses
         # "/api/services/",  # Phase 13: Services migrated to /api/v1/services
-        "/api/availability-windows/",
+        # "/api/availability-windows/",  # Phase 23: Availability migrated to /api/v1/instructors/availability
         # "/api/pricing/",  # Phase 18: Pricing migrated to /api/v1/pricing
         "/api/instructor/",
-        "/api/instructors/{instructor_id}/bgc/",  # BGC admin endpoints - to be migrated
-        "/instructors/",  # Legacy non-versioned (note: /api/v1/instructors is the migrated version)
+        # "/api/instructors/{instructor_id}/bgc/",  # Phase 23: BGC migrated to /api/v1/instructors/{id}/bgc
+        # "/instructors/",  # Phase 23: Legacy non-versioned availability migrated
         "/availability/",
         "/password-reset/",
         "/admin/",
@@ -268,6 +268,25 @@ class TestRoutingInvariants:
             ("/api/v1/search-history/{search_id}", "/api/v1/search-history/guest"),
             ("/api/v1/search-history/interaction", "/api/v1/search-history/{search_id}"),
             ("/api/v1/search-history/{search_id}", "/api/v1/search-history/interaction"),
+            # Phase 23: Availability v1 routes - prefix-based routing with /instructors/availability
+            # The availability router is mounted with prefix "/instructors/availability" which is more
+            # specific than the instructors router prefix "/instructors" with /{instructor_id}
+            ("/api/v1/instructors/{instructor_id}", "/api/v1/instructors/availability"),
+            ("/api/v1/instructors/availability", "/api/v1/instructors/{instructor_id}"),
+            # Availability router: Static routes defined before dynamic {window_id}
+            # The static routes (week, copy-week, etc.) are defined before /{window_id}
+            ("/api/v1/instructors/availability/week", "/api/v1/instructors/availability/{window_id}"),
+            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/week"),
+            ("/api/v1/instructors/availability/copy-week", "/api/v1/instructors/availability/{window_id}"),
+            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/copy-week"),
+            ("/api/v1/instructors/availability/apply-to-date-range", "/api/v1/instructors/availability/{window_id}"),
+            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/apply-to-date-range"),
+            ("/api/v1/instructors/availability/specific-date", "/api/v1/instructors/availability/{window_id}"),
+            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/specific-date"),
+            ("/api/v1/instructors/availability/bulk-update", "/api/v1/instructors/availability/{window_id}"),
+            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/bulk-update"),
+            ("/api/v1/instructors/availability/blackout-dates", "/api/v1/instructors/availability/{window_id}"),
+            ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/blackout-dates"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):

@@ -59,7 +59,7 @@ def test_availability_cache_hit_rate(
 
     headers = {**auth_headers_instructor, "x-debug-sql": "1"}
     resp1 = client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=headers,
     )
@@ -67,7 +67,7 @@ def test_availability_cache_hit_rate(
     assert int(resp1.headers.get("x-cache-misses", "0")) >= 1
 
     resp2 = client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=headers,
     )
@@ -78,14 +78,14 @@ def test_availability_cache_hit_rate(
 
     save_payload = _build_payload(week_start, start_hour=10)
     save_resp = client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=save_payload,
         headers=auth_headers_instructor,
     )
     assert save_resp.status_code == 200
 
     resp3 = client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=headers,
     )
@@ -109,14 +109,14 @@ def test_availability_cache_invalidation_on_copy(
 
     headers = {**auth_headers_instructor, "x-debug-sql": "1"}
     warm_resp = client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": dst_week.isoformat()},
         headers=headers,
     )
     assert warm_resp.status_code == 200
 
     copy_resp = client.post(
-        "/instructors/availability/copy-week",
+        "/api/v1/instructors/availability/copy-week",
         json={
             "from_week_start": src_week.isoformat(),
             "to_week_start": dst_week.isoformat(),
@@ -126,7 +126,7 @@ def test_availability_cache_invalidation_on_copy(
     assert copy_resp.status_code == 200
 
     resp = client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": dst_week.isoformat()},
         headers=headers,
     )

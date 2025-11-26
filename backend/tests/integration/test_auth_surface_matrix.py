@@ -23,7 +23,7 @@ PROBE_SPECS = [
     {"label": "payments_connect_status", "path": "/api/v1/payments/connect/status"},
     {
         "label": "availability_week",
-        "path": "/instructors/availability/week",
+        "path": "/api/v1/instructors/availability/week",
         "params": {"start_date": "2025-11-10"},
     },
     {

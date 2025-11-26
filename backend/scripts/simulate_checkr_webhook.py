@@ -43,7 +43,7 @@ from sqlalchemy import func
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 ENV_CHOICES: Sequence[str] = ("local", "int", "stg", "preview", "beta", "prod")
 DEFAULT_ENV = "stg"
-WEBHOOK_PATH = "/webhooks/checkr/"
+WEBHOOK_PATH = "/api/v1/webhooks/checkr"
 REQUEST_HOST_FALLBACK = "localhost:8000"
 
 
@@ -133,7 +133,7 @@ def _bootstrap_env(env: Optional[str], env_file: Optional[str]) -> str:
     if api_key_from_env and api_key_from_env.strip():
         os.environ.setdefault("CHECKR_API_KEY", api_key_from_env.strip())
     if env_name in {"local", "stg", "int"}:
-        os.environ.setdefault("CHECKR_WEBHOOK_URL", "http://localhost:8000/webhooks/checkr/")
+        os.environ.setdefault("CHECKR_WEBHOOK_URL", "http://localhost:8000/api/v1/webhooks/checkr")
     else:
         if os.environ.get("CHECKR_WEBHOOK_URL", "").startswith("http://localhost"):
             os.environ.pop("CHECKR_WEBHOOK_URL", None)
@@ -197,10 +197,10 @@ def _resolve_webhook_url(
 
     canonical = environment.strip().lower()
     if canonical in {"beta", "prod"}:
-        return "https://api.instainstru.com/webhooks/checkr/"
+        return "https://api.instainstru.com/api/v1/webhooks/checkr"
     if canonical == "preview":
-        return "https://preview-api.instainstru.com/webhooks/checkr/"
-    return "http://localhost:8000/webhooks/checkr/"
+        return "https://preview-api.instainstru.com/api/v1/webhooks/checkr"
+    return "http://localhost:8000/api/v1/webhooks/checkr"
 
 
 def _secret_value(secret: object | None) -> str:

@@ -10,9 +10,11 @@ from . import (
     account,
     addresses,
     auth,
+    availability_windows,
     bookings,
     config,
     favorites,
+    instructor_bgc,
     instructor_bookings,
     instructors,
     messages,
@@ -30,15 +32,18 @@ from . import (
     two_factor_auth,
     uploads,
     users,
+    webhooks_checkr,
 )
 
 __all__ = [
     "account",
     "addresses",
     "auth",
+    "availability_windows",
     "bookings",
     "config",
     "favorites",
+    "instructor_bgc",
     "instructor_bookings",
     "instructors",
     "messages",
@@ -56,4 +61,5 @@ __all__ = [
     "two_factor_auth",
     "uploads",
     "users",
+    "webhooks_checkr",
 ]

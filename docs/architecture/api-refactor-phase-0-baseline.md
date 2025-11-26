@@ -2913,6 +2913,92 @@ Both deferred routers have active frontend consumers:
 
 ---
 
+## Phase 23 – Final Deferred Router Migration
+
+**Date:** November 26, 2025
+
+Phase 23 completes the API v1 migration by migrating the final 4 routers that were deferred in earlier phases:
+
+### Migrated Routers
+
+| Router | Old Path | New Path |
+|--------|----------|----------|
+| instructor_background_checks | `/api/instructors/{id}/bgc/*` | `/api/v1/instructors/{id}/bgc/*` |
+| availability_windows | `/instructors/availability/*` | `/api/v1/instructors/availability/*` |
+| webhooks_checkr | `/webhooks/checkr/` | `/api/v1/webhooks/checkr` |
+| webhooks_stripe | (already at v1 from Phase 17) | `/api/v1/payments/webhooks/stripe` |
+
+### Files Created
+
+- `backend/app/routes/v1/instructor_bgc.py` – Instructor background check endpoints
+- `backend/app/routes/v1/availability_windows.py` – Availability management endpoints
+- `backend/app/routes/v1/webhooks_checkr.py` – Checkr webhook handler
+
+### Files Modified
+
+**Backend:**
+- `backend/app/routes/v1/__init__.py` – Added new router exports
+- `backend/app/main.py` – Mount v1 routers, remove legacy mounts
+- `backend/app/openapi_app.py` – Update router mounts for OpenAPI schema
+
+**Frontend:**
+- `frontend/lib/api/bgc.ts` – Update BGC API paths
+- `frontend/app/(admin)/admin/bgc-review/hooks.ts` – Update admin BGC paths
+- `frontend/lib/api.ts` – Update availability constants
+
+**E2E Tests:**
+- `frontend/e2e/tests/availability-conflict.spec.ts` – Update mock paths
+- `frontend/e2e/calendar.spec.ts` – Update availability paths
+
+**Backend Tests:**
+- `tests/unit/test_checkr_webhook.py`
+- `tests/unit/test_checkr_webhook_idempotency.py`
+- `tests/unit/test_webhooks_checkr_signature.py`
+- `tests/unit/test_bgc_endpoints.py`
+- `tests/integration/api/test_api_cookie_auth_preview.py`
+- `tests/integration/api/test_booked_slots_endpoint.py`
+- `tests/integration/api/test_public_availability_integration.py`
+- `tests/integration/api/test_specific_week.py`
+- `tests/integration/test_availability_cache_hit_rate.py`
+- `tests/integration/test_auth_surface_matrix.py`
+- `tests/integration/test_week_get_query_count.py`
+- `tests/integration/availability/*.py` (multiple files)
+- `tests/services/test_week_save_atomicity.py`
+- `tests/routes/test_api_format_simple.py`
+- `tests/routes/test_new_api_format.py`
+- `tests/routes/test_payments.py`
+- `tests/test_routes_invariants.py`
+
+**Scripts:**
+- `scripts/simulate_checkr_webhook.py` – Update webhook URLs
+
+### External Service Updates Required
+
+⚠️ **Production Deployment Note:**
+
+After deployment, update webhook URLs in external service dashboards:
+
+| Service | Old Webhook URL | New Webhook URL |
+|---------|-----------------|-----------------|
+| Checkr | `https://api.instainstru.com/webhooks/checkr/` | `https://api.instainstru.com/api/v1/webhooks/checkr` |
+
+### Quality Gates
+
+| Check | Status |
+|-------|--------|
+| Backend ruff check | ✅ Pass |
+| Backend mypy strict | ✅ Pass |
+| Frontend build | ✅ Pass |
+| Frontend lint | ✅ Pass |
+| Frontend typecheck | ✅ Pass |
+| Frontend typecheck:strict | ✅ Pass |
+| Pre-commit hooks | ✅ Pass |
+| Backend pytest | ✅ Pass (excluding 1 pre-existing test issue) |
+
+**Phase 23 Status:** ✅ **Complete** – All deferred routers migrated to v1.
+
+---
+
 ## Migration Complete 🎉
 
 The API v1 migration is **COMPLETE**. The codebase now has:
@@ -2922,12 +3008,10 @@ The API v1 migration is **COMPLETE**. The codebase now has:
 - ✅ Comprehensive test coverage
 - ✅ Clear documentation
 - ✅ Infrastructure endpoints appropriately unversioned
-- ✅ 28 v1 routers migrated
-- ✅ ~150+ endpoints on v1
+- ✅ 31 v1 routers migrated (including availability, BGC, and Checkr webhooks)
+- ✅ ~160+ endpoints on v1
 - ✅ All frontend consumers updated
 
 ### Future Enhancements
 
-- **Availability Windows Migration**: When frontend availability UI is refactored
-- **Instructor BGC Migration**: When instructor onboarding flow is updated
 - **API Deprecation**: Legacy routes can be removed after monitoring shows no traffic

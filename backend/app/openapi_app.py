@@ -15,7 +15,7 @@ from app.routes import (
     alerts,
     analytics,
     # auth - DEPRECATED, use /api/v1/auth instead
-    availability_windows,
+    # availability_windows - DEPRECATED, use /api/v1/instructors/availability instead
     beta,
     # bookings - DEPRECATED, use /api/v1/bookings instead
     codebase_metrics,
@@ -37,7 +37,7 @@ from app.routes import (
     # search - DEPRECATED, use /api/v1/search instead
     # search_history - DEPRECATED, use /api/v1/search-history instead
     # services - DEPRECATED, use /api/v1/services instead
-    stripe_webhooks,
+    # stripe_webhooks - DEPRECATED, use /api/v1/payments/webhooks/stripe instead
     # two_factor_auth - DEPRECATED, use /api/v1/2fa instead
     # uploads - DEPRECATED, use /api/v1/uploads instead
     # users_profile_picture - DEPRECATED, use /api/v1/users instead
@@ -46,9 +46,11 @@ from app.routes.v1 import (
     account as account_v1,
     addresses as addresses_v1,
     auth as auth_v1,
+    availability_windows as availability_windows_v1,
     bookings as bookings_v1,
     config as config_v1,
     favorites as favorites_v1,
+    instructor_bgc as instructor_bgc_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
@@ -66,6 +68,7 @@ from app.routes.v1 import (
     two_factor_auth as two_factor_auth_v1,
     uploads as uploads_v1,
     users as users_v1,
+    webhooks_checkr as webhooks_checkr_v1,
 )
 from app.routes.v1.admin import (
     audit as admin_audit_v1,
@@ -90,6 +93,8 @@ def build_openapi_app() -> FastAPI:
     # Create API v1 router
     api_v1 = APIRouter(prefix="/api/v1")
     api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
+    api_v1.include_router(instructor_bgc_v1.router, prefix="/instructors")  # type: ignore[attr-defined]  # BGC endpoints
+    api_v1.include_router(availability_windows_v1.router, prefix="/instructors/availability")  # type: ignore[attr-defined]
     api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
     api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
     api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
@@ -119,6 +124,8 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
     api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
     api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
+    # Phase 23 v1 webhooks router
+    api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
 
     # Mount v1 API first
     app.include_router(api_v1)
@@ -136,7 +143,8 @@ def build_openapi_app() -> FastAPI:
     # app.include_router(account_management.router)  # Was: /api/account
     # Legacy services - now /api/v1/services
     # app.include_router(services.router)  # Was: /services
-    app.include_router(availability_windows.router)
+    # Legacy availability_windows - now /api/v1/instructors/availability
+    # app.include_router(availability_windows.router)
     # Legacy password_reset - now /api/v1/password-reset
     # app.include_router(password_reset.router)
     # Legacy bookings - now /api/v1/bookings
@@ -173,7 +181,8 @@ def build_openapi_app() -> FastAPI:
     # app.include_router(admin_config.router)
     # Legacy privacy - now /api/v1/privacy
     # app.include_router(privacy.router, prefix="/api", tags=["privacy"])
-    app.include_router(stripe_webhooks.router)
+    # Legacy stripe_webhooks - now /api/v1/payments/webhooks/stripe
+    # app.include_router(stripe_webhooks.router)
     app.include_router(prometheus.router)
     # Legacy uploads - now /api/v1/uploads
     # app.include_router(uploads.router)

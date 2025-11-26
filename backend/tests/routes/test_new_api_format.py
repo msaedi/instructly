@@ -175,7 +175,7 @@ class TestAvailabilityRoutesCleanResponses:
         self, client, test_instructor_with_availability, auth_headers_instructor
     ):
         """Verify availability responses have no legacy fields."""
-        response = client.get("/instructors/availability/", headers=auth_headers_instructor)
+        response = client.get("/api/v1/instructors/availability", headers=auth_headers_instructor)
 
         assert response.status_code == 200
         slots = response.json()
@@ -220,7 +220,7 @@ class TestAvailabilityRoutesCleanResponses:
 
         # Update availability using bitmap /week endpoint
         update_response = client.post(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             json=week_payload,
             headers=auth_headers_instructor,
         )
@@ -263,7 +263,7 @@ class TestAvailabilityRoutesCleanResponses:
 
         # Try to update with legacy field
         response = client.post(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             json=bad_payload,
             headers=auth_headers_instructor,
         )
@@ -351,7 +351,7 @@ def test_full_booking_flow_clean_architecture(
 
     # Step 1: Instructor adds availability
     availability_response = client.post(
-        "/instructors/availability/specific-date",
+        "/api/v1/instructors/availability/specific-date",
         json={"specific_date": future_date.isoformat(), "start_time": "10:00", "end_time": "12:00"},
         headers=auth_headers_instructor,
     )

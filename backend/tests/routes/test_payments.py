@@ -49,11 +49,8 @@ class TestPaymentRoutes:
             # Student endpoints
             "/api/v1/payments/methods",
             "/api/v1/payments/checkout",
-            # Webhook endpoints
+            # Webhook endpoints (unified in v1)
             "/api/v1/payments/webhooks/stripe",
-            "/webhooks/stripe/payment-events",
-            "/webhooks/stripe/account-events",
-            "/webhooks/stripe/test",
         ]
 
         # Check each endpoint exists
@@ -508,49 +505,24 @@ class TestWebhookEndpoints:
     """Specific tests for webhook endpoints."""
 
     def test_stripe_webhooks_router_endpoints_exist(self, client: TestClient):
-        """Test that stripe_webhooks router endpoints are registered."""
+        """Test that stripe webhook endpoint is registered."""
         from app.main import fastapi_app
 
         routes = [route.path for route in fastapi_app.routes if hasattr(route, "path")]
 
-        webhook_endpoints = [
-            "/webhooks/stripe/payment-events",
-            "/webhooks/stripe/account-events",
-            "/webhooks/stripe/test",
-        ]
+        # V1 unified webhook endpoint
+        webhook_endpoint = "/api/v1/payments/webhooks/stripe"
+        assert webhook_endpoint in routes, f"Missing webhook endpoint: {webhook_endpoint}"
 
-        for endpoint in webhook_endpoints:
-            assert endpoint in routes, f"Missing webhook endpoint: {endpoint}"
-
-    def test_webhook_test_endpoint(self, client: TestClient):
-        """Test the webhook test endpoint."""
-        response = client.get("/webhooks/stripe/test")
-
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["status"] == "success"
-        assert "webhook" in data["message"].lower()
-
-    def test_payment_events_webhook_endpoint(self, client: TestClient):
-        """Test payment events webhook endpoint."""
+    def test_stripe_webhook_endpoint_requires_signature(self, client: TestClient):
+        """Test that the unified Stripe webhook endpoint requires signature."""
         response = client.post(
-            "/webhooks/stripe/payment-events",
-            json={"type": "payment_intent.succeeded"},
+            "/api/v1/payments/webhooks/stripe",
+            content=b'{"type": "payment_intent.succeeded"}',
             headers={"Content-Type": "application/json"},
         )
 
-        # Should require signature
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-    def test_account_events_webhook_endpoint(self, client: TestClient):
-        """Test account events webhook endpoint."""
-        response = client.post(
-            "/webhooks/stripe/account-events",
-            json={"type": "account.updated"},
-            headers={"Content-Type": "application/json"},
-        )
-
-        # Should require signature
+        # Should require signature (returns 400 without valid Stripe-Signature header)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 

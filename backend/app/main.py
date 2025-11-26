@@ -83,28 +83,26 @@ from .repositories.instructor_profile_repository import InstructorProfileReposit
 from .routes import (
     alerts,
     analytics,
-    availability_windows,
     beta,
     codebase_metrics,
     database_monitor,
     gated,
-    instructor_background_checks,
     internal,
     metrics,
     monitoring,
     prometheus,
     ready,
     redis_monitor,
-    stripe_webhooks,
-    webhooks_checkr,
 )
 from .routes.v1 import (
     account as account_v1,
     addresses as addresses_v1,
     auth as auth_v1,
+    availability_windows as availability_windows_v1,
     bookings as bookings_v1,
     config as config_v1,
     favorites as favorites_v1,
+    instructor_bgc as instructor_bgc_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
@@ -122,6 +120,7 @@ from .routes.v1 import (
     two_factor_auth as two_factor_auth_v1,
     uploads as uploads_v1,
     users as users_v1,
+    webhooks_checkr as webhooks_checkr_v1,
 )
 from .routes.v1.admin import (
     audit as admin_audit_v1,
@@ -933,6 +932,10 @@ app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 api_v1 = APIRouter(prefix="/api/v1")
 
 # Mount v1 routes
+# Note: Route order matters - more specific routes must come BEFORE catch-all routes
+# /instructors/availability must be before /instructors/{instructor_id} to avoid path collision
+api_v1.include_router(availability_windows_v1.router, prefix="/instructors/availability")  # type: ignore[attr-defined]
+api_v1.include_router(instructor_bgc_v1.router, prefix="/instructors")  # type: ignore[attr-defined]  # BGC endpoints
 api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
 api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
 api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
@@ -963,6 +966,8 @@ api_v1.include_router(admin_audit_v1.router, prefix="/admin/audit")  # type: ign
 api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
 api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
 api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
+# Phase 23 v1 webhooks router
+api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
@@ -1022,7 +1027,8 @@ app.include_router(api_v1)
 # app.include_router(instructors.router)  # Was: /instructors
 # app.include_router(instructors.api_router)  # Was: /api/instructors
 
-app.include_router(instructor_background_checks.router)
+# Legacy instructor_background_checks routes - DEPRECATED, use /api/v1/instructors/{id}/bgc instead
+# app.include_router(instructor_background_checks.router)
 # Legacy instructor_bookings routes - DEPRECATED, use /api/v1/instructor-bookings instead
 # app.include_router(instructor_bookings.router)  # Was: /instructors/bookings
 # app.include_router(instructor_bookings.api_router)  # Was: /api/instructors/bookings
@@ -1030,7 +1036,8 @@ app.include_router(instructor_background_checks.router)
 # app.include_router(account_management.router)  # Was: /api/account
 # Legacy services routes - DEPRECATED, use /api/v1/services instead
 # app.include_router(services.router)  # Was: /services
-app.include_router(availability_windows.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy availability_windows routes - DEPRECATED, use /api/v1/instructors/availability instead
+# app.include_router(availability_windows.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy password_reset routes - DEPRECATED, use /api/v1/password-reset instead
 # app.include_router(password_reset.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy bookings routes - DEPRECATED, use /api/v1/bookings instead
@@ -1077,8 +1084,10 @@ app.include_router(database_monitor.router)
 # app.include_router(admin_audit.router)
 # Legacy privacy routes - DEPRECATED, use /api/v1/privacy instead
 # app.include_router(privacy.router, prefix="/api", tags=["privacy"])
-app.include_router(stripe_webhooks.router)
-app.include_router(webhooks_checkr.router)
+# Legacy stripe_webhooks routes - DEPRECATED, use /api/v1/payments/webhooks/stripe instead
+# app.include_router(stripe_webhooks.router)
+# Legacy webhooks_checkr routes - DEPRECATED, use /api/v1/webhooks/checkr instead
+# app.include_router(webhooks_checkr.router)
 app.include_router(prometheus.router)
 # Legacy uploads routes - DEPRECATED, use /api/v1/uploads instead
 # app.include_router(uploads.router)

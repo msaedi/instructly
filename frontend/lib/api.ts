@@ -225,19 +225,19 @@ export const API_ENDPOINTS = {
   PROFILE_PICTURE_URL: (userId: string) => `/api/v1/users/${userId}/profile-picture-url`,
   CONNECT_STATUS: '/api/v1/payments/connect/status',
 
-  // Availability Management endpoints
-  INSTRUCTOR_AVAILABILITY_WEEKLY: '/instructors/availability/weekly',
-  INSTRUCTOR_AVAILABILITY_PRESET: '/instructors/availability/preset',
-  INSTRUCTOR_AVAILABILITY_SPECIFIC: '/instructors/availability/specific-date',
-  INSTRUCTOR_BLACKOUT_DATES: '/instructors/availability/blackout-dates',
+  // Availability Management endpoints (Phase 23: Migrated to /api/v1/instructors/availability)
+  INSTRUCTOR_AVAILABILITY_WEEKLY: '/api/v1/instructors/availability/weekly',
+  INSTRUCTOR_AVAILABILITY_PRESET: '/api/v1/instructors/availability/preset',
+  INSTRUCTOR_AVAILABILITY_SPECIFIC: '/api/v1/instructors/availability/specific-date',
+  INSTRUCTOR_BLACKOUT_DATES: '/api/v1/instructors/availability/blackout-dates',
 
-  // Week-specific availability endpoints
-  INSTRUCTOR_AVAILABILITY_WEEK: '/instructors/availability/week',
-  INSTRUCTOR_AVAILABILITY_COPY_WEEK: '/instructors/availability/copy-week',
-  INSTRUCTOR_AVAILABILITY_APPLY_RANGE: '/instructors/availability/apply-to-date-range',
-  INSTRUCTOR_AVAILABILITY_BULK_UPDATE: '/instructors/availability/bulk-update',
-  INSTRUCTOR_AVAILABILITY: '/instructors/availability/',
-  INSTRUCTOR_AVAILABILITY_VALIDATE: '/instructors/availability/week/validate-changes',
+  // Week-specific availability endpoints (Phase 23: Migrated to /api/v1/instructors/availability)
+  INSTRUCTOR_AVAILABILITY_WEEK: '/api/v1/instructors/availability/week',
+  INSTRUCTOR_AVAILABILITY_COPY_WEEK: '/api/v1/instructors/availability/copy-week',
+  INSTRUCTOR_AVAILABILITY_APPLY_RANGE: '/api/v1/instructors/availability/apply-to-date-range',
+  INSTRUCTOR_AVAILABILITY_BULK_UPDATE: '/api/v1/instructors/availability/bulk-update',
+  INSTRUCTOR_AVAILABILITY: '/api/v1/instructors/availability/',
+  INSTRUCTOR_AVAILABILITY_VALIDATE: '/api/v1/instructors/availability/week/validate-changes',
 
   // Booking endpoints - Phase 9: Migrated to /api/v1/bookings
   BOOKINGS: '/api/v1/bookings',

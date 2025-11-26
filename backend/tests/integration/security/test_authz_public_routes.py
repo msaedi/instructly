@@ -46,15 +46,15 @@ def test_instructor_availability_requires_instructor_role(
         "clear_existing": False,
     }
 
-    unauth_response = client.post("/instructors/availability/week", json=payload)
+    unauth_response = client.post("/api/v1/instructors/availability/week", json=payload)
     assert unauth_response.status_code in (401, 403)
 
     student_response = client.post(
-        "/instructors/availability/week", json=payload, headers=auth_headers_student
+        "/api/v1/instructors/availability/week", json=payload, headers=auth_headers_student
     )
     assert student_response.status_code == 403
 
     instructor_response = client.post(
-        "/instructors/availability/week", json=payload, headers=auth_headers_instructor
+        "/api/v1/instructors/availability/week", json=payload, headers=auth_headers_instructor
     )
     assert instructor_response.status_code == 200

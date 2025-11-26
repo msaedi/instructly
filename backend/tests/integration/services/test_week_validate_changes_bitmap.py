@@ -33,7 +33,7 @@ async def test_validate_changes_bitmap_smoke(
     }
 
     create_resp = client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=week_payload,
         headers=auth_headers_instructor,
     )
@@ -56,7 +56,7 @@ async def test_validate_changes_bitmap_smoke(
     }
 
     r = client.post(
-        "/instructors/availability/week/validate-changes",
+        "/api/v1/instructors/availability/week/validate-changes",
         json=change,
         headers=auth_headers_instructor,
     )

@@ -190,7 +190,7 @@ export function useBGCRecheck() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id }: { id: string }) =>
-      httpPost<BGCInviteResponse>(`/api/instructors/${id}/bgc/recheck`, {}),
+      httpPost<BGCInviteResponse>(`/api/v1/instructors/${id}/bgc/recheck`, {}),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },
@@ -201,7 +201,7 @@ export function useBGCInvite() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, packageSlug }: { id: string; packageSlug?: string | null }) =>
-      httpPost<BGCInviteResponse>(`/api/instructors/${id}/bgc/invite`, packageSlug ? { package_slug: packageSlug } : {}),
+      httpPost<BGCInviteResponse>(`/api/v1/instructors/${id}/bgc/invite`, packageSlug ? { package_slug: packageSlug } : {}),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },

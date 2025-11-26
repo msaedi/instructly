@@ -99,7 +99,7 @@ def test_post_and_get_week_no_slot_queries(
 
     # POST week availability
     post_response = bitmap_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=payload,
         headers=headers,
     )
@@ -119,7 +119,7 @@ def test_post_and_get_week_no_slot_queries(
 
     # GET /instructors/availability/week
     get_response = bitmap_client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": monday_str},
         headers=headers,
     )

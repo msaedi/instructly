@@ -103,7 +103,7 @@ def test_bitmap_past_clamp_skips_outside_window(
     }
 
     resp = bitmap_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=request_body,
         headers=auth_headers_instructor,
     )
@@ -113,7 +113,7 @@ def test_bitmap_past_clamp_skips_outside_window(
     assert payload["days_written"] == 1
 
     get_resp = bitmap_client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=auth_headers_instructor,
     )
@@ -173,7 +173,7 @@ def test_apply_range_clamps_past_targets(
     end_date = anchor_today + timedelta(days=6)
 
     resp = bitmap_client.post(
-        "/instructors/availability/apply-to-date-range",
+        "/api/v1/instructors/availability/apply-to-date-range",
         json={
             "from_week_start": source_week.isoformat(),
             "start_date": start_date.isoformat(),
@@ -211,7 +211,7 @@ def test_week_headers_stable(
 ) -> None:
     week_start = anchor_today - timedelta(days=anchor_today.weekday())
     resp = bitmap_client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=auth_headers_instructor,
     )

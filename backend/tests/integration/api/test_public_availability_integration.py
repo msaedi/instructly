@@ -79,7 +79,7 @@ class TestPublicAvailabilityIntegration:
         availability_data = {"specific_date": tomorrow.isoformat(), "start_time": "09:00", "end_time": "12:00"}
 
         response = client.post(
-            "/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
+            "/api/v1/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
         )
 
         if response.status_code == 404:
@@ -148,7 +148,7 @@ class TestPublicAvailabilityIntegration:
 
         for slot_data in afternoon_slots:
             response = client.post(
-                "/instructors/availability/specific-date", json=slot_data, headers=auth_headers_instructor
+                "/api/v1/instructors/availability/specific-date", json=slot_data, headers=auth_headers_instructor
             )
             assert response.status_code == 200
 
@@ -196,7 +196,7 @@ class TestPublicAvailabilityIntegration:
         availability_data = {"specific_date": next_week.isoformat(), "start_time": "09:00", "end_time": "17:00"}
 
         response = client.post(
-            "/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
+            "/api/v1/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
         )
         assert response.status_code == 200
 
@@ -206,7 +206,7 @@ class TestPublicAvailabilityIntegration:
         blackout_data = {"date": next_week.isoformat(), "reason": "Conference attendance"}
 
         response = client.post(
-            "/instructors/availability/blackout-dates", json=blackout_data, headers=auth_headers_instructor
+            "/api/v1/instructors/availability/blackout-dates", json=blackout_data, headers=auth_headers_instructor
         )
         assert response.status_code == 200
 
@@ -255,7 +255,7 @@ class TestPublicAvailabilityIntegration:
         availability_data = {"specific_date": tomorrow.isoformat(), "start_time": "09:00", "end_time": "12:00"}
 
         response = client.post(
-            "/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
+            "/api/v1/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
         )
         assert response.status_code == 200
 

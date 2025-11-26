@@ -126,7 +126,7 @@ def test_bookings_respect_bitmap_availability_windows(
     }
 
     resp = bitmap_booking_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=availability_body,
         headers=auth_headers_instructor,
     )

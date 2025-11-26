@@ -98,7 +98,7 @@ class TestApplyBitmapPatternAcrossWeeksExactCopy:
         target_end = target_start + timedelta(days=7 * weeks_to_apply - 1)
 
         apply_resp = bitmap_client.post(
-            "/instructors/availability/apply-to-date-range",
+            "/api/v1/instructors/availability/apply-to-date-range",
             json={
                 "from_week_start": source_week.isoformat(),
                 "start_date": target_start.isoformat(),
@@ -119,7 +119,7 @@ class TestApplyBitmapPatternAcrossWeeksExactCopy:
         for week_index in week_offsets:
             target_monday = target_start + timedelta(days=7 * week_index)
             get_resp = bitmap_client.get(
-                "/instructors/availability/week",
+                "/api/v1/instructors/availability/week",
                 params={"start_date": target_monday.isoformat()},
                 headers=auth_headers_instructor,
             )
@@ -182,7 +182,7 @@ class TestApplyBitmapEmptySourceReturnsNoopMessage:
         target_end = target_start + timedelta(days=13)
 
         apply_resp = bitmap_client.post(
-            "/instructors/availability/apply-to-date-range",
+            "/api/v1/instructors/availability/apply-to-date-range",
             json={
                 "from_week_start": source_week.isoformat(),
                 "start_date": target_start.isoformat(),
@@ -207,7 +207,7 @@ class TestApplyBitmapEmptySourceReturnsNoopMessage:
                 assert windows_from_bits(bits) == []
 
             get_resp = bitmap_client.get(
-                "/instructors/availability/week",
+                "/api/v1/instructors/availability/week",
                 params={"start_date": target_monday.isoformat()},
                 headers=auth_headers_instructor,
             )
