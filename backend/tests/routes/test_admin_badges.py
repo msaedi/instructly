@@ -44,7 +44,7 @@ def test_admin_badges_requires_admin_auth(client, db, test_student, auth_headers
     badge = _ensure_badge_definition(db, slug="admin_test_badge")
     _create_award(db, badge=badge, student_id=test_student.id)
 
-    res = client.get("/api/admin/badges/pending", headers=auth_headers)
+    res = client.get("/api/v1/admin/badges/pending", headers=auth_headers)
     assert res.status_code == 403
 
 
@@ -59,7 +59,7 @@ def test_admin_badges_list_pending_default(client, db, admin_user, auth_headers_
         awarded_at=now - timedelta(days=2),
     )
 
-    res = client.get("/api/admin/badges/pending", headers=auth_headers_admin)
+    res = client.get("/api/v1/admin/badges/pending", headers=auth_headers_admin)
     assert res.status_code == 200
     body = res.json()
     assert body["total"] >= 1
@@ -79,7 +79,7 @@ def test_admin_badges_status_filter_confirmed(client, db, admin_user, auth_heade
     )
 
     res = client.get(
-        "/api/admin/badges/pending",
+        "/api/v1/admin/badges/pending",
         params={"status": "confirmed"},
         headers=auth_headers_admin,
     )
@@ -92,13 +92,13 @@ def test_admin_badges_confirm_endpoint(client, db, admin_user, auth_headers_admi
     badge = _ensure_badge_definition(db, slug="admin_confirm_action")
     award = _create_award(db, badge=badge, student_id=test_student.id)
 
-    res = client.post(f"/api/admin/badges/{award.id}/confirm", headers=auth_headers_admin)
+    res = client.post(f"/api/v1/admin/badges/{award.id}/confirm", headers=auth_headers_admin)
     assert res.status_code == 200
     body = res.json()
     assert body["status"] == "confirmed"
 
     # second confirm should return 404
-    res = client.post(f"/api/admin/badges/{award.id}/confirm", headers=auth_headers_admin)
+    res = client.post(f"/api/v1/admin/badges/{award.id}/confirm", headers=auth_headers_admin)
     assert res.status_code == 404
 
 
@@ -106,20 +106,20 @@ def test_admin_badges_revoke_endpoint(client, db, admin_user, auth_headers_admin
     badge = _ensure_badge_definition(db, slug="admin_revoke_action")
     award = _create_award(db, badge=badge, student_id=test_student.id)
 
-    res = client.post(f"/api/admin/badges/{award.id}/revoke", headers=auth_headers_admin)
+    res = client.post(f"/api/v1/admin/badges/{award.id}/revoke", headers=auth_headers_admin)
     assert res.status_code == 200
     body = res.json()
     assert body["status"] == "revoked"
 
-    res = client.post(f"/api/admin/badges/{award.id}/revoke", headers=auth_headers_admin)
+    res = client.post(f"/api/v1/admin/badges/{award.id}/revoke", headers=auth_headers_admin)
     assert res.status_code == 404
 
 
 def test_admin_badges_confirm_nonexistent_returns_404(client, auth_headers_admin):
-    res = client.post("/api/admin/badges/nonexistent/confirm", headers=auth_headers_admin)
+    res = client.post("/api/v1/admin/badges/nonexistent/confirm", headers=auth_headers_admin)
     assert res.status_code == 404
 
 
 def test_admin_badges_revoke_nonexistent_returns_404(client, auth_headers_admin):
-    res = client.post("/api/admin/badges/nonexistent/revoke", headers=auth_headers_admin)
+    res = client.post("/api/v1/admin/badges/nonexistent/revoke", headers=auth_headers_admin)
     assert res.status_code == 404

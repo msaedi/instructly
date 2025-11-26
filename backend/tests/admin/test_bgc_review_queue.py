@@ -55,11 +55,11 @@ class TestAdminBGCReviewQueue:
         token = create_access_token(data={"sub": admin.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        count_response = client.get("/api/admin/bgc/review/count", headers=headers)
+        count_response = client.get("/api/v1/admin/background-checks/review/count", headers=headers)
         assert count_response.status_code == 200
         assert count_response.json()["count"] == 1
 
-        list_response = client.get("/api/admin/bgc/review?limit=10", headers=headers)
+        list_response = client.get("/api/v1/admin/background-checks/review?limit=10", headers=headers)
         assert list_response.status_code == 200
         payload = list_response.json()
         assert payload["next_cursor"] is None
@@ -70,7 +70,7 @@ class TestAdminBGCReviewQueue:
         assert str(profile.bgc_report_id) in (item.get("checkr_report_url") or "")
 
         approve_response = client.post(
-            f"/api/admin/bgc/{profile.id}/override",
+            f"/api/v1/admin/background-checks/{profile.id}/override",
             json={"action": "approve"},
             headers=headers,
         )
@@ -81,12 +81,12 @@ class TestAdminBGCReviewQueue:
         assert profile.bgc_status == "passed"
         assert profile.bgc_completed_at is not None
 
-        count_after = client.get("/api/admin/bgc/review/count", headers=headers)
+        count_after = client.get("/api/v1/admin/background-checks/review/count", headers=headers)
         assert count_after.status_code == 200
         assert count_after.json()["count"] == 0
 
         latest_consent = client.get(
-            f"/api/admin/bgc/consent/{profile.id}/latest",
+            f"/api/v1/admin/background-checks/consent/{profile.id}/latest",
             headers=headers,
         )
         assert latest_consent.status_code == 200
@@ -95,7 +95,7 @@ class TestAdminBGCReviewQueue:
         assert payload["consent_version"] == "v1"
 
         detail_response = client.get(
-            f"/api/admin/instructors/{profile.id}",
+            f"/api/v1/admin/instructors/{profile.id}",
             headers=headers,
         )
         assert detail_response.status_code == 200
@@ -189,12 +189,12 @@ class TestAdminBGCReviewQueue:
         token = create_access_token(data={"sub": admin.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        counts_response = client.get("/api/admin/bgc/counts", headers=headers)
+        counts_response = client.get("/api/v1/admin/background-checks/counts", headers=headers)
         assert counts_response.status_code == 200
         counts = counts_response.json()
         assert counts == {"review": 1, "pending": 2}
 
-        review_cases = client.get("/api/admin/bgc/cases?status=review", headers=headers)
+        review_cases = client.get("/api/v1/admin/background-checks/cases?status=review", headers=headers)
         assert review_cases.status_code == 200
         review_payload = review_cases.json()
         assert review_payload["total"] == 1
@@ -203,7 +203,7 @@ class TestAdminBGCReviewQueue:
         assert review_payload["items"][0]["bgc_status"] == "review"
         assert review_payload["items"][0]["consent_recent"] is True
 
-        pending_cases = client.get("/api/admin/bgc/cases?status=pending", headers=headers)
+        pending_cases = client.get("/api/v1/admin/background-checks/cases?status=pending", headers=headers)
         assert pending_cases.status_code == 200
         pending_payload = pending_cases.json()
         assert pending_payload["total"] == 2
@@ -212,7 +212,7 @@ class TestAdminBGCReviewQueue:
         assert pending_payload["items"][0]["bgc_status"] == "pending"
 
         search_cases = client.get(
-            "/api/admin/bgc/cases?status=all&q=pending_instructor",
+            "/api/v1/admin/background-checks/cases?status=all&q=pending_instructor",
             headers=headers,
         )
         assert search_cases.status_code == 200
@@ -221,7 +221,7 @@ class TestAdminBGCReviewQueue:
         assert search_payload["items"][0]["instructor_id"] == pending_profile.id
 
         paged_cases = client.get(
-            "/api/admin/bgc/cases?status=all&page=1&page_size=1",
+            "/api/v1/admin/background-checks/cases?status=all&page=1&page_size=1",
             headers=headers,
         )
         assert paged_cases.status_code == 200
@@ -230,7 +230,7 @@ class TestAdminBGCReviewQueue:
         assert first_page["has_next"] is True
 
         second_page = client.get(
-            "/api/admin/bgc/cases?status=all&page=2&page_size=1",
+            "/api/v1/admin/background-checks/cases?status=all&page=2&page_size=1",
             headers=headers,
         )
         assert second_page.status_code == 200
@@ -239,7 +239,7 @@ class TestAdminBGCReviewQueue:
         assert second_payload["has_prev"] is True
 
         invalid_status = client.get(
-            "/api/admin/bgc/cases?status=invalid",
+            "/api/v1/admin/background-checks/cases?status=invalid",
             headers=headers,
         )
         assert invalid_status.status_code == 400
@@ -276,7 +276,7 @@ class TestAdminBGCReviewQueue:
         total_expected = extra_needed + 3
 
         page1_response = client.get(
-            "/api/admin/bgc/cases?status=all&page=1&page_size=50",
+            "/api/v1/admin/background-checks/cases?status=all&page=1&page_size=50",
             headers=headers,
         )
         assert page1_response.status_code == 200
@@ -290,7 +290,7 @@ class TestAdminBGCReviewQueue:
         assert page1_payload["has_prev"] is False
 
         page2_response = client.get(
-            "/api/admin/bgc/cases?status=all&page=2&page_size=50",
+            "/api/v1/admin/background-checks/cases?status=all&page=2&page_size=50",
             headers=headers,
         )
         assert page2_response.status_code == 200

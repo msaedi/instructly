@@ -11,7 +11,7 @@ def test_admin_routes_require_admin(
     auth_headers_instructor,
     auth_headers_admin,
 ) -> None:
-    url = "/api/admin/config/pricing"
+    url = "/api/v1/admin/config/pricing"
 
     unauth = client.get(url)
     assert unauth.status_code in (401, 403)

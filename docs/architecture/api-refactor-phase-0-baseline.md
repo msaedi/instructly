@@ -2502,8 +2502,105 @@ PUBLIC_OPEN_PREFIXES = (
 
 ---
 
-### Phase 19+ Candidates
+## Phase 19 – Admin Routers → v1
 
-- **Admin**: Admin-only endpoints (background checks, config, etc.)
+**Date:** November 26, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Phase 19 migrates all admin-facing routers to the v1 API architecture. Admin endpoints are backend-only (no frontend consumers) so the migration is simpler than user-facing domains.
+
+### Domains Migrated
+
+| Legacy Path | v1 Path | Status |
+|------------|---------|--------|
+| `/api/admin/config` | `/api/v1/admin/config` | ✅ Migrated |
+| `/api/admin/audit` | `/api/v1/admin/audit` | ✅ Migrated |
+| `/api/admin/badges` | `/api/v1/admin/badges` | ✅ Migrated |
+| `/api/admin/bgc` | `/api/v1/admin/background-checks` | ✅ Migrated |
+| `/api/admin/instructors` | `/api/v1/admin/instructors` | ✅ Migrated |
+
+### Files Created
+
+**v1 Admin Routers:**
+- `backend/app/routes/v1/admin/__init__.py`
+- `backend/app/routes/v1/admin/config.py`
+- `backend/app/routes/v1/admin/audit.py`
+- `backend/app/routes/v1/admin/badges.py`
+- `backend/app/routes/v1/admin/background_checks.py`
+- `backend/app/routes/v1/admin/instructors.py`
+
+### Files Modified
+
+**Backend:**
+- `backend/app/main.py` – Added v1 admin router imports and mounts, commented out legacy mounts
+- `backend/app/openapi_app.py` – Updated for v1 admin routers
+
+**Tests:**
+- `backend/tests/admin/test_bgc_review_queue.py` – Updated to v1 paths
+- `backend/tests/routes/test_admin_badges.py` – Updated to v1 paths
+- `backend/tests/integration/admin_audit/test_booking_audit_flow.py` – Updated to v1 paths
+- `backend/tests/integration/admin_audit/test_availability_audit_flow.py` – Updated to v1 paths
+- `backend/tests/integration/security/test_authz_admin_routes.py` – Updated to v1 paths
+- `backend/tests/test_routes_invariants.py` – Added admin v1/legacy tests, updated excluded paths
+
+### Routers NOT Migrated (Intentionally)
+
+The following routers remain unversioned by design:
+
+**Infrastructure/Monitoring (Stay Unversioned):**
+- `metrics.py` (`/ops`) – Internal metrics
+- `monitoring.py` (`/api/monitoring`) – Internal monitoring
+- `alerts.py` (`/api/monitoring/alerts`) – Internal alerts
+- `codebase_metrics.py` (`/api/analytics/codebase`) – Internal
+- `redis_monitor.py` (`/api/redis`) – Internal
+- `database_monitor.py` (`/api/database`) – Internal
+- `prometheus.py` – Prometheus scraping
+- `ready.py` (`/ready`) – Health check
+
+**External Service Dependencies (Stay Unversioned):**
+- `stripe_webhooks.py` (`/webhooks/stripe`) – Stripe depends on this URL
+- `webhooks_checkr.py` (`/webhooks/checkr`) – Checkr depends on this URL
+
+**Feature Flags (Stay Current):**
+- `beta.py` (`/api/beta`) – Beta feature flags
+- `gated.py` (`/v1/gated`) – Already versioned
+
+**Internal:**
+- `internal.py` (`/internal`) – Internal endpoints
+- `analytics.py` (`/api/analytics`) – Analytics endpoints
+
+**Deferred for Future Phases:**
+- `availability_windows.py` (`/instructors/availability`) – Has frontend consumers in lib/api.ts, generated hooks, E2E tests. Requires coordination with frontend migration.
+- `instructor_background_checks.py` (`/api/instructors/{id}/bgc`) – Instructor-facing BGC endpoints
+
+### Migration Notes
+
+1. **No frontend consumers** – Admin routers have no frontend consumers, making migration backend-only
+2. **Path change: bgc → background-checks** – Standardized naming for clarity
+3. **All 22 admin tests pass** – Tests updated to use v1 paths
+4. **Route invariant tests added** – 10 new tests verify admin v1 endpoints exist and legacy removed
+
+### Verification
+
+```bash
+# Admin tests
+env TZ=UTC ./venv/bin/pytest tests/admin/ tests/routes/test_admin_badges.py tests/integration/admin_audit/ tests/integration/security/test_authz_admin_routes.py -v
+# All 12 passed
+
+# Route invariant tests for admin
+env TZ=UTC ./venv/bin/pytest tests/test_routes_invariants.py -k "admin" -v
+# All 10 passed
+```
+
+**Phase 19 Status:** ✅ **Complete** – All admin routers migrated to v1 API.
+
+---
+
+### Phase 20+ Candidates
+
+- **Availability Windows**: Instructor availability management (has frontend consumers)
+- **Instructor BGC**: Instructor-facing background check endpoints
 - **Analytics**: Search analytics and admin dashboards
 - **Beta**: Beta invite system endpoints

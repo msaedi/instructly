@@ -68,7 +68,7 @@ def _is_excluded_path(path: str) -> bool:
         # "/api/uploads/",  # Phase 18: Uploads migrated to /api/v1/uploads
         "/api/reviews/",
         "/api/webhooks/",
-        "/api/admin/",
+        # "/api/admin/",  # Phase 19: Admin migrated to /api/v1/admin
         # "/api/referrals/",  # Phase 15: Referrals migrated to /api/v1/referrals
         # "/api/account/",  # Phase 15: Account migrated to /api/v1/account
         # "/api/addresses/",  # Phase 14: Addresses migrated to /api/v1/addresses
@@ -1217,4 +1217,285 @@ class TestRoutingInvariants:
                 "Found legacy users profile-picture endpoints that should be removed:\n"
                 + "\n".join(f"  - {path}" for path in found_legacy)
                 + "\n\nUse /api/v1/users instead."
+            )
+
+    def test_v1_admin_config_endpoints_exist(self):
+        """
+        Verify v1 admin config endpoints are properly mounted.
+
+        Phase 19: Admin config domain migrated to /api/v1/admin/config.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_admin_config_endpoints = [
+            "/api/v1/admin/config/pricing",  # GET, PATCH
+        ]
+
+        missing = []
+        for expected in expected_admin_config_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 admin config endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_admin_config_endpoints_removed(self):
+        """
+        Verify legacy admin config endpoints are REMOVED.
+
+        Phase 19: Admin config migration is complete. All admin config endpoints
+        must now use /api/v1/admin/config.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_admin_config_endpoints = [
+            "/api/admin/config/pricing",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_admin_config_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy admin config endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/admin/config instead."
+            )
+
+    def test_v1_admin_audit_endpoints_exist(self):
+        """
+        Verify v1 admin audit endpoints are properly mounted.
+
+        Phase 19: Admin audit domain migrated to /api/v1/admin/audit.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_admin_audit_endpoints = [
+            "/api/v1/admin/audit",  # GET
+        ]
+
+        missing = []
+        for expected in expected_admin_audit_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 admin audit endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_admin_audit_endpoints_removed(self):
+        """
+        Verify legacy admin audit endpoints are REMOVED.
+
+        Phase 19: Admin audit migration is complete. All admin audit endpoints
+        must now use /api/v1/admin/audit.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_admin_audit_endpoints = [
+            "/api/admin/audit",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_admin_audit_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy admin audit endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/admin/audit instead."
+            )
+
+    def test_v1_admin_badges_endpoints_exist(self):
+        """
+        Verify v1 admin badges endpoints are properly mounted.
+
+        Phase 19: Admin badges domain migrated to /api/v1/admin/badges.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_admin_badges_endpoints = [
+            "/api/v1/admin/badges/pending",  # GET
+            "/api/v1/admin/badges/{award_id}/confirm",  # POST
+            "/api/v1/admin/badges/{award_id}/revoke",  # POST
+        ]
+
+        missing = []
+        for expected in expected_admin_badges_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 admin badges endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_admin_badges_endpoints_removed(self):
+        """
+        Verify legacy admin badges endpoints are REMOVED.
+
+        Phase 19: Admin badges migration is complete. All admin badges endpoints
+        must now use /api/v1/admin/badges.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_admin_badges_endpoints = [
+            "/api/admin/badges/pending",
+            "/api/admin/badges/{award_id}/confirm",
+            "/api/admin/badges/{award_id}/revoke",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_admin_badges_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy admin badges endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/admin/badges instead."
+            )
+
+    def test_v1_admin_background_checks_endpoints_exist(self):
+        """
+        Verify v1 admin background-checks endpoints are properly mounted.
+
+        Phase 19: Admin background-checks domain migrated to /api/v1/admin/background-checks.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_admin_bgc_endpoints = [
+            "/api/v1/admin/background-checks/review/count",  # GET
+            "/api/v1/admin/background-checks/review",  # GET
+            "/api/v1/admin/background-checks/counts",  # GET
+            "/api/v1/admin/background-checks/cases",  # GET
+            "/api/v1/admin/background-checks/history/{instructor_id}",  # GET
+            "/api/v1/admin/background-checks/expiring",  # GET
+            "/api/v1/admin/background-checks/webhooks",  # GET
+            "/api/v1/admin/background-checks/webhooks/stats",  # GET
+            "/api/v1/admin/background-checks/{instructor_id}/override",  # POST
+            "/api/v1/admin/background-checks/{instructor_id}/dispute/open",  # POST
+            "/api/v1/admin/background-checks/{instructor_id}/dispute/resolve",  # POST
+            "/api/v1/admin/background-checks/consent/{instructor_id}/latest",  # GET
+        ]
+
+        missing = []
+        for expected in expected_admin_bgc_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 admin background-checks endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_admin_background_checks_endpoints_removed(self):
+        """
+        Verify legacy admin background-checks endpoints are REMOVED.
+
+        Phase 19: Admin background-checks migration is complete. All admin bgc endpoints
+        must now use /api/v1/admin/background-checks.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_admin_bgc_endpoints = [
+            "/api/admin/bgc/review/count",
+            "/api/admin/bgc/review",
+            "/api/admin/bgc/counts",
+            "/api/admin/bgc/cases",
+            "/api/admin/bgc/history/{instructor_id}",
+            "/api/admin/bgc/expiring",
+            "/api/admin/bgc/webhooks",
+            "/api/admin/bgc/webhooks/stats",
+            "/api/admin/bgc/{instructor_id}/override",
+            "/api/admin/bgc/{instructor_id}/dispute/open",
+            "/api/admin/bgc/{instructor_id}/dispute/resolve",
+            "/api/admin/bgc/consent/{instructor_id}/latest",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_admin_bgc_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy admin background-checks endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/admin/background-checks instead."
+            )
+
+    def test_v1_admin_instructors_endpoints_exist(self):
+        """
+        Verify v1 admin instructors endpoints are properly mounted.
+
+        Phase 19: Admin instructors domain migrated to /api/v1/admin/instructors.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_admin_instructors_endpoints = [
+            "/api/v1/admin/instructors/{instructor_id}",  # GET
+        ]
+
+        missing = []
+        for expected in expected_admin_instructors_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 admin instructors endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_admin_instructors_endpoints_removed(self):
+        """
+        Verify legacy admin instructors endpoints are REMOVED.
+
+        Phase 19: Admin instructors migration is complete. All admin instructors endpoints
+        must now use /api/v1/admin/instructors.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_admin_instructors_endpoints = [
+            "/api/admin/instructors/{instructor_id}",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_admin_instructors_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy admin instructors endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/admin/instructors instead."
             )

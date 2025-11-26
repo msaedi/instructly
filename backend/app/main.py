@@ -81,11 +81,11 @@ from .ratelimit.identity import resolve_identity
 from .repositories.background_job_repository import BackgroundJobRepository
 from .repositories.instructor_profile_repository import InstructorProfileRepository
 from .routes import (
-    admin_audit,
-    admin_background_checks,
-    admin_badges,
-    admin_config,
-    admin_instructors,
+    # admin_audit - DEPRECATED, use v1/admin/audit instead
+    # admin_background_checks - DEPRECATED, use v1/admin/background_checks instead
+    # admin_badges - DEPRECATED, use v1/admin/badges instead
+    # admin_config - DEPRECATED, use v1/admin/config instead
+    # admin_instructors - DEPRECATED, use v1/admin/instructors instead
     alerts,
     analytics,
     availability_windows,
@@ -127,6 +127,13 @@ from .routes.v1 import (
     two_factor_auth as two_factor_auth_v1,
     uploads as uploads_v1,
     users as users_v1,
+)
+from .routes.v1.admin import (
+    audit as admin_audit_v1,
+    background_checks as admin_background_checks_v1,
+    badges as admin_badges_v1,
+    config as admin_config_v1,
+    instructors as admin_instructors_v1,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
@@ -955,6 +962,12 @@ api_v1.include_router(public_v1.router, prefix="/public")  # type: ignore[attr-d
 api_v1.include_router(pricing_v1.router, prefix="/pricing")  # type: ignore[attr-defined]
 api_v1.include_router(config_v1.router, prefix="/config")  # type: ignore[attr-defined]
 api_v1.include_router(student_badges_v1.router, prefix="/students/badges")  # type: ignore[attr-defined]
+# Phase 19 v1 admin routers
+api_v1.include_router(admin_config_v1.router, prefix="/admin/config")  # type: ignore[attr-defined]
+api_v1.include_router(admin_audit_v1.router, prefix="/admin/audit")  # type: ignore[attr-defined]
+api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
+api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
+api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
@@ -1063,8 +1076,10 @@ app.include_router(referrals_v1.admin_router, prefix="/api/v1/admin/referrals")
 app.include_router(redis_monitor.router)
 app.include_router(ready.router)
 app.include_router(database_monitor.router)
-app.include_router(admin_config.router)
-app.include_router(admin_audit.router)
+# Legacy admin_config routes - DEPRECATED, use /api/v1/admin/config instead
+# app.include_router(admin_config.router)
+# Legacy admin_audit routes - DEPRECATED, use /api/v1/admin/audit instead
+# app.include_router(admin_audit.router)
 # Legacy privacy routes - DEPRECATED, use /api/v1/privacy instead
 # app.include_router(privacy.router, prefix="/api", tags=["privacy"])
 app.include_router(stripe_webhooks.router)
@@ -1076,11 +1091,14 @@ app.include_router(prometheus.router)
 # app.include_router(users_profile_picture.router)
 app.include_router(beta.router)
 # app.include_router(reviews.router)  # Migrated to /api/v1/reviews
-app.include_router(admin_badges.router)
+# Legacy admin_badges routes - DEPRECATED, use /api/v1/admin/badges instead
+# app.include_router(admin_badges.router)
 app.include_router(gated.router)
 app.include_router(internal.router)
-app.include_router(admin_background_checks.router)
-app.include_router(admin_instructors.router)
+# Legacy admin_background_checks routes - DEPRECATED, use /api/v1/admin/background-checks instead
+# app.include_router(admin_background_checks.router)
+# Legacy admin_instructors routes - DEPRECATED, use /api/v1/admin/instructors instead
+# app.include_router(admin_instructors.router)
 
 
 # Identity + uploads: new endpoints are included via existing v1 payments router and v1 addresses router

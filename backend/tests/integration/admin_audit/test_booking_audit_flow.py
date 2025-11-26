@@ -73,7 +73,7 @@ async def test_booking_audit_flow(
     await booking_service.cancel_booking(booking.id, test_student, reason="Scheduling conflict")
 
     params = {"entity_type": "booking", "entity_id": booking.id}
-    response = client.get("/api/admin/audit", params=params, headers=auth_headers_admin)
+    response = client.get("/api/v1/admin/audit", params=params, headers=auth_headers_admin)
     assert response.status_code == 200
 
     payload = response.json()
@@ -93,5 +93,5 @@ async def test_booking_audit_flow(
         assert after.get("student_note") in (None, "[REDACTED]")
         assert before.get("student_note") in (None, "[REDACTED]")
 
-    forbidden = client.get("/api/admin/audit", params=params, headers=auth_headers_student)
+    forbidden = client.get("/api/v1/admin/audit", params=params, headers=auth_headers_student)
     assert forbidden.status_code == 403

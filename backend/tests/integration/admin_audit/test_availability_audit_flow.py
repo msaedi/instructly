@@ -71,7 +71,7 @@ async def test_availability_audit_flow(
     )
 
     params = {"entity_type": "availability", "actor_id": test_instructor.id, "limit": 10}
-    response = client.get("/api/admin/audit", params=params, headers=auth_headers_admin)
+    response = client.get("/api/v1/admin/audit", params=params, headers=auth_headers_admin)
     assert response.status_code == 200
     payload = response.json()
     assert payload["total"] == 2
@@ -85,5 +85,5 @@ async def test_availability_audit_flow(
         assert "window_counts" in after
         assert entry["actor_role"] == "instructor"
 
-    forbidden = client.get("/api/admin/audit", headers=auth_headers_student)
+    forbidden = client.get("/api/v1/admin/audit", headers=auth_headers_student)
     assert forbidden.status_code == 403

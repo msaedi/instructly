@@ -11,7 +11,7 @@ from fastapi import APIRouter, FastAPI
 from app.routes import (
     # account_management - DEPRECATED, use /api/v1/account instead
     # addresses - DEPRECATED, use /api/v1/addresses instead
-    admin_config,
+    # admin_config - DEPRECATED, use /api/v1/admin/config instead
     alerts,
     analytics,
     # auth - DEPRECATED, use /api/v1/auth instead
@@ -67,6 +67,13 @@ from app.routes.v1 import (
     uploads as uploads_v1,
     users as users_v1,
 )
+from app.routes.v1.admin import (
+    audit as admin_audit_v1,
+    background_checks as admin_background_checks_v1,
+    badges as admin_badges_v1,
+    config as admin_config_v1,
+    instructors as admin_instructors_v1,
+)
 
 
 def build_openapi_app() -> FastAPI:
@@ -106,6 +113,12 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(pricing_v1.router, prefix="/pricing")  # type: ignore[attr-defined]
     api_v1.include_router(config_v1.router, prefix="/config")  # type: ignore[attr-defined]
     api_v1.include_router(student_badges_v1.router, prefix="/students/badges")  # type: ignore[attr-defined]
+    # Phase 19 v1 admin routers
+    api_v1.include_router(admin_config_v1.router, prefix="/admin/config")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_audit_v1.router, prefix="/admin/audit")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
 
     # Mount v1 API first
     app.include_router(api_v1)
@@ -156,7 +169,8 @@ def build_openapi_app() -> FastAPI:
     # app.include_router(addresses.router)
     app.include_router(redis_monitor.router)
     app.include_router(database_monitor.router)
-    app.include_router(admin_config.router)
+    # Legacy admin_config - now /api/v1/admin/config
+    # app.include_router(admin_config.router)
     # Legacy privacy - now /api/v1/privacy
     # app.include_router(privacy.router, prefix="/api", tags=["privacy"])
     app.include_router(stripe_webhooks.router)
