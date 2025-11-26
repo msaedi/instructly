@@ -55,7 +55,7 @@ type PricingConfigResponse = {
 
 export async function fetchPricingConfig(): Promise<PricingConfigResponse> {
   try {
-    return await fetchJson<PricingConfigResponse>('/api/config/pricing');
+    return await fetchJson<PricingConfigResponse>('/api/v1/config/pricing');
   } catch (error) {
     logger.error('Failed to load pricing config', error as Error);
     throw error;
@@ -87,7 +87,7 @@ export async function fetchPricingPreviewQuote(
   payload: PricingPreviewQuotePayload,
   options: { signal?: AbortSignal | null } = {}
 ): Promise<PricingPreviewResponse> {
-  const endpoint = '/api/pricing/preview';
+  const endpoint = '/api/v1/pricing/preview';
   try {
     return await fetchJson<PricingPreviewResponse>(endpoint, {
       method: 'POST',

@@ -57,7 +57,7 @@ export const PUBLIC_ENDPOINTS = {
   instructors: {
     list: '/api/v1/instructors', // Migrated to v1
     profile: (id: string) => `/api/v1/instructors/${id}`, // Migrated to v1
-    availability: (id: string) => `/api/public/instructors/${id}/availability`,
+    availability: (id: string) => `/api/v1/public/instructors/${id}/availability`, // Migrated to v1 Phase 18
   },
 } as const;
 

@@ -2337,7 +2337,172 @@ All quality gates passed:
 
 ---
 
-### Phase 18+ Candidates
+## Phase 18 – Final User-Facing Domains → v1
+
+**Date:** November 26, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Phase 18 completes the migration of all remaining user-facing domains to the v1 API architecture. This phase focused on 6 domains that were still using legacy paths:
+
+- **Uploads** (`/api/uploads` → `/api/v1/uploads`)
+- **Users Profile Picture** (`/api/users` → `/api/v1/users`)
+- **Privacy** (`/api/privacy` → `/api/v1/privacy`)
+- **Public** (`/api/public` → `/api/v1/public`)
+- **Pricing** (`/api/pricing` → `/api/v1/pricing`, `/api/config/pricing` → `/api/v1/config/pricing`)
+- **Student Badges** (`/api/students/badges` → `/api/v1/students/badges`)
+
+### V1 Routers Created
+
+All routers follow the established v1 pattern with proper dependency injection and rate limiting:
+
+```
+backend/app/routes/v1/uploads.py      # R2 signed uploads
+backend/app/routes/v1/users.py        # Profile picture endpoints
+backend/app/routes/v1/privacy.py      # GDPR privacy compliance
+backend/app/routes/v1/public.py       # Public (no auth) endpoints
+backend/app/routes/v1/pricing.py      # Quote pricing preview
+backend/app/routes/v1/config.py       # Public pricing configuration
+backend/app/routes/v1/student_badges.py  # Gamification badges
+```
+
+### Endpoint Summary
+
+#### Uploads Domain (`/api/v1/uploads`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/r2/signed-url` | Get signed URL for R2 upload |
+| POST | `/r2/proxy` | Proxy upload through backend |
+| POST | `/r2/finalize/profile-picture` | Finalize profile picture upload |
+
+#### Users Profile Picture Domain (`/api/v1/users`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| DELETE | `/me/profile-picture` | Delete own profile picture |
+| GET | `/{user_id}/profile-picture-url` | Get signed profile picture URL |
+| POST | `/profile-picture-urls` | Batch get profile picture URLs |
+
+#### Privacy Domain (`/api/v1/privacy`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/export/me` | Export own data (GDPR) |
+| DELETE | `/delete/me` | Delete own data |
+| GET | `/statistics` | Privacy statistics (admin) |
+| POST | `/retention/apply` | Apply retention policies (admin) |
+| GET | `/export/user/{user_id}` | Export user data (admin) |
+| DELETE | `/delete/user/{user_id}` | Delete user data (admin) |
+
+#### Public Domain (`/api/v1/public`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/session/guest` | Initialize guest session |
+| POST | `/logout` | Clear session cookies |
+| GET | `/instructors/{id}/availability` | Public instructor availability |
+| GET | `/instructors/{id}/next-available` | Next available slot |
+| POST | `/referrals/send` | Send referral invitation |
+
+#### Pricing Domain (`/api/v1/pricing`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/preview` | Quote pricing preview |
+
+#### Config Domain (`/api/v1/config`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/pricing` | Public pricing configuration |
+
+#### Student Badges Domain (`/api/v1/students/badges`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `` | List all badges with status |
+| GET | `/earned` | List earned badges only |
+| GET | `/progress` | List badges with active progress |
+
+### Booking Pricing Endpoint
+
+During this phase, the booking-specific pricing endpoint was moved to the v1 bookings router:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/bookings/{booking_id}/pricing` | Pricing preview for existing booking |
+
+### Frontend Updates
+
+All frontend consumers were updated to use v1 paths:
+
+```typescript
+// lib/api.ts
+R2_SIGNED_UPLOAD: '/api/v1/uploads/r2/signed-url',
+R2_PROXY_UPLOAD: '/api/v1/uploads/r2/proxy',
+PROFILE_PICTURE_FINALIZE: '/api/v1/users/me/profile-picture',
+
+// lib/api/pricing.ts
+'/api/v1/config/pricing'
+'/api/v1/pricing/preview'
+
+// services/api/badges.ts
+'/api/v1/students/badges'
+
+// features/shared/api/client.ts
+availability: (id: string) => `/api/v1/public/instructors/${id}/availability`
+```
+
+### E2E Test Updates
+
+All E2E mocks were updated to match v1 paths:
+
+```typescript
+// e2e/fixtures/api-mocks.ts
+'**/api/v1/public/session/guest'
+'**/api/v1/public/instructors/**/availability'
+
+// e2e/tests/*.spec.ts
+'**/api/v1/payments/connect/status'
+```
+
+### Backend Test Updates
+
+All backend tests were updated to use v1 paths and correct mock locations:
+
+```python
+# tests/routes/test_privacy_routes.py
+# Changed mock path from 'app.routes.privacy' to 'app.routes.v1.privacy'
+
+# tests/routes/test_pricing_preview.py
+# Tests now use /api/v1/pricing/preview and /api/v1/bookings/{id}/pricing
+```
+
+### Route Invariant Tests
+
+New route invariant tests were added to verify Phase 18 migrations:
+
+- `test_v1_public_endpoints_exist` / `test_legacy_public_endpoints_removed`
+- `test_v1_privacy_endpoints_exist` / `test_legacy_privacy_endpoints_removed`
+- `test_v1_uploads_endpoints_exist` / `test_legacy_uploads_endpoints_removed`
+- `test_v1_pricing_endpoints_exist` / `test_legacy_pricing_endpoints_removed`
+- `test_v1_config_endpoints_exist` / `test_legacy_config_endpoints_removed`
+- `test_v1_student_badges_endpoints_exist` / `test_legacy_student_badges_endpoints_removed`
+- `test_v1_users_profile_picture_endpoints_exist` / `test_legacy_users_profile_picture_endpoints_removed`
+
+### Architecture Decision
+
+PUBLIC_OPEN_PREFIXES was updated to include v1 public paths:
+
+```python
+PUBLIC_OPEN_PREFIXES = (
+    "/api/v1/public",
+    "/api/v1/config",
+    "/api/v1/users/profile-picture",
+    # ... other prefixes
+)
+```
+
+**Phase 18 Status:** ✅ **Complete** – All user-facing domains fully migrated to v1 API.
+
+---
+
+### Phase 19+ Candidates
 
 - **Admin**: Admin-only endpoints (background checks, config, etc.)
 - **Analytics**: Search analytics and admin dashboards

@@ -194,7 +194,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 3. Mock instructor profile
-    await context.route('**/api/public/instructors/*', async (route) => {
+    await context.route('**/api/v1/public/instructors/*', async (route) => {
       const url = route.request().url();
       if (!url.includes('availability')) {
         const id = url.match(/instructors\/(\d+)/)?.[1] || '1';
@@ -218,7 +218,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 4. Mock availability - Use FIXED dates for consistency
-    await context.route('**/api/public/instructors/*/availability**', async (route) => {
+    await context.route('**/api/v1/public/instructors/*/availability**', async (route) => {
       // Use fixed dates to avoid conflicts with parallel tests
       const fixedDate = '2025-08-14'; // Fixed Thursday
 

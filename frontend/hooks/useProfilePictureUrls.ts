@@ -191,7 +191,7 @@ const requestProfilePictureBatch = async (
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetchWithAuth(`/api/users/profile-picture-urls?${params.toString()}`, {
+    const response = await fetchWithAuth(`/api/v1/users/profile-picture-urls?${params.toString()}`, {
       method: 'GET',
       noCache: true,
       signal: controller.signal,

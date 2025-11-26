@@ -55,7 +55,7 @@ async function mockDashboardApis(page: Page) {
     await respondJson(route, { items: [] });
   });
 
-  await page.route('**/api/payments/connect/status', async (route) => {
+  await page.route('**/api/v1/payments/connect/status', async (route) => {
     await respondJson(route, {
       charges_enabled: true,
       payouts_enabled: true,
@@ -81,7 +81,7 @@ async function mockDashboardApis(page: Page) {
     await respondJson(route, { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false });
   });
 
-  await page.route('**/api/public/instructors/**/availability**', async (route) => {
+  await page.route('**/api/v1/public/instructors/**/availability**', async (route) => {
     await respondJson(route, {
       instructor_id: instructorUser.id,
       instructor_first_name: 'Sarah',

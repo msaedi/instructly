@@ -25,8 +25,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetParams,
-  GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetParams,
+  GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams,
+  GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams,
   GuestSessionResponse,
   HTTPValidationError,
   NextAvailableSlotResponse,
@@ -45,15 +45,15 @@ import type { ErrorType } from '../../orval-mutator';
  * Public endpoint to view instructor's available time slots for booking. No authentication required. Response detail level depends on configuration.
  * @summary Get instructor availability for students
  */
-export const getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet = (
+export const getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet = (
     instructorId: string,
-    params: GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetParams,
+    params: GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<PublicInstructorAvailability>(
-      {url: `/api/public/instructors/${instructorId}/availability`, method: 'GET',
+      {url: `/api/v1/public/instructors/${instructorId}/availability`, method: 'GET',
         params, signal
     },
       );
@@ -62,75 +62,75 @@ export const getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvai
 
 
 
-export const getGetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetQueryKey = (instructorId?: string,
-    params?: GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetParams,) => {
+export const getGetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetQueryKey = (instructorId?: string,
+    params?: GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams,) => {
     return [
-    `/api/public/instructors/${instructorId}/availability`, ...(params ? [params]: [])
+    `/api/v1/public/instructors/${instructorId}/availability`, ...(params ? [params]: [])
     ] as const;
     }
 
 
-export const getGetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetQueryOptions = <TData = Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(instructorId: string,
-    params: GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError, TData>>, }
+export const getGetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetQueryOptions = <TData = Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(instructorId: string,
+    params: GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetQueryKey(instructorId,params);
+  const queryKey =  queryOptions?.queryKey ?? getGetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetQueryKey(instructorId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>> = ({ signal }) => getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet(instructorId,params, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>> = ({ signal }) => getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet(instructorId,params, signal);
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: !!(instructorId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: !!(instructorId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetQueryResult = NonNullable<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>>
-export type GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetQueryError = ErrorType<HTTPValidationError>
+export type GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetQueryResult = NonNullable<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>>
+export type GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetQueryError = ErrorType<HTTPValidationError>
 
 
-export function useGetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet<TData = Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet<TData = Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
  instructorId: string,
-    params: GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError, TData>> & Pick<
+    params: GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>,
+          Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>,
           TError,
-          Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>
+          Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet<TData = Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet<TData = Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
  instructorId: string,
-    params: GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError, TData>> & Pick<
+    params: GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>,
+          Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>,
           TError,
-          Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>
+          Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet<TData = Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet<TData = Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
  instructorId: string,
-    params: GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError, TData>>, }
+    params: GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get instructor availability for students
  */
 
-export function useGetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet<TData = Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet<TData = Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
  instructorId: string,
-    params: GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGet>>, TError, TData>>, }
+    params: GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetQueryOptions(instructorId,params,options)
+  const queryOptions = getGetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetQueryOptions(instructorId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -146,15 +146,15 @@ export function useGetInstructorPublicAvailabilityApiPublicInstructorsInstructor
  * Quick endpoint to find the next available booking slot
  * @summary Get next available slot for an instructor
  */
-export const getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet = (
+export const getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet = (
     instructorId: string,
-    params?: GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetParams,
+    params?: GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<NextAvailableSlotResponse>(
-      {url: `/api/public/instructors/${instructorId}/next-available`, method: 'GET',
+      {url: `/api/v1/public/instructors/${instructorId}/next-available`, method: 'GET',
         params, signal
     },
       );
@@ -163,75 +163,75 @@ export const getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGe
 
 
 
-export const getGetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetQueryKey = (instructorId?: string,
-    params?: GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetParams,) => {
+export const getGetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetQueryKey = (instructorId?: string,
+    params?: GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams,) => {
     return [
-    `/api/public/instructors/${instructorId}/next-available`, ...(params ? [params]: [])
+    `/api/v1/public/instructors/${instructorId}/next-available`, ...(params ? [params]: [])
     ] as const;
     }
 
 
-export const getGetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetQueryOptions = <TData = Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError = ErrorType<HTTPValidationError>>(instructorId: string,
-    params?: GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError, TData>>, }
+export const getGetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetQueryOptions = <TData = Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError = ErrorType<HTTPValidationError>>(instructorId: string,
+    params?: GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetQueryKey(instructorId,params);
+  const queryKey =  queryOptions?.queryKey ?? getGetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetQueryKey(instructorId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>> = ({ signal }) => getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet(instructorId,params, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>> = ({ signal }) => getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet(instructorId,params, signal);
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: !!(instructorId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: !!(instructorId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetQueryResult = NonNullable<Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>>
-export type GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetQueryError = ErrorType<HTTPValidationError>
+export type GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetQueryResult = NonNullable<Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>>
+export type GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetQueryError = ErrorType<HTTPValidationError>
 
 
-export function useGetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet<TData = Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet<TData = Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError = ErrorType<HTTPValidationError>>(
  instructorId: string,
-    params: undefined |  GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError, TData>> & Pick<
+    params: undefined |  GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>,
+          Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>,
           TError,
-          Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>
+          Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet<TData = Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet<TData = Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError = ErrorType<HTTPValidationError>>(
  instructorId: string,
-    params?: GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError, TData>> & Pick<
+    params?: GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>,
+          Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>,
           TError,
-          Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>
+          Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet<TData = Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet<TData = Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError = ErrorType<HTTPValidationError>>(
  instructorId: string,
-    params?: GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError, TData>>, }
+    params?: GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get next available slot for an instructor
  */
 
-export function useGetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet<TData = Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError = ErrorType<HTTPValidationError>>(
+export function useGetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet<TData = Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError = ErrorType<HTTPValidationError>>(
  instructorId: string,
-    params?: GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGet>>, TError, TData>>, }
+    params?: GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetQueryOptions(instructorId,params,options)
+  const queryOptions = getGetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetQueryOptions(instructorId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -249,25 +249,25 @@ export function useGetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvail
 This does not revoke server sessions; it only instructs the browser to drop cookies.
  * @summary Public Logout
  */
-export const publicLogoutApiPublicLogoutPost = (
+export const publicLogoutApiV1PublicLogoutPost = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<unknown>(
-      {url: `/api/public/logout`, method: 'POST', signal
+      {url: `/api/v1/public/logout`, method: 'POST', signal
     },
       );
     }
 
 
 
-export const getPublicLogoutApiPublicLogoutPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publicLogoutApiPublicLogoutPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof publicLogoutApiPublicLogoutPost>>, TError,void, TContext> => {
+export const getPublicLogoutApiV1PublicLogoutPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publicLogoutApiV1PublicLogoutPost>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof publicLogoutApiV1PublicLogoutPost>>, TError,void, TContext> => {
 
-const mutationKey = ['publicLogoutApiPublicLogoutPost'];
+const mutationKey = ['publicLogoutApiV1PublicLogoutPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -277,10 +277,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publicLogoutApiPublicLogoutPost>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publicLogoutApiV1PublicLogoutPost>>, void> = () => {
 
 
-          return  publicLogoutApiPublicLogoutPost()
+          return  publicLogoutApiV1PublicLogoutPost()
         }
 
 
@@ -288,23 +288,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PublicLogoutApiPublicLogoutPostMutationResult = NonNullable<Awaited<ReturnType<typeof publicLogoutApiPublicLogoutPost>>>
+    export type PublicLogoutApiV1PublicLogoutPostMutationResult = NonNullable<Awaited<ReturnType<typeof publicLogoutApiV1PublicLogoutPost>>>
 
-    export type PublicLogoutApiPublicLogoutPostMutationError = ErrorType<unknown>
+    export type PublicLogoutApiV1PublicLogoutPostMutationError = ErrorType<unknown>
 
     /**
  * @summary Public Logout
  */
-export const usePublicLogoutApiPublicLogoutPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publicLogoutApiPublicLogoutPost>>, TError,void, TContext>, }
+export const usePublicLogoutApiV1PublicLogoutPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publicLogoutApiV1PublicLogoutPost>>, TError,void, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof publicLogoutApiPublicLogoutPost>>,
+        Awaited<ReturnType<typeof publicLogoutApiV1PublicLogoutPost>>,
         TError,
         void,
         TContext
       > => {
 
-      const mutationOptions = getPublicLogoutApiPublicLogoutPostMutationOptions(options);
+      const mutationOptions = getPublicLogoutApiV1PublicLogoutPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -312,14 +312,14 @@ export const usePublicLogoutApiPublicLogoutPost = <TError = ErrorType<unknown>,
  * Send referral invitation emails to one or more recipients.
  * @summary Send referral invites
  */
-export const sendReferralInvitesApiPublicReferralsSendPost = (
+export const sendReferralInvitesApiV1PublicReferralsSendPost = (
     referralSendRequest: ReferralSendRequest,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<ReferralSendResponse>(
-      {url: `/api/public/referrals/send`, method: 'POST',
+      {url: `/api/v1/public/referrals/send`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: referralSendRequest, signal
     },
@@ -328,11 +328,11 @@ export const sendReferralInvitesApiPublicReferralsSendPost = (
 
 
 
-export const getSendReferralInvitesApiPublicReferralsSendPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendReferralInvitesApiPublicReferralsSendPost>>, TError,{data: ReferralSendRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof sendReferralInvitesApiPublicReferralsSendPost>>, TError,{data: ReferralSendRequest}, TContext> => {
+export const getSendReferralInvitesApiV1PublicReferralsSendPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendReferralInvitesApiV1PublicReferralsSendPost>>, TError,{data: ReferralSendRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof sendReferralInvitesApiV1PublicReferralsSendPost>>, TError,{data: ReferralSendRequest}, TContext> => {
 
-const mutationKey = ['sendReferralInvitesApiPublicReferralsSendPost'];
+const mutationKey = ['sendReferralInvitesApiV1PublicReferralsSendPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -342,10 +342,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendReferralInvitesApiPublicReferralsSendPost>>, {data: ReferralSendRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendReferralInvitesApiV1PublicReferralsSendPost>>, {data: ReferralSendRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  sendReferralInvitesApiPublicReferralsSendPost(data,)
+          return  sendReferralInvitesApiV1PublicReferralsSendPost(data,)
         }
 
 
@@ -353,23 +353,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type SendReferralInvitesApiPublicReferralsSendPostMutationResult = NonNullable<Awaited<ReturnType<typeof sendReferralInvitesApiPublicReferralsSendPost>>>
-    export type SendReferralInvitesApiPublicReferralsSendPostMutationBody = ReferralSendRequest
-    export type SendReferralInvitesApiPublicReferralsSendPostMutationError = ErrorType<HTTPValidationError>
+    export type SendReferralInvitesApiV1PublicReferralsSendPostMutationResult = NonNullable<Awaited<ReturnType<typeof sendReferralInvitesApiV1PublicReferralsSendPost>>>
+    export type SendReferralInvitesApiV1PublicReferralsSendPostMutationBody = ReferralSendRequest
+    export type SendReferralInvitesApiV1PublicReferralsSendPostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Send referral invites
  */
-export const useSendReferralInvitesApiPublicReferralsSendPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendReferralInvitesApiPublicReferralsSendPost>>, TError,{data: ReferralSendRequest}, TContext>, }
+export const useSendReferralInvitesApiV1PublicReferralsSendPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendReferralInvitesApiV1PublicReferralsSendPost>>, TError,{data: ReferralSendRequest}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof sendReferralInvitesApiPublicReferralsSendPost>>,
+        Awaited<ReturnType<typeof sendReferralInvitesApiV1PublicReferralsSendPost>>,
         TError,
         {data: ReferralSendRequest},
         TContext
       > => {
 
-      const mutationOptions = getSendReferralInvitesApiPublicReferralsSendPostMutationOptions(options);
+      const mutationOptions = getSendReferralInvitesApiV1PublicReferralsSendPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -379,25 +379,25 @@ export const useSendReferralInvitesApiPublicReferralsSendPost = <TError = ErrorT
 Sets cookie attributes appropriate for cross-site subdomains in preview/prod.
  * @summary Create Guest Session
  */
-export const createGuestSessionApiPublicSessionGuestPost = (
+export const createGuestSessionApiV1PublicSessionGuestPost = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<GuestSessionResponse>(
-      {url: `/api/public/session/guest`, method: 'POST', signal
+      {url: `/api/v1/public/session/guest`, method: 'POST', signal
     },
       );
     }
 
 
 
-export const getCreateGuestSessionApiPublicSessionGuestPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuestSessionApiPublicSessionGuestPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof createGuestSessionApiPublicSessionGuestPost>>, TError,void, TContext> => {
+export const getCreateGuestSessionApiV1PublicSessionGuestPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuestSessionApiV1PublicSessionGuestPost>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createGuestSessionApiV1PublicSessionGuestPost>>, TError,void, TContext> => {
 
-const mutationKey = ['createGuestSessionApiPublicSessionGuestPost'];
+const mutationKey = ['createGuestSessionApiV1PublicSessionGuestPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -407,10 +407,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGuestSessionApiPublicSessionGuestPost>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGuestSessionApiV1PublicSessionGuestPost>>, void> = () => {
 
 
-          return  createGuestSessionApiPublicSessionGuestPost()
+          return  createGuestSessionApiV1PublicSessionGuestPost()
         }
 
 
@@ -418,23 +418,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type CreateGuestSessionApiPublicSessionGuestPostMutationResult = NonNullable<Awaited<ReturnType<typeof createGuestSessionApiPublicSessionGuestPost>>>
+    export type CreateGuestSessionApiV1PublicSessionGuestPostMutationResult = NonNullable<Awaited<ReturnType<typeof createGuestSessionApiV1PublicSessionGuestPost>>>
 
-    export type CreateGuestSessionApiPublicSessionGuestPostMutationError = ErrorType<unknown>
+    export type CreateGuestSessionApiV1PublicSessionGuestPostMutationError = ErrorType<unknown>
 
     /**
  * @summary Create Guest Session
  */
-export const useCreateGuestSessionApiPublicSessionGuestPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuestSessionApiPublicSessionGuestPost>>, TError,void, TContext>, }
+export const useCreateGuestSessionApiV1PublicSessionGuestPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuestSessionApiV1PublicSessionGuestPost>>, TError,void, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createGuestSessionApiPublicSessionGuestPost>>,
+        Awaited<ReturnType<typeof createGuestSessionApiV1PublicSessionGuestPost>>,
         TError,
         void,
         TContext
       > => {
 
-      const mutationOptions = getCreateGuestSessionApiPublicSessionGuestPostMutationOptions(options);
+      const mutationOptions = getCreateGuestSessionApiV1PublicSessionGuestPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

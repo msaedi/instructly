@@ -60,6 +60,7 @@ from ...schemas.booking import (
     UpcomingBookingResponse,
 )
 from ...schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
+from ...schemas.pricing_preview import PricingPreviewOut
 from ...services.booking_service import BookingService
 from ...services.config_service import ConfigService
 from ...services.payment_summary_service import build_student_payment_summary
@@ -519,6 +520,54 @@ async def get_booking_preview(
         )
     except DomainException as e:
         handle_domain_exception(e)
+
+
+@router.get(
+    "/{booking_id}/pricing",
+    response_model=PricingPreviewOut,
+    dependencies=[Depends(new_rate_limit("read"))],
+)
+async def get_booking_pricing(
+    booking_id: str = Path(
+        ...,
+        description="Booking ULID",
+        pattern=ULID_PATH_PATTERN,
+        examples=["01HF4G12ABCDEF3456789XYZAB"],
+    ),
+    applied_credit_cents: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
+) -> PricingPreviewOut:
+    """Return a pricing preview for the requested booking."""
+    from ...schemas.pricing_preview import PricingPreviewData
+    from ...services.pricing_service import PricingService
+
+    booking = booking_service.repository.get_by_id(booking_id, load_relationships=False)
+    if not booking:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+
+    allowed_participants = {booking.student_id, booking.instructor_id}
+    if current_user.id not in allowed_participants:
+        logger.warning(
+            "pricing_preview.forbidden",
+            extra={
+                "booking_id": booking_id,
+                "requested_by": current_user.id,
+            },
+        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    pricing_service = PricingService(booking_service.db)
+    try:
+        pricing_data: PricingPreviewData = pricing_service.compute_booking_pricing(
+            booking_id=booking_id,
+            applied_credit_cents=applied_credit_cents,
+            persist=False,
+        )
+    except DomainException as exc:
+        raise exc.to_http_exception() from exc
+
+    return PricingPreviewOut(**pricing_data)
 
 
 @router.get(

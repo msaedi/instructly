@@ -46,14 +46,14 @@ import type { ErrorType } from '../../orval-mutator';
 /**
  * @summary Disable
  */
-export const disableApiAuth2faDisablePost = (
+export const disableApiV12faDisablePost = (
     tFADisableRequest: TFADisableRequest,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<TFADisableResponse>(
-      {url: `/api/auth/2fa/disable`, method: 'POST',
+      {url: `/api/v1/2fa/disable`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: tFADisableRequest, signal
     },
@@ -62,11 +62,11 @@ export const disableApiAuth2faDisablePost = (
 
 
 
-export const getDisableApiAuth2faDisablePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableApiAuth2faDisablePost>>, TError,{data: TFADisableRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof disableApiAuth2faDisablePost>>, TError,{data: TFADisableRequest}, TContext> => {
+export const getDisableApiV12faDisablePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableApiV12faDisablePost>>, TError,{data: TFADisableRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof disableApiV12faDisablePost>>, TError,{data: TFADisableRequest}, TContext> => {
 
-const mutationKey = ['disableApiAuth2faDisablePost'];
+const mutationKey = ['disableApiV12faDisablePost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -76,10 +76,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disableApiAuth2faDisablePost>>, {data: TFADisableRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disableApiV12faDisablePost>>, {data: TFADisableRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  disableApiAuth2faDisablePost(data,)
+          return  disableApiV12faDisablePost(data,)
         }
 
 
@@ -87,48 +87,48 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DisableApiAuth2faDisablePostMutationResult = NonNullable<Awaited<ReturnType<typeof disableApiAuth2faDisablePost>>>
-    export type DisableApiAuth2faDisablePostMutationBody = TFADisableRequest
-    export type DisableApiAuth2faDisablePostMutationError = ErrorType<HTTPValidationError>
+    export type DisableApiV12faDisablePostMutationResult = NonNullable<Awaited<ReturnType<typeof disableApiV12faDisablePost>>>
+    export type DisableApiV12faDisablePostMutationBody = TFADisableRequest
+    export type DisableApiV12faDisablePostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Disable
  */
-export const useDisableApiAuth2faDisablePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableApiAuth2faDisablePost>>, TError,{data: TFADisableRequest}, TContext>, }
+export const useDisableApiV12faDisablePost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableApiV12faDisablePost>>, TError,{data: TFADisableRequest}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof disableApiAuth2faDisablePost>>,
+        Awaited<ReturnType<typeof disableApiV12faDisablePost>>,
         TError,
         {data: TFADisableRequest},
         TContext
       > => {
 
-      const mutationOptions = getDisableApiAuth2faDisablePostMutationOptions(options);
+      const mutationOptions = getDisableApiV12faDisablePostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
     /**
  * @summary Regenerate Backup Codes
  */
-export const regenerateBackupCodesApiAuth2faRegenerateBackupCodesPost = (
+export const regenerateBackupCodesApiV12faRegenerateBackupCodesPost = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<BackupCodesResponse>(
-      {url: `/api/auth/2fa/regenerate-backup-codes`, method: 'POST', signal
+      {url: `/api/v1/2fa/regenerate-backup-codes`, method: 'POST', signal
     },
       );
     }
 
 
 
-export const getRegenerateBackupCodesApiAuth2faRegenerateBackupCodesPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateBackupCodesApiAuth2faRegenerateBackupCodesPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof regenerateBackupCodesApiAuth2faRegenerateBackupCodesPost>>, TError,void, TContext> => {
+export const getRegenerateBackupCodesApiV12faRegenerateBackupCodesPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateBackupCodesApiV12faRegenerateBackupCodesPost>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof regenerateBackupCodesApiV12faRegenerateBackupCodesPost>>, TError,void, TContext> => {
 
-const mutationKey = ['regenerateBackupCodesApiAuth2faRegenerateBackupCodesPost'];
+const mutationKey = ['regenerateBackupCodesApiV12faRegenerateBackupCodesPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -138,10 +138,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof regenerateBackupCodesApiAuth2faRegenerateBackupCodesPost>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof regenerateBackupCodesApiV12faRegenerateBackupCodesPost>>, void> = () => {
 
 
-          return  regenerateBackupCodesApiAuth2faRegenerateBackupCodesPost()
+          return  regenerateBackupCodesApiV12faRegenerateBackupCodesPost()
         }
 
 
@@ -149,48 +149,48 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type RegenerateBackupCodesApiAuth2faRegenerateBackupCodesPostMutationResult = NonNullable<Awaited<ReturnType<typeof regenerateBackupCodesApiAuth2faRegenerateBackupCodesPost>>>
+    export type RegenerateBackupCodesApiV12faRegenerateBackupCodesPostMutationResult = NonNullable<Awaited<ReturnType<typeof regenerateBackupCodesApiV12faRegenerateBackupCodesPost>>>
 
-    export type RegenerateBackupCodesApiAuth2faRegenerateBackupCodesPostMutationError = ErrorType<unknown>
+    export type RegenerateBackupCodesApiV12faRegenerateBackupCodesPostMutationError = ErrorType<unknown>
 
     /**
  * @summary Regenerate Backup Codes
  */
-export const useRegenerateBackupCodesApiAuth2faRegenerateBackupCodesPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateBackupCodesApiAuth2faRegenerateBackupCodesPost>>, TError,void, TContext>, }
+export const useRegenerateBackupCodesApiV12faRegenerateBackupCodesPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof regenerateBackupCodesApiV12faRegenerateBackupCodesPost>>, TError,void, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof regenerateBackupCodesApiAuth2faRegenerateBackupCodesPost>>,
+        Awaited<ReturnType<typeof regenerateBackupCodesApiV12faRegenerateBackupCodesPost>>,
         TError,
         void,
         TContext
       > => {
 
-      const mutationOptions = getRegenerateBackupCodesApiAuth2faRegenerateBackupCodesPostMutationOptions(options);
+      const mutationOptions = getRegenerateBackupCodesApiV12faRegenerateBackupCodesPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
     /**
  * @summary Setup Initiate
  */
-export const setupInitiateApiAuth2faSetupInitiatePost = (
+export const setupInitiateApiV12faSetupInitiatePost = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<TFASetupInitiateResponse>(
-      {url: `/api/auth/2fa/setup/initiate`, method: 'POST', signal
+      {url: `/api/v1/2fa/setup/initiate`, method: 'POST', signal
     },
       );
     }
 
 
 
-export const getSetupInitiateApiAuth2faSetupInitiatePostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupInitiateApiAuth2faSetupInitiatePost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof setupInitiateApiAuth2faSetupInitiatePost>>, TError,void, TContext> => {
+export const getSetupInitiateApiV12faSetupInitiatePostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupInitiateApiV12faSetupInitiatePost>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof setupInitiateApiV12faSetupInitiatePost>>, TError,void, TContext> => {
 
-const mutationKey = ['setupInitiateApiAuth2faSetupInitiatePost'];
+const mutationKey = ['setupInitiateApiV12faSetupInitiatePost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -200,10 +200,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setupInitiateApiAuth2faSetupInitiatePost>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setupInitiateApiV12faSetupInitiatePost>>, void> = () => {
 
 
-          return  setupInitiateApiAuth2faSetupInitiatePost()
+          return  setupInitiateApiV12faSetupInitiatePost()
         }
 
 
@@ -211,37 +211,37 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type SetupInitiateApiAuth2faSetupInitiatePostMutationResult = NonNullable<Awaited<ReturnType<typeof setupInitiateApiAuth2faSetupInitiatePost>>>
+    export type SetupInitiateApiV12faSetupInitiatePostMutationResult = NonNullable<Awaited<ReturnType<typeof setupInitiateApiV12faSetupInitiatePost>>>
 
-    export type SetupInitiateApiAuth2faSetupInitiatePostMutationError = ErrorType<unknown>
+    export type SetupInitiateApiV12faSetupInitiatePostMutationError = ErrorType<unknown>
 
     /**
  * @summary Setup Initiate
  */
-export const useSetupInitiateApiAuth2faSetupInitiatePost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupInitiateApiAuth2faSetupInitiatePost>>, TError,void, TContext>, }
+export const useSetupInitiateApiV12faSetupInitiatePost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupInitiateApiV12faSetupInitiatePost>>, TError,void, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof setupInitiateApiAuth2faSetupInitiatePost>>,
+        Awaited<ReturnType<typeof setupInitiateApiV12faSetupInitiatePost>>,
         TError,
         void,
         TContext
       > => {
 
-      const mutationOptions = getSetupInitiateApiAuth2faSetupInitiatePostMutationOptions(options);
+      const mutationOptions = getSetupInitiateApiV12faSetupInitiatePostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
     /**
  * @summary Setup Verify
  */
-export const setupVerifyApiAuth2faSetupVerifyPost = (
+export const setupVerifyApiV12faSetupVerifyPost = (
     tFASetupVerifyRequest: TFASetupVerifyRequest,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<TFASetupVerifyResponse>(
-      {url: `/api/auth/2fa/setup/verify`, method: 'POST',
+      {url: `/api/v1/2fa/setup/verify`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: tFASetupVerifyRequest, signal
     },
@@ -250,11 +250,11 @@ export const setupVerifyApiAuth2faSetupVerifyPost = (
 
 
 
-export const getSetupVerifyApiAuth2faSetupVerifyPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupVerifyApiAuth2faSetupVerifyPost>>, TError,{data: TFASetupVerifyRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof setupVerifyApiAuth2faSetupVerifyPost>>, TError,{data: TFASetupVerifyRequest}, TContext> => {
+export const getSetupVerifyApiV12faSetupVerifyPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupVerifyApiV12faSetupVerifyPost>>, TError,{data: TFASetupVerifyRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof setupVerifyApiV12faSetupVerifyPost>>, TError,{data: TFASetupVerifyRequest}, TContext> => {
 
-const mutationKey = ['setupVerifyApiAuth2faSetupVerifyPost'];
+const mutationKey = ['setupVerifyApiV12faSetupVerifyPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -264,10 +264,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setupVerifyApiAuth2faSetupVerifyPost>>, {data: TFASetupVerifyRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setupVerifyApiV12faSetupVerifyPost>>, {data: TFASetupVerifyRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  setupVerifyApiAuth2faSetupVerifyPost(data,)
+          return  setupVerifyApiV12faSetupVerifyPost(data,)
         }
 
 
@@ -275,37 +275,37 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type SetupVerifyApiAuth2faSetupVerifyPostMutationResult = NonNullable<Awaited<ReturnType<typeof setupVerifyApiAuth2faSetupVerifyPost>>>
-    export type SetupVerifyApiAuth2faSetupVerifyPostMutationBody = TFASetupVerifyRequest
-    export type SetupVerifyApiAuth2faSetupVerifyPostMutationError = ErrorType<HTTPValidationError>
+    export type SetupVerifyApiV12faSetupVerifyPostMutationResult = NonNullable<Awaited<ReturnType<typeof setupVerifyApiV12faSetupVerifyPost>>>
+    export type SetupVerifyApiV12faSetupVerifyPostMutationBody = TFASetupVerifyRequest
+    export type SetupVerifyApiV12faSetupVerifyPostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Setup Verify
  */
-export const useSetupVerifyApiAuth2faSetupVerifyPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupVerifyApiAuth2faSetupVerifyPost>>, TError,{data: TFASetupVerifyRequest}, TContext>, }
+export const useSetupVerifyApiV12faSetupVerifyPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setupVerifyApiV12faSetupVerifyPost>>, TError,{data: TFASetupVerifyRequest}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof setupVerifyApiAuth2faSetupVerifyPost>>,
+        Awaited<ReturnType<typeof setupVerifyApiV12faSetupVerifyPost>>,
         TError,
         {data: TFASetupVerifyRequest},
         TContext
       > => {
 
-      const mutationOptions = getSetupVerifyApiAuth2faSetupVerifyPostMutationOptions(options);
+      const mutationOptions = getSetupVerifyApiV12faSetupVerifyPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
     /**
  * @summary Status Endpoint
  */
-export const statusEndpointApiAuth2faStatusGet = (
+export const statusEndpointApiV12faStatusGet = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<TFAStatusResponse>(
-      {url: `/api/auth/2fa/status`, method: 'GET', signal
+      {url: `/api/v1/2fa/status`, method: 'GET', signal
     },
       );
     }
@@ -313,69 +313,69 @@ export const statusEndpointApiAuth2faStatusGet = (
 
 
 
-export const getStatusEndpointApiAuth2faStatusGetQueryKey = () => {
+export const getStatusEndpointApiV12faStatusGetQueryKey = () => {
     return [
-    `/api/auth/2fa/status`
+    `/api/v1/2fa/status`
     ] as const;
     }
 
 
-export const getStatusEndpointApiAuth2faStatusGetQueryOptions = <TData = Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError, TData>>, }
+export const getStatusEndpointApiV12faStatusGetQueryOptions = <TData = Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getStatusEndpointApiAuth2faStatusGetQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getStatusEndpointApiV12faStatusGetQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>> = ({ signal }) => statusEndpointApiAuth2faStatusGet(signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>> = ({ signal }) => statusEndpointApiV12faStatusGet(signal);
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type StatusEndpointApiAuth2faStatusGetQueryResult = NonNullable<Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>>
-export type StatusEndpointApiAuth2faStatusGetQueryError = ErrorType<unknown>
+export type StatusEndpointApiV12faStatusGetQueryResult = NonNullable<Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>>
+export type StatusEndpointApiV12faStatusGetQueryError = ErrorType<unknown>
 
 
-export function useStatusEndpointApiAuth2faStatusGet<TData = Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError, TData>> & Pick<
+export function useStatusEndpointApiV12faStatusGet<TData = Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>,
+          Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>,
           TError,
-          Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>
+          Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useStatusEndpointApiAuth2faStatusGet<TData = Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError, TData>> & Pick<
+export function useStatusEndpointApiV12faStatusGet<TData = Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>,
+          Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>,
           TError,
-          Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>
+          Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useStatusEndpointApiAuth2faStatusGet<TData = Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError, TData>>, }
+export function useStatusEndpointApiV12faStatusGet<TData = Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Status Endpoint
  */
 
-export function useStatusEndpointApiAuth2faStatusGet<TData = Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiAuth2faStatusGet>>, TError, TData>>, }
+export function useStatusEndpointApiV12faStatusGet<TData = Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof statusEndpointApiV12faStatusGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getStatusEndpointApiAuth2faStatusGetQueryOptions(options)
+  const queryOptions = getStatusEndpointApiV12faStatusGetQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -390,14 +390,14 @@ export function useStatusEndpointApiAuth2faStatusGet<TData = Awaited<ReturnType<
 /**
  * @summary Verify Login
  */
-export const verifyLoginApiAuth2faVerifyLoginPost = (
+export const verifyLoginApiV12faVerifyLoginPost = (
     tFAVerifyLoginRequest: TFAVerifyLoginRequest,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<TFAVerifyLoginResponse>(
-      {url: `/api/auth/2fa/verify-login`, method: 'POST',
+      {url: `/api/v1/2fa/verify-login`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: tFAVerifyLoginRequest, signal
     },
@@ -406,11 +406,11 @@ export const verifyLoginApiAuth2faVerifyLoginPost = (
 
 
 
-export const getVerifyLoginApiAuth2faVerifyLoginPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyLoginApiAuth2faVerifyLoginPost>>, TError,{data: TFAVerifyLoginRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof verifyLoginApiAuth2faVerifyLoginPost>>, TError,{data: TFAVerifyLoginRequest}, TContext> => {
+export const getVerifyLoginApiV12faVerifyLoginPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyLoginApiV12faVerifyLoginPost>>, TError,{data: TFAVerifyLoginRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof verifyLoginApiV12faVerifyLoginPost>>, TError,{data: TFAVerifyLoginRequest}, TContext> => {
 
-const mutationKey = ['verifyLoginApiAuth2faVerifyLoginPost'];
+const mutationKey = ['verifyLoginApiV12faVerifyLoginPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -420,10 +420,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyLoginApiAuth2faVerifyLoginPost>>, {data: TFAVerifyLoginRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyLoginApiV12faVerifyLoginPost>>, {data: TFAVerifyLoginRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  verifyLoginApiAuth2faVerifyLoginPost(data,)
+          return  verifyLoginApiV12faVerifyLoginPost(data,)
         }
 
 
@@ -431,23 +431,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type VerifyLoginApiAuth2faVerifyLoginPostMutationResult = NonNullable<Awaited<ReturnType<typeof verifyLoginApiAuth2faVerifyLoginPost>>>
-    export type VerifyLoginApiAuth2faVerifyLoginPostMutationBody = TFAVerifyLoginRequest
-    export type VerifyLoginApiAuth2faVerifyLoginPostMutationError = ErrorType<HTTPValidationError>
+    export type VerifyLoginApiV12faVerifyLoginPostMutationResult = NonNullable<Awaited<ReturnType<typeof verifyLoginApiV12faVerifyLoginPost>>>
+    export type VerifyLoginApiV12faVerifyLoginPostMutationBody = TFAVerifyLoginRequest
+    export type VerifyLoginApiV12faVerifyLoginPostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Verify Login
  */
-export const useVerifyLoginApiAuth2faVerifyLoginPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyLoginApiAuth2faVerifyLoginPost>>, TError,{data: TFAVerifyLoginRequest}, TContext>, }
+export const useVerifyLoginApiV12faVerifyLoginPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyLoginApiV12faVerifyLoginPost>>, TError,{data: TFAVerifyLoginRequest}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof verifyLoginApiAuth2faVerifyLoginPost>>,
+        Awaited<ReturnType<typeof verifyLoginApiV12faVerifyLoginPost>>,
         TError,
         {data: TFAVerifyLoginRequest},
         TContext
       > => {
 
-      const mutationOptions = getVerifyLoginApiAuth2faVerifyLoginPostMutationOptions(options);
+      const mutationOptions = getVerifyLoginApiV12faVerifyLoginPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }

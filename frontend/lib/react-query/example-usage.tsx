@@ -101,7 +101,7 @@ function InstructorAvailability({ instructorId }: { instructorId: string }) {
       requireString(instructorId, 'instructorId');
       requireString(today, 'today');
       requireString(nextWeek, 'nextWeek');
-      return queryFn(`/api/public/instructors/${instructorId}/availability`, {
+      return queryFn(`/api/v1/public/instructors/${instructorId}/availability`, {
         params: { start_date: today, end_date: nextWeek },
       });
     },

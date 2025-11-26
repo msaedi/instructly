@@ -56,16 +56,16 @@ def _is_excluded_path(path: str) -> bool:
         # Legacy paths - will be migrated in later phases
         # "/auth/",  # Phase 17: Auth migrated to /api/v1/auth
         # "/api/auth/",  # Phase 17: Auth migrated to /api/v1/auth
-        "/api/public/",
-        "/api/config/",
+        # "/api/public/",  # Phase 18: Public migrated to /api/v1/public
+        # "/api/config/",  # Phase 18: Config migrated to /api/v1/config
         # "/api/search/",  # Phase 14: Search migrated to /api/v1/search
         # "/api/search-history/",  # Phase 14: Search history migrated to /api/v1/search-history
         "/api/analytics/",
-        "/api/privacy/",
+        # "/api/privacy/",  # Phase 18: Privacy migrated to /api/v1/privacy
         # "/api/payments/",  # Phase 17: Payments migrated to /api/v1/payments
         # "/api/favorites/",  # Phase 13: Favorites migrated to /api/v1/favorites
         # "/api/messages/",  # Phase 10: Messages migrated to /api/v1/messages
-        "/api/uploads/",
+        # "/api/uploads/",  # Phase 18: Uploads migrated to /api/v1/uploads
         "/api/reviews/",
         "/api/webhooks/",
         "/api/admin/",
@@ -74,7 +74,7 @@ def _is_excluded_path(path: str) -> bool:
         # "/api/addresses/",  # Phase 14: Addresses migrated to /api/v1/addresses
         # "/api/services/",  # Phase 13: Services migrated to /api/v1/services
         "/api/availability-windows/",
-        "/api/pricing/",
+        # "/api/pricing/",  # Phase 18: Pricing migrated to /api/v1/pricing
         "/api/instructor/",
         "/api/instructors/{instructor_id}/bgc/",  # BGC admin endpoints - to be migrated
         "/instructors/",  # Legacy non-versioned (note: /api/v1/instructors is the migrated version)
@@ -89,7 +89,7 @@ def _is_excluded_path(path: str) -> bool:
         "/beta/",
         "/gated/",
         "/r/",  # Referral short links
-        "/users/",
+        # "/users/",  # Phase 18: Users profile-picture migrated to /api/v1/users
         "/student/",
     )
 
@@ -830,4 +830,391 @@ class TestRoutingInvariants:
                 "Found legacy addresses endpoints that should be removed:\n"
                 + "\n".join(f"  - {path}" for path in found_legacy)
                 + "\n\nUse /api/v1/addresses instead."
+            )
+
+    def test_v1_public_endpoints_exist(self):
+        """
+        Verify v1 public endpoints are properly mounted.
+
+        Phase 18: Public domain migrated to /api/v1/public.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_public_endpoints = [
+            "/api/v1/public/session/guest",  # POST
+            "/api/v1/public/logout",  # POST
+            "/api/v1/public/instructors/{instructor_id}/availability",  # GET
+            "/api/v1/public/instructors/{instructor_id}/next-available",  # GET
+            "/api/v1/public/referrals/send",  # POST
+        ]
+
+        missing = []
+        for expected in expected_public_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 public endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_public_endpoints_removed(self):
+        """
+        Verify legacy public endpoints are REMOVED.
+
+        Phase 18: Public migration is complete. All public endpoints
+        must now use /api/v1/public.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_public_endpoints = [
+            "/api/public/session/guest",
+            "/api/public/logout",
+            "/api/public/instructors/{instructor_id}/availability",
+            "/api/public/instructors/{instructor_id}/next-available",
+            "/api/public/referrals/send",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_public_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy public endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/public instead."
+            )
+
+    def test_v1_privacy_endpoints_exist(self):
+        """
+        Verify v1 privacy endpoints are properly mounted.
+
+        Phase 18: Privacy domain migrated to /api/v1/privacy.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_privacy_endpoints = [
+            "/api/v1/privacy/export/me",  # POST
+            "/api/v1/privacy/delete/me",  # DELETE
+            "/api/v1/privacy/statistics",  # GET
+            "/api/v1/privacy/retention/apply",  # POST
+            "/api/v1/privacy/export/user/{user_id}",  # POST (admin)
+            "/api/v1/privacy/delete/user/{user_id}",  # DELETE (admin)
+        ]
+
+        missing = []
+        for expected in expected_privacy_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 privacy endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_privacy_endpoints_removed(self):
+        """
+        Verify legacy privacy endpoints are REMOVED.
+
+        Phase 18: Privacy migration is complete. All privacy endpoints
+        must now use /api/v1/privacy.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_privacy_endpoints = [
+            "/api/privacy/export/me",
+            "/api/privacy/delete/me",
+            "/api/privacy/statistics",
+            "/api/privacy/retention/apply",
+            "/api/privacy/export/user/{user_id}",
+            "/api/privacy/delete/user/{user_id}",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_privacy_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy privacy endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/privacy instead."
+            )
+
+    def test_v1_uploads_endpoints_exist(self):
+        """
+        Verify v1 uploads endpoints are properly mounted.
+
+        Phase 18: Uploads domain migrated to /api/v1/uploads.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_uploads_endpoints = [
+            "/api/v1/uploads/r2/signed-url",  # POST
+            "/api/v1/uploads/r2/proxy",  # POST
+            "/api/v1/uploads/r2/finalize/profile-picture",  # POST
+        ]
+
+        missing = []
+        for expected in expected_uploads_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 uploads endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_uploads_endpoints_removed(self):
+        """
+        Verify legacy uploads endpoints are REMOVED.
+
+        Phase 18: Uploads migration is complete. All uploads endpoints
+        must now use /api/v1/uploads.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_uploads_endpoints = [
+            "/api/uploads/r2/signed-url",
+            "/api/uploads/r2/proxy",
+            "/api/uploads/r2/finalize/profile-picture",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_uploads_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy uploads endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/uploads instead."
+            )
+
+    def test_v1_pricing_endpoints_exist(self):
+        """
+        Verify v1 pricing endpoints are properly mounted.
+
+        Phase 18: Pricing domain migrated to /api/v1/pricing.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_pricing_endpoints = [
+            "/api/v1/pricing/preview",  # POST
+        ]
+
+        missing = []
+        for expected in expected_pricing_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 pricing endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_pricing_endpoints_removed(self):
+        """
+        Verify legacy pricing endpoints are REMOVED.
+
+        Phase 18: Pricing migration is complete. All pricing endpoints
+        must now use /api/v1/pricing.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_pricing_endpoints = [
+            "/api/pricing/preview",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_pricing_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy pricing endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/pricing instead."
+            )
+
+    def test_v1_config_endpoints_exist(self):
+        """
+        Verify v1 config endpoints are properly mounted.
+
+        Phase 18: Config domain migrated to /api/v1/config.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_config_endpoints = [
+            "/api/v1/config/pricing",  # GET
+        ]
+
+        missing = []
+        for expected in expected_config_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 config endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_config_endpoints_removed(self):
+        """
+        Verify legacy config endpoints are REMOVED.
+
+        Phase 18: Config migration is complete. All config endpoints
+        must now use /api/v1/config.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_config_endpoints = [
+            "/api/config/pricing",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_config_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy config endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/config instead."
+            )
+
+    def test_v1_student_badges_endpoints_exist(self):
+        """
+        Verify v1 student-badges endpoints are properly mounted.
+
+        Phase 18: Student badges domain migrated to /api/v1/students/badges.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_badges_endpoints = [
+            "/api/v1/students/badges",  # GET
+            "/api/v1/students/badges/earned",  # GET
+            "/api/v1/students/badges/progress",  # GET
+        ]
+
+        missing = []
+        for expected in expected_badges_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 student-badges endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_student_badges_endpoints_removed(self):
+        """
+        Verify legacy student-badges endpoints are REMOVED.
+
+        Phase 18: Student badges migration is complete. All student badges endpoints
+        must now use /api/v1/students/badges.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_badges_endpoints = [
+            "/api/students/badges",
+            "/api/students/badges/earned",
+            "/api/students/badges/progress",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_badges_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy student-badges endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/students/badges instead."
+            )
+
+    def test_v1_users_profile_picture_endpoints_exist(self):
+        """
+        Verify v1 users profile-picture endpoints are properly mounted.
+
+        Phase 18: Users profile-picture domain migrated to /api/v1/users.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        expected_users_endpoints = [
+            "/api/v1/users/me/profile-picture",  # DELETE
+            "/api/v1/users/{user_id}/profile-picture-url",  # GET
+            "/api/v1/users/profile-picture-urls",  # POST
+        ]
+
+        missing = []
+        for expected in expected_users_endpoints:
+            if expected not in paths:
+                missing.append(expected)
+
+        if missing:
+            pytest.fail(
+                "Missing expected v1 users profile-picture endpoints:\n"
+                + "\n".join(f"  - {path}" for path in missing)
+            )
+
+    def test_legacy_users_profile_picture_endpoints_removed(self):
+        """
+        Verify legacy users profile-picture endpoints are REMOVED.
+
+        Phase 18: Users profile-picture migration is complete. All users profile-picture endpoints
+        must now use /api/v1/users.
+        """
+        routes = _get_api_routes()
+        paths = {route.path for route in routes}
+
+        # Legacy endpoints that should NO LONGER exist
+        legacy_users_endpoints = [
+            "/users/me/profile-picture",
+            "/users/{user_id}/profile-picture-url",
+            "/users/profile-picture-urls",
+        ]
+
+        found_legacy = []
+        for legacy in legacy_users_endpoints:
+            if legacy in paths:
+                found_legacy.append(legacy)
+
+        if found_legacy:
+            pytest.fail(
+                "Found legacy users profile-picture endpoints that should be removed:\n"
+                + "\n".join(f"  - {path}" for path in found_legacy)
+                + "\n\nUse /api/v1/users instead."
             )

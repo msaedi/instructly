@@ -36,11 +36,11 @@ async function requestJson<T>(endpoint: string, init?: RequestInit): Promise<T> 
 }
 
 export const badgesApi = {
-  getStudentBadges: (): Promise<StudentBadgeItem[]> => requestJson('/api/students/badges'),
+  getStudentBadges: (): Promise<StudentBadgeItem[]> => requestJson('/api/v1/students/badges'),
   getStudentBadgesEarned: (): Promise<StudentBadgeItem[]> =>
-    requestJson('/api/students/badges/earned'),
+    requestJson('/api/v1/students/badges/earned'),
   getStudentBadgesProgress: (): Promise<StudentBadgeItem[]> =>
-    requestJson('/api/students/badges/progress'),
+    requestJson('/api/v1/students/badges/progress'),
 
   listPendingAwards: (params: {
     before?: string;

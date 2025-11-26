@@ -18,13 +18,13 @@ def test_student_badges_endpoint_requires_student_role(
     auth_headers_student,
     auth_headers_instructor,
 ) -> None:
-    unauth_response = client.get("/api/students/badges")
+    unauth_response = client.get("/api/v1/students/badges")
     assert unauth_response.status_code in (401, 403)
 
-    instructor_response = client.get("/api/students/badges", headers=auth_headers_instructor)
+    instructor_response = client.get("/api/v1/students/badges", headers=auth_headers_instructor)
     assert instructor_response.status_code == 403
 
-    student_response = client.get("/api/students/badges", headers=auth_headers_student)
+    student_response = client.get("/api/v1/students/badges", headers=auth_headers_student)
     assert student_response.status_code == 200
 
 

@@ -10,7 +10,7 @@ import pytest
 def test_public_routes_registered(client):
     """Test that public routes are registered in the app."""
     # Try to access the public availability endpoint
-    response = client.get("/api/public/instructors/01J5TESTINSTR0000000000001/availability?start_date=2025-07-10")
+    response = client.get("/api/v1/public/instructors/01J5TESTINSTR0000000000001/availability?start_date=2025-07-10")
 
     # If we get 404 with generic "Not Found", routes aren't registered
     if response.status_code == 404 and response.json().get("detail") == "Not Found":
@@ -46,7 +46,7 @@ def test_public_routes_registered(client):
 
 def test_next_available_route_registered(client):
     """Test that next-available route is registered."""
-    response = client.get("/api/public/instructors/01J5TESTINSTR0000000000001/next-available")
+    response = client.get("/api/v1/public/instructors/01J5TESTINSTR0000000000001/next-available")
 
     # Similar check - 404 with "Not Found" means not registered
     if response.status_code == 404 and response.json().get("detail") == "Not Found":
@@ -68,7 +68,7 @@ def test_list_all_routes(client):
             print(f"  MOUNT {getattr(route, 'path', '<mounted>')}")
 
     # Check if public routes are in the list
-    public_routes = [r for r in app.routes if hasattr(r, "path") and "/api/public" in getattr(r, "path", "")]
+    public_routes = [r for r in app.routes if hasattr(r, "path") and "/api/v1/public" in getattr(r, "path", "")]
 
     if not public_routes:
         print("\n❌ No public routes found!")

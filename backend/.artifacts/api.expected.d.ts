@@ -1,196 +1,4 @@
 export type paths = {
- "/api/account/deactivate": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["deactivate_account_api_account_deactivate_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/account/reactivate": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["reactivate_account_api_account_reactivate_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/account/status": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["check_account_status_api_account_status_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/account/suspend": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["suspend_account_api_account_suspend_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/addresses/coverage/bulk": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_bulk_coverage_geojson_api_addresses_coverage_bulk_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/addresses/me": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["list_my_addresses_api_addresses_me_get"];
- put?: never;
- post: operations["create_my_address_api_addresses_me_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/addresses/me/{address_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete: operations["delete_my_address_api_addresses_me__address_id__delete"];
- options?: never;
- head?: never;
- patch: operations["update_my_address_api_addresses_me__address_id__patch"];
- trace?: never;
- };
- "/api/addresses/places/autocomplete": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["places_autocomplete_api_addresses_places_autocomplete_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/addresses/places/details": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["place_details_api_addresses_places_details_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/addresses/regions/neighborhoods": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["list_neighborhoods_api_addresses_regions_neighborhoods_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/addresses/service-areas/me": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["list_my_service_areas_api_addresses_service_areas_me_get"];
- put: operations["replace_my_service_areas_api_addresses_service_areas_me_put"];
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/addresses/zip/is-nyc": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["is_nyc_zip_api_addresses_zip_is_nyc_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
  "/api/admin/config/pricing": {
  parameters: {
  query?: never;
@@ -205,54 +13,6 @@ export type paths = {
  options?: never;
  head?: never;
  patch: operations["update_pricing_config_api_admin_config_pricing_patch"];
- trace?: never;
- };
- "/api/admin/referrals/config": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_referral_config_api_admin_referrals_config_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/admin/referrals/health": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_referral_health_api_admin_referrals_health_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/admin/referrals/summary": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_referral_summary_api_admin_referrals_summary_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
  trace?: never;
  };
  "/api/analytics/codebase/history": {
@@ -495,150 +255,6 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/auth/2fa/disable": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["disable_api_auth_2fa_disable_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/auth/2fa/regenerate-backup-codes": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["regenerate_backup_codes_api_auth_2fa_regenerate_backup_codes_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/auth/2fa/setup/initiate": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["setup_initiate_api_auth_2fa_setup_initiate_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/auth/2fa/setup/verify": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["setup_verify_api_auth_2fa_setup_verify_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/auth/2fa/status": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["status_endpoint_api_auth_2fa_status_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/auth/2fa/verify-login": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["verify_login_api_auth_2fa_verify_login_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/auth/password-reset/confirm": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["confirm_password_reset_api_auth_password_reset_confirm_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/auth/password-reset/request": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["request_password_reset_api_auth_password_reset_request_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/auth/password-reset/verify/{token}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["verify_reset_token_api_auth_password_reset_verify__token__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
  "/api/beta/invites/consume": {
  parameters: {
  query?: never;
@@ -847,198 +463,6 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/favorites": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_favorites_api_favorites_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/favorites/check/{instructor_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["check_favorite_status_api_favorites_check__instructor_id__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/favorites/{instructor_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["add_favorite_api_favorites__instructor_id__post"];
- delete: operations["remove_favorite_api_favorites__instructor_id__delete"];
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/messages/config": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_message_config_api_messages_config_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/messages/history/{booking_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_message_history_api_messages_history__booking_id__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/messages/mark-read": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["mark_messages_as_read_api_messages_mark_read_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/messages/send": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["send_message_api_messages_send_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/messages/stream/{booking_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["stream_messages_api_messages_stream__booking_id__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/messages/typing/{booking_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["send_typing_indicator_api_messages_typing__booking_id__post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/messages/unread-count": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_unread_count_api_messages_unread_count_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/messages/{message_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete: operations["delete_message_api_messages__message_id__delete"];
- options?: never;
- head?: never;
- patch: operations["edit_message_api_messages__message_id__patch"];
- trace?: never;
- };
- "/api/messages/{message_id}/reactions": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["add_reaction_api_messages__message_id__reactions_post"];
- delete: operations["remove_reaction_api_messages__message_id__reactions_delete"];
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
  "/api/monitoring/alerts/acknowledge/{alert_type}": {
  parameters: {
  query?: never;
@@ -1199,406 +623,6 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/payments/checkout": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["create_checkout_api_payments_checkout_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/connect/dashboard": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_dashboard_link_api_payments_connect_dashboard_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/connect/instant-payout": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["request_instant_payout_api_payments_connect_instant_payout_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/connect/onboard": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["start_onboarding_api_payments_connect_onboard_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/connect/payout-schedule": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["set_payout_schedule_api_payments_connect_payout_schedule_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/connect/status": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_onboarding_status_api_payments_connect_status_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/credits": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_credit_balance_api_payments_credits_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/earnings": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_instructor_earnings_api_payments_earnings_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/identity/refresh": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["refresh_identity_status_api_payments_identity_refresh_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/identity/session": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["create_identity_session_api_payments_identity_session_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/methods": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["list_payment_methods_api_payments_methods_get"];
- put?: never;
- post: operations["save_payment_method_api_payments_methods_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/methods/{method_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete: operations["delete_payment_method_api_payments_methods__method_id__delete"];
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/transactions": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_transaction_history_api_payments_transactions_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/payments/webhooks/stripe": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["handle_stripe_webhook_api_payments_webhooks_stripe_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/privacy/delete/me": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["delete_my_data_api_privacy_delete_me_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/privacy/delete/user/{user_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["delete_user_data_admin_api_privacy_delete_user__user_id__post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/privacy/export/me": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["export_my_data_api_privacy_export_me_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/privacy/export/user/{user_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["export_user_data_admin_api_privacy_export_user__user_id__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/privacy/retention/apply": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["apply_retention_policies_api_privacy_retention_apply_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/privacy/statistics": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_privacy_statistics_api_privacy_statistics_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/public/instructors/{instructor_id}/availability": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_instructor_public_availability_api_public_instructors__instructor_id__availability_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/public/instructors/{instructor_id}/next-available": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_next_available_slot_api_public_instructors__instructor_id__next_available_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/public/logout": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["public_logout_api_public_logout_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/public/referrals/send": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["send_referral_invites_api_public_referrals_send_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/public/session/guest": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["create_guest_session_api_public_session_guest_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
  "/api/redis/celery-queues": {
  parameters: {
  query?: never;
@@ -1695,7 +719,7 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/referrals/checkout/apply-referral": {
+ "/api/v1/2fa/disable": {
  parameters: {
  query?: never;
  header?: never;
@@ -1704,14 +728,14 @@ export type paths = {
  };
  get?: never;
  put?: never;
- post: operations["apply_referral_credit_api_referrals_checkout_apply_referral_post"];
+ post: operations["disable_api_v1_2fa_disable_post"];
  delete?: never;
  options?: never;
  head?: never;
  patch?: never;
  trace?: never;
  };
- "/api/referrals/claim": {
+ "/api/v1/2fa/regenerate-backup-codes": {
  parameters: {
  query?: never;
  header?: never;
@@ -1720,21 +744,53 @@ export type paths = {
  };
  get?: never;
  put?: never;
- post: operations["claim_referral_code_api_referrals_claim_post"];
+ post: operations["regenerate_backup_codes_api_v1_2fa_regenerate_backup_codes_post"];
  delete?: never;
  options?: never;
  head?: never;
  patch?: never;
  trace?: never;
  };
- "/api/referrals/me": {
+ "/api/v1/2fa/setup/initiate": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get: operations["get_my_referral_ledger_api_referrals_me_get"];
+ get?: never;
+ put?: never;
+ post: operations["setup_initiate_api_v1_2fa_setup_initiate_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/2fa/setup/verify": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["setup_verify_api_v1_2fa_setup_verify_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/2fa/status": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["status_endpoint_api_v1_2fa_status_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -1743,7 +799,7 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/reviews/booking/existing": {
+ "/api/v1/2fa/verify-login": {
  parameters: {
  query?: never;
  header?: never;
@@ -1752,21 +808,53 @@ export type paths = {
  };
  get?: never;
  put?: never;
- post: operations["get_existing_reviews_for_bookings_api_reviews_booking_existing_post"];
+ post: operations["verify_login_api_v1_2fa_verify_login_post"];
  delete?: never;
  options?: never;
  head?: never;
  patch?: never;
  trace?: never;
  };
- "/api/reviews/booking/{booking_id}": {
+ "/api/v1/account/deactivate": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get: operations["get_review_for_booking_api_reviews_booking__booking_id__get"];
+ get?: never;
+ put?: never;
+ post: operations["deactivate_account_api_v1_account_deactivate_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/account/reactivate": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["reactivate_account_api_v1_account_reactivate_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/account/status": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["check_account_status_api_v1_account_status_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -1775,14 +863,30 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/reviews/instructor/{instructor_id}/ratings": {
+ "/api/v1/account/suspend": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get: operations["get_instructor_ratings_api_reviews_instructor__instructor_id__ratings_get"];
+ get?: never;
+ put?: never;
+ post: operations["suspend_account_api_v1_account_suspend_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/addresses/coverage/bulk": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_bulk_coverage_geojson_api_v1_addresses_coverage_bulk_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -1791,135 +895,23 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/reviews/instructor/{instructor_id}/recent": {
+ "/api/v1/addresses/me": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get: operations["get_recent_reviews_api_reviews_instructor__instructor_id__recent_get"];
+ get: operations["list_my_addresses_api_v1_addresses_me_get"];
  put?: never;
- post?: never;
+ post: operations["create_my_address_api_v1_addresses_me_post"];
  delete?: never;
  options?: never;
  head?: never;
  patch?: never;
  trace?: never;
  };
- "/api/reviews/instructor/{instructor_id}/search-rating": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_search_rating_api_reviews_instructor__instructor_id__search_rating_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/reviews/ratings/batch": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["get_ratings_batch_api_reviews_ratings_batch_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/reviews/reviews/{review_id}/respond": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["respond_to_review_api_reviews_reviews__review_id__respond_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/reviews/submit": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["submit_review_api_reviews_submit_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/search-history/": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_recent_searches_api_search_history__get"];
- put?: never;
- post: operations["record_search_api_search_history__post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/search-history/guest": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["record_guest_search_api_search_history_guest_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/search-history/interaction": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["track_interaction_api_search_history_interaction_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/search-history/{search_id}": {
+ "/api/v1/addresses/me/{address_id}": {
  parameters: {
  query?: never;
  header?: never;
@@ -1929,20 +921,20 @@ export type paths = {
  get?: never;
  put?: never;
  post?: never;
- delete: operations["delete_search_api_search_history__search_id__delete"];
+ delete: operations["delete_my_address_api_v1_addresses_me__address_id__delete"];
  options?: never;
  head?: never;
- patch?: never;
+ patch: operations["update_my_address_api_v1_addresses_me__address_id__patch"];
  trace?: never;
  };
- "/api/search/instructors": {
+ "/api/v1/addresses/places/autocomplete": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get: operations["search_instructors_api_search_instructors_get"];
+ get: operations["places_autocomplete_api_v1_addresses_places_autocomplete_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -1951,78 +943,14 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/uploads/r2/finalize/profile-picture": {
+ "/api/v1/addresses/places/details": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get?: never;
- put?: never;
- post: operations["finalize_profile_picture_api_uploads_r2_finalize_profile_picture_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/uploads/r2/proxy": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["proxy_upload_to_r2_api_uploads_r2_proxy_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/uploads/r2/signed-url": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["create_signed_upload_api_uploads_r2_signed_url_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/users/me/profile-picture": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["upload_finalize_profile_picture_api_users_me_profile_picture_post"];
- delete: operations["delete_profile_picture_api_users_me_profile_picture_delete"];
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/users/{user_id}/profile-picture-url": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_profile_picture_url_api_users__user_id__profile_picture_url_get"];
+ get: operations["place_details_api_v1_addresses_places_details_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -2031,142 +959,14 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/auth/change-password": {
+ "/api/v1/addresses/regions/neighborhoods": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get?: never;
- put?: never;
- post: operations["change_password_auth_change_password_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/auth/login": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["login_auth_login_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/auth/login-with-session": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["login_with_session_auth_login_with_session_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/auth/me": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["read_users_me_auth_me_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch: operations["update_current_user_auth_me_patch"];
- trace?: never;
- };
- "/auth/register": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["register_auth_register_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/bookings/": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_bookings_bookings__get"];
- put?: never;
- post: operations["create_booking_bookings__post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/bookings/check-availability": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["check_availability_bookings_check_availability_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/bookings/send-reminders": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["send_reminder_emails_bookings_send_reminders_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/bookings/stats": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_booking_stats_bookings_stats_get"];
+ get: operations["list_neighborhoods_api_v1_addresses_regions_neighborhoods_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -2175,14 +975,30 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/bookings/upcoming": {
+ "/api/v1/addresses/service-areas/me": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get: operations["get_upcoming_bookings_bookings_upcoming_get"];
+ get: operations["list_my_service_areas_api_v1_addresses_service_areas_me_get"];
+ put: operations["replace_my_service_areas_api_v1_addresses_service_areas_me_put"];
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/addresses/zip/is-nyc": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["is_nyc_zip_api_v1_addresses_zip_is_nyc_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -2191,94 +1007,14 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/bookings/{booking_id}": {
+ "/api/v1/admin/referrals/config": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get: operations["get_booking_details_bookings__booking_id__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch: operations["update_booking_bookings__booking_id__patch"];
- trace?: never;
- };
- "/bookings/{booking_id}/cancel": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["cancel_booking_bookings__booking_id__cancel_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/bookings/{booking_id}/complete": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["complete_booking_bookings__booking_id__complete_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/bookings/{booking_id}/confirm-payment": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["confirm_booking_payment_bookings__booking_id__confirm_payment_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/bookings/{booking_id}/payment-method": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch: operations["update_booking_payment_method_bookings__booking_id__payment_method_patch"];
- trace?: never;
- };
- "/bookings/{booking_id}/preview": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_booking_preview_bookings__booking_id__preview_get"];
+ get: operations["get_referral_config_api_v1_admin_referrals_config_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -2287,7 +1023,39 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/bookings/{booking_id}/reschedule": {
+ "/api/v1/admin/referrals/health": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_referral_health_api_v1_admin_referrals_health_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/referrals/summary": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_referral_summary_api_v1_admin_referrals_summary_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/auth/change-password": {
  parameters: {
  query?: never;
  header?: never;
@@ -2296,21 +1064,1653 @@ export type paths = {
  };
  get?: never;
  put?: never;
- post: operations["reschedule_booking_bookings__booking_id__reschedule_post"];
+ post: operations["change_password_api_v1_auth_change_password_post"];
  delete?: never;
  options?: never;
  head?: never;
  patch?: never;
  trace?: never;
  };
- "/instructors/": {
+ "/api/v1/auth/login": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get: operations["get_all_instructors_instructors__get"];
+ get?: never;
+ put?: never;
+ post: operations["login_api_v1_auth_login_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/auth/login-with-session": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["login_with_session_api_v1_auth_login_with_session_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/auth/me": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["read_users_me_api_v1_auth_me_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch: operations["update_current_user_api_v1_auth_me_patch"];
+ trace?: never;
+ };
+ "/api/v1/auth/register": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["register_api_v1_auth_register_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_bookings_api_v1_bookings_get"];
+ put?: never;
+ post: operations["create_booking_api_v1_bookings_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/check-availability": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["check_availability_api_v1_bookings_check_availability_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/send-reminders": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_reminder_emails_api_v1_bookings_send_reminders_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/stats": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_booking_stats_api_v1_bookings_stats_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/upcoming": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_upcoming_bookings_api_v1_bookings_upcoming_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/{booking_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_booking_details_api_v1_bookings__booking_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch: operations["update_booking_api_v1_bookings__booking_id__patch"];
+ trace?: never;
+ };
+ "/api/v1/bookings/{booking_id}/cancel": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["cancel_booking_api_v1_bookings__booking_id__cancel_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/{booking_id}/complete": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["complete_booking_api_v1_bookings__booking_id__complete_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/{booking_id}/confirm-payment": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["confirm_booking_payment_api_v1_bookings__booking_id__confirm_payment_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/{booking_id}/no-show": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["mark_booking_no_show_api_v1_bookings__booking_id__no_show_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/{booking_id}/payment-method": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch: operations["update_booking_payment_method_api_v1_bookings__booking_id__payment_method_patch"];
+ trace?: never;
+ };
+ "/api/v1/bookings/{booking_id}/preview": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_booking_preview_api_v1_bookings__booking_id__preview_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/{booking_id}/pricing": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_booking_pricing_api_v1_bookings__booking_id__pricing_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/bookings/{booking_id}/reschedule": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["reschedule_booking_api_v1_bookings__booking_id__reschedule_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/config/pricing": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_public_pricing_config_api_v1_config_pricing_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/favorites": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_favorites_api_v1_favorites_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/favorites/check/{instructor_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["check_favorite_status_api_v1_favorites_check__instructor_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/favorites/{instructor_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["add_favorite_api_v1_favorites__instructor_id__post"];
+ delete: operations["remove_favorite_api_v1_favorites__instructor_id__delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-bookings": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_instructor_bookings_api_v1_instructor_bookings_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-bookings/completed": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_completed_bookings_api_v1_instructor_bookings_completed_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-bookings/pending-completion": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_pending_completion_bookings_api_v1_instructor_bookings_pending_completion_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-bookings/upcoming": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_upcoming_bookings_api_v1_instructor_bookings_upcoming_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-bookings/{booking_id}/complete": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["mark_lesson_complete_api_v1_instructor_bookings__booking_id__complete_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructor-bookings/{booking_id}/dispute": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_instructors_api_v1_instructors_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/me": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_my_profile_api_v1_instructors_me_get"];
+ put: operations["update_profile_api_v1_instructors_me_put"];
+ post: operations["create_profile_api_v1_instructors_me_post"];
+ delete: operations["delete_profile_api_v1_instructors_me_delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/me/go-live": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["go_live_api_v1_instructors_me_go_live_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/{instructor_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_instructor_api_v1_instructors__instructor_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/{instructor_id}/coverage": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_coverage_api_v1_instructors__instructor_id__coverage_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/messages/config": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_message_config_api_v1_messages_config_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/messages/history/{booking_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_message_history_api_v1_messages_history__booking_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/messages/mark-read": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["mark_messages_as_read_api_v1_messages_mark_read_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/messages/send": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_message_api_v1_messages_send_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/messages/stream/{booking_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["stream_messages_api_v1_messages_stream__booking_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/messages/typing/{booking_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_typing_indicator_api_v1_messages_typing__booking_id__post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/messages/unread-count": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_unread_count_api_v1_messages_unread_count_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/messages/{message_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["delete_message_api_v1_messages__message_id__delete"];
+ options?: never;
+ head?: never;
+ patch: operations["edit_message_api_v1_messages__message_id__patch"];
+ trace?: never;
+ };
+ "/api/v1/messages/{message_id}/reactions": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["add_reaction_api_v1_messages__message_id__reactions_post"];
+ delete: operations["remove_reaction_api_v1_messages__message_id__reactions_delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/password-reset/confirm": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["confirm_password_reset_api_v1_password_reset_confirm_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/password-reset/request": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["request_password_reset_api_v1_password_reset_request_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/password-reset/verify/{token}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["verify_reset_token_api_v1_password_reset_verify__token__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/checkout": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["create_checkout_api_v1_payments_checkout_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/connect/dashboard": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_dashboard_link_api_v1_payments_connect_dashboard_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/connect/instant-payout": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["request_instant_payout_api_v1_payments_connect_instant_payout_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/connect/onboard": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["start_onboarding_api_v1_payments_connect_onboard_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/connect/payout-schedule": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["set_payout_schedule_api_v1_payments_connect_payout_schedule_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/connect/status": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_onboarding_status_api_v1_payments_connect_status_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/credits": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_credit_balance_api_v1_payments_credits_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/earnings": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_instructor_earnings_api_v1_payments_earnings_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/identity/refresh": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["refresh_identity_status_api_v1_payments_identity_refresh_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/identity/session": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["create_identity_session_api_v1_payments_identity_session_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/methods": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_payment_methods_api_v1_payments_methods_get"];
+ put?: never;
+ post: operations["save_payment_method_api_v1_payments_methods_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/methods/{method_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["delete_payment_method_api_v1_payments_methods__method_id__delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/transactions": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_transaction_history_api_v1_payments_transactions_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/payments/webhooks/stripe": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["handle_stripe_webhook_api_v1_payments_webhooks_stripe_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/pricing/preview": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["preview_selection_pricing_api_v1_pricing_preview_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/privacy/delete/me": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["delete_my_data_api_v1_privacy_delete_me_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/privacy/delete/user/{user_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["delete_user_data_admin_api_v1_privacy_delete_user__user_id__post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/privacy/export/me": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["export_my_data_api_v1_privacy_export_me_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/privacy/export/user/{user_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["export_user_data_admin_api_v1_privacy_export_user__user_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/privacy/retention/apply": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["apply_retention_policies_api_v1_privacy_retention_apply_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/privacy/statistics": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_privacy_statistics_api_v1_privacy_statistics_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/public/instructors/{instructor_id}/availability": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_instructor_public_availability_api_v1_public_instructors__instructor_id__availability_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/public/instructors/{instructor_id}/next-available": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_next_available_slot_api_v1_public_instructors__instructor_id__next_available_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/public/logout": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["public_logout_api_v1_public_logout_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/public/referrals/send": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_referral_invites_api_v1_public_referrals_send_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/public/session/guest": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["create_guest_session_api_v1_public_session_guest_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/referrals/checkout/apply-referral": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["apply_referral_credit_api_v1_referrals_checkout_apply_referral_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/referrals/claim": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["claim_referral_code_api_v1_referrals_claim_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/referrals/me": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_my_referral_ledger_api_v1_referrals_me_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/reviews": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["submit_review_api_v1_reviews_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/reviews/booking/existing": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["get_existing_reviews_for_bookings_api_v1_reviews_booking_existing_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/reviews/booking/{booking_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_review_for_booking_api_v1_reviews_booking__booking_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/reviews/instructor/{instructor_id}/ratings": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_instructor_ratings_api_v1_reviews_instructor__instructor_id__ratings_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/reviews/instructor/{instructor_id}/recent": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_recent_reviews_api_v1_reviews_instructor__instructor_id__recent_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/reviews/instructor/{instructor_id}/search-rating": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_search_rating_api_v1_reviews_instructor__instructor_id__search_rating_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/reviews/ratings/batch": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["get_ratings_batch_api_v1_reviews_ratings_batch_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/reviews/{review_id}/respond": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["respond_to_review_api_v1_reviews__review_id__respond_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search-history": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_recent_searches_api_v1_search_history_get"];
+ put?: never;
+ post: operations["record_search_api_v1_search_history_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search-history/guest": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["record_guest_search_api_v1_search_history_guest_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search-history/interaction": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["track_interaction_api_v1_search_history_interaction_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search-history/{search_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["delete_search_api_v1_search_history__search_id__delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search/instructors": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["search_instructors_api_v1_search_instructors_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/catalog": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_catalog_services_api_v1_services_catalog_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/catalog/all-with-instructors": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_all_services_with_instructors_api_v1_services_catalog_all_with_instructors_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/catalog/kids-available": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_kids_available_services_api_v1_services_catalog_kids_available_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/catalog/top-per-category": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_top_services_per_category_api_v1_services_catalog_top_per_category_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/categories": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_service_categories_api_v1_services_categories_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/instructor/add": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["add_service_to_profile_api_v1_services_instructor_add_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/services/search": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["search_services_api_v1_services_search_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/students/badges": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_student_badges_api_v1_students_badges_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/students/badges/earned": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_earned_student_badges_api_v1_students_badges_earned_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/students/badges/progress": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_in_progress_student_badges_api_v1_students_badges_progress_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/uploads/r2/finalize/profile-picture": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["finalize_profile_picture_api_v1_uploads_r2_finalize_profile_picture_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/uploads/r2/proxy": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["proxy_upload_to_r2_api_v1_uploads_r2_proxy_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/uploads/r2/signed-url": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["create_signed_upload_api_v1_uploads_r2_signed_url_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/users/me/profile-picture": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["upload_finalize_profile_picture_api_v1_users_me_profile_picture_post"];
+ delete: operations["delete_profile_picture_api_v1_users_me_profile_picture_delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/users/profile-picture-urls": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_profile_picture_urls_batch_api_v1_users_profile_picture_urls_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/users/{user_id}/profile-picture-url": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_profile_picture_url_api_v1_users__user_id__profile_picture_url_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -2495,134 +2895,6 @@ export type paths = {
  patch: operations["update_availability_window_instructors_availability__window_id__patch"];
  trace?: never;
  };
- "/instructors/bookings/completed": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_completed_bookings_instructors_bookings_completed_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/bookings/pending-completion": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_pending_completion_bookings_instructors_bookings_pending_completion_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/bookings/{booking_id}/complete": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["mark_lesson_complete_instructors_bookings__booking_id__complete_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/bookings/{booking_id}/dispute": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["dispute_completion_instructors_bookings__booking_id__dispute_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/me": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_my_profile_instructors_me_get"];
- put: operations["update_profile_instructors_me_put"];
- post: operations["create_instructor_profile_instructors_me_post"];
- delete: operations["delete_instructor_profile_instructors_me_delete"];
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/me/go-live": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["go_live_instructors_me_go_live_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/{instructor_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_instructor_profile_instructors__instructor_id__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/{instructor_id}/coverage": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_instructor_coverage_instructors__instructor_id__coverage_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
  "/ops/cache": {
  parameters: {
  query?: never;
@@ -2775,118 +3047,6 @@ export type paths = {
  cookie?: never;
  };
  get: operations["resolve_referral_slug_r__slug__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/services/catalog": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_catalog_services_services_catalog_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/services/catalog/all-with-instructors": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_all_services_with_instructors_services_catalog_all_with_instructors_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/services/catalog/kids-available": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_kids_available_services_services_catalog_kids_available_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/services/catalog/top-per-category": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_top_services_per_category_services_catalog_top_per_category_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/services/categories": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_service_categories_services_categories_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/services/instructor/add": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["add_service_to_profile_services_instructor_add_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/services/search": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["search_services_services_search_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -3228,6 +3388,13 @@ export type components = {
  BackupCodesResponse: {
  backup_codes: string[];
  };
+ BadgeProgressView: {
+ current?: number | null;
+ goal?: number | null;
+ percent?: number | null;
+ } & {
+ [key: string]: unknown;
+ };
  BetaMetricsSummaryResponse: {
  invites_errors_24h: number;
  invites_sent_24h: number;
@@ -3256,7 +3423,10 @@ export type components = {
  instructor_id: string;
  reason?: string | null;
  };
- Body_login_auth_login_post: {
+ Body_dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post: {
+ reason: string;
+ };
+ Body_login_api_v1_auth_login_post: {
  client_id?: string | null;
  client_secret?: string | null;
  grant_type?: string | null;
@@ -3264,10 +3434,13 @@ export type components = {
  scope: string;
  username: string;
  };
- Body_proxy_upload_to_r2_api_uploads_r2_proxy_post: {
+ Body_proxy_upload_to_r2_api_v1_uploads_r2_proxy_post: {
  content_type: string;
  file: string;
  key: string;
+ };
+ Body_respond_to_review_api_v1_reviews__review_id__respond_post: {
+ response_text: string;
  };
  BookedSlotsResponse: {
  booked_slots: {
@@ -3313,6 +3486,7 @@ export type components = {
  instructor_service_id: string;
  location_type: string | null;
  meeting_location: string | null;
+ payment_summary?: components["schemas"]["PaymentSummary"] | null;
  requires_payment_method: boolean;
  rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
  rescheduled_from_booking_id?: string | null;
@@ -3374,6 +3548,7 @@ export type components = {
  instructor_service_id: string;
  location_type: string | null;
  meeting_location: string | null;
+ payment_summary?: components["schemas"]["PaymentSummary"] | null;
  rescheduled_from?: components["schemas"]["RescheduledFromInfo"] | null;
  rescheduled_from_booking_id?: string | null;
  service_area: string | null;
@@ -3616,9 +3791,9 @@ export type components = {
  type: string;
  };
  CreateCheckoutRequest: {
- applied_credit_cents?: number | null;
  booking_id: string;
- payment_method_id: string;
+ payment_method_id?: string | null;
+ requested_credit_cents?: number | null;
  save_payment_method: boolean;
  };
  CreateSignedUploadRequest: {
@@ -3705,8 +3880,11 @@ export type components = {
  EarningsResponse: {
  average_earning?: number | null;
  booking_count?: number | null;
+ hours_invoiced?: number | null;
+ invoices?: components["schemas"]["InstructorInvoiceSummary"][];
  period_end?: string | null;
  period_start?: string | null;
+ service_count?: number | null;
  total_earned?: number | null;
  total_fees?: number | null;
  };
@@ -3814,6 +3992,19 @@ export type components = {
  ok: boolean;
  payout_id?: string | null;
  status?: string | null;
+ };
+ InstructorInvoiceSummary: {
+ booking_id: string;
+ created_at: string;
+ duration_minutes?: number | null;
+ instructor_share_cents: number;
+ lesson_date: string;
+ service_name?: string | null;
+ start_time?: string | null;
+ status: string;
+ student_name?: string | null;
+ tip_cents: number;
+ total_paid_cents: number;
  };
  InstructorProfileCreate: {
  bio: string;
@@ -3966,6 +4157,10 @@ export type components = {
  role?: string | null;
  used_at?: string | null;
  valid: boolean;
+ };
+ LineItem: {
+ amount_cents: number;
+ label: string;
  };
  LiveAlertItem: {
  message: string;
@@ -4161,6 +4356,17 @@ export type components = {
  is_default: boolean;
  last4: string;
  };
+ PaymentSummary: {
+ credit_applied: number;
+ lesson_amount: number;
+ service_fee: number;
+ subtotal: number;
+ tip_amount: number;
+ tip_last_updated?: string | null;
+ tip_paid: number;
+ tip_status?: string | null;
+ total_paid: number;
+ };
  PayoutScheduleResponse: {
  account_id?: string | null;
  ok: boolean;
@@ -4259,6 +4465,28 @@ export type components = {
  config: components["schemas"]["PricingConfig"];
  updated_at?: string | null;
  };
+ PricingPreviewIn: {
+ applied_credit_cents: number;
+ booking_date: string;
+ instructor_id: string;
+ instructor_service_id: string;
+ location_type: string;
+ meeting_location: string;
+ selected_duration: number;
+ start_time: string;
+ };
+ PricingPreviewOut: {
+ application_fee_cents: number;
+ base_price_cents: number;
+ credit_applied_cents: number;
+ instructor_commission_cents: number;
+ instructor_tier_pct: number;
+ line_items: components["schemas"]["LineItem"][];
+ student_fee_cents: number;
+ student_pay_cents: number;
+ target_instructor_payout_cents: number;
+ top_up_transfer_cents: number;
+ };
  PrivacyStatisticsResponse: {
  statistics: {
  [key: string]: unknown;
@@ -4269,6 +4497,11 @@ export type components = {
  avg_results: number;
  count: number;
  query: string;
+ };
+ ProfilePictureUrlsResponse: {
+ urls: {
+ [key: string]: string | null;
+ };
  };
  ProxyUploadResponse: {
  ok: boolean;
@@ -4735,6 +4968,18 @@ export type components = {
  specific_date: string;
  start_time: string;
  };
+ StudentBadgeView: {
+ awarded_at?: string | null;
+ confirmed_at?: string | null;
+ description?: string | null;
+ earned: boolean;
+ name: string;
+ progress?: components["schemas"]["BadgeProgressView"] | {
+ [key: string]: unknown;
+ } | null;
+ slug: string;
+ status?: string | null;
+ };
  StudentCreditCycle: {
  cents10: number;
  cents20: number;
@@ -4833,19 +5078,23 @@ export type components = {
  };
  TransactionHistoryItem: {
  booking_date: string;
+ booking_id: string;
  created_at: string;
  credit_applied: number;
  duration_minutes: number;
  end_time: string;
- final_amount: number;
  hourly_rate: number;
  id: string;
  instructor_name: string;
- platform_fee: number;
+ lesson_amount: number;
+ service_fee: number;
  service_name: string;
  start_time: string;
  status: string;
- total_price: number;
+ tip_amount: number;
+ tip_paid: number;
+ tip_status?: string | null;
+ total_paid: number;
  };
  TypingStatusResponse: {
  success: boolean;
@@ -5031,395 +5280,6 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
- deactivate_account_api_account_deactivate_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AccountStatusChangeResponse"];
- };
- };
- };
- };
- reactivate_account_api_account_reactivate_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AccountStatusChangeResponse"];
- };
- };
- };
- };
- check_account_status_api_account_status_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AccountStatusResponse"];
- };
- };
- };
- };
- suspend_account_api_account_suspend_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AccountStatusChangeResponse"];
- };
- };
- };
- };
- get_bulk_coverage_geojson_api_addresses_coverage_bulk_get: {
- parameters: {
- query: {
- ids: string;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CoverageFeatureCollectionResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- list_my_addresses_api_addresses_me_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AddressListResponse"];
- };
- };
- };
- };
- create_my_address_api_addresses_me_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["AddressCreate"];
- };
- };
- responses: {
- 201: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AddressResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- delete_my_address_api_addresses_me__address_id__delete: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- address_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["app__schemas__address_responses__DeleteResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- update_my_address_api_addresses_me__address_id__patch: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- address_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["AddressUpdate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AddressResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- places_autocomplete_api_addresses_places_autocomplete_get: {
- parameters: {
- query: {
- q: string;
- provider?: string | null;
- scope?: string | null;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AutocompleteResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- place_details_api_addresses_places_details_get: {
- parameters: {
- query: {
- place_id: string;
- provider?: string | null;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PlaceDetails"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- list_neighborhoods_api_addresses_regions_neighborhoods_get: {
- parameters: {
- query?: {
- region_type?: string;
- borough?: string | null;
- page?: number;
- per_page?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["NeighborhoodsListResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- list_my_service_areas_api_addresses_service_areas_me_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["ServiceAreasResponse"];
- };
- };
- };
- };
- replace_my_service_areas_api_addresses_service_areas_me_put: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["ServiceAreasUpdateRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["ServiceAreasResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- is_nyc_zip_api_addresses_zip_is_nyc_get: {
- parameters: {
- query: {
- zip: string;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["NYCZipCheckResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
  get_pricing_config_api_admin_config_pricing_get: {
  parameters: {
  query?: never;
@@ -5466,63 +5326,6 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_referral_config_api_admin_referrals_config_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AdminReferralsConfigOut"];
- };
- };
- };
- };
- get_referral_health_api_admin_referrals_health_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AdminReferralsHealthOut"];
- };
- };
- };
- };
- get_referral_summary_api_admin_referrals_summary_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AdminReferralsSummaryOut"];
  };
  };
  };
@@ -5954,247 +5757,6 @@ export interface operations {
  };
  };
  };
- disable_api_auth_2fa_disable_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["TFADisableRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["TFADisableResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- regenerate_backup_codes_api_auth_2fa_regenerate_backup_codes_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BackupCodesResponse"];
- };
- };
- };
- };
- setup_initiate_api_auth_2fa_setup_initiate_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["TFASetupInitiateResponse"];
- };
- };
- };
- };
- setup_verify_api_auth_2fa_setup_verify_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["TFASetupVerifyRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["TFASetupVerifyResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- status_endpoint_api_auth_2fa_status_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["TFAStatusResponse"];
- };
- };
- };
- };
- verify_login_api_auth_2fa_verify_login_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["TFAVerifyLoginRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["TFAVerifyLoginResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- confirm_password_reset_api_auth_password_reset_confirm_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["PasswordResetConfirm"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PasswordResetResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- request_password_reset_api_auth_password_reset_request_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["PasswordResetRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PasswordResetResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- verify_reset_token_api_auth_password_reset_verify__token__get: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- token: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PasswordResetVerifyResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
  consume_invite_api_beta_invites_consume_post: {
  parameters: {
  query?: never;
@@ -6571,428 +6133,6 @@ export interface operations {
  };
  };
  };
- get_favorites_api_favorites_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["FavoritesList"];
- };
- };
- };
- };
- check_favorite_status_api_favorites_check__instructor_id__get: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- instructor_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["FavoriteStatusResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- add_favorite_api_favorites__instructor_id__post: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- instructor_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["FavoriteResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- remove_favorite_api_favorites__instructor_id__delete: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- instructor_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["FavoriteResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_message_config_api_messages_config_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["MessageConfigResponse"];
- };
- };
- };
- };
- get_message_history_api_messages_history__booking_id__get: {
- parameters: {
- query?: {
- limit?: number;
- offset?: number;
- };
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["MessagesHistoryResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- mark_messages_as_read_api_messages_mark_read_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["MarkMessagesReadRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["MarkMessagesReadResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- send_message_api_messages_send_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["SendMessageRequest"];
- };
- };
- responses: {
- 201: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SendMessageResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- stream_messages_api_messages_stream__booking_id__get: {
- parameters: {
- query?: {
- token?: string | null;
- };
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: {
- access_token?: string | null;
- };
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": unknown;
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- send_typing_indicator_api_messages_typing__booking_id__post: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["TypingStatusResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_unread_count_api_messages_unread_count_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["UnreadCountResponse"];
- };
- };
- };
- };
- delete_message_api_messages__message_id__delete: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- message_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["DeleteMessageResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- edit_message_api_messages__message_id__patch: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- message_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["EditMessageRequest"];
- };
- };
- responses: {
- 204: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- add_reaction_api_messages__message_id__reactions_post: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- message_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["ReactionRequest"];
- };
- };
- responses: {
- 204: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- remove_reaction_api_messages__message_id__reactions_delete: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- message_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["ReactionRequest"];
- };
- };
- responses: {
- 204: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
  acknowledge_alert_api_monitoring_alerts_acknowledge__alert_type__post: {
  parameters: {
  query?: never;
@@ -7339,639 +6479,6 @@ export interface operations {
  };
  };
  };
- create_checkout_api_payments_checkout_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["CreateCheckoutRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CheckoutResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_dashboard_link_api_payments_connect_dashboard_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["DashboardLinkResponse"];
- };
- };
- };
- };
- request_instant_payout_api_payments_connect_instant_payout_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InstantPayoutResponse"];
- };
- };
- };
- };
- start_onboarding_api_payments_connect_onboard_post: {
- parameters: {
- query?: {
- return_to?: string | null;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["OnboardingResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- set_payout_schedule_api_payments_connect_payout_schedule_post: {
- parameters: {
- query?: {
- interval?: string;
- weekly_anchor?: string;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PayoutScheduleResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_onboarding_status_api_payments_connect_status_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["OnboardingStatusResponse"];
- };
- };
- };
- };
- get_credit_balance_api_payments_credits_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CreditBalanceResponse"];
- };
- };
- };
- };
- get_instructor_earnings_api_payments_earnings_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["EarningsResponse"];
- };
- };
- };
- };
- refresh_identity_status_api_payments_identity_refresh_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["IdentityRefreshResponse"];
- };
- };
- };
- };
- create_identity_session_api_payments_identity_session_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["IdentitySessionResponse"];
- };
- };
- };
- };
- list_payment_methods_api_payments_methods_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PaymentMethodResponse"][];
- };
- };
- };
- };
- save_payment_method_api_payments_methods_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["SavePaymentMethodRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PaymentMethodResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- delete_payment_method_api_payments_methods__method_id__delete: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- method_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["app__schemas__payment_schemas__DeleteResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_transaction_history_api_payments_transactions_get: {
- parameters: {
- query?: {
- limit?: number;
- offset?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["TransactionHistoryItem"][];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- handle_stripe_webhook_api_payments_webhooks_stripe_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["WebhookResponse"];
- };
- };
- };
- };
- delete_my_data_api_privacy_delete_me_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["UserDataDeletionRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["UserDataDeletionResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- delete_user_data_admin_api_privacy_delete_user__user_id__post: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- user_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["UserDataDeletionRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["UserDataDeletionResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- export_my_data_api_privacy_export_me_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["DataExportResponse"];
- };
- };
- };
- };
- export_user_data_admin_api_privacy_export_user__user_id__get: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- user_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["DataExportResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- apply_retention_policies_api_privacy_retention_apply_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RetentionPolicyResponse"];
- };
- };
- };
- };
- get_privacy_statistics_api_privacy_statistics_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PrivacyStatisticsResponse"];
- };
- };
- };
- };
- get_instructor_public_availability_api_public_instructors__instructor_id__availability_get: {
- parameters: {
- query: {
- start_date: string;
- end_date?: string | null;
- };
- header?: never;
- path: {
- instructor_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PublicInstructorAvailability"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_next_available_slot_api_public_instructors__instructor_id__next_available_get: {
- parameters: {
- query?: {
- duration_minutes?: number;
- };
- header?: never;
- path: {
- instructor_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["NextAvailableSlotResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- public_logout_api_public_logout_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": unknown;
- };
- };
- };
- };
- send_referral_invites_api_public_referrals_send_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["ReferralSendRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["ReferralSendResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- create_guest_session_api_public_session_guest_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["GuestSessionResponse"];
- };
- };
- };
- };
  celery_queue_status_api_redis_celery_queues_get: {
  parameters: {
  query?: never;
@@ -8122,7 +6629,3107 @@ export interface operations {
  };
  };
  };
- apply_referral_credit_api_referrals_checkout_apply_referral_post: {
+ disable_api_v1_2fa_disable_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["TFADisableRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TFADisableResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ regenerate_backup_codes_api_v1_2fa_regenerate_backup_codes_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BackupCodesResponse"];
+ };
+ };
+ };
+ };
+ setup_initiate_api_v1_2fa_setup_initiate_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TFASetupInitiateResponse"];
+ };
+ };
+ };
+ };
+ setup_verify_api_v1_2fa_setup_verify_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["TFASetupVerifyRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TFASetupVerifyResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ status_endpoint_api_v1_2fa_status_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TFAStatusResponse"];
+ };
+ };
+ };
+ };
+ verify_login_api_v1_2fa_verify_login_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["TFAVerifyLoginRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TFAVerifyLoginResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ deactivate_account_api_v1_account_deactivate_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AccountStatusChangeResponse"];
+ };
+ };
+ };
+ };
+ reactivate_account_api_v1_account_reactivate_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AccountStatusChangeResponse"];
+ };
+ };
+ };
+ };
+ check_account_status_api_v1_account_status_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AccountStatusResponse"];
+ };
+ };
+ };
+ };
+ suspend_account_api_v1_account_suspend_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AccountStatusChangeResponse"];
+ };
+ };
+ };
+ };
+ get_bulk_coverage_geojson_api_v1_addresses_coverage_bulk_get: {
+ parameters: {
+ query: {
+ ids: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CoverageFeatureCollectionResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_my_addresses_api_v1_addresses_me_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AddressListResponse"];
+ };
+ };
+ };
+ };
+ create_my_address_api_v1_addresses_me_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AddressCreate"];
+ };
+ };
+ responses: {
+ 201: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AddressResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ delete_my_address_api_v1_addresses_me__address_id__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ address_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["app__schemas__address_responses__DeleteResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ update_my_address_api_v1_addresses_me__address_id__patch: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ address_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AddressUpdate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AddressResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ places_autocomplete_api_v1_addresses_places_autocomplete_get: {
+ parameters: {
+ query: {
+ q: string;
+ provider?: string | null;
+ scope?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AutocompleteResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ place_details_api_v1_addresses_places_details_get: {
+ parameters: {
+ query: {
+ place_id: string;
+ provider?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PlaceDetails"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_neighborhoods_api_v1_addresses_regions_neighborhoods_get: {
+ parameters: {
+ query?: {
+ region_type?: string;
+ borough?: string | null;
+ page?: number;
+ per_page?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NeighborhoodsListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_my_service_areas_api_v1_addresses_service_areas_me_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ServiceAreasResponse"];
+ };
+ };
+ };
+ };
+ replace_my_service_areas_api_v1_addresses_service_areas_me_put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["ServiceAreasUpdateRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ServiceAreasResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ is_nyc_zip_api_v1_addresses_zip_is_nyc_get: {
+ parameters: {
+ query: {
+ zip: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NYCZipCheckResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_referral_config_api_v1_admin_referrals_config_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminReferralsConfigOut"];
+ };
+ };
+ };
+ };
+ get_referral_health_api_v1_admin_referrals_health_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminReferralsHealthOut"];
+ };
+ };
+ };
+ };
+ get_referral_summary_api_v1_admin_referrals_summary_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminReferralsSummaryOut"];
+ };
+ };
+ };
+ };
+ change_password_api_v1_auth_change_password_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PasswordChangeRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PasswordChangeResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ login_api_v1_auth_login_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/x-www-form-urlencoded": components["schemas"]["Body_login_api_v1_auth_login_post"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["LoginResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ login_with_session_api_v1_auth_login_with_session_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["UserLogin"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["LoginResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ read_users_me_api_v1_auth_me_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AuthUserWithPermissionsResponse"];
+ };
+ };
+ };
+ };
+ update_current_user_api_v1_auth_me_patch: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["UserUpdate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AuthUserWithPermissionsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ register_api_v1_auth_register_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["UserCreate"];
+ };
+ };
+ responses: {
+ 201: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AuthUserResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_bookings_api_v1_bookings_get: {
+ parameters: {
+ query?: {
+ status?: components["schemas"]["BookingStatus"] | null;
+ upcoming_only?: boolean | null;
+ upcoming?: boolean | null;
+ exclude_future_confirmed?: boolean;
+ include_past_confirmed?: boolean;
+ page?: number;
+ per_page?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ create_booking_api_v1_bookings_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BookingCreate"];
+ };
+ };
+ responses: {
+ 201: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingCreateResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ check_availability_api_v1_bookings_check_availability_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AvailabilityCheckRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AvailabilityCheckResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_reminder_emails_api_v1_bookings_send_reminders_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SendRemindersResponse"];
+ };
+ };
+ };
+ };
+ get_booking_stats_api_v1_bookings_stats_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingStatsResponse"];
+ };
+ };
+ };
+ };
+ get_upcoming_bookings_api_v1_bookings_upcoming_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaginatedResponse_UpcomingBookingResponse_"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_booking_details_api_v1_bookings__booking_id__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ update_booking_api_v1_bookings__booking_id__patch: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BookingUpdate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ cancel_booking_api_v1_bookings__booking_id__cancel_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BookingCancel"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ complete_booking_api_v1_bookings__booking_id__complete_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ confirm_booking_payment_api_v1_bookings__booking_id__confirm_payment_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BookingConfirmPayment"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ mark_booking_no_show_api_v1_bookings__booking_id__no_show_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ update_booking_payment_method_api_v1_bookings__booking_id__payment_method_patch: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BookingPaymentMethodUpdate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_booking_preview_api_v1_bookings__booking_id__preview_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingPreviewResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_booking_pricing_api_v1_bookings__booking_id__pricing_get: {
+ parameters: {
+ query?: {
+ applied_credit_cents?: number;
+ };
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PricingPreviewOut"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ reschedule_booking_api_v1_bookings__booking_id__reschedule_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BookingRescheduleRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_public_pricing_config_api_v1_config_pricing_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PricingConfigResponse"];
+ };
+ };
+ };
+ };
+ get_favorites_api_v1_favorites_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["FavoritesList"];
+ };
+ };
+ };
+ };
+ check_favorite_status_api_v1_favorites_check__instructor_id__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["FavoriteStatusResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ add_favorite_api_v1_favorites__instructor_id__post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["FavoriteResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ remove_favorite_api_v1_favorites__instructor_id__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["FavoriteResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_instructor_bookings_api_v1_instructor_bookings_get: {
+ parameters: {
+ query?: {
+ status?: components["schemas"]["BookingStatus"] | null;
+ upcoming?: boolean;
+ page?: number;
+ per_page?: number;
+ include_past_confirmed?: boolean;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_completed_bookings_api_v1_instructor_bookings_completed_get: {
+ parameters: {
+ query?: {
+ page?: number;
+ per_page?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_pending_completion_bookings_api_v1_instructor_bookings_pending_completion_get: {
+ parameters: {
+ query?: {
+ page?: number;
+ per_page?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_upcoming_bookings_api_v1_instructor_bookings_upcoming_get: {
+ parameters: {
+ query?: {
+ page?: number;
+ per_page?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ mark_lesson_complete_api_v1_instructor_bookings__booking_id__complete_post: {
+ parameters: {
+ query?: {
+ notes?: string | null;
+ };
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["Body_dispute_completion_api_v1_instructor_bookings__booking_id__dispute_post"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_instructors_api_v1_instructors_get: {
+ parameters: {
+ query: {
+ service_catalog_id: string;
+ min_price?: number;
+ max_price?: number;
+ age_group?: string;
+ page?: number;
+ per_page?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaginatedResponse_InstructorProfileResponse_"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_my_profile_api_v1_instructors_me_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstructorProfileResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ update_profile_api_v1_instructors_me_put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["InstructorProfileUpdate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstructorProfileResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ create_profile_api_v1_instructors_me_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["InstructorProfileCreate"];
+ };
+ };
+ responses: {
+ 201: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstructorProfileResponse"];
+ };
+ };
+ 400: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ delete_profile_api_v1_instructors_me_delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 204: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ go_live_api_v1_instructors_me_go_live_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstructorProfileResponse"];
+ };
+ };
+ 400: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ get_instructor_api_v1_instructors__instructor_id__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstructorProfileResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_coverage_api_v1_instructors__instructor_id__coverage_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CoverageFeatureCollectionResponse"];
+ };
+ };
+ 400: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_message_config_api_v1_messages_config_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MessageConfigResponse"];
+ };
+ };
+ };
+ };
+ get_message_history_api_v1_messages_history__booking_id__get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ offset?: number;
+ };
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MessagesHistoryResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ mark_messages_as_read_api_v1_messages_mark_read_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["MarkMessagesReadRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MarkMessagesReadResponse"];
+ };
+ };
+ 400: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_message_api_v1_messages_send_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["SendMessageRequest"];
+ };
+ };
+ responses: {
+ 201: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SendMessageResponse"];
+ };
+ };
+ 400: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ stream_messages_api_v1_messages_stream__booking_id__get: {
+ parameters: {
+ query?: {
+ token?: string | null;
+ };
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": unknown;
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_typing_indicator_api_v1_messages_typing__booking_id__post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TypingStatusResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_unread_count_api_v1_messages_unread_count_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["UnreadCountResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ delete_message_api_v1_messages__message_id__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ message_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["DeleteMessageResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ edit_message_api_v1_messages__message_id__patch: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ message_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["EditMessageRequest"];
+ };
+ };
+ responses: {
+ 204: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 400: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ add_reaction_api_v1_messages__message_id__reactions_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ message_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["ReactionRequest"];
+ };
+ };
+ responses: {
+ 204: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ remove_reaction_api_v1_messages__message_id__reactions_delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ message_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["ReactionRequest"];
+ };
+ };
+ responses: {
+ 204: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ confirm_password_reset_api_v1_password_reset_confirm_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PasswordResetConfirm"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PasswordResetResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ request_password_reset_api_v1_password_reset_request_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PasswordResetRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PasswordResetResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ verify_reset_token_api_v1_password_reset_verify__token__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ token: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PasswordResetVerifyResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ create_checkout_api_v1_payments_checkout_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["CreateCheckoutRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CheckoutResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_dashboard_link_api_v1_payments_connect_dashboard_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["DashboardLinkResponse"];
+ };
+ };
+ };
+ };
+ request_instant_payout_api_v1_payments_connect_instant_payout_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstantPayoutResponse"];
+ };
+ };
+ };
+ };
+ start_onboarding_api_v1_payments_connect_onboard_post: {
+ parameters: {
+ query?: {
+ return_to?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["OnboardingResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ set_payout_schedule_api_v1_payments_connect_payout_schedule_post: {
+ parameters: {
+ query?: {
+ interval?: string;
+ weekly_anchor?: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PayoutScheduleResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_onboarding_status_api_v1_payments_connect_status_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["OnboardingStatusResponse"];
+ };
+ };
+ };
+ };
+ get_credit_balance_api_v1_payments_credits_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CreditBalanceResponse"];
+ };
+ };
+ };
+ };
+ get_instructor_earnings_api_v1_payments_earnings_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["EarningsResponse"];
+ };
+ };
+ };
+ };
+ refresh_identity_status_api_v1_payments_identity_refresh_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["IdentityRefreshResponse"];
+ };
+ };
+ };
+ };
+ create_identity_session_api_v1_payments_identity_session_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["IdentitySessionResponse"];
+ };
+ };
+ };
+ };
+ list_payment_methods_api_v1_payments_methods_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaymentMethodResponse"][];
+ };
+ };
+ };
+ };
+ save_payment_method_api_v1_payments_methods_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["SavePaymentMethodRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaymentMethodResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ delete_payment_method_api_v1_payments_methods__method_id__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ method_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["app__schemas__payment_schemas__DeleteResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_transaction_history_api_v1_payments_transactions_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ offset?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TransactionHistoryItem"][];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ handle_stripe_webhook_api_v1_payments_webhooks_stripe_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["WebhookResponse"];
+ };
+ };
+ };
+ };
+ preview_selection_pricing_api_v1_pricing_preview_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PricingPreviewIn"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PricingPreviewOut"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ delete_my_data_api_v1_privacy_delete_me_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["UserDataDeletionRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["UserDataDeletionResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ delete_user_data_admin_api_v1_privacy_delete_user__user_id__post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ user_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["UserDataDeletionRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["UserDataDeletionResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ export_my_data_api_v1_privacy_export_me_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["DataExportResponse"];
+ };
+ };
+ };
+ };
+ export_user_data_admin_api_v1_privacy_export_user__user_id__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ user_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["DataExportResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ apply_retention_policies_api_v1_privacy_retention_apply_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RetentionPolicyResponse"];
+ };
+ };
+ };
+ };
+ get_privacy_statistics_api_v1_privacy_statistics_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PrivacyStatisticsResponse"];
+ };
+ };
+ };
+ };
+ get_instructor_public_availability_api_v1_public_instructors__instructor_id__availability_get: {
+ parameters: {
+ query: {
+ start_date: string;
+ end_date?: string | null;
+ };
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PublicInstructorAvailability"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_next_available_slot_api_v1_public_instructors__instructor_id__next_available_get: {
+ parameters: {
+ query?: {
+ duration_minutes?: number;
+ };
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NextAvailableSlotResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ public_logout_api_v1_public_logout_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": unknown;
+ };
+ };
+ };
+ };
+ send_referral_invites_api_v1_public_referrals_send_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["ReferralSendRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ReferralSendResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ create_guest_session_api_v1_public_session_guest_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["GuestSessionResponse"];
+ };
+ };
+ };
+ };
+ apply_referral_credit_api_v1_referrals_checkout_apply_referral_post: {
  parameters: {
  query?: never;
  header?: never;
@@ -8153,7 +9760,7 @@ export interface operations {
  };
  };
  };
- claim_referral_code_api_referrals_claim_post: {
+ claim_referral_code_api_v1_referrals_claim_post: {
  parameters: {
  query?: never;
  header?: never;
@@ -8184,7 +9791,7 @@ export interface operations {
  };
  };
  };
- get_my_referral_ledger_api_referrals_me_get: {
+ get_my_referral_ledger_api_v1_referrals_me_get: {
  parameters: {
  query?: never;
  header?: never;
@@ -8203,7 +9810,38 @@ export interface operations {
  };
  };
  };
- get_existing_reviews_for_bookings_api_reviews_booking_existing_post: {
+ submit_review_api_v1_reviews_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["ReviewSubmitRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ReviewSubmitResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_existing_reviews_for_bookings_api_v1_reviews_booking_existing_post: {
  parameters: {
  query?: never;
  header?: never;
@@ -8234,7 +9872,7 @@ export interface operations {
  };
  };
  };
- get_review_for_booking_api_reviews_booking__booking_id__get: {
+ get_review_for_booking_api_v1_reviews_booking__booking_id__get: {
  parameters: {
  query?: never;
  header?: never;
@@ -8263,7 +9901,7 @@ export interface operations {
  };
  };
  };
- get_instructor_ratings_api_reviews_instructor__instructor_id__ratings_get: {
+ get_instructor_ratings_api_v1_reviews_instructor__instructor_id__ratings_get: {
  parameters: {
  query?: never;
  header?: never;
@@ -8292,7 +9930,7 @@ export interface operations {
  };
  };
  };
- get_recent_reviews_api_reviews_instructor__instructor_id__recent_get: {
+ get_recent_reviews_api_v1_reviews_instructor__instructor_id__recent_get: {
  parameters: {
  query?: {
  instructor_service_id?: string | null;
@@ -8328,7 +9966,7 @@ export interface operations {
  };
  };
  };
- get_search_rating_api_reviews_instructor__instructor_id__search_rating_get: {
+ get_search_rating_api_v1_reviews_instructor__instructor_id__search_rating_get: {
  parameters: {
  query?: {
  instructor_service_id?: string | null;
@@ -8359,7 +9997,7 @@ export interface operations {
  };
  };
  };
- get_ratings_batch_api_reviews_ratings_batch_post: {
+ get_ratings_batch_api_v1_reviews_ratings_batch_post: {
  parameters: {
  query?: never;
  header?: never;
@@ -8390,18 +10028,20 @@ export interface operations {
  };
  };
  };
- respond_to_review_api_reviews_reviews__review_id__respond_post: {
+ respond_to_review_api_v1_reviews__review_id__respond_post: {
  parameters: {
- query: {
- response_text: string;
- };
+ query?: never;
  header?: never;
  path: {
  review_id: string;
  };
  cookie?: never;
  };
- requestBody?: never;
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["Body_respond_to_review_api_v1_reviews__review_id__respond_post"];
+ };
+ };
  responses: {
  200: {
  headers: {
@@ -8421,38 +10061,7 @@ export interface operations {
  };
  };
  };
- submit_review_api_reviews_submit_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["ReviewSubmitRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["ReviewSubmitResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_recent_searches_api_search_history__get: {
+ get_recent_searches_api_v1_search_history_get: {
  parameters: {
  query?: {
  limit?: number;
@@ -8485,7 +10094,7 @@ export interface operations {
  };
  };
  };
- record_search_api_search_history__post: {
+ record_search_api_v1_search_history_post: {
  parameters: {
  query?: never;
  header?: {
@@ -8520,7 +10129,7 @@ export interface operations {
  };
  };
  };
- record_guest_search_api_search_history_guest_post: {
+ record_guest_search_api_v1_search_history_guest_post: {
  parameters: {
  query?: never;
  header?: {
@@ -8555,7 +10164,7 @@ export interface operations {
  };
  };
  };
- track_interaction_api_search_history_interaction_post: {
+ track_interaction_api_v1_search_history_interaction_post: {
  parameters: {
  query?: never;
  header?: {
@@ -8592,7 +10201,7 @@ export interface operations {
  };
  };
  };
- delete_search_api_search_history__search_id__delete: {
+ delete_search_api_v1_search_history__search_id__delete: {
  parameters: {
  query?: never;
  header?: {
@@ -8621,7 +10230,7 @@ export interface operations {
  };
  };
  };
- search_instructors_api_search_instructors_get: {
+ search_instructors_api_v1_search_instructors_get: {
  parameters: {
  query: {
  q: string;
@@ -8651,7 +10260,239 @@ export interface operations {
  };
  };
  };
- finalize_profile_picture_api_uploads_r2_finalize_profile_picture_post: {
+ get_catalog_services_api_v1_services_catalog_get: {
+ parameters: {
+ query?: {
+ category?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CatalogServiceResponse"][];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_all_services_with_instructors_api_v1_services_catalog_all_with_instructors_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AllServicesWithInstructorsResponse"];
+ };
+ };
+ };
+ };
+ get_kids_available_services_api_v1_services_catalog_kids_available_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CatalogServiceMinimalResponse"][];
+ };
+ };
+ };
+ };
+ get_top_services_per_category_api_v1_services_catalog_top_per_category_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["TopServicesPerCategoryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_service_categories_api_v1_services_categories_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CategoryResponse"][];
+ };
+ };
+ };
+ };
+ add_service_to_profile_api_v1_services_instructor_add_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["InstructorServiceCreate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InstructorServiceResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ search_services_api_v1_services_search_get: {
+ parameters: {
+ query: {
+ q: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ServiceSearchResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_student_badges_api_v1_students_badges_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["StudentBadgeView"][];
+ };
+ };
+ };
+ };
+ list_earned_student_badges_api_v1_students_badges_earned_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["StudentBadgeView"][];
+ };
+ };
+ };
+ };
+ list_in_progress_student_badges_api_v1_students_badges_progress_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["StudentBadgeView"][];
+ };
+ };
+ };
+ };
+ finalize_profile_picture_api_v1_uploads_r2_finalize_profile_picture_post: {
  parameters: {
  query?: never;
  header?: never;
@@ -8682,7 +10523,7 @@ export interface operations {
  };
  };
  };
- proxy_upload_to_r2_api_uploads_r2_proxy_post: {
+ proxy_upload_to_r2_api_v1_uploads_r2_proxy_post: {
  parameters: {
  query?: never;
  header?: never;
@@ -8691,7 +10532,7 @@ export interface operations {
  };
  requestBody: {
  content: {
- "multipart/form-data": components["schemas"]["Body_proxy_upload_to_r2_api_uploads_r2_proxy_post"];
+ "multipart/form-data": components["schemas"]["Body_proxy_upload_to_r2_api_v1_uploads_r2_proxy_post"];
  };
  };
  responses: {
@@ -8713,7 +10554,7 @@ export interface operations {
  };
  };
  };
- create_signed_upload_api_uploads_r2_signed_url_post: {
+ create_signed_upload_api_v1_uploads_r2_signed_url_post: {
  parameters: {
  query?: never;
  header?: never;
@@ -8744,7 +10585,7 @@ export interface operations {
  };
  };
  };
- upload_finalize_profile_picture_api_users_me_profile_picture_post: {
+ upload_finalize_profile_picture_api_v1_users_me_profile_picture_post: {
  parameters: {
  query?: never;
  header?: never;
@@ -8775,7 +10616,7 @@ export interface operations {
  };
  };
  };
- delete_profile_picture_api_users_me_profile_picture_delete: {
+ delete_profile_picture_api_v1_users_me_profile_picture_delete: {
  parameters: {
  query?: never;
  header?: never;
@@ -8794,7 +10635,37 @@ export interface operations {
  };
  };
  };
- get_profile_picture_url_api_users__user_id__profile_picture_url_get: {
+ get_profile_picture_urls_batch_api_v1_users_profile_picture_urls_get: {
+ parameters: {
+ query?: {
+ ids?: string[];
+ variant?: ("original" | "display" | "thumb") | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ProfilePictureUrlsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_profile_picture_url_api_v1_users__user_id__profile_picture_url_get: {
  parameters: {
  query?: {
  variant?: ("original" | "display" | "thumb") | null;
@@ -8813,630 +10684,6 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["SuccessResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- change_password_auth_change_password_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["PasswordChangeRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PasswordChangeResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- login_auth_login_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/x-www-form-urlencoded": components["schemas"]["Body_login_auth_login_post"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["LoginResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- login_with_session_auth_login_with_session_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["UserLogin"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["LoginResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- read_users_me_auth_me_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AuthUserWithPermissionsResponse"];
- };
- };
- };
- };
- update_current_user_auth_me_patch: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["UserUpdate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AuthUserWithPermissionsResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- register_auth_register_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["UserCreate"];
- };
- };
- responses: {
- 201: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AuthUserResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_bookings_bookings__get: {
- parameters: {
- query?: {
- status?: components["schemas"]["BookingStatus"] | null;
- upcoming_only?: boolean | null;
- upcoming?: boolean | null;
- exclude_future_confirmed?: boolean;
- include_past_confirmed?: boolean;
- page?: number;
- per_page?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- create_booking_bookings__post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["BookingCreate"];
- };
- };
- responses: {
- 201: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingCreateResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- check_availability_bookings_check_availability_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["AvailabilityCheckRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AvailabilityCheckResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- send_reminder_emails_bookings_send_reminders_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SendRemindersResponse"];
- };
- };
- };
- };
- get_booking_stats_bookings_stats_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingStatsResponse"];
- };
- };
- };
- };
- get_upcoming_bookings_bookings_upcoming_get: {
- parameters: {
- query?: {
- limit?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PaginatedResponse_UpcomingBookingResponse_"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_booking_details_bookings__booking_id__get: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- update_booking_bookings__booking_id__patch: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["BookingUpdate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- cancel_booking_bookings__booking_id__cancel_post: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["BookingCancel"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- complete_booking_bookings__booking_id__complete_post: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- confirm_booking_payment_bookings__booking_id__confirm_payment_post: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["BookingConfirmPayment"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- update_booking_payment_method_bookings__booking_id__payment_method_patch: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["BookingPaymentMethodUpdate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_booking_preview_bookings__booking_id__preview_get: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingPreviewResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- reschedule_booking_bookings__booking_id__reschedule_post: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["BookingRescheduleRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_all_instructors_instructors__get: {
- parameters: {
- query: {
- service_catalog_id: string;
- min_price?: number;
- max_price?: number;
- age_group?: string;
- page?: number;
- per_page?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PaginatedResponse_InstructorProfileResponse_"];
  };
  };
  422: {
@@ -9866,303 +11113,6 @@ export interface operations {
  };
  };
  };
- get_completed_bookings_instructors_bookings_completed_get: {
- parameters: {
- query?: {
- page?: number;
- per_page?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_pending_completion_bookings_instructors_bookings_pending_completion_get: {
- parameters: {
- query?: {
- page?: number;
- per_page?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PaginatedResponse_BookingResponse_"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- mark_lesson_complete_instructors_bookings__booking_id__complete_post: {
- parameters: {
- query?: {
- notes?: string | null;
- };
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- dispute_completion_instructors_bookings__booking_id__dispute_post: {
- parameters: {
- query: {
- reason: string;
- };
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookingResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_my_profile_instructors_me_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InstructorProfileResponse"];
- };
- };
- };
- };
- update_profile_instructors_me_put: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["InstructorProfileUpdate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InstructorProfileResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- create_instructor_profile_instructors_me_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["InstructorProfileCreate"];
- };
- };
- responses: {
- 201: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InstructorProfileResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- delete_instructor_profile_instructors_me_delete: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 204: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- go_live_instructors_me_go_live_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InstructorProfileResponse"];
- };
- };
- };
- };
- get_instructor_profile_instructors__instructor_id__get: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- instructor_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InstructorProfileResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_instructor_coverage_instructors__instructor_id__coverage_get: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- instructor_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CoverageFeatureCollectionResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
  get_cache_metrics_ops_cache_get: {
  parameters: {
  query?: never;
@@ -10371,181 +11321,6 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["ReferralResolveResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_catalog_services_services_catalog_get: {
- parameters: {
- query?: {
- category?: string | null;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CatalogServiceResponse"][];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_all_services_with_instructors_services_catalog_all_with_instructors_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AllServicesWithInstructorsResponse"];
- };
- };
- };
- };
- get_kids_available_services_services_catalog_kids_available_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CatalogServiceMinimalResponse"][];
- };
- };
- };
- };
- get_top_services_per_category_services_catalog_top_per_category_get: {
- parameters: {
- query?: {
- limit?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["TopServicesPerCategoryResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_service_categories_services_categories_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CategoryResponse"][];
- };
- };
- };
- };
- add_service_to_profile_services_instructor_add_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["InstructorServiceCreate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InstructorServiceResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- search_services_services_search_get: {
- parameters: {
- query: {
- q: string;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["ServiceSearchResponse"];
  };
  };
  422: {

@@ -37,11 +37,13 @@ import type {
   BookingResponse,
   BookingStatsResponse,
   BookingUpdate,
+  GetBookingPricingApiV1BookingsBookingIdPricingGetParams,
   GetBookingsApiV1BookingsGetParams,
   GetUpcomingBookingsApiV1BookingsUpcomingGetParams,
   HTTPValidationError,
   PaginatedResponseBookingResponse,
   PaginatedResponseUpcomingBookingResponse,
+  PricingPreviewOut,
   SendRemindersResponse
 } from '../instructly.schemas';
 
@@ -1126,6 +1128,107 @@ export function useGetBookingPreviewApiV1BookingsBookingIdPreviewGet<TData = Awa
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryOptions(bookingId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+
+/**
+ * Return a pricing preview for the requested booking.
+ * @summary Get Booking Pricing
+ */
+export const getBookingPricingApiV1BookingsBookingIdPricingGet = (
+    bookingId: string,
+    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams,
+ signal?: AbortSignal
+) => {
+
+
+      return customFetch<PricingPreviewOut>(
+      {url: `/api/v1/bookings/${bookingId}/pricing`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+
+
+
+
+export const getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryKey = (bookingId?: string,
+    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams,) => {
+    return [
+    `/api/v1/bookings/${bookingId}/pricing`, ...(params ? [params]: [])
+    ] as const;
+    }
+
+
+export const getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryOptions = <TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError = ErrorType<HTTPValidationError>>(bookingId: string,
+    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryKey(bookingId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>> = ({ signal }) => getBookingPricingApiV1BookingsBookingIdPricingGet(bookingId,params, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(bookingId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetBookingPricingApiV1BookingsBookingIdPricingGetQueryResult = NonNullable<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>>
+export type GetBookingPricingApiV1BookingsBookingIdPricingGetQueryError = ErrorType<HTTPValidationError>
+
+
+export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError = ErrorType<HTTPValidationError>>(
+ bookingId: string,
+    params: undefined |  GetBookingPricingApiV1BookingsBookingIdPricingGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+          TError,
+          Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError = ErrorType<HTTPValidationError>>(
+ bookingId: string,
+    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+          TError,
+          Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError = ErrorType<HTTPValidationError>>(
+ bookingId: string,
+    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get Booking Pricing
+ */
+
+export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError = ErrorType<HTTPValidationError>>(
+ bookingId: string,
+    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryOptions(bookingId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

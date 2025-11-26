@@ -23,7 +23,7 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_user_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             # Mock the service
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
@@ -40,7 +40,7 @@ class TestPrivacyEndpoints:
                 "bookings": [],
             }
 
-            response = client.get("/api/privacy/export/me", headers=headers)
+            response = client.get("/api/v1/privacy/export/me", headers=headers)
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -58,12 +58,12 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_user_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             mock_service.export_user_data.side_effect = Exception("Database error")
 
-            response = client.get("/api/privacy/export/me", headers=headers)
+            response = client.get("/api/v1/privacy/export/me", headers=headers)
 
             assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             data = response.json()
@@ -75,13 +75,13 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_user_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             mock_service.anonymize_user.return_value = True
 
             request_data = {"delete_account": False}
-            response = client.post("/api/privacy/delete/me", json=request_data, headers=headers)
+            response = client.post("/api/v1/privacy/delete/me", json=request_data, headers=headers)
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -97,7 +97,7 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_user_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             mock_service.delete_user_data.return_value = {
@@ -108,7 +108,7 @@ class TestPrivacyEndpoints:
             }
 
             request_data = {"delete_account": True}
-            response = client.post("/api/privacy/delete/me", json=request_data, headers=headers)
+            response = client.post("/api/v1/privacy/delete/me", json=request_data, headers=headers)
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -125,13 +125,13 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_user_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             mock_service.anonymize_user.side_effect = Exception("Database error")
 
             request_data = {"delete_account": False}
-            response = client.post("/api/privacy/delete/me", json=request_data, headers=headers)
+            response = client.post("/api/v1/privacy/delete/me", json=request_data, headers=headers)
 
             assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
             data = response.json()
@@ -148,7 +148,7 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_admin_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             mock_service.get_privacy_statistics.return_value = {
@@ -158,7 +158,7 @@ class TestPrivacyEndpoints:
                 "bookings_with_pii": 200,
             }
 
-            response = client.get("/api/privacy/statistics", headers=headers)
+            response = client.get("/api/v1/privacy/statistics", headers=headers)
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -177,7 +177,7 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_admin_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             mock_service.apply_retention_policies.return_value = {
@@ -186,7 +186,7 @@ class TestPrivacyEndpoints:
                 "old_alerts_deleted": 25,
             }
 
-            response = client.post("/api/privacy/retention/apply", headers=headers)
+            response = client.post("/api/v1/privacy/retention/apply", headers=headers)
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -206,7 +206,7 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_admin_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             mock_service.export_user_data.return_value = {
@@ -214,7 +214,7 @@ class TestPrivacyEndpoints:
                 "search_history": [],
             }
 
-            response = client.get(f"/api/privacy/export/user/{sample_user_for_privacy.id}", headers=headers)
+            response = client.get(f"/api/v1/privacy/export/user/{sample_user_for_privacy.id}", headers=headers)
 
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -234,12 +234,12 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_admin_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             mock_service.export_user_data.side_effect = ValueError("User 999 not found")
 
-            response = client.get("/api/privacy/export/user/999", headers=headers)
+            response = client.get("/api/v1/privacy/export/user/999", headers=headers)
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
             data = response.json()
@@ -256,7 +256,7 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_admin_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             mock_service.delete_user_data.return_value = {
@@ -266,7 +266,7 @@ class TestPrivacyEndpoints:
 
             request_data = {"delete_account": True}
             response = client.post(
-                f"/api/privacy/delete/user/{sample_user_for_privacy.id}", json=request_data, headers=headers
+                f"/api/v1/privacy/delete/user/{sample_user_for_privacy.id}", json=request_data, headers=headers
             )
 
             assert response.status_code == status.HTTP_200_OK
@@ -288,13 +288,13 @@ class TestPrivacyEndpoints:
         token = create_access_token(data={"sub": sample_admin_for_privacy.email})
         headers = {"Authorization": f"Bearer {token}"}
 
-        with patch("app.routes.privacy.PrivacyService") as mock_service_class:
+        with patch("app.routes.v1.privacy.PrivacyService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             mock_service.delete_user_data.side_effect = ValueError("User 999 not found")
 
             request_data = {"delete_account": False}
-            response = client.post("/api/privacy/delete/user/999", json=request_data, headers=headers)
+            response = client.post("/api/v1/privacy/delete/user/999", json=request_data, headers=headers)
 
             assert response.status_code == status.HTTP_404_NOT_FOUND
             data = response.json()
@@ -312,7 +312,7 @@ class TestPrivacyEndpoints:
         headers = {"Authorization": f"Bearer {token}"}
 
         # Test with invalid JSON
-        response = client.post("/api/privacy/delete/me", json={"invalid_field": "value"}, headers=headers)
+        response = client.post("/api/v1/privacy/delete/me", json={"invalid_field": "value"}, headers=headers)
 
         # The endpoint should handle this gracefully
         # Pydantic validation will handle invalid fields

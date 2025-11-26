@@ -249,7 +249,7 @@ class TestAPIContracts:
         protected_endpoints = [
             "/api/monitoring/dashboard",
             "/api/analytics/search/search-trends",
-            "/api/users/me",
+            "/api/v1/auth/me",
         ]
 
         for endpoint in protected_endpoints:

@@ -39,13 +39,13 @@ class TestCompleteEndpointPrivacy:
             ("GET", "/api/bookings/upcoming"),
             ("GET", "/api/bookings/{id}/preview"),
             ("GET", "/api/v1/search/instructors"),
-            ("GET", "/api/public/instructors/{id}/availability"),
+            ("GET", "/api/v1/public/instructors/{id}/availability"),
         ]
 
         # Public endpoints (no auth required)
         self.public_endpoints = [
             ("GET", "/api/health"),
-            ("GET", "/api/public/instructors/{id}/availability"),
+            ("GET", "/api/v1/public/instructors/{id}/availability"),
         ]
 
     def test_public_endpoints_instructor_privacy(self, test_instructor):
@@ -88,7 +88,7 @@ class TestCompleteEndpointPrivacy:
 
         # Test critical endpoints with student authentication
         for method, path in self.critical_endpoints:
-            if path.startswith("/api/public"):
+            if path.startswith("/api/v1/public"):
                 continue  # Already tested in public endpoints
 
             # Replace {id} with actual IDs

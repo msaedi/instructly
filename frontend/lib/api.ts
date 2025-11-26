@@ -219,10 +219,10 @@ export const API_ENDPOINTS = {
   NYC_ZIP_CHECK: '/api/v1/addresses/zip/is-nyc',
   STRIPE_IDENTITY_SESSION: '/api/v1/payments/identity/session',
   STRIPE_IDENTITY_REFRESH: '/api/v1/payments/identity/refresh',
-  R2_SIGNED_UPLOAD: '/api/uploads/r2/signed-url',
-  R2_PROXY_UPLOAD: '/api/uploads/r2/proxy',
-  PROFILE_PICTURE_FINALIZE: '/api/users/me/profile-picture',
-  PROFILE_PICTURE_URL: (userId: string) => `/api/users/${userId}/profile-picture-url`,
+  R2_SIGNED_UPLOAD: '/api/v1/uploads/r2/signed-url',
+  R2_PROXY_UPLOAD: '/api/v1/uploads/r2/proxy',
+  PROFILE_PICTURE_FINALIZE: '/api/v1/users/me/profile-picture',
+  PROFILE_PICTURE_URL: (userId: string) => `/api/v1/users/${userId}/profile-picture-url`,
   CONNECT_STATUS: '/api/v1/payments/connect/status',
 
   // Availability Management endpoints

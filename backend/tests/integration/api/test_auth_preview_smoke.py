@@ -108,7 +108,7 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     me_response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"})
     assert me_response.status_code == 200
 
-    logout_response = client.post("/api/public/logout", headers=_csrf_headers(client))
+    logout_response = client.post("/api/v1/public/logout", headers=_csrf_headers(client))
     assert logout_response.status_code == 204
     logout_cookies = logout_response.headers.get_list("set-cookie")
     logout_session_cookie = next(

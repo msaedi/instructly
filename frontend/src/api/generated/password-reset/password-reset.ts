@@ -54,14 +54,14 @@ Raises:
     HTTPException: If token is invalid, expired, already used, or rate limit exceeded
  * @summary Confirm Password Reset
  */
-export const confirmPasswordResetApiAuthPasswordResetConfirmPost = (
+export const confirmPasswordResetApiV1PasswordResetConfirmPost = (
     passwordResetConfirm: PasswordResetConfirm,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<PasswordResetResponse>(
-      {url: `/api/auth/password-reset/confirm`, method: 'POST',
+      {url: `/api/v1/password-reset/confirm`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: passwordResetConfirm, signal
     },
@@ -70,11 +70,11 @@ export const confirmPasswordResetApiAuthPasswordResetConfirmPost = (
 
 
 
-export const getConfirmPasswordResetApiAuthPasswordResetConfirmPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmPasswordResetApiAuthPasswordResetConfirmPost>>, TError,{data: PasswordResetConfirm}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof confirmPasswordResetApiAuthPasswordResetConfirmPost>>, TError,{data: PasswordResetConfirm}, TContext> => {
+export const getConfirmPasswordResetApiV1PasswordResetConfirmPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmPasswordResetApiV1PasswordResetConfirmPost>>, TError,{data: PasswordResetConfirm}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof confirmPasswordResetApiV1PasswordResetConfirmPost>>, TError,{data: PasswordResetConfirm}, TContext> => {
 
-const mutationKey = ['confirmPasswordResetApiAuthPasswordResetConfirmPost'];
+const mutationKey = ['confirmPasswordResetApiV1PasswordResetConfirmPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -84,10 +84,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmPasswordResetApiAuthPasswordResetConfirmPost>>, {data: PasswordResetConfirm}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmPasswordResetApiV1PasswordResetConfirmPost>>, {data: PasswordResetConfirm}> = (props) => {
           const {data} = props ?? {};
 
-          return  confirmPasswordResetApiAuthPasswordResetConfirmPost(data,)
+          return  confirmPasswordResetApiV1PasswordResetConfirmPost(data,)
         }
 
 
@@ -95,23 +95,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type ConfirmPasswordResetApiAuthPasswordResetConfirmPostMutationResult = NonNullable<Awaited<ReturnType<typeof confirmPasswordResetApiAuthPasswordResetConfirmPost>>>
-    export type ConfirmPasswordResetApiAuthPasswordResetConfirmPostMutationBody = PasswordResetConfirm
-    export type ConfirmPasswordResetApiAuthPasswordResetConfirmPostMutationError = ErrorType<HTTPValidationError>
+    export type ConfirmPasswordResetApiV1PasswordResetConfirmPostMutationResult = NonNullable<Awaited<ReturnType<typeof confirmPasswordResetApiV1PasswordResetConfirmPost>>>
+    export type ConfirmPasswordResetApiV1PasswordResetConfirmPostMutationBody = PasswordResetConfirm
+    export type ConfirmPasswordResetApiV1PasswordResetConfirmPostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Confirm Password Reset
  */
-export const useConfirmPasswordResetApiAuthPasswordResetConfirmPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmPasswordResetApiAuthPasswordResetConfirmPost>>, TError,{data: PasswordResetConfirm}, TContext>, }
+export const useConfirmPasswordResetApiV1PasswordResetConfirmPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmPasswordResetApiV1PasswordResetConfirmPost>>, TError,{data: PasswordResetConfirm}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof confirmPasswordResetApiAuthPasswordResetConfirmPost>>,
+        Awaited<ReturnType<typeof confirmPasswordResetApiV1PasswordResetConfirmPost>>,
         TError,
         {data: PasswordResetConfirm},
         TContext
       > => {
 
-      const mutationOptions = getConfirmPasswordResetApiAuthPasswordResetConfirmPostMutationOptions(options);
+      const mutationOptions = getConfirmPasswordResetApiV1PasswordResetConfirmPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -134,14 +134,14 @@ Raises:
     HTTPException: If rate limit exceeded
  * @summary Request Password Reset
  */
-export const requestPasswordResetApiAuthPasswordResetRequestPost = (
+export const requestPasswordResetApiV1PasswordResetRequestPost = (
     passwordResetRequest: PasswordResetRequest,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<PasswordResetResponse>(
-      {url: `/api/auth/password-reset/request`, method: 'POST',
+      {url: `/api/v1/password-reset/request`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: passwordResetRequest, signal
     },
@@ -150,11 +150,11 @@ export const requestPasswordResetApiAuthPasswordResetRequestPost = (
 
 
 
-export const getRequestPasswordResetApiAuthPasswordResetRequestPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestPasswordResetApiAuthPasswordResetRequestPost>>, TError,{data: PasswordResetRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof requestPasswordResetApiAuthPasswordResetRequestPost>>, TError,{data: PasswordResetRequest}, TContext> => {
+export const getRequestPasswordResetApiV1PasswordResetRequestPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestPasswordResetApiV1PasswordResetRequestPost>>, TError,{data: PasswordResetRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof requestPasswordResetApiV1PasswordResetRequestPost>>, TError,{data: PasswordResetRequest}, TContext> => {
 
-const mutationKey = ['requestPasswordResetApiAuthPasswordResetRequestPost'];
+const mutationKey = ['requestPasswordResetApiV1PasswordResetRequestPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -164,10 +164,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestPasswordResetApiAuthPasswordResetRequestPost>>, {data: PasswordResetRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestPasswordResetApiV1PasswordResetRequestPost>>, {data: PasswordResetRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  requestPasswordResetApiAuthPasswordResetRequestPost(data,)
+          return  requestPasswordResetApiV1PasswordResetRequestPost(data,)
         }
 
 
@@ -175,23 +175,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type RequestPasswordResetApiAuthPasswordResetRequestPostMutationResult = NonNullable<Awaited<ReturnType<typeof requestPasswordResetApiAuthPasswordResetRequestPost>>>
-    export type RequestPasswordResetApiAuthPasswordResetRequestPostMutationBody = PasswordResetRequest
-    export type RequestPasswordResetApiAuthPasswordResetRequestPostMutationError = ErrorType<HTTPValidationError>
+    export type RequestPasswordResetApiV1PasswordResetRequestPostMutationResult = NonNullable<Awaited<ReturnType<typeof requestPasswordResetApiV1PasswordResetRequestPost>>>
+    export type RequestPasswordResetApiV1PasswordResetRequestPostMutationBody = PasswordResetRequest
+    export type RequestPasswordResetApiV1PasswordResetRequestPostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Request Password Reset
  */
-export const useRequestPasswordResetApiAuthPasswordResetRequestPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestPasswordResetApiAuthPasswordResetRequestPost>>, TError,{data: PasswordResetRequest}, TContext>, }
+export const useRequestPasswordResetApiV1PasswordResetRequestPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestPasswordResetApiV1PasswordResetRequestPost>>, TError,{data: PasswordResetRequest}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof requestPasswordResetApiAuthPasswordResetRequestPost>>,
+        Awaited<ReturnType<typeof requestPasswordResetApiV1PasswordResetRequestPost>>,
         TError,
         {data: PasswordResetRequest},
         TContext
       > => {
 
-      const mutationOptions = getRequestPasswordResetApiAuthPasswordResetRequestPostMutationOptions(options);
+      const mutationOptions = getRequestPasswordResetApiV1PasswordResetRequestPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -214,14 +214,14 @@ Raises:
     HTTPException: If rate limit exceeded
  * @summary Verify Reset Token
  */
-export const verifyResetTokenApiAuthPasswordResetVerifyTokenGet = (
+export const verifyResetTokenApiV1PasswordResetVerifyTokenGet = (
     token: string,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<PasswordResetVerifyResponse>(
-      {url: `/api/auth/password-reset/verify/${token}`, method: 'GET', signal
+      {url: `/api/v1/password-reset/verify/${token}`, method: 'GET', signal
     },
       );
     }
@@ -229,69 +229,69 @@ export const verifyResetTokenApiAuthPasswordResetVerifyTokenGet = (
 
 
 
-export const getVerifyResetTokenApiAuthPasswordResetVerifyTokenGetQueryKey = (token?: string,) => {
+export const getVerifyResetTokenApiV1PasswordResetVerifyTokenGetQueryKey = (token?: string,) => {
     return [
-    `/api/auth/password-reset/verify/${token}`
+    `/api/v1/password-reset/verify/${token}`
     ] as const;
     }
 
 
-export const getVerifyResetTokenApiAuthPasswordResetVerifyTokenGetQueryOptions = <TData = Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError = ErrorType<HTTPValidationError>>(token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError, TData>>, }
+export const getVerifyResetTokenApiV1PasswordResetVerifyTokenGetQueryOptions = <TData = Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError = ErrorType<HTTPValidationError>>(token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getVerifyResetTokenApiAuthPasswordResetVerifyTokenGetQueryKey(token);
+  const queryKey =  queryOptions?.queryKey ?? getVerifyResetTokenApiV1PasswordResetVerifyTokenGetQueryKey(token);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>> = ({ signal }) => verifyResetTokenApiAuthPasswordResetVerifyTokenGet(token, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>> = ({ signal }) => verifyResetTokenApiV1PasswordResetVerifyTokenGet(token, signal);
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: !!(token), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: !!(token), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type VerifyResetTokenApiAuthPasswordResetVerifyTokenGetQueryResult = NonNullable<Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>>
-export type VerifyResetTokenApiAuthPasswordResetVerifyTokenGetQueryError = ErrorType<HTTPValidationError>
+export type VerifyResetTokenApiV1PasswordResetVerifyTokenGetQueryResult = NonNullable<Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>>
+export type VerifyResetTokenApiV1PasswordResetVerifyTokenGetQueryError = ErrorType<HTTPValidationError>
 
 
-export function useVerifyResetTokenApiAuthPasswordResetVerifyTokenGet<TData = Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError = ErrorType<HTTPValidationError>>(
- token: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError, TData>> & Pick<
+export function useVerifyResetTokenApiV1PasswordResetVerifyTokenGet<TData = Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError = ErrorType<HTTPValidationError>>(
+ token: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>,
+          Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>,
           TError,
-          Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>
+          Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useVerifyResetTokenApiAuthPasswordResetVerifyTokenGet<TData = Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError = ErrorType<HTTPValidationError>>(
- token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError, TData>> & Pick<
+export function useVerifyResetTokenApiV1PasswordResetVerifyTokenGet<TData = Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError = ErrorType<HTTPValidationError>>(
+ token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>,
+          Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>,
           TError,
-          Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>
+          Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useVerifyResetTokenApiAuthPasswordResetVerifyTokenGet<TData = Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError = ErrorType<HTTPValidationError>>(
- token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError, TData>>, }
+export function useVerifyResetTokenApiV1PasswordResetVerifyTokenGet<TData = Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError = ErrorType<HTTPValidationError>>(
+ token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Verify Reset Token
  */
 
-export function useVerifyResetTokenApiAuthPasswordResetVerifyTokenGet<TData = Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError = ErrorType<HTTPValidationError>>(
- token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiAuthPasswordResetVerifyTokenGet>>, TError, TData>>, }
+export function useVerifyResetTokenApiV1PasswordResetVerifyTokenGet<TData = Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError = ErrorType<HTTPValidationError>>(
+ token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof verifyResetTokenApiV1PasswordResetVerifyTokenGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getVerifyResetTokenApiAuthPasswordResetVerifyTokenGetQueryOptions(token,options)
+  const queryOptions = getVerifyResetTokenApiV1PasswordResetVerifyTokenGetQueryOptions(token,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

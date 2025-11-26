@@ -45,14 +45,14 @@ import type { ErrorType } from '../../orval-mutator';
 Can either anonymize data or completely delete the account.
  * @summary Delete My Data
  */
-export const deleteMyDataApiPrivacyDeleteMePost = (
+export const deleteMyDataApiV1PrivacyDeleteMePost = (
     userDataDeletionRequest: UserDataDeletionRequest,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<UserDataDeletionResponse>(
-      {url: `/api/privacy/delete/me`, method: 'POST',
+      {url: `/api/v1/privacy/delete/me`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: userDataDeletionRequest, signal
     },
@@ -61,11 +61,11 @@ export const deleteMyDataApiPrivacyDeleteMePost = (
 
 
 
-export const getDeleteMyDataApiPrivacyDeleteMePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMyDataApiPrivacyDeleteMePost>>, TError,{data: UserDataDeletionRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof deleteMyDataApiPrivacyDeleteMePost>>, TError,{data: UserDataDeletionRequest}, TContext> => {
+export const getDeleteMyDataApiV1PrivacyDeleteMePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMyDataApiV1PrivacyDeleteMePost>>, TError,{data: UserDataDeletionRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMyDataApiV1PrivacyDeleteMePost>>, TError,{data: UserDataDeletionRequest}, TContext> => {
 
-const mutationKey = ['deleteMyDataApiPrivacyDeleteMePost'];
+const mutationKey = ['deleteMyDataApiV1PrivacyDeleteMePost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -75,10 +75,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMyDataApiPrivacyDeleteMePost>>, {data: UserDataDeletionRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMyDataApiV1PrivacyDeleteMePost>>, {data: UserDataDeletionRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  deleteMyDataApiPrivacyDeleteMePost(data,)
+          return  deleteMyDataApiV1PrivacyDeleteMePost(data,)
         }
 
 
@@ -86,23 +86,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DeleteMyDataApiPrivacyDeleteMePostMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMyDataApiPrivacyDeleteMePost>>>
-    export type DeleteMyDataApiPrivacyDeleteMePostMutationBody = UserDataDeletionRequest
-    export type DeleteMyDataApiPrivacyDeleteMePostMutationError = ErrorType<HTTPValidationError>
+    export type DeleteMyDataApiV1PrivacyDeleteMePostMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMyDataApiV1PrivacyDeleteMePost>>>
+    export type DeleteMyDataApiV1PrivacyDeleteMePostMutationBody = UserDataDeletionRequest
+    export type DeleteMyDataApiV1PrivacyDeleteMePostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Delete My Data
  */
-export const useDeleteMyDataApiPrivacyDeleteMePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMyDataApiPrivacyDeleteMePost>>, TError,{data: UserDataDeletionRequest}, TContext>, }
+export const useDeleteMyDataApiV1PrivacyDeleteMePost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMyDataApiV1PrivacyDeleteMePost>>, TError,{data: UserDataDeletionRequest}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteMyDataApiPrivacyDeleteMePost>>,
+        Awaited<ReturnType<typeof deleteMyDataApiV1PrivacyDeleteMePost>>,
         TError,
         {data: UserDataDeletionRequest},
         TContext
       > => {
 
-      const mutationOptions = getDeleteMyDataApiPrivacyDeleteMePostMutationOptions(options);
+      const mutationOptions = getDeleteMyDataApiV1PrivacyDeleteMePostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -112,7 +112,7 @@ export const useDeleteMyDataApiPrivacyDeleteMePost = <TError = ErrorType<HTTPVal
 For handling deletion requests on behalf of users.
  * @summary Delete User Data Admin
  */
-export const deleteUserDataAdminApiPrivacyDeleteUserUserIdPost = (
+export const deleteUserDataAdminApiV1PrivacyDeleteUserUserIdPost = (
     userId: string,
     userDataDeletionRequest: UserDataDeletionRequest,
  signal?: AbortSignal
@@ -120,7 +120,7 @@ export const deleteUserDataAdminApiPrivacyDeleteUserUserIdPost = (
 
 
       return customFetch<UserDataDeletionResponse>(
-      {url: `/api/privacy/delete/user/${userId}`, method: 'POST',
+      {url: `/api/v1/privacy/delete/user/${userId}`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: userDataDeletionRequest, signal
     },
@@ -129,11 +129,11 @@ export const deleteUserDataAdminApiPrivacyDeleteUserUserIdPost = (
 
 
 
-export const getDeleteUserDataAdminApiPrivacyDeleteUserUserIdPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteUserDataAdminApiPrivacyDeleteUserUserIdPost>>, TError,{userId: string;data: UserDataDeletionRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof deleteUserDataAdminApiPrivacyDeleteUserUserIdPost>>, TError,{userId: string;data: UserDataDeletionRequest}, TContext> => {
+export const getDeleteUserDataAdminApiV1PrivacyDeleteUserUserIdPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteUserDataAdminApiV1PrivacyDeleteUserUserIdPost>>, TError,{userId: string;data: UserDataDeletionRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof deleteUserDataAdminApiV1PrivacyDeleteUserUserIdPost>>, TError,{userId: string;data: UserDataDeletionRequest}, TContext> => {
 
-const mutationKey = ['deleteUserDataAdminApiPrivacyDeleteUserUserIdPost'];
+const mutationKey = ['deleteUserDataAdminApiV1PrivacyDeleteUserUserIdPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -143,10 +143,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteUserDataAdminApiPrivacyDeleteUserUserIdPost>>, {userId: string;data: UserDataDeletionRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteUserDataAdminApiV1PrivacyDeleteUserUserIdPost>>, {userId: string;data: UserDataDeletionRequest}> = (props) => {
           const {userId,data} = props ?? {};
 
-          return  deleteUserDataAdminApiPrivacyDeleteUserUserIdPost(userId,data,)
+          return  deleteUserDataAdminApiV1PrivacyDeleteUserUserIdPost(userId,data,)
         }
 
 
@@ -154,23 +154,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DeleteUserDataAdminApiPrivacyDeleteUserUserIdPostMutationResult = NonNullable<Awaited<ReturnType<typeof deleteUserDataAdminApiPrivacyDeleteUserUserIdPost>>>
-    export type DeleteUserDataAdminApiPrivacyDeleteUserUserIdPostMutationBody = UserDataDeletionRequest
-    export type DeleteUserDataAdminApiPrivacyDeleteUserUserIdPostMutationError = ErrorType<HTTPValidationError>
+    export type DeleteUserDataAdminApiV1PrivacyDeleteUserUserIdPostMutationResult = NonNullable<Awaited<ReturnType<typeof deleteUserDataAdminApiV1PrivacyDeleteUserUserIdPost>>>
+    export type DeleteUserDataAdminApiV1PrivacyDeleteUserUserIdPostMutationBody = UserDataDeletionRequest
+    export type DeleteUserDataAdminApiV1PrivacyDeleteUserUserIdPostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Delete User Data Admin
  */
-export const useDeleteUserDataAdminApiPrivacyDeleteUserUserIdPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteUserDataAdminApiPrivacyDeleteUserUserIdPost>>, TError,{userId: string;data: UserDataDeletionRequest}, TContext>, }
+export const useDeleteUserDataAdminApiV1PrivacyDeleteUserUserIdPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteUserDataAdminApiV1PrivacyDeleteUserUserIdPost>>, TError,{userId: string;data: UserDataDeletionRequest}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteUserDataAdminApiPrivacyDeleteUserUserIdPost>>,
+        Awaited<ReturnType<typeof deleteUserDataAdminApiV1PrivacyDeleteUserUserIdPost>>,
         TError,
         {userId: string;data: UserDataDeletionRequest},
         TContext
       > => {
 
-      const mutationOptions = getDeleteUserDataAdminApiPrivacyDeleteUserUserIdPostMutationOptions(options);
+      const mutationOptions = getDeleteUserDataAdminApiV1PrivacyDeleteUserUserIdPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -180,14 +180,14 @@ export const useDeleteUserDataAdminApiPrivacyDeleteUserUserIdPost = <TError = Er
 Returns all personal data in a structured format.
  * @summary Export My Data
  */
-export const exportMyDataApiPrivacyExportMeGet = (
+export const exportMyDataApiV1PrivacyExportMeGet = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<DataExportResponse>(
-      {url: `/api/privacy/export/me`, method: 'GET', signal
+      {url: `/api/v1/privacy/export/me`, method: 'GET', signal
     },
       );
     }
@@ -195,69 +195,69 @@ export const exportMyDataApiPrivacyExportMeGet = (
 
 
 
-export const getExportMyDataApiPrivacyExportMeGetQueryKey = () => {
+export const getExportMyDataApiV1PrivacyExportMeGetQueryKey = () => {
     return [
-    `/api/privacy/export/me`
+    `/api/v1/privacy/export/me`
     ] as const;
     }
 
 
-export const getExportMyDataApiPrivacyExportMeGetQueryOptions = <TData = Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError, TData>>, }
+export const getExportMyDataApiV1PrivacyExportMeGetQueryOptions = <TData = Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getExportMyDataApiPrivacyExportMeGetQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getExportMyDataApiV1PrivacyExportMeGetQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>> = ({ signal }) => exportMyDataApiPrivacyExportMeGet(signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>> = ({ signal }) => exportMyDataApiV1PrivacyExportMeGet(signal);
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type ExportMyDataApiPrivacyExportMeGetQueryResult = NonNullable<Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>>
-export type ExportMyDataApiPrivacyExportMeGetQueryError = ErrorType<unknown>
+export type ExportMyDataApiV1PrivacyExportMeGetQueryResult = NonNullable<Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>>
+export type ExportMyDataApiV1PrivacyExportMeGetQueryError = ErrorType<unknown>
 
 
-export function useExportMyDataApiPrivacyExportMeGet<TData = Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError, TData>> & Pick<
+export function useExportMyDataApiV1PrivacyExportMeGet<TData = Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>,
+          Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>,
           TError,
-          Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>
+          Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useExportMyDataApiPrivacyExportMeGet<TData = Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError, TData>> & Pick<
+export function useExportMyDataApiV1PrivacyExportMeGet<TData = Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>,
+          Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>,
           TError,
-          Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>
+          Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useExportMyDataApiPrivacyExportMeGet<TData = Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError, TData>>, }
+export function useExportMyDataApiV1PrivacyExportMeGet<TData = Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Export My Data
  */
 
-export function useExportMyDataApiPrivacyExportMeGet<TData = Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiPrivacyExportMeGet>>, TError, TData>>, }
+export function useExportMyDataApiV1PrivacyExportMeGet<TData = Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportMyDataApiV1PrivacyExportMeGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getExportMyDataApiPrivacyExportMeGetQueryOptions(options)
+  const queryOptions = getExportMyDataApiV1PrivacyExportMeGetQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -275,14 +275,14 @@ export function useExportMyDataApiPrivacyExportMeGet<TData = Awaited<ReturnType<
 For handling data requests on behalf of users.
  * @summary Export User Data Admin
  */
-export const exportUserDataAdminApiPrivacyExportUserUserIdGet = (
+export const exportUserDataAdminApiV1PrivacyExportUserUserIdGet = (
     userId: string,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<DataExportResponse>(
-      {url: `/api/privacy/export/user/${userId}`, method: 'GET', signal
+      {url: `/api/v1/privacy/export/user/${userId}`, method: 'GET', signal
     },
       );
     }
@@ -290,69 +290,69 @@ export const exportUserDataAdminApiPrivacyExportUserUserIdGet = (
 
 
 
-export const getExportUserDataAdminApiPrivacyExportUserUserIdGetQueryKey = (userId?: string,) => {
+export const getExportUserDataAdminApiV1PrivacyExportUserUserIdGetQueryKey = (userId?: string,) => {
     return [
-    `/api/privacy/export/user/${userId}`
+    `/api/v1/privacy/export/user/${userId}`
     ] as const;
     }
 
 
-export const getExportUserDataAdminApiPrivacyExportUserUserIdGetQueryOptions = <TData = Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError = ErrorType<HTTPValidationError>>(userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError, TData>>, }
+export const getExportUserDataAdminApiV1PrivacyExportUserUserIdGetQueryOptions = <TData = Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError = ErrorType<HTTPValidationError>>(userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getExportUserDataAdminApiPrivacyExportUserUserIdGetQueryKey(userId);
+  const queryKey =  queryOptions?.queryKey ?? getExportUserDataAdminApiV1PrivacyExportUserUserIdGetQueryKey(userId);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>> = ({ signal }) => exportUserDataAdminApiPrivacyExportUserUserIdGet(userId, signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>> = ({ signal }) => exportUserDataAdminApiV1PrivacyExportUserUserIdGet(userId, signal);
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type ExportUserDataAdminApiPrivacyExportUserUserIdGetQueryResult = NonNullable<Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>>
-export type ExportUserDataAdminApiPrivacyExportUserUserIdGetQueryError = ErrorType<HTTPValidationError>
+export type ExportUserDataAdminApiV1PrivacyExportUserUserIdGetQueryResult = NonNullable<Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>>
+export type ExportUserDataAdminApiV1PrivacyExportUserUserIdGetQueryError = ErrorType<HTTPValidationError>
 
 
-export function useExportUserDataAdminApiPrivacyExportUserUserIdGet<TData = Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError = ErrorType<HTTPValidationError>>(
- userId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError, TData>> & Pick<
+export function useExportUserDataAdminApiV1PrivacyExportUserUserIdGet<TData = Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError = ErrorType<HTTPValidationError>>(
+ userId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>,
+          Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>,
           TError,
-          Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>
+          Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useExportUserDataAdminApiPrivacyExportUserUserIdGet<TData = Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError = ErrorType<HTTPValidationError>>(
- userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError, TData>> & Pick<
+export function useExportUserDataAdminApiV1PrivacyExportUserUserIdGet<TData = Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError = ErrorType<HTTPValidationError>>(
+ userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>,
+          Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>,
           TError,
-          Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>
+          Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useExportUserDataAdminApiPrivacyExportUserUserIdGet<TData = Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError = ErrorType<HTTPValidationError>>(
- userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError, TData>>, }
+export function useExportUserDataAdminApiV1PrivacyExportUserUserIdGet<TData = Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError = ErrorType<HTTPValidationError>>(
+ userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Export User Data Admin
  */
 
-export function useExportUserDataAdminApiPrivacyExportUserUserIdGet<TData = Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError = ErrorType<HTTPValidationError>>(
- userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiPrivacyExportUserUserIdGet>>, TError, TData>>, }
+export function useExportUserDataAdminApiV1PrivacyExportUserUserIdGet<TData = Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError = ErrorType<HTTPValidationError>>(
+ userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof exportUserDataAdminApiV1PrivacyExportUserUserIdGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getExportUserDataAdminApiPrivacyExportUserUserIdGetQueryOptions(userId,options)
+  const queryOptions = getExportUserDataAdminApiV1PrivacyExportUserUserIdGetQueryOptions(userId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -370,25 +370,25 @@ export function useExportUserDataAdminApiPrivacyExportUserUserIdGet<TData = Awai
 This is usually run automatically via scheduled tasks.
  * @summary Apply Retention Policies
  */
-export const applyRetentionPoliciesApiPrivacyRetentionApplyPost = (
+export const applyRetentionPoliciesApiV1PrivacyRetentionApplyPost = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<RetentionPolicyResponse>(
-      {url: `/api/privacy/retention/apply`, method: 'POST', signal
+      {url: `/api/v1/privacy/retention/apply`, method: 'POST', signal
     },
       );
     }
 
 
 
-export const getApplyRetentionPoliciesApiPrivacyRetentionApplyPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyRetentionPoliciesApiPrivacyRetentionApplyPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof applyRetentionPoliciesApiPrivacyRetentionApplyPost>>, TError,void, TContext> => {
+export const getApplyRetentionPoliciesApiV1PrivacyRetentionApplyPostMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyRetentionPoliciesApiV1PrivacyRetentionApplyPost>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof applyRetentionPoliciesApiV1PrivacyRetentionApplyPost>>, TError,void, TContext> => {
 
-const mutationKey = ['applyRetentionPoliciesApiPrivacyRetentionApplyPost'];
+const mutationKey = ['applyRetentionPoliciesApiV1PrivacyRetentionApplyPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -398,10 +398,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyRetentionPoliciesApiPrivacyRetentionApplyPost>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyRetentionPoliciesApiV1PrivacyRetentionApplyPost>>, void> = () => {
 
 
-          return  applyRetentionPoliciesApiPrivacyRetentionApplyPost()
+          return  applyRetentionPoliciesApiV1PrivacyRetentionApplyPost()
         }
 
 
@@ -409,23 +409,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type ApplyRetentionPoliciesApiPrivacyRetentionApplyPostMutationResult = NonNullable<Awaited<ReturnType<typeof applyRetentionPoliciesApiPrivacyRetentionApplyPost>>>
+    export type ApplyRetentionPoliciesApiV1PrivacyRetentionApplyPostMutationResult = NonNullable<Awaited<ReturnType<typeof applyRetentionPoliciesApiV1PrivacyRetentionApplyPost>>>
 
-    export type ApplyRetentionPoliciesApiPrivacyRetentionApplyPostMutationError = ErrorType<unknown>
+    export type ApplyRetentionPoliciesApiV1PrivacyRetentionApplyPostMutationError = ErrorType<unknown>
 
     /**
  * @summary Apply Retention Policies
  */
-export const useApplyRetentionPoliciesApiPrivacyRetentionApplyPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyRetentionPoliciesApiPrivacyRetentionApplyPost>>, TError,void, TContext>, }
+export const useApplyRetentionPoliciesApiV1PrivacyRetentionApplyPost = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyRetentionPoliciesApiV1PrivacyRetentionApplyPost>>, TError,void, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof applyRetentionPoliciesApiPrivacyRetentionApplyPost>>,
+        Awaited<ReturnType<typeof applyRetentionPoliciesApiV1PrivacyRetentionApplyPost>>,
         TError,
         void,
         TContext
       > => {
 
-      const mutationOptions = getApplyRetentionPoliciesApiPrivacyRetentionApplyPostMutationOptions(options);
+      const mutationOptions = getApplyRetentionPoliciesApiV1PrivacyRetentionApplyPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -435,14 +435,14 @@ export const useApplyRetentionPoliciesApiPrivacyRetentionApplyPost = <TError = E
 Shows counts of data eligible for retention policies.
  * @summary Get Privacy Statistics
  */
-export const getPrivacyStatisticsApiPrivacyStatisticsGet = (
+export const getPrivacyStatisticsApiV1PrivacyStatisticsGet = (
 
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<PrivacyStatisticsResponse>(
-      {url: `/api/privacy/statistics`, method: 'GET', signal
+      {url: `/api/v1/privacy/statistics`, method: 'GET', signal
     },
       );
     }
@@ -450,69 +450,69 @@ export const getPrivacyStatisticsApiPrivacyStatisticsGet = (
 
 
 
-export const getGetPrivacyStatisticsApiPrivacyStatisticsGetQueryKey = () => {
+export const getGetPrivacyStatisticsApiV1PrivacyStatisticsGetQueryKey = () => {
     return [
-    `/api/privacy/statistics`
+    `/api/v1/privacy/statistics`
     ] as const;
     }
 
 
-export const getGetPrivacyStatisticsApiPrivacyStatisticsGetQueryOptions = <TData = Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError, TData>>, }
+export const getGetPrivacyStatisticsApiV1PrivacyStatisticsGetQueryOptions = <TData = Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetPrivacyStatisticsApiPrivacyStatisticsGetQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetPrivacyStatisticsApiV1PrivacyStatisticsGetQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>> = ({ signal }) => getPrivacyStatisticsApiPrivacyStatisticsGet(signal);
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>> = ({ signal }) => getPrivacyStatisticsApiV1PrivacyStatisticsGet(signal);
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetPrivacyStatisticsApiPrivacyStatisticsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>>
-export type GetPrivacyStatisticsApiPrivacyStatisticsGetQueryError = ErrorType<unknown>
+export type GetPrivacyStatisticsApiV1PrivacyStatisticsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>>
+export type GetPrivacyStatisticsApiV1PrivacyStatisticsGetQueryError = ErrorType<unknown>
 
 
-export function useGetPrivacyStatisticsApiPrivacyStatisticsGet<TData = Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError, TData>> & Pick<
+export function useGetPrivacyStatisticsApiV1PrivacyStatisticsGet<TData = Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError = ErrorType<unknown>>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>,
+          Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>,
           TError,
-          Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>
+          Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPrivacyStatisticsApiPrivacyStatisticsGet<TData = Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError, TData>> & Pick<
+export function useGetPrivacyStatisticsApiV1PrivacyStatisticsGet<TData = Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>,
+          Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>,
           TError,
-          Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>
+          Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>
         > , 'initialData'
       >, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPrivacyStatisticsApiPrivacyStatisticsGet<TData = Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError, TData>>, }
+export function useGetPrivacyStatisticsApiV1PrivacyStatisticsGet<TData = Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get Privacy Statistics
  */
 
-export function useGetPrivacyStatisticsApiPrivacyStatisticsGet<TData = Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiPrivacyStatisticsGet>>, TError, TData>>, }
+export function useGetPrivacyStatisticsApiV1PrivacyStatisticsGet<TData = Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError = ErrorType<unknown>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrivacyStatisticsApiV1PrivacyStatisticsGet>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetPrivacyStatisticsApiPrivacyStatisticsGetQueryOptions(options)
+  const queryOptions = getGetPrivacyStatisticsApiV1PrivacyStatisticsGetQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

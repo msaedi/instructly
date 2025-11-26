@@ -28,7 +28,7 @@ class TestPublicAPIRobustExample:
 
         # Make request
         response = client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
+            f"/api/v1/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
         )
 
         assert response.status_code == 200
@@ -57,7 +57,7 @@ class TestPublicAPIRobustExample:
             seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
 
             response = client.get(
-                f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
+                f"/api/v1/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
             )
 
             assert response.status_code == 200
@@ -76,7 +76,7 @@ class TestPublicAPIRobustExample:
         # Test with multiple configurations in one test
         with override_public_api_config(detail_level="minimal", days=7):
             response = client.get(
-                f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
+                f"/api/v1/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
             )
 
             assert response.status_code == 200
@@ -90,7 +90,7 @@ class TestPublicAPIRobustExample:
         # Now test with different config
         with override_public_api_config(detail_level="summary"):
             response = client.get(
-                f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
+                f"/api/v1/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
             )
 
             assert response.status_code == 200
@@ -110,7 +110,7 @@ class TestPublicAPIRobustExample:
         for detail_level in ["full", "summary", "minimal"]:
             with override_public_api_config(detail_level=detail_level):
                 response = client.get(
-                    f"/api/public/instructors/{test_instructor.id}/availability",
+                    f"/api/v1/public/instructors/{test_instructor.id}/availability",
                     params={"start_date": today.isoformat()},
                 )
 

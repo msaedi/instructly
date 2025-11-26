@@ -22,7 +22,7 @@ def test_public_availability_basic(client, db: Session, test_instructor):
 
     # Test the public endpoint
     response = client.get(
-        f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
+        f"/api/v1/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
     )
 
     print(f"\nResponse status: {response.status_code}")
@@ -82,7 +82,7 @@ def test_public_availability_basic(client, db: Session, test_instructor):
 def test_public_availability_instructor_not_found(client):
     """Test 404 when instructor doesn't exist."""
     response = client.get(
-        "/api/public/instructors/01J5TESTINSTR0000000000999/availability",
+        "/api/v1/public/instructors/01J5TESTINSTR0000000000999/availability",
         params={"start_date": date.today().isoformat()},
     )
 
@@ -98,7 +98,7 @@ def test_next_available_basic(client, db: Session, test_instructor):
 
     # Find next available
     response = client.get(
-        f"/api/public/instructors/{test_instructor.id}/next-available", params={"duration_minutes": 60}
+        f"/api/v1/public/instructors/{test_instructor.id}/next-available", params={"duration_minutes": 60}
     )
 
     print(f"\nNext available response: {response.json()}")
@@ -117,7 +117,7 @@ def test_public_availability_no_slots(client, test_instructor):
     # Don't create any slots
 
     response = client.get(
-        f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": date.today().isoformat()}
+        f"/api/v1/public/instructors/{test_instructor.id}/availability", params={"start_date": date.today().isoformat()}
     )
 
     assert response.status_code == 200

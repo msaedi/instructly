@@ -31,7 +31,7 @@ def _csrf_headers(client: TestClient) -> dict[str, str]:
 def test_logout_clears_host_cookie_secure(client: TestClient, monkeypatch) -> None:
     monkeypatch.setenv("SITE_MODE", "preview")
 
-    response = client.post("/api/public/logout", headers=_csrf_headers(client))
+    response = client.post("/api/v1/public/logout", headers=_csrf_headers(client))
     assert response.status_code == 204
 
     set_cookie_headers = _set_cookie_headers(response)

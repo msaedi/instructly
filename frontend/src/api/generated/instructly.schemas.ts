@@ -543,6 +543,19 @@ export interface BackupCodesResponse {
   backup_codes: string[];
 }
 
+export type BadgeProgressViewCurrent = number | null;
+
+export type BadgeProgressViewGoal = number | null;
+
+export type BadgeProgressViewPercent = number | null;
+
+export interface BadgeProgressView {
+  current?: BadgeProgressViewCurrent;
+  goal?: BadgeProgressViewGoal;
+  percent?: BadgeProgressViewPercent;
+  [key: string]: unknown;
+ }
+
 export type BetaMetricsSummaryResponsePhaseCounts24h = {[key: string]: number};
 
 export interface BetaMetricsSummaryResponse {
@@ -596,22 +609,22 @@ export interface BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePos
   reason: string;
 }
 
-export type BodyLoginAuthLoginPostClientId = string | null;
+export type BodyLoginApiV1AuthLoginPostClientId = string | null;
 
-export type BodyLoginAuthLoginPostClientSecret = string | null;
+export type BodyLoginApiV1AuthLoginPostClientSecret = string | null;
 
-export type BodyLoginAuthLoginPostGrantType = string | null;
+export type BodyLoginApiV1AuthLoginPostGrantType = string | null;
 
-export interface BodyLoginAuthLoginPost {
-  client_id?: BodyLoginAuthLoginPostClientId;
-  client_secret?: BodyLoginAuthLoginPostClientSecret;
-  grant_type?: BodyLoginAuthLoginPostGrantType;
+export interface BodyLoginApiV1AuthLoginPost {
+  client_id?: BodyLoginApiV1AuthLoginPostClientId;
+  client_secret?: BodyLoginApiV1AuthLoginPostClientSecret;
+  grant_type?: BodyLoginApiV1AuthLoginPostGrantType;
   password: string;
   scope?: string;
   username: string;
 }
 
-export interface BodyProxyUploadToR2ApiUploadsR2ProxyPost {
+export interface BodyProxyUploadToR2ApiV1UploadsR2ProxyPost {
   /** Content type reported by the browser */
   content_type: string;
   file: Blob;
@@ -2246,6 +2259,15 @@ export interface InviteValidateResponse {
   valid: boolean;
 }
 
+export interface LineItem {
+  /**
+   * @minimum -1000000000
+   * @maximum 1000000000
+   */
+  amount_cents: number;
+  label: string;
+}
+
 /**
  * Simplified alert item for live view.
  */
@@ -2957,6 +2979,56 @@ export type PricingConfigResponseUpdatedAt = string | null;
 export interface PricingConfigResponse {
   config: PricingConfig;
   updated_at?: PricingConfigResponseUpdatedAt;
+}
+
+export interface PricingPreviewIn {
+  /** @minimum 0 */
+  applied_credit_cents: number;
+  /**
+   * @minLength 1
+   * @pattern ^\d{4}-\d{2}-\d{2}$
+   */
+  booking_date: string;
+  /** @minLength 1 */
+  instructor_id: string;
+  /** @minLength 1 */
+  instructor_service_id: string;
+  /** @minLength 1 */
+  location_type: string;
+  /** @minLength 1 */
+  meeting_location: string;
+  /** */
+  selected_duration: number;
+  /**
+   * @minLength 1
+   * @pattern ^\d{2}:\d{2}$
+   */
+  start_time: string;
+}
+
+export interface PricingPreviewOut {
+  /** @minimum 0 */
+  application_fee_cents: number;
+  /** @minimum 0 */
+  base_price_cents: number;
+  /** @minimum 0 */
+  credit_applied_cents: number;
+  /** @minimum 0 */
+  instructor_commission_cents: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  instructor_tier_pct: number;
+  line_items: LineItem[];
+  /** @minimum 0 */
+  student_fee_cents: number;
+  /** @minimum 0 */
+  student_pay_cents: number;
+  /** @minimum 0 */
+  target_instructor_payout_cents: number;
+  /** @minimum 0 */
+  top_up_transfer_cents: number;
 }
 
 /**
@@ -4220,6 +4292,29 @@ export interface SpecificDateAvailabilityCreate {
   start_time: string;
 }
 
+export type StudentBadgeViewAwardedAt = string | null;
+
+export type StudentBadgeViewConfirmedAt = string | null;
+
+export type StudentBadgeViewDescription = string | null;
+
+export type StudentBadgeViewProgressAnyOf = { [key: string]: unknown };
+
+export type StudentBadgeViewProgress = BadgeProgressView | StudentBadgeViewProgressAnyOf | null;
+
+export type StudentBadgeViewStatus = string | null;
+
+export interface StudentBadgeView {
+  awarded_at?: StudentBadgeViewAwardedAt;
+  confirmed_at?: StudentBadgeViewConfirmedAt;
+  description?: StudentBadgeViewDescription;
+  earned: boolean;
+  name: string;
+  progress?: StudentBadgeViewProgress;
+  slug: string;
+  status?: StudentBadgeViewStatus;
+}
+
 export interface StudentCreditCycle {
   /**
    * Credit cents issued for $10 milestone
@@ -4988,50 +5083,6 @@ export type GetSlowRequestsApiMonitoringSlowRequestsGetParams = {
 limit?: number;
 };
 
-export type StartOnboardingApiPaymentsConnectOnboardPostParams = {
-return_to?: string | null;
-};
-
-export type SetPayoutScheduleApiPaymentsConnectPayoutSchedulePostParams = {
-interval?: string;
-weekly_anchor?: string;
-};
-
-export type GetTransactionHistoryApiPaymentsTransactionsGetParams = {
-limit?: number;
-offset?: number;
-};
-
-export type GetInstructorPublicAvailabilityApiPublicInstructorsInstructorIdAvailabilityGetParams = {
-/**
- * Start date for availability search
- */
-start_date: string;
-/**
- * End date (defaults to configured days from start)
- */
-end_date?: string | null;
-};
-
-export type GetNextAvailableSlotApiPublicInstructorsInstructorIdNextAvailableGetParams = {
-/**
- * Required duration in minutes
- */
-duration_minutes?: number;
-};
-
-export type GetProfilePictureUrlsBatchApiUsersProfilePictureUrlsGetParams = {
-/**
- * Comma-separated list of user IDs (ids=1,2,3) or repeated ids parameters.
- */
-ids?: string[];
-variant?: 'original' | 'display' | 'thumb' | null;
-};
-
-export type GetProfilePictureUrlApiUsersUserIdProfilePictureUrlGetParams = {
-variant?: 'original' | 'display' | 'thumb' | null;
-};
-
 export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams = {
 ids: string;
 };
@@ -5081,6 +5132,13 @@ export type GetUpcomingBookingsApiV1BookingsUpcomingGetParams = {
  * @maximum 20
  */
 limit?: number;
+};
+
+export type GetBookingPricingApiV1BookingsBookingIdPricingGetParams = {
+/**
+ * @minimum 0
+ */
+applied_credit_cents?: number;
 };
 
 export type ListInstructorBookingsApiV1InstructorBookingsGetParams = {
@@ -5202,6 +5260,38 @@ export type StreamMessagesApiV1MessagesStreamBookingIdGetParams = {
 token?: string | null;
 };
 
+export type StartOnboardingApiV1PaymentsConnectOnboardPostParams = {
+return_to?: string | null;
+};
+
+export type SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams = {
+interval?: string;
+weekly_anchor?: string;
+};
+
+export type GetTransactionHistoryApiV1PaymentsTransactionsGetParams = {
+limit?: number;
+offset?: number;
+};
+
+export type GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams = {
+/**
+ * Start date for availability search
+ */
+start_date: string;
+/**
+ * End date (defaults to configured days from start)
+ */
+end_date?: string | null;
+};
+
+export type GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams = {
+/**
+ * Required duration in minutes
+ */
+duration_minutes?: number;
+};
+
 export type ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPost200 = CheckoutApplyResponse | ReferralErrorResponse;
 
 export type ClaimReferralCodeApiV1ReferralsClaimPost200 = ReferralClaimResponse | ReferralErrorResponse;
@@ -5268,6 +5358,18 @@ export type SearchServicesApiV1ServicesSearchGetParams = {
  * @minLength 2
  */
 q: string;
+};
+
+export type GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams = {
+/**
+ * Comma-separated list of user IDs (ids=1,2,3) or repeated ids parameters.
+ */
+ids?: string[];
+variant?: 'original' | 'display' | 'thumb' | null;
+};
+
+export type GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams = {
+variant?: 'original' | 'display' | 'thumb' | null;
 };
 
 export type GetAllAvailabilityInstructorsAvailabilityGetParams = {

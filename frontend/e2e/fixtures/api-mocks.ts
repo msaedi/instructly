@@ -102,9 +102,9 @@ export async function mockAvailability(page: Page) {
     }
   );
 
-  // Also mock the /api/public/instructors endpoint for availability
+  // Also mock the /api/v1/public/instructors endpoint for availability
   await page.route(
-    'http://localhost:8000/api/public/instructors/*/availability*',
+    'http://localhost:8000/api/v1/public/instructors/*/availability*',
     async (route: Route) => {
       await route.fulfill({
         status: 200,
@@ -351,7 +351,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   await mockAuthentication(routeContext);
 
   // Ensure guest session bootstrap does not hit real backend (avoid CORS flakes)
-  await routeContext.route('**/api/public/session/guest', async (route: Route) => {
+  await routeContext.route('**/api/v1/public/session/guest', async (route: Route) => {
     const req = route.request();
     const origin = req.headers()['origin'] || 'http://localhost:3100';
     if (req.method() === 'OPTIONS') {
@@ -613,8 +613,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // IMPORTANT: Make sure availability handlers run before any generic **/api/** handler
-  // Match both /api/public/instructors and just /instructors availability endpoints
-  await routeContext.route('**/api/public/instructors/*/availability**', async (route: Route) => {
+  // Match both /api/v1/public/instructors and just /instructors availability endpoints
+  await routeContext.route('**/api/v1/public/instructors/*/availability**', async (route: Route) => {
     // Extract instructor ID from URL
     const currentUrl = route.request().url();
     const idMatch = currentUrl.match(/instructors\/([^\/\?]+)/i);
@@ -971,7 +971,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // Re-register availability mocks LAST so they win when multiple handlers match
-  await routeContext.route('**/api/public/instructors/*/availability**', async (route: Route) => {
+  await routeContext.route('**/api/v1/public/instructors/*/availability**', async (route: Route) => {
     const currentUrl = route.request().url();
     const idMatch = currentUrl.match(/instructors\/([^\/\?]+)/i);
     const instructorId = idMatch ? idMatch[1] : TEST_ULIDS.instructor8;

@@ -107,7 +107,7 @@ class TestPublicAvailabilityIntegration:
 
         # Step 3: Check public availability (no auth)
         response = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={"start_date": tomorrow.isoformat(), "end_date": tomorrow.isoformat()},
         )
 
@@ -164,7 +164,7 @@ class TestPublicAvailabilityIntegration:
 
         # Step 5: Check public availability again
         response = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={"start_date": tomorrow.isoformat(), "end_date": tomorrow.isoformat()},
         )
 
@@ -212,7 +212,7 @@ class TestPublicAvailabilityIntegration:
 
         # Check public availability
         response = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={"start_date": next_week.isoformat(), "end_date": next_week.isoformat()},
         )
 
@@ -264,7 +264,7 @@ class TestPublicAvailabilityIntegration:
 
         # First public check - should be cached
         response1 = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={"start_date": tomorrow.isoformat(), "end_date": tomorrow.isoformat()},
         )
 
@@ -290,7 +290,7 @@ class TestPublicAvailabilityIntegration:
 
         # Second public check - cache should reflect booking
         response2 = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={"start_date": tomorrow.isoformat(), "end_date": tomorrow.isoformat()},
         )
         assert response2.status_code == 200
@@ -327,7 +327,7 @@ class TestPublicAvailabilityIntegration:
 
         # Request the full configured range
         response = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={
                 "start_date": start_date.isoformat(),
                 "end_date": (start_date + timedelta(days=days_to_create - 1)).isoformat(),
@@ -353,7 +353,7 @@ class TestPublicAvailabilityIntegration:
         # Second request should be much faster due to cache
         start_time2 = timer.time()
         response2 = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={
                 "start_date": start_date.isoformat(),
                 "end_date": (start_date + timedelta(days=days_to_create - 1)).isoformat(),

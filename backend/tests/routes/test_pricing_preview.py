@@ -188,7 +188,7 @@ def test_quote_preview_rejects_invalid_booking_date(
         "applied_credit_cents": 0,
     }
 
-    response = client.post("/api/pricing/preview", json=payload, headers=auth_headers_student)
+    response = client.post("/api/v1/pricing/preview", json=payload, headers=auth_headers_student)
 
     assert response.status_code == 400
     detail = response.json()
@@ -214,7 +214,7 @@ def test_quote_preview_rejects_invalid_start_time(
         "applied_credit_cents": 0,
     }
 
-    response = client.post("/api/pricing/preview", json=payload, headers=auth_headers_student)
+    response = client.post("/api/v1/pricing/preview", json=payload, headers=auth_headers_student)
 
     assert response.status_code == 400
     detail = response.json()
@@ -251,7 +251,7 @@ def test_quote_rejects_invalid_date_time(
     }
     payload[field] = value
 
-    response = client.post("/api/pricing/preview", json=payload, headers=auth_headers_student)
+    response = client.post("/api/v1/pricing/preview", json=payload, headers=auth_headers_student)
 
     if response.status_code == 422:
         detail = response.json()

@@ -25,7 +25,7 @@ class TestPublicAPIConfiguration:
 
         # Request 30 days
         response = client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": today.isoformat(), "end_date": (today + timedelta(days=29)).isoformat()},
         )
 
@@ -57,7 +57,7 @@ class TestPublicAPIConfiguration:
         seed_day(db, test_instructor.id, today, [("09:00", "10:00")])
 
         response = client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
+            f"/api/v1/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
         )
 
         assert response.status_code == 200
@@ -84,7 +84,7 @@ class TestPublicAPIConfiguration:
         seed_day(db, test_instructor.id, today, [("09:00", "11:00"), ("18:00", "20:00")])
 
         response = client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
+            f"/api/v1/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
         )
 
         assert response.status_code == 200
@@ -109,7 +109,7 @@ class TestPublicAPIConfiguration:
     def test_hide_instructor_name(self, client, test_instructor):
         """Test that instructor name can be hidden."""
         response = client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": date.today().isoformat()},
         )
 
@@ -140,7 +140,7 @@ class TestPublicAPIConfiguration:
 
         # Make request - this should trigger caching with TTL
         response = client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": date.today().isoformat()},
         )
 
@@ -159,7 +159,7 @@ class TestPublicAPIConfiguration:
 
         # Don't provide end_date
         response = client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
+            f"/api/v1/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
         )
 
         assert response.status_code == 200
@@ -185,7 +185,7 @@ class TestPublicAPIConfiguration:
 
         # Request 90 days
         response = client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": today.isoformat(), "end_date": (today + timedelta(days=89)).isoformat()},
         )
 
@@ -211,7 +211,7 @@ class TestPublicAPIConfiguration:
         seed_day(db, test_instructor.id, today, [("09:00", "10:00"), ("14:00", "15:00")])
 
         response = client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
+            f"/api/v1/public/instructors/{test_instructor.id}/availability", params={"start_date": today.isoformat()}
         )
 
         assert response.status_code == 200

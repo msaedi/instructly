@@ -70,7 +70,7 @@ export async function ensureGuestOnce(): Promise<void> {
   if (guestBootstrapDone || guestBootstrapInFlight) return;
   try {
     guestBootstrapInFlight = true;
-    await postWithRetry('/api/public/session/guest', { method: 'POST' });
+    await postWithRetry('/api/v1/public/session/guest', { method: 'POST' });
     guestBootstrapDone = true;
     try { localStorage.setItem('guest_bootstrap_done', 'true'); } catch {}
     logger.info('Bootstrapped guest_id cookie');

@@ -143,7 +143,7 @@ const routeAlways = async (
 };
 
 const stubGuestSessionEndpoint = async (context: BrowserContext) => {
-  await routeOnce(context, '**/api/public/session/guest', async (route) => {
+  await routeOnce(context, '**/api/v1/public/session/guest', async (route) => {
     if (await handlePreflight(route)) return;
     await respondJson(route, { ok: true });
   });

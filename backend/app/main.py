@@ -88,7 +88,6 @@ from .routes import (
     admin_instructors,
     alerts,
     analytics,
-    # auth,  # DEPRECATED: Migrated to v1
     availability_windows,
     beta,
     codebase_metrics,
@@ -98,18 +97,10 @@ from .routes import (
     internal,
     metrics,
     monitoring,
-    # payments,  # DEPRECATED: Migrated to v1
-    pricing_config_public,
-    pricing_preview,
-    privacy,
     prometheus,
-    public,
     ready,
     redis_monitor,
     stripe_webhooks,
-    student_badges,
-    uploads,
-    users_profile_picture,
     webhooks_checkr,
 )
 from .routes.v1 import (
@@ -117,18 +108,25 @@ from .routes.v1 import (
     addresses as addresses_v1,
     auth as auth_v1,
     bookings as bookings_v1,
+    config as config_v1,
     favorites as favorites_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
     password_reset as password_reset_v1,
     payments as payments_v1,
+    pricing as pricing_v1,
+    privacy as privacy_v1,
+    public as public_v1,
     referrals as referrals_v1,
     reviews as reviews_v1,
     search as search_v1,
     search_history as search_history_v1,
     services as services_v1,
+    student_badges as student_badges_v1,
     two_factor_auth as two_factor_auth_v1,
+    uploads as uploads_v1,
+    users as users_v1,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
@@ -949,6 +947,14 @@ api_v1.include_router(password_reset_v1.router, prefix="/password-reset")  # typ
 api_v1.include_router(two_factor_auth_v1.router, prefix="/2fa")  # type: ignore[attr-defined]
 api_v1.include_router(auth_v1.router, prefix="/auth")  # type: ignore[attr-defined]
 api_v1.include_router(payments_v1.router, prefix="/payments")  # type: ignore[attr-defined]
+# Phase 18 v1 routers
+api_v1.include_router(uploads_v1.router, prefix="/uploads")  # type: ignore[attr-defined]
+api_v1.include_router(users_v1.router, prefix="/users")  # type: ignore[attr-defined]
+api_v1.include_router(privacy_v1.router, prefix="/privacy")  # type: ignore[attr-defined]
+api_v1.include_router(public_v1.router, prefix="/public")  # type: ignore[attr-defined]
+api_v1.include_router(pricing_v1.router, prefix="/pricing")  # type: ignore[attr-defined]
+api_v1.include_router(config_v1.router, prefix="/config")  # type: ignore[attr-defined]
+api_v1.include_router(student_badges_v1.router, prefix="/students/badges")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
@@ -972,9 +978,10 @@ PUBLIC_OPEN_PATHS = {
 }
 
 PUBLIC_OPEN_PREFIXES = (
-    "/api/public",
+    # Legacy public paths - DEPRECATED, use /api/v1/public instead
+    # "/api/public",
+    # "/api/config",
     "/api/v1/password-reset/verify",  # v1 password reset token verification
-    "/api/config",
     "/r/",
     "/api/v1/instructors",  # v1 instructors endpoints are public (some require auth via dependency)
     "/api/v1/services",  # v1 services endpoints are public (catalog browsing)
@@ -983,6 +990,10 @@ PUBLIC_OPEN_PREFIXES = (
     "/api/v1/addresses/places",  # Place autocomplete/details are public
     "/api/v1/addresses/coverage",  # Coverage GeoJSON is public (rate limited)
     "/api/v1/addresses/regions",  # Neighborhood list is public
+    # Phase 18 v1 public paths
+    "/api/v1/public",  # v1 public endpoints (availability, guest session, etc.)
+    "/api/v1/config",  # v1 config endpoints (pricing config)
+    "/api/v1/users/profile-picture",  # Profile picture URLs are public (no auth required for viewing)
 )
 
 public_guard_dependency = public_guard(
@@ -1016,9 +1027,11 @@ app.include_router(availability_windows.router, dependencies=[Depends(public_gua
 # app.include_router(password_reset.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy bookings routes - DEPRECATED, use /api/v1/bookings instead
 # app.include_router(bookings.router, dependencies=[Depends(public_guard_dependency)])  # Was: /bookings
-app.include_router(student_badges.router)
-app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy student_badges routes - DEPRECATED, use /api/v1/students/badges instead
+# app.include_router(student_badges.router)
+# Legacy pricing routes - DEPRECATED, use /api/v1/pricing instead
+# app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_dependency)])
+# app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy favorites routes - DEPRECATED, use /api/v1/favorites instead
 # app.include_router(favorites.router)  # Was: /api/favorites
 # Legacy payments routes - DEPRECATED, use /api/v1/payments instead
@@ -1032,7 +1045,8 @@ app.include_router(monitoring.router)
 app.include_router(alerts.router)
 app.include_router(analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(codebase_metrics.router)
-app.include_router(public.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy public routes - DEPRECATED, use /api/v1/public instead
+# app.include_router(public.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy referrals routes - DEPRECATED, use /api/v1/referrals instead
 # app.include_router(referrals.public_router, dependencies=[Depends(public_guard_dependency)])  # Was: /r/{slug}
 # app.include_router(referrals.router, dependencies=[Depends(public_guard_dependency)])  # Was: /api/referrals
@@ -1051,12 +1065,15 @@ app.include_router(ready.router)
 app.include_router(database_monitor.router)
 app.include_router(admin_config.router)
 app.include_router(admin_audit.router)
-app.include_router(privacy.router, prefix="/api", tags=["privacy"])
+# Legacy privacy routes - DEPRECATED, use /api/v1/privacy instead
+# app.include_router(privacy.router, prefix="/api", tags=["privacy"])
 app.include_router(stripe_webhooks.router)
 app.include_router(webhooks_checkr.router)
 app.include_router(prometheus.router)
-app.include_router(uploads.router)
-app.include_router(users_profile_picture.router)
+# Legacy uploads routes - DEPRECATED, use /api/v1/uploads instead
+# app.include_router(uploads.router)
+# Legacy users profile picture routes - DEPRECATED, use /api/v1/users instead
+# app.include_router(users_profile_picture.router)
 app.include_router(beta.router)
 # app.include_router(reviews.router)  # Migrated to /api/v1/reviews
 app.include_router(admin_badges.router)

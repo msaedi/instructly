@@ -136,7 +136,7 @@ def emma_with_badges(db, core_badges_seeded):
 def test_student_badges_listing(client, emma_with_badges):
     student, headers = emma_with_badges
 
-    response = client.get("/api/students/badges", headers=headers)
+    response = client.get("/api/v1/students/badges", headers=headers)
     assert response.status_code == 200
     payload = response.json()
 
@@ -164,12 +164,12 @@ def test_student_badges_listing(client, emma_with_badges):
 def test_student_badges_filters(client, emma_with_badges):
     student, headers = emma_with_badges
 
-    earned_response = client.get("/api/students/badges/earned", headers=headers)
+    earned_response = client.get("/api/v1/students/badges/earned", headers=headers)
     assert earned_response.status_code == 200
     earned = earned_response.json()
     assert {badge["slug"] for badge in earned} == {"first_steps", "dedicated_learner"}
 
-    progress_response = client.get("/api/students/badges/progress", headers=headers)
+    progress_response = client.get("/api/v1/students/badges/progress", headers=headers)
     assert progress_response.status_code == 200
     progress_items = progress_response.json()
     assert {badge["slug"] for badge in progress_items} == {"momentum_starter"}
@@ -201,7 +201,7 @@ def test_revoked_award_not_earned(client, db, emma_with_badges):
     )
     db.commit()
 
-    response = client.get("/api/students/badges", headers=headers)
+    response = client.get("/api/v1/students/badges", headers=headers)
     assert response.status_code == 200
 
     payload = response.json()
@@ -211,7 +211,7 @@ def test_revoked_award_not_earned(client, db, emma_with_badges):
     assert revoked_entry["progress"]["current"] == 1
     assert revoked_entry["progress"]["goal"] == 1
 
-    earned_response = client.get("/api/students/badges/earned", headers=headers)
+    earned_response = client.get("/api/v1/students/badges/earned", headers=headers)
     assert earned_response.status_code == 200
     earned_slugs = {badge["slug"] for badge in earned_response.json()}
     assert "welcome_aboard" not in earned_slugs

@@ -16,7 +16,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  BodyProxyUploadToR2ApiUploadsR2ProxyPost,
+  BodyProxyUploadToR2ApiV1UploadsR2ProxyPost,
   CreateSignedUploadRequest,
   FinalizeProfilePictureRequest,
   HTTPValidationError,
@@ -35,14 +35,14 @@ import type { ErrorType } from '../../orval-mutator';
  * Finalize a previously uploaded profile picture: validate, process, version, store.
  * @summary Finalize Profile Picture
  */
-export const finalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost = (
+export const finalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePost = (
     finalizeProfilePictureRequest: FinalizeProfilePictureRequest,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<SuccessResponse>(
-      {url: `/api/uploads/r2/finalize/profile-picture`, method: 'POST',
+      {url: `/api/v1/uploads/r2/finalize/profile-picture`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: finalizeProfilePictureRequest, signal
     },
@@ -51,11 +51,11 @@ export const finalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost = (
 
 
 
-export const getFinalizeProfilePictureApiUploadsR2FinalizeProfilePicturePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost>>, TError,{data: FinalizeProfilePictureRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof finalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost>>, TError,{data: FinalizeProfilePictureRequest}, TContext> => {
+export const getFinalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePost>>, TError,{data: FinalizeProfilePictureRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof finalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePost>>, TError,{data: FinalizeProfilePictureRequest}, TContext> => {
 
-const mutationKey = ['finalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost'];
+const mutationKey = ['finalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -65,10 +65,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof finalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost>>, {data: FinalizeProfilePictureRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof finalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePost>>, {data: FinalizeProfilePictureRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  finalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost(data,)
+          return  finalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePost(data,)
         }
 
 
@@ -76,23 +76,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type FinalizeProfilePictureApiUploadsR2FinalizeProfilePicturePostMutationResult = NonNullable<Awaited<ReturnType<typeof finalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost>>>
-    export type FinalizeProfilePictureApiUploadsR2FinalizeProfilePicturePostMutationBody = FinalizeProfilePictureRequest
-    export type FinalizeProfilePictureApiUploadsR2FinalizeProfilePicturePostMutationError = ErrorType<HTTPValidationError>
+    export type FinalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePostMutationResult = NonNullable<Awaited<ReturnType<typeof finalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePost>>>
+    export type FinalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePostMutationBody = FinalizeProfilePictureRequest
+    export type FinalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Finalize Profile Picture
  */
-export const useFinalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost>>, TError,{data: FinalizeProfilePictureRequest}, TContext>, }
+export const useFinalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePost>>, TError,{data: FinalizeProfilePictureRequest}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof finalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost>>,
+        Awaited<ReturnType<typeof finalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePost>>,
         TError,
         {data: FinalizeProfilePictureRequest},
         TContext
       > => {
 
-      const mutationOptions = getFinalizeProfilePictureApiUploadsR2FinalizeProfilePicturePostMutationOptions(options);
+      const mutationOptions = getFinalizeProfilePictureApiV1UploadsR2FinalizeProfilePicturePostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -100,18 +100,18 @@ export const useFinalizeProfilePictureApiUploadsR2FinalizeProfilePicturePost = <
  * Upload the file server-side for local development to avoid browser CORS issues.
  * @summary Proxy Upload To R2
  */
-export const proxyUploadToR2ApiUploadsR2ProxyPost = (
-    bodyProxyUploadToR2ApiUploadsR2ProxyPost: BodyProxyUploadToR2ApiUploadsR2ProxyPost,
+export const proxyUploadToR2ApiV1UploadsR2ProxyPost = (
+    bodyProxyUploadToR2ApiV1UploadsR2ProxyPost: BodyProxyUploadToR2ApiV1UploadsR2ProxyPost,
  signal?: AbortSignal
 ) => {
 
       const formData = new FormData();
-formData.append(`content_type`, bodyProxyUploadToR2ApiUploadsR2ProxyPost.content_type)
-formData.append(`file`, bodyProxyUploadToR2ApiUploadsR2ProxyPost.file)
-formData.append(`key`, bodyProxyUploadToR2ApiUploadsR2ProxyPost.key)
+formData.append(`content_type`, bodyProxyUploadToR2ApiV1UploadsR2ProxyPost.content_type)
+formData.append(`file`, bodyProxyUploadToR2ApiV1UploadsR2ProxyPost.file)
+formData.append(`key`, bodyProxyUploadToR2ApiV1UploadsR2ProxyPost.key)
 
       return customFetch<ProxyUploadResponse>(
-      {url: `/api/uploads/r2/proxy`, method: 'POST',
+      {url: `/api/v1/uploads/r2/proxy`, method: 'POST',
       headers: {'Content-Type': 'multipart/form-data', },
        data: formData, signal
     },
@@ -120,11 +120,11 @@ formData.append(`key`, bodyProxyUploadToR2ApiUploadsR2ProxyPost.key)
 
 
 
-export const getProxyUploadToR2ApiUploadsR2ProxyPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof proxyUploadToR2ApiUploadsR2ProxyPost>>, TError,{data: BodyProxyUploadToR2ApiUploadsR2ProxyPost}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof proxyUploadToR2ApiUploadsR2ProxyPost>>, TError,{data: BodyProxyUploadToR2ApiUploadsR2ProxyPost}, TContext> => {
+export const getProxyUploadToR2ApiV1UploadsR2ProxyPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof proxyUploadToR2ApiV1UploadsR2ProxyPost>>, TError,{data: BodyProxyUploadToR2ApiV1UploadsR2ProxyPost}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof proxyUploadToR2ApiV1UploadsR2ProxyPost>>, TError,{data: BodyProxyUploadToR2ApiV1UploadsR2ProxyPost}, TContext> => {
 
-const mutationKey = ['proxyUploadToR2ApiUploadsR2ProxyPost'];
+const mutationKey = ['proxyUploadToR2ApiV1UploadsR2ProxyPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -134,10 +134,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof proxyUploadToR2ApiUploadsR2ProxyPost>>, {data: BodyProxyUploadToR2ApiUploadsR2ProxyPost}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof proxyUploadToR2ApiV1UploadsR2ProxyPost>>, {data: BodyProxyUploadToR2ApiV1UploadsR2ProxyPost}> = (props) => {
           const {data} = props ?? {};
 
-          return  proxyUploadToR2ApiUploadsR2ProxyPost(data,)
+          return  proxyUploadToR2ApiV1UploadsR2ProxyPost(data,)
         }
 
 
@@ -145,23 +145,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type ProxyUploadToR2ApiUploadsR2ProxyPostMutationResult = NonNullable<Awaited<ReturnType<typeof proxyUploadToR2ApiUploadsR2ProxyPost>>>
-    export type ProxyUploadToR2ApiUploadsR2ProxyPostMutationBody = BodyProxyUploadToR2ApiUploadsR2ProxyPost
-    export type ProxyUploadToR2ApiUploadsR2ProxyPostMutationError = ErrorType<HTTPValidationError>
+    export type ProxyUploadToR2ApiV1UploadsR2ProxyPostMutationResult = NonNullable<Awaited<ReturnType<typeof proxyUploadToR2ApiV1UploadsR2ProxyPost>>>
+    export type ProxyUploadToR2ApiV1UploadsR2ProxyPostMutationBody = BodyProxyUploadToR2ApiV1UploadsR2ProxyPost
+    export type ProxyUploadToR2ApiV1UploadsR2ProxyPostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Proxy Upload To R2
  */
-export const useProxyUploadToR2ApiUploadsR2ProxyPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof proxyUploadToR2ApiUploadsR2ProxyPost>>, TError,{data: BodyProxyUploadToR2ApiUploadsR2ProxyPost}, TContext>, }
+export const useProxyUploadToR2ApiV1UploadsR2ProxyPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof proxyUploadToR2ApiV1UploadsR2ProxyPost>>, TError,{data: BodyProxyUploadToR2ApiV1UploadsR2ProxyPost}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof proxyUploadToR2ApiUploadsR2ProxyPost>>,
+        Awaited<ReturnType<typeof proxyUploadToR2ApiV1UploadsR2ProxyPost>>,
         TError,
-        {data: BodyProxyUploadToR2ApiUploadsR2ProxyPost},
+        {data: BodyProxyUploadToR2ApiV1UploadsR2ProxyPost},
         TContext
       > => {
 
-      const mutationOptions = getProxyUploadToR2ApiUploadsR2ProxyPostMutationOptions(options);
+      const mutationOptions = getProxyUploadToR2ApiV1UploadsR2ProxyPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
@@ -171,14 +171,14 @@ export const useProxyUploadToR2ApiUploadsR2ProxyPost = <TError = ErrorType<HTTPV
 We implement SigV4 signing locally to avoid requiring boto3.
  * @summary Create Signed Upload
  */
-export const createSignedUploadApiUploadsR2SignedUrlPost = (
+export const createSignedUploadApiV1UploadsR2SignedUrlPost = (
     createSignedUploadRequest: CreateSignedUploadRequest,
  signal?: AbortSignal
 ) => {
 
 
       return customFetch<SignedUploadResponse>(
-      {url: `/api/uploads/r2/signed-url`, method: 'POST',
+      {url: `/api/v1/uploads/r2/signed-url`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: createSignedUploadRequest, signal
     },
@@ -187,11 +187,11 @@ export const createSignedUploadApiUploadsR2SignedUrlPost = (
 
 
 
-export const getCreateSignedUploadApiUploadsR2SignedUrlPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSignedUploadApiUploadsR2SignedUrlPost>>, TError,{data: CreateSignedUploadRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof createSignedUploadApiUploadsR2SignedUrlPost>>, TError,{data: CreateSignedUploadRequest}, TContext> => {
+export const getCreateSignedUploadApiV1UploadsR2SignedUrlPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSignedUploadApiV1UploadsR2SignedUrlPost>>, TError,{data: CreateSignedUploadRequest}, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createSignedUploadApiV1UploadsR2SignedUrlPost>>, TError,{data: CreateSignedUploadRequest}, TContext> => {
 
-const mutationKey = ['createSignedUploadApiUploadsR2SignedUrlPost'];
+const mutationKey = ['createSignedUploadApiV1UploadsR2SignedUrlPost'];
 const {mutation: mutationOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -201,10 +201,10 @@ const {mutation: mutationOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSignedUploadApiUploadsR2SignedUrlPost>>, {data: CreateSignedUploadRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSignedUploadApiV1UploadsR2SignedUrlPost>>, {data: CreateSignedUploadRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  createSignedUploadApiUploadsR2SignedUrlPost(data,)
+          return  createSignedUploadApiV1UploadsR2SignedUrlPost(data,)
         }
 
 
@@ -212,23 +212,23 @@ const {mutation: mutationOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type CreateSignedUploadApiUploadsR2SignedUrlPostMutationResult = NonNullable<Awaited<ReturnType<typeof createSignedUploadApiUploadsR2SignedUrlPost>>>
-    export type CreateSignedUploadApiUploadsR2SignedUrlPostMutationBody = CreateSignedUploadRequest
-    export type CreateSignedUploadApiUploadsR2SignedUrlPostMutationError = ErrorType<HTTPValidationError>
+    export type CreateSignedUploadApiV1UploadsR2SignedUrlPostMutationResult = NonNullable<Awaited<ReturnType<typeof createSignedUploadApiV1UploadsR2SignedUrlPost>>>
+    export type CreateSignedUploadApiV1UploadsR2SignedUrlPostMutationBody = CreateSignedUploadRequest
+    export type CreateSignedUploadApiV1UploadsR2SignedUrlPostMutationError = ErrorType<HTTPValidationError>
 
     /**
  * @summary Create Signed Upload
  */
-export const useCreateSignedUploadApiUploadsR2SignedUrlPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSignedUploadApiUploadsR2SignedUrlPost>>, TError,{data: CreateSignedUploadRequest}, TContext>, }
+export const useCreateSignedUploadApiV1UploadsR2SignedUrlPost = <TError = ErrorType<HTTPValidationError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSignedUploadApiV1UploadsR2SignedUrlPost>>, TError,{data: CreateSignedUploadRequest}, TContext>, }
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createSignedUploadApiUploadsR2SignedUrlPost>>,
+        Awaited<ReturnType<typeof createSignedUploadApiV1UploadsR2SignedUrlPost>>,
         TError,
         {data: CreateSignedUploadRequest},
         TContext
       > => {
 
-      const mutationOptions = getCreateSignedUploadApiUploadsR2SignedUrlPostMutationOptions(options);
+      const mutationOptions = getCreateSignedUploadApiV1UploadsR2SignedUrlPostMutationOptions(options);
 
       return useMutation(mutationOptions, queryClient);
     }
