@@ -18,7 +18,7 @@ const respondJson = (route: Route, body: unknown) =>
 
 test.describe('[instructor] bookings list', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/auth/me', async (route) => {
+    await page.route('**/api/v1/auth/me', async (route) => {
       await respondJson(route, instructorUser);
     });
   });

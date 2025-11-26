@@ -36,7 +36,7 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock auth endpoint
-  await page.route('**/auth/me', async (route) => {
+  await page.route('**/api/v1/auth/me', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -63,7 +63,8 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock v1 upcoming lessons for homepage (returns paginated format, matching BookingListResponse)
-  await page.route('**/api/v1/bookings/upcoming*', async (route) => {
+  // The actual endpoint is /api/v1/bookings?upcoming_only=true (query param), not /bookings/upcoming (path)
+  await page.route('**/api/v1/bookings?*upcoming_only=true*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -163,7 +164,8 @@ async function setupMocksAndAuth(page: Page) {
     const url = new URL(route.request().url());
     const pathname = url.pathname;
 
-    // Handle explicit /bookings/upcoming list (ensure list shape)
+    // Note: /bookings/upcoming path does not exist; frontend uses /api/v1/bookings?upcoming_only=true
+    // This check is kept for backward compatibility but should not be triggered
     if (pathname.endsWith('/bookings/upcoming')) {
       await route.fulfill({
         status: 200,
@@ -395,7 +397,7 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock login endpoint
-  await page.route('**/auth/login', async (route) => {
+  await page.route('**/api/v1/auth/login', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -475,7 +477,7 @@ test.describe('My Lessons Page', () => {
     // This test uses the real login flow to match actual user behavior
 
     // Mock the login endpoint to match what the app expects
-    await context.route('**/auth/login', async (route) => {
+    await context.route('**/api/v1/auth/login', async (route) => {
       const request = route.request();
       const contentType = request.headers()['content-type'] || '';
 
@@ -501,7 +503,7 @@ test.describe('My Lessons Page', () => {
     });
 
     // Also handle the session-based login endpoint
-    await context.route('**/auth/login-with-session', async (route) => {
+    await context.route('**/api/v1/auth/login-with-session', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -521,7 +523,7 @@ test.describe('My Lessons Page', () => {
     });
 
     // Mock the auth/me endpoint that gets called after login
-    await context.route('**/auth/me', async (route) => {
+    await context.route('**/api/v1/auth/me', async (route) => {
       const authHeader = route.request().headers()['authorization'];
       // Accept any auth header
       if (authHeader && authHeader.includes('Bearer')) {
@@ -553,7 +555,7 @@ test.describe('My Lessons Page', () => {
       });
     });
 
-    await context.route('**/api/v1/bookings/upcoming*', async (route) => {
+    await context.route('**/api/v1/bookings?*upcoming_only=true*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -741,7 +743,8 @@ test.describe('My Lessons Page', () => {
 
   test('should show empty state when no upcoming lessons', async ({ page }) => {
     // Override mock to return empty lessons (v1 bookings)
-    await page.route('**/api/v1/bookings/upcoming*', async (route) => {
+    // Actual endpoint is /api/v1/bookings?upcoming_only=true (query param)
+    await page.route('**/api/v1/bookings?*upcoming_only=true*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -758,7 +761,7 @@ test.describe('My Lessons Page', () => {
     await page.route('**/api/v1/bookings/*', async (route) => {
       const url = new URL(route.request().url());
       const pathname = url.pathname;
-      // Let the specific '/bookings/upcoming' empty override handle that path
+      // Note: /bookings/upcoming path doesn't exist; this is kept for safety
       if (pathname.endsWith('/bookings/upcoming')) {
         await route.fallback();
         return;
@@ -817,7 +820,8 @@ test.describe('My Lessons Page', () => {
 
   test('should show empty state message when no upcoming lessons', async ({ page }) => {
     // Mock empty upcoming but leave history populated (v1 bookings)
-    await page.route('**/api/v1/bookings/upcoming*', async (route) => {
+    // Actual endpoint is /api/v1/bookings?upcoming_only=true (query param)
+    await page.route('**/api/v1/bookings?*upcoming_only=true*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -834,6 +838,7 @@ test.describe('My Lessons Page', () => {
     await page.route('**/api/v1/bookings/*', async (route) => {
       const url = new URL(route.request().url());
       const pathname = url.pathname;
+      // Note: /bookings/upcoming path doesn't exist; kept for safety
       if (pathname.endsWith('/bookings/upcoming')) {
         await route.fallback();
         return;
@@ -1122,9 +1127,10 @@ test.describe('Error Handling', () => {
       localStorage.setItem('access_token', 'mock_access_token');
     });
 
-    const authPattern = '**/auth/me';
+    const authPattern = '**/api/v1/auth/me';
     const historyPattern = '**/api/v1/bookings?*exclude_future_confirmed=true*';
-    const upcomingPattern = '**/api/v1/bookings/upcoming*';
+    // Actual endpoint is /api/v1/bookings?upcoming_only=true (query param)
+    const upcomingPattern = '**/api/v1/bookings?*upcoming_only=true*';
 
     const authHandler = async (route: Route) => {
       await route.fulfill({
@@ -1229,11 +1235,11 @@ test.describe('Error Handling', () => {
     };
 
     // Mock both possible login endpoints
-    await page.route('http://localhost:8000/auth/login', loginHandler);
-    await page.route('http://localhost:8000/auth/login-with-session', loginHandler);
+    await page.route('http://localhost:8000/api/v1/auth/login', loginHandler);
+    await page.route('http://localhost:8000/api/v1/auth/login-with-session', loginHandler);
 
     // Mock auth endpoint to success after we set the token
-    await page.route('**/auth/me', async (route) => {
+    await page.route('**/api/v1/auth/me', async (route) => {
       const headers = route.request().headers();
       const authHeader = headers['authorization'] || '';
       const cookieHeader = headers['cookie'] || '';

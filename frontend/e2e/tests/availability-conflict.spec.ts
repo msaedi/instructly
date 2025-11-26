@@ -115,7 +115,7 @@ const setClientVersionOnPage = async (page: Page, version: string) => {
 };
 
 const stubAuthMe = async (page: Page) => {
-  await page.route('**/auth/me', async (route, request) => {
+  await page.route('**/api/v1/auth/me', async (route, request) => {
     if (request.method() === 'GET') {
       await route.fulfill({
         status: 200,

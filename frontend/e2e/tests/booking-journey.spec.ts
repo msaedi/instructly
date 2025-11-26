@@ -11,7 +11,7 @@ test.describe('Student Booking Journey', () => {
     // Mock ALL API calls needed for the booking journey
 
     // 0. Mock auth endpoint for homepage to show proper UI
-    await context.route('**/auth/me', async (route) => {
+    await context.route('**/api/v1/auth/me', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

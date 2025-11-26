@@ -154,7 +154,7 @@ const stubAuthMe = async (
   rolesProvider: () => ReadonlyArray<string>,
   isReady: () => boolean
 ) => {
-  await routeAlways(context, '**/auth/me', async (route) => {
+  await routeAlways(context, '**/api/v1/auth/me', async (route) => {
     if (await handlePreflight(route)) return;
     if (!isReady()) {
       await respondJson(route, { detail: 'Not authenticated' }, 401);
@@ -246,7 +246,7 @@ test.describe('Login routing without 2FA', () => {
 
       let sessionReady = false;
 
-      await routeOnce(context, '**/auth/login-with-session', async (route) => {
+      await routeOnce(context, '**/api/v1/auth/login-with-session', async (route) => {
         if (await handlePreflight(route)) return;
         const responseBody = {
           access_token: 'fake.jwt.value',
@@ -290,7 +290,7 @@ test.describe('2FA flows', () => {
 
     let sessionReady = false;
 
-    await routeOnce(context, '**/auth/login-with-session', async (route) => {
+    await routeOnce(context, '**/api/v1/auth/login-with-session', async (route) => {
       if (await handlePreflight(route)) return;
       const responseBody = {
         access_token: null,
@@ -339,7 +339,7 @@ test.describe('2FA flows', () => {
 
     let sessionReady = false;
 
-    await routeOnce(context, '**/auth/login-with-session', async (route) => {
+    await routeOnce(context, '**/api/v1/auth/login-with-session', async (route) => {
       if (await handlePreflight(route)) return;
       const responseBody = {
         access_token: null,

@@ -82,8 +82,8 @@ test.describe('Rate limit guardrails', () => {
         body: JSON.stringify({ detail: 'Not authenticated' })
       });
     });
-    // Match direct and proxied API paths, including optional extra /api after /api/proxy
-    await context.route(/.*\/api(?:\/proxy)?(?:\/api)?\/search\/instructors.*/, async (route) => {
+    // Match direct and proxied API paths, including v1 and optional extra /api after /api/proxy
+    await context.route(/.*\/api(?:\/proxy)?(?:\/api)?(?:\/v1)?\/search\/instructors.*/, async (route) => {
       const req = route.request();
       const method = req.method();
       const origin = req.headers()['origin'] || 'http://localhost:3100';
@@ -134,8 +134,8 @@ test.describe('Rate limit guardrails', () => {
         body: JSON.stringify({ detail: 'Not authenticated' })
       });
     });
-    // Match direct and proxied API paths, including optional extra /api after /api/proxy
-    await context.route(/.*\/api(?:\/proxy)?(?:\/api)?\/search\/instructors.*/, async (route) => {
+    // Match direct and proxied API paths, including v1 and optional extra /api after /api/proxy
+    await context.route(/.*\/api(?:\/proxy)?(?:\/api)?(?:\/v1)?\/search\/instructors.*/, async (route) => {
       const req = route.request();
       const method = req.method();
       const origin = req.headers()['origin'] || 'http://localhost:3100';
