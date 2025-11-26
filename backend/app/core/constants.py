@@ -9,7 +9,7 @@ MIN_SESSION_DURATION = 30  # minutes
 MAX_SESSION_DURATION = 240  # minutes (4 hours)
 
 # SSE (Server-Sent Events) configuration
-SSE_PATH_PREFIX = "/api/messages/stream"  # Centralized SSE path for middleware
+SSE_PATH_PREFIX = "/api/v1/messages/stream"  # Centralized SSE path for middleware (v1)
 
 # The following constants are DEPRECATED and will be removed
 # They were part of the old booking system

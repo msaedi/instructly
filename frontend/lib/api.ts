@@ -239,9 +239,6 @@ export const API_ENDPOINTS = {
   INSTRUCTOR_AVAILABILITY: '/instructors/availability/',
   INSTRUCTOR_AVAILABILITY_VALIDATE: '/instructors/availability/week/validate-changes',
 
-  // Student availability checking
-  CHECK_AVAILABILITY: '/api/availability/slots',
-
   // Booking endpoints - Phase 9: Migrated to /api/v1/bookings
   BOOKINGS: '/api/v1/bookings',
   BOOKINGS_UPCOMING: '/api/v1/bookings/upcoming',

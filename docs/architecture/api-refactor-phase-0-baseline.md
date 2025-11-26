@@ -775,6 +775,65 @@ make api-check   # Run both tests and linter
 **Status:** Phases 0, 1, 2, 3, 4, 5 Complete ✅
 **Ready for:** Phase 6 (Full Migration - Remaining Endpoints) or Production Deployment
 
+---
+
+## Phase 6 – V1 Bookings Domain Infrastructure
+
+**Date:** November 24, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Phase 6 established the v1 bookings infrastructure by creating the backend routers, generating frontend clients, and adding route invariant tests. This phase laid the foundation for Phase 7's frontend migration.
+
+### Changes Implemented
+
+#### Backend V1 Routers
+- **`/api/v1/bookings`** - Student-facing booking lifecycle (create, list, view, cancel, etc.)
+- **`/api/v1/instructor-bookings`** - Instructor booking management (view, complete, no-show, etc.)
+
+#### Infrastructure Updates
+- Updated `main.py` to mount v1 bookings routers
+- Updated `openapi_app.py` to include v1 bookings in schema generation
+- Regenerated OpenAPI schema with v1 bookings endpoints
+
+#### Frontend Generated Clients
+- `frontend/src/api/generated/bookings-v1/bookings-v1.ts` (1141 lines)
+- `frontend/src/api/generated/instructor-bookings-v1/instructor-bookings-v1.ts` (581 lines)
+
+#### Frontend Service Layer
+- `frontend/src/api/services/bookings.ts` (240 lines) - Student booking operations
+- `frontend/src/api/services/instructor-bookings.ts` (165 lines) - Instructor booking operations
+
+#### Testing
+- Extended `test_routes_invariants.py` with bookings v1 domain tests (+142 lines)
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `backend/app/main.py` | Mount v1 bookings routers |
+| `backend/app/openapi_app.py` | Include v1 bookings in OpenAPI |
+| `backend/app/routes/v1/bookings.py` | New file (887 lines) |
+| `backend/app/routes/v1/instructor_bookings.py` | New file (386 lines) |
+| `backend/openapi/openapi.json` | Regenerated with v1 endpoints |
+| `backend/tests/test_routes_invariants.py` | Added bookings v1 tests |
+| `frontend/src/api/generated/bookings-v1/` | Generated Orval client |
+| `frontend/src/api/generated/instructor-bookings-v1/` | Generated Orval client |
+| `frontend/src/api/services/bookings.ts` | New service layer |
+| `frontend/src/api/services/instructor-bookings.ts` | New service layer |
+
+### Key Achievements
+
+1. **Backend Ready** - V1 bookings routers operational with full endpoint coverage
+2. **Type Safety** - Generated TypeScript clients ensure frontend type safety
+3. **Service Pattern** - Established service layer pattern for bookings domain
+4. **Test Coverage** - Route invariant tests verify endpoint existence
+
+**Phase 6 Status:** ✅ **Complete** – V1 bookings infrastructure established, ready for Phase 7 frontend migration.
+
+---
+
 ## Phase 7 - Bookings V1 Migration (Student Upcoming Lessons)
 
 **Date:** November 24, 2025
@@ -2739,6 +2798,118 @@ two_factor_auth_v1, uploads_v1, users_v1
 - [x] Architecture documentation complete
 
 **Phase 20 Status:** ✅ **Complete** – API v1 migration finalized and ready for merge.
+
+---
+
+## Phase 21 – Audit Remediation (Pre-Merge Fixes)
+
+**Date:** November 26, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Phase 21 addresses issues identified by three independent audits of the API v1 migration. All high-severity issues have been resolved.
+
+### Issues Addressed
+
+#### Fix #1: SSE_PATH_PREFIX Constant (HIGH SEVERITY) ✅
+
+**Problem:** `backend/app/core/constants.py` had the legacy SSE path:
+```python
+SSE_PATH_PREFIX = "/api/messages/stream"  # WRONG - legacy path
+```
+
+**Impact:** 6 middleware files use this constant to skip special handling for SSE:
+- `timing_asgi.py`
+- `monitoring.py`
+- `prometheus_middleware.py`
+- `rate_limiter_asgi.py`
+- `performance.py`
+- `beta_phase_header.py`
+
+**Fix Applied:**
+```python
+SSE_PATH_PREFIX = "/api/v1/messages/stream"  # Updated to v1 path
+```
+
+**Verification:**
+```bash
+grep -rn "SSE_PATH_PREFIX" backend/app/  # All 6 middleware files use the constant
+grep -rn '"/api/messages/stream"' backend/  # No hardcoded legacy paths
+```
+
+#### Fix #2: CHECK_AVAILABILITY Constant ✅
+
+**Problem:** `frontend/lib/api.ts` had an unused constant:
+```typescript
+CHECK_AVAILABILITY: '/api/availability/slots',
+```
+
+**Investigation Results:**
+- Constant was **not used** anywhere in frontend
+- Backend endpoint `/api/availability/slots` **does not exist**
+- This was dead code
+
+**Fix Applied:** Removed the unused constant from `frontend/lib/api.ts`.
+
+#### Fix #3: Privacy Auditor Legacy Paths ✅
+
+**Problem:** `backend/app/core/privacy_auditor.py` had hardcoded legacy paths in test data.
+
+**Fix Applied:** Updated all paths to v1:
+| Old Path | New Path |
+|----------|----------|
+| `/api/search/instructors` | `/api/v1/search/instructors` |
+| `/services/search` | `/api/v1/services/search` |
+| `/api/public/instructors/*/availability` | `/api/v1/public/instructors/*/availability` |
+| `/instructors/` | `/api/v1/instructors/` |
+| `/api/bookings` | `/api/v1/bookings` |
+| `/api/bookings/1` | `/api/v1/bookings/01J5TESTBOOKING0000000001` |
+| `/api/instructor/profile` | `/api/v1/instructors/me` |
+
+#### Clarification #4: Deferred Routers Status ✅
+
+**Investigation Results:**
+
+Both deferred routers have active frontend consumers:
+
+**`instructor_background_checks.router`:**
+- `frontend/app/(admin)/admin/bgc-review/hooks.ts` - Admin BGC review
+- `frontend/lib/api/bgc.ts` - BGC API functions
+- Uses `/api/instructors/{id}/bgc/*` paths
+
+**`availability_windows.router`:**
+- Generated types show extensive usage
+- `frontend/lib/api.ts` - Availability API endpoints
+- Uses `/instructors/availability/*` paths
+
+**Decision:** Keep deferred as documented. Both routers:
+- Are instructor-facing (not student-facing)
+- Work correctly with current legacy paths
+- Require coordination with frontend when migrated
+- Are clearly documented as "Deferred (Future Phases)"
+
+### Files Modified in Phase 21
+
+| File | Change |
+|------|--------|
+| `backend/app/core/constants.py` | Updated SSE_PATH_PREFIX to v1 path |
+| `frontend/lib/api.ts` | Removed unused CHECK_AVAILABILITY constant |
+| `backend/app/core/privacy_auditor.py` | Updated test paths to v1 |
+
+### Quality Gates
+
+| Check | Status |
+|-------|--------|
+| Backend ruff check | ✅ Pass |
+| Backend mypy strict | ✅ Pass (365 source files) |
+| Frontend build | ✅ Pass |
+| Frontend lint | ✅ Pass |
+| Frontend typecheck | ✅ Pass |
+| Frontend typecheck:strict | ✅ Pass |
+| Frontend typecheck:strict-all | ✅ Pass |
+
+**Phase 21 Status:** ✅ **Complete** – All audit findings addressed, ready for merge.
 
 ---
 
