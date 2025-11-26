@@ -60,7 +60,7 @@ def test_preview_session_cookie_powers_api_routes(
             )
         ],
     )
-    payment_methods = client.get("/api/payments/methods")
+    payment_methods = client.get("/api/v1/payments/methods")
     assert payment_methods.status_code == 200
     assert payment_methods.json()
 

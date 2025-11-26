@@ -43,10 +43,10 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
       preferredPublic: [] as Array<{ address: string }>,
     };
 
-    await page.route('**/auth/register', (route) => fulfillJson(route, { ok: true }));
-    await page.route('**/auth/login-with-session', (route) => fulfillJson(route, { ok: true }));
+    await page.route('**/api/v1/auth/register', (route) => fulfillJson(route, { ok: true }));
+    await page.route('**/api/v1/auth/login-with-session', (route) => fulfillJson(route, { ok: true }));
 
-    await page.route('**/auth/me', (route) =>
+    await page.route('**/api/v1/auth/me', (route) =>
       fulfillJson(route, {
         id: 'mock-user',
         first_name: 'E2E',
@@ -197,7 +197,7 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
           role: 'instructor',
           guest_session_id: guest,
         };
-        const response = await fetch(`${api}/auth/register`, {
+        const response = await fetch(`${api}/api/v1/auth/register`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -216,7 +216,7 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
 
     const loginResp = await page.evaluate(
       async ({ api, email, guest, password }) => {
-        const response = await fetch(`${api}/auth/login-with-session`, {
+        const response = await fetch(`${api}/api/v1/auth/login-with-session`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },

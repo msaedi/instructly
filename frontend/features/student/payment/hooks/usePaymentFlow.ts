@@ -73,7 +73,7 @@ export function usePaymentFlow({
 
     try {
       // Simulate API call - replace with actual Stripe integration
-      const response = await fetch('/api/payments/process', {
+      const response = await fetch('/api/v1/payments/process', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

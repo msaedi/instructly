@@ -100,7 +100,7 @@ def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
 
         # Step 3: fetch presigned view URL
         # Need current user id; call /api/auth/me to get it
-        me = client.get("/auth/me", headers=auth_headers)
+        me = client.get("/api/v1/auth/me", headers=auth_headers)
         assert me.status_code == 200
         me_json = me.json()
         user_id = me_json.get("id") or me_json.get("data", {}).get("id")

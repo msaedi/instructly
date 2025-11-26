@@ -1307,7 +1307,7 @@ test.describe('Error Handling', () => {
     // Submit the form
     await Promise.all([
       page.waitForResponse(
-        (response) => response.url().includes('/auth/login') && response.status() === 200
+        (response) => response.url().includes('/api/v1/auth/login') && response.status() === 200
       ),
       page.click('button[type="submit"]'),
     ]);

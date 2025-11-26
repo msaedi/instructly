@@ -486,7 +486,7 @@ export default function InstructorDashboard() {
           <button
             onClick={async () => {
               try {
-                const res = await fetchWithAuth('/api/payments/connect/instant-payout', { method: 'POST' });
+                const res = await fetchWithAuth('/api/v1/payments/connect/instant-payout', { method: 'POST' });
                 if (!res.ok) {
                   const err = await res.json().catch(() => ({} as Record<string, unknown>));
                   alert(`Instant payout failed: ${err.detail || res.statusText}`);

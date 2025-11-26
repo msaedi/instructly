@@ -88,7 +88,7 @@ from .routes import (
     admin_instructors,
     alerts,
     analytics,
-    auth,
+    # auth,  # DEPRECATED: Migrated to v1
     availability_windows,
     beta,
     codebase_metrics,
@@ -98,7 +98,7 @@ from .routes import (
     internal,
     metrics,
     monitoring,
-    payments,
+    # payments,  # DEPRECATED: Migrated to v1
     pricing_config_public,
     pricing_preview,
     privacy,
@@ -115,12 +115,14 @@ from .routes import (
 from .routes.v1 import (
     account as account_v1,
     addresses as addresses_v1,
+    auth as auth_v1,
     bookings as bookings_v1,
     favorites as favorites_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
     messages as messages_v1,
     password_reset as password_reset_v1,
+    payments as payments_v1,
     referrals as referrals_v1,
     reviews as reviews_v1,
     search as search_v1,
@@ -945,19 +947,28 @@ api_v1.include_router(referrals_v1.router, prefix="/referrals")  # type: ignore[
 api_v1.include_router(account_v1.router, prefix="/account")  # type: ignore[attr-defined]
 api_v1.include_router(password_reset_v1.router, prefix="/password-reset")  # type: ignore[attr-defined]
 api_v1.include_router(two_factor_auth_v1.router, prefix="/2fa")  # type: ignore[attr-defined]
+api_v1.include_router(auth_v1.router, prefix="/auth")  # type: ignore[attr-defined]
+api_v1.include_router(payments_v1.router, prefix="/payments")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
     "/",
     "/health",
     "/ready",
-    "/auth/login",
-    "/auth/login-with-session",
-    "/auth/register",
+    # Legacy auth paths - DEPRECATED, use /api/v1/auth instead
+    # "/auth/login",
+    # "/auth/login-with-session",
+    # "/auth/register",
+    # v1 auth paths
+    "/api/v1/auth/login",
+    "/api/v1/auth/login-with-session",
+    "/api/v1/auth/register",
     "/api/v1/password-reset/request",
     "/api/v1/password-reset/confirm",
     "/api/v1/2fa/verify-login",
     "/api/v1/referrals/claim",
+    # v1 payments webhook (signature-verified, no auth needed)
+    "/api/v1/payments/webhooks/stripe",
 }
 
 PUBLIC_OPEN_PREFIXES = (
@@ -983,7 +994,8 @@ public_guard_dependency = public_guard(
 # Mount API v1 first
 app.include_router(api_v1)
 
-app.include_router(auth.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy auth routes - DEPRECATED, use /api/v1/auth instead
+# app.include_router(auth.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy two_factor_auth routes - DEPRECATED, use /api/v1/2fa instead
 # app.include_router(two_factor_auth.router, dependencies=[Depends(public_guard_dependency)])
 
@@ -1009,7 +1021,8 @@ app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_de
 app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy favorites routes - DEPRECATED, use /api/v1/favorites instead
 # app.include_router(favorites.router)  # Was: /api/favorites
-app.include_router(payments.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy payments routes - DEPRECATED, use /api/v1/payments instead
+# app.include_router(payments.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy messages routes - DEPRECATED, use /api/v1/messages instead
 # app.include_router(messages.router)
 app.include_router(metrics.router)
@@ -1053,7 +1066,7 @@ app.include_router(admin_background_checks.router)
 app.include_router(admin_instructors.router)
 
 
-# Identity + uploads: new endpoints are included via existing payments router and addresses router
+# Identity + uploads: new endpoints are included via existing v1 payments router and v1 addresses router
 
 
 # Import for Stripe webhook response model
@@ -1069,12 +1082,27 @@ async def redirect_stripe_webhook(
     Redirect old webhook URL to new location.
 
     This endpoint exists for backward compatibility with webhooks configured
-    at /api/webhooks/stripe instead of /api/payments/webhooks/stripe.
+    at /api/webhooks/stripe instead of /api/v1/payments/webhooks/stripe.
     It simply forwards the request to the correct handler.
     """
-    from app.routes.payments import handle_stripe_webhook
+    from app.routes.v1.payments import handle_stripe_webhook
 
-    return await handle_stripe_webhook(request, db)
+    return await handle_stripe_webhook(request)
+
+
+# Redirect for legacy /api/payments/webhooks/stripe path
+@app.post("/api/payments/webhooks/stripe", response_model=WebhookResponse)
+async def redirect_legacy_payments_webhook(
+    request: Request, db: Session = Depends(get_db)
+) -> WebhookResponse:
+    """
+    Redirect legacy /api/payments/webhooks/stripe to v1 handler.
+
+    This endpoint exists for backward compatibility during migration.
+    """
+    from app.routes.v1.payments import handle_stripe_webhook
+
+    return await handle_stripe_webhook(request)
 
 
 @app.get("/", response_model=RootResponse)

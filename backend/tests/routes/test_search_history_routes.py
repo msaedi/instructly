@@ -145,7 +145,7 @@ class TestAuthWithGuestSession:
 
         # Login with guest session
         response = client.post(
-            "/auth/login-with-session",
+            "/api/v1/auth/login-with-session",
             json={
                 "email": f"convert-{guest_session_id}@example.com",
                 "password": "testpass123",
@@ -172,7 +172,7 @@ class TestAuthWithGuestSession:
     def test_login_with_session_invalid_credentials(self, client: TestClient, db: Session):
         """Test login with session fails with bad credentials."""
         response = client.post(
-            "/auth/login-with-session",
+            "/api/v1/auth/login-with-session",
             json={"email": "nonexistent@example.com", "password": "wrongpass", "guest_session_id": "test-123"},
         )
 
@@ -200,7 +200,7 @@ class TestAuthWithGuestSession:
 
         # Register with guest session
         response = client.post(
-            "/auth/register",
+            "/api/v1/auth/register",
             json={
                 "email": "newuser@example.com",
                 "password": "newpass123",
@@ -237,7 +237,7 @@ class TestAuthWithGuestSession:
 
         # Regular login (OAuth2 format)
         response = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             data={"username": "regular@example.com", "password": "regularpass123"},
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )

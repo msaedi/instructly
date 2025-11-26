@@ -54,15 +54,15 @@ def _is_excluded_path(path: str) -> bool:
         "/metrics/",
         "/prometheus/",
         # Legacy paths - will be migrated in later phases
-        "/auth/",
-        "/api/auth/",
+        # "/auth/",  # Phase 17: Auth migrated to /api/v1/auth
+        # "/api/auth/",  # Phase 17: Auth migrated to /api/v1/auth
         "/api/public/",
         "/api/config/",
         # "/api/search/",  # Phase 14: Search migrated to /api/v1/search
         # "/api/search-history/",  # Phase 14: Search history migrated to /api/v1/search-history
         "/api/analytics/",
         "/api/privacy/",
-        "/api/payments/",
+        # "/api/payments/",  # Phase 17: Payments migrated to /api/v1/payments
         # "/api/favorites/",  # Phase 13: Favorites migrated to /api/v1/favorites
         # "/api/messages/",  # Phase 10: Messages migrated to /api/v1/messages
         "/api/uploads/",

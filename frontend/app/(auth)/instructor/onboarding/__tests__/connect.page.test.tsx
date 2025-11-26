@@ -22,8 +22,8 @@ const mockFetchWithAuth = jest.fn();
 
 jest.mock('@/lib/api', () => ({
   API_ENDPOINTS: {
-    ME: '/auth/me',
-    CONNECT_STATUS: '/api/payments/connect/status',
+    ME: '/api/v1/auth/me',
+    CONNECT_STATUS: '/api/v1/payments/connect/status',
   },
   fetchWithAuth: (...args: unknown[]) => mockFetchWithAuth(...args),
 }));
@@ -59,13 +59,13 @@ describe('Stripe Connect callback page', () => {
     toastMock.mockClear();
 
     mockFetchWithAuth.mockImplementation(async (url: unknown) => {
-      if (url === '/auth/me') {
+      if (url === '/api/v1/auth/me') {
         return {
           ok: true,
         } as unknown as Response;
       }
 
-      if (url === '/api/payments/connect/status') {
+      if (url === '/api/v1/payments/connect/status') {
         return {
           ok: true,
           json: async () => ({
@@ -86,8 +86,8 @@ describe('Stripe Connect callback page', () => {
   it('warms up auth, fetches status, and redirects back to onboarding', async () => {
     render(<StripeConnectCallbackPage />);
 
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith('/auth/me'));
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith('/api/payments/connect/status'));
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith('/api/v1/auth/me'));
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith('/api/v1/payments/connect/status'));
     await waitFor(() =>
       expect(toastMock).toHaveBeenCalledWith('Stripe Connect linked', {
         description: "You're all set.",

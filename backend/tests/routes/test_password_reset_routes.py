@@ -287,7 +287,7 @@ class TestPasswordResetIntegration:
             assert updated_token.used is True
 
             # Step 5: Try to login with new password
-            response = client.post("/auth/login", data={"username": test_student.email, "password": new_password})
+            response = client.post("/api/v1/auth/login", data={"username": test_student.email, "password": new_password})
             assert response.status_code == status.HTTP_200_OK
             assert "access_token" in response.json()
 

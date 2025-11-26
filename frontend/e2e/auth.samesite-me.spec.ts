@@ -77,7 +77,7 @@ async function loginForOrigin(origin: string, apiBase: string, email: string, pa
   const maxAttempts = 4;
   let delay = 800;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const candidate = await api.post('/auth/login-with-session', {
+    const candidate = await api.post('/api/v1/auth/login-with-session', {
       data: { email, password, guest_session_id: guestSessionId },
       timeout: 15_000,
     });
@@ -116,7 +116,7 @@ async function loginForOrigin(origin: string, apiBase: string, email: string, pa
   return storagePath;
 }
 
-test.describe('SameSite cookie smoke: /auth/me across local hosts', () => {
+test.describe('SameSite cookie smoke: /api/v1/auth/me across local hosts', () => {
   test('me is 200 from each FE origin', async () => {
     test.skip(Boolean(process.env.CI) && !process.env.CI_LOCAL_E2E, 'Local-only smoke; opt-in via CI_LOCAL_E2E=1');
 
@@ -137,8 +137,8 @@ test.describe('SameSite cookie smoke: /auth/me across local hosts', () => {
       const context = await browser.newContext({ baseURL: origin, storageState: storageStatePath });
       const page = await context.newPage();
       await page.goto('/', { waitUntil: 'domcontentloaded' });
-      const response = await page.request.get(new URL('/auth/me', api).toString(), { timeout: 15_000 });
-      expect(response.status(), `${origin} /auth/me`).toBe(200);
+      const response = await page.request.get(new URL('/api/v1/auth/me', api).toString(), { timeout: 15_000 });
+      expect(response.status(), `${origin} /api/v1/auth/me`).toBe(200);
       await context.close();
       await browser.close();
     }

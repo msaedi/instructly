@@ -95,7 +95,7 @@ export interface InstructorInvoice {
 }
 
 class PaymentService {
-  private basePath = `/api/payments`;
+  private basePath = `/api/v1/payments`;
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = withApiBase(`${this.basePath}${endpoint}`);

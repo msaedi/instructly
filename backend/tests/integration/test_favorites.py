@@ -163,7 +163,7 @@ def test_instructor_with_student_role(test_password: str, db: Session) -> User:
 @pytest.fixture
 def auth_headers_student(client: TestClient, test_student: User, test_password: str) -> dict:
     """Get auth headers for student."""
-    response = client.post("/auth/login", data={"username": test_student.email, "password": test_password})
+    response = client.post("/api/v1/auth/login", data={"username": test_student.email, "password": test_password})
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -171,7 +171,7 @@ def auth_headers_student(client: TestClient, test_student: User, test_password: 
 @pytest.fixture
 def auth_headers_instructor(client: TestClient, test_instructor: User, test_password: str) -> dict:
     """Get auth headers for instructor."""
-    response = client.post("/auth/login", data={"username": test_instructor.email, "password": test_password})
+    response = client.post("/api/v1/auth/login", data={"username": test_instructor.email, "password": test_password})
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -511,7 +511,7 @@ class TestFavoritesAPI:
 
         # Re-authenticate to avoid any cached principal
         login_response = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             data={"username": test_student.email, "password": test_password},
         )
         assert login_response.status_code == 200

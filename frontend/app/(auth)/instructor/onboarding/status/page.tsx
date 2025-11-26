@@ -196,7 +196,7 @@ export default function OnboardingStatusPage() {
         }
       } else {
         // Fallback: hosted link by opening in same tab
-        window.location.href = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/payments/identity/session`;
+        window.location.href = `${process.env['NEXT_PUBLIC_API_BASE'] || 'http://localhost:8000'}/api/v1/payments/identity/session`;
       }
     } catch {
       // no-op

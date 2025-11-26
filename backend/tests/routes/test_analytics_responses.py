@@ -55,7 +55,7 @@ class TestAnalyticsResponseSchemas:
     def admin_headers(self, admin_user: User, client: TestClient, test_password: str) -> dict:
         """Get admin authentication headers."""
         response = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             data={"username": admin_user.email, "password": test_password},
         )
         token = response.json()["access_token"]

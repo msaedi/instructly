@@ -70,7 +70,7 @@ function LoginForm({ redirect }: { redirect: string }) {
       const guestSessionId = getGuestSessionId();
       logger.info('Login attempt with guest session:', { guestSessionId, hasGuestSession: !!guestSessionId });
 
-      const loginPath = guestSessionId ? '/auth/login-with-session' : '/auth/login';
+      const loginPath = guestSessionId ? '/api/v1/auth/login-with-session' : '/api/v1/auth/login';
       const headers = guestSessionId
         ? { 'Content-Type': 'application/json' }
         : { 'Content-Type': 'application/x-www-form-urlencoded' };

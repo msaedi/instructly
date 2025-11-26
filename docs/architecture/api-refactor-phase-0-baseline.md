@@ -2196,8 +2196,149 @@ All mandatory audits passed:
 
 ---
 
-### Phase 17+ Candidates
+## Phase 17 – Auth & Payments → v1
 
-- **Payments**: Complex Stripe integration, requires careful planning
-- **Auth**: Core authentication (login, register, session management)
+**Date:** November 25, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Migrated the two remaining core domains to v1 API: **Auth** (core authentication including login, register, session management) and **Payments** (complete Stripe integration for Connect, Identity, checkout, and earnings).
+
+### Auth Domain Migration
+
+**Legacy Path:** `/auth/*`
+**V1 Path:** `/api/v1/auth/*`
+
+**V1 Endpoints:**
+```
+POST   /api/v1/auth/register              → User registration
+POST   /api/v1/auth/login                 → OAuth2 password login (form-encoded)
+POST   /api/v1/auth/login-with-session    → Login with session cookie
+POST   /api/v1/auth/change-password       → Change password (protected)
+GET    /api/v1/auth/me                    → Get current user profile (protected)
+PATCH  /api/v1/auth/me                    → Update current user profile (protected)
+```
+
+### Payments Domain Migration
+
+**Legacy Path:** `/api/payments/*`
+**V1 Path:** `/api/v1/payments/*`
+
+**V1 Endpoints:**
+```
+# Stripe Connect
+GET    /api/v1/payments/connect/status         → Get Connect account status
+POST   /api/v1/payments/connect/onboard        → Start Connect onboarding
+POST   /api/v1/payments/connect/refresh        → Refresh Connect onboarding link
+GET    /api/v1/payments/connect/dashboard-link → Get Express dashboard link
+
+# Stripe Identity (verification)
+POST   /api/v1/payments/identity/session       → Create Identity verification session
+POST   /api/v1/payments/identity/refresh       → Refresh Identity session
+
+# Checkout & Payment Methods
+POST   /api/v1/payments/checkout               → Create checkout session
+GET    /api/v1/payments/methods                → List saved payment methods
+POST   /api/v1/payments/methods                → Add payment method
+DELETE /api/v1/payments/methods/{method_id}    → Delete payment method
+
+# Instructor Earnings
+GET    /api/v1/payments/earnings               → Get instructor earnings summary
+
+# Webhooks
+POST   /api/v1/payments/webhooks/stripe        → Stripe webhook handler
+```
+
+### Files Changed
+
+#### Backend - Added
+- `backend/app/routes/v1/auth.py` (NEW) - V1 auth router with login, register, me endpoints
+- `backend/app/routes/v1/payments.py` (NEW) - V1 payments router with all Stripe endpoints
+
+#### Backend - Modified
+- `backend/app/routes/v1/__init__.py` - Added exports for auth and payments modules
+- `backend/app/main.py` - Mount v1 routers, update PUBLIC_OPEN_PATHS, comment out legacy routers
+- `backend/app/openapi_app.py` - Same updates for OpenAPI generation
+- `backend/app/middleware/csrf_asgi.py` - Updated `_is_exempt_path()` for v1 auth paths
+
+#### Backend Tests Updated
+- `backend/tests/integration/api/test_auth.py` - All auth tests updated to v1 paths
+- `backend/tests/integration/api/test_auth_2fa_login_with_session.py` - Updated to v1
+- `backend/tests/integration/api/test_auth_preview_smoke.py` - Updated to v1
+- `backend/tests/routes/test_payments.py` - Updated to v1 paths
+- `backend/tests/integration/routes/test_error_contracts.py` - Updated payments test to v1
+- `backend/tests/integration/routes/test_instructor_bookings_api.py` - Updated earnings test to v1
+- `backend/tests/ratelimit/test_financial_enforcement.py` - Updated to v1
+- `backend/tests/integration/routes/test_payments_strict.py` - Updated to v1
+- `backend/tests/integration/routes/test_payments_requests_strict.py` - Updated to v1
+- `backend/tests/integration/test_auth_surface_matrix.py` - Updated to v1
+
+#### Frontend - Modified
+- `frontend/lib/api.ts` - Updated API_ENDPOINTS for auth and payments to v1
+- `frontend/services/api/payments.ts` - Updated basePath to `/api/v1/payments`
+- `frontend/app/(shared)/signup/page.tsx` - Updated register endpoint
+- `frontend/app/(shared)/login/LoginClient.tsx` - Updated login and 2FA endpoints
+- `frontend/app/(auth)/student/dashboard/page.tsx` - Updated auth endpoints
+- `frontend/features/shared/hooks/useAuth.tsx` - Updated auth endpoints
+- `frontend/hooks/queries/useAuth.ts` - Updated auth endpoints
+- `frontend/hooks/queries/useUser.ts` - Updated me endpoint
+- `frontend/hooks/useSSEMessages.ts` - Updated auth endpoint
+- `frontend/components/security/DeleteAccountModal.tsx` - Updated auth endpoint
+- `frontend/components/booking/CheckoutFlow.tsx` - Updated payments endpoints
+- `frontend/app/(auth)/instructor/dashboard/page.tsx` - Updated payments endpoints
+- `frontend/app/(auth)/instructor/onboarding/status/page.tsx` - Updated payments endpoints
+- `frontend/features/student/payment/hooks/usePaymentFlow.ts` - Updated payments endpoints
+- `frontend/app/dashboard/instructor/page.tsx` - Updated payments endpoints
+
+### Configuration Changes
+
+#### PUBLIC_OPEN_PATHS Updated
+```python
+# Added v1 auth paths (publicly accessible):
+"/api/v1/auth/login",
+"/api/v1/auth/login-with-session",
+"/api/v1/auth/register",
+"/api/v1/payments/webhooks/stripe",
+```
+
+#### CSRF Exemption Updated
+```python
+# _is_exempt_path() now includes v1 auth paths for test compatibility:
+p.startswith("/api/v1/auth/login")
+or p.startswith("/api/v1/auth/login-with-session")
+or p.startswith("/api/v1/auth/register")
+```
+
+### Quality Gates
+
+All quality gates passed:
+- ✅ Pre-commit hooks passed
+- ✅ ruff check passed
+- ✅ mypy strict passed
+- ✅ Frontend build passed
+- ✅ Frontend typecheck:strict passed
+- ✅ Auth tests passed (129 passed, 6 skipped)
+- ✅ Backend tests updated for v1 paths
+
+### Key Implementation Details
+
+1. **OAuth2 Form-Encoded Login**: The `/login` endpoint uses OAuth2 password flow with form-encoded body (not JSON), preserved in v1.
+
+2. **Session Cookie Support**: `/login-with-session` sets HttpOnly cookie for session-based auth, preserved in v1.
+
+3. **CSRF Protection**: Auth endpoints are exempt from CSRF checks during tests but protected in production.
+
+4. **Stripe Webhook Signature**: Webhook handler validates Stripe signature headers before processing.
+
+5. **Connect Dashboard Links**: Dynamic link generation for Stripe Express dashboard access.
+
+**Phase 17 Status:** ✅ **Complete** – Auth and Payments domains fully migrated to v1 API.
+
+---
+
+### Phase 18+ Candidates
+
 - **Admin**: Admin-only endpoints (background checks, config, etc.)
+- **Analytics**: Search analytics and admin dashboards
+- **Beta**: Beta invite system endpoints

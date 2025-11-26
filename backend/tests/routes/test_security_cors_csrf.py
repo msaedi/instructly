@@ -19,7 +19,7 @@ def test_cors_preflight_allows_allowed_origin():
     # Use a default dev origin present in ALLOWED_ORIGINS at import time
     origin = "http://localhost:3000"
     r = client.options(
-        "/auth/login",
+        "/api/v1/auth/login",
         headers={
             "Origin": origin,
             "Access-Control-Request-Method": "POST",

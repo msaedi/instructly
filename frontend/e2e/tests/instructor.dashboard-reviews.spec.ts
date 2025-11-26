@@ -17,7 +17,7 @@ const respondJson = (route: Route, body: unknown) =>
   });
 
 async function mockDashboardApis(page: Page) {
-  await page.route('**/auth/me', async (route) => {
+  await page.route('**/api/v1/auth/me', async (route) => {
     await respondJson(route, instructorUser);
   });
 

@@ -188,7 +188,7 @@ class TestAuthServiceAccountStatus:
     def test_api_login_endpoint_with_deactivated_user(self, client, deactivated_instructor: User, test_password: str):
         """Test that login endpoint rejects deactivated users."""
         response = client.post(
-            "/auth/login", data={"username": deactivated_instructor.email, "password": test_password}
+            "/api/v1/auth/login", data={"username": deactivated_instructor.email, "password": test_password}
         )
 
         # Should return 401 Unauthorized
@@ -197,7 +197,7 @@ class TestAuthServiceAccountStatus:
 
     def test_api_login_endpoint_with_suspended_user(self, client, suspended_instructor: User, test_password: str):
         """Test that login endpoint accepts suspended users."""
-        response = client.post("/auth/login", data={"username": suspended_instructor.email, "password": test_password})
+        response = client.post("/api/v1/auth/login", data={"username": suspended_instructor.email, "password": test_password})
 
         # Should succeed
         assert response.status_code == 200
@@ -210,13 +210,13 @@ class TestAuthServiceAccountStatus:
         """Test that suspended users can access protected endpoints after login."""
         # First login to get token
         login_response = client.post(
-            "/auth/login", data={"username": suspended_instructor.email, "password": test_password}
+            "/api/v1/auth/login", data={"username": suspended_instructor.email, "password": test_password}
         )
         token = login_response.json()["access_token"]
 
         # Try to access a protected endpoint
         headers = {"Authorization": f"Bearer {token}"}
-        response = client.get("/auth/me", headers=headers)
+        response = client.get("/api/v1/auth/me", headers=headers)
 
         assert response.status_code == 200
         user_data = response.json()

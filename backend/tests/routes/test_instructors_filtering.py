@@ -48,7 +48,7 @@ class TestInstructorsFilteringAPI:
         db.commit()
 
         # Login to get token
-        _response = client.post("/auth/login", data={"username": "test@example.com", "password": "testpassword"})
+        _response = client.post("/api/v1/auth/login", data={"username": "test@example.com", "password": "testpassword"})
         # For testing purposes, we'll mock this
         # In real tests, you'd need proper auth setup
         return {"Authorization": "Bearer mock-token"}

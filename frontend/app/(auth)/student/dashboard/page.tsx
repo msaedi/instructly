@@ -99,7 +99,7 @@ function StudentDashboardContent() {
     refetch: refetchUserData,
   } = useQuery<AuthUser>({
     queryKey: queryKeys.user,
-    queryFn: queryFn('/auth/me', { requireAuth: true }),
+    queryFn: queryFn('/api/v1/auth/me', { requireAuth: true }),
     staleTime: CACHE_TIMES.SESSION, // Session-long cache
     retry: false,
   });
@@ -1735,7 +1735,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
     logger.info('Submitting profile update');
 
     try {
-      const res = await fetchWithAuth('/auth/me', {
+      const res = await fetchWithAuth('/api/v1/auth/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData),
@@ -1869,7 +1869,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     setSubmitting(true);
     try {
       // Call in-app change password endpoint
-      const res = await fetchWithAuth('/auth/change-password', {
+      const res = await fetchWithAuth('/api/v1/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })

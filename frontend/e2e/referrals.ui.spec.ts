@@ -111,7 +111,7 @@ test.describe('Referral surfaces', () => {
     const studentEmail = process.env.E2E_STUDENT_EMAIL || 'john.smith@example.com';
     const studentPassword = process.env.E2E_STUDENT_PASSWORD || 'TestPassword123!';
 
-    await page.route('**/auth/login', async (route) => {
+    await page.route('**/api/v1/auth/login', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 200,
@@ -130,7 +130,7 @@ test.describe('Referral surfaces', () => {
       await route.continue();
     });
 
-    await page.route('**/auth/login-with-session', async (route) => {
+    await page.route('**/api/v1/auth/login-with-session', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 200,
@@ -159,7 +159,7 @@ test.describe('Referral surfaces', () => {
       credits_balance: 2000,
     };
 
-    await page.route('**/auth/me', async (route) => {
+    await page.route('**/api/v1/auth/me', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -171,7 +171,7 @@ test.describe('Referral surfaces', () => {
       await route.continue();
     });
 
-    await page.route('**/api/auth/me', async (route) => {
+    await page.route('**/api/api/v1/auth/me', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,

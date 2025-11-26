@@ -11,7 +11,7 @@ def _login(client: TestClient, email: str, password: str) -> None:
         "password": password,
         "guest_session_id": "guard-cookie",
     }
-    resp = client.post("/auth/login-with-session", json=payload)
+    resp = client.post("/api/v1/auth/login-with-session", json=payload)
     assert resp.status_code == 200, resp.text
 
 

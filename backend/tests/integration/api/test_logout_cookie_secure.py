@@ -46,5 +46,5 @@ def test_logout_clears_host_cookie_secure(client: TestClient, monkeypatch) -> No
             assert "Secure" not in header
         assert "Max-Age=0" in header
 
-    auth_me = client.get("/auth/me")
+    auth_me = client.get("/api/v1/auth/me")
     assert auth_me.status_code == 401

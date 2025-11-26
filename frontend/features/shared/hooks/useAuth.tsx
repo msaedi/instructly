@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const guestSessionId = getGuestSessionId();
       logger.info('Login attempt with guest session:', { guestSessionId, hasGuestSession: !!guestSessionId });
 
-      const path = guestSessionId ? '/auth/login-with-session' : '/auth/login';
+      const path = guestSessionId ? '/api/v1/auth/login-with-session' : '/api/v1/auth/login';
 
       const headers = guestSessionId
         ? { 'Content-Type': 'application/json' }

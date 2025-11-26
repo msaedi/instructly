@@ -1250,7 +1250,7 @@ export default function InstructorDashboardNew() {
                           alert('Your Stripe onboarding is not completed yet. Please finish onboarding first.');
                           return;
                         }
-                        const dl = await fetchWithAuth('/api/payments/connect/dashboard');
+                        const dl = await fetchWithAuth('/api/v1/payments/connect/dashboard');
                         if (dl.ok) {
                           const data = await dl.json();
                           window.open(data.dashboard_url, '_blank');
@@ -1269,7 +1269,7 @@ export default function InstructorDashboardNew() {
                   <button
                     onClick={async () => {
                       try {
-                        const res = await fetchWithAuth('/api/payments/connect/instant-payout', { method: 'POST' });
+                        const res = await fetchWithAuth('/api/v1/payments/connect/instant-payout', { method: 'POST' });
                         if (!res.ok) {
                           const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
                           alert(`Instant payout failed: ${err.detail || res.statusText}`);

@@ -43,7 +43,7 @@ def test_login_cookie_name_matches_site_mode(client, db, test_password, monkeypa
     monkeypatch.setattr(settings, "session_cookie_secure", secure_expected, raising=False)
 
     response = client.post(
-        "/auth/login",
+        "/api/v1/auth/login",
         data={"username": email, "password": test_password},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -94,7 +94,7 @@ def test_preview_token_rejected_in_prod(client, db, test_password, monkeypatch):
     # Issue token under preview SITE_MODE
     monkeypatch.setenv("SITE_MODE", "preview")
     preview_login = client.post(
-        "/auth/login",
+        "/api/v1/auth/login",
         data={"username": email, "password": test_password},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
@@ -106,7 +106,7 @@ def test_preview_token_rejected_in_prod(client, db, test_password, monkeypatch):
     monkeypatch.setattr(settings, "is_testing", False, raising=False)
     client.cookies.clear()
     me_response = client.get(
-        "/auth/me",
+        "/api/v1/auth/me",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert me_response.status_code == 401

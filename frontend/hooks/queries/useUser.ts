@@ -44,7 +44,7 @@ export function useUser() {
   return useQuery<UserData>({
     queryKey: queryKeys.user,
     queryFn: async () =>
-      httpJson<UserData>(withApiBase('/auth/me'), { method: 'GET' }, loadMeSchema, { endpoint: 'GET /auth/me' }),
+      httpJson<UserData>(withApiBase('/api/v1/auth/me'), { method: 'GET' }, loadMeSchema, { endpoint: 'GET /api/v1/auth/me' }),
     staleTime: CACHE_TIMES.SESSION, // User data is fresh for the entire session
     gcTime: CACHE_TIMES.SESSION, // Keep in cache for the entire session
     retry: (failureCount, error: unknown) => {
@@ -76,7 +76,7 @@ export function useUserSafe() {
   return useQuery<UserData>({
     queryKey: queryKeys.user,
     queryFn: async () =>
-      httpJson<UserData>(withApiBase('/auth/me'), { method: 'GET' }, loadMeSchema, { endpoint: 'GET /auth/me' }),
+      httpJson<UserData>(withApiBase('/api/v1/auth/me'), { method: 'GET' }, loadMeSchema, { endpoint: 'GET /api/v1/auth/me' }),
     staleTime: CACHE_TIMES.SESSION,
     gcTime: CACHE_TIMES.SESSION,
     retry: false, // Don't retry for safe variant

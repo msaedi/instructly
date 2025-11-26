@@ -61,7 +61,7 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
     await route.continue();
   });
 
-  await page.route('**/auth/me', async (route, request) => {
+  await page.route('**/api/v1/auth/me', async (route, request) => {
     if (request.method() === 'GET') {
       await fulfillJson(route, {
         first_name: 'Test',

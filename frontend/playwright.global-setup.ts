@@ -72,7 +72,7 @@ async function loginWithSession({ email, password, statePath }: StateConfig): Pr
   let delay = 800;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const response = await ctx.post('/auth/login-with-session', {
+    const response = await ctx.post('/api/v1/auth/login-with-session', {
       data: {
         email,
         password,

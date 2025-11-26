@@ -421,7 +421,7 @@ function SignUpForm() {
       // Auto-login after successful registration
       // Use new endpoint if we have a guest session (already converted during registration)
       logger.time('auto-login');
-      const loginPath = guestSessionId ? '/auth/login-with-session' : API_ENDPOINTS.LOGIN;
+      const loginPath = guestSessionId ? '/api/v1/auth/login-with-session' : API_ENDPOINTS.LOGIN;
       const loginHeaders = guestSessionId
         ? { 'Content-Type': 'application/json' }
         : { 'Content-Type': 'application/x-www-form-urlencoded' };

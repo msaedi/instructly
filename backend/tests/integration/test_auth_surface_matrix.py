@@ -20,7 +20,7 @@ PROBE_SPECS = [
     {"label": "instructors_me", "path": "/instructors/me"},
     {"label": "addresses_me", "path": "/api/v1/addresses/me"},
     {"label": "referrals_me", "path": "/api/v1/referrals/me"},
-    {"label": "payments_connect_status", "path": "/api/payments/connect/status"},
+    {"label": "payments_connect_status", "path": "/api/v1/payments/connect/status"},
     {
         "label": "availability_week",
         "path": "/instructors/availability/week",

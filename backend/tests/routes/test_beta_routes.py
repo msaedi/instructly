@@ -163,7 +163,7 @@ class TestBetaRoutes:
 
         email = f"cookie-clear-{code.lower()}@example.com"
         res_register = client.post(
-            "/auth/register",
+            "/api/v1/auth/register",
             json={
                 "email": email,
                 "password": "StrongPass123!",

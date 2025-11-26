@@ -218,7 +218,7 @@ export function useSSEMessages({
 
   const verifyAuthStatus = useCallback(async () => {
     try {
-      const response = await fetch(withApiBase('/auth/me'), {
+      const response = await fetch(withApiBase('/api/v1/auth/me'), {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });

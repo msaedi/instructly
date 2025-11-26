@@ -61,7 +61,7 @@ def test_dev_beta_aliases_receive_cors_headers(client, db, test_password, origin
 
     # Preflight (OPTIONS) request should reflect the origin and allow credentials/methods.
     preflight = client.options(
-        "/auth/login",
+        "/api/v1/auth/login",
         headers={
             "Origin": origin,
             "Access-Control-Request-Method": "POST",
@@ -76,7 +76,7 @@ def test_dev_beta_aliases_receive_cors_headers(client, db, test_password, origin
 
     # Credentialed POST should also reflect the origin headers.
     response = client.post(
-        "/auth/login",
+        "/api/v1/auth/login",
         headers={
             "Origin": origin,
             "Content-Type": "application/x-www-form-urlencoded",

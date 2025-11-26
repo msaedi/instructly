@@ -35,7 +35,7 @@ export function getApiUrl(): string {
  * Automatically adds the Authorization header with the JWT token from localStorage.
  * Logs all requests and responses for debugging.
  *
- * @param endpoint - API endpoint path (e.g., '/auth/me')
+ * @param endpoint - API endpoint path (e.g., '/api/v1/auth/me')
  * @param options - Standard fetch RequestInit options
  * @returns Promise<Response> - The fetch response
  *
@@ -149,7 +149,7 @@ export const etagHeader = (etag?: string): Record<string, string> =>
  *
  * @example
  * ```ts
- * const response = await fetchAPI('/auth/login', {
+ * const response = await fetchAPI('/api/v1/auth/login', {
  *   method: 'POST',
  *   headers: { 'Content-Type': 'application/json' },
  *   body: JSON.stringify({ email, password })
@@ -207,23 +207,23 @@ export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
  * ✅ MIGRATED TO V1 - Instructor endpoints now use /api/v1/instructors
  */
 export const API_ENDPOINTS = {
-  // Auth endpoints
-  LOGIN: '/auth/login',
-  REGISTER: '/auth/register',
-  ME: '/auth/me',
+  // Auth endpoints (migrated to v1)
+  LOGIN: '/api/v1/auth/login',
+  REGISTER: '/api/v1/auth/register',
+  ME: '/api/v1/auth/me',
 
   // Instructor endpoints (migrated to v1)
   INSTRUCTORS: '/api/v1/instructors',
   INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
   // Onboarding helpers
   NYC_ZIP_CHECK: '/api/v1/addresses/zip/is-nyc',
-  STRIPE_IDENTITY_SESSION: '/api/payments/identity/session',
-  STRIPE_IDENTITY_REFRESH: '/api/payments/identity/refresh',
+  STRIPE_IDENTITY_SESSION: '/api/v1/payments/identity/session',
+  STRIPE_IDENTITY_REFRESH: '/api/v1/payments/identity/refresh',
   R2_SIGNED_UPLOAD: '/api/uploads/r2/signed-url',
   R2_PROXY_UPLOAD: '/api/uploads/r2/proxy',
   PROFILE_PICTURE_FINALIZE: '/api/users/me/profile-picture',
   PROFILE_PICTURE_URL: (userId: string) => `/api/users/${userId}/profile-picture-url`,
-  CONNECT_STATUS: '/api/payments/connect/status',
+  CONNECT_STATUS: '/api/v1/payments/connect/status',
 
   // Availability Management endpoints
   INSTRUCTOR_AVAILABILITY_WEEKLY: '/instructors/availability/weekly',

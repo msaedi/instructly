@@ -273,7 +273,7 @@ def test_instructor_earnings_endpoint_aggregates_bookings(
     )
     db.commit()
 
-    response = client.get("/api/payments/earnings", headers=auth_headers_instructor)
+    response = client.get("/api/v1/payments/earnings", headers=auth_headers_instructor)
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["service_count"] == 2

@@ -147,7 +147,7 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
   let isAuthenticated = false;
 
   // Mock login endpoint
-  await routeContext.route('**/auth/login', async (route: Route) => {
+  await routeContext.route('**/api/v1/auth/login', async (route: Route) => {
     // For POST requests, check credentials if needed
     if (route.request().method() === 'POST') {
       // Parse form data or JSON based on content type
@@ -229,7 +229,7 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
   });
 
   // Mock login-with-session endpoint
-  await routeContext.route('**/auth/login-with-session', async (route: Route) => {
+  await routeContext.route('**/api/v1/auth/login-with-session', async (route: Route) => {
     // For POST requests
     if (route.request().method() === 'POST') {
       // Parse JSON data
@@ -302,7 +302,7 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
   });
 
   // Mock current user endpoint - succeed only if cookie (or prior login) present
-  await routeContext.route('**/auth/me', async (route: Route) => {
+  await routeContext.route('**/api/v1/auth/me', async (route: Route) => {
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     const cookieHeader = route.request().headers()['cookie'] || '';
     const hasCookie = /(?:^|;\s*)access_token=/.test(cookieHeader);

@@ -26,7 +26,7 @@ class TestMetricLabels:
         """Test that HTTP metrics have method, endpoint, and status_code labels"""
         # Make various requests
         client.get("/health")
-        client.post("/api/auth/login", json={"email": "test@example.com", "password": "wrong"})
+        client.post("/api/v1/auth/login", data={"username": "test@example.com", "password": "wrong"})
         client.get("/api/nonexistent")
 
         # Get metrics
