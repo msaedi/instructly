@@ -314,6 +314,7 @@ def _bind_report_to_profile(
 
 
 @router.post("", response_model=WebhookAckResponse)
+@router.post("/", response_model=WebhookAckResponse, include_in_schema=False)
 async def handle_checkr_webhook(
     request: Request,
     workflow_service: BackgroundCheckWorkflowService = Depends(

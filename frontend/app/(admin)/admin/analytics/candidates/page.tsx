@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { RefreshCw, BarChart3, Table } from 'lucide-react';
 import * as Select from '@radix-ui/react-select';
 import { ChevronDown, Check } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import {
   analyticsApi,
@@ -149,9 +149,9 @@ export default function CandidatesAnalyticsDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {topServices.map((item, i) => (
-                          <>
-                            <tr key={`row-${i}`} className="border-b border-gray-100 dark:border-gray-700">
+                        {topServices.map((item) => (
+                          <Fragment key={item.service_catalog_id}>
+                            <tr className="border-b border-gray-100 dark:border-gray-700">
                               <td className="py-3 pr-4 text-gray-900 dark:text-gray-100">{item.service_name}</td>
                               <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.category_name}</td>
                               <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.candidate_count}</td>
@@ -176,7 +176,7 @@ export default function CandidatesAnalyticsDashboard() {
                               </td>
                             </tr>
                             {drilldown && drilldown.serviceId === item.service_catalog_id && (
-                              <tr key={`drill-${i}`} className="border-b border-gray-100 dark:border-gray-700">
+                              <tr className="border-b border-gray-100 dark:border-gray-700">
                                 <td colSpan={8} className="py-3 pr-4">
                                   <div className="rounded-xl p-4 bg-white/60 dark:bg-gray-900/40 ring-1 ring-gray-200/70 dark:ring-gray-700/60">
                                     <div className="flex items-center justify-between mb-2">
@@ -213,7 +213,7 @@ export default function CandidatesAnalyticsDashboard() {
                                 </td>
                               </tr>
                             )}
-                          </>
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>

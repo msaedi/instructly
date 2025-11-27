@@ -262,7 +262,7 @@ export default function Step4Verification() {
 
                 <Button
                   onClick={startIdentity}
-                  disabled={identityLoading}
+                  disabled={identityLoading || verificationComplete}
                   aria-label="Start verification"
                   className="w-full sm:w-auto mt-4 sm:mt-0 rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-[#7E22CE] hover:bg-[#7E22CE] text-white shadow-sm"
                 >
@@ -274,6 +274,8 @@ export default function Step4Verification() {
                       </svg>
                       Starting…
                     </>
+                  ) : verificationComplete ? (
+                    <>Verified</>
                   ) : (
                     <>Start verification</>
                   )}

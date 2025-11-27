@@ -469,7 +469,9 @@ async def create_identity_session(
 @router.post(
     "/identity/refresh",
     response_model=IdentityRefreshResponse,
-    dependencies=[Depends(rate_limit("financial"))],
+    dependencies=[
+        Depends(rate_limit("read"))
+    ],  # Use "read" bucket (60/min, burst=10) - status check, not financial
 )
 async def refresh_identity_status(
     current_user: User = Depends(get_current_active_user),
