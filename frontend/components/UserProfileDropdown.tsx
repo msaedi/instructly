@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { User, Calendar, LogOut, ChevronDown, AlertCircle, Gift } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { createPortal } from 'react-dom';
@@ -16,6 +16,7 @@ interface UserProfileDropdownProps {
 export default function UserProfileDropdown({ hideDashboardItem = false }: UserProfileDropdownProps) {
   const { user, logout, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
@@ -23,7 +24,9 @@ export default function UserProfileDropdown({ hideDashboardItem = false }: UserP
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isInstructor = (user?.roles || []).includes(RoleName.INSTRUCTOR);
-  const { data: instructorProfile } = useInstructorProfileMe(isInstructor && isMounted);
+  // Skip instructor profile fetch on onboarding pages (useOnboardingStepStatus already fetches it)
+  const isOnboardingPage = pathname?.startsWith('/instructor/onboarding') ?? false;
+  const { data: instructorProfile } = useInstructorProfileMe(isInstructor && isMounted && !isOnboardingPage);
   const instructorOnboardingComplete = useMemo(() => {
     if (!isInstructor) return true;
     if (!instructorProfile) return false;

@@ -19,6 +19,7 @@ const routerProxy = {
 jest.mock('next/navigation', () => ({
   useRouter: () => routerProxy,
   useSearchParams: () => searchParamsProxy,
+  usePathname: () => '/instructor/onboarding/verification',
 }));
 
 jest.mock('@stripe/stripe-js', () => ({
@@ -48,6 +49,29 @@ jest.mock('sonner', () => {
 jest.mock('@/components/instructor/BGCStep', () => ({
   __esModule: true,
   BGCStep: () => <div data-testid="bgc-step">BGC Step</div>,
+}));
+
+// Stable mock function for refresh to avoid dependency array issues
+const mockRefreshStepStatus = jest.fn();
+
+jest.mock('@/features/instructor-onboarding/useOnboardingStepStatus', () => ({
+  useOnboardingStepStatus: () => ({
+    loading: false,
+    stepStatus: {
+      'account-setup': 'done',
+      'skill-selection': 'done',
+      'verify-identity': 'pending',
+      'payment-setup': 'pending',
+    },
+    rawData: {
+      profile: { id: 'profile-1', identity_verified_at: null, identity_verification_session_id: null },
+      user: { first_name: 'Test', last_name: 'User' },
+      serviceAreas: [],
+      connectStatus: null,
+      bgcStatus: null,
+    },
+    refresh: mockRefreshStepStatus,
+  }),
 }));
 
 jest.mock('@/features/shared/hooks/useAuth', () => {
@@ -111,7 +135,8 @@ describe('Verification page', () => {
     currentSearchParams = new URLSearchParams('from=status');
     renderWithClient(<Step4Verification />);
 
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled());
+    // Wait for the Continue button to appear (component fully rendered)
+    await waitFor(() => expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
     expect(mockPush).toHaveBeenCalledWith('/instructor/onboarding/status');
   });
@@ -119,7 +144,8 @@ describe('Verification page', () => {
   it('navigates to payment setup by default', async () => {
     renderWithClient(<Step4Verification />);
 
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled());
+    // Wait for the Continue button to appear (component fully rendered)
+    await waitFor(() => expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
     expect(mockPush).toHaveBeenCalledWith('/instructor/onboarding/payment-setup');
   });

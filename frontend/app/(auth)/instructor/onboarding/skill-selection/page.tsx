@@ -8,9 +8,10 @@ import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
-import { usePricingConfig, usePricingFloors } from '@/lib/pricing/usePricingFloors';
+import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
-import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 
@@ -40,17 +41,11 @@ function Step3SkillsPricingInner() {
   const [requestText, setRequestText] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
-  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(
-    () => ({ 'account-setup': 'pending', 'skill-selection': 'pending' })
-  );
-  const completedSteps = useMemo(
-    () => ({
-      'account-setup': stepStatus['account-setup'] === 'done',
-    }),
-    [stepStatus]
-  );
-  const { floors: pricingFloors } = usePricingFloors();
+  // Use unified step status hook for consistent progress display
+  const { stepStatus, rawData } = useOnboardingStepStatus();
+  // Single pricing config fetch - derive floors from config to avoid duplicate API calls
   const { config: pricingConfig } = usePricingConfig();
+  const pricingFloors = pricingConfig?.price_floor_cents ?? null;
   const defaultInstructorTierPct = useMemo(() => {
     const pct = pricingConfig?.instructor_tiers?.[0]?.pct;
     return typeof pct === 'number' ? pct : null;
@@ -111,89 +106,41 @@ function Step3SkillsPricingInner() {
     void load();
   }, []);
 
-  // Guarded prefill: only attempt when authenticated and user has instructor role
+  // Prefill from hook's rawData to avoid duplicate fetch
   useEffect(() => {
     const shouldPrefill =
       !!isAuthenticated && !!user && Array.isArray(user.roles) && user.roles.some((r: unknown) => String(r).toLowerCase() === 'instructor');
-    if (!shouldPrefill) return;
+    if (!shouldPrefill || !rawData.profile?.services) return;
 
-    let cancelled = false;
-    const prefill = async () => {
-      try {
-        const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-        if (!meRes.ok) return; // silently ignore 401/403/404
-        const me = await meRes.json();
-        const mapped: SelectedService[] = (me.services || []).map((svc: unknown) => {
-          if (typeof svc !== 'object' || svc === null) return null;
-          const service = svc as Record<string, unknown>;
-          return {
-            catalog_service_id: String(service['service_catalog_id'] || ''),
-            name: String(service['name'] || ''),
-            hourly_rate: String(service['hourly_rate'] ?? ''),
-            ageGroup:
-              Array.isArray(service['age_groups']) && service['age_groups'].length === 2
-                ? 'both' as AgeGroup
-                : Array.isArray(service['age_groups']) && service['age_groups'].includes('kids')
-                ? 'kids' as AgeGroup
-                : 'adults' as AgeGroup,
-            description: String(service['description'] || ''),
-            equipment: Array.isArray(service['equipment_required']) ? service['equipment_required'].join(', ') : '',
-            levels_taught:
-              Array.isArray(service['levels_taught']) && service['levels_taught'].length
-                ? service['levels_taught'] as string[]
-                : ['beginner', 'intermediate', 'advanced'],
-            duration_options: Array.isArray(service['duration_options']) && service['duration_options'].length ? service['duration_options'] as number[] : [60],
-            location_types:
-              Array.isArray(service['location_types']) && service['location_types'].length
-                ? service['location_types'] as string[]
-                : ['in-person'],
-          };
-        }).filter(Boolean) as SelectedService[];
-        if (!cancelled && mapped.length) setSelected(mapped);
-      } catch {
-        // Swallow network errors to keep onboarding clean
-      }
-    };
+    const mapped: SelectedService[] = (rawData.profile.services || []).map((svc: unknown) => {
+      if (typeof svc !== 'object' || svc === null) return null;
+      const service = svc as Record<string, unknown>;
+      return {
+        catalog_service_id: String(service['service_catalog_id'] || ''),
+        name: String(service['name'] || ''),
+        hourly_rate: String(service['hourly_rate'] ?? ''),
+        ageGroup:
+          Array.isArray(service['age_groups']) && service['age_groups'].length === 2
+            ? 'both' as AgeGroup
+            : Array.isArray(service['age_groups']) && service['age_groups'].includes('kids')
+            ? 'kids' as AgeGroup
+            : 'adults' as AgeGroup,
+        description: String(service['description'] || ''),
+        equipment: Array.isArray(service['equipment_required']) ? service['equipment_required'].join(', ') : '',
+        levels_taught:
+          Array.isArray(service['levels_taught']) && service['levels_taught'].length
+            ? service['levels_taught'] as string[]
+            : ['beginner', 'intermediate', 'advanced'],
+        duration_options: Array.isArray(service['duration_options']) && service['duration_options'].length ? service['duration_options'] as number[] : [60],
+        location_types:
+          Array.isArray(service['location_types']) && service['location_types'].length
+            ? service['location_types'] as string[]
+            : ['in-person'],
+      };
+    }).filter(Boolean) as SelectedService[];
+    if (mapped.length) setSelected(mapped);
+  }, [isAuthenticated, user, rawData.profile?.services]);
 
-    void prefill();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, user]);
-
-  useEffect(() => {
-    const evaluateProfileStep = async () => {
-      try {
-        const [meRes, profRes, areasRes, addrsRes] = await Promise.all([
-          fetchWithAuth(API_ENDPOINTS.ME),
-          fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE),
-          fetchWithAuth('/api/v1/addresses/service-areas/me'),
-          fetchWithAuth('/api/v1/addresses/me'),
-        ]);
-        const me = meRes.ok ? await meRes.json() : {};
-        const prof = profRes.ok ? await profRes.json() : {};
-        const areas = areasRes.ok ? await areasRes.json() : { items: [] };
-        let defaultZip = '';
-        try {
-          if (addrsRes && addrsRes.ok) {
-            const list = await addrsRes.json();
-            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
-            defaultZip = String((def as Record<string, unknown>)?.['postal_code'] || '').trim();
-          }
-        } catch {}
-        const zipFromUser = String((me?.zip_code || me?.postal_code || '') as string).trim();
-        const zipFromProfile = String((prof?.postal_code || '') as string).trim();
-        const resolvedPostal = zipFromProfile || zipFromUser || defaultZip;
-        const hasPic = Boolean(me?.has_profile_picture) || Number.isFinite(me?.profile_picture_version);
-        const personalInfoFilled = Boolean((me?.first_name || '').trim()) && Boolean((me?.last_name || '').trim()) && Boolean(resolvedPostal);
-        const bioOk = (String(prof?.bio || '').trim().length) >= 400;
-        const hasServiceArea = Array.isArray(areas?.items) && areas.items.length > 0;
-        const ok = hasPic && personalInfoFilled && bioOk && hasServiceArea;
-        setStepStatus((prev) => ({ ...prev, 'account-setup': ok ? 'done' : 'failed' }));
-      } catch {}
-    };
-    void evaluateProfileStep();
-  }, []);
 
   useEffect(() => {
     if (selected.length === 0) return;
@@ -330,9 +277,6 @@ function Step3SkillsPricingInner() {
         sessionStorage.removeItem('skillsSkipped');
       }
       // Navigate to next step
-      // Determine completion: at least one selected with required info (price)
-      const hasComplete = selected.some((s) => (s.hourly_rate || '').trim().length > 0);
-      setStepStatus((prev) => ({ ...prev, 'skill-selection': hasComplete ? 'done' : 'failed' }));
       window.location.href = nextUrl;
     } catch (e) {
       logger.error('Save services failed', e);
@@ -375,7 +319,7 @@ function Step3SkillsPricingInner() {
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="skill-selection" stepStatus={stepStatus} completedSteps={completedSteps} />
+      <OnboardingProgressHeader activeStep="skill-selection" stepStatus={stepStatus} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header - mobile sections (white) with dividers; desktop card */}
@@ -840,8 +784,6 @@ function Step3SkillsPricingInner() {
         <button
           type="button"
           onClick={() => {
-            const hasComplete = selected.some((s) => (s.hourly_rate || '').trim().length > 0);
-            setStepStatus((prev) => ({ ...prev, 'skill-selection': hasComplete ? 'done' : 'failed' }));
             window.location.href = '/instructor/onboarding/verification';
           }}
           className="w-40 px-5 py-2.5 rounded-lg text-[#7E22CE] bg-white border border-purple-200 hover:bg-gray-50 hover:border-purple-300 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7E22CE]/20 justify-center"

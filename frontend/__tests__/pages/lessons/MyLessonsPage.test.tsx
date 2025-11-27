@@ -24,6 +24,7 @@ jest.mock('next/navigation', () => ({
     prefetch: mockPrefetch,
   }),
   useSearchParams: () => mockSearchParams,
+  usePathname: () => '/student/lessons',
 }));
 
 // Mock the auth hook but preserve named exports used by UserAvatar

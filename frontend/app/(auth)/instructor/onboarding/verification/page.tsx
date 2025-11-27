@@ -12,7 +12,8 @@ import { ShieldCheck } from 'lucide-react';
 import { BackgroundCheckDisclosureModal } from '@/components/consent/BackgroundCheckDisclosureModal';
 import { bgcConsent, type BGCConsentPayload } from '@/lib/api/bgc';
 import { DISCLOSURE_VERSION } from '@/config/constants';
-import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { OnboardingProgressHeader, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
 
 export default function Step4Verification() {
   const router = useRouter();
@@ -24,50 +25,30 @@ export default function Step4Verification() {
   const [refreshingIdentity, setRefreshingIdentity] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verificationComplete, setVerificationComplete] = useState(false);
-  const [instructorProfileId, setInstructorProfileId] = useState<string | null>(null);
   const hasRefreshedRef = useRef(false);
   const [consentModalOpen, setConsentModalOpen] = useState(false);
   const [consentSubmitting, setConsentSubmitting] = useState(false);
   const [hasRecentConsent, setHasRecentConsent] = useState(false);
   const consentResolverRef = useRef<((value: boolean) => void) | null>(null);
-  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(() => ({
-    'account-setup': 'done',
-    'skill-selection': 'done',
-    'verify-identity': 'pending',
-  }));
-  const completedSteps = useMemo(
-    () => ({
-      'account-setup': stepStatus['account-setup'] === 'done',
-      'skill-selection': stepStatus['skill-selection'] === 'done',
-      'verify-identity': stepStatus['verify-identity'] === 'done',
-    }),
-    [stepStatus]
-  );
+  // Use unified step status evaluation instead of hardcoding
+  const { stepStatus: evaluatedStepStatus, refresh: refreshStepStatus, rawData } = useOnboardingStepStatus();
 
+  // Derive instructorProfileId from hook's rawData to avoid duplicate fetch
+  const instructorProfileId = rawData.profile?.id ?? null;
+
+  // Use evaluated status directly, but override verify-identity to 'done' if locally verified
+  // (handles immediate feedback when verification completes before hook refreshes)
+  const stepStatus = useMemo(() => ({
+    ...evaluatedStepStatus,
+    'verify-identity': verificationComplete ? 'done' as OnboardingStepStatus : evaluatedStepStatus['verify-identity'],
+  }), [evaluatedStepStatus, verificationComplete]);
+
+  // Sync verificationComplete from hook's rawData
   useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-        if (!res.ok) return;
-        const profile = await res.json();
-        if (profile?.id) setInstructorProfileId(String(profile.id));
-        if (profile?.identity_verified_at || profile?.identity_verification_session_id) {
-          setVerificationComplete(true);
-        }
-      } catch (err) {
-        logger.warn('Failed to load verification status', err instanceof Error ? err : undefined);
-      }
-    };
-
-    void loadProfile();
-  }, []);
-
-  useEffect(() => {
-    setStepStatus((prev) => ({
-      ...prev,
-      'verify-identity': verificationComplete ? 'done' : 'pending',
-    }));
-  }, [verificationComplete]);
+    if (rawData.profile?.identity_verified_at || rawData.profile?.identity_verification_session_id) {
+      setVerificationComplete(true);
+    }
+  }, [rawData.profile]);
 
   const ensureConsent = useCallback(async () => {
     if (hasRecentConsent) {
@@ -137,6 +118,7 @@ export default function Step4Verification() {
           const data = await res.json();
           if (data?.verified) {
             setVerificationComplete(true);
+            void refreshStepStatus(); // Refresh all step statuses
             toast.success('Identity check complete', {
               description: 'Next, start your background check.',
             });
@@ -165,7 +147,7 @@ export default function Step4Verification() {
     return () => {
       active = false;
     };
-  }, [identityReturn, router, searchParams]);
+  }, [identityReturn, router, searchParams, refreshStepStatus]);
 
   const startIdentity = async () => {
     try {
@@ -208,7 +190,7 @@ export default function Step4Verification() {
 
   return (
     <div className="min-h-screen">
-      <OnboardingProgressHeader activeStep="verify-identity" stepStatus={stepStatus} completedSteps={completedSteps} />
+      <OnboardingProgressHeader activeStep="verify-identity" stepStatus={stepStatus} />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         <div className="mb-4 sm:mb-8 bg-transparent border-0 rounded-none p-4 sm:bg-white sm:rounded-lg sm:p-6 sm:border sm:border-gray-200">

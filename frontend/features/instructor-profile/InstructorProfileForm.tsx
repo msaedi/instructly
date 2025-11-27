@@ -143,6 +143,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [bioTouched, setBioTouched] = useState<boolean>(false);
   const inFlightServiceAreasRef = useRef(false);
   const redirectingRef = useRef(false);
+  // Fetch guard to prevent duplicate API calls in React Strict Mode
+  const hasFetchedPrefillRef = useRef(false);
+  const hasFetchedProfilePicRef = useRef(false);
   const [savingServiceAreas, setSavingServiceAreas] = useState(false);
   const [hasProfilePicture, setHasProfilePicture] = useState<boolean>(false);
   const shouldDefaultExpand = isOnboarding;
@@ -154,6 +157,10 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [openSkills, setOpenSkills] = useState(false);
 
   useEffect(() => {
+    // Skip if already fetched (prevents duplicate calls in React Strict Mode)
+    if (hasFetchedProfilePicRef.current) return;
+    hasFetchedProfilePicRef.current = true;
+
     (async () => {
       try {
         const res = await fetchWithAuth(API_ENDPOINTS.ME);
@@ -177,6 +184,13 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   // }, [userId, profile.first_name, profile.last_name, profile.postal_code, profile.bio, selectedNeighborhoods.size]);
 
   useEffect(() => {
+    // Skip if already fetched (prevents duplicate calls in React Strict Mode)
+    if (hasFetchedPrefillRef.current) {
+      setLoading(false);
+      return;
+    }
+    hasFetchedPrefillRef.current = true;
+
     const load = async () => {
       try {
         setLoading(true);
