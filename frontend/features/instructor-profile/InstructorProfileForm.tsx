@@ -228,9 +228,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           lastName = userData['last_name'] || '';
           userZip = userData['zip_code'] || '';
           logger.debug('Prefill: /auth/me body', { first_name: firstName, last_name: lastName, id: userData['id'], zip_code: userZip });
-        } else if (data && data.user) {
+        } else if (data && data['user']) {
           // Fallback to instructor payload's embedded user if available
-          const userObj = data.user as Record<string, unknown>;
+          const userObj = data['user'] as Record<string, unknown>;
           firstName = (userObj['first_name'] as string) || '';
           lastName = (userObj['last_name'] as string) || '';
           userZip = (userObj['zip_code'] as string) || '';
