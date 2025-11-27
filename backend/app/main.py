@@ -21,7 +21,6 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Respons
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.status import (
@@ -52,7 +51,7 @@ from .core.metrics import (
     BGC_PENDING_7D,
     METRICS_AUTH_FAILURE_TOTAL,
 )
-from .database import SessionLocal, get_db
+from .database import SessionLocal
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
 from .middleware.https_redirect import create_https_redirect_middleware
@@ -1169,42 +1168,6 @@ app.include_router(referrals_v1.admin_router, prefix="/api/v1/admin/referrals")
 
 
 # Identity + uploads: new endpoints are included via existing v1 payments router and v1 addresses router
-
-
-# Import for Stripe webhook response model
-from app.schemas.payment_schemas import WebhookResponse
-
-
-# Redirect for Stripe webhook - handles the URL currently configured in Stripe Dashboard
-@app.post("/api/webhooks/stripe", response_model=WebhookResponse)
-async def redirect_stripe_webhook(
-    request: Request, db: Session = Depends(get_db)
-) -> WebhookResponse:
-    """
-    Redirect old webhook URL to new location.
-
-    This endpoint exists for backward compatibility with webhooks configured
-    at /api/webhooks/stripe instead of /api/v1/payments/webhooks/stripe.
-    It simply forwards the request to the correct handler.
-    """
-    from app.routes.v1.payments import handle_stripe_webhook
-
-    return await handle_stripe_webhook(request)
-
-
-# Redirect for legacy /api/payments/webhooks/stripe path
-@app.post("/api/payments/webhooks/stripe", response_model=WebhookResponse)
-async def redirect_legacy_payments_webhook(
-    request: Request, db: Session = Depends(get_db)
-) -> WebhookResponse:
-    """
-    Redirect legacy /api/payments/webhooks/stripe to v1 handler.
-
-    This endpoint exists for backward compatibility during migration.
-    """
-    from app.routes.v1.payments import handle_stripe_webhook
-
-    return await handle_stripe_webhook(request)
 
 
 @app.get("/", response_model=RootResponse)
