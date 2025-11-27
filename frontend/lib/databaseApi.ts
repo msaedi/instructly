@@ -80,20 +80,20 @@ export const databaseApi = {
    * Get database health status (no auth required)
    */
   async getHealth(): Promise<{ status: string; message: string; pool_status?: unknown }> {
-    return fetchPublic('/api/database/health');
+    return fetchPublic('/api/v1/database/health');
   },
 
   /**
    * Get database statistics (requires admin auth)
    */
   async getStats(token: string): Promise<DatabaseStats> {
-    return fetchWithAuth<DatabaseStats>('/api/database/stats', token);
+    return fetchWithAuth<DatabaseStats>('/api/v1/database/stats', token);
   },
 
   /**
    * Get database pool status (requires admin auth)
    */
   async getPoolStatus(token: string): Promise<{ status: string; pool: DatabasePool }> {
-    return fetchWithAuth('/api/database/pool-status', token);
+    return fetchWithAuth('/api/v1/database/pool-status', token);
   },
 };

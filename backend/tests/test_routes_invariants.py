@@ -60,7 +60,7 @@ def _is_excluded_path(path: str) -> bool:
         # "/api/config/",  # Phase 18: Config migrated to /api/v1/config
         # "/api/search/",  # Phase 14: Search migrated to /api/v1/search
         # "/api/search-history/",  # Phase 14: Search history migrated to /api/v1/search-history
-        "/api/analytics/",
+        # "/api/analytics/",  # Phase 24.5: Analytics migrated to /api/v1/analytics
         # "/api/privacy/",  # Phase 18: Privacy migrated to /api/v1/privacy
         # "/api/payments/",  # Phase 17: Payments migrated to /api/v1/payments
         # "/api/favorites/",  # Phase 13: Favorites migrated to /api/v1/favorites

@@ -82,25 +82,24 @@ from .repositories.background_job_repository import BackgroundJobRepository
 from .repositories.instructor_profile_repository import InstructorProfileRepository
 from .routes import (
     alerts,
-    analytics,
-    beta,
-    codebase_metrics,
-    database_monitor,
     gated,
     internal,
     metrics,
     monitoring,
     prometheus,
     ready,
-    redis_monitor,
 )
 from .routes.v1 import (
     account as account_v1,
     addresses as addresses_v1,
+    analytics as analytics_v1,
     auth as auth_v1,
     availability_windows as availability_windows_v1,
+    beta as beta_v1,
     bookings as bookings_v1,
+    codebase_metrics as codebase_metrics_v1,
     config as config_v1,
+    database_monitor as database_monitor_v1,
     favorites as favorites_v1,
     instructor_bgc as instructor_bgc_v1,
     instructor_bookings as instructor_bookings_v1,
@@ -111,6 +110,7 @@ from .routes.v1 import (
     pricing as pricing_v1,
     privacy as privacy_v1,
     public as public_v1,
+    redis_monitor as redis_monitor_v1,
     referrals as referrals_v1,
     reviews as reviews_v1,
     search as search_v1,
@@ -968,6 +968,12 @@ api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/backgrou
 api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
+# Phase 24.5 v1 admin operations routers
+api_v1.include_router(analytics_v1.router, prefix="/analytics")  # type: ignore[attr-defined]
+api_v1.include_router(codebase_metrics_v1.router, prefix="/analytics/codebase")  # type: ignore[attr-defined]
+api_v1.include_router(redis_monitor_v1.router, prefix="/redis")  # type: ignore[attr-defined]
+api_v1.include_router(database_monitor_v1.router, prefix="/database")  # type: ignore[attr-defined]
+api_v1.include_router(beta_v1.router, prefix="/beta")  # type: ignore[attr-defined]
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
@@ -1093,24 +1099,19 @@ app.include_router(monitoring.router)
 # Alert management - /api/monitoring/alerts/* - API key protected
 app.include_router(alerts.router)
 
-# Admin analytics - /api/analytics/* - Permission protected (VIEW_ANALYTICS)
-app.include_router(analytics.router, prefix="/api", tags=["analytics"])
-
-# Codebase metrics - /api/analytics/codebase/* - Permission protected
-app.include_router(codebase_metrics.router)
-
-# Redis monitoring - /api/redis/* - Permission protected (VIEW_SYSTEM_ANALYTICS)
-app.include_router(redis_monitor.router)
-
-# Database monitoring - /api/database/* - Permission protected (VIEW_SYSTEM_ANALYTICS)
-app.include_router(database_monitor.router)
-
-# Beta management - /api/beta/* - Admin only
-app.include_router(beta.router)
-
 # Internal config reload - /internal/* - HMAC signature protected
 # Used for hot-reloading rate limiter config without deployment
 app.include_router(internal.router)
+
+# -----------------------------------------------------------------------------
+# MIGRATED TO v1 (Phase 24.5)
+# These routes are now served from /api/v1/* paths:
+# - Admin analytics: /api/v1/analytics/* (was /api/analytics/*)
+# - Codebase metrics: /api/v1/analytics/codebase/* (was /api/analytics/codebase/*)
+# - Redis monitoring: /api/v1/redis/* (was /api/redis/*)
+# - Database monitoring: /api/v1/database/* (was /api/database/*)
+# - Beta management: /api/v1/beta/* (was /api/beta/*)
+# -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 # REFERRALS - Special Short URL + Admin Routes

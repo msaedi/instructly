@@ -32,19 +32,14 @@ These routes serve the internal admin dashboard and ops tools. They are NOT part
 | Performance Metrics | `/ops/*` | Admin role | Internal performance metrics |
 | Monitoring Dashboard | `/api/monitoring/*` | API key | Production monitoring |
 | Alerts | `/api/monitoring/alerts/*` | API key | Alert management |
-| Analytics | `/api/analytics/*` | VIEW_ANALYTICS permission | Admin search analytics |
-| Codebase Metrics | `/api/analytics/codebase/*` | VIEW_SYSTEM_ANALYTICS | Engineering metrics |
-| Redis Monitoring | `/api/redis/*` | VIEW_SYSTEM_ANALYTICS | Redis health/stats |
-| Database Monitoring | `/api/database/*` | VIEW_SYSTEM_ANALYTICS | DB pool/health |
-| Beta Management | `/api/beta/*` | Admin only | Beta invite management |
 | Config Reload | `/internal/*` | HMAC signature | Hot-reload configuration |
 
 **Why not versioned:**
 1. These are strictly admin-only routes
-2. They require special authentication (API keys, HMAC, admin permissions)
+2. They require special authentication (API keys, HMAC)
 3. They're not part of the public API contract
-4. The admin dashboard is an internal tool, not a third-party consumer
-5. No external consumers depend on their versioned paths
+4. No frontend consumers depend on their paths
+5. They are internal ops tools, not application features
 
 ### Category 3: Webhook Redirects (External Service Callbacks)
 
@@ -75,6 +70,23 @@ All public-facing application routes have been migrated to `/api/v1/*`:
 - Messages (`/api/v1/messages/*`)
 - Search (`/api/v1/search/*`)
 - And 25+ more routers...
+
+### Routes Migrated to v1 (Phase 24.5)
+
+The following admin routes were migrated to v1 because they have frontend consumers in the admin dashboard:
+
+| Old Path | New Path | Protection | Frontend Consumer |
+|----------|----------|------------|-------------------|
+| `/api/analytics/*` | `/api/v1/analytics/*` | VIEW_SYSTEM_ANALYTICS | `lib/analyticsApi.ts` |
+| `/api/analytics/codebase/*` | `/api/v1/analytics/codebase/*` | VIEW_SYSTEM_ANALYTICS | `hooks/useCodebaseMetrics.ts` |
+| `/api/redis/*` | `/api/v1/redis/*` | ACCESS_MONITORING | `lib/redisApi.ts` |
+| `/api/database/*` | `/api/v1/database/*` | ACCESS_MONITORING | `lib/databaseApi.ts` |
+| `/api/beta/*` | `/api/v1/beta/*` | Admin role | `lib/betaApi.ts`, signup/join pages |
+
+**Why migrated:**
+1. These routes have frontend consumers that need consistent API versioning
+2. The admin dashboard is a first-party application that should follow the same API contracts
+3. Ensures all frontend code can rely on v1 paths for consistency
 
 ### Routes Kept Unversioned (Phase 24)
 

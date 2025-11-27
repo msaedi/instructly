@@ -99,7 +99,7 @@ class TestAnalyticsResponseSchemas:
     def test_search_trends_response_schema(self, client: TestClient, admin_headers: dict, sample_search_data):
         """Test that search trends endpoint returns SearchTrendsResponse."""
         response = client.get(
-            "/api/analytics/search/search-trends?days=7",
+            "/api/v1/analytics/search/search-trends?days=7",
             headers=admin_headers,
         )
         assert response.status_code == 200
@@ -120,7 +120,7 @@ class TestAnalyticsResponseSchemas:
     def test_popular_searches_response_schema(self, client: TestClient, admin_headers: dict, sample_search_data):
         """Test that popular searches endpoint returns PopularSearchesResponse."""
         response = client.get(
-            "/api/analytics/search/popular-searches?days=7&limit=10",
+            "/api/v1/analytics/search/popular-searches?days=7&limit=10",
             headers=admin_headers,
         )
         assert response.status_code == 200
@@ -141,7 +141,7 @@ class TestAnalyticsResponseSchemas:
     def test_search_referrers_response_schema(self, client: TestClient, admin_headers: dict, sample_search_data):
         """Test that search referrers endpoint returns SearchReferrersResponse."""
         response = client.get(
-            "/api/analytics/search/referrers?days=7",
+            "/api/v1/analytics/search/referrers?days=7",
             headers=admin_headers,
         )
         assert response.status_code == 200
@@ -164,7 +164,7 @@ class TestAnalyticsResponseSchemas:
     ):
         """Test that analytics summary endpoint returns SearchAnalyticsSummaryResponse."""
         response = client.get(
-            "/api/analytics/search/search-analytics-summary?days=7",
+            "/api/v1/analytics/search/search-analytics-summary?days=7",
             headers=admin_headers,
         )
         assert response.status_code == 200
@@ -194,7 +194,7 @@ class TestAnalyticsResponseSchemas:
     def test_conversion_metrics_response_schema(self, client: TestClient, admin_headers: dict, sample_search_data):
         """Test that conversion metrics endpoint returns ConversionMetricsResponse."""
         response = client.get(
-            "/api/analytics/search/conversion-metrics?days=7",
+            "/api/v1/analytics/search/conversion-metrics?days=7",
             headers=admin_headers,
         )
         assert response.status_code == 200
@@ -218,7 +218,7 @@ class TestAnalyticsResponseSchemas:
     def test_search_performance_response_schema(self, client: TestClient, admin_headers: dict, sample_search_data):
         """Test that search performance endpoint returns SearchPerformanceResponse."""
         response = client.get(
-            "/api/analytics/search/search-performance?days=7",
+            "/api/v1/analytics/search/search-performance?days=7",
             headers=admin_headers,
         )
         assert response.status_code == 200
@@ -246,7 +246,7 @@ class TestAnalyticsResponseSchemas:
     def test_export_analytics_response_schema(self, client: TestClient, admin_headers: dict):
         """Test that export analytics endpoint returns ExportAnalyticsResponse."""
         response = client.post(
-            "/api/analytics/export?format=csv",
+            "/api/v1/analytics/export?format=csv",
             headers=admin_headers,
         )
         assert response.status_code == 200
@@ -267,12 +267,12 @@ class TestAnalyticsResponseSchemas:
     def test_unauthorized_access(self, client: TestClient):
         """Test that analytics endpoints require proper permissions."""
         endpoints = [
-            "/api/analytics/search/search-trends",
-            "/api/analytics/search/popular-searches",
-            "/api/analytics/search/referrers",
-            "/api/analytics/search/search-analytics-summary",
-            "/api/analytics/search/conversion-metrics",
-            "/api/analytics/search/search-performance",
+            "/api/v1/analytics/search/search-trends",
+            "/api/v1/analytics/search/popular-searches",
+            "/api/v1/analytics/search/referrers",
+            "/api/v1/analytics/search/search-analytics-summary",
+            "/api/v1/analytics/search/conversion-metrics",
+            "/api/v1/analytics/search/search-performance",
         ]
 
         for endpoint in endpoints:

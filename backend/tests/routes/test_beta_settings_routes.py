@@ -11,14 +11,14 @@ class TestBetaSettingsRoutes:
     def test_get_settings_requires_admin(self, client: TestClient, test_student):
         token = _make_token_for_user(test_student.email)
         headers = {"Authorization": f"Bearer {token}"}
-        res = client.get("/api/beta/settings", headers=headers)
+        res = client.get("/api/v1/beta/settings", headers=headers)
         assert res.status_code == 403
 
     def test_update_settings_requires_admin(self, client: TestClient, test_student):
         token = _make_token_for_user(test_student.email)
         headers = {"Authorization": f"Bearer {token}"}
         res = client.put(
-            "/api/beta/settings",
+            "/api/v1/beta/settings",
             headers=headers,
             json={
                 "beta_disabled": False,
@@ -51,14 +51,14 @@ class TestBetaSettingsRoutes:
         headers = {"Authorization": f"Bearer {token}"}
 
         # GET should return defaults on first call
-        res_get = client.get("/api/beta/settings", headers=headers)
+        res_get = client.get("/api/v1/beta/settings", headers=headers)
         assert res_get.status_code == 200
         data = res_get.json()
         assert set(data.keys()) == {"beta_disabled", "beta_phase", "allow_signup_without_invite"}
 
         # PUT update
         res_put = client.put(
-            "/api/beta/settings",
+            "/api/v1/beta/settings",
             headers=headers,
             json={
                 "beta_disabled": False,
@@ -72,7 +72,7 @@ class TestBetaSettingsRoutes:
         assert updated["allow_signup_without_invite"] is True
 
         # GET again should reflect changes
-        res_get2 = client.get("/api/beta/settings", headers=headers)
+        res_get2 = client.get("/api/v1/beta/settings", headers=headers)
         assert res_get2.status_code == 200
         again = res_get2.json()
         assert again == updated

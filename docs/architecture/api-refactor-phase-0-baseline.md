@@ -2621,25 +2621,23 @@ The following routers remain unversioned by design:
 
 **Infrastructure/Monitoring (Stay Unversioned):**
 - `metrics.py` (`/ops`) – Internal metrics
-- `monitoring.py` (`/api/monitoring`) – Internal monitoring
-- `alerts.py` (`/api/monitoring/alerts`) – Internal alerts
-- `codebase_metrics.py` (`/api/analytics/codebase`) – Internal
-- `redis_monitor.py` (`/api/redis`) – Internal
-- `database_monitor.py` (`/api/database`) – Internal
+- `monitoring.py` (`/api/monitoring`) – API key protected, no frontend consumers
+- `alerts.py` (`/api/monitoring/alerts`) – API key protected, no frontend consumers
 - `prometheus.py` – Prometheus scraping
 - `ready.py` (`/ready`) – Health check
 
-**External Service Dependencies (Stay Unversioned):**
-- `stripe_webhooks.py` (`/webhooks/stripe`) – Stripe depends on this URL
-- `webhooks_checkr.py` (`/webhooks/checkr`) – Checkr depends on this URL
-
 **Feature Flags (Stay Current):**
-- `beta.py` (`/api/beta`) – Beta feature flags
 - `gated.py` (`/v1/gated`) – Already versioned
 
 **Internal:**
 - `internal.py` (`/internal`) – Internal endpoints
-- `analytics.py` (`/api/analytics`) – Analytics endpoints
+
+**Migrated in Phase 24.5:** (see Phase 24.5 below)
+- `analytics.py` → `/api/v1/analytics/*`
+- `codebase_metrics.py` → `/api/v1/analytics/codebase/*`
+- `redis_monitor.py` → `/api/v1/redis/*`
+- `database_monitor.py` → `/api/v1/database/*`
+- `beta.py` → `/api/v1/beta/*`
 
 **Deferred for Future Phases:**
 - `availability_windows.py` (`/instructors/availability`) – Has frontend consumers in lib/api.ts, generated hooks, E2E tests. Requires coordination with frontend migration.
@@ -3010,6 +3008,79 @@ After deployment, update webhook URLs in external service dashboards:
 
 ---
 
+## Phase 24.5 – Admin Routes with Frontend Consumers
+
+**Date:** November 27, 2025
+**Status:** ✅ Complete
+
+### Overview
+
+Phase 24.5 migrates admin routes that have frontend consumers in the admin dashboard. These routes were previously considered "internal only" but actually have frontend consumers in the admin dashboard that need consistent API versioning.
+
+### Migrated Routers
+
+| Router | Old Path | New Path | Protection | Frontend Consumer |
+|--------|----------|----------|------------|-------------------|
+| analytics | `/api/analytics/*` | `/api/v1/analytics/*` | VIEW_SYSTEM_ANALYTICS | `lib/analyticsApi.ts` |
+| codebase_metrics | `/api/analytics/codebase/*` | `/api/v1/analytics/codebase/*` | VIEW_SYSTEM_ANALYTICS | `hooks/useCodebaseMetrics.ts` |
+| redis_monitor | `/api/redis/*` | `/api/v1/redis/*` | ACCESS_MONITORING | `lib/redisApi.ts` |
+| database_monitor | `/api/database/*` | `/api/v1/database/*` | ACCESS_MONITORING | `lib/databaseApi.ts` |
+| beta | `/api/beta/*` | `/api/v1/beta/*` | Admin role | `lib/betaApi.ts`, signup/join pages |
+
+### Files Created
+
+- `backend/app/routes/v1/analytics.py` – Search analytics endpoints
+- `backend/app/routes/v1/codebase_metrics.py` – Codebase metrics endpoints
+- `backend/app/routes/v1/redis_monitor.py` – Redis health/stats endpoints
+- `backend/app/routes/v1/database_monitor.py` – Database health/stats endpoints
+- `backend/app/routes/v1/beta.py` – Beta invite management endpoints
+
+### Files Modified
+
+**Backend:**
+- `backend/app/routes/v1/__init__.py` – Added new router imports
+- `backend/app/main.py` – Mount v1 routers, remove legacy mounts
+
+**Frontend:**
+- `frontend/lib/analyticsApi.ts` – Updated to v1 paths
+- `frontend/lib/redisApi.ts` – Updated to v1 paths
+- `frontend/lib/databaseApi.ts` – Updated to v1 paths
+- `frontend/lib/betaApi.ts` – Updated to v1 paths
+- `frontend/app/(public)/instructor/join/validateInvite.ts` – Updated to v1 path
+- `frontend/e2e/invites.invite-redemption.spec.ts` – Updated mock paths
+
+**Backend Tests:**
+- `backend/tests/routes/test_analytics_responses.py` – Updated to v1 paths
+- `backend/tests/routes/test_beta_routes.py` – Updated to v1 paths
+- `backend/tests/routes/test_beta_settings_routes.py` – Updated to v1 paths
+- `backend/tests/integration/routes/test_beta_strict.py` – Updated to v1 paths
+- `backend/tests/test_api_contracts.py` – Updated analytics endpoint paths
+- `backend/tests/test_routes_invariants.py` – Marked analytics as migrated
+
+### Bug Fix Included
+
+Fixed a pre-existing test bug in `test_week_bitmap_routes.py`:
+- **Issue:** Test `test_save_week_bitmap_persists_past_days_when_allowed` was only monkeypatching `datetime` in `availability_service_module`, not in `timezone_utils_module`
+- **Fix:** Added `monkeypatch.setattr(timezone_utils_module, "datetime", FixedDateTime)`
+
+### Routes Remaining Unversioned (Intentional)
+
+Per the documented decision in `docs/architecture/unversioned-routes.md`:
+- `/api/monitoring/*` – API key protected, no frontend consumers
+- `/api/monitoring/alerts/*` – API key protected, no frontend consumers
+
+### Quality Gates
+
+| Check | Status |
+|-------|--------|
+| Pre-commit hooks | ✅ Pass |
+| Backend pytest | ✅ Pass (2132 passed) |
+| Frontend lint | ✅ Pass |
+
+**Phase 24.5 Status:** ✅ **Complete** – Admin routes with frontend consumers migrated to v1.
+
+---
+
 ## Migration Complete 🎉
 
 The API v1 migration is **COMPLETE**. The codebase now has:
@@ -3019,8 +3090,8 @@ The API v1 migration is **COMPLETE**. The codebase now has:
 - ✅ Comprehensive test coverage
 - ✅ Clear documentation
 - ✅ Infrastructure endpoints appropriately unversioned
-- ✅ 31 v1 routers migrated (including availability, BGC, and Checkr webhooks)
-- ✅ ~160+ endpoints on v1
+- ✅ 36 v1 routers migrated (including availability, BGC, Checkr webhooks, and admin routes with frontend consumers)
+- ✅ ~170+ endpoints on v1
 - ✅ All frontend consumers updated
 
 ### Future Enhancements

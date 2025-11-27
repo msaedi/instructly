@@ -118,21 +118,21 @@ export const redisApi = {
    * Get Redis health status (no auth required)
    */
   async getHealth(): Promise<RedisHealth> {
-    return fetchPublic<RedisHealth>('/api/redis/health');
+    return fetchPublic<RedisHealth>('/api/v1/redis/health');
   },
 
   /**
    * Get Redis statistics (requires admin auth)
    */
   async getStats(token: string): Promise<RedisStats> {
-    return fetchWithAuth<RedisStats>('/api/redis/stats', token);
+    return fetchWithAuth<RedisStats>('/api/v1/redis/stats', token);
   },
 
   /**
    * Get Celery queue status (requires admin auth)
    */
   async getCeleryQueues(token: string): Promise<CeleryQueues> {
-    return fetchWithAuth<CeleryQueues>('/api/redis/celery-queues', token);
+    return fetchWithAuth<CeleryQueues>('/api/v1/redis/celery-queues', token);
   },
 
   /**
@@ -147,13 +147,13 @@ export const redisApi = {
     message: string;
     error?: string;
   }> {
-    return fetchPublic('/api/redis/test');
+    return fetchPublic('/api/v1/redis/test');
   },
 
   /**
    * Get Redis connection audit (requires admin auth)
    */
   async getConnectionAudit(token: string): Promise<ConnectionAudit> {
-    return fetchWithAuth<ConnectionAudit>('/api/redis/connection-audit', token);
+    return fetchWithAuth<ConnectionAudit>('/api/v1/redis/connection-audit', token);
   },
 };

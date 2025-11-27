@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 import app.api.dependencies.services as dependency_services
 from app.core.config import settings
+import app.core.timezone_utils as timezone_utils_module
 import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -307,6 +308,7 @@ def test_save_week_bitmap_persists_past_days_when_allowed(
             return anchor.replace(tzinfo=None)
 
     monkeypatch.setattr(availability_service_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(timezone_utils_module, "datetime", FixedDateTime)
 
     past_day = week_start
     future_day = week_start + timedelta(days=5)

@@ -257,7 +257,7 @@ async function fetchWithAuth<T>(endpoint: string, _token: string | null | undefi
 export const analyticsApi = {
   // Search analytics
   async getSearchTrends(token: string, days: number = 30): Promise<SearchTrend[]> {
-    return fetchWithAuth<SearchTrend[]>(`/api/analytics/search/search-trends?days=${days}`, token);
+    return fetchWithAuth<SearchTrend[]>(`/api/v1/analytics/search/search-trends?days=${days}`, token);
   },
 
   async getPopularSearches(
@@ -266,13 +266,13 @@ export const analyticsApi = {
     limit: number = 20
   ): Promise<PopularSearch[]> {
     return fetchWithAuth<PopularSearch[]>(
-      `/api/analytics/search/popular-searches?days=${days}&limit=${limit}`,
+      `/api/v1/analytics/search/popular-searches?days=${days}&limit=${limit}`,
       token
     );
   },
 
   async getSearchReferrers(token: string, days: number = 30): Promise<SearchReferrer[]> {
-    return fetchWithAuth<SearchReferrer[]>(`/api/analytics/search/referrers?days=${days}`, token);
+    return fetchWithAuth<SearchReferrer[]>(`/api/v1/analytics/search/referrers?days=${days}`, token);
   },
 
   async getZeroResultSearches(
@@ -293,7 +293,7 @@ export const analyticsApi = {
 
   async getAnalyticsSummary(token: string, days: number = 30): Promise<SearchAnalyticsSummary> {
     return fetchWithAuth<SearchAnalyticsSummary>(
-      `/api/analytics/search/search-analytics-summary?days=${days}`,
+      `/api/v1/analytics/search/search-analytics-summary?days=${days}`,
       token
     );
   },
@@ -304,40 +304,40 @@ export const analyticsApi = {
     userId?: number
   ): Promise<UserSearchBehavior> {
     const url = userId
-      ? `/api/analytics/search/user-search-behavior?days=${days}&user_id=${userId}`
-      : `/api/analytics/search/user-search-behavior?days=${days}`;
+      ? `/api/v1/analytics/search/user-search-behavior?days=${days}&user_id=${userId}`
+      : `/api/v1/analytics/search/user-search-behavior?days=${days}`;
     return fetchWithAuth<UserSearchBehavior>(url, token);
   },
 
   async getConversionMetrics(token: string, days: number = 30): Promise<ConversionMetrics> {
     return fetchWithAuth<ConversionMetrics>(
-      `/api/analytics/search/conversion-metrics?days=${days}`,
+      `/api/v1/analytics/search/conversion-metrics?days=${days}`,
       token
     );
   },
 
   async getSearchPerformance(token: string, days: number = 30): Promise<SearchPerformance> {
     return fetchWithAuth<SearchPerformance>(
-      `/api/analytics/search/search-performance?days=${days}`,
+      `/api/v1/analytics/search/search-performance?days=${days}`,
       token
     );
   },
 
   // Candidates analytics
   async getCandidatesSummary(token: string, days: number = 30): Promise<CandidateSummary> {
-    return fetchWithAuth<CandidateSummary>(`/api/analytics/search/candidates/summary?days=${days}`, token);
+    return fetchWithAuth<CandidateSummary>(`/api/v1/analytics/search/candidates/summary?days=${days}`, token);
   }
   ,
   async getCandidateCategoryTrends(token: string, days: number = 30): Promise<CandidateCategoryTrend[]> {
     return fetchWithAuth<CandidateCategoryTrend[]>(
-      `/api/analytics/search/candidates/category-trends?days=${days}`,
+      `/api/v1/analytics/search/candidates/category-trends?days=${days}`,
       token
     );
   }
   ,
   async getCandidateTopServices(token: string, days: number = 30, limit: number = 20): Promise<CandidateTopService[]> {
     return fetchWithAuth<CandidateTopService[]>(
-      `/api/analytics/search/candidates/top-services?days=${days}&limit=${limit}`,
+      `/api/v1/analytics/search/candidates/top-services?days=${days}&limit=${limit}`,
       token
     );
   }
@@ -349,7 +349,7 @@ export const analyticsApi = {
     limit: number = 50
   ): Promise<Array<{ searched_at: string; search_query: string; results_count: number | null; position: number; score: number | null; source: string | null }>> {
     return fetchWithAuth(
-      `/api/analytics/search/candidates/queries?service_catalog_id=${service_catalog_id}&days=${days}&limit=${limit}`,
+      `/api/v1/analytics/search/candidates/queries?service_catalog_id=${service_catalog_id}&days=${days}&limit=${limit}`,
       token
     );
   },
@@ -357,7 +357,7 @@ export const analyticsApi = {
     token: string,
     days: number = 30
   ): Promise<{ gte_0_90: number; gte_0_80_lt_0_90: number; gte_0_70_lt_0_80: number; lt_0_70: number }> {
-    return fetchWithAuth(`/api/analytics/search/candidates/score-distribution?days=${days}`, token);
+    return fetchWithAuth(`/api/v1/analytics/search/candidates/score-distribution?days=${days}`, token);
   },
 
   async getServicePillPerformance(
@@ -375,9 +375,9 @@ export const analyticsApi = {
 
   // Codebase metrics
   async getCodebaseMetrics(token: string): Promise<CodebaseMetricsResponse> {
-    return fetchWithAuth<CodebaseMetricsResponse>('/api/analytics/codebase/metrics', token);
+    return fetchWithAuth<CodebaseMetricsResponse>('/api/v1/analytics/codebase/metrics', token);
   },
   async getCodebaseHistory(token: string): Promise<{ items: CodebaseHistoryEntry[] }> {
-    return fetchWithAuth<{ items: CodebaseHistoryEntry[] }>('/api/analytics/codebase/history', token);
+    return fetchWithAuth<{ items: CodebaseHistoryEntry[] }>('/api/v1/analytics/codebase/history', token);
   },
 };

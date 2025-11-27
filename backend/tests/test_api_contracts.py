@@ -199,12 +199,12 @@ class TestAPIContracts:
     def test_analytics_endpoints_use_response_models(self, client, admin_headers):
         """Test that all analytics endpoints use proper response models."""
         analytics_endpoints = [
-            ("/api/analytics/search/search-trends", "get"),
-            ("/api/analytics/search/popular-searches", "get"),
-            ("/api/analytics/search/referrers", "get"),
-            ("/api/analytics/search/search-analytics-summary", "get"),
-            ("/api/analytics/search/conversion-metrics", "get"),
-            ("/api/analytics/search/search-performance", "get"),
+            ("/api/v1/analytics/search/search-trends", "get"),
+            ("/api/v1/analytics/search/popular-searches", "get"),
+            ("/api/v1/analytics/search/referrers", "get"),
+            ("/api/v1/analytics/search/search-analytics-summary", "get"),
+            ("/api/v1/analytics/search/conversion-metrics", "get"),
+            ("/api/v1/analytics/search/search-performance", "get"),
         ]
 
         for endpoint, method in analytics_endpoints:
@@ -248,7 +248,7 @@ class TestAPIContracts:
         # Try to access protected endpoints without auth
         protected_endpoints = [
             "/api/monitoring/dashboard",
-            "/api/analytics/search/search-trends",
+            "/api/v1/analytics/search/search-trends",
             "/api/v1/auth/me",
         ]
 
