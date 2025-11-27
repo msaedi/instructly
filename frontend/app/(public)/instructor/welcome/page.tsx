@@ -33,7 +33,7 @@ function WelcomeInner() {
 
     const ensureVerified = async () => {
       try {
-        await httpGet('/api/beta/invites/verified');
+        await httpGet('/api/v1/beta/invites/verified');
 
         const current = qp || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
         if (!current) {

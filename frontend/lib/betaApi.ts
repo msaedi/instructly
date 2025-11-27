@@ -45,7 +45,7 @@ export interface MetricsPerformanceResponse {
 }
 
 export async function getPerformanceMetrics(): Promise<MetricsPerformanceResponse> {
-  const res = await fetch(withApiBase('/metrics/performance'), {
+  const res = await fetch(withApiBase('/ops/performance'), {
     credentials: 'include',
     cache: 'no-store',
   });

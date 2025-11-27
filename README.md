@@ -13,10 +13,12 @@ python backend/scripts/prep_db.py --migrate --dry-run
 python backend/scripts/prep_db.py stg --migrate --seed-all
 
 # Preview (system+mock allowed)
-python backend/scripts/prep_db.py preview --migrate --seed-all
+python backend/scripts/prep_db.py preview --migrate --seed-all # or
+python backend/scripts/prep_db.py preview --migrate --seed-all --seed-mock-users
 
 # Production (system-only, requires --force and --yes)
-SITE_MODE=prod python backend/scripts/prep_db.py --migrate --seed-system-only --force --yes
+SITE_MODE=prod python backend/scripts/prep_db.py --migrate --seed-system-only --force --yes # or
+SITE_MODE=prod python backend/scripts/prep_db.py --migrate --seed-all-prod --force --yes
 ```
 
 # InstaInstru

@@ -50,7 +50,7 @@ export function useBGCWebhookLogs(filters: WebhookFilterState) {
       if (pageParam) {
         params.set('cursor', pageParam);
       }
-      return httpGet<WebhookLogResponse>(`/api/admin/bgc/webhooks?${params.toString()}`);
+      return httpGet<WebhookLogResponse>(`/api/v1/admin/background-checks/webhooks?${params.toString()}`);
     },
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
   });

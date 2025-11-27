@@ -475,7 +475,7 @@ function SignUpForm() {
           const inviteCode = searchParams.get('invite_code') || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
           if (inviteCode) {
             logger.info('Consuming beta invite for new user', { inviteCode, userId: userData.id });
-            await http('POST', '/api/beta/invites/consume', {
+            await http('POST', '/api/v1/beta/invites/consume', {
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${authData.access_token}`,
