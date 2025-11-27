@@ -16,7 +16,8 @@ jobs:
       API: ${{ secrets.PREVIEW_API_BASE }}          # e.g. https://preview-api.instainstru.com
       ORIGIN: ${{ secrets.PREVIEW_ORIGIN }}          # e.g. https://preview.instainstru.com
       GATED: ${{ secrets.GATED_ENDPOINT }}           # e.g. /v1/gated/ping
-      WEBHOOK: ${{ secrets.WEBHOOK_ENDPOINT }}       # e.g. /webhooks/stripe/payment-events
+      STRIPE_WEBHOOK: ${{ secrets.STRIPE_WEBHOOK_ENDPOINT }}  # e.g. /api/v1/payments/webhooks/stripe
+      CHECKR_WEBHOOK: ${{ secrets.CHECKR_WEBHOOK_ENDPOINT }}  # e.g. /api/v1/webhooks/checkr
       MODE: preview
     steps:
       - name: Health
@@ -44,11 +45,18 @@ jobs:
       - name: Webhook must ignore preview header (only if provided)
         run: |
           set +e
-          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X POST "$API$WEBHOOK" \
+          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X POST "$API$STRIPE_WEBHOOK" \
             -H "x-staff-preview-token: ${{ secrets.PREVIEW_HEADER_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{}' | tee /tmp/w.txt
           grep -E "^HTTP/.* (400|401|403)" /tmp/w.txt
+      - name: Checkr webhook endpoint exists (expects 401 without auth)
+        run: |
+          set +e
+          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X POST "$API$CHECKR_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d '{}' | tee /tmp/checkr.txt
+          grep -E "^HTTP/.* (400|401|403)" /tmp/checkr.txt
       - name: Metrics endpoint reachable
         run: |
           curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/metrics" | head -n 20
@@ -79,7 +87,8 @@ jobs:
       API: ${{ secrets.PROD_API_BASE }}             # e.g. https://api.instainstru.com
       ORIGIN: ${{ secrets.BETA_ORIGIN }}            # e.g. https://beta.instainstru.com
       GATED: ${{ secrets.GATED_ENDPOINT }}          # e.g. /v1/gated/ping
-      WEBHOOK: ${{ secrets.WEBHOOK_ENDPOINT }}      # e.g. /webhooks/stripe/payment-events
+      STRIPE_WEBHOOK: ${{ secrets.STRIPE_WEBHOOK_ENDPOINT }}  # e.g. /api/v1/payments/webhooks/stripe
+      CHECKR_WEBHOOK: ${{ secrets.CHECKR_WEBHOOK_ENDPOINT }}  # e.g. /api/v1/webhooks/checkr
       MODE: prod
     steps:
       - name: Health
@@ -115,11 +124,18 @@ jobs:
       - name: Webhook ignores preview header (only if provided)
         run: |
           set +e
-          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X POST "$API$WEBHOOK" \
+          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X POST "$API$STRIPE_WEBHOOK" \
             -H "x-staff-preview-token: ${{ secrets.PREVIEW_HEADER_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{}' | tee /tmp/w.txt
           grep -E "^HTTP/.* (400|401|403)" /tmp/w.txt
+      - name: Checkr webhook endpoint exists (expects 401 without auth)
+        run: |
+          set +e
+          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X POST "$API$CHECKR_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d '{}' | tee /tmp/checkr.txt
+          grep -E "^HTTP/.* (400|401|403)" /tmp/checkr.txt
       - name: Metrics endpoint reachable
         run: |
           curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/metrics" | head -n 20
