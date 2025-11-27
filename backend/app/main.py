@@ -1047,37 +1047,102 @@ app.include_router(api_v1)
 # Legacy pricing routes - DEPRECATED, use /api/v1/pricing instead
 # app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_dependency)])
 # app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])
+# =============================================================================
+# INTENTIONALLY UNVERSIONED ROUTES
+# =============================================================================
+# These routes are NOT versioned because:
+# 1. External services depend on fixed paths (health checks, webhooks, metrics)
+# 2. They are internal admin/ops routes not part of the public API contract
+# 3. They require special authentication (API keys, HMAC, permissions)
+#
+# DO NOT change these paths without updating dependent external service configs.
+# For full documentation, see: docs/architecture/unversioned-routes.md
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# INFRASTRUCTURE ROUTES - External Dependencies
+# These endpoints have fixed paths that external services depend on.
+# Changing them would break load balancers, Kubernetes, and Prometheus.
+# -----------------------------------------------------------------------------
+
+# Readiness probe - Kubernetes depends on /ready for pod readiness checks
+app.include_router(ready.router)
+
+# Prometheus metrics - Standard /metrics/prometheus path for Prometheus scraping
+# This is a PUBLIC endpoint (no auth) following Prometheus best practices
+app.include_router(prometheus.router)
+
+# Gated probe - CI smoke tests depend on /v1/gated/ping (already v1 versioned)
+app.include_router(gated.router)
+
+# -----------------------------------------------------------------------------
+# ADMIN OPS/MONITORING ROUTES - Internal Admin Dashboard
+# These endpoints serve the internal admin dashboard and ops tools.
+# They require admin permissions, API keys, or HMAC signatures.
+# Not part of the public API contract - used by internal tools only.
+# -----------------------------------------------------------------------------
+
+# Performance metrics - /ops/* - Admin-only internal ops metrics
+app.include_router(metrics.router)
+if os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}:
+    app.include_router(metrics.metrics_lite_router, include_in_schema=False)
+
+# Monitoring dashboard - /api/monitoring/* - API key protected
+app.include_router(monitoring.router)
+
+# Alert management - /api/monitoring/alerts/* - API key protected
+app.include_router(alerts.router)
+
+# Admin analytics - /api/analytics/* - Permission protected (VIEW_ANALYTICS)
+app.include_router(analytics.router, prefix="/api", tags=["analytics"])
+
+# Codebase metrics - /api/analytics/codebase/* - Permission protected
+app.include_router(codebase_metrics.router)
+
+# Redis monitoring - /api/redis/* - Permission protected (VIEW_SYSTEM_ANALYTICS)
+app.include_router(redis_monitor.router)
+
+# Database monitoring - /api/database/* - Permission protected (VIEW_SYSTEM_ANALYTICS)
+app.include_router(database_monitor.router)
+
+# Beta management - /api/beta/* - Admin only
+app.include_router(beta.router)
+
+# Internal config reload - /internal/* - HMAC signature protected
+# Used for hot-reloading rate limiter config without deployment
+app.include_router(internal.router)
+
+# -----------------------------------------------------------------------------
+# REFERRALS - Special Short URL + Admin Routes
+# -----------------------------------------------------------------------------
+
+# Referral short URLs - /r/{slug} - Not versioned (short URL redirects)
+app.include_router(referrals_v1.public_router, dependencies=[Depends(public_guard_dependency)])
+
+# Referral admin - /api/v1/admin/referrals - Already v1 versioned
+app.include_router(referrals_v1.admin_router, prefix="/api/v1/admin/referrals")
+
+# =============================================================================
+# DEPRECATED LEGACY ROUTES - Commented out, use v1 equivalents
+# =============================================================================
 # Legacy favorites routes - DEPRECATED, use /api/v1/favorites instead
 # app.include_router(favorites.router)  # Was: /api/favorites
 # Legacy payments routes - DEPRECATED, use /api/v1/payments instead
 # app.include_router(payments.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy messages routes - DEPRECATED, use /api/v1/messages instead
 # app.include_router(messages.router)
-app.include_router(metrics.router)
-if os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}:
-    app.include_router(metrics.metrics_lite_router, include_in_schema=False)
-app.include_router(monitoring.router)
-app.include_router(alerts.router)
-app.include_router(analytics.router, prefix="/api", tags=["analytics"])
-app.include_router(codebase_metrics.router)
 # Legacy public routes - DEPRECATED, use /api/v1/public instead
 # app.include_router(public.router, dependencies=[Depends(public_guard_dependency)])
 # Legacy referrals routes - DEPRECATED, use /api/v1/referrals instead
-# app.include_router(referrals.public_router, dependencies=[Depends(public_guard_dependency)])  # Was: /r/{slug}
-# app.include_router(referrals.router, dependencies=[Depends(public_guard_dependency)])  # Was: /api/referrals
-# app.include_router(referrals.admin_router)  # Was: /api/admin/referrals
-# Mount v1 referrals public router (slug redirect) and admin router
-app.include_router(referrals_v1.public_router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(referrals_v1.admin_router, prefix="/api/v1/admin/referrals")
+# app.include_router(referrals.public_router, dependencies=[Depends(public_guard_dependency)])
+# app.include_router(referrals.router, dependencies=[Depends(public_guard_dependency)])
+# app.include_router(referrals.admin_router)
 # Legacy search routes - DEPRECATED, use /api/v1/search instead
 # app.include_router(search.router, prefix="/api/search", tags=["search"])
 # Legacy search-history routes - DEPRECATED, use /api/v1/search-history instead
 # app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
 # Legacy addresses routes - DEPRECATED, use /api/v1/addresses instead
 # app.include_router(addresses.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(redis_monitor.router)
-app.include_router(ready.router)
-app.include_router(database_monitor.router)
 # Legacy admin_config routes - DEPRECATED, use /api/v1/admin/config instead
 # app.include_router(admin_config.router)
 # Legacy admin_audit routes - DEPRECATED, use /api/v1/admin/audit instead
@@ -1088,17 +1153,14 @@ app.include_router(database_monitor.router)
 # app.include_router(stripe_webhooks.router)
 # Legacy webhooks_checkr routes - DEPRECATED, use /api/v1/webhooks/checkr instead
 # app.include_router(webhooks_checkr.router)
-app.include_router(prometheus.router)
 # Legacy uploads routes - DEPRECATED, use /api/v1/uploads instead
 # app.include_router(uploads.router)
 # Legacy users profile picture routes - DEPRECATED, use /api/v1/users instead
 # app.include_router(users_profile_picture.router)
-app.include_router(beta.router)
-# app.include_router(reviews.router)  # Migrated to /api/v1/reviews
+# Legacy reviews routes - Migrated to /api/v1/reviews
+# app.include_router(reviews.router)
 # Legacy admin_badges routes - DEPRECATED, use /api/v1/admin/badges instead
 # app.include_router(admin_badges.router)
-app.include_router(gated.router)
-app.include_router(internal.router)
 # Legacy admin_background_checks routes - DEPRECATED, use /api/v1/admin/background-checks instead
 # app.include_router(admin_background_checks.router)
 # Legacy admin_instructors routes - DEPRECATED, use /api/v1/admin/instructors instead
