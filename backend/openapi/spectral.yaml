@@ -1,0 +1,45 @@
+# Spectral OpenAPI Linting Configuration
+# Phase 5 - Backend testing hardening
+#
+# This file defines rules for validating our OpenAPI schema quality.
+
+extends: ["spectral:oas"]
+
+rules:
+  # Enforce that all operations have descriptions
+  operation-description: warn
+
+  # Enforce tags on operations
+  operation-tags: warn
+
+  # Ensure operation IDs exist and follow conventions
+  operation-operationId: warn
+  operation-operationId-unique: error
+  operation-operationId-valid-in-url: error
+
+  # Path parameters should be described
+  path-params: warn
+
+  # Enforce consistent response structure
+  operation-success-response: warn
+
+  # Schemas should have descriptions
+  info-description: warn
+  tag-description: warn
+
+  # Disable some noisy rules initially (can enable later)
+  info-contact: off
+  info-license: off
+  license-url: off
+
+  # Custom rules for our conventions
+
+  # Ensure no trailing slashes in paths (matches our backend routing invariants)
+  no-trailing-slash-on-paths:
+    description: "Paths should not have trailing slashes"
+    given: "$.paths.*~"
+    severity: error
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: ".*/$"

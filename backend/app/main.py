@@ -21,7 +21,6 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Respons
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.status import (
@@ -52,7 +51,7 @@ from .core.metrics import (
     BGC_PENDING_7D,
     METRICS_AUTH_FAILURE_TOTAL,
 )
-from .database import SessionLocal, get_db
+from .database import SessionLocal
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
 from .middleware.https_redirect import create_https_redirect_middleware
@@ -81,50 +80,53 @@ from .ratelimit.identity import resolve_identity
 from .repositories.background_job_repository import BackgroundJobRepository
 from .repositories.instructor_profile_repository import InstructorProfileRepository
 from .routes import (
-    account_management,
-    addresses,
-    admin_audit,
-    admin_background_checks,
-    admin_badges,
-    admin_config,
-    admin_instructors,
     alerts,
-    analytics,
-    auth,
-    availability_windows,
-    beta,
-    bookings,
-    codebase_metrics,
-    database_monitor,
-    favorites,
     gated,
-    instructor_background_checks,
-    instructor_bookings,
-    instructors,
     internal,
-    messages,
     metrics,
     monitoring,
-    password_reset,
-    payments,
-    pricing_config_public,
-    pricing_preview,
-    privacy,
     prometheus,
-    public,
     ready,
-    redis_monitor,
-    referrals,
-    reviews,
-    search,
-    search_history,
-    services,
-    stripe_webhooks,
-    student_badges,
-    two_factor_auth,
-    uploads,
-    users_profile_picture,
-    webhooks_checkr,
+)
+from .routes.v1 import (
+    account as account_v1,
+    addresses as addresses_v1,
+    analytics as analytics_v1,
+    auth as auth_v1,
+    availability_windows as availability_windows_v1,
+    beta as beta_v1,
+    bookings as bookings_v1,
+    codebase_metrics as codebase_metrics_v1,
+    config as config_v1,
+    database_monitor as database_monitor_v1,
+    favorites as favorites_v1,
+    instructor_bgc as instructor_bgc_v1,
+    instructor_bookings as instructor_bookings_v1,
+    instructors as instructors_v1,
+    messages as messages_v1,
+    password_reset as password_reset_v1,
+    payments as payments_v1,
+    pricing as pricing_v1,
+    privacy as privacy_v1,
+    public as public_v1,
+    redis_monitor as redis_monitor_v1,
+    referrals as referrals_v1,
+    reviews as reviews_v1,
+    search as search_v1,
+    search_history as search_history_v1,
+    services as services_v1,
+    student_badges as student_badges_v1,
+    two_factor_auth as two_factor_auth_v1,
+    uploads as uploads_v1,
+    users as users_v1,
+    webhooks_checkr as webhooks_checkr_v1,
+)
+from .routes.v1.admin import (
+    audit as admin_audit_v1,
+    background_checks as admin_background_checks_v1,
+    badges as admin_badges_v1,
+    config as admin_config_v1,
+    instructors as admin_instructors_v1,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
@@ -363,13 +365,16 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await ProductionStartup.initialize()
 
     # Initialize message notification service
-    from .routes.messages import set_notification_service
+    from .routes.messages import set_notification_service as set_legacy_notification_service
+    from .routes.v1.messages import set_notification_service as set_v1_notification_service
     from .services.message_notification_service import MessageNotificationService
 
     notification_service = MessageNotificationService()
     try:
         await notification_service.start()
-        set_notification_service(notification_service)
+        # Set notification service for both legacy and v1 routers during migration
+        set_legacy_notification_service(notification_service)
+        set_v1_notification_service(notification_service)
         logger.info("Message notification service started successfully")
     except Exception as e:
         logger.error(f"Failed to start message notification service: {str(e)}")
@@ -922,25 +927,91 @@ class SSEAwareGZipMiddleware(GZipMiddleware):
 
 app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 
+# Create API v1 router
+api_v1 = APIRouter(prefix="/api/v1")
+
+# Mount v1 routes
+# Note: Route order matters - more specific routes must come BEFORE catch-all routes
+# /instructors/availability must be before /instructors/{instructor_id} to avoid path collision
+api_v1.include_router(availability_windows_v1.router, prefix="/instructors/availability")  # type: ignore[attr-defined]
+api_v1.include_router(instructor_bgc_v1.router, prefix="/instructors")  # type: ignore[attr-defined]  # BGC endpoints
+api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
+api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
+api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
+api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
+api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
+api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
+api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
+api_v1.include_router(addresses_v1.router, prefix="/addresses")  # type: ignore[attr-defined]
+api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
+api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
+api_v1.include_router(referrals_v1.router, prefix="/referrals")  # type: ignore[attr-defined]
+api_v1.include_router(account_v1.router, prefix="/account")  # type: ignore[attr-defined]
+api_v1.include_router(password_reset_v1.router, prefix="/password-reset")  # type: ignore[attr-defined]
+api_v1.include_router(two_factor_auth_v1.router, prefix="/2fa")  # type: ignore[attr-defined]
+api_v1.include_router(auth_v1.router, prefix="/auth")  # type: ignore[attr-defined]
+api_v1.include_router(payments_v1.router, prefix="/payments")  # type: ignore[attr-defined]
+# Phase 18 v1 routers
+api_v1.include_router(uploads_v1.router, prefix="/uploads")  # type: ignore[attr-defined]
+api_v1.include_router(users_v1.router, prefix="/users")  # type: ignore[attr-defined]
+api_v1.include_router(privacy_v1.router, prefix="/privacy")  # type: ignore[attr-defined]
+api_v1.include_router(public_v1.router, prefix="/public")  # type: ignore[attr-defined]
+api_v1.include_router(pricing_v1.router, prefix="/pricing")  # type: ignore[attr-defined]
+api_v1.include_router(config_v1.router, prefix="/config")  # type: ignore[attr-defined]
+api_v1.include_router(student_badges_v1.router, prefix="/students/badges")  # type: ignore[attr-defined]
+# Phase 19 v1 admin routers
+api_v1.include_router(admin_config_v1.router, prefix="/admin/config")  # type: ignore[attr-defined]
+api_v1.include_router(admin_audit_v1.router, prefix="/admin/audit")  # type: ignore[attr-defined]
+api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
+api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
+api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
+# Phase 23 v1 webhooks router
+api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
+# Phase 24.5 v1 admin operations routers
+api_v1.include_router(analytics_v1.router, prefix="/analytics")  # type: ignore[attr-defined]
+api_v1.include_router(codebase_metrics_v1.router, prefix="/analytics/codebase")  # type: ignore[attr-defined]
+api_v1.include_router(redis_monitor_v1.router, prefix="/redis")  # type: ignore[attr-defined]
+api_v1.include_router(database_monitor_v1.router, prefix="/database")  # type: ignore[attr-defined]
+api_v1.include_router(beta_v1.router, prefix="/beta")  # type: ignore[attr-defined]
+
 # Include routers
 PUBLIC_OPEN_PATHS = {
     "/",
     "/health",
     "/ready",
-    "/auth/login",
-    "/auth/login-with-session",
-    "/auth/register",
-    "/api/auth/password-reset/request",
-    "/api/auth/password-reset/confirm",
-    "/api/auth/2fa/verify-login",
-    "/api/referrals/claim",
+    # Legacy auth paths - DEPRECATED, use /api/v1/auth instead
+    # "/auth/login",
+    # "/auth/login-with-session",
+    # "/auth/register",
+    # v1 auth paths
+    "/api/v1/auth/login",
+    "/api/v1/auth/login-with-session",
+    "/api/v1/auth/register",
+    "/api/v1/password-reset/request",
+    "/api/v1/password-reset/confirm",
+    "/api/v1/2fa/verify-login",
+    "/api/v1/referrals/claim",
+    # v1 payments webhook (signature-verified, no auth needed)
+    "/api/v1/payments/webhooks/stripe",
 }
 
 PUBLIC_OPEN_PREFIXES = (
-    "/api/public",
-    "/api/auth/password-reset/verify",
-    "/api/config",
+    # Legacy public paths - DEPRECATED, use /api/v1/public instead
+    # "/api/public",
+    # "/api/config",
+    "/api/v1/password-reset/verify",  # v1 password reset token verification
     "/r/",
+    "/api/v1/instructors",  # v1 instructors endpoints are public (some require auth via dependency)
+    "/api/v1/services",  # v1 services endpoints are public (catalog browsing)
+    "/api/v1/search",  # v1 search endpoints are public (require_beta_phase_access via dependency)
+    "/api/v1/addresses/zip",  # ZIP lookup is public
+    "/api/v1/addresses/places",  # Place autocomplete/details are public
+    "/api/v1/addresses/coverage",  # Coverage GeoJSON is public (rate limited)
+    "/api/v1/addresses/regions",  # Neighborhood list is public
+    # Phase 18 v1 public paths
+    "/api/v1/public",  # v1 public endpoints (availability, guest session, etc.)
+    "/api/v1/config",  # v1 config endpoints (pricing config)
+    "/api/v1/users/profile-picture",  # Profile picture URLs are public (no auth required for viewing)
 )
 
 public_guard_dependency = public_guard(
@@ -949,80 +1020,154 @@ public_guard_dependency = public_guard(
 )
 
 
-app.include_router(auth.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(two_factor_auth.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(instructors.router)
-app.include_router(instructors.api_router)
-app.include_router(instructor_background_checks.router)
-app.include_router(instructor_bookings.router)
-app.include_router(instructor_bookings.api_router)
-app.include_router(account_management.router)
-app.include_router(services.router)
-app.include_router(availability_windows.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(password_reset.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(bookings.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(student_badges.router)
-app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(favorites.router)
-app.include_router(payments.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(messages.router)
+# Mount API v1 first
+app.include_router(api_v1)
+
+# Legacy auth routes - DEPRECATED, use /api/v1/auth instead
+# app.include_router(auth.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy two_factor_auth routes - DEPRECATED, use /api/v1/2fa instead
+# app.include_router(two_factor_auth.router, dependencies=[Depends(public_guard_dependency)])
+
+# Legacy instructor routes - DEPRECATED, use /api/v1/instructors instead
+# app.include_router(instructors.router)  # Was: /instructors
+# app.include_router(instructors.api_router)  # Was: /api/instructors
+
+# Legacy instructor_background_checks routes - DEPRECATED, use /api/v1/instructors/{id}/bgc instead
+# app.include_router(instructor_background_checks.router)
+# Legacy instructor_bookings routes - DEPRECATED, use /api/v1/instructor-bookings instead
+# app.include_router(instructor_bookings.router)  # Was: /instructors/bookings
+# app.include_router(instructor_bookings.api_router)  # Was: /api/instructors/bookings
+# Legacy account_management routes - DEPRECATED, use /api/v1/account instead
+# app.include_router(account_management.router)  # Was: /api/account
+# Legacy services routes - DEPRECATED, use /api/v1/services instead
+# app.include_router(services.router)  # Was: /services
+# Legacy availability_windows routes - DEPRECATED, use /api/v1/instructors/availability instead
+# app.include_router(availability_windows.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy password_reset routes - DEPRECATED, use /api/v1/password-reset instead
+# app.include_router(password_reset.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy bookings routes - DEPRECATED, use /api/v1/bookings instead
+# app.include_router(bookings.router, dependencies=[Depends(public_guard_dependency)])  # Was: /bookings
+# Legacy student_badges routes - DEPRECATED, use /api/v1/students/badges instead
+# app.include_router(student_badges.router)
+# Legacy pricing routes - DEPRECATED, use /api/v1/pricing instead
+# app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_dependency)])
+# app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])
+# =============================================================================
+# INTENTIONALLY UNVERSIONED ROUTES
+# =============================================================================
+# These routes are NOT versioned because:
+# 1. External services depend on fixed paths (health checks, webhooks, metrics)
+# 2. They are internal admin/ops routes not part of the public API contract
+# 3. They require special authentication (API keys, HMAC, permissions)
+#
+# DO NOT change these paths without updating dependent external service configs.
+# For full documentation, see: docs/architecture/unversioned-routes.md
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# INFRASTRUCTURE ROUTES - External Dependencies
+# These endpoints have fixed paths that external services depend on.
+# Changing them would break load balancers, Kubernetes, and Prometheus.
+# -----------------------------------------------------------------------------
+
+# Readiness probe - Kubernetes depends on /ready for pod readiness checks
+app.include_router(ready.router)
+
+# Prometheus metrics - Standard /metrics/prometheus path for Prometheus scraping
+# This is a PUBLIC endpoint (no auth) following Prometheus best practices
+app.include_router(prometheus.router)
+
+# Gated probe - CI smoke tests depend on /v1/gated/ping (already v1 versioned)
+app.include_router(gated.router)
+
+# -----------------------------------------------------------------------------
+# ADMIN OPS/MONITORING ROUTES - Internal Admin Dashboard
+# These endpoints serve the internal admin dashboard and ops tools.
+# They require admin permissions, API keys, or HMAC signatures.
+# Not part of the public API contract - used by internal tools only.
+# -----------------------------------------------------------------------------
+
+# Performance metrics - /ops/* - Admin-only internal ops metrics
 app.include_router(metrics.router)
 if os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}:
     app.include_router(metrics.metrics_lite_router, include_in_schema=False)
+
+# Monitoring dashboard - /api/monitoring/* - API key protected
 app.include_router(monitoring.router)
+
+# Alert management - /api/monitoring/alerts/* - API key protected
 app.include_router(alerts.router)
-app.include_router(analytics.router, prefix="/api", tags=["analytics"])
-app.include_router(codebase_metrics.router)
-app.include_router(public.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(referrals.public_router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(referrals.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(referrals.admin_router)
-app.include_router(search.router, prefix="/api/search", tags=["search"])
-app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
-app.include_router(addresses.router, dependencies=[Depends(public_guard_dependency)])
-app.include_router(redis_monitor.router)
-app.include_router(ready.router)
-app.include_router(database_monitor.router)
-app.include_router(admin_config.router)
-app.include_router(admin_audit.router)
-app.include_router(privacy.router, prefix="/api", tags=["privacy"])
-app.include_router(stripe_webhooks.router)
-app.include_router(webhooks_checkr.router)
-app.include_router(prometheus.router)
-app.include_router(uploads.router)
-app.include_router(users_profile_picture.router)
-app.include_router(beta.router)
-app.include_router(reviews.router)
-app.include_router(admin_badges.router)
-app.include_router(gated.router)
+
+# Internal config reload - /internal/* - HMAC signature protected
+# Used for hot-reloading rate limiter config without deployment
 app.include_router(internal.router)
-app.include_router(admin_background_checks.router)
-app.include_router(admin_instructors.router)
+
+# -----------------------------------------------------------------------------
+# MIGRATED TO v1 (Phase 24.5)
+# These routes are now served from /api/v1/* paths:
+# - Admin analytics: /api/v1/analytics/* (was /api/analytics/*)
+# - Codebase metrics: /api/v1/analytics/codebase/* (was /api/analytics/codebase/*)
+# - Redis monitoring: /api/v1/redis/* (was /api/redis/*)
+# - Database monitoring: /api/v1/database/* (was /api/database/*)
+# - Beta management: /api/v1/beta/* (was /api/beta/*)
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# REFERRALS - Special Short URL + Admin Routes
+# -----------------------------------------------------------------------------
+
+# Referral short URLs - /r/{slug} - Not versioned (short URL redirects)
+app.include_router(referrals_v1.public_router, dependencies=[Depends(public_guard_dependency)])
+
+# Referral admin - /api/v1/admin/referrals - Already v1 versioned
+app.include_router(referrals_v1.admin_router, prefix="/api/v1/admin/referrals")
+
+# =============================================================================
+# DEPRECATED LEGACY ROUTES - Commented out, use v1 equivalents
+# =============================================================================
+# Legacy favorites routes - DEPRECATED, use /api/v1/favorites instead
+# app.include_router(favorites.router)  # Was: /api/favorites
+# Legacy payments routes - DEPRECATED, use /api/v1/payments instead
+# app.include_router(payments.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy messages routes - DEPRECATED, use /api/v1/messages instead
+# app.include_router(messages.router)
+# Legacy public routes - DEPRECATED, use /api/v1/public instead
+# app.include_router(public.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy referrals routes - DEPRECATED, use /api/v1/referrals instead
+# app.include_router(referrals.public_router, dependencies=[Depends(public_guard_dependency)])
+# app.include_router(referrals.router, dependencies=[Depends(public_guard_dependency)])
+# app.include_router(referrals.admin_router)
+# Legacy search routes - DEPRECATED, use /api/v1/search instead
+# app.include_router(search.router, prefix="/api/search", tags=["search"])
+# Legacy search-history routes - DEPRECATED, use /api/v1/search-history instead
+# app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
+# Legacy addresses routes - DEPRECATED, use /api/v1/addresses instead
+# app.include_router(addresses.router, dependencies=[Depends(public_guard_dependency)])
+# Legacy admin_config routes - DEPRECATED, use /api/v1/admin/config instead
+# app.include_router(admin_config.router)
+# Legacy admin_audit routes - DEPRECATED, use /api/v1/admin/audit instead
+# app.include_router(admin_audit.router)
+# Legacy privacy routes - DEPRECATED, use /api/v1/privacy instead
+# app.include_router(privacy.router, prefix="/api", tags=["privacy"])
+# Legacy stripe_webhooks routes - DEPRECATED, use /api/v1/payments/webhooks/stripe instead
+# app.include_router(stripe_webhooks.router)
+# Legacy webhooks_checkr routes - DEPRECATED, use /api/v1/webhooks/checkr instead
+# app.include_router(webhooks_checkr.router)
+# Legacy uploads routes - DEPRECATED, use /api/v1/uploads instead
+# app.include_router(uploads.router)
+# Legacy users profile picture routes - DEPRECATED, use /api/v1/users instead
+# app.include_router(users_profile_picture.router)
+# Legacy reviews routes - Migrated to /api/v1/reviews
+# app.include_router(reviews.router)
+# Legacy admin_badges routes - DEPRECATED, use /api/v1/admin/badges instead
+# app.include_router(admin_badges.router)
+# Legacy admin_background_checks routes - DEPRECATED, use /api/v1/admin/background-checks instead
+# app.include_router(admin_background_checks.router)
+# Legacy admin_instructors routes - DEPRECATED, use /api/v1/admin/instructors instead
+# app.include_router(admin_instructors.router)
 
 
-# Identity + uploads: new endpoints are included via existing payments router and addresses router
-
-
-# Import for Stripe webhook response model
-from app.schemas.payment_schemas import WebhookResponse
-
-
-# Redirect for Stripe webhook - handles the URL currently configured in Stripe Dashboard
-@app.post("/api/webhooks/stripe", response_model=WebhookResponse)
-async def redirect_stripe_webhook(
-    request: Request, db: Session = Depends(get_db)
-) -> WebhookResponse:
-    """
-    Redirect old webhook URL to new location.
-
-    This endpoint exists for backward compatibility with webhooks configured
-    at /api/webhooks/stripe instead of /api/payments/webhooks/stripe.
-    It simply forwards the request to the correct handler.
-    """
-    from app.routes.payments import handle_stripe_webhook
-
-    return await handle_stripe_webhook(request, db)
+# Identity + uploads: new endpoints are included via existing v1 payments router and v1 addresses router
 
 
 @app.get("/", response_model=RootResponse)

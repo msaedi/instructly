@@ -21,6 +21,7 @@ from app.models.search_history import SearchHistory
 from app.models.search_interaction import SearchInteraction
 from app.models.user import User
 
+pytestmark = pytest.mark.anyio
 
 @pytest.fixture
 def client():
@@ -181,7 +182,7 @@ class TestSearchTypeE2E:
             "device_context": mock_device_context,
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert response.status_code == 201
 
         data = response.json()
@@ -207,7 +208,7 @@ class TestSearchTypeE2E:
         )
 
         # Verify deduplication (search again)
-        response2 = client.post("/api/search-history/", json=search_data, headers=headers)
+        response2 = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert response2.status_code == 201
 
         # Should still have only one history entry
@@ -244,7 +245,7 @@ class TestSearchTypeE2E:
             "results_count": None,  # Categories don't have results initially
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert response.status_code == 201
 
         # Verify records
@@ -274,7 +275,7 @@ class TestSearchTypeE2E:
             "results_count": 12,
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert response.status_code == 201
 
         # Verify records
@@ -299,7 +300,7 @@ class TestSearchTypeE2E:
             "results_count": 8,
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert response.status_code == 201
 
         # Verify records
@@ -324,7 +325,7 @@ class TestSearchTypeE2E:
             "results_count": 10,
         }
 
-        response = client.post("/api/search-history/", json=initial_search, headers=headers)
+        response = client.post("/api/v1/search-history/", json=initial_search, headers=headers)
         assert response.status_code == 201
 
         # Now click on the recent search
@@ -334,7 +335,7 @@ class TestSearchTypeE2E:
             "results_count": 10,
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert response.status_code == 201
 
         # Verify records
@@ -370,7 +371,7 @@ class TestSearchDeduplicationE2E:
             "results_count": 20,
         }
 
-        response1 = client.post("/api/search-history/", json=search1, headers=headers)
+        response1 = client.post("/api/v1/search-history/", json=search1, headers=headers)
         assert response1.status_code == 201
 
         # Search "Piano" as service pill
@@ -380,7 +381,7 @@ class TestSearchDeduplicationE2E:
             "results_count": 15,
         }
 
-        response2 = client.post("/api/search-history/", json=search2, headers=headers)
+        response2 = client.post("/api/v1/search-history/", json=search2, headers=headers)
         assert response2.status_code == 201
 
         # Should have only 1 history entry (deduplicated by query)
@@ -414,7 +415,7 @@ class TestSearchDeduplicationE2E:
 
         # Simulate rapid searches (e.g., from debounced search input)
         for i in range(5):
-            response = client.post("/api/search-history/", json=search_data, headers=headers)
+            response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
             assert response.status_code == 201
 
         # Should only have 1 history entry
@@ -440,7 +441,7 @@ class TestSearchInteractionE2E:
             "results_count": 8,
         }
 
-        search_response = client.post("/api/search-history/", json=search_data, headers=headers)
+        search_response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert search_response.status_code == 201
 
         search_result = search_response.json()
@@ -459,7 +460,7 @@ class TestSearchInteractionE2E:
             "time_to_interaction": 3.0,  # 3 seconds
         }
 
-        interaction_response = client.post("/api/search-history/interaction", json=interaction_data, headers=headers)
+        interaction_response = client.post("/api/v1/search-history/interaction", json=interaction_data, headers=headers)
         assert interaction_response.status_code == 201
 
         # Verify interaction was recorded
@@ -482,7 +483,7 @@ class TestSearchInteractionE2E:
             "results_count": 10,
         }
 
-        search_response = client.post("/api/search-history/", json=search_data, headers=headers)
+        search_response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         search_event_id = search_response.json()["search_event_id"]
 
         # Track different interactions
@@ -502,7 +503,7 @@ class TestSearchInteractionE2E:
                 "time_to_interaction": time_elapsed,
             }
 
-            response = client.post("/api/search-history/interaction", json=interaction_data, headers=headers)
+            response = client.post("/api/v1/search-history/interaction", json=interaction_data, headers=headers)
             assert response.status_code == 201
 
         # Verify all interactions were recorded
@@ -527,7 +528,7 @@ class TestSearchInteractionE2E:
             "results_count": 6,
         }
 
-        search_response = client.post("/api/search-history/", json=search_data, headers=headers)
+        search_response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert search_response.status_code == 201
 
         search_event_id = search_response.json()["search_event_id"]
@@ -541,7 +542,7 @@ class TestSearchInteractionE2E:
             "time_to_interaction": 4.5,
         }
 
-        interaction_response = client.post("/api/search-history/interaction", json=interaction_data, headers=headers)
+        interaction_response = client.post("/api/v1/search-history/interaction", json=interaction_data, headers=headers)
         assert interaction_response.status_code == 201
 
         # Verify guest interaction was recorded
@@ -581,7 +582,7 @@ class TestSearchAnalyticsE2E:
             "device_context": device_context,
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert response.status_code == 201
 
         # Verify device context was stored
@@ -618,7 +619,7 @@ class TestSearchAnalyticsE2E:
             "results_count": 3,
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert response.status_code == 201
 
         # Verify geo data was stored
@@ -662,7 +663,7 @@ class TestSearchAnalyticsE2E:
 
         for search in searches:
             headers_with_origin = search.pop("headers")
-            response = client.post("/api/search-history/", json=search, headers=headers_with_origin)
+            response = client.post("/api/v1/search-history/", json=search, headers=headers_with_origin)
             assert response.status_code == 201
 
         # Verify all searches have same session ID

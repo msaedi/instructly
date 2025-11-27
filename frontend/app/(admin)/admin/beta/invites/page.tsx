@@ -33,8 +33,8 @@ export default function BetaInvitesAdminPage() {
     async function fetchSummary() {
       try {
         const [settingsRes, summaryRes] = await Promise.all([
-          fetch(withApiBase(`/api/beta/settings`), { credentials: 'include' }),
-          fetch(withApiBase(`/api/beta/metrics/summary`), { credentials: 'include' }),
+          fetch(withApiBase(`/api/v1/beta/settings`), { credentials: 'include' }),
+          fetch(withApiBase(`/api/v1/beta/metrics/summary`), { credentials: 'include' }),
         ]);
         const settings = settingsRes.ok ? await settingsRes.json() : null;
         const phase = settings?.beta_phase || 'unknown';
@@ -52,7 +52,7 @@ export default function BetaInvitesAdminPage() {
     let cancelled = false;
     async function poll() {
       try {
-        const res = await fetch(withApiBase(`/api/beta/invites/send-batch-progress?task_id=${encodeURIComponent(asyncTaskId || '')}`), { credentials: 'include' });
+        const res = await fetch(withApiBase(`/api/v1/beta/invites/send-batch-progress?task_id=${encodeURIComponent(asyncTaskId || '')}`), { credentials: 'include' });
         if (!res.ok) throw new Error('progress error');
         const data = await res.json();
         if (!cancelled) {
@@ -89,7 +89,7 @@ export default function BetaInvitesAdminPage() {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch(withApiBase(`/api/beta/invites/send`), {
+      const res = await fetch(withApiBase(`/api/v1/beta/invites/send`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to_email: email, role, expires_in_days: days, source }),
@@ -303,7 +303,7 @@ export default function BetaInvitesAdminPage() {
                         .filter((s) => s.length > 0);
                       if (emails.length === 0) return;
                       try {
-                        const res = await fetch(withApiBase('/api/beta/invites/generate'), {
+                        const res = await fetch(withApiBase('/api/v1/beta/invites/generate'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ count: emails.length, role, expires_in_days: days, source: 'csv_upload', emails }),
@@ -331,7 +331,7 @@ export default function BetaInvitesAdminPage() {
                         .filter((s) => s.length > 0);
                       if (emails.length === 0) return;
                       try {
-                        const r = await fetch(withApiBase('/api/beta/invites/send-batch-async'), {
+                        const r = await fetch(withApiBase('/api/v1/beta/invites/send-batch-async'), {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ emails, role, expires_in_days: days, source: 'csv_upload' }),

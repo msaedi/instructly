@@ -72,7 +72,12 @@ export const CACHE_TIMES = {
 /**
  * Query key factory for consistent key generation
  * Follows hierarchical structure for easy invalidation
+ *
+ * CACHE_VERSION: Increment when API endpoints change to bust stale caches.
+ * After Phase 13 migration, old cached responses to /bookings/ need to be invalidated.
  */
+const CACHE_VERSION = 'v1' as const;
+
 export const queryKeys = {
   // User queries
   user: ['user'] as const,
@@ -81,15 +86,15 @@ export const queryKeys = {
     detail: (id: string) => ['users', id] as const,
   },
 
-  // Booking queries
+  // Booking queries - CACHE_VERSION added to bust stale caches from pre-v1 API
   bookings: {
-    all: ['bookings'] as const,
-    upcoming: (limit?: number) => ['bookings', 'upcoming', { limit }] as const,
-    history: (page?: number) => ['bookings', 'history', { page }] as const,
-    detail: (id: string) => ['bookings', id] as const,
+    all: ['bookings', CACHE_VERSION] as const,
+    upcoming: (limit?: number) => ['bookings', CACHE_VERSION, 'upcoming', { limit }] as const,
+    history: (page?: number) => ['bookings', CACHE_VERSION, 'history', { page }] as const,
+    detail: (id: string) => ['bookings', CACHE_VERSION, id] as const,
     instructor: {
-      upcoming: ['bookings', 'instructor', 'upcoming'] as const,
-      past: ['bookings', 'instructor', 'past'] as const,
+      upcoming: ['bookings', CACHE_VERSION, 'instructor', 'upcoming'] as const,
+      past: ['bookings', CACHE_VERSION, 'instructor', 'past'] as const,
     },
   },
 

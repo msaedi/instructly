@@ -71,6 +71,7 @@ from ..schemas.booking import (
     BookingResponse,
     BookingStatsResponse,
     BookingUpdate,
+    PaymentSummary,
     UpcomingBookingResponse,
 )
 from ..schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
@@ -641,23 +642,20 @@ async def get_booking_details(
         if not booking:
             raise NotFoundException("Booking not found")
 
-        payment_summary = None
+        payment_summary_data: PaymentSummary | None = None
         if booking.student_id == current_user.id:
             config_service = ConfigService(db)
             pricing_config, _ = config_service.get_pricing_config()
             payment_repo = RepositoryFactory.create_payment_repository(db)
             tip_repo = ReviewTipRepository(db)
-            payment_summary = build_student_payment_summary(
+            payment_summary_data = build_student_payment_summary(
                 booking=booking,
                 pricing_config=pricing_config,
                 payment_repo=payment_repo,
                 review_tip_repo=tip_repo,
             )
-            # Convert to dict to avoid Pydantic validation issues when STRICT_SCHEMAS is enabled
-            if payment_summary:
-                payment_summary = payment_summary.model_dump()
 
-        return BookingResponse.from_booking(booking, payment_summary=payment_summary)
+        return BookingResponse.from_booking(booking, payment_summary=payment_summary_data)
     except DomainException as e:
         handle_domain_exception(e)
 

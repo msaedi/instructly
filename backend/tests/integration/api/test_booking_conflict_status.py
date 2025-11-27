@@ -122,10 +122,10 @@ async def test_booking_create_conflict_returns_409(
         "meeting_location": "Test Location",
     }
 
-    first_response = client.post("/bookings/", json=payload, headers=request_headers)
+    first_response = client.post("/api/v1/bookings/", json=payload, headers=request_headers)
     assert first_response.status_code == 201, first_response.text
 
-    second_response = client.post("/bookings/", json=payload, headers=request_headers)
+    second_response = client.post("/api/v1/bookings/", json=payload, headers=request_headers)
     assert second_response.status_code == 409, second_response.text
     response_payload = second_response.json()
     assert response_payload.get("code") == "BOOKING_CONFLICT"

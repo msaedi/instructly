@@ -58,7 +58,7 @@ DISCLOSURE_VERSION = "v1.0.0"
 
 def _record_consent(client, profile_id: str, headers):
     response = client.post(
-        f"/api/instructors/{profile_id}/bgc/consent",
+        f"/api/v1/instructors/{profile_id}/bgc/consent",
         headers=headers,
         json={
             "consent_version": DISCLOSURE_VERSION,
@@ -159,7 +159,7 @@ def test_invite_creates_pending_status(client, db, owner_auth_override):
     headers = _csrf_headers(client)
     _record_consent(client, profile.id, headers)
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )
@@ -183,7 +183,7 @@ def test_invite_is_idempotent_when_pending(client, db, owner_auth_override):
     owner_auth_override(owner)
     headers = _csrf_headers(client)
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )
@@ -201,7 +201,7 @@ def test_invite_requires_recent_consent(client, db, owner_auth_override):
     headers = _csrf_headers(client)
 
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )
@@ -235,7 +235,7 @@ def test_invite_returns_specific_error_on_checkr_auth_failure(client, db, owner_
     app.dependency_overrides[get_background_check_service] = lambda: AuthFailureService()
     try:
         response = client.post(
-            f"/api/instructors/{profile.id}/bgc/invite",
+            f"/api/v1/instructors/{profile.id}/bgc/invite",
             headers=headers,
             json={},
         )
@@ -265,7 +265,7 @@ def test_recheck_returns_specific_error_on_checkr_auth_failure(client, db, owner
     app.dependency_overrides[get_background_check_service] = lambda: AuthFailureService()
     try:
         response = client.post(
-            f"/api/instructors/{profile.id}/bgc/recheck",
+            f"/api/v1/instructors/{profile.id}/bgc/recheck",
             headers=headers,
             json={},
         )
@@ -301,7 +301,7 @@ def test_invite_returns_specific_error_on_package_not_found(client, db, owner_au
     app.dependency_overrides[get_background_check_service] = lambda: PackageFailureService()
     try:
         response = client.post(
-            f"/api/instructors/{profile.id}/bgc/invite",
+            f"/api/v1/instructors/{profile.id}/bgc/invite",
             headers=headers,
             json={},
         )
@@ -337,7 +337,7 @@ def test_recheck_returns_specific_error_on_package_not_found(client, db, owner_a
     app.dependency_overrides[get_background_check_service] = lambda: PackageFailureService()
     try:
         response = client.post(
-            f"/api/instructors/{profile.id}/bgc/recheck",
+            f"/api/v1/instructors/{profile.id}/bgc/recheck",
             headers=headers,
             json={},
         )
@@ -393,7 +393,7 @@ def test_invite_includes_work_location_payloads(client, db, owner_auth_override)
 
     app.dependency_overrides[get_background_check_service] = _override
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )
@@ -418,7 +418,7 @@ def test_invite_returns_error_when_zip_missing(client, db, owner_auth_override):
     db.commit()
 
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )
@@ -455,7 +455,7 @@ def test_invite_returns_specific_error_on_checkr_work_location_failure(client, d
     app.dependency_overrides[get_background_check_service] = lambda: WorkLocationFailureService()
     try:
         response = client.post(
-            f"/api/instructors/{profile.id}/bgc/invite",
+            f"/api/v1/instructors/{profile.id}/bgc/invite",
             headers=headers,
             json={},
         )
@@ -467,7 +467,7 @@ def test_invite_returns_specific_error_on_checkr_work_location_failure(client, d
         app.dependency_overrides[get_background_check_service] = original_service
 
     valid_response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )
@@ -508,7 +508,7 @@ def test_invite_returns_provider_error_when_geocoder_unavailable(client, db, own
     )
 
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )
@@ -551,7 +551,7 @@ def test_invite_returns_invalid_work_location_for_unresolvable_zip(
     )
 
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )
@@ -586,7 +586,7 @@ def test_invite_forbidden_for_other_users(client, db):
         _override_other()
         headers = _csrf_headers(client)
         response = client.post(
-            f"/api/instructors/{profile.id}/bgc/invite",
+            f"/api/v1/instructors/{profile.id}/bgc/invite",
             headers=headers,
             json={},
         )
@@ -604,7 +604,7 @@ def test_invite_200_json(client, db, owner_auth_override):
     _record_consent(client, profile.id, headers)
 
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )
@@ -641,7 +641,7 @@ def test_invite_4xx_single_send_cors(client, db, owner_auth_override):
     app.dependency_overrides[get_background_check_service] = lambda: ErroringService()
     try:
         response = client.post(
-            f"/api/instructors/{profile.id}/bgc/invite",
+            f"/api/v1/instructors/{profile.id}/bgc/invite",
             headers=headers,
             json={},
         )
@@ -665,7 +665,7 @@ def test_status_endpoint_returns_current_values(client, db):
     db.flush()
 
     with auth_override(owner):
-        response = client.get(f"/api/instructors/{profile.id}/bgc/status")
+        response = client.get(f"/api/v1/instructors/{profile.id}/bgc/status")
 
     assert response.status_code == 200
     payload = response.json()
@@ -677,7 +677,7 @@ def test_status_endpoint_returns_current_values(client, db):
 def test_status_not_found(client, db):
     owner, _ = _create_instructor(db, status="failed")
     with auth_override(owner):
-        response = client.get("/api/instructors/01NOTEXISTING/bgc/status")
+        response = client.get("/api/v1/instructors/01NOTEXISTING/bgc/status")
 
     assert response.status_code == 404
 
@@ -694,7 +694,7 @@ def test_invite_returns_specific_error_when_rate_limited(client, db, owner_auth_
     db.commit()
 
     response = client.post(
-        f"/api/instructors/{profile.id}/bgc/invite",
+        f"/api/v1/instructors/{profile.id}/bgc/invite",
         headers=headers,
         json={},
     )

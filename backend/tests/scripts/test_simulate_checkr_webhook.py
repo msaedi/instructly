@@ -5,7 +5,7 @@ import types
 
 import pytest
 
-from app.routes.webhooks_checkr import _compute_signature
+from app.routes.v1.webhooks_checkr import _compute_signature
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sim = import_module("scripts.simulate_checkr_webhook")
@@ -19,6 +19,8 @@ def _clear_env(monkeypatch):
         "CHECKR_WEBHOOK_URL",
         "SIM_ENV_FILE",
         "SIM_ENV_NAME",
+        "CHECKR_API_KEY",
+        "CHECKR_WEBHOOK_SECRET",
     ]:
         monkeypatch.delenv(key, raising=False)
 
@@ -115,17 +117,17 @@ def test_bootstrap_env_stg_defaults_localhost_webhook(tmp_path):
 
     assert env_name == "stg"
     assert sim.os.environ["SITE_MODE"] == "stg"
-    assert sim.os.environ["CHECKR_WEBHOOK_URL"] == "http://localhost:8000/webhooks/checkr/"
+    assert sim.os.environ["CHECKR_WEBHOOK_URL"] == "http://localhost:8000/api/v1/webhooks/checkr"
 
 
 @pytest.mark.parametrize(
     "environment,expected",
     [
-        ("beta", "https://api.instainstru.com/webhooks/checkr/"),
-        ("prod", "https://api.instainstru.com/webhooks/checkr/"),
-        ("preview", "https://preview-api.instainstru.com/webhooks/checkr/"),
-        ("stg", "http://localhost:8000/webhooks/checkr/"),
-        ("int", "http://localhost:8000/webhooks/checkr/"),
+        ("beta", "https://api.instainstru.com/api/v1/webhooks/checkr"),
+        ("prod", "https://api.instainstru.com/api/v1/webhooks/checkr"),
+        ("preview", "https://preview-api.instainstru.com/api/v1/webhooks/checkr"),
+        ("stg", "http://localhost:8000/api/v1/webhooks/checkr"),
+        ("int", "http://localhost:8000/api/v1/webhooks/checkr"),
     ],
 )
 def test_resolve_webhook_url_defaults(environment, expected):
@@ -257,6 +259,7 @@ def test_requests_post_uses_raw_body(monkeypatch, tmp_path):
 
     monkeypatch.setattr(sim, "_dispatch_webhook", fake_dispatch)
     monkeypatch.setattr(sim, "_post_webhook_via_asgi", lambda *a, **k: (200, "{}"))
+    monkeypatch.setattr(sim, "_resolve_signing_secret", lambda *a, **k: "secret-val")
 
     monkeypatch.setattr(
         sys,

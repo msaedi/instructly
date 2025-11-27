@@ -13,13 +13,13 @@ def test_smoke_rate_headers_present():
     assert "X-RateLimit-Remaining" in r.headers
 
     # representative read route
-    r = client.get("/api/search/instructors", params={"q": "piano"})
+    r = client.get("/api/v1/search/instructors", params={"q": "piano"})
     assert r.status_code in (200, 401, 403)
     assert "X-RateLimit-Limit" in r.headers
     assert "X-RateLimit-Remaining" in r.headers
 
     # representative write route (shadow/enforced in prod; disabled in tests)
-    r = client.post("/instructors/me", json={"bio": "test"})
+    r = client.post("/api/v1/instructors/me", json={"bio": "test"})
     assert r.status_code in (200, 201, 401, 403)
     assert "X-RateLimit-Limit" in r.headers
     assert "X-RateLimit-Remaining" in r.headers

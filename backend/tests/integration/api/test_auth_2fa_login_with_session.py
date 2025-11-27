@@ -63,7 +63,7 @@ class TestLoginWithSessionTwoFactor:
         _register_user_with_2fa(db, email)
 
         response = client.post(
-            "/auth/login-with-session",
+            "/api/v1/auth/login-with-session",
             json={
                 "email": email,
                 "password": "Test1234!",
@@ -86,7 +86,7 @@ class TestLoginWithSessionTwoFactor:
         _seed_guest_search(db, guest_session_id)
 
         login_response = client.post(
-            "/auth/login-with-session",
+            "/api/v1/auth/login-with-session",
             json={
                 "email": email,
                 "password": "Test1234!",
@@ -101,7 +101,7 @@ class TestLoginWithSessionTwoFactor:
             timestamp = int(time.time()) + offset_seconds
             code = totp.at(timestamp)
             return client.post(
-                "/api/auth/2fa/verify-login",
+                "/api/v1/2fa/verify-login",
                 json={"temp_token": temp_token, "code": code},
                 headers={"X-Trust-Browser": "true"},
             )
@@ -129,7 +129,7 @@ class TestLoginWithSessionTwoFactor:
 
         # Subsequent login should skip 2FA due to trust cookie
         follow_up = client.post(
-            "/auth/login-with-session",
+            "/api/v1/auth/login-with-session",
             json={
                 "email": email,
                 "password": "Test1234!",
@@ -147,7 +147,7 @@ class TestLoginWithSessionTwoFactor:
         _register_user_with_2fa(db, email)
 
         login_response = client.post(
-            "/auth/login-with-session",
+            "/api/v1/auth/login-with-session",
             json={
                 "email": email,
                 "password": "Test1234!",
@@ -157,7 +157,7 @@ class TestLoginWithSessionTwoFactor:
         temp_token = login_response.json()["temp_token"]
 
         bad_verify = client.post(
-            "/api/auth/2fa/verify-login",
+            "/api/v1/2fa/verify-login",
             json={"temp_token": temp_token, "code": "000000"},
         )
 

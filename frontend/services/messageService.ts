@@ -66,9 +66,11 @@ export interface MarkMessagesReadRequest {
  * - Managing unread counts
  * - Marking messages as read
  * - Deleting messages
+ *
+ * Phase 10: Migrated to /api/v1/messages endpoints.
  */
 class MessageService {
-  private readonly baseUrl = '/api/messages';
+  private readonly baseUrl = '/api/v1/messages';
 
   /**
    * Send a message to a booking chat

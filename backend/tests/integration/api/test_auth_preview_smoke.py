@@ -69,7 +69,7 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     _, secret = _register_user_with_2fa(db, email)
 
     login_response = client.post(
-        "/auth/login-with-session",
+        "/api/v1/auth/login-with-session",
         json={"email": email, "password": "Preview123!", "guest_session_id": "preview-guest"},
     )
     assert login_response.status_code == 200
@@ -82,7 +82,7 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     csrf_headers = _csrf_headers(client)
     csrf_headers["X-Trust-Browser"] = "true"
     verify_response = client.post(
-        "/api/auth/2fa/verify-login",
+        "/api/v1/2fa/verify-login",
         json={"temp_token": payload["temp_token"], "code": totp.now()},
         headers=csrf_headers,
     )
@@ -105,10 +105,10 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
 
     # TestClient runs over HTTP, so Secure cookies are not sent automatically.
     # Include the bearer token to prove authentication succeeds post-2FA.
-    me_response = client.get("/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"})
+    me_response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {body['access_token']}"})
     assert me_response.status_code == 200
 
-    logout_response = client.post("/api/public/logout", headers=_csrf_headers(client))
+    logout_response = client.post("/api/v1/public/logout", headers=_csrf_headers(client))
     assert logout_response.status_code == 204
     logout_cookies = logout_response.headers.get_list("set-cookie")
     logout_session_cookie = next(
@@ -122,5 +122,5 @@ def test_preview_2fa_session_flow(client: TestClient, db: Session, monkeypatch) 
     assert "Path=/" in logout_session_cookie
     assert "SameSite=lax" in logout_session_cookie or "SameSite=Lax" in logout_session_cookie
 
-    me_after_logout = client.get("/auth/me")
+    me_after_logout = client.get("/api/v1/auth/me")
     assert me_after_logout.status_code == 401

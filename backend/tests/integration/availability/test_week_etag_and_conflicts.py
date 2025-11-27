@@ -84,7 +84,7 @@ class TestWeekGetSetsEtagAndAllowPast:
         db.commit()
 
         resp = bitmap_client.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": week_start.isoformat()},
             headers=auth_headers_instructor,
         )
@@ -148,7 +148,7 @@ class TestWeekPostUpdatesBitsAndChangesEtag:
 
         # GET and capture etag1
         get_resp = bitmap_client.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": week_start.isoformat()},
             headers=auth_headers_instructor,
         )
@@ -175,7 +175,7 @@ class TestWeekPostUpdatesBitsAndChangesEtag:
         }
 
         post_resp = bitmap_client.post(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             json=post_body,
             headers={**auth_headers_instructor, "If-Match": etag1},
         )
@@ -189,7 +189,7 @@ class TestWeekPostUpdatesBitsAndChangesEtag:
 
         # Follow-up GET reflects both Mon and Tue windows
         get_resp2 = bitmap_client.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": week_start.isoformat()},
             headers=auth_headers_instructor,
         )
@@ -217,7 +217,7 @@ class TestWeekPost409WithStaleIfMatch:
 
         # Obtain etagA from GET
         get_resp1 = bitmap_client.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": week_start.isoformat()},
             headers=auth_headers_instructor,
         )
@@ -244,7 +244,7 @@ class TestWeekPost409WithStaleIfMatch:
         }
 
         conflict_resp = bitmap_client.post(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             json=post_body,
             headers={**auth_headers_instructor, "If-Match": etagA},
         )
@@ -292,7 +292,7 @@ class TestWeekPostOverrideTrueBypassesConflict:
 
         # Obtain etagA from GET
         get_resp1 = bitmap_client.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": week_start.isoformat()},
             headers=auth_headers_instructor,
         )
@@ -319,7 +319,7 @@ class TestWeekPostOverrideTrueBypassesConflict:
         }
 
         override_resp = bitmap_client.post(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"override": "true"},
             json=post_body,
             headers={**auth_headers_instructor, "If-Match": etagA},
@@ -332,7 +332,7 @@ class TestWeekPostOverrideTrueBypassesConflict:
 
         # GET reflects changes
         get_resp2 = bitmap_client.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": week_start.isoformat()},
             headers=auth_headers_instructor,
         )

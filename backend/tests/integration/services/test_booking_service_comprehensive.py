@@ -527,6 +527,30 @@ class TestBookingServiceUpdate:
         with pytest.raises(ValidationException, match="Only instructors can mark bookings as complete"):
             booking_service.complete_booking(test_booking.id, test_student)
 
+    def test_mark_no_show(
+        self,
+        db: Session,
+        test_booking: Booking,
+        test_instructor_with_availability: User,
+        mock_notification_service: Mock,
+    ):
+        """Test marking a booking as no-show."""
+        booking_service = BookingService(db, mock_notification_service)
+        no_show = booking_service.mark_no_show(
+            booking_id=test_booking.id, instructor=test_instructor_with_availability
+        )
+
+        assert no_show.status == BookingStatus.NO_SHOW
+
+    def test_mark_no_show_student_forbidden(
+        self, db: Session, test_booking: Booking, test_student: User, mock_notification_service: Mock
+    ):
+        """Test students cannot mark bookings as no-show."""
+        booking_service = BookingService(db, mock_notification_service)
+
+        with pytest.raises(ValidationException, match="Only instructors can mark bookings as no-show"):
+            booking_service.mark_no_show(test_booking.id, test_student)
+
 
 class TestBookingServiceAvailabilityCheck:
     """Test availability checking functionality."""

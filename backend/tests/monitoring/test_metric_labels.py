@@ -26,7 +26,7 @@ class TestMetricLabels:
         """Test that HTTP metrics have method, endpoint, and status_code labels"""
         # Make various requests
         client.get("/health")
-        client.post("/api/auth/login", json={"email": "test@example.com", "password": "wrong"})
+        client.post("/api/v1/auth/login", data={"username": "test@example.com", "password": "wrong"})
         client.get("/api/nonexistent")
 
         # Get metrics
@@ -161,7 +161,7 @@ class TestMetricLabels:
         """Test that label cardinality doesn't explode"""
         # Make many requests with different parameters
         for i in range(10):
-            client.get(f"/api/users/{i}")  # Should normalize to /api/users/{id}
+            client.get(f"/api/v1/users/{i}/profile-picture-url")  # Should normalize to /api/v1/users/{id}/profile-picture-url
 
         # Get metrics
         response = client.get("/metrics/prometheus")
@@ -175,8 +175,8 @@ class TestMetricLabels:
                 endpoints.add(sample.labels.get("endpoint", ""))
 
             # Should not have 10 different endpoints for user IDs
-            # They should be normalized to a single /api/users/{id} pattern
-            user_endpoints = [e for e in endpoints if "/api/users/" in e]
+            # They should be normalized to a single /api/v1/users/{id}/profile-picture-url pattern
+            user_endpoints = [e for e in endpoints if "/api/v1/users/" in e]
             assert len(user_endpoints) <= 2  # Maybe one for success, one for 404
 
     def test_service_operation_labels_match_class_method(self):

@@ -77,7 +77,7 @@ test.describe('Referral surfaces', () => {
   test('rewards page share + copy works and passes axe smoke', async ({ page }) => {
     const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
 
-    await page.route('**/api/referrals/me', async (route) => {
+    await page.route('**/api/v1/referrals/me', async (route) => {
       if (route.request().method() === 'OPTIONS') {
         await route.fulfill({ status: 204 });
         return;
@@ -111,7 +111,7 @@ test.describe('Referral surfaces', () => {
     const studentEmail = process.env.E2E_STUDENT_EMAIL || 'john.smith@example.com';
     const studentPassword = process.env.E2E_STUDENT_PASSWORD || 'TestPassword123!';
 
-    await page.route('**/auth/login', async (route) => {
+    await page.route('**/api/v1/auth/login', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 200,
@@ -130,7 +130,7 @@ test.describe('Referral surfaces', () => {
       await route.continue();
     });
 
-    await page.route('**/auth/login-with-session', async (route) => {
+    await page.route('**/api/v1/auth/login-with-session', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 200,
@@ -159,7 +159,7 @@ test.describe('Referral surfaces', () => {
       credits_balance: 2000,
     };
 
-    await page.route('**/auth/me', async (route) => {
+    await page.route('**/api/v1/auth/me', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -171,7 +171,7 @@ test.describe('Referral surfaces', () => {
       await route.continue();
     });
 
-    await page.route('**/api/auth/me', async (route) => {
+    await page.route('**/api/api/v1/auth/me', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -183,7 +183,7 @@ test.describe('Referral surfaces', () => {
       await route.continue();
     });
 
-    await page.route('**/api/addresses/me', async (route) => {
+    await page.route('**/api/v1/addresses/me', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -195,7 +195,7 @@ test.describe('Referral surfaces', () => {
       await route.continue();
     });
 
-    await page.route('**/api/auth/2fa/status', async (route) => {
+    await page.route('**/api/v1/2fa/status', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -272,7 +272,7 @@ test.describe('Referral surfaces', () => {
     await page.goto(`${base}/checkout?orderId=ORDER-SMALL&subtotalCents=5000`, { waitUntil: 'networkidle' });
     await expect(page.getByText('Spend $75+ to use your $20 credit.')).toBeVisible();
 
-    await page.route('**/api/referrals/checkout/apply-referral', async (route) => {
+    await page.route('**/api/v1/referrals/checkout/apply-referral', async (route) => {
       if (route.request().method() === 'OPTIONS') {
         await route.fulfill({ status: 204 });
         return;
@@ -289,6 +289,6 @@ test.describe('Referral surfaces', () => {
     const appliedMessage = page.locator('p', { hasText: 'Referral credit applied' }).first();
     await expect(appliedMessage).toBeVisible();
 
-    await page.unroute('**/api/referrals/checkout/apply-referral');
+    await page.unroute('**/api/v1/referrals/checkout/apply-referral');
   });
 });

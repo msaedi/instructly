@@ -67,7 +67,7 @@ def test_week_save_rolls_back_on_fault(
     monkeypatch.setattr(AvailabilityDayRepository, "upsert_week", _boom)
 
     response = perf_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
     )
@@ -92,7 +92,7 @@ def test_week_save_happy_path_query_counts_param(
     payload = build_week_payload(week_start, slot_count=slot_count)
 
     response = perf_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
     )
@@ -138,14 +138,14 @@ def test_week_save_rejects_overlap_via_api(
     }
 
     response = perf_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
     )
 
     assert response.status_code == 200
     get_response = perf_client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=auth_headers_instructor,
     )
@@ -186,14 +186,14 @@ def test_week_save_overnight_round_trip_via_api(
     }
 
     response = perf_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
     )
     assert response.status_code == 200
 
     get_response = perf_client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=auth_headers_instructor,
     )

@@ -11,7 +11,7 @@ test.describe('Student Booking Journey', () => {
     // Mock ALL API calls needed for the booking journey
 
     // 0. Mock auth endpoint for homepage to show proper UI
-    await context.route('**/auth/me', async (route) => {
+    await context.route('**/api/v1/auth/me', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -30,7 +30,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 1. Mock search history (for homepage)
-    await context.route('**/api/search-history/**', async (route) => {
+    await context.route('**/api/v1/search-history/**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -38,8 +38,8 @@ test.describe('Student Booking Journey', () => {
       });
     });
 
-    // 1b. Mock upcoming bookings for homepage (paginated format)
-    await context.route('**/bookings/upcoming**', async (route) => {
+    // 1b. Mock v1 upcoming bookings for homepage (paginated format)
+    await context.route('**/api/v1/bookings/upcoming**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -74,7 +74,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 1e. Mock top services per category for homepage
-    await context.route('**/api/services/top-per-category**', async (route) => {
+    await context.route('**/api/v1/services/catalog/top-per-category**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -95,7 +95,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 2. Mock search results with correct natural language API structure
-    await context.route('**/api/search/instructors**', async (route) => {
+    await context.route('**/api/v1/search/instructors**', async (route) => {
       const url = route.request().url();
       const searchQuery = new URL(url).searchParams.get('q');
 
@@ -194,7 +194,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 3. Mock instructor profile
-    await context.route('**/api/public/instructors/*', async (route) => {
+    await context.route('**/api/v1/public/instructors/*', async (route) => {
       const url = route.request().url();
       if (!url.includes('availability')) {
         const id = url.match(/instructors\/(\d+)/)?.[1] || '1';
@@ -218,7 +218,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 4. Mock availability - Use FIXED dates for consistency
-    await context.route('**/api/public/instructors/*/availability**', async (route) => {
+    await context.route('**/api/v1/public/instructors/*/availability**', async (route) => {
       // Use fixed dates to avoid conflicts with parallel tests
       const fixedDate = '2025-08-14'; // Fixed Thursday
 
@@ -246,8 +246,8 @@ test.describe('Student Booking Journey', () => {
       });
     });
 
-    // 5. Mock booking creation
-    await context.route('**/api/bookings', async (route) => {
+    // 5. Mock v1 booking creation
+    await context.route('**/api/v1/bookings', async (route) => {
       if (route.request().method() === 'POST') {
         await route.fulfill({
           status: 201,

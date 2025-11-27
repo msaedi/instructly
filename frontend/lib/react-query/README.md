@@ -36,15 +36,21 @@ TypeScript types and utilities for type-safe React Query usage:
 
 ## Essential Hooks
 
-### `useUser()` - Current User Data
+### `useSession()` - Current User Session
 ```tsx
-import { useUser } from '@/hooks/queries/useUser';
+import { useSession, useCurrentUser } from '@/src/api/hooks/useSession';
 
 function Profile() {
-  const { data: user, isLoading } = useUser();
+  const { data: user, isLoading } = useSession();
 
   if (isLoading) return <Spinner />;
-  return <div>Welcome {user?.full_name}</div>;
+  return <div>Welcome {user?.first_name}</div>;
+}
+
+// Or use the convenience wrapper
+function SimpleProfile() {
+  const user = useCurrentUser();
+  return <div>Welcome {user?.first_name}</div>;
 }
 ```
 
@@ -63,10 +69,11 @@ function LoginPage() {
 
 ### `useIsAuthenticated()` - Auth Status Check
 ```tsx
-import { useIsAuthenticated } from '@/hooks/queries/useUser';
+import { useIsAuthenticated, useSession } from '@/src/api/hooks/useSession';
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, isLoading } = useIsAuthenticated();
+  const isAuthenticated = useIsAuthenticated();
+  const { isLoading } = useSession();
 
   if (isLoading) return <LoadingScreen />;
   if (!isAuthenticated) return <Navigate to="/login" />;
@@ -208,7 +215,7 @@ When migrating existing components:
    }, []);
 
    // After
-   const { data: user } = useUser();
+   const { data: user } = useSession();
    ```
 
 2. **Replace manual loading states:**

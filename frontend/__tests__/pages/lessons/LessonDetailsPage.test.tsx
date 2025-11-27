@@ -10,6 +10,7 @@ import * as authModule from '@/features/shared/hooks/useAuth';
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
   useParams: jest.fn(),
+  usePathname: jest.fn(() => '/student/lessons/123'),
 }));
 
 // Mock the auth hook but keep named helpers (getUserInitials, getAvatarColor)

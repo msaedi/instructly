@@ -218,7 +218,7 @@ export function useSSEMessages({
 
   const verifyAuthStatus = useCallback(async () => {
     try {
-      const response = await fetch(withApiBase('/auth/me'), {
+      const response = await fetch(withApiBase('/api/v1/auth/me'), {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -264,7 +264,8 @@ export function useSSEMessages({
 
     try {
       // Cookie-based session: connect without localStorage token
-      const url = withApiBase(`/api/messages/stream/${bookingId}`);
+      // Phase 10: Migrated to v1 messages endpoint
+      const url = withApiBase(`/api/v1/messages/stream/${bookingId}`);
 
       const eventSource = new EventSource(url, { withCredentials: true } as EventSourceInit);
       eventSourceRef.current = eventSource;

@@ -85,7 +85,7 @@ export function useBGCCounts(enabled = true) {
   const isClient = typeof window !== 'undefined';
   return useQuery({
     queryKey: COUNTS_QUERY_KEY,
-    queryFn: async () => httpGet<BGCCounts>('/api/admin/bgc/counts'),
+    queryFn: async () => httpGet<BGCCounts>('/api/v1/admin/background-checks/counts'),
     refetchOnWindowFocus: false,
     retry: 1,
     enabled: isClient && enabled,
@@ -111,7 +111,7 @@ export function useBGCCases(
       if (q.trim()) {
         params.set('q', q.trim());
       }
-      const url = `/api/admin/bgc/cases?${params.toString()}`;
+      const url = `/api/v1/admin/background-checks/cases?${params.toString()}`;
       const response = await httpGet<BGCCaseListResultApi>(url);
       return {
         ...response,
@@ -131,7 +131,7 @@ export function useBGCOverride() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
-      httpPost<{ ok: boolean; new_status: string }>(`/api/admin/bgc/${id}/override`, { action }),
+      httpPost<{ ok: boolean; new_status: string }>(`/api/v1/admin/background-checks/${id}/override`, { action }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: COUNTS_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: CASES_QUERY_KEY_PREFIX, exact: false });
@@ -168,7 +168,7 @@ export function useBGCDisputeOpen() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, note }: DisputePayload) =>
-      httpPost<DisputeResponse>(`/api/admin/bgc/${id}/dispute/open`, { note }),
+      httpPost<DisputeResponse>(`/api/v1/admin/background-checks/${id}/dispute/open`, { note }),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },
@@ -179,7 +179,7 @@ export function useBGCDisputeResolve() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, note }: DisputePayload) =>
-      httpPost<DisputeResponse>(`/api/admin/bgc/${id}/dispute/resolve`, { note }),
+      httpPost<DisputeResponse>(`/api/v1/admin/background-checks/${id}/dispute/resolve`, { note }),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },
@@ -190,7 +190,7 @@ export function useBGCRecheck() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id }: { id: string }) =>
-      httpPost<BGCInviteResponse>(`/api/instructors/${id}/bgc/recheck`, {}),
+      httpPost<BGCInviteResponse>(`/api/v1/instructors/${id}/bgc/recheck`, {}),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },
@@ -201,7 +201,7 @@ export function useBGCInvite() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, packageSlug }: { id: string; packageSlug?: string | null }) =>
-      httpPost<BGCInviteResponse>(`/api/instructors/${id}/bgc/invite`, packageSlug ? { package_slug: packageSlug } : {}),
+      httpPost<BGCInviteResponse>(`/api/v1/instructors/${id}/bgc/invite`, packageSlug ? { package_slug: packageSlug } : {}),
     onSuccess: (_, variables) => {
       invalidateBackgroundCheckQueries(queryClient, variables.id);
     },
@@ -214,7 +214,7 @@ export function useAdminInstructorDetail(instructorId: string | null) {
     queryKey: ['admin', 'instructor', instructorId],
     queryFn: async () => {
       if (!instructorId) return null;
-      const detail = await httpGet<AdminInstructorDetailApi>(`/api/admin/instructors/${instructorId}`, {
+      const detail = await httpGet<AdminInstructorDetailApi>(`/api/v1/admin/instructors/${instructorId}`, {
         credentials: 'include',
       });
       const { bgc_includes_canceled, ...rest } = detail;

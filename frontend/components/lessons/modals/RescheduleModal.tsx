@@ -69,19 +69,19 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
       if (isAM && hour === 12) hour = 0;
       const startHHMM = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 
-      // Call backend
-      import('@/features/shared/api/client').then(async ({ protectedApi }) => {
-        const resp = await protectedApi.rescheduleBooking(lesson.id, {
-          booking_date: selection.date,
-          start_time: startHHMM,
-          selected_duration: selection.duration,
-          instructor_service_id: lesson.instructor_service_id,
-        });
-        if (resp.status === 200 && resp.data) {
-          const respData = resp as unknown as Record<string, unknown>;
-          const newId = (respData?.['data'] as Record<string, unknown>)?.['id'] || respData?.['id'];
+      // Call v1 bookings service
+      import('@/src/api/services/bookings').then(async ({ rescheduleBookingImperative }) => {
+        try {
+          const result = await rescheduleBookingImperative(lesson.id, {
+            booking_date: selection.date,
+            start_time: startHHMM,
+            selected_duration: selection.duration,
+            instructor_service_id: lesson.instructor_service_id,
+          });
+
           toast.success('Rescheduled successfully');
           onClose();
+
           // Immediately refresh bookings caches so Upcoming reflects changes without manual refresh
           try {
             const { queryClient, queryKeys } = await import('@/lib/react-query/queryClient');
@@ -89,65 +89,42 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
             await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
             await queryClient.invalidateQueries({ queryKey: ['bookings'] });
           } catch {}
-          router.push(newId ? `/student/lessons/${newId}` : '/student/lessons');
-          return;
-        }
 
-        // Handle payment-related errors (400)
-        if (resp.status === 400) {
-          const errorDetail = (resp as unknown as Record<string, unknown>)?.['error'];
-          let errorCode: string | undefined;
-          let errorMessage: string | undefined;
+          router.push(result.id ? `/student/lessons/${result.id}` : '/student/lessons');
+        } catch (err) {
+          // Handle API errors
+          const errMsg = err instanceof Error ? err.message.toLowerCase() : '';
 
-          // Check if error is structured with code/message
-          if (errorDetail && typeof errorDetail === 'object') {
-            const detail = errorDetail as Record<string, unknown>;
-            errorCode = detail['code'] as string | undefined;
-            errorMessage = detail['message'] as string | undefined;
-          } else if (typeof errorDetail === 'string') {
-            errorMessage = errorDetail;
-          }
-
-          if (errorCode === 'payment_method_required_for_reschedule') {
+          // Handle payment-related errors
+          if (errMsg.includes('payment_method_required') || errMsg.includes('payment method')) {
             toast.error(
-              errorMessage ||
               'A payment method is required to reschedule this lesson. Please add a payment method in Settings and try again.'
             );
-            onClose(); // Close modal so user can add payment method
-            router.push('/student/settings?tab=payment'); // Navigate to payment settings
+            onClose();
+            router.push('/student/settings?tab=payment');
             return;
           }
 
-          if (errorCode === 'payment_confirmation_failed') {
+          if (errMsg.includes('payment_confirmation_failed') || errMsg.includes('payment failed')) {
             toast.error(
-              errorMessage ||
               "We couldn't process your payment method. Please update your payment method and try again."
             );
             return; // Keep modal open for retry
           }
 
-          // Generic 400 error
-          toast.error(errorMessage || 'Unable to reschedule. Please try again.');
-          return;
-        }
-
-        // Handle known conflict messages for clearer UX (409)
-        const msg = ((resp as unknown as Record<string, unknown>)?.['error'] as string)?.toLowerCase?.() || '';
-        if (resp.status === 409) {
-          if (msg.includes('student') || msg.includes('already have a booking')) {
-            toast.error('You have another booking at that time. Please pick another time.');
-          } else {
-            toast.error('That time is no longer available. Please pick another time.');
+          // Handle conflict errors (409)
+          if (errMsg.includes('409') || errMsg.includes('conflict')) {
+            if (errMsg.includes('student') || errMsg.includes('already have a booking')) {
+              toast.error('You have another booking at that time. Please pick another time.');
+            } else {
+              toast.error('That time is no longer available. Please pick another time.');
+            }
+            return; // keep modal open for re-selection
           }
-          return; // keep modal open for re-selection
-        }
 
-        // Other errors
-        if (resp.error) {
-          toast.error(resp.error);
-          return;
+          // Generic error
+          toast.error(err instanceof Error ? err.message : 'Unable to reschedule. Please try again.');
         }
-        toast.error('Unable to reschedule. Please try again.');
       }).catch(() => {
         toast.error('Network error while rescheduling. Please try again.');
       });

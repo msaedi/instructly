@@ -44,8 +44,9 @@ def _create_completed_booking(db, student_id: str, instructor_id: str, service_i
 
 
 def test_ratings_batch_endpoint_returns_expected_shape(client: TestClient, db):
+    # Phase 12: Reviews migrated to /api/v1/reviews
     payload = {"instructor_ids": ["01TESTINSTRUCTOR00000000000001", "01TESTINSTRUCTOR00000000000002"]}
-    res = client.post("/api/reviews/ratings/batch", json=payload)
+    res = client.post("/api/v1/reviews/ratings/batch", json=payload)
     assert res.status_code == 200
     data = res.json()
     assert "results" in data
@@ -134,7 +135,8 @@ def test_booking_existing_restricts_to_current_user(student_client_and_db):
     token = create_access_token({"sub": s1.email})
     headers = {"Authorization": f"Bearer {token}"}
 
-    res = client.post("/api/reviews/booking/existing", json=[b1.id, b2.id], headers=headers)
+    # Phase 12: Reviews migrated to /api/v1/reviews
+    res = client.post("/api/v1/reviews/booking/existing", json=[b1.id, b2.id], headers=headers)
     assert res.status_code == 200
     ids = res.json()
     assert b1.id in ids

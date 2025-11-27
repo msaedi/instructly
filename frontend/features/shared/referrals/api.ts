@@ -7,7 +7,7 @@ import type {
   ReferralErrorResponse,
 } from '@/features/shared/api/types';
 
-export const REFERRALS_ME_KEY = '/api/referrals/me';
+export const REFERRALS_ME_KEY = '/api/v1/referrals/me';
 
 export type RewardOut = components['schemas']['RewardOut'];
 export type ReferralLedger = ReferralLedgerResponse;
@@ -88,7 +88,7 @@ export async function applyReferralCredit(orderId: string): Promise<ReferralChec
     return normalizeError('disabled', 'Order ID is required');
   }
 
-  const response = await fetch(buildUrl('/api/referrals/checkout/apply-referral'), {
+  const response = await fetch(buildUrl('/api/v1/referrals/checkout/apply-referral'), {
     method: 'POST',
     credentials: 'include',
     headers: {
@@ -132,7 +132,7 @@ export async function sendReferralInvites({ emails, shareUrl, fromName }: SendRe
     throw new Error('Referral link not available. Please try again.');
   }
 
-  const response = await fetchAPI('/api/public/referrals/send', {
+  const response = await fetchAPI('/api/v1/public/referrals/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

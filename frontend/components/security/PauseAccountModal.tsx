@@ -10,7 +10,7 @@ export default function PauseAccountModal({ onClose, onPaused }: { onClose: () =
   const pause = async () => {
     setLoading(true); setError(null);
     try {
-      const res = await fetchWithAuth('/api/account/suspend', { method: 'POST' });
+      const res = await fetchWithAuth('/api/v1/account/suspend', { method: 'POST' });
       if (res.ok) { onPaused(); return; }
       if (res.status === 409) {
         const body = await res.json().catch(() => ({} as Record<string, unknown>));

@@ -35,7 +35,7 @@ export function getApiUrl(): string {
  * Automatically adds the Authorization header with the JWT token from localStorage.
  * Logs all requests and responses for debugging.
  *
- * @param endpoint - API endpoint path (e.g., '/auth/me')
+ * @param endpoint - API endpoint path (e.g., '/api/v1/auth/me')
  * @param options - Standard fetch RequestInit options
  * @returns Promise<Response> - The fetch response
  *
@@ -149,7 +149,7 @@ export const etagHeader = (etag?: string): Record<string, string> =>
  *
  * @example
  * ```ts
- * const response = await fetchAPI('/auth/login', {
+ * const response = await fetchAPI('/api/v1/auth/login', {
  *   method: 'POST',
  *   headers: { 'Content-Type': 'application/json' },
  *   body: JSON.stringify({ email, password })
@@ -203,46 +203,45 @@ export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
  *
  * Centralized endpoint definitions to avoid typos and make refactoring easier.
  * Organized by feature area for better maintainability.
+ *
+ * ✅ MIGRATED TO V1 - Instructor endpoints now use /api/v1/instructors
  */
 export const API_ENDPOINTS = {
-  // Auth endpoints
-  LOGIN: '/auth/login',
-  REGISTER: '/auth/register',
-  ME: '/auth/me',
+  // Auth endpoints (migrated to v1)
+  LOGIN: '/api/v1/auth/login',
+  REGISTER: '/api/v1/auth/register',
+  ME: '/api/v1/auth/me',
 
-  // Instructor endpoints
-  INSTRUCTORS: '/instructors',
-  INSTRUCTOR_PROFILE: '/api/instructors/me',
+  // Instructor endpoints (migrated to v1)
+  INSTRUCTORS: '/api/v1/instructors',
+  INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
   // Onboarding helpers
-  NYC_ZIP_CHECK: '/api/addresses/zip/is-nyc',
-  STRIPE_IDENTITY_SESSION: '/api/payments/identity/session',
-  STRIPE_IDENTITY_REFRESH: '/api/payments/identity/refresh',
-  R2_SIGNED_UPLOAD: '/api/uploads/r2/signed-url',
-  R2_PROXY_UPLOAD: '/api/uploads/r2/proxy',
-  PROFILE_PICTURE_FINALIZE: '/api/users/me/profile-picture',
-  PROFILE_PICTURE_URL: (userId: string) => `/api/users/${userId}/profile-picture-url`,
-  CONNECT_STATUS: '/api/payments/connect/status',
+  NYC_ZIP_CHECK: '/api/v1/addresses/zip/is-nyc',
+  STRIPE_IDENTITY_SESSION: '/api/v1/payments/identity/session',
+  STRIPE_IDENTITY_REFRESH: '/api/v1/payments/identity/refresh',
+  R2_SIGNED_UPLOAD: '/api/v1/uploads/r2/signed-url',
+  R2_PROXY_UPLOAD: '/api/v1/uploads/r2/proxy',
+  PROFILE_PICTURE_FINALIZE: '/api/v1/users/me/profile-picture',
+  PROFILE_PICTURE_URL: (userId: string) => `/api/v1/users/${userId}/profile-picture-url`,
+  CONNECT_STATUS: '/api/v1/payments/connect/status',
 
-  // Availability Management endpoints
-  INSTRUCTOR_AVAILABILITY_WEEKLY: '/instructors/availability/weekly',
-  INSTRUCTOR_AVAILABILITY_PRESET: '/instructors/availability/preset',
-  INSTRUCTOR_AVAILABILITY_SPECIFIC: '/instructors/availability/specific-date',
-  INSTRUCTOR_BLACKOUT_DATES: '/instructors/availability/blackout-dates',
+  // Availability Management endpoints (Phase 23: Migrated to /api/v1/instructors/availability)
+  INSTRUCTOR_AVAILABILITY_WEEKLY: '/api/v1/instructors/availability/weekly',
+  INSTRUCTOR_AVAILABILITY_PRESET: '/api/v1/instructors/availability/preset',
+  INSTRUCTOR_AVAILABILITY_SPECIFIC: '/api/v1/instructors/availability/specific-date',
+  INSTRUCTOR_BLACKOUT_DATES: '/api/v1/instructors/availability/blackout-dates',
 
-  // Week-specific availability endpoints
-  INSTRUCTOR_AVAILABILITY_WEEK: '/instructors/availability/week',
-  INSTRUCTOR_AVAILABILITY_COPY_WEEK: '/instructors/availability/copy-week',
-  INSTRUCTOR_AVAILABILITY_APPLY_RANGE: '/instructors/availability/apply-to-date-range',
-  INSTRUCTOR_AVAILABILITY_BULK_UPDATE: '/instructors/availability/bulk-update',
-  INSTRUCTOR_AVAILABILITY: '/instructors/availability/',
-  INSTRUCTOR_AVAILABILITY_VALIDATE: '/instructors/availability/week/validate-changes',
+  // Week-specific availability endpoints (Phase 23: Migrated to /api/v1/instructors/availability)
+  INSTRUCTOR_AVAILABILITY_WEEK: '/api/v1/instructors/availability/week',
+  INSTRUCTOR_AVAILABILITY_COPY_WEEK: '/api/v1/instructors/availability/copy-week',
+  INSTRUCTOR_AVAILABILITY_APPLY_RANGE: '/api/v1/instructors/availability/apply-to-date-range',
+  INSTRUCTOR_AVAILABILITY_BULK_UPDATE: '/api/v1/instructors/availability/bulk-update',
+  INSTRUCTOR_AVAILABILITY: '/api/v1/instructors/availability/',
+  INSTRUCTOR_AVAILABILITY_VALIDATE: '/api/v1/instructors/availability/week/validate-changes',
 
-  // Student availability checking
-  CHECK_AVAILABILITY: '/api/availability/slots',
-
-  // Booking endpoints
-  BOOKINGS: '/bookings',
-  BOOKINGS_UPCOMING: '/bookings/upcoming',
+  // Booking endpoints - Phase 9: Migrated to /api/v1/bookings
+  BOOKINGS: '/api/v1/bookings',
+  BOOKINGS_UPCOMING: '/api/v1/bookings/upcoming',
 
   // Add more endpoints as needed
 } as const;

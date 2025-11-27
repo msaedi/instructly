@@ -1,3 +1,14 @@
+/**
+ * @deprecated This file is deprecated. Use @/src/api/hooks/useSession instead.
+ *
+ * Migration guide:
+ * - useUser() → useSession() (or useCurrentUser() for simpler cases)
+ * - useUserSafe() → useCurrentUser()
+ * - useIsAuthenticated() → useIsAuthenticated() (same name, different return type)
+ *
+ * The new hooks use Orval-generated clients and are the canonical way to access /auth/me.
+ */
+
 import { useQuery } from '@tanstack/react-query';
 import type { User } from '@/features/shared/api/types';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
@@ -9,6 +20,8 @@ import { loadMeSchema } from '@/features/shared/api/schemas/me';
 type UserData = User;
 
 /**
+ * @deprecated Use useSession() from @/src/api/hooks/useSession instead.
+ *
  * Hook to fetch and cache the current user data
  *
  * This hook fetches user data from the /auth/me endpoint and caches it
@@ -17,15 +30,12 @@ type UserData = User;
  *
  * @example
  * ```tsx
- * function UserProfile() {
- *   const { data: user, isLoading, error } = useUser();
+ * // OLD (deprecated):
+ * const { data: user, isLoading, error } = useUser();
  *
- *   if (isLoading) return <Spinner />;
- *   if (error) return <ErrorMessage />;
- *   if (!user) return <LoginPrompt />;
- *
- *   return <div>Welcome, {user.full_name}!</div>;
- * }
+ * // NEW (preferred):
+ * import { useSession } from '@/src/api/hooks/useSession';
+ * const { data: user, isLoading, error } = useSession();
  * ```
  *
  * @returns React Query result with user data
@@ -34,7 +44,7 @@ export function useUser() {
   return useQuery<UserData>({
     queryKey: queryKeys.user,
     queryFn: async () =>
-      httpJson<UserData>(withApiBase('/auth/me'), { method: 'GET' }, loadMeSchema, { endpoint: 'GET /auth/me' }),
+      httpJson<UserData>(withApiBase('/api/v1/auth/me'), { method: 'GET' }, loadMeSchema, { endpoint: 'GET /api/v1/auth/me' }),
     staleTime: CACHE_TIMES.SESSION, // User data is fresh for the entire session
     gcTime: CACHE_TIMES.SESSION, // Keep in cache for the entire session
     retry: (failureCount, error: unknown) => {
@@ -47,31 +57,26 @@ export function useUser() {
 }
 
 /**
+ * @deprecated Use useCurrentUser() from @/src/api/hooks/useSession instead.
+ *
  * Hook variant that doesn't throw errors to error boundary
  * Useful for components that want to handle errors inline
  *
  * @example
  * ```tsx
- * function NavBar() {
- *   const { data: user } = useUserSafe();
+ * // OLD (deprecated):
+ * const { data: user } = useUserSafe();
  *
- *   return (
- *     <nav>
- *       {user ? (
- *         <UserMenu user={user} />
- *       ) : (
- *         <LoginButton />
- *       )}
- *     </nav>
- *   );
- * }
+ * // NEW (preferred):
+ * import { useCurrentUser } from '@/src/api/hooks/useSession';
+ * const user = useCurrentUser();
  * ```
  */
 export function useUserSafe() {
   return useQuery<UserData>({
     queryKey: queryKeys.user,
     queryFn: async () =>
-      httpJson<UserData>(withApiBase('/auth/me'), { method: 'GET' }, loadMeSchema, { endpoint: 'GET /auth/me' }),
+      httpJson<UserData>(withApiBase('/api/v1/auth/me'), { method: 'GET' }, loadMeSchema, { endpoint: 'GET /api/v1/auth/me' }),
     staleTime: CACHE_TIMES.SESSION,
     gcTime: CACHE_TIMES.SESSION,
     retry: false, // Don't retry for safe variant
@@ -80,19 +85,21 @@ export function useUserSafe() {
 }
 
 /**
+ * @deprecated Use useIsAuthenticated() from @/src/api/hooks/useSession instead.
+ * Note: The new hook returns a boolean, not an object.
+ *
  * Hook to check if user is authenticated
  * Returns loading state and authentication status
  *
  * @example
  * ```tsx
- * function ProtectedRoute({ children }) {
- *   const { isAuthenticated, isLoading } = useIsAuthenticated();
+ * // OLD (deprecated):
+ * const { isAuthenticated, isLoading, user } = useIsAuthenticated();
  *
- *   if (isLoading) return <LoadingScreen />;
- *   if (!isAuthenticated) return <Navigate to="/login" />;
- *
- *   return children;
- * }
+ * // NEW (preferred):
+ * import { useIsAuthenticated, useSession } from '@/src/api/hooks/useSession';
+ * const isAuthenticated = useIsAuthenticated();
+ * const { isLoading } = useSession();
  * ```
  */
 export function useIsAuthenticated() {

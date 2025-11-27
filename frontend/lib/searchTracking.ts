@@ -20,6 +20,10 @@ function buildUrl(path: string): string {
   return withApiBase(path);
 }
 
+// Shared API paths (v1)
+const SEARCH_HISTORY_BASE_PATH = '/api/v1/search-history';
+const SEARCH_HISTORY_INTERACTION_PATH = `${SEARCH_HISTORY_BASE_PATH}/interaction`;
+
 export interface SearchRecord {
   query: string;
   search_type: SearchType;
@@ -66,7 +70,7 @@ export async function ensureGuestOnce(): Promise<void> {
   if (guestBootstrapDone || guestBootstrapInFlight) return;
   try {
     guestBootstrapInFlight = true;
-    await postWithRetry('/api/public/session/guest', { method: 'POST' });
+    await postWithRetry('/api/v1/public/session/guest', { method: 'POST' });
     guestBootstrapDone = true;
     try { localStorage.setItem('guest_bootstrap_done', 'true'); } catch {}
     logger.info('Bootstrapped guest_id cookie');
@@ -233,7 +237,7 @@ export async function recordSearch(
       body.observability_candidates = searchRecord.observability_candidates;
     }
 
-    const data = (await httpPost(buildUrl('/api/search-history/'), body, {
+    const data = (await httpPost(buildUrl(SEARCH_HISTORY_BASE_PATH), body, {
       headers: getHeaders(isAuthenticated),
     })) as unknown;
     logger.info('Search recorded successfully', { searchRecord, responseData: data });
@@ -273,7 +277,7 @@ export async function getRecentSearches(
         await ensureGuestOnce();
       }
     }
-    const data = (await httpGet(buildUrl('/api/search-history/'), {
+    const data = (await httpGet(buildUrl(SEARCH_HISTORY_BASE_PATH), {
       headers: getHeaders(isAuthenticated),
       query: { limit },
     })) as SearchHistoryItem[];
@@ -319,7 +323,7 @@ export async function trackSearchInteraction(
     });
 
     await httpPost(
-      buildUrl('/api/search-history/interaction'),
+      buildUrl(SEARCH_HISTORY_INTERACTION_PATH),
       {
         search_event_id: searchEventId,
         interaction_type: interactionType,
@@ -341,7 +345,7 @@ export async function trackSearchInteraction(
  */
 export async function deleteSearch(searchId: string, isAuthenticated: boolean): Promise<boolean> {
   try {
-    const response = await fetch(buildUrl(`/api/search-history/${searchId}`), {
+    const response = await fetch(buildUrl(`${SEARCH_HISTORY_BASE_PATH}/${searchId}`), {
       method: 'DELETE',
       headers: getHeaders(isAuthenticated),
     });

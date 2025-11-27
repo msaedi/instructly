@@ -17,23 +17,23 @@ INSTRUCTOR_EMAIL = os.getenv("PREVIEW_INSTRUCTOR_EMAIL", "sarah.chen@example.com
 INSTRUCTOR_PASSWORD = os.getenv("PREVIEW_INSTRUCTOR_PASSWORD", "Test1234")
 
 PROBE_SPECS = [
-    {"label": "instructors_me", "path": "/instructors/me"},
-    {"label": "addresses_me", "path": "/api/addresses/me"},
-    {"label": "referrals_me", "path": "/api/referrals/me"},
-    {"label": "payments_connect_status", "path": "/api/payments/connect/status"},
+    {"label": "instructors_me", "path": "/api/v1/instructors/me"},
+    {"label": "addresses_me", "path": "/api/v1/addresses/me"},
+    {"label": "referrals_me", "path": "/api/v1/referrals/me"},
+    {"label": "payments_connect_status", "path": "/api/v1/payments/connect/status"},
     {
         "label": "availability_week",
-        "path": "/instructors/availability/week",
+        "path": "/api/v1/instructors/availability/week",
         "params": {"start_date": "2025-11-10"},
     },
     {
         "label": "bookings_status_completed_lower",
-        "path": "/bookings",
+        "path": "/api/v1/bookings",
         "params": {"status": "completed"},
     },
     {
         "label": "bookings_status_COMPLETED_upper",
-        "path": "/bookings",
+        "path": "/api/v1/bookings",
         "params": {"status": "COMPLETED"},
     },
 ]
@@ -49,7 +49,7 @@ def session_and_token() -> tuple[requests.Session, str]:
     }
     headers = {"Origin": FRONT_ORIGIN, "Content-Type": "application/json"}
     resp = session.post(
-        f"{API_BASE}/auth/login-with-session",
+        f"{API_BASE}/api/v1/auth/login-with-session",
         headers=headers,
         json=login_payload,
         timeout=30,

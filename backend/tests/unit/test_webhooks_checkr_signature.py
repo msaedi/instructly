@@ -5,7 +5,7 @@ from pydantic import SecretStr
 import pytest
 
 from app.core.config import settings
-from app.routes.webhooks_checkr import _SIGNATURE_PLACEHOLDER, _compute_signature
+from app.routes.v1.webhooks_checkr import _SIGNATURE_PLACEHOLDER, _compute_signature
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +44,7 @@ def test_valid_signature_allows_processing(client):
     raw_body = _raw_payload(payload)
 
     response = client.post(
-        "/webhooks/checkr/",
+        "/api/v1/webhooks/checkr",
         content=raw_body,
         headers=_signed_headers(raw_body),
     )
@@ -59,7 +59,7 @@ def test_invalid_signature_logs_warning(client, caplog):
     headers = _signed_headers(raw_body, signature="sha256=invalid")
 
     with caplog.at_level("WARNING"):
-        response = client.post("/webhooks/checkr/", content=raw_body, headers=headers)
+        response = client.post("/api/v1/webhooks/checkr", content=raw_body, headers=headers)
 
     assert response.status_code == 401
     assert "signature mismatch" in caplog.text
@@ -81,6 +81,6 @@ def test_missing_or_placeholder_signature_rejected(client, header_value):
     else:
         headers["X-Checkr-Signature"] = header_value
 
-    response = client.post("/webhooks/checkr/", content=raw_body, headers=headers)
+    response = client.post("/api/v1/webhooks/checkr", content=raw_body, headers=headers)
 
     assert response.status_code == 401

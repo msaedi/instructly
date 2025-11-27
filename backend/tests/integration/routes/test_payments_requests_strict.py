@@ -29,7 +29,7 @@ def test_save_payment_method_rejects_extra_field(client: TestClient):
         "set_as_default": True,
         "unexpected": 1,
     }
-    resp = client.post("/api/payments/methods", json=body)
+    resp = client.post("/api/v1/payments/methods", json=body)
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422
@@ -44,7 +44,7 @@ def test_checkout_rejects_extra_field(client: TestClient):
         "save_payment_method": False,
         "unexpected": 1,
     }
-    resp = client.post("/api/payments/checkout", json=body)
+    resp = client.post("/api/v1/payments/checkout", json=body)
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     # Rate limit or other guards may apply; only assert 422 when schema is hit

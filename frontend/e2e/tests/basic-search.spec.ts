@@ -62,7 +62,7 @@ test.describe('Basic Search Flow', () => {
       });
     });
 
-    await page.route('**/api/search-history**', async (route) => {
+    await page.route('**/api/v1/search-history**', async (route) => {
       if (route.request().method() === 'OPTIONS') {
         await route.fulfill({ status: 204, headers: allow(route) });
         return;
@@ -151,7 +151,7 @@ test.describe('Basic Search Flow', () => {
       });
     });
 
-    await page.route('**/api/search-history**', async (route) => {
+    await page.route('**/api/v1/search-history**', async (route) => {
       if (route.request().method() === 'OPTIONS') {
         await route.fulfill({ status: 204, headers: allow(route) });
         return;

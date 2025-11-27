@@ -6,7 +6,7 @@ export async function validateInviteCode(
   emailParam?: string | null,
 ): Promise<{ data: InviteValidateResult; trimmed: string }> {
   const trimmed = code.trim().toUpperCase();
-  const data = await httpGet<InviteValidateResult>('/api/beta/invites/validate', {
+  const data = await httpGet<InviteValidateResult>('/api/v1/beta/invites/validate', {
     query: {
       invite_code: trimmed,
       email: emailParam || undefined,

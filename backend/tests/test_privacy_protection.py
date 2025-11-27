@@ -194,7 +194,7 @@ class TestInstructorEndpointPrivacy:
             pytest.skip("No active services found for test instructor")
 
         # Get instructors offering this service
-        response = client.get(f"/instructors/?service_catalog_id={active_service.service_catalog_id}")
+        response = client.get(f"/api/v1/instructors?service_catalog_id={active_service.service_catalog_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -217,7 +217,7 @@ class TestInstructorEndpointPrivacy:
     def test_get_instructor_by_id_privacy(self, client, test_instructor):
         """Test GET /instructors/{id} protects instructor privacy."""
         # Get specific instructor by ID
-        response = client.get(f"/instructors/{test_instructor.id}")
+        response = client.get(f"/api/v1/instructors/{test_instructor.id}")
 
         assert response.status_code == 200
         data = response.json()

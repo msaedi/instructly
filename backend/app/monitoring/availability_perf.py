@@ -8,9 +8,9 @@ import os
 import time
 from typing import Any, Callable, Dict, Iterator, Optional
 
-WEEK_GET_ENDPOINT = "GET /instructors/availability/week"
-WEEK_SAVE_ENDPOINT = "POST /instructors/availability/week"
-COPY_WEEK_ENDPOINT = "POST /instructors/availability/copy-week"
+WEEK_GET_ENDPOINT = "GET /api/v1/instructors/availability/week"
+WEEK_SAVE_ENDPOINT = "POST /api/v1/instructors/availability/week"
+COPY_WEEK_ENDPOINT = "POST /api/v1/instructors/availability/copy-week"
 
 _logger = logging.getLogger("app.perf.availability")
 

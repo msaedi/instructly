@@ -357,12 +357,21 @@ export default function InstructorDashboardNew() {
   const isEarningsLoading = isEarningsPending && !earningsSummary;
   useEffect(() => {
     if (profileQueryError) {
-      setError(profileQueryError.message);
+      setError((profileQueryError as Error).message);
     }
   }, [profileQueryError]);
 
   useEffect(() => {
-    const status = (profileQueryError as Error & { status?: number })?.status;
+    // Type guard for error with status
+    function getErrorStatus(error: unknown): number | undefined {
+      if (error && typeof error === 'object' && 'status' in error) {
+        const maybeStatus = (error as { status?: unknown }).status;
+        return typeof maybeStatus === 'number' ? maybeStatus : undefined;
+      }
+      return undefined;
+    }
+
+    const status = getErrorStatus(profileQueryError);
     if (status === 401) {
       router.push('/login?redirect=/instructor/dashboard');
     }
@@ -627,7 +636,7 @@ export default function InstructorDashboardNew() {
   }) => {
     try {
       const neighborhoodIds = payload.neighborhoods.map((item) => item.neighborhood_id);
-      await httpPut('/api/addresses/service-areas/me', { neighborhood_ids: neighborhoodIds });
+      await httpPut('/api/v1/addresses/service-areas/me', { neighborhood_ids: neighborhoodIds });
       await httpPut('/instructors/me', {
         preferred_teaching_locations: payload.preferredTeaching,
         preferred_public_spaces: payload.preferredPublic,
@@ -1241,7 +1250,7 @@ export default function InstructorDashboardNew() {
                           alert('Your Stripe onboarding is not completed yet. Please finish onboarding first.');
                           return;
                         }
-                        const dl = await fetchWithAuth('/api/payments/connect/dashboard');
+                        const dl = await fetchWithAuth('/api/v1/payments/connect/dashboard');
                         if (dl.ok) {
                           const data = await dl.json();
                           window.open(data.dashboard_url, '_blank');
@@ -1260,7 +1269,7 @@ export default function InstructorDashboardNew() {
                   <button
                     onClick={async () => {
                       try {
-                        const res = await fetchWithAuth('/api/payments/connect/instant-payout', { method: 'POST' });
+                        const res = await fetchWithAuth('/api/v1/payments/connect/instant-payout', { method: 'POST' });
                         if (!res.ok) {
                           const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
                           alert(`Instant payout failed: ${err.detail || res.statusText}`);

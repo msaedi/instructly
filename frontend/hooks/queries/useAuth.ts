@@ -66,7 +66,7 @@ export function useAuth() {
   // Query for current user
   const userQuery = useQuery<User>({
     queryKey: queryKeys.user,
-    queryFn: queryFn<User>('/auth/me', { requireAuth: true }),
+    queryFn: queryFn<User>('/api/v1/auth/me', { requireAuth: true }),
     staleTime: CACHE_TIMES.SESSION,
     gcTime: CACHE_TIMES.SESSION,
     retry: false,
@@ -80,7 +80,7 @@ export function useAuth() {
       const guestSessionId = getGuestSessionId();
 
       // Use session-aware endpoint if guest session exists
-      const endpoint = guestSessionId ? '/auth/login-with-session' : '/auth/login';
+      const endpoint = guestSessionId ? '/api/v1/auth/login-with-session' : '/api/v1/auth/login';
 
       const headers = guestSessionId
         ? { 'Content-Type': 'application/json' }
@@ -177,7 +177,7 @@ export function useAuth() {
 export function useAuthStatus() {
   const { data: user, isLoading } = useQuery<User>({
     queryKey: queryKeys.user,
-    queryFn: queryFn<User>('/auth/me', { requireAuth: true }),
+    queryFn: queryFn<User>('/api/v1/auth/me', { requireAuth: true }),
     staleTime: CACHE_TIMES.SESSION,
     enabled: true,
     retry: false,

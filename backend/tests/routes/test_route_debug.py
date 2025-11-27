@@ -64,7 +64,7 @@ def test_public_route_specific_check(client):
 
     # Try different URL patterns
     test_urls = [
-        "/api/public/instructors/01J5TESTINSTR0000000000001/availability?start_date=2025-07-15",
+        "/api/v1/public/instructors/01J5TESTINSTR0000000000001/availability?start_date=2025-07-15",
         "/public/instructors/01J5TESTINSTR0000000000001/availability?start_date=2025-07-15",
         "/instructors/01J5TESTINSTR0000000000001/availability?start_date=2025-07-15",
     ]

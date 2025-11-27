@@ -18,6 +18,8 @@ from app.main import fastapi_app as app
 from app.models.search_event import SearchEvent
 from app.models.search_history import SearchHistory
 from app.models.search_interaction import SearchInteraction
+
+pytestmark = pytest.mark.anyio
 from app.models.user import User
 
 
@@ -70,7 +72,7 @@ class TestSearchTrackingEdgeCases:
             "results_count": 5,
         }
 
-        response = client.post("/api/search-history/", json=search_data)
+        response = client.post("/api/v1/search-history/", json=search_data)
         assert response.status_code == 400
         assert "Must provide either authentication token or guest session ID" in response.json()["detail"]
 
@@ -82,7 +84,7 @@ class TestSearchTrackingEdgeCases:
             "results_count": 5,
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=auth_headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=auth_headers)
         assert response.status_code == 422  # Validation error
 
         # Check error details
@@ -97,7 +99,7 @@ class TestSearchTrackingEdgeCases:
             "results_count": 0,
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=auth_headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=auth_headers)
         assert response.status_code == 422
 
         # Check validation error
@@ -112,7 +114,7 @@ class TestSearchTrackingEdgeCases:
             "results_count": -5,  # Negative count
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=auth_headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=auth_headers)
         assert response.status_code == 422
 
         # Check validation error
@@ -132,7 +134,7 @@ class TestSearchTrackingEdgeCases:
             "results_count": 0,
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=auth_headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=auth_headers)
         assert response.status_code == 201
 
         # Verify it was stored properly (search by stripped version)
@@ -158,7 +160,7 @@ class TestSearchTrackingEdgeCases:
                 "results_count": 5,
             }
 
-            response = client.post("/api/search-history/", json=search_data, headers=auth_headers)
+            response = client.post("/api/v1/search-history/", json=search_data, headers=auth_headers)
             assert response.status_code == 201
 
             # Verify storage
@@ -176,7 +178,7 @@ class TestSearchTrackingEdgeCases:
             # No results_count, device_context, search_context
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=auth_headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=auth_headers)
         assert response.status_code == 201
 
         # Verify defaults are applied
@@ -200,7 +202,7 @@ class TestSearchInteractionEdgeCases:
             "result_position": 1,
         }
 
-        response = client.post("/api/search-history/interaction", json=interaction_data, headers=auth_headers)
+        response = client.post("/api/v1/search-history/interaction", json=interaction_data, headers=auth_headers)
         assert response.status_code == 400
         assert "not found" in response.json()["detail"].lower()
 
@@ -212,7 +214,7 @@ class TestSearchInteractionEdgeCases:
             "instructor_id": 123,
         }
 
-        response = client.post("/api/search-history/interaction", json=interaction_data, headers=auth_headers)
+        response = client.post("/api/v1/search-history/interaction", json=interaction_data, headers=auth_headers)
         assert response.status_code == 400
         assert "search_event_id and interaction_type are required" in response.json()["detail"]
 
@@ -225,7 +227,7 @@ class TestSearchInteractionEdgeCases:
             "results_count": 5,
         }
 
-        search_response = client.post("/api/search-history/", json=search_data, headers=auth_headers)
+        search_response = client.post("/api/v1/search-history/", json=search_data, headers=auth_headers)
         search_event_id = search_response.json()["search_event_id"]
 
         # Try invalid interaction type
@@ -235,7 +237,7 @@ class TestSearchInteractionEdgeCases:
             # Don't include instructor_id to test nullable field
         }
 
-        response = client.post("/api/search-history/interaction", json=interaction_data, headers=auth_headers)
+        response = client.post("/api/v1/search-history/interaction", json=interaction_data, headers=auth_headers)
         # Should still accept it (backend doesn't validate interaction types strictly)
         assert response.status_code == 201
 
@@ -243,7 +245,7 @@ class TestSearchInteractionEdgeCases:
         """Test interaction with negative time_to_interaction."""
         # Create search
         search_response = client.post(
-            "/api/search-history/",
+            "/api/v1/search-history/",
             json={
                 "search_query": "negative time test",
                 "search_type": "natural_language",
@@ -261,7 +263,7 @@ class TestSearchInteractionEdgeCases:
             "time_to_interaction": -5.0,  # Negative time
         }
 
-        response = client.post("/api/search-history/interaction", json=interaction_data, headers=auth_headers)
+        response = client.post("/api/v1/search-history/interaction", json=interaction_data, headers=auth_headers)
         # Should accept it (could happen with clock sync issues)
         assert response.status_code == 201
 
@@ -288,7 +290,7 @@ class TestConcurrencyAndPerformance:
         results = []
 
         def make_request():
-            response = client.post("/api/search-history/", json=search_data, headers=auth_headers)
+            response = client.post("/api/v1/search-history/", json=search_data, headers=auth_headers)
             results.append(response.status_code)
 
         # Create 5 concurrent requests
@@ -317,7 +319,7 @@ class TestConcurrencyAndPerformance:
         """Test rapid interaction tracking on same search."""
         # Create search
         search_response = client.post(
-            "/api/search-history/",
+            "/api/v1/search-history/",
             json={
                 "search_query": "rapid interaction test",
                 "search_type": "natural_language",
@@ -338,7 +340,7 @@ class TestConcurrencyAndPerformance:
                 "time_to_interaction": time.time() - start_time,
             }
 
-            response = client.post("/api/search-history/interaction", json=interaction_data, headers=auth_headers)
+            response = client.post("/api/v1/search-history/interaction", json=interaction_data, headers=auth_headers)
             assert response.status_code == 201
 
             # Small delay to simulate realistic hovering
@@ -377,7 +379,7 @@ class TestDataIntegrity:
         ]
 
         for search in guest_searches:
-            response = client.post("/api/search-history/", json=search, headers=guest_headers)
+            response = client.post("/api/v1/search-history/", json=search, headers=guest_headers)
             assert response.status_code == 201
 
         # Verify guest searches exist
@@ -402,16 +404,16 @@ class TestDataIntegrity:
 
         search_ids = []
         for search in searches:
-            response = client.post("/api/search-history/", json=search, headers=auth_headers)
+            response = client.post("/api/v1/search-history/", json=search, headers=auth_headers)
             assert response.status_code == 201
             search_ids.append(response.json()["id"])
 
         # Delete first search
-        delete_response = client.delete(f"/api/search-history/{search_ids[0]}", headers=auth_headers)
+        delete_response = client.delete(f"/api/v1/search-history/{search_ids[0]}", headers=auth_headers)
         assert delete_response.status_code == 204
 
         # Get recent searches - should only see the non-deleted one
-        get_response = client.get("/api/search-history/", headers=auth_headers)
+        get_response = client.get("/api/v1/search-history/", headers=auth_headers)
         assert get_response.status_code == 200
 
         recent = get_response.json()
@@ -448,7 +450,7 @@ class TestAnalyticsDataQuality:
             "results_count": 1,
         }
 
-        response = client.post("/api/search-history/", json=search_data, headers=headers)
+        response = client.post("/api/v1/search-history/", json=search_data, headers=headers)
         assert response.status_code == 201
 
         # Check that IP is hashed, not stored raw
@@ -470,7 +472,7 @@ class TestAnalyticsDataQuality:
             "results_count": 5,
         }
 
-        response1 = client.post("/api/search-history/", json=search1, headers=auth_headers)
+        response1 = client.post("/api/v1/search-history/", json=search1, headers=auth_headers)
         assert response1.status_code == 201
 
         # Wait a moment
@@ -483,7 +485,7 @@ class TestAnalyticsDataQuality:
             "results_count": 8,
         }
 
-        response2 = client.post("/api/search-history/", json=search2, headers=auth_headers)
+        response2 = client.post("/api/v1/search-history/", json=search2, headers=auth_headers)
         assert response2.status_code == 201
 
         # Check is_returning_user flag

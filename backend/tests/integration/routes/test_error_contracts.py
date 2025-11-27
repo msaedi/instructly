@@ -34,7 +34,7 @@ def test_auth_login_problem_contract(monkeypatch):
 
     client, main = _make_client(monkeypatch, {service_deps.get_auth_service: lambda: DummyAuthService()})
     try:
-        resp = client.post('/auth/login', data={'username': 'foo@example.com', 'password': 'bad'})
+        resp = client.post('/api/v1/auth/login', data={'username': 'foo@example.com', 'password': 'bad'})
         assert resp.status_code == 401
         body = resp.json()
         assert _problem_keys(body) == {
@@ -42,7 +42,7 @@ def test_auth_login_problem_contract(monkeypatch):
             'title': 'Unauthorized',
             'detail': 'Incorrect email or password',
             'status': 401,
-            'instance': '/auth/login',
+            'instance': '/api/v1/auth/login',
             'code': 'AUTH_INVALID_CREDENTIALS',
         }
     finally:
@@ -68,13 +68,14 @@ def test_bookings_problem_contract(monkeypatch):
         },
     )
     try:
-        resp = client.post('/bookings/', json={})
+        # Use v1 API path - legacy /bookings/ removed in Phase 9
+        resp = client.post('/api/v1/bookings', json={})
         assert resp.status_code == 422
         body = resp.json()
         assert body.get('code') == 'validation_error'
         assert body.get('status') == 422
         assert body.get('title') == 'Unprocessable Entity'
-        assert body.get('instance') == '/bookings/'
+        assert body.get('instance') == '/api/v1/bookings'
         assert 'errors' in body
     finally:
         main.fastapi_app.dependency_overrides.clear()
@@ -101,7 +102,7 @@ def test_payments_instructor_guard_problem_contract(monkeypatch):
 
     client, main = _make_client(monkeypatch, overrides)
     try:
-        resp = client.post('/api/payments/connect/onboard')
+        resp = client.post('/api/v1/payments/connect/onboard')
         assert resp.status_code == 403
         body = resp.json()
         assert _problem_keys(body) == {
@@ -109,7 +110,7 @@ def test_payments_instructor_guard_problem_contract(monkeypatch):
             'title': 'Forbidden',
             'detail': 'This endpoint requires instructor role',
             'status': 403,
-            'instance': '/api/payments/connect/onboard',
+            'instance': '/api/v1/payments/connect/onboard',
             'code': 'PAYMENTS_INSTRUCTOR_ONLY',
         }
     finally:

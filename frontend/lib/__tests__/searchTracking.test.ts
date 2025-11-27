@@ -126,7 +126,7 @@ describe('Search Tracking', () => {
       );
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/search-history/',
+        'http://localhost:8000/api/v1/search-history',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -278,7 +278,7 @@ describe('Search Tracking', () => {
       );
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/search-history/',
+        'http://localhost:8000/api/v1/search-history',
         expect.objectContaining({
           headers: expect.objectContaining({
             'X-Search-Origin': '/services',
@@ -314,7 +314,7 @@ describe('Search Tracking', () => {
       // Verify the function was called with correct parameters
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/search-history/',
+        'http://localhost:8000/api/v1/search-history',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -367,7 +367,7 @@ describe('Search Tracking', () => {
       await trackSearchInteraction(123, 'click', '456', 2, false);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/search-history/interaction',
+        'http://localhost:8000/api/v1/search-history/interaction',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -434,7 +434,7 @@ describe('Search Tracking', () => {
       );
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/search-history/',
+        'http://localhost:8000/api/v1/search-history',
         expect.objectContaining({
           body: expect.stringContaining('device_context'),
         })

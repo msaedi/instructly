@@ -28,7 +28,7 @@ def test_update_beta_settings_rejects_extra_field(client: TestClient):
         "allow_signup_without_invite": True,
         "unexpected": 1,
     }
-    resp = client.put("/api/beta/settings", json=body)
+    resp = client.put("/api/v1/beta/settings", json=body)
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422

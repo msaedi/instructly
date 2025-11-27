@@ -192,3 +192,17 @@ module = [
 ]
 ignore_missing_imports = false
 follow_imports = "normal"
+
+[tool.pytest.ini_options]
+markers = [
+    "schemathesis: Schemathesis-based API contract tests (run with: pytest -m schemathesis)",
+    "unit: Unit tests",
+    "integration: Integration tests",
+]
+filterwarnings = [
+    "ignore::urllib3.exceptions.NotOpenSSLWarning",
+    # Third-party deprecations we can't control
+    "ignore:'crypt' is deprecated.*:DeprecationWarning:passlib.*",
+    "ignore:datetime.datetime.utcnow.*is deprecated.*:DeprecationWarning:jose.*",
+    "ignore:datetime.datetime.utcnow.*is deprecated.*:DeprecationWarning:sqlalchemy.*",
+]

@@ -115,7 +115,7 @@ const setClientVersionOnPage = async (page: Page, version: string) => {
 };
 
 const stubAuthMe = async (page: Page) => {
-  await page.route('**/auth/me', async (route, request) => {
+  await page.route('**/api/v1/auth/me', async (route, request) => {
     if (request.method() === 'GET') {
       await route.fulfill({
         status: 200,
@@ -297,7 +297,7 @@ const saveWeek = async (page: Page) => {
   const saveButton = page.getByRole('button', { name: /save week/i });
   await saveButton.scrollIntoViewIfNeeded();
   const responsePromise = page.waitForResponse(
-    (res) => res.url().includes('/instructors/availability/week') && res.request().method() === 'POST'
+    (res) => res.url().includes('/api/v1/instructors/availability/week') && res.request().method() === 'POST'
   );
   await saveButton.click();
   const response = await responsePromise;
@@ -306,7 +306,7 @@ const saveWeek = async (page: Page) => {
 
 const refreshWeek = async (page: Page, mondayISO: string) => {
   const refreshPromise = page.waitForResponse((res) => {
-    if (!res.url().includes('/instructors/availability/week')) {
+    if (!res.url().includes('/api/v1/instructors/availability/week')) {
       return false;
     }
     if (res.request().method() !== 'GET') {
@@ -423,7 +423,7 @@ test.describe('Availability 409 conflict flow', () => {
 
     // Overwrite should push A's plan and close modal
     const overwritePromise = pageA.waitForResponse(
-      (res) => res.url().includes('/instructors/availability/week') && res.request().method() === 'POST'
+      (res) => res.url().includes('/api/v1/instructors/availability/week') && res.request().method() === 'POST'
     );
     await pageA.getByTestId('conflict-overwrite').click();
     const overwriteResponse = await overwritePromise;

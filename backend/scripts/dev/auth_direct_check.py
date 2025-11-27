@@ -25,10 +25,10 @@ def main() -> int:
             if key not in os.environ and value is not None:
                 os.environ[key] = value
 
-    print(f"🔍 Hitting {api_base}/auth/login-with-session for {email} ...")
+    print(f"🔍 Hitting {api_base}/api/v1/auth/login-with-session for {email} ...")
     try:
         response = requests.post(
-            f"{api_base}/auth/login-with-session",
+            f"{api_base}/api/v1/auth/login-with-session",
             json={"email": email, "password": password},
             timeout=10,
         )

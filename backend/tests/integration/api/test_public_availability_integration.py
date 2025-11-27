@@ -79,7 +79,7 @@ class TestPublicAvailabilityIntegration:
         availability_data = {"specific_date": tomorrow.isoformat(), "start_time": "09:00", "end_time": "12:00"}
 
         response = client.post(
-            "/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
+            "/api/v1/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
         )
 
         if response.status_code == 404:
@@ -100,14 +100,14 @@ class TestPublicAvailabilityIntegration:
             "student_note": "Morning lesson",
         }
 
-        response = client.post("/bookings/", json=booking_data, headers=auth_headers_student)  # Note the trailing slash
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)  # Note the trailing slash
         assert (
             response.status_code == 201 or response.status_code == 200
         )  # Some endpoints return 200, f"Expected 201, got {response.status_code}: {response.json()}"
 
         # Step 3: Check public availability (no auth)
         response = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={"start_date": tomorrow.isoformat(), "end_date": tomorrow.isoformat()},
         )
 
@@ -148,7 +148,7 @@ class TestPublicAvailabilityIntegration:
 
         for slot_data in afternoon_slots:
             response = client.post(
-                "/instructors/availability/specific-date", json=slot_data, headers=auth_headers_instructor
+                "/api/v1/instructors/availability/specific-date", json=slot_data, headers=auth_headers_instructor
             )
             assert response.status_code == 200
 
@@ -164,7 +164,7 @@ class TestPublicAvailabilityIntegration:
 
         # Step 5: Check public availability again
         response = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={"start_date": tomorrow.isoformat(), "end_date": tomorrow.isoformat()},
         )
 
@@ -196,7 +196,7 @@ class TestPublicAvailabilityIntegration:
         availability_data = {"specific_date": next_week.isoformat(), "start_time": "09:00", "end_time": "17:00"}
 
         response = client.post(
-            "/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
+            "/api/v1/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
         )
         assert response.status_code == 200
 
@@ -206,13 +206,13 @@ class TestPublicAvailabilityIntegration:
         blackout_data = {"date": next_week.isoformat(), "reason": "Conference attendance"}
 
         response = client.post(
-            "/instructors/availability/blackout-dates", json=blackout_data, headers=auth_headers_instructor
+            "/api/v1/instructors/availability/blackout-dates", json=blackout_data, headers=auth_headers_instructor
         )
         assert response.status_code == 200
 
         # Check public availability
         response = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={"start_date": next_week.isoformat(), "end_date": next_week.isoformat()},
         )
 
@@ -255,7 +255,7 @@ class TestPublicAvailabilityIntegration:
         availability_data = {"specific_date": tomorrow.isoformat(), "start_time": "09:00", "end_time": "12:00"}
 
         response = client.post(
-            "/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
+            "/api/v1/instructors/availability/specific-date", json=availability_data, headers=auth_headers_instructor
         )
         assert response.status_code == 200
 
@@ -264,7 +264,7 @@ class TestPublicAvailabilityIntegration:
 
         # First public check - should be cached
         response1 = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={"start_date": tomorrow.isoformat(), "end_date": tomorrow.isoformat()},
         )
 
@@ -285,12 +285,12 @@ class TestPublicAvailabilityIntegration:
             "end_time": "10:00",
         }
 
-        response = client.post("/bookings/", json=booking_data, headers=auth_headers_student)
+        response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
         assert response.status_code == 201
 
         # Second public check - cache should reflect booking
         response2 = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={"start_date": tomorrow.isoformat(), "end_date": tomorrow.isoformat()},
         )
         assert response2.status_code == 200
@@ -327,7 +327,7 @@ class TestPublicAvailabilityIntegration:
 
         # Request the full configured range
         response = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={
                 "start_date": start_date.isoformat(),
                 "end_date": (start_date + timedelta(days=days_to_create - 1)).isoformat(),
@@ -353,7 +353,7 @@ class TestPublicAvailabilityIntegration:
         # Second request should be much faster due to cache
         start_time2 = timer.time()
         response2 = client.get(
-            f"/api/public/instructors/{instructor_id}/availability",
+            f"/api/v1/public/instructors/{instructor_id}/availability",
             params={
                 "start_date": start_date.isoformat(),
                 "end_date": (start_date + timedelta(days=days_to_create - 1)).isoformat(),

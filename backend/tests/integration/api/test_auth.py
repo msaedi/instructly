@@ -42,7 +42,7 @@ class TestAuth:
         """Test user registration endpoint."""
         # Now using the client fixture instead of creating TestClient
         response = client.post(
-            "/auth/register",
+            "/api/v1/auth/register",
             json={
                 "email": "newuser@example.com",
                 "password": "SecurePassword123!",
@@ -97,7 +97,7 @@ class TestAuth:
 
         # Attempt to register the same email via API
         response = client.post(
-            "/auth/register",
+            "/api/v1/auth/register",
             json={
                 "email": FIXED_DUP_EMAIL,
                 "password": "Password123!",
@@ -122,7 +122,7 @@ class TestAuth:
     def test_login_success(self, db: Session, client: TestClient, test_student: User, test_password: str):
         """Test successful login."""
         response = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             data={"username": test_student.email, "password": test_password},
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
@@ -141,7 +141,7 @@ class TestAuth:
         """Test that authentication works with cookie when no Authorization header is present."""
         # First login to get a token
         response = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             data={"username": test_student.email, "password": test_password},
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
@@ -149,21 +149,21 @@ class TestAuth:
         token = response.json()["access_token"]
 
         # Test with Authorization header (traditional method)
-        response = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+        response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         data = response.json()
         assert data["email"] == test_student.email
 
         # Test with cookie only (no Authorization header)
         client.cookies.set(settings.session_cookie_name, token)
-        response = client.get("/auth/me")
+        response = client.get("/api/v1/auth/me")
         assert response.status_code == 200
         data = response.json()
         assert data["email"] == test_student.email
 
         # Clear cookie and verify authentication fails
         client.cookies.clear()
-        response = client.get("/auth/me")
+        response = client.get("/api/v1/auth/me")
         assert response.status_code == 401
 
     def test_cookie_only_auth_local(
@@ -174,13 +174,13 @@ class TestAuth:
         monkeypatch.setenv("SITE_MODE", "local")
         # Login form-urlencoded to set cookie
         r = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             data={"username": test_student.email, "password": test_password},
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         assert r.status_code == 200
         # Call /auth/me without Authorization header (cookie-only)
-        r2 = client.get("/auth/me")
+        r2 = client.get("/api/v1/auth/me")
         assert r2.status_code == 200
 
     def test_cookie_only_auth_allowed_in_prod(
@@ -191,7 +191,7 @@ class TestAuth:
         monkeypatch.setattr(settings, "session_cookie_secure", True, raising=False)
         # Login still returns a token (and sets cookie)
         r = client.post(
-            "/auth/login",
+            "/api/v1/auth/login",
             data={"username": test_student.email, "password": test_password},
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
@@ -200,30 +200,30 @@ class TestAuth:
         cookie_token = create_access_token({"sub": test_student.email})
         client.cookies.set(settings.session_cookie_name, cookie_token)
         # Cookie-only should succeed for API routes in hosted environments
-        r2 = client.get("/api/addresses/me")
+        r2 = client.get("/api/v1/addresses/me")
         assert r2.status_code == 200
         # header path still works
         token = r.json().get("access_token")
-        r3 = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+        r3 = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert r3.status_code == 200
 
     def test_login_wrong_password(self, db: Session, client: TestClient, test_student: User):
         """Test login with wrong password."""
-        response = client.post("/auth/login", data={"username": test_student.email, "password": "WrongPassword123!"})
+        response = client.post("/api/v1/auth/login", data={"username": test_student.email, "password": "WrongPassword123!"})
 
         assert response.status_code == 401
         assert "Incorrect email or password" in response.json()["detail"]
 
     def test_login_nonexistent_user(self, db: Session, client: TestClient):
         """Test login with non-existent user."""
-        response = client.post("/auth/login", data={"username": "nonexistent@example.com", "password": "Password123!"})
+        response = client.post("/api/v1/auth/login", data={"username": "nonexistent@example.com", "password": "Password123!"})
 
         assert response.status_code == 401
         assert "Incorrect email or password" in response.json()["detail"]
 
     def test_get_current_user(self, db: Session, client: TestClient, test_student: User, auth_headers_student: dict):
         """Test getting current user with valid token."""
-        response = client.get("/auth/me", headers=auth_headers_student)
+        response = client.get("/api/v1/auth/me", headers=auth_headers_student)
 
         assert response.status_code == 200
         data = response.json()
@@ -234,14 +234,14 @@ class TestAuth:
 
     def test_get_current_user_invalid_token(self, db: Session, client: TestClient):
         """Test getting current user with invalid token."""
-        response = client.get("/auth/me", headers={"Authorization": "Bearer invalid_token"})
+        response = client.get("/api/v1/auth/me", headers={"Authorization": "Bearer invalid_token"})
 
         assert response.status_code == 401
         assert "Could not validate credentials" in response.json()["detail"]
 
     def test_get_current_user_no_token(self, db: Session, client: TestClient):
         """Test getting current user without token."""
-        response = client.get("/auth/me")
+        response = client.get("/api/v1/auth/me")
 
         assert response.status_code == 401
         assert "Not authenticated" in response.json()["detail"]

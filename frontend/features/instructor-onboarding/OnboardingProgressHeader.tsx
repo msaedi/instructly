@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { useOnboardingStepStatus } from './useOnboardingStepStatus';
 
 const STEP_DEFS = [
   { key: 'account-setup', label: 'Account Setup', href: '/instructor/onboarding/account-setup' },
@@ -18,8 +19,12 @@ export type OnboardingStepStatus = 'pending' | 'done' | 'failed';
 
 type Props = {
   activeStep: OnboardingStepKey;
+  /** If true, the header will automatically fetch and evaluate step status */
+  autoEvaluate?: boolean;
   stepStatus?: Partial<Record<OnboardingStepKey, OnboardingStepStatus>>;
   completedSteps?: Partial<Record<OnboardingStepKey, boolean>>;
+  /** If true, all steps are clickable even the active one (useful for summary pages) */
+  allowClickAll?: boolean;
 };
 
 const defaultStatuses: Record<OnboardingStepKey, OnboardingStepStatus> = {
@@ -53,13 +58,17 @@ function computeWalkerPath(active: OnboardingStepKey, _completed: Partial<Record
   };
 }
 
-export function OnboardingProgressHeader({ activeStep, stepStatus, completedSteps }: Props) {
+export function OnboardingProgressHeader({ activeStep, autoEvaluate = false, stepStatus, completedSteps, allowClickAll = false }: Props) {
   const router = useRouter();
   const progressRef = useRef<HTMLDivElement | null>(null);
   const stepButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [walkerLeft, setWalkerLeft] = useState(24);
 
-  const resolvedStatuses = useMemo(() => ({ ...defaultStatuses, ...(stepStatus || {}) }), [stepStatus]);
+  // Auto-evaluate step status if requested (skip API calls when stepStatus is passed)
+  const { stepStatus: autoStepStatus } = useOnboardingStepStatus({ skip: !autoEvaluate });
+  const effectiveStepStatus = autoEvaluate ? autoStepStatus : stepStatus;
+
+  const resolvedStatuses = useMemo(() => ({ ...defaultStatuses, ...(effectiveStepStatus || {}) }), [effectiveStepStatus]);
   const completionMap = useMemo(() => {
     if (completedSteps) return completedSteps;
     const derived: Partial<Record<OnboardingStepKey, boolean>> = {};
@@ -141,7 +150,7 @@ export function OnboardingProgressHeader({ activeStep, stepStatus, completedStep
                 : `${baseClasses} border-gray-300 bg-white text-[#7E22CE] hover:border-[#7E22CE]`;
 
             const handleClick = () => {
-              if (isCurrent) return;
+              if (isCurrent && !allowClickAll) return;
               router.push(step.href);
             };
 
@@ -169,27 +178,28 @@ export function OnboardingProgressHeader({ activeStep, stepStatus, completedStep
                     title={`Step ${index + 1}: ${step.label}`}
                     type="button"
                   >
-                    {step.key === 'account-setup' && (
-                      <>
-                        <svg
-                          className={`icon-check w-3 h-3 text-white ${status === 'done' ? '' : 'hidden'}`}
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <svg
-                          className={`icon-cross w-3 h-3 text-white ${status === 'failed' ? '' : 'hidden'}`}
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </>
+                    {/* Show checkmark for done, X for failed */}
+                    {status === 'done' && (
+                      <svg
+                        className="icon-check w-3 h-3 text-white"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    {status === 'failed' && (
+                      <svg
+                        className="icon-cross w-3 h-3 text-[#7E22CE]"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
                     )}
                   </button>
                   <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">{step.label}</span>

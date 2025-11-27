@@ -143,7 +143,7 @@ const routeAlways = async (
 };
 
 const stubGuestSessionEndpoint = async (context: BrowserContext) => {
-  await routeOnce(context, '**/api/public/session/guest', async (route) => {
+  await routeOnce(context, '**/api/v1/public/session/guest', async (route) => {
     if (await handlePreflight(route)) return;
     await respondJson(route, { ok: true });
   });
@@ -154,7 +154,7 @@ const stubAuthMe = async (
   rolesProvider: () => ReadonlyArray<string>,
   isReady: () => boolean
 ) => {
-  await routeAlways(context, '**/auth/me', async (route) => {
+  await routeAlways(context, '**/api/v1/auth/me', async (route) => {
     if (await handlePreflight(route)) return;
     if (!isReady()) {
       await respondJson(route, { detail: 'Not authenticated' }, 401);
@@ -246,7 +246,7 @@ test.describe('Login routing without 2FA', () => {
 
       let sessionReady = false;
 
-      await routeOnce(context, '**/auth/login-with-session', async (route) => {
+      await routeOnce(context, '**/api/v1/auth/login-with-session', async (route) => {
         if (await handlePreflight(route)) return;
         const responseBody = {
           access_token: 'fake.jwt.value',
@@ -290,7 +290,7 @@ test.describe('2FA flows', () => {
 
     let sessionReady = false;
 
-    await routeOnce(context, '**/auth/login-with-session', async (route) => {
+    await routeOnce(context, '**/api/v1/auth/login-with-session', async (route) => {
       if (await handlePreflight(route)) return;
       const responseBody = {
         access_token: null,
@@ -302,7 +302,7 @@ test.describe('2FA flows', () => {
       await respondJson(route, responseBody);
     });
 
-    await routeOnce(context, '**/api/auth/2fa/verify-login', async (route) => {
+    await routeOnce(context, '**/api/v1/2fa/verify-login', async (route) => {
       if (await handlePreflight(route)) return;
       const payload = { access_token: 'fake.jwt.2', token_type: 'bearer' };
       const requestOrigin = new URL(route.request().url()).origin;
@@ -339,7 +339,7 @@ test.describe('2FA flows', () => {
 
     let sessionReady = false;
 
-    await routeOnce(context, '**/auth/login-with-session', async (route) => {
+    await routeOnce(context, '**/api/v1/auth/login-with-session', async (route) => {
       if (await handlePreflight(route)) return;
       const responseBody = {
         access_token: null,
@@ -350,7 +350,7 @@ test.describe('2FA flows', () => {
       await respondJson(route, responseBody);
     });
 
-    await routeOnce(context, '**/api/auth/2fa/verify-login', async (route) => {
+    await routeOnce(context, '**/api/v1/2fa/verify-login', async (route) => {
       if (await handlePreflight(route)) return;
       const payload = { access_token: 'fake.jwt.3', token_type: 'bearer' };
       const requestOrigin = new URL(route.request().url()).origin;

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 import app.api.dependencies.services as dependency_services
 from app.core.config import settings
+import app.core.timezone_utils as timezone_utils_module
 import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -85,7 +86,7 @@ def test_get_week_bitmap_returns_windows_and_etag(
     db.commit()
 
     resp = bitmap_client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=auth_headers_instructor,
     )
@@ -143,7 +144,7 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
     }
 
     resp = bitmap_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=body,
         headers=auth_headers_instructor,
     )
@@ -173,7 +174,7 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
     }
 
     override_update = bitmap_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"override": "true"},
         json=intermediate_body,
         headers=auth_headers_instructor,
@@ -194,7 +195,7 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
     }
 
     conflict_resp = bitmap_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=conflicting_body,
         headers={**auth_headers_instructor, "If-Match": first_version},
     )
@@ -211,7 +212,7 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
     )
 
     override_resp = bitmap_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"override": "true"},
         json=conflicting_body,
         headers={**auth_headers_instructor, "If-Match": first_version},
@@ -245,14 +246,14 @@ async def test_midnight_window_round_trip(
     }
 
     create_resp = bitmap_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
     )
     assert create_resp.status_code == 200, create_resp.text
 
     get_resp = bitmap_client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": monday.isoformat()},
         headers=auth_headers_instructor,
     )
@@ -307,6 +308,7 @@ def test_save_week_bitmap_persists_past_days_when_allowed(
             return anchor.replace(tzinfo=None)
 
     monkeypatch.setattr(availability_service_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(timezone_utils_module, "datetime", FixedDateTime)
 
     past_day = week_start
     future_day = week_start + timedelta(days=5)
@@ -329,7 +331,7 @@ def test_save_week_bitmap_persists_past_days_when_allowed(
     }
 
     resp = bitmap_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
     )
@@ -337,7 +339,7 @@ def test_save_week_bitmap_persists_past_days_when_allowed(
     assert resp.headers.get("X-Allow-Past") == "true"
 
     fetched = bitmap_client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=auth_headers_instructor,
     )
@@ -375,7 +377,7 @@ def test_copy_week_bitmap_copies_all_days(
     db.commit()
 
     resp = bitmap_client.post(
-        "/instructors/availability/copy-week",
+        "/api/v1/instructors/availability/copy-week",
         json={
             "from_week_start": source_week.isoformat(),
             "to_week_start": target_week.isoformat(),

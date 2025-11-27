@@ -36,7 +36,7 @@ def test_perf_counters_follow_cache_flow(
     headers = {**auth_headers_instructor, "x-debug-sql": "1"}
     # Cold request should query the DB and register a cache miss
     cold = client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=headers,
     )
@@ -48,7 +48,7 @@ def test_perf_counters_follow_cache_flow(
 
     # Warm request should reuse cached payload when available
     warm = client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=headers,
     )

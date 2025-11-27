@@ -110,15 +110,40 @@ Users (1) ──────> (0..1) InstructorProfile
 
 ## 📌 API Architecture
 
+### API Versioning (v1 Migration Complete)
+All core API endpoints have been migrated to `/api/v1/`:
+
+| Domain | v1 Path | Phase |
+|--------|---------|-------|
+| Instructors | `/api/v1/instructors` | Phase 8 |
+| Bookings | `/api/v1/bookings` | Phase 9 |
+| Instructor Bookings | `/api/v1/instructor-bookings` | Phase 9 |
+| Messages | `/api/v1/messages` | Phase 10 |
+| Reviews | `/api/v1/reviews` | Phase 12 |
+| Services | `/api/v1/services` | Phase 13 |
+| Favorites | `/api/v1/favorites` | Phase 13 |
+| Search | `/api/v1/search` | Phase 14 |
+| Search History | `/api/v1/search-history` | Phase 14 |
+| Addresses | `/api/v1/addresses` | Phase 14 |
+
 ### Route Organization
 ```
 backend/app/routes/
-├── auth.py                 # Registration, login, current user
-├── instructors.py          # Instructor profiles and services
-├── availability_windows.py # Availability management
-├── bookings.py            # Booking operations
-├── public_availability.py # Public API endpoints (no auth)
-└── [other routes...]
+├── v1/                         # Versioned API (v1)
+│   ├── addresses.py           # Address management (Phase 14)
+│   ├── bookings.py            # Booking operations
+│   ├── favorites.py           # Student favorites
+│   ├── instructor_bookings.py # Instructor booking views
+│   ├── instructors.py         # Instructor profiles
+│   ├── messages.py            # Messaging system
+│   ├── reviews.py             # Review system
+│   ├── search.py              # NL instructor search (Phase 14)
+│   ├── search_history.py      # Search tracking (Phase 14)
+│   └── services.py            # Service catalog
+├── auth.py                     # Registration, login, current user
+├── availability_windows.py     # Availability management
+├── public_availability.py      # Public API endpoints (no auth)
+└── [legacy routes...]          # Legacy (commented out)
 ```
 
 ### Request/Response Flow

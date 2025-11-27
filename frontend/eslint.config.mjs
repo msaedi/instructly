@@ -22,6 +22,7 @@ const eslintConfig = [
       'playwright-report/**/*',
       'test-results/**/*',
       'next-env.d.ts',
+      'src/api/generated/**/*', // Orval-generated files
     ],
   },
   ...compat.extends('next/core-web-vitals', 'next/typescript'),

@@ -15,6 +15,7 @@ import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 import app.routes.availability_windows as availability_routes
+import app.routes.v1.availability_windows as availability_routes_v1
 import app.services.availability_service as availability_service_module
 from app.utils.bitset import windows_from_bits
 
@@ -26,6 +27,7 @@ def bitmap_app_allow_past(monkeypatch: pytest.MonkeyPatch):
 
     reload(availability_service_module)
     reload(availability_routes)
+    reload(availability_routes_v1)
     reload(app.main)
 
     yield app.main
@@ -33,6 +35,7 @@ def bitmap_app_allow_past(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "false")
     reload(availability_service_module)
     reload(availability_routes)
+    reload(availability_routes_v1)
     reload(app.main)
 
 
@@ -43,6 +46,7 @@ def bitmap_app_disallow_past(monkeypatch: pytest.MonkeyPatch):
 
     reload(availability_service_module)
     reload(availability_routes)
+    reload(availability_routes_v1)
     reload(app.main)
 
     yield app.main
@@ -50,6 +54,7 @@ def bitmap_app_disallow_past(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
     reload(availability_service_module)
     reload(availability_routes)
+    reload(availability_routes_v1)
     reload(app.main)
 
 
@@ -134,7 +139,7 @@ class TestPastDayEditsPersistWhenAllowPastTrue:
         }
 
         resp = bitmap_client_allow_past.post(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             json=payload,
             headers=auth_headers_instructor,
         )
@@ -144,7 +149,7 @@ class TestPastDayEditsPersistWhenAllowPastTrue:
 
         # GET /week includes both sets of windows
         get_resp = bitmap_client_allow_past.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": week_start.isoformat()},
             headers=auth_headers_instructor,
         )
@@ -214,7 +219,7 @@ class TestPastDayEditsIgnoredWhenAllowPastFalse:
         }
 
         resp = bitmap_client_disallow_past.post(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             json=payload,
             headers=auth_headers_instructor,
         )
@@ -224,7 +229,7 @@ class TestPastDayEditsIgnoredWhenAllowPastFalse:
 
         # GET /week shows only future edits; past dates unchanged
         get_resp = bitmap_client_disallow_past.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": week_start.isoformat()},
             headers=auth_headers_instructor,
         )

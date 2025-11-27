@@ -128,7 +128,7 @@ export default function PricingSettingsPage() {
 
     async function fetchConfig() {
       try {
-        const response = await fetch(withApiBase('/api/admin/config/pricing'), {
+        const response = await fetch(withApiBase('/api/v1/admin/config/pricing'), {
           credentials: 'include',
         });
         if (!response.ok) {
@@ -293,7 +293,7 @@ export default function PricingSettingsPage() {
     setSaving(true);
     setSubmitError(null);
     try {
-      const response = await fetch(withApiBase('/api/admin/config/pricing'), {
+      const response = await fetch(withApiBase('/api/v1/admin/config/pricing'), {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

@@ -421,7 +421,7 @@ function SignUpForm() {
       // Auto-login after successful registration
       // Use new endpoint if we have a guest session (already converted during registration)
       logger.time('auto-login');
-      const loginPath = guestSessionId ? '/auth/login-with-session' : API_ENDPOINTS.LOGIN;
+      const loginPath = guestSessionId ? '/api/v1/auth/login-with-session' : API_ENDPOINTS.LOGIN;
       const loginHeaders = guestSessionId
         ? { 'Content-Type': 'application/json' }
         : { 'Content-Type': 'application/x-www-form-urlencoded' };
@@ -475,7 +475,7 @@ function SignUpForm() {
           const inviteCode = searchParams.get('invite_code') || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
           if (inviteCode) {
             logger.info('Consuming beta invite for new user', { inviteCode, userId: userData.id });
-            await http('POST', '/api/beta/invites/consume', {
+            await http('POST', '/api/v1/beta/invites/consume', {
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${authData.access_token}`,

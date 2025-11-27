@@ -24,7 +24,7 @@ ALLOW_NON_API_PREFIXES = (
     "/internal",
     "/ops/",
     "/webhooks/",
-    "/bookings",
+    "/api/v1/bookings",
     "/beta",
     "/stripe",
     "/instructors",

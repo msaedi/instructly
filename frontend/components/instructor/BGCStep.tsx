@@ -131,6 +131,8 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   const isMountedRef = React.useRef(true);
   const previousStatusRef = React.useRef<BGCStatus | null>(null);
   const statusRef = React.useRef<BGCStatus | null>(null);
+  // Track which instructorId we've fetched for to prevent duplicate fetches
+  const fetchedForIdRef = React.useRef<string | null>(null);
 
   const setStatusSafe = React.useCallback((next: BGCStatus | null) => {
     if (previousStatusRef.current === next) {
@@ -204,6 +206,13 @@ export function BGCStep({ instructorId, onStatusUpdate, ensureConsent }: BGCStep
   }, [instructorId, pushSnapshot, snapshotFromResponse]);
 
   React.useEffect(() => {
+    // Skip if we've already fetched for this instructorId (prevents duplicate calls in Strict Mode)
+    if (fetchedForIdRef.current === instructorId) {
+      setLoading(false);
+      return;
+    }
+    fetchedForIdRef.current = instructorId;
+
     isMountedRef.current = true;
     let alive = true;
     setLoading(true);

@@ -31,7 +31,7 @@ def _csrf_headers(client: TestClient) -> dict[str, str]:
 def test_logout_clears_host_cookie_secure(client: TestClient, monkeypatch) -> None:
     monkeypatch.setenv("SITE_MODE", "preview")
 
-    response = client.post("/api/public/logout", headers=_csrf_headers(client))
+    response = client.post("/api/v1/public/logout", headers=_csrf_headers(client))
     assert response.status_code == 204
 
     set_cookie_headers = _set_cookie_headers(response)
@@ -46,5 +46,5 @@ def test_logout_clears_host_cookie_secure(client: TestClient, monkeypatch) -> No
             assert "Secure" not in header
         assert "Max-Age=0" in header
 
-    auth_me = client.get("/auth/me")
+    auth_me = client.get("/api/v1/auth/me")
     assert auth_me.status_code == 401

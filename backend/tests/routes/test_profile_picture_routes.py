@@ -69,7 +69,7 @@ def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
     # Step 1: request signed upload for profile picture via stubbed storage service
     with _stub_personal_asset_service(db, client.app) as svc:
         resp = client.post(
-            "/api/uploads/r2/signed-url",
+            "/api/v1/uploads/r2/signed-url",
             json={
                 "filename": "avatar.png",
                 "content_type": "image/png",
@@ -91,7 +91,7 @@ def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
         svc.storage.download_bytes = lambda key: png_bytes
 
         resp2 = client.post(
-            "/api/users/me/profile-picture",
+            "/api/v1/users/me/profile-picture",
             json={"object_key": data["object_key"]},
             headers=auth_headers,
         )
@@ -100,19 +100,19 @@ def test_signed_upload_and_finalize_profile_picture(client, db, auth_headers):
 
         # Step 3: fetch presigned view URL
         # Need current user id; call /api/auth/me to get it
-        me = client.get("/auth/me", headers=auth_headers)
+        me = client.get("/api/v1/auth/me", headers=auth_headers)
         assert me.status_code == 200
         me_json = me.json()
         user_id = me_json.get("id") or me_json.get("data", {}).get("id")
         assert user_id, f"unexpected /api/auth/me response: {me_json}"
 
-        resp3 = client.get(f"/api/users/{user_id}/profile-picture-url?variant=thumb", headers=auth_headers)
+        resp3 = client.get(f"/api/v1/users/{user_id}/profile-picture-url?variant=thumb", headers=auth_headers)
         assert resp3.status_code == 200, resp3.text
         j = resp3.json()
         assert j["success"] is True and "url" in j["data"] and j["data"]["url"].startswith("https://")
 
         # Step 4: delete
-        resp4 = client.delete("/api/users/me/profile-picture", headers=auth_headers)
+        resp4 = client.delete("/api/v1/users/me/profile-picture", headers=auth_headers)
         assert resp4.status_code == 200
         assert resp4.json().get("success") in (True, False)
 
@@ -124,7 +124,7 @@ def test_reject_invalid_content_type_for_signed_upload(client, auth_headers):
     settings.r2_secret_access_key = SecretStr("test-secret")
     settings.r2_account_id = "test-account"
     resp = client.post(
-        "/api/uploads/r2/signed-url",
+        "/api/v1/uploads/r2/signed-url",
         json={
             "filename": "avatar.exe",
             "content_type": "application/x-msdownload",
@@ -138,7 +138,7 @@ def test_reject_invalid_content_type_for_signed_upload(client, auth_headers):
 
 def test_profile_picture_urls_batch_empty(client, db, auth_headers):
     with _stub_personal_asset_service(db, client.app):
-        resp = client.get("/api/users/profile-picture-urls", headers=auth_headers)
+        resp = client.get("/api/v1/users/profile-picture-urls", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json() == {"urls": {}}
 
@@ -168,7 +168,7 @@ def test_profile_picture_urls_batch_mixed_ids(client, db, auth_headers):
 
     with _stub_personal_asset_service(db, client.app):
         resp = client.get(
-            f"/api/users/profile-picture-urls?ids={user_with.id},{user_without.id},missing",
+            f"/api/v1/users/profile-picture-urls?ids={user_with.id},{user_without.id},missing",
             headers=auth_headers,
         )
         assert resp.status_code == 200
@@ -181,6 +181,6 @@ def test_profile_picture_urls_batch_mixed_ids(client, db, auth_headers):
 def test_profile_picture_urls_batch_limit(client, db, auth_headers):
     with _stub_personal_asset_service(db, client.app):
         ids = ",".join(f"user{i}" for i in range(0, 51))
-        resp = client.get(f"/api/users/profile-picture-urls?ids={ids}", headers=auth_headers)
+        resp = client.get(f"/api/v1/users/profile-picture-urls?ids={ids}", headers=auth_headers)
         assert resp.status_code == 400
         assert "maximum of 50" in resp.text.lower()

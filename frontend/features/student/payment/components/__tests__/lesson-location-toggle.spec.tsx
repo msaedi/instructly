@@ -89,7 +89,7 @@ describe('Lesson Location toggle', () => {
           ? input.href
           : (input as { url?: string }).url ?? '';
 
-      if (url.includes('/api/addresses/places/autocomplete')) {
+      if (url.includes('/api/v1/addresses/places/autocomplete')) {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -104,7 +104,7 @@ describe('Lesson Location toggle', () => {
         } as unknown as Response);
       }
 
-      if (url.includes('/api/addresses/places/details')) {
+      if (url.includes('/api/v1/addresses/places/details')) {
         expect(url).toContain('place_id=place_1');
         expect(url).toContain('provider=google');
         return Promise.resolve({

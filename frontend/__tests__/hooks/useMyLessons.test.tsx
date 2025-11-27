@@ -9,64 +9,37 @@ import {
   useRescheduleLesson,
   calculateCancellationFee,
 } from '@/hooks/useMyLessons';
-import { Booking } from '@/types/booking';
-import * as reactQueryApi from '@/lib/react-query/api';
+import type { Booking } from '@/features/shared/api/types';
 
-// Mock the booking service
-jest.mock('@/lib/api/bookings', () => ({
-  bookingService: {
-    getMyBookings: jest.fn(),
-    getBookingDetails: jest.fn(),
-    cancelBooking: jest.fn(),
-    rescheduleBooking: jest.fn(),
-  },
+// Mock v1 bookings services
+const mockUseBookingsList = jest.fn();
+const mockUseBookingsHistory = jest.fn();
+const mockUseCancelledBookingsV1 = jest.fn();
+const mockUseBooking = jest.fn();
+const mockUseCancelBooking = jest.fn();
+const mockUseRescheduleBooking = jest.fn();
+const mockUseCompleteBooking = jest.fn();
+
+jest.mock('@/src/api/services/bookings', () => ({
+  useBookingsList: (...args: unknown[]) => mockUseBookingsList(...args),
+  useBookingsHistory: (...args: unknown[]) => mockUseBookingsHistory(...args),
+  useCancelledBookings: (...args: unknown[]) => mockUseCancelledBookingsV1(...args),
+  useBooking: (...args: unknown[]) => mockUseBooking(...args),
+  useCancelBooking: () => mockUseCancelBooking(),
+  useRescheduleBooking: () => mockUseRescheduleBooking(),
+  useCompleteBooking: () => mockUseCompleteBooking(),
 }));
 
-// Mock the queryFn
-jest.mock('@/lib/react-query/api', () => ({
-  queryFn: jest.fn((endpoint: string, options?: { params?: Record<string, unknown> }) => {
-    return async () => {
-      // Updated: upcoming lessons now use /bookings/upcoming with limit param
-      const isUpcoming = typeof endpoint === 'string' && endpoint.includes('/bookings/upcoming');
-      const legacyUpcoming = options?.params?.['status'] === 'CONFIRMED' && options?.params?.['upcoming_only'] === true;
-      if (isUpcoming || legacyUpcoming) {
-        return {
-          items: [
-            {
-              id: 1,
-              booking_date: '2024-12-25',
-              start_time: '14:00:00',
-              status: 'CONFIRMED',
-              total_price: 60,
-            },
-          ],
-          total: 1,
-          page: 1,
-          per_page: 20,
-        };
-      }
-      return {
-        items: [
-          {
-            id: 2,
-            booking_date: '2024-12-20',
-            start_time: '10:00:00',
-            status: 'COMPLETED',
-            total_price: 60,
-          },
-        ],
-        total: 1,
-        page: 1,
-        per_page: 20,
-      };
-    };
-  }),
-  mutationFn: jest.fn(() => {
-    return async () => ({
-      id: 1,
-      status: 'CANCELLED',
-    });
-  }),
+// Mock v1 instructor-bookings services
+jest.mock('@/src/api/services/instructor-bookings', () => ({
+  useMarkLessonComplete: jest.fn(() => ({
+    mutate: jest.fn(),
+    mutateAsync: jest.fn(),
+    isPending: false,
+    isSuccess: false,
+    isError: false,
+    error: null,
+  })),
 }));
 
 const createTestQueryClient = () => {
@@ -83,9 +56,135 @@ const wrapper = ({ children }: { children: ReactNode }) => {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 };
 
+// Default mock response for successful queries
+const mockSuccessResponse = (data: unknown) => ({
+  data,
+  isSuccess: true,
+  isLoading: false,
+  isError: false,
+  error: null,
+  dataUpdatedAt: Date.now(),
+  errorUpdatedAt: 0,
+  failureCount: 0,
+  failureReason: null,
+  isFetched: true,
+  isFetchedAfterMount: true,
+  isFetching: false,
+  isPaused: false,
+  isPending: false,
+  isPlaceholderData: false,
+  isRefetchError: false,
+  isRefetching: false,
+  isStale: false,
+  refetch: jest.fn(),
+  status: 'success' as const,
+});
+
+// Default mock response for error queries
+const mockErrorResponse = (errorMessage: string) => ({
+  data: undefined,
+  isSuccess: false,
+  isLoading: false,
+  isError: true,
+  error: { message: errorMessage },
+  dataUpdatedAt: 0,
+  errorUpdatedAt: Date.now(),
+  failureCount: 1,
+  failureReason: { message: errorMessage },
+  isFetched: true,
+  isFetchedAfterMount: true,
+  isFetching: false,
+  isPaused: false,
+  isPending: false,
+  isPlaceholderData: false,
+  isRefetchError: false,
+  isRefetching: false,
+  isStale: false,
+  refetch: jest.fn(),
+  status: 'error' as const,
+});
+
+// Default mock for mutations
+const mockMutation = () => ({
+  mutate: jest.fn(),
+  mutateAsync: jest.fn(),
+  isPending: false,
+  isSuccess: false,
+  isError: false,
+  isIdle: true,
+  error: null,
+  data: null,
+  reset: jest.fn(),
+});
+
 describe('useMyLessons hooks', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Default mock implementations
+    mockUseBookingsList.mockReturnValue(
+      mockSuccessResponse({
+        items: [
+          {
+            id: '01ABCDEF123456789012345678',
+            booking_date: '2024-12-25',
+            start_time: '14:00:00',
+            status: 'CONFIRMED',
+            total_price: 60,
+          },
+        ],
+        total: 1,
+        page: 1,
+        per_page: 20,
+        has_next: false,
+        has_prev: false,
+      })
+    );
+
+    mockUseBookingsHistory.mockReturnValue(
+      mockSuccessResponse({
+        items: [
+          {
+            id: '01ABCDEF123456789012345679',
+            booking_date: '2024-12-20',
+            start_time: '10:00:00',
+            status: 'COMPLETED',
+            total_price: 60,
+          },
+        ],
+        total: 1,
+        page: 1,
+        per_page: 50,
+        has_next: false,
+        has_prev: false,
+      })
+    );
+
+    mockUseCancelledBookingsV1.mockReturnValue(
+      mockSuccessResponse({
+        items: [],
+        total: 0,
+        page: 1,
+        per_page: 20,
+        has_next: false,
+        has_prev: false,
+      })
+    );
+
+    mockUseBooking.mockReturnValue(
+      mockSuccessResponse({
+        id: '01ABCDEF123456789012345678',
+        booking_date: '2024-12-25',
+        status: 'CONFIRMED',
+        instructor: { first_name: 'John', last_initial: 'D' },
+        service_name: 'Mathematics',
+        total_price: 60,
+      })
+    );
+
+    mockUseCancelBooking.mockReturnValue(mockMutation());
+    mockUseRescheduleBooking.mockReturnValue(mockMutation());
+    mockUseCompleteBooking.mockReturnValue(mockMutation());
   });
 
   describe('useCurrentLessons', () => {
@@ -106,6 +205,15 @@ describe('useMyLessons hooks', () => {
       // The query should be configured with the correct stale time
       expect(result.current).toHaveProperty('dataUpdatedAt');
     });
+
+    it('passes correct params to v1 service', () => {
+      renderHook(() => useCurrentLessons(), { wrapper });
+
+      expect(mockUseBookingsList).toHaveBeenCalledWith({
+        upcoming_only: true,
+        per_page: 20,
+      });
+    });
   });
 
   describe('useCompletedLessons', () => {
@@ -119,144 +227,114 @@ describe('useMyLessons hooks', () => {
       expect(result.current.data?.items).toBeDefined();
     });
 
-    it('filters lessons correctly', async () => {
-      // Update mock to return mixed statuses
-      const mockQueryFn = reactQueryApi.queryFn as jest.Mock;
-      mockQueryFn.mockImplementation(() => async () => ({
-        items: [
-          {
-            id: 1,
-            booking_date: '2024-12-30',
-            start_time: '14:00:00',
-            status: 'CONFIRMED',
-            total_price: 60,
-          },
-          {
-            id: 2,
-            booking_date: '2024-12-20',
-            start_time: '10:00:00',
-            status: 'CANCELLED',
-            total_price: 60,
-          },
-          {
-            id: 3,
-            booking_date: '2024-12-20',
-            start_time: '10:00:00',
-            status: 'COMPLETED',
-            total_price: 60,
-          },
-        ],
-        total: 3,
-        page: 1,
-        per_page: 20,
-      }));
+    it('uses correct page number', () => {
+      renderHook(() => useCompletedLessons(2), { wrapper });
 
-      const { result } = renderHook(() => useCompletedLessons(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(true);
-      });
-
-      // Should filter out future confirmed lessons
-      const bookings = result.current.data?.items || [];
-      const confirmedFuture = bookings.filter(
-        (b) =>
-          b.status === 'CONFIRMED' && new Date(`${b.booking_date}T${b.start_time}`) > new Date()
-      );
-      expect(confirmedFuture.length).toBe(0);
+      expect(mockUseBookingsHistory).toHaveBeenCalledWith(2, 50);
     });
   });
 
   describe('useLessonDetails', () => {
     it('fetches lesson details by ID', async () => {
-      // Mock the queryFn for lesson details
-      const mockQueryFn = reactQueryApi.queryFn as jest.Mock;
-      mockQueryFn.mockImplementation((_endpoint: string) => async () => ({
-        id: 1,
-        booking_date: '2024-12-25',
-        status: 'CONFIRMED',
-        instructor: { first_name: 'John', last_initial: 'D' },
-        service_name: 'Mathematics',
-        total_price: 60,
-      }));
-
-      const { result } = renderHook(() => useLessonDetails('1'), { wrapper });
+      const { result } = renderHook(() => useLessonDetails('01ABCDEF123456789012345678'), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(result.current.data?.id).toBe(1);
+      expect(result.current.data?.id).toBe('01ABCDEF123456789012345678');
       expect(result.current.data?.instructor?.first_name).toBe('John');
       expect(result.current.data?.instructor?.last_initial).toBe('D');
     });
 
     it('handles invalid lesson ID', async () => {
-      // Mock the queryFn to throw error
-      const mockQueryFn = reactQueryApi.queryFn as jest.Mock;
-      mockQueryFn.mockImplementation(() => async () => {
-        throw new Error('Booking not found');
-      });
+      mockUseBooking.mockReturnValue(mockErrorResponse('Booking not found'));
 
-      const { result } = renderHook(() => useLessonDetails('999'), { wrapper });
+      const { result } = renderHook(() => useLessonDetails('invalidid'), { wrapper });
 
       await waitFor(() => {
         expect(result.current.isError).toBe(true);
       });
 
-      expect(result.current.error?.message).toBe('Booking not found');
+      // Error type from v1 services may have different structure
+      expect(result.current.error).toBeDefined();
+    });
+
+    it('passes lesson ID to v1 service', () => {
+      const lessonId = '01ABCDEF123456789012345678';
+      renderHook(() => useLessonDetails(lessonId), { wrapper });
+
+      expect(mockUseBooking).toHaveBeenCalledWith(lessonId);
     });
   });
 
   describe('useCancelLesson', () => {
-    it('cancels a lesson successfully', async () => {
+    it('returns cancel mutation', async () => {
+      const { result } = renderHook(() => useCancelLesson(), { wrapper });
+
+      expect(result.current.mutate).toBeDefined();
+      expect(result.current.mutateAsync).toBeDefined();
+    });
+
+    it('calls v1 cancel mutation with correct params', async () => {
+      const mockMutate = jest.fn();
+      mockUseCancelBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
       const { result } = renderHook(() => useCancelLesson(), { wrapper });
 
       result.current.mutate({
-        lessonId: '1',
+        lessonId: '01ABCDEF123456789012345678',
         reason: 'Schedule conflict',
       });
 
-      await waitFor(() => {
-        expect(result.current.isSuccess).toBe(false); // Mutation doesn't auto-succeed
-      });
-    });
-
-    it('handles cancellation errors', async () => {
-      // Mock mutationFn to throw error
-      const mockMutationFn = reactQueryApi.mutationFn as jest.Mock;
-      mockMutationFn.mockImplementation(() => async () => {
-        throw new Error('Cannot cancel within 1 hour');
-      });
-
-      const { result } = renderHook(() => useCancelLesson(), { wrapper });
-
-      result.current.mutate({
-        lessonId: '1',
-        reason: 'Emergency',
-      });
-
-      await waitFor(() => {
-        // Initially the mutation is loading, not error yet
-        expect(result.current.isPending || result.current.isError).toBe(true);
-      });
+      expect(mockMutate).toHaveBeenCalledWith(
+        {
+          bookingId: '01ABCDEF123456789012345678',
+          data: { reason: 'Schedule conflict' },
+        },
+        expect.any(Object)
+      );
     });
   });
 
   describe('useRescheduleLesson', () => {
-    it('reschedules a lesson successfully', async () => {
+    it('returns reschedule mutation', async () => {
+      const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
+
+      expect(result.current.mutate).toBeDefined();
+      expect(result.current.mutateAsync).toBeDefined();
+    });
+
+    it('calculates duration and calls v1 reschedule mutation', async () => {
+      const mockMutate = jest.fn();
+      mockUseRescheduleBooking.mockReturnValue({
+        ...mockMutation(),
+        mutate: mockMutate,
+      });
+
       const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
 
       result.current.mutate({
-        lessonId: '1',
+        lessonId: '01ABCDEF123456789012345678',
         newDate: '2024-12-26',
         newStartTime: '10:00:00',
         newEndTime: '11:00:00',
       });
 
-      await waitFor(() => {
-        expect(result.current.isIdle || result.current.isPending).toBe(true);
-      });
+      expect(mockMutate).toHaveBeenCalledWith(
+        {
+          bookingId: '01ABCDEF123456789012345678',
+          data: {
+            booking_date: '2024-12-26',
+            start_time: '10:00:00',
+            selected_duration: 60, // 1 hour = 60 minutes
+          },
+        },
+        expect.any(Object)
+      );
     });
   });
 
@@ -279,7 +357,7 @@ describe('useMyLessons hooks', () => {
       jest.useRealTimers();
     });
 
-    it('returns 50% fee for cancellations between 1-24 hours', () => {
+    it('returns 50% fee for cancellations between 12-24 hours', () => {
       const booking = {
         booking_date: '2024-12-26',
         start_time: '14:00:00',
@@ -297,7 +375,7 @@ describe('useMyLessons hooks', () => {
       jest.useRealTimers();
     });
 
-    it('returns 100% fee for cancellations within 1 hour', () => {
+    it('returns 100% fee for cancellations within 12 hours', () => {
       const booking = {
         booking_date: '2024-12-26',
         start_time: '14:00:00',

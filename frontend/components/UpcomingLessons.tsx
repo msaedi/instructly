@@ -3,23 +3,11 @@
 
 import Link from 'next/link';
 import { Calendar, MapPin, ChevronRight } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
-import { queryFn } from '@/lib/react-query/api';
-import { UpcomingBooking } from '@/types/booking';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName } from '@/types/enums';
-
-interface UpcomingBookingsResponse {
-  items: UpcomingBooking[];
-  total: number;
-  page: number;
-  per_page: number;
-  has_next: boolean;
-  has_prev: boolean;
-}
+import { useUpcomingBookings } from '@/src/api/services/bookings';
 
 export function UpcomingLessons() {
   const { isAuthenticated, user, isLoading: isAuthLoading } = useAuth();
@@ -29,18 +17,15 @@ export function UpcomingLessons() {
     setIsClient(true);
   }, []);
 
-  // Use React Query to fetch upcoming bookings
+  // Use v1 bookings service to fetch upcoming bookings
+  // Note: Always pass valid limit (minimum 1) to avoid 422 validation error.
+  // The enabled option in the underlying hook controls whether the request is made.
+  const shouldFetch = isClient && !isAuthLoading && isAuthenticated;
   const {
     data: response,
     isLoading,
     error,
-  } = useQuery<UpcomingBookingsResponse>({
-    queryKey: queryKeys.bookings.upcoming(2),
-    queryFn: queryFn('/bookings/upcoming?limit=2', { requireAuth: true }),
-    enabled: isClient && !isAuthLoading && isAuthenticated,
-    staleTime: CACHE_TIMES.FAST, // 1 minute - upcoming lessons can change frequently
-    retry: 0,
-  });
+  } = useUpcomingBookings(2, { enabled: shouldFetch });
 
   // Extract bookings from response
   const bookings = response?.items ?? [];
@@ -161,10 +146,10 @@ export function UpcomingLessons() {
                       ? `${booking.student_first_name} ${booking.student_last_name}${booking.student_last_name.length === 1 ? '.' : ''}`
                       : 'Student'}
                 </div>
-                {getLocationArea(booking.meeting_location) && (
+                {getLocationArea(booking.meeting_location ?? undefined) && (
                   <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mb-3">
                     <MapPin className="h-3 w-3 mr-1" />
-                    {getLocationArea(booking.meeting_location)}
+                    {getLocationArea(booking.meeting_location ?? undefined)}
                   </div>
                 )}
                 <Link

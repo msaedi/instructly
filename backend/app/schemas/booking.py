@@ -10,7 +10,7 @@ availability changes.
 
 from datetime import date, datetime, time, timedelta
 import re
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Mapping, Optional
 
 from pydantic import (
     BaseModel,
@@ -58,7 +58,10 @@ class BookingCreate(StrictRequestModel):
     booking_date: date = Field(..., description="Date of the booking")
     start_time: time = Field(..., description="Start time")
     selected_duration: int = Field(
-        ..., description="Selected duration in minutes from service's duration_options"
+        ...,
+        ge=15,
+        le=720,
+        description="Selected duration in minutes from service's duration_options",
     )
     student_note: Optional[str] = Field(
         None, max_length=1000, description="Optional note from student"
@@ -162,7 +165,9 @@ class BookingRescheduleRequest(StrictRequestModel):
 
     booking_date: date = Field(..., description="New date for the lesson")
     start_time: time = Field(..., description="New start time (HH:MM)")
-    selected_duration: int = Field(..., description="New selected duration in minutes")
+    selected_duration: int = Field(
+        ..., ge=15, le=720, description="New selected duration in minutes"
+    )
     instructor_service_id: Optional[str] = Field(
         None, description="Override service if needed (defaults to old)"
     )
@@ -370,11 +375,31 @@ class BookingResponse(BookingBase):
     @field_validator("payment_summary", mode="before")
     @classmethod
     def _validate_payment_summary(cls, v: Any) -> Any:
-        """Ensure payment_summary accepts both dict and PaymentSummary instances."""
+        """
+        Normalize payment_summary to a dict before Pydantic validates it.
+
+        This is critical for test stability: when test modules reload
+        app.schemas.booking, the PaymentSummary class identity changes.
+        If we returned PaymentSummary instances here, they might be from
+        the OLD module while Pydantic validates against the NEW module's
+        PaymentSummary type annotation, causing 422 errors.
+
+        By always returning a dict (for non-None values), we let Pydantic
+        handle the dict->PaymentSummary conversion using the correct class.
+        """
         if v is None:
             return None
+        # Already a dict - return as-is for Pydantic to handle
         if isinstance(v, dict):
-            return PaymentSummary(**v)
+            return v
+        # Any BaseModel (including PaymentSummary from any module version)
+        # -> convert to dict so Pydantic uses the correct class
+        if isinstance(v, BaseModel):
+            return v.model_dump()
+        # Mapping types -> convert to dict
+        if isinstance(v, Mapping):
+            return dict(v)
+        # Unknown type - return as-is and let Pydantic decide
         return v
 
     @classmethod

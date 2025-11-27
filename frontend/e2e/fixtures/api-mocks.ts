@@ -102,9 +102,9 @@ export async function mockAvailability(page: Page) {
     }
   );
 
-  // Also mock the /api/public/instructors endpoint for availability
+  // Also mock the /api/v1/public/instructors endpoint for availability
   await page.route(
-    'http://localhost:8000/api/public/instructors/*/availability*',
+    'http://localhost:8000/api/v1/public/instructors/*/availability*',
     async (route: Route) => {
       await route.fulfill({
         status: 200,
@@ -120,7 +120,7 @@ export async function mockAvailability(page: Page) {
 }
 
 export async function mockBookingCreation(page: Page) {
-  await page.route('http://localhost:8000/bookings', async (route: Route) => {
+  await page.route('**/api/v1/bookings', async (route: Route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 201,
@@ -147,7 +147,7 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
   let isAuthenticated = false;
 
   // Mock login endpoint
-  await routeContext.route('**/auth/login', async (route: Route) => {
+  await routeContext.route('**/api/v1/auth/login', async (route: Route) => {
     // For POST requests, check credentials if needed
     if (route.request().method() === 'POST') {
       // Parse form data or JSON based on content type
@@ -229,7 +229,7 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
   });
 
   // Mock login-with-session endpoint
-  await routeContext.route('**/auth/login-with-session', async (route: Route) => {
+  await routeContext.route('**/api/v1/auth/login-with-session', async (route: Route) => {
     // For POST requests
     if (route.request().method() === 'POST') {
       // Parse JSON data
@@ -302,7 +302,7 @@ export async function mockAuthentication(routeContext: Page | { route: (pattern:
   });
 
   // Mock current user endpoint - succeed only if cookie (or prior login) present
-  await routeContext.route('**/auth/me', async (route: Route) => {
+  await routeContext.route('**/api/v1/auth/me', async (route: Route) => {
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     const cookieHeader = route.request().headers()['cookie'] || '';
     const hasCookie = /(?:^|;\s*)access_token=/.test(cookieHeader);
@@ -351,7 +351,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   await mockAuthentication(routeContext);
 
   // Ensure guest session bootstrap does not hit real backend (avoid CORS flakes)
-  await routeContext.route('**/api/public/session/guest', async (route: Route) => {
+  await routeContext.route('**/api/v1/public/session/guest', async (route: Route) => {
     const req = route.request();
     const origin = req.headers()['origin'] || 'http://localhost:3100';
     if (req.method() === 'OPTIONS') {
@@ -380,7 +380,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // Mock the search endpoint FIRST (before the general instructors handler)
-  await routeContext.route('**/api/search/instructors**', async (route: Route) => {
+  await routeContext.route('**/api/v1/search/instructors**', async (route: Route) => {
     // Reduce noisy logs
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
@@ -438,8 +438,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     });
   });
 
-  // Mock services catalog endpoints (consistent response shapes)
-  await routeContext.route('**/services/catalog**', async (route: Route) => {
+  // Mock services catalog endpoints (consistent response shapes) - v1 API
+  await routeContext.route('**/api/v1/services/catalog**', async (route: Route) => {
     const req = route.request();
     const url = req.url();
     const origin = req.headers()['origin'] || 'http://localhost:3100';
@@ -522,8 +522,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     });
   });
 
-  // Mock service categories (homepage depends on this)
-  await routeContext.route('**/services/categories', async (route: Route) => {
+  // Mock service categories (homepage depends on this) - v1 API
+  await routeContext.route('**/api/v1/services/categories', async (route: Route) => {
     const req = route.request();
     const origin = req.headers()['origin'] || 'http://localhost:3100';
     if (req.method() === 'OPTIONS') {
@@ -569,7 +569,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // First set up search-history mock (called on homepage load)
-  await routeContext.route('**/search-history**', async (route: Route) => {
+  await routeContext.route('**/api/v1/search-history**', async (route: Route) => {
     const req = route.request();
     const origin = req.headers()['origin'] || 'http://localhost:3100';
     if (req.method() === 'OPTIONS') {
@@ -613,8 +613,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // IMPORTANT: Make sure availability handlers run before any generic **/api/** handler
-  // Match both /api/public/instructors and just /instructors availability endpoints
-  await routeContext.route('**/api/public/instructors/*/availability**', async (route: Route) => {
+  // Match both /api/v1/public/instructors and just /instructors availability endpoints
+  await routeContext.route('**/api/v1/public/instructors/*/availability**', async (route: Route) => {
     // Extract instructor ID from URL
     const currentUrl = route.request().url();
     const idMatch = currentUrl.match(/instructors\/([^\/\?]+)/i);
@@ -853,8 +853,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   // NOTE: Removed generic '**/api/**' catch-all to avoid double-handling routes.
   // Specific mocks above handle needed endpoints; others will fall through to network.
 
-  // Mock booking creation to allow confirmation step to proceed
-  await routeContext.route('**/bookings**', async (route: Route) => {
+  // Mock v1 booking creation to allow confirmation step to proceed
+  await routeContext.route('**/api/v1/bookings**', async (route: Route) => {
     const req = route.request();
     if (req.method() === 'POST') {
       await route.fulfill({
@@ -880,8 +880,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     await route.continue();
   });
 
-  // Also register page-level booking route to ensure interception regardless of context routing
-  await page.route('**/bookings*', async (route: Route) => {
+  // Also register page-level v1 booking route to ensure interception regardless of context routing
+  await page.route('**/api/v1/bookings*', async (route: Route) => {
     const req = route.request();
     if (req.method() === 'POST') {
       await route.fulfill({
@@ -903,8 +903,8 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     await route.continue();
   });
 
-  // Set up route handler for services endpoints
-  await routeContext.route('**/services/**', async (route: Route) => {
+  // Set up route handler for services endpoints - v1 API
+  await routeContext.route('**/api/v1/services/**', async (route: Route) => {
     const req = route.request();
     const url = req.url();
     const origin = req.headers()['origin'] || 'http://localhost:3100';
@@ -971,7 +971,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // Re-register availability mocks LAST so they win when multiple handlers match
-  await routeContext.route('**/api/public/instructors/*/availability**', async (route: Route) => {
+  await routeContext.route('**/api/v1/public/instructors/*/availability**', async (route: Route) => {
     const currentUrl = route.request().url();
     const idMatch = currentUrl.match(/instructors\/([^\/\?]+)/i);
     const instructorId = idMatch ? idMatch[1] : TEST_ULIDS.instructor8;
@@ -1091,7 +1091,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // Reviews endpoints (ratings, recent, search-rating)
-  await routeContext.route('**/api/reviews/instructor/**', async (route: Route) => {
+  await routeContext.route('**/api/v1/reviews/instructor/**', async (route: Route) => {
     const url = route.request().url();
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     if (url.includes('/ratings')) {
@@ -1129,7 +1129,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // Address coverage bulk
-  await routeContext.route('**/api/addresses/coverage/bulk**', async (route: Route) => {
+  await routeContext.route('**/api/v1/addresses/coverage/bulk**', async (route: Route) => {
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
       status: 200,

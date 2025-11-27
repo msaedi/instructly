@@ -34,10 +34,10 @@ describe('AdminReferralsPage', () => {
     mockLogout.mockReset();
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString();
-      if (url.includes('/api/admin/bgc/counts')) {
+      if (url.includes('/api/v1/admin/background-checks/counts')) {
         return Promise.resolve(createJsonResponse({ review: 3, pending: 2 }));
       }
-      if (url.includes('/api/admin/referrals/health')) {
+      if (url.includes('/api/v1/admin/referrals/health')) {
         return Promise.resolve(
           createJsonResponse({
             workers_alive: 3,
@@ -50,7 +50,7 @@ describe('AdminReferralsPage', () => {
           }),
         );
       }
-      if (url.includes('/api/admin/referrals/summary')) {
+      if (url.includes('/api/v1/admin/referrals/summary')) {
         return Promise.resolve(
           createJsonResponse({
             counts_by_status: {

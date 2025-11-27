@@ -1,7 +1,12 @@
 // frontend/features/student/booking/hooks/useCreateBooking.ts
 import { useState } from 'react';
-import { protectedApi, CreateBookingRequest, Booking } from '@/features/shared/api/client';
+import { createBookingImperative } from '@/src/api/services/bookings';
+import type { BookingCreate, BookingResponse } from '@/src/api/generated/instructly.schemas';
 import { logger } from '@/lib/logger';
+
+// Re-export types for backward compatibility
+type CreateBookingRequest = BookingCreate;
+type Booking = BookingResponse;
 
 interface UseCreateBookingReturn {
   createBooking: (data: CreateBookingRequest) => Promise<Booking | null>;
@@ -33,111 +38,84 @@ export function useCreateBooking(): UseCreateBookingReturn {
 
     logger.info('Creating booking', {
       instructorId: data.instructor_id,
-      serviceId: data.instructor_service_id || (data as unknown as { service_id?: string }).service_id,
+      serviceId: data.instructor_service_id,
       startDate: data.booking_date,
       startTime: data.start_time,
     });
 
     try {
-      type LocationType = Exclude<CreateBookingRequest['location_type'], undefined>;
-      const locationType: LocationType = (data.location_type ?? 'neutral') as LocationType;
+      // Calculate duration from start/end time if not provided
+      const selectedDuration =
+        data.selected_duration ??
+        (() => {
+          try {
+            const startParts = String(data.start_time).split(':');
+            const endParts = String((data as { end_time?: string }).end_time ?? '').split(':');
+            const sh = parseInt(startParts[0] ?? '0', 10);
+            const sm = parseInt(startParts[1] ?? '0', 10);
+            const eh = parseInt(endParts[0] ?? '0', 10);
+            const em = parseInt(endParts[1] ?? '0', 10);
+            const mins = eh * 60 + em - (sh * 60 + sm);
+            return Number.isFinite(mins) && mins > 0 ? mins : 0;
+          } catch {
+            return 0;
+          }
+        })();
 
-      const payload: CreateBookingRequest = {
-        ...data,
-        instructor_service_id:
-          (data as { instructor_service_id?: string }).instructor_service_id ||
-          (data as { service_id?: string }).service_id ||
-          data.instructor_service_id,
-        selected_duration:
-          data.selected_duration ??
-          (() => {
-            try {
-              const [shStr, smStr] = String(data.start_time).split(':');
-              const [ehStr, emStr] = String(data.end_time).split(':');
-              const sh = parseInt(shStr ?? '0', 10);
-              const sm = parseInt(smStr ?? '0', 10);
-              const eh = parseInt(ehStr ?? '0', 10);
-              const em = parseInt(emStr ?? '0', 10);
-              const mins = eh * 60 + em - (sh * 60 + sm);
-              return Number.isFinite(mins) && mins > 0 ? mins : 0;
-            } catch {
-              return 0;
-            }
-          })(),
-        location_type: locationType,
-      };
-
-      if (!payload.selected_duration || payload.selected_duration <= 0) {
+      if (!selectedDuration || selectedDuration <= 0) {
         throw new Error('selected_duration is required to create a booking');
       }
 
-      const response = await protectedApi.createBooking(payload);
+      // Build payload for v1 API (handle exactOptionalPropertyTypes)
+      const payload: BookingCreate = {
+        instructor_id: data.instructor_id,
+        instructor_service_id: data.instructor_service_id,
+        booking_date: data.booking_date,
+        start_time: data.start_time,
+        selected_duration: selectedDuration,
+        location_type: data.location_type ?? 'neutral',
+        ...(data.student_note !== undefined ? { student_note: data.student_note } : {}),
+        ...(data.meeting_location !== undefined ? { meeting_location: data.meeting_location } : {}),
+      };
 
-      if (response.error) {
-        // Handle specific error scenarios
-        let errorMessage = 'Failed to create booking';
+      // Use v1 bookings service
+      const booking = await createBookingImperative(payload);
 
-        // Extract message from error object if it's an object
-        const errorText =
-          typeof response.error === 'object' && response.error && 'message' in response.error
-            ? (response.error as { message: string }).message
-            : response.error;
+      logger.info('Booking created successfully', {
+        bookingId: booking.id,
+        status: booking.status,
+      });
+      setBooking(booking);
+      return booking;
+    } catch (err) {
+      // Handle API errors
+      let errorMessage = 'Failed to create booking';
 
-        if (response.status === 401) {
+      if (err instanceof Error) {
+        const errMsg = err.message.toLowerCase();
+
+        if (errMsg.includes('401') || errMsg.includes('unauthorized')) {
           errorMessage = 'You must be logged in to book lessons';
-        } else if (response.status === 409) {
-          // Conflict - check if it's a student double-booking or instructor conflict
-          if (typeof errorText === 'string' && errorText.includes('already have a booking')) {
+        } else if (errMsg.includes('409') || errMsg.includes('conflict')) {
+          if (errMsg.includes('already have a booking')) {
             errorMessage =
               'You already have a booking scheduled at this time. Please select a different time slot.';
           } else {
             errorMessage = 'This time slot is no longer available. Please select another time.';
           }
-        } else if (response.status === 400 || response.status === 422) {
-          // Validation error
-          if (typeof errorText === 'string') {
-            if (errorText.includes('advance booking') || errorText.includes('24 hours')) {
-              errorMessage =
-                'This instructor requires advance booking. Please select a time at least 24 hours in advance.';
-            } else if (errorText.includes('outside availability')) {
-              errorMessage = "The selected time is outside the instructor's availability.";
-            } else {
-              errorMessage = errorText;
-            }
-          } else {
-            errorMessage = 'Invalid booking request. Please check your selection.';
-          }
-        } else if (response.status === 404) {
+        } else if (errMsg.includes('advance booking') || errMsg.includes('24 hours')) {
+          errorMessage =
+            'This instructor requires advance booking. Please select a time at least 24 hours in advance.';
+        } else if (errMsg.includes('outside availability')) {
+          errorMessage = "The selected time is outside the instructor's availability.";
+        } else if (errMsg.includes('404') || errMsg.includes('not found')) {
           errorMessage = 'Instructor or service not found';
         } else {
-          errorMessage = typeof errorText === 'string' ? errorText : 'An unexpected error occurred';
+          errorMessage = err.message || 'An unexpected error occurred';
         }
-
-        logger.error('Booking creation failed', undefined, {
-          status: response.status,
-          error: response.error,
-          errorMessage,
-        });
-
-        setError(errorMessage);
-        return null;
       }
 
-      if (response.data) {
-        logger.info('Booking created successfully', {
-          bookingId: response.data.id,
-          status: response.data.status,
-        });
-        setBooking(response.data);
-        return response.data;
-      }
-
-      // Unexpected case - no error but no data
-      setError('Unexpected response from server');
-      return null;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Network error occurred';
-      logger.error('Booking creation error', err as Error);
+      logger.error('Booking creation failed', err as Error, { errorMessage });
       setError(errorMessage);
       return null;
     } finally {

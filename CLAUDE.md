@@ -60,6 +60,113 @@ The frontend uses TypeScript's strictest configuration with ZERO errors allowed:
 
 **NEVER import generated types directly - always use the shim.**
 
+### API Endpoint Migration Checklist (CRITICAL)
+
+**Problem This Solves:** When migrating endpoints from `/api/...` to `/api/v1/...`, it's easy to create new service layers but miss existing consumers that continue calling old endpoints, resulting in 404 errors at runtime.
+
+**Root Cause:** The codebase has multiple API client patterns:
+- Generated Orval hooks in `src/api/generated/`
+- Service layers in `src/api/services/`
+- Legacy imperative clients in `services/api/`
+- Direct fetch calls in components
+- E2E test mocks
+
+**MANDATORY Migration Steps:**
+
+1. **Before migration - Find ALL consumers:**
+   ```bash
+   # Search for ALL references to the endpoint path
+   grep -r "/api/reviews" frontend/ --include="*.ts" --include="*.tsx" | grep -v node_modules | grep -v ".d.ts"
+   ```
+
+2. **Update ALL consumers (not just create new ones):**
+   - Generated Orval clients (`src/api/generated/`)
+   - Service layer files (`src/api/services/` AND `services/api/`)
+   - Direct fetch calls in components
+   - API client constants (`features/shared/api/client.ts`)
+
+3. **Update ALL test mocks:**
+   - E2E fixtures (`e2e/fixtures/api-mocks.ts`)
+   - E2E test files (`e2e/tests/*.spec.ts`)
+   - Unit test mocks
+
+4. **Verify no legacy references remain:**
+   ```bash
+   # This should return NO results for migrated endpoints
+   grep -r "/api/reviews/" frontend/ --include="*.ts" --include="*.tsx" | grep -v node_modules | grep -v ".d.ts" | grep -v "/api/v1/"
+   ```
+
+5. **Test in browser:** Navigate to pages that use the endpoints and check Network tab for 404s.
+
+**Example of what goes wrong:**
+```
+❌ Created: src/api/services/reviews.ts (new v1 hooks)
+❌ Missed:  services/api/reviews.ts (legacy client still calling /api/reviews/)
+❌ Result:  Components using legacy client get 404 errors
+```
+
+**The rule:** A migration is NOT complete until `grep` for the old endpoint path returns ZERO results in non-generated TypeScript files.
+
+### Post-Migration Comprehensive Audit (MANDATORY)
+
+After ANY API migration, run these THREE audits to catch bugs that domain-specific grep misses:
+
+**1. Legacy Path Audit (all API call patterns):**
+```bash
+# Find queryFn/fetch calls NOT using /api/v1 (excluding auth/admin/users)
+grep -rE "(queryFn|fetch|httpGet|httpPost|httpJson|authFetch|withApiBase)\(['\"][^'\"]*['\"]" frontend/ \
+  --include="*.ts" --include="*.tsx" | grep -v node_modules | grep -v ".d.ts" | \
+  grep -v "/api/v1" | grep -v "/api/auth" | grep -v "/api/admin" | grep -v "/api/users"
+```
+This catches relative paths like `/bookings/` that bypass domain-specific grep patterns.
+
+**2. E2E Mock Audit:**
+```bash
+# Find route mocks NOT using /api/v1
+grep -rE "\.route\(['\"][^'\"]*" frontend/e2e/ --include="*.ts" | \
+  grep -v "/api/v1" | grep -v "localhost:3000" | grep -v "_next"
+```
+E2E mocks use `page.route()` patterns and need separate verification.
+
+**3. Parameter Validation Patterns (manual review):**
+```bash
+# Find conditional parameters that could pass invalid values (e.g., limit=0)
+grep -rE "\? \d+ : 0\)" frontend/ --include="*.ts" --include="*.tsx" | grep -v node_modules
+```
+Catches patterns like `useHook(condition ? 2 : 0)` where `0` may cause 422 validation errors.
+
+**Why these audits exist:** Domain-specific grep (e.g., `/api/reviews/`) only catches paths for the domain being migrated. Pre-existing bugs in OTHER domains, relative paths, E2E mocks, and semantic parameter bugs slip through without comprehensive audits.
+
+### 🚨 MANDATORY: Global Legacy Path Audit (RUN THIS EVERY TIME)
+
+**CRITICAL**: Before declaring ANY migration complete, run this single command that catches ALL legacy API paths:
+
+```bash
+# Find ALL /api/ calls that are NOT /api/v1 (the definitive audit)
+grep -rn '"/api/' frontend/ --include="*.ts" --include="*.tsx" | \
+  grep -v '/api/v1' | grep -v node_modules | grep -v '.d.ts' | grep -v '.next/' | \
+  grep -v '/api/auth' | grep -v '/api/admin' | grep -v '/api/config' | \
+  grep -v '/api/public' | grep -v '/api/payments' | grep -v '/api/uploads' | \
+  grep -v '/api/users' | grep -v 'import.*from'
+```
+
+**This audit is non-negotiable.** It catches:
+- Direct fetch calls: `fetch('/api/bookings')`
+- Auth fetch: `fetchWithAuth('/api/addresses/me')`
+- API base: `withApiBase('/api/favorites')`
+- HTTP helpers: `httpGet('/api/reviews')`
+- String templates: `` `/api/addresses/${id}` ``
+- Constants: `API_ENDPOINTS.NYC_ZIP_CHECK: '/api/addresses/...'`
+
+**The output MUST be empty** (or only show intentionally non-v1 endpoints like auth/payments).
+
+**Why previous audits failed:**
+1. Domain-scoped greps (`/api/referrals`) miss other domains' legacy paths
+2. Pattern-based greps (`fetchWithAuth\(`) miss string templates and constants
+3. Trusting "previous migrations were complete" without verification
+
+**Browser verification is also mandatory** - one page load catches 404s that grep misses.
+
 ### Dual-Mode Request Validation
 Backend supports two validation modes for request DTOs:
 

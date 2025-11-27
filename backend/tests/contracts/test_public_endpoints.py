@@ -6,14 +6,8 @@ client = TestClient(app)
 
 
 def _any_instructor_id() -> str | None:
-    # Try non-/api listing first
-    r = client.get("/instructors")
-    if r.status_code == 200 and isinstance(r.json(), list) and r.json():
-        first = r.json()[0]
-        return first.get("id") or first.get("instructor_id")
-
-    # Try /api listing next (if you have one)
-    r = client.get("/api/instructors")
+    # Try v1 instructors listing
+    r = client.get("/api/v1/instructors")
     if r.status_code == 200:
         data = r.json()
         items = data if isinstance(data, list) else (data.get("results") or [])
@@ -21,40 +15,41 @@ def _any_instructor_id() -> str | None:
             first = items[0]
             return first.get("id") or first.get("instructor_id")
 
-    # Fall back to search (non-/api then /api), adjusting to your search response shape
-    for path in ("/search?service_name=Yoga", "/api/search?service_name=Yoga"):
-        r = client.get(path)
-        if r.status_code == 200:
-            data = r.json()
-            if isinstance(data, dict):
-                items = data.get("results") or data.get("items") or []
-            elif isinstance(data, list):
-                items = data
-            else:
-                items = []
-            if items:
-                cand = items[0]
-                return cand.get("instructor_id") or cand.get("id")
+    # Fall back to search (Phase 14: Search migrated to /api/v1/search)
+    r = client.get("/api/v1/search/instructors?q=Yoga")
+    if r.status_code == 200:
+        data = r.json()
+        if isinstance(data, dict):
+            items = data.get("results") or data.get("items") or []
+        elif isinstance(data, list):
+            items = data
+        else:
+            items = []
+        if items:
+            cand = items[0]
+            return cand.get("instructor_id") or cand.get("id") or (cand.get("instructor") or {}).get("id")
     return None
 
 
 def test_catalog_serializes():
-    r = client.get("/services/catalog")
+    # Phase 13: Services migrated to /api/v1/services
+    r = client.get("/api/v1/services/catalog")
     assert r.status_code == 200, r.text
     body = r.json()
     assert isinstance(body, list)
     if body:
         sample = body[0]
-        # smoke keys; we just care that serialization didn’t explode
+        # smoke keys; we just care that serialization didn't explode
         assert "id" in sample and "name" in sample
 
 
 def test_instructor_detail_serializes():
     instr_id = _any_instructor_id()
     if not instr_id:
-        # Don’t fail CI if seed didn’t produce an instructor
+        # Don't fail CI if seed didn't produce an instructor
         return
-    r = client.get(f"/instructors/{instr_id}")
+    # Phase 8: Instructors migrated to /api/v1/instructors
+    r = client.get(f"/api/v1/instructors/{instr_id}")
     assert r.status_code == 200, r.text
     data = r.json()
     assert isinstance(data, dict)
@@ -72,10 +67,9 @@ def test_instructor_detail_serializes():
 
 
 def test_search_serializes():
-    # Try both search endpoints to accommodate env differences
-    for path in ("/search?service_name=Yoga", "/api/search?service_name=Yoga"):
-        r = client.get(path)
-        if r.status_code == 200:
-            return
-    # If neither exists, don’t fail the suite; these are smoke/contract checks
+    # Search endpoint (Phase 14: migrated to /api/v1/search)
+    r = client.get("/api/v1/search/instructors?q=Yoga")
+    if r.status_code == 200:
+        return
+    # If search doesn't exist, don't fail the suite; these are smoke/contract checks
     return

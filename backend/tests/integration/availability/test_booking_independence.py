@@ -109,7 +109,7 @@ class TestSaveWeekSucceedsEvenWithOverlappingBookings:
         }
 
         resp = bitmap_client.post(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             json=payload,
             headers=auth_headers_instructor,
         )
@@ -119,7 +119,7 @@ class TestSaveWeekSucceedsEvenWithOverlappingBookings:
 
         # GET /week shows availability windows
         get_resp = bitmap_client.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": week_start.isoformat()},
             headers=auth_headers_instructor,
         )

@@ -81,7 +81,7 @@ class TestBookingRoutesNewFormat:
         tomorrow = date.today() + timedelta(days=1)
 
         response = client.post(
-            "/bookings/",  # With trailing slash
+            "/api/v1/bookings/",  # With trailing slash
             json={
                 "instructor_id": instructor.id,
                 "instructor_service_id": service.id,
@@ -111,7 +111,7 @@ class TestBookingRoutesNewFormat:
     def test_old_format_rejected(self, client, auth_headers_student):
         """Verify old slot-based format is rejected."""
         response = client.post(
-            "/bookings/",  # With trailing slash
+            "/api/v1/bookings/",  # With trailing slash
             json={"availability_slot_id": 123, "instructor_service_id": 1, "student_note": "This should fail"},
             headers=auth_headers_student,
         )
@@ -139,7 +139,7 @@ class TestBookingRoutesNewFormat:
         tomorrow = date.today() + timedelta(days=1)
 
         response = client.post(
-            "/bookings/check-availability",
+            "/api/v1/bookings/check-availability",
             json={
                 "instructor_id": instructor.id,
                 "instructor_service_id": service.id,
@@ -158,7 +158,7 @@ class TestBookingRoutesNewFormat:
     def test_check_availability_old_format_rejected(self, client, auth_headers_student):
         """Verify old availability check format is rejected."""
         response = client.post(
-            "/bookings/check-availability",
+            "/api/v1/bookings/check-availability",
             json={"availability_slot_id": 123, "instructor_service_id": 1},
             headers=auth_headers_student,
         )
@@ -175,7 +175,7 @@ class TestAvailabilityRoutesCleanResponses:
         self, client, test_instructor_with_availability, auth_headers_instructor
     ):
         """Verify availability responses have no legacy fields."""
-        response = client.get("/instructors/availability/", headers=auth_headers_instructor)
+        response = client.get("/api/v1/instructors/availability", headers=auth_headers_instructor)
 
         assert response.status_code == 200
         slots = response.json()
@@ -220,7 +220,7 @@ class TestAvailabilityRoutesCleanResponses:
 
         # Update availability using bitmap /week endpoint
         update_response = client.post(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             json=week_payload,
             headers=auth_headers_instructor,
         )
@@ -263,7 +263,7 @@ class TestAvailabilityRoutesCleanResponses:
 
         # Try to update with legacy field
         response = client.post(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             json=bad_payload,
             headers=auth_headers_instructor,
         )
@@ -298,7 +298,7 @@ class TestBookingResponseFormat:
 
         # Create a booking
         create_response = client.post(
-            "/bookings/",
+            "/api/v1/bookings/",
             json={
                 "instructor_id": instructor.id,
                 "instructor_service_id": service.id,
@@ -317,9 +317,9 @@ class TestBookingResponseFormat:
 
         # Get booking details
         booking_id = booking["id"]
-        get_response = client.get(f"/bookings/{booking_id}", headers=auth_headers_student)
+        get_response = client.get(f"/api/v1/bookings/{booking_id}", headers=auth_headers_student)
 
-        assert get_response.status_code == 200
+        assert get_response.status_code == 200, f"GET /api/v1/bookings/{booking_id} failed: {get_response.text}"
         booking_details = get_response.json()
 
         # Verify no slot_id
@@ -351,7 +351,7 @@ def test_full_booking_flow_clean_architecture(
 
     # Step 1: Instructor adds availability
     availability_response = client.post(
-        "/instructors/availability/specific-date",
+        "/api/v1/instructors/availability/specific-date",
         json={"specific_date": future_date.isoformat(), "start_time": "10:00", "end_time": "12:00"},
         headers=auth_headers_instructor,
     )
@@ -366,7 +366,7 @@ def test_full_booking_flow_clean_architecture(
 
     # Step 2: Student checks availability
     check_response = client.post(
-        "/bookings/check-availability",
+        "/api/v1/bookings/check-availability",
         json={
             "instructor_id": instructor.id,
             "instructor_service_id": service.id,
@@ -383,7 +383,7 @@ def test_full_booking_flow_clean_architecture(
 
     # Step 3: Student creates booking
     booking_response = client.post(
-        "/bookings/",
+        "/api/v1/bookings/",
         json={
             "instructor_id": instructor.id,
             "instructor_service_id": service.id,

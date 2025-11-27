@@ -57,7 +57,7 @@ export function usePublicAvailability(instructorId: string, startDate?: Date) {
       });
 
       const response = await fetch(
-        `/api/public/instructors/${instructorId}/availability?${params}`
+        `/api/v1/public/instructors/${instructorId}/availability?${params}`
       );
 
       if (!response.ok) {

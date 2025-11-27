@@ -31,11 +31,11 @@ type RawBGCStatusResponse = Omit<BGCStatusResponse, 'bgcIncludesCanceled'> & {
 };
 
 export async function bgcInvite(instructorId: string): Promise<BGCInviteResponse> {
-  return httpPost<BGCInviteResponse>(`/api/instructors/${instructorId}/bgc/invite`, {});
+  return httpPost<BGCInviteResponse>(`/api/v1/instructors/${instructorId}/bgc/invite`, {});
 }
 
 export async function bgcStatus(instructorId: string): Promise<BGCStatusResponse> {
-  const response = await httpGet<RawBGCStatusResponse>(`/api/instructors/${instructorId}/bgc/status`);
+  const response = await httpGet<RawBGCStatusResponse>(`/api/v1/instructors/${instructorId}/bgc/status`);
   const { bgc_includes_canceled, ...rest } = response;
   return {
     ...rest,
@@ -44,7 +44,7 @@ export async function bgcStatus(instructorId: string): Promise<BGCStatusResponse
 }
 
 export async function bgcRecheck(instructorId: string): Promise<BGCInviteResponse> {
-  return httpPost<BGCInviteResponse>(`/api/instructors/${instructorId}/bgc/recheck`, {});
+  return httpPost<BGCInviteResponse>(`/api/v1/instructors/${instructorId}/bgc/recheck`, {});
 }
 
 export interface BGCConsentPayload {
@@ -57,5 +57,5 @@ export async function bgcConsent(
   instructorId: string,
   payload: BGCConsentPayload
 ): Promise<{ ok: boolean }> {
-  return httpPost<{ ok: boolean }>(`/api/instructors/${instructorId}/bgc/consent`, payload);
+  return httpPost<{ ok: boolean }>(`/api/v1/instructors/${instructorId}/bgc/consent`, payload);
 }

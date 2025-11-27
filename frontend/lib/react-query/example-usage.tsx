@@ -9,7 +9,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { useUser, useIsAuthenticated } from '@/hooks/queries/useUser';
+import { useSession, useCurrentUser } from '@/src/api/hooks/useSession';
 import { useAuth } from '@/hooks/queries/useAuth';
 import { queryFn, mutationFn } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
@@ -18,10 +18,10 @@ import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 
 /**
- * Example 1: Using the useUser hook in a component
+ * Example 1: Using the useSession hook in a component
  */
 function UserProfileHeader() {
-  const { data: user, isLoading, error } = useUser();
+  const { data: user, isLoading, error } = useSession();
 
   if (isLoading) return <div>Loading user...</div>;
   if (error) return <div>Error loading user</div>;
@@ -44,15 +44,16 @@ function UserProfileHeader() {
  * Example 2: Protected route with authentication check
  */
 function ProtectedDashboard() {
-  const { isAuthenticated, isLoading, user } = useIsAuthenticated();
+  const user = useCurrentUser();
+  const { isLoading } = useSession();
 
   if (isLoading) return <div>Checking authentication...</div>;
-  if (!isAuthenticated) {
+  if (!user) {
     // Redirect to login or show login prompt
     return <div>Please log in to continue</div>;
   }
 
-  return <div>Welcome to your dashboard, {user?.first_name}!</div>;
+  return <div>Welcome to your dashboard, {user.first_name}!</div>;
 }
 
 /**
@@ -100,7 +101,7 @@ function InstructorAvailability({ instructorId }: { instructorId: string }) {
       requireString(instructorId, 'instructorId');
       requireString(today, 'today');
       requireString(nextWeek, 'nextWeek');
-      return queryFn(`/api/public/instructors/${instructorId}/availability`, {
+      return queryFn(`/api/v1/public/instructors/${instructorId}/availability`, {
         params: { start_date: today, end_date: nextWeek },
       });
     },

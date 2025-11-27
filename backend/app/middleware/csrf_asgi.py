@@ -65,9 +65,14 @@ class CsrfOriginMiddlewareASGI:
             return False
         p = (path or "").lower()
         return (
+            # Legacy auth paths (deprecated)
             p.startswith("/auth/login")
             or p.startswith("/auth/login-with-session")
             or p.startswith("/auth/register")
+            # v1 auth paths
+            or p.startswith("/api/v1/auth/login")
+            or p.startswith("/api/v1/auth/login-with-session")
+            or p.startswith("/api/v1/auth/register")
         )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:

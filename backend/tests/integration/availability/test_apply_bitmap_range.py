@@ -87,7 +87,7 @@ def test_apply_bitmap_pattern_across_weeks(
     target_end = target_start + timedelta(days=7 * weeks_to_apply - 1)
 
     resp = bitmap_client.post(
-        "/instructors/availability/apply-to-date-range",
+        "/api/v1/instructors/availability/apply-to-date-range",
         json={
             "from_week_start": source_week.isoformat(),
             "start_date": target_start.isoformat(),
@@ -119,7 +119,7 @@ def test_apply_bitmap_pattern_across_weeks(
                 assert windows_from_bits(bits) == expected
 
         get_resp = bitmap_client.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": target_monday.isoformat()},
             headers=auth_headers_instructor,
         )
@@ -167,7 +167,7 @@ def test_apply_bitmap_pattern_no_source_bits(
     target_end = target_start + timedelta(days=13)
 
     resp = bitmap_client.post(
-        "/instructors/availability/apply-to-date-range",
+        "/api/v1/instructors/availability/apply-to-date-range",
         json={
             "from_week_start": source_week.isoformat(),
             "start_date": target_start.isoformat(),
@@ -189,7 +189,7 @@ def test_apply_bitmap_pattern_no_source_bits(
             assert windows_from_bits(bits) == []
 
         get_resp = bitmap_client.get(
-            "/instructors/availability/week",
+            "/api/v1/instructors/availability/week",
             params={"start_date": target_monday.isoformat()},
             headers=auth_headers_instructor,
         )

@@ -61,7 +61,7 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
     await route.continue();
   });
 
-  await page.route('**/auth/me', async (route, request) => {
+  await page.route('**/api/v1/auth/me', async (route, request) => {
     if (request.method() === 'GET') {
       await fulfillJson(route, {
         first_name: 'Test',
@@ -80,7 +80,7 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
     await route.continue();
   });
 
-  await page.route('**/api/addresses/me', (route, request) => {
+  await page.route('**/api/v1/addresses/me', (route, request) => {
     if (request.method() === 'GET') {
       return fulfillJson(route, {
         items: [
@@ -103,9 +103,9 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
     return fulfillJson(route, {}, 204);
   });
 
-  await page.route('**/api/addresses/zip/is-nyc*', (route) => fulfillJson(route, { is_nyc: true }));
+  await page.route('**/api/v1/addresses/zip/is-nyc*', (route) => fulfillJson(route, { is_nyc: true }));
 
-  await page.route('**/api/addresses/service-areas/me', async (route, request) => {
+  await page.route('**/api/v1/addresses/service-areas/me', async (route, request) => {
     if (request.method() === 'GET') {
       const items = serviceAreaSelections.map((id) => {
         const meta = neighborhoods.find((n) => n.id === id);
@@ -139,7 +139,7 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
     await fulfillJson(route, { items: [], total: 0 });
   });
 
-  await page.route('**/api/addresses/regions/neighborhoods*', (route) =>
+  await page.route('**/api/v1/addresses/regions/neighborhoods*', (route) =>
     fulfillJson(route, {
       items: neighborhoods,
       total: neighborhoods.length,
@@ -163,7 +163,7 @@ test('service areas: select two -> save -> reload -> persisted', async ({ page }
   await page.getByTestId('service-area-chip-MN02').click();
 
   const putPromise = page.waitForResponse((response) =>
-    response.url().includes('/api/addresses/service-areas/me') &&
+    response.url().includes('/api/v1/addresses/service-areas/me') &&
     response.request().method() === 'PUT'
   );
 

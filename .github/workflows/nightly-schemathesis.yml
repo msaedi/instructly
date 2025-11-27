@@ -1,0 +1,111 @@
+name: Nightly Schemathesis API Contract Tests
+
+on:
+  schedule:
+    # Run at 2 AM UTC every day
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    # Allow manual triggering for testing
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  schemathesis-full-api:
+    name: Full API Schema Compliance
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Set up environment
+        run: |
+          cd backend
+          cp .env.example .env.test || true
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_db" >> .env.test
+          echo "REDIS_URL=redis://localhost:6379" >> .env.test
+          echo "SECRET_KEY=test-secret-key-for-ci" >> .env.test
+          echo "TESTING=1" >> .env.test
+
+      - name: Run database migrations
+        run: |
+          cd backend
+          alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+
+      - name: Run Full API Schemathesis Tests
+        run: |
+          cd backend
+          # Run the full API schema compliance test (normally skipped)
+          pytest tests/integration/test_schemathesis_api_v1.py::test_api_v1_all_endpoints_schema_compliance \
+            -v \
+            --tb=short \
+            --no-header \
+            -x \
+            2>&1 | tee schemathesis-results.txt
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          SECRET_KEY: test-secret-key-for-ci
+          TESTING: 1
+          RUN_NIGHTLY_SCHEMATHESIS: 1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schemathesis-results
+          path: backend/schemathesis-results.txt
+          retention-days: 30
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Nightly Schemathesis tests failed! Check the artifacts for details."

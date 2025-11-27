@@ -23,7 +23,7 @@ def _make_token_for_user(user_email: str):
 
 class TestBetaRoutes:
     def test_validate_invite_not_found(self, client: TestClient):
-        res = client.get("/api/beta/invites/validate", params={"code": "NOPE0001"})
+        res = client.get("/api/v1/beta/invites/validate", params={"code": "NOPE0001"})
         assert res.status_code == 200
         data = res.json()
         assert data["valid"] is False
@@ -34,7 +34,7 @@ class TestBetaRoutes:
         token = _make_token_for_user(test_student.email)
         headers = {"Authorization": f"Bearer {token}"}
         res = client.post(
-            "/api/beta/invites/generate",
+            "/api/v1/beta/invites/generate",
             headers=headers,
             json={"count": 1, "role": "instructor_beta", "expires_in_days": 7, "source": "test"},
         )
@@ -64,7 +64,7 @@ class TestBetaRoutes:
 
         # Generate 2 invites
         res = client.post(
-            "/api/beta/invites/generate",
+            "/api/v1/beta/invites/generate",
             headers=headers,
             json={"count": 2, "role": "instructor_beta", "expires_in_days": 5, "source": "seed", "emails": ["a@x.com"]},
         )
@@ -74,7 +74,7 @@ class TestBetaRoutes:
         code = body["invites"][0]["code"]
 
         # Validate should be true
-        res2 = client.get("/api/beta/invites/validate", params={"code": code})
+        res2 = client.get("/api/v1/beta/invites/validate", params={"code": code})
         assert res2.status_code == 200
         data2 = res2.json()
         assert data2["valid"] is True
@@ -100,7 +100,7 @@ class TestBetaRoutes:
         db.refresh(user)
 
         res = client.post(
-            "/api/beta/invites/consume",
+            "/api/v1/beta/invites/consume",
             json={"code": code, "user_id": user.id, "role": "instructor_beta", "phase": "instructor_only"},
         )
         assert res.status_code == 200
@@ -112,7 +112,7 @@ class TestBetaRoutes:
         monkeypatch.setenv("SITE_MODE", "local")
         code = _create_invite(db)
 
-        res = client.get("/api/beta/invites/validate", params={"invite_code": code, "email": "example@test.com"})
+        res = client.get("/api/v1/beta/invites/validate", params={"invite_code": code, "email": "example@test.com"})
         assert res.status_code == 200
         data = res.json()
         assert data["valid"] is True
@@ -122,7 +122,7 @@ class TestBetaRoutes:
         monkeypatch.setenv("SITE_MODE", "local")
         code = _create_invite(db)
 
-        res = client.get("/api/beta/invites/validate", params={"code": code})
+        res = client.get("/api/v1/beta/invites/validate", params={"code": code})
         assert res.status_code == 200
         assert res.cookies.get("iv_local")
         assert res.cookies.get("iv_local").startswith(code)
@@ -130,10 +130,10 @@ class TestBetaRoutes:
     def test_validate_invite_failure_clears_cookie(self, client: TestClient, db, monkeypatch):
         monkeypatch.setenv("SITE_MODE", "local")
         code = _create_invite(db)
-        client.get("/api/beta/invites/validate", params={"code": code})
+        client.get("/api/v1/beta/invites/validate", params={"code": code})
         assert "iv_local" in client.cookies
 
-        res = client.get("/api/beta/invites/validate", params={"code": "BADCODE"})
+        res = client.get("/api/v1/beta/invites/validate", params={"code": "BADCODE"})
         header = res.headers.get("set-cookie", "")
         assert "iv_local=" in header
         assert "Max-Age=0" in header or "max-age=0" in header.lower()
@@ -142,13 +142,13 @@ class TestBetaRoutes:
     def test_invite_verified_endpoint(self, client: TestClient, db, monkeypatch):
         monkeypatch.setenv("SITE_MODE", "local")
         code = _create_invite(db)
-        client.get("/api/beta/invites/validate", params={"code": code})
+        client.get("/api/v1/beta/invites/validate", params={"code": code})
 
-        res_verified = client.get("/api/beta/invites/verified")
+        res_verified = client.get("/api/v1/beta/invites/verified")
         assert res_verified.status_code == 204
 
         client.cookies.clear()
-        res_missing = client.get("/api/beta/invites/verified")
+        res_missing = client.get("/api/v1/beta/invites/verified")
         assert res_missing.status_code == 401
 
     def test_invite_cookie_cleared_after_register(
@@ -157,13 +157,13 @@ class TestBetaRoutes:
         monkeypatch.setenv("SITE_MODE", "local")
         code = _create_invite(db)
 
-        res_validate = client.get("/api/beta/invites/validate", params={"code": code})
+        res_validate = client.get("/api/v1/beta/invites/validate", params={"code": code})
         assert res_validate.status_code == 200
         assert client.cookies.get("iv_local")
 
         email = f"cookie-clear-{code.lower()}@example.com"
         res_register = client.post(
-            "/auth/register",
+            "/api/v1/auth/register",
             json={
                 "email": email,
                 "password": "StrongPass123!",
@@ -181,5 +181,5 @@ class TestBetaRoutes:
         assert "max-age=0" in lowered_header or "expires=" in lowered_header
         assert "iv_local" not in client.cookies
 
-        res_verified = client.get("/api/beta/invites/verified")
+        res_verified = client.get("/api/v1/beta/invites/verified")
         assert res_verified.status_code == 401

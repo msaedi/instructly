@@ -36,7 +36,7 @@ def test_week_get_uses_single_query(
     seed_week(db, test_instructor.id, week_start, week_map)
 
     response = client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers={**auth_headers_instructor, "x-debug-sql": "1"},
     )

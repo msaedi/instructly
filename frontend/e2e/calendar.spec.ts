@@ -134,7 +134,7 @@ const weekdayShort = (date: Date) => date.toLocaleDateString('en-US', { weekday:
 const waitForWeekResponse = (page: Page, method: 'GET' | 'POST', weekStart?: string) =>
   page.waitForResponse((response) => {
     const url = response.url();
-    if (!url.includes('/instructors/availability/week')) {
+    if (!url.includes('/api/v1/instructors/availability/week')) {
       return false;
     }
     if (response.request().method() !== method) {

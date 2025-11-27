@@ -28,7 +28,7 @@ test.describe('beta invite redemption across origins', () => {
 
     const sendInviteResponsePromise = page.waitForResponse(
       (response) =>
-        response.url().includes('/api/beta/invites/send') &&
+        response.url().includes('/api/v1/beta/invites/send') &&
         response.request().method() === 'POST' &&
         response.status() === 200
     );
@@ -58,7 +58,7 @@ test.describe('beta invite redemption across origins', () => {
       const validateResponsePromise = betaPage.waitForResponse((response) => {
         const url = response.url();
         const matchesEndpoint =
-          url.includes('/api/beta/invites/') &&
+          url.includes('/api/v1/beta/invites/') &&
           (url.includes('/validate') || url.includes('/convert') || url.includes('/redeem'));
         return matchesEndpoint && response.request().method() === 'GET' && response.status() === 200;
       });

@@ -50,12 +50,14 @@ export interface ApiResponse<T> {
 
 /**
  * Public API endpoints (no authentication required)
+ *
+ * ✅ MIGRATED TO V1 - All instructor endpoints now use /api/v1/instructors
  */
 export const PUBLIC_ENDPOINTS = {
   instructors: {
-    list: '/instructors', // Note: This is the actual backend endpoint
-    profile: (id: string) => `/instructors/${id}`,
-    availability: (id: string) => `/api/public/instructors/${id}/availability`,
+    list: '/api/v1/instructors', // Migrated to v1
+    profile: (id: string) => `/api/v1/instructors/${id}`, // Migrated to v1
+    availability: (id: string) => `/api/v1/public/instructors/${id}/availability`, // Migrated to v1 Phase 18
   },
 } as const;
 
@@ -64,17 +66,17 @@ export const PUBLIC_ENDPOINTS = {
  */
 export const PROTECTED_ENDPOINTS = {
   bookings: {
-    create: '/bookings/',
-    list: '/bookings/',
-    get: (id: string) => `/bookings/${id}`,
-    cancel: (id: string) => `/bookings/${id}/cancel`,
-    reschedule: (id: string) => `/bookings/${id}/reschedule`,
+    create: '/api/v1/bookings',
+    list: '/api/v1/bookings',
+    get: (id: string) => `/api/v1/bookings/${id}`,
+    cancel: (id: string) => `/api/v1/bookings/${id}/cancel`,
+    reschedule: (id: string) => `/api/v1/bookings/${id}/reschedule`,
   },
   instructor: {
     bookings: {
-      list: '/api/instructors/bookings/',
-      completed: '/api/instructors/bookings/completed',
-      upcoming: '/api/instructors/bookings/upcoming',
+      list: '/api/v1/instructor-bookings/',
+      completed: '/api/v1/instructor-bookings/completed',
+      upcoming: '/api/v1/instructor-bookings/upcoming',
     },
   },
 } as const;
@@ -256,7 +258,7 @@ export async function getPlaceDetails(params: {
     options.signal = signal;
   }
 
-  return cleanFetch<Record<string, unknown>>(`/api/addresses/places/details?${searchParams.toString()}`, options);
+  return cleanFetch<Record<string, unknown>>(`/api/v1/addresses/places/details?${searchParams.toString()}`, options);
 }
 
 /**
@@ -432,6 +434,8 @@ export interface TopServicesResponse {
   categories: CategoryWithTopServices[];
 }
 
+const SEARCH_HISTORY_API_BASE = '/api/v1/search-history';
+
 export const publicApi = {
   /**
    * Natural language search for instructors and services
@@ -442,7 +446,7 @@ export const publicApi = {
   ): Promise<ApiResponse<GenNaturalLanguageSearchResponse>> {
     // Use optionalAuthFetch to allow unauthenticated searches
     // but include auth token if available for search history tracking
-    return optionalAuthFetch<GenNaturalLanguageSearchResponse>('/api/search/instructors', {
+    return optionalAuthFetch<GenNaturalLanguageSearchResponse>('/api/v1/search/instructors', {
       params: { q: query },
     });
   },
@@ -463,7 +467,7 @@ export const publicApi = {
         last_searched_at: string;
         search_count: number;
       }>
-    >('/api/search-history/', {
+    >(SEARCH_HISTORY_API_BASE, {
       params: { limit },
     });
   },
@@ -473,7 +477,7 @@ export const publicApi = {
    * For guests, pass X-Guest-Session-ID header
    */
   async deleteSearchHistory(searchId: number) {
-    return unifiedFetch<void>('/api/search-history/' + String(searchId), {
+    return unifiedFetch<void>(`${SEARCH_HISTORY_API_BASE}/${String(searchId)}`, {
       method: 'DELETE',
     });
   },
@@ -511,7 +515,7 @@ export const publicApi = {
       first_searched_at: string;
       last_searched_at: string;
       search_count: number;
-    }>('/api/search-history/', {
+    }>(SEARCH_HISTORY_API_BASE, {
       method: 'POST',
       body: JSON.stringify(searchData),
     });
@@ -534,7 +538,7 @@ export const publicApi = {
       results_count: number | null;
       created_at: string;
       guest_session_id: string;
-    }>('/api/search-history/guest', {
+    }>(`${SEARCH_HISTORY_API_BASE}/guest`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -552,7 +556,7 @@ export const publicApi = {
         results_count: number | null;
         created_at: string;
       }>
-    >('/api/search-history/guest/' + guestSessionId, {
+    >(`${SEARCH_HISTORY_API_BASE}/guest/${guestSessionId}`, {
       params: { limit },
     });
   },
@@ -561,7 +565,7 @@ export const publicApi = {
    * @deprecated Use deleteSearchHistory with appropriate headers instead
    */
   async deleteGuestSearchHistory(guestSessionId: string, searchId: number) {
-    return cleanFetch<void>(`/api/search-history/guest/${guestSessionId}/${searchId}`, {
+    return cleanFetch<void>(`${SEARCH_HISTORY_API_BASE}/guest/${guestSessionId}/${searchId}`, {
       method: 'DELETE',
     });
   },
@@ -666,14 +670,14 @@ export const publicApi = {
    * Get all service categories
    */
   async getServiceCategories() {
-    return cleanFetch<ServiceCategory[]>('/services/categories');
+    return cleanFetch<ServiceCategory[]>('/api/v1/services/categories');
   },
 
   /**
    * Get catalog services, optionally filtered by category
    */
   async getCatalogServices(categorySlug?: string) {
-    return cleanFetch<CatalogService[]>('/services/catalog', {
+    return cleanFetch<CatalogService[]>('/api/v1/services/catalog', {
       params: categorySlug ? { category: categorySlug } : {},
     });
   },
@@ -683,7 +687,7 @@ export const publicApi = {
    * Returns all categories with their top services in a single request
    */
   async getTopServicesPerCategory() {
-    return cleanFetch<TopServicesResponse>('/services/catalog/top-per-category');
+    return cleanFetch<TopServicesResponse>('/api/v1/services/catalog/top-per-category');
   },
 
   /**
@@ -716,7 +720,7 @@ export const publicApi = {
         cached_for_seconds: number;
         updated_at: string;
       };
-    }>('/services/catalog/all-with-instructors');
+    }>('/api/v1/services/catalog/all-with-instructors');
   },
 
   /**
@@ -724,7 +728,7 @@ export const publicApi = {
    * Returns minimal entries for pills: { id, name, slug }
    */
   async getKidsAvailableServices() {
-    return cleanFetch<CatalogServiceMinimal[]>('/services/catalog/kids-available');
+    return cleanFetch<CatalogServiceMinimal[]>('/api/v1/services/catalog/kids-available');
   },
 };
 

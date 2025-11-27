@@ -50,14 +50,14 @@ async def test_update_payment_method_retriggers_auth(client, db, test_student, t
         "meeting_location": "Test",
     }
 
-    resp = client.post("/bookings/", json=payload, headers=headers)
+    resp = client.post("/api/v1/bookings/", json=payload, headers=headers)
     assert resp.status_code == status.HTTP_201_CREATED
     booking_id = resp.json()["id"]
 
     # Update payment method and ensure it confirms + schedules or authorizes
     with patch("app.repositories.payment_repository.PaymentRepository.create_payment_event") as mock_event:
         upd = client.patch(
-            f"/bookings/{booking_id}/payment-method",
+            f"/api/v1/bookings/{booking_id}/payment-method",
             json={"payment_method_id": "pm_test", "set_as_default": False},
             headers=headers,
         )

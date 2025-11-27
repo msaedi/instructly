@@ -18,7 +18,7 @@ from app.models.instructor import BackgroundCheck, BackgroundJob, BGCWebhookLog,
 from app.models.user import User
 from app.repositories.bgc_webhook_log_repository import BGCWebhookLogRepository
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
-from app.routes.webhooks_checkr import _compute_signature
+from app.routes.v1.webhooks_checkr import _compute_signature
 from app.services.background_check_workflow_service import BackgroundCheckWorkflowService
 
 
@@ -134,7 +134,7 @@ def test_report_completed_clear_updates_profile(client, db: Session) -> None:
     }
     body = json.dumps(payload).encode("utf-8")
     response = client.post(
-        "/webhooks/checkr/",
+        "/api/v1/webhooks/checkr",
         content=body,
         headers=_webhook_headers(body),
     )
@@ -147,7 +147,7 @@ def test_report_completed_clear_updates_profile(client, db: Session) -> None:
     assert updated.bgc_completed_at is not None
 
     # Idempotent retry
-    response_retry = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response_retry = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
     assert response_retry.status_code == 200
 
     updated_retry = db.query(InstructorProfile).filter_by(id=profile.id).one()
@@ -169,7 +169,7 @@ def test_report_completed_with_canceled_screenings_sets_flag(client, db: Session
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
 
@@ -193,7 +193,7 @@ def test_report_completed_without_report_binding_uses_candidate(client, db: Sess
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     db.refresh(profile)
@@ -225,7 +225,7 @@ def test_report_created_binds_report_to_candidate(client, db: Session) -> None:
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     db.refresh(profile)
@@ -249,7 +249,7 @@ def test_report_completed_unknown_candidate_enqueues_job(client, db: Session) ->
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     jobs = db.query(BackgroundJob).filter(BackgroundJob.type == "webhook.report_completed").all()
@@ -271,7 +271,7 @@ def test_report_updated_sets_eta(client, db: Session) -> None:
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     db.refresh(profile)
@@ -294,7 +294,7 @@ def test_report_updated_eta_enqueue_when_unbound(client, db: Session) -> None:
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     jobs = db.query(BackgroundJob).filter(BackgroundJob.type == "webhook.report_eta").all()
@@ -317,7 +317,7 @@ def test_report_completed_prefers_assessment_over_result(client, db: Session) ->
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     db.refresh(profile)
@@ -347,7 +347,7 @@ def test_report_canceled_updates_profile(client, db: Session) -> None:
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     db.refresh(profile)
@@ -382,7 +382,7 @@ def test_report_canceled_unknown_profile_enqueues_job(client, db: Session) -> No
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     jobs = db.query(BackgroundJob).filter(BackgroundJob.type == "webhook.report_canceled").all()
@@ -403,7 +403,7 @@ def test_maps_completed_and_logs_delivery(client, db: Session) -> None:
     headers["X-Checkr-Delivery-Id"] = "delivery-log-1"
     signature_value = headers["X-Checkr-Signature"]
 
-    response = client.post("/webhooks/checkr/", content=body, headers=headers)
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=headers)
 
     assert response.status_code == 200
     repo = BGCWebhookLogRepository(db)
@@ -438,7 +438,7 @@ def test_report_completed_consider_marks_review(client, db: Session) -> None:
         }
         body = json.dumps(payload).encode("utf-8")
 
-        response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+        response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
         assert response.status_code == 200
         updated = db.query(InstructorProfile).filter_by(id=profile.id).one()
@@ -462,7 +462,7 @@ def test_report_completed_clears_eta(client, db: Session) -> None:
         "data": {"object": {"id": "rpt_eta_clear", "result": "clear"}},
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     db.refresh(profile)
@@ -483,7 +483,7 @@ def test_report_completed_uses_assessment_for_review(client, db: Session) -> Non
         },
     }
     body = json.dumps(payload).encode("utf-8")
-    response = client.post("/webhooks/checkr/", content=body, headers=_webhook_headers(body))
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=_webhook_headers(body))
 
     assert response.status_code == 200
     updated = db.query(InstructorProfile).filter_by(id=profile.id).one()
@@ -497,7 +497,7 @@ def test_missing_basic_auth_returns_401(client):
     body = json.dumps(payload).encode("utf-8")
 
     response = client.post(
-        "/webhooks/checkr/",
+        "/api/v1/webhooks/checkr",
         content=body,
         headers={"Content-Type": "application/json"},
     )
@@ -513,7 +513,7 @@ def test_invalid_basic_auth_returns_403(client):
         "Authorization": "Basic " + base64.b64encode(b"wrong:creds").decode("utf-8"),
         "Content-Type": "application/json",
     }
-    response = client.post("/webhooks/checkr/", content=body, headers=bad_headers)
+    response = client.post("/api/v1/webhooks/checkr", content=body, headers=bad_headers)
 
     assert response.status_code == 403
 
@@ -527,7 +527,7 @@ def test_unknown_report_id_is_noop(client, db: Session) -> None:
     }
     body = json.dumps(payload).encode("utf-8")
     response = client.post(
-        "/webhooks/checkr/",
+        "/api/v1/webhooks/checkr",
         content=body,
         headers=_webhook_headers(body),
     )

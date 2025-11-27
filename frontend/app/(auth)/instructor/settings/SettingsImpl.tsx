@@ -39,7 +39,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
     if (!(embedded && openSecurity)) return;
     void (async () => {
       try {
-        const res = await fetchWithAuth('/api/auth/2fa/status');
+        const res = await fetchWithAuth('/api/v1/2fa/status');
         if (res.ok) {
           const body = await res.json();
           setTfaEnabled(Boolean(body?.enabled));
@@ -72,7 +72,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           // ignore profile load errors; inputs remain blank
         }
         try {
-          const addrRes = await fetchWithAuth('/api/addresses/me');
+          const addrRes = await fetchWithAuth('/api/v1/addresses/me');
           if (addrRes.ok) {
             const list = await addrRes.json();
             const items = Array.isArray(list?.items) ? list.items : [];
@@ -117,7 +117,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
       }
 
       try {
-        const addrRes = await fetchWithAuth('/api/addresses/me');
+        const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
           const items = Array.isArray(list?.items) ? list.items : [];
@@ -126,14 +126,14 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
           const newZip = (zip || '').toString().trim();
           if (def && def.id) {
             if (newZip && newZip !== (def.postal_code || '')) {
-              await fetchWithAuth(`/api/addresses/me/${def.id}`, {
+              await fetchWithAuth(`/api/v1/addresses/me/${def.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ postal_code: newZip }),
               });
             }
           } else if (newZip) {
-            await fetchWithAuth('/api/addresses/me', {
+            await fetchWithAuth('/api/v1/addresses/me', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ postal_code: newZip, is_default: true }),
@@ -435,7 +435,7 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                     onClose={() => setShowTfaModal(false)}
                     onChanged={async () => {
                       try {
-                        const res = await fetchWithAuth('/api/auth/2fa/status');
+                        const res = await fetchWithAuth('/api/v1/2fa/status');
                         if (res.ok) {
                           const data = await res.json();
                           setTfaEnabled(Boolean(data.enabled));

@@ -81,12 +81,12 @@ async def test_student_sees_instructor_last_initial_only(
     }
 
     # Create booking
-    response = client.post("/bookings/", json=booking_data, headers=auth_headers_student)
+    response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
     assert response.status_code == 201
     booking_id = response.json()["id"]
 
     # Test 1: GET /bookings - List bookings
-    response = client.get("/bookings/", headers=auth_headers_student)
+    response = client.get("/api/v1/bookings/", headers=auth_headers_student)
     assert response.status_code == 200
     data = response.json()
     assert "items" in data
@@ -105,8 +105,8 @@ async def test_student_sees_instructor_last_initial_only(
     print(f"✅ List bookings shows: {instructor_info['first_name']} {instructor_info['last_initial']}")
 
     # Test 2: GET /bookings/{id} - Single booking
-    response = client.get(f"/bookings/{booking_id}", headers=auth_headers_student)
-    assert response.status_code == 200
+    response = client.get(f"/api/v1/bookings/{booking_id}", headers=auth_headers_student)
+    assert response.status_code == 200, f"GET /api/v1/bookings/{booking_id} failed: {response.text}"
     data = response.json()
 
     instructor_info = data["instructor"]
@@ -118,7 +118,7 @@ async def test_student_sees_instructor_last_initial_only(
     print(f"✅ Single booking shows: {instructor_info['first_name']} {instructor_info['last_initial']}")
 
     # Test 3: GET /bookings/upcoming
-    response = client.get("/bookings/upcoming", headers=auth_headers_student)
+    response = client.get("/api/v1/bookings/upcoming", headers=auth_headers_student)
     assert response.status_code == 200
     data = response.json()
 
@@ -134,7 +134,7 @@ async def test_student_sees_instructor_last_initial_only(
         print(f"✅ Upcoming bookings shows: {upcoming['instructor_first_name']} {upcoming['instructor_last_name']}")
 
     # Test 4: GET /bookings/{id}/preview
-    response = client.get(f"/bookings/{booking_id}/preview", headers=auth_headers_student)
+    response = client.get(f"/api/v1/bookings/{booking_id}/preview", headers=auth_headers_student)
     assert response.status_code == 200
     data = response.json()
 
@@ -182,12 +182,12 @@ async def test_instructor_sees_own_full_name(
     }
 
     # Student creates booking
-    response = client.post("/bookings/", json=booking_data, headers=auth_headers_student)
+    response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
     assert response.status_code == 201
     booking_id = response.json()["id"]
 
     # Now check as instructor - should see full name
-    response = client.get("/bookings/upcoming", headers=auth_headers_instructor)
+    response = client.get("/api/v1/bookings/upcoming", headers=auth_headers_instructor)
     assert response.status_code == 200
     data = response.json()
 
@@ -202,7 +202,7 @@ async def test_instructor_sees_own_full_name(
         )
 
     # Check preview as instructor
-    response = client.get(f"/bookings/{booking_id}/preview", headers=auth_headers_instructor)
+    response = client.get(f"/api/v1/bookings/{booking_id}/preview", headers=auth_headers_instructor)
     assert response.status_code == 200
     data = response.json()
 

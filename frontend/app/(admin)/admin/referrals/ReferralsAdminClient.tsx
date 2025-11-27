@@ -72,8 +72,8 @@ export default function ReferralsAdminClient() {
   const [error, setError] = useState<string | null>(null);
   const refreshControllerRef = useRef<AbortController | null>(null);
 
-  const healthEndpoint = useMemo(() => withApiBase('/api/admin/referrals/health'), []);
-  const summaryEndpoint = useMemo(() => withApiBase('/api/admin/referrals/summary'), []);
+  const healthEndpoint = useMemo(() => withApiBase('/api/v1/admin/referrals/health'), []);
+  const summaryEndpoint = useMemo(() => withApiBase('/api/v1/admin/referrals/summary'), []);
 
   const fetchData = useCallback(
     async ({ silent = false, signal }: { silent?: boolean; signal?: AbortSignal }) => {

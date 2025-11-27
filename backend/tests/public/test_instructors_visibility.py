@@ -100,7 +100,7 @@ def test_public_visibility_rules(client, db, catalog_entry):
     db.commit()
 
     list_response = client.get(
-        "/instructors",
+        "/api/v1/instructors",
         params={"service_catalog_id": catalog_entry.id, "per_page": 10},
     )
     assert list_response.status_code == 200
@@ -108,9 +108,9 @@ def test_public_visibility_rules(client, db, catalog_entry):
     assert len(payload["items"]) == 1
     assert payload["items"][0]["id"] == visible.id
 
-    detail_ok = client.get(f"/instructors/{visible.user_id}")
+    detail_ok = client.get(f"/api/v1/instructors/{visible.user_id}")
     assert detail_ok.status_code == 200
 
     for hidden in (pending, offline):
-        detail_response = client.get(f"/instructors/{hidden.id}")
+        detail_response = client.get(f"/api/v1/instructors/{hidden.id}")
         assert detail_response.status_code == 404

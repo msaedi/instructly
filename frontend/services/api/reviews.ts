@@ -54,7 +54,7 @@ export interface ReviewListPageResponse {
 
 export const reviewsApi = {
   submit: async (payload: ReviewSubmitPayload): Promise<ReviewSubmitResponse> => {
-    const res = await fetchWithAuth('/api/reviews/submit', {
+    const res = await fetchWithAuth('/api/v1/reviews', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -64,21 +64,21 @@ export const reviewsApi = {
   },
 
   getByBooking: async (bookingId: string): Promise<ReviewItem | null> => {
-    const res = await fetchWithAuth(`/api/reviews/booking/${bookingId}`);
+    const res = await fetchWithAuth(`/api/v1/reviews/booking/${bookingId}`);
     if (!res.ok) throw new Error(await getErrorMessage(res));
     const data = await res.json();
     return data && data.id ? (data as ReviewItem) : null;
   },
 
   getInstructorRatings: async (instructorId: string): Promise<InstructorRatingsResponse> => {
-    const res = await fetchAPI(`/api/reviews/instructor/${instructorId}/ratings`);
+    const res = await fetchAPI(`/api/v1/reviews/instructor/${instructorId}/ratings`);
     if (!res.ok) throw new Error(await getErrorMessage(res));
     return res.json();
   },
 
   getSearchRating: async (instructorId: string, instructorServiceId?: string): Promise<SearchRatingResponse> => {
     const qs = instructorServiceId ? `?instructor_service_id=${encodeURIComponent(instructorServiceId)}` : '';
-    const res = await fetchAPI(`/api/reviews/instructor/${instructorId}/search-rating${qs}`);
+    const res = await fetchAPI(`/api/v1/reviews/instructor/${instructorId}/search-rating${qs}`);
     if (!res.ok) throw new Error(await getErrorMessage(res));
     return res.json();
   },
@@ -100,13 +100,13 @@ export const reviewsApi = {
       p.set('min_rating', String(opts.minRating));
     }
     if (opts?.withText != null) p.set('with_text', String(Boolean(opts.withText)));
-    const res = await fetchAPI(`/api/reviews/instructor/${instructorId}/recent?${p.toString()}`);
+    const res = await fetchAPI(`/api/v1/reviews/instructor/${instructorId}/recent?${p.toString()}`);
     if (!res.ok) throw new Error(await getErrorMessage(res));
     return res.json();
   },
 
   getRatingsBatch: async (instructorIds: string[]): Promise<RatingsBatchResponse> => {
-    const res = await fetchAPI(`/api/reviews/ratings/batch`, {
+    const res = await fetchAPI(`/api/v1/reviews/ratings/batch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ instructor_ids: instructorIds }),
@@ -116,7 +116,7 @@ export const reviewsApi = {
   },
 
   getExistingForBookings: async (bookingIds: string[]): Promise<string[]> => {
-    const res = await fetchWithAuth(`/api/reviews/booking/existing`, {
+    const res = await fetchWithAuth(`/api/v1/reviews/booking/existing`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bookingIds),

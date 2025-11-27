@@ -15,8 +15,12 @@ import { toDateOnlyString } from '@/lib/availability/dateHelpers';
 import { useCreateBooking } from '@/features/student/booking/hooks/useCreateBooking';
 import { paymentService, type CreateCheckoutRequest } from '@/services/api/payments';
 import { queryKeys } from '@/lib/react-query/queryClient';
-import { protectedApi, type Booking } from '@/features/shared/api/client';
+import { fetchBookingDetails, cancelBookingImperative } from '@/src/api/services/bookings';
+import type { BookingResponse } from '@/src/api/generated/instructly.schemas';
 import { ApiProblemError } from '@/lib/api/fetch';
+
+// Type alias for backward compatibility
+type Booking = BookingResponse;
 import { PricingPreviewContext, usePricingPreviewController, type PreviewCause } from '../hooks/usePricingPreview';
 import CheckoutApplyReferral from '@/components/referrals/CheckoutApplyReferral';
 import { useCredits } from '@/features/shared/payment/hooks/useCredits';
@@ -675,15 +679,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
   const refreshOrderSummary = useCallback(async (orderIdentifier: string) => {
     try {
-      const response = await protectedApi.getBooking(orderIdentifier);
-      if (response.data) {
-        setUpdatedBookingData(prev => mergeBookingIntoPayment(response.data as Booking, prev));
-      } else if (response.error) {
-        logger.warn('Failed to refresh order summary after referral application', {
-          orderId: orderIdentifier,
-          error: response.error,
-        });
-      }
+      // Use v1 bookings service
+      const booking = await fetchBookingDetails(orderIdentifier);
+      setUpdatedBookingData(prev => mergeBookingIntoPayment(booking as Booking, prev));
     } catch (error) {
       logger.error('Unexpected error refreshing order summary', error as Error, {
         orderId: orderIdentifier,
@@ -1305,7 +1303,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         });
 
         try {
-          await protectedApi.cancelBooking(String(booking.id), 'Payment failed');
+          // Use v1 bookings service
+          await cancelBookingImperative(String(booking.id), { reason: 'Payment failed' });
           logDevInfo('Booking cancelled after payment failure', { bookingId: booking.id });
         } catch (cancelError) {
           logger.error('Failed to cancel booking after payment failure', cancelError as Error);

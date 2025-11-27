@@ -217,7 +217,7 @@ class TestNLSSpecificServiceMatching:
 
     def test_specific_service_query_piano_under_80(self, client: TestClient):
         """Test that 'piano under $80' returns ONLY piano instructors."""
-        response = client.get("/api/search/instructors", params={"q": "piano under $80"})
+        response = client.get("/api/v1/search/instructors", params={"q": "piano under $80"})
 
         if response.status_code != 200:
             print(f"ERROR: Status {response.status_code}")
@@ -241,7 +241,7 @@ class TestNLSSpecificServiceMatching:
 
     def test_specific_service_query_guitar(self, client: TestClient):
         """Test that 'guitar lessons' returns ONLY guitar instructors."""
-        response = client.get("/api/search/instructors", params={"q": "guitar lessons"})
+        response = client.get("/api/v1/search/instructors", params={"q": "guitar lessons"})
 
         assert response.status_code == 200
         data = response.json()
@@ -253,7 +253,7 @@ class TestNLSSpecificServiceMatching:
 
     def test_category_query_music_lessons(self, client: TestClient):
         """Test that 'music lessons' returns ALL music instructors."""
-        response = client.get("/api/search/instructors", params={"q": "music lessons"})
+        response = client.get("/api/v1/search/instructors", params={"q": "music lessons"})
 
         assert response.status_code == 200
         data = response.json()
@@ -267,7 +267,7 @@ class TestNLSSpecificServiceMatching:
 
     def test_category_query_music_under_70(self, client: TestClient):
         """Test that 'music lessons under $70' returns multiple music instructors under $70."""
-        response = client.get("/api/search/instructors", params={"q": "music lessons under $70"})
+        response = client.get("/api/v1/search/instructors", params={"q": "music lessons under $70"})
 
         assert response.status_code == 200
         data = response.json()
@@ -281,7 +281,7 @@ class TestNLSSpecificServiceMatching:
 
     def test_generic_query_lessons_under_70(self, client: TestClient):
         """Test that generic 'lessons under $70' returns all instructors under $70."""
-        response = client.get("/api/search/instructors", params={"q": "lessons under $70"})
+        response = client.get("/api/v1/search/instructors", params={"q": "lessons under $70"})
 
         assert response.status_code == 200
         data = response.json()
@@ -295,7 +295,7 @@ class TestNLSSpecificServiceMatching:
     )
     def test_multiple_service_query(self, client: TestClient):
         """Test that 'piano or guitar' returns both piano AND guitar instructors."""
-        response = client.get("/api/search/instructors", params={"q": "piano or guitar"})
+        response = client.get("/api/v1/search/instructors", params={"q": "piano or guitar"})
 
         assert response.status_code == 200
         data = response.json()
@@ -313,7 +313,7 @@ class TestNLSSpecificServiceMatching:
     )
     def test_no_service_price_constraint_only(self, client: TestClient):
         """Test that 'under $65' returns all services under $65."""
-        response = client.get("/api/search/instructors", params={"q": "under $65"})
+        response = client.get("/api/v1/search/instructors", params={"q": "under $65"})
 
         assert response.status_code == 200
         data = response.json()

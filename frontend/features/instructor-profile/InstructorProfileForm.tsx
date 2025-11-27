@@ -10,6 +10,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { formatProblemMessages } from '@/lib/httpErrors';
@@ -143,6 +144,12 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [bioTouched, setBioTouched] = useState<boolean>(false);
   const inFlightServiceAreasRef = useRef(false);
   const redirectingRef = useRef(false);
+  // Fetch guard to prevent duplicate API calls in React Strict Mode
+  const hasFetchedPrefillRef = useRef(false);
+  const hasFetchedProfilePicRef = useRef(false);
+
+  // Use React Query hook for instructor profile - leverages cache from dashboard
+  const { data: instructorProfileFromHook, isLoading: isProfileLoading } = useInstructorProfileMe(true);
   const [savingServiceAreas, setSavingServiceAreas] = useState(false);
   const [hasProfilePicture, setHasProfilePicture] = useState<boolean>(false);
   const shouldDefaultExpand = isOnboarding;
@@ -154,6 +161,10 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [openSkills, setOpenSkills] = useState(false);
 
   useEffect(() => {
+    // Skip if already fetched (prevents duplicate calls in React Strict Mode)
+    if (hasFetchedProfilePicRef.current) return;
+    hasFetchedProfilePicRef.current = true;
+
     (async () => {
       try {
         const res = await fetchWithAuth(API_ENDPOINTS.ME);
@@ -176,22 +187,34 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   //   return hasProfilePic && personalInfoFilled && bioOk && hasServiceArea;
   // }, [userId, profile.first_name, profile.last_name, profile.postal_code, profile.bio, selectedNeighborhoods.size]);
 
+  // Process instructor profile data when available from React Query hook
   useEffect(() => {
+    // Wait for profile to load from React Query
+    if (isProfileLoading) return;
+
+    // Wait for hook data to be available (prevents loading with empty data)
+    // On dashboard, the cache should already be populated from the parent's fetch
+    if (!instructorProfileFromHook) {
+      // No data yet - keep waiting (the hook will populate from cache or fetch)
+      return;
+    }
+
+    // Skip if already processed (prevents duplicate processing in React Strict Mode)
+    if (hasFetchedPrefillRef.current) {
+      setLoading(false);
+      return;
+    }
+    hasFetchedPrefillRef.current = true;
+
     const load = async () => {
       try {
         setLoading(true);
-        const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-        logger.debug('Prefill: /instructors/me status', { status: res.status });
-        const data = res.ok ? await res.json() : {};
+        // Use data from React Query hook instead of fetching
+        const data: Record<string, unknown> = instructorProfileFromHook
+          ? (instructorProfileFromHook as unknown as Record<string, unknown>)
+          : {};
         setInstructorMeta(data);
-        if (!res.ok) {
-          try {
-            const errBody = await res.clone().json();
-            logger.debug('Prefill: /instructors/me error body', errBody);
-          } catch {}
-        } else {
-          logger.debug('Prefill: /instructors/me body keys', { keys: Object.keys(data || {}) });
-        }
+        logger.debug('Prefill: /instructors/me from cache', { keys: Object.keys(data || {}) });
 
         // Get user info for name fields (use /auth/me)
         const userRes = await fetchWithAuth(API_ENDPOINTS.ME);
@@ -205,19 +228,20 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           lastName = userData['last_name'] || '';
           userZip = userData['zip_code'] || '';
           logger.debug('Prefill: /auth/me body', { first_name: firstName, last_name: lastName, id: userData['id'], zip_code: userZip });
-        } else if (data && data.user) {
+        } else if (data && data['user']) {
           // Fallback to instructor payload's embedded user if available
-          firstName = data.user['first_name'] || '';
-          lastName = data.user['last_name'] || '';
-          userZip = data.user['zip_code'] || '';
+          const userObj = data['user'] as Record<string, unknown>;
+          firstName = (userObj['first_name'] as string) || '';
+          lastName = (userObj['last_name'] as string) || '';
+          userZip = (userObj['zip_code'] as string) || '';
           logger.debug('Prefill: using instructor.user fallback', { first_name: firstName, last_name: lastName, zip_code: userZip });
         }
 
         // Get postal code from default address
         let postalCode = '';
         try {
-          const addrRes = await fetchWithAuth('/api/addresses/me');
-          logger.debug('Prefill: /api/addresses/me status', { status: addrRes.status });
+          const addrRes = await fetchWithAuth('/api/v1/addresses/me');
+          logger.debug('Prefill: /api/v1/addresses/me status', { status: addrRes.status });
           if (addrRes.ok) {
             const list = await addrRes.json();
             const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
@@ -255,7 +279,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           first_name: firstName,
           last_name: lastName,
           postal_code: postalCode,
-          bio: data['bio'] || '',
+          bio: (data['bio'] as string) || '',
           service_area_summary: (data['service_area_summary'] as string | null | undefined) ?? null,
           service_area_boroughs:
             boroughsFromApi.length > 0
@@ -265,9 +289,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
                   service_area_neighborhoods: neighborhoods,
                 }),
           service_area_neighborhoods: neighborhoods,
-          years_experience: data['years_experience'] ?? 0,
-          min_advance_booking_hours: data['min_advance_booking_hours'] ?? 2,
-          buffer_time_hours: Math.max(0, Math.min(24, Number((data['buffer_time_minutes'] ?? 0) / 60))),
+          years_experience: (data['years_experience'] as number) ?? 0,
+          min_advance_booking_hours: (data['min_advance_booking_hours'] as number) ?? 2,
+          buffer_time_hours: Math.max(0, Math.min(24, Number(((data['buffer_time_minutes'] as number) ?? 0) / 60))),
         });
 
         const teachingFromApi = Array.isArray(data?.['preferred_teaching_locations'])
@@ -308,8 +332,8 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
         // Prefill service areas (neighborhoods)
         try {
-          const areasRes = await fetchWithAuth('/api/addresses/service-areas/me');
-          logger.debug('Prefill: /api/addresses/service-areas/me status', { status: areasRes.status });
+          const areasRes = await fetchWithAuth('/api/v1/addresses/service-areas/me');
+          logger.debug('Prefill: /api/v1/addresses/service-areas/me status', { status: areasRes.status });
           if (areasRes.ok) {
             const areas: ServiceAreasResponse = await areasRes.json();
             const items = (areas.items || []) as ServiceAreaItem[];
@@ -331,7 +355,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
         // Detect NYC from default address postal code if available
         try {
-          const addrRes = await fetchWithAuth('/api/addresses/me');
+          const addrRes = await fetchWithAuth('/api/v1/addresses/me');
           if (addrRes.ok) {
             const list = await addrRes.json();
             const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
@@ -357,7 +381,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       }
     };
     void load();
-  }, []);
+  }, [instructorProfileFromHook, isProfileLoading]);
 
   useEffect(() => {
     if (!isOnboarding || !instructorMeta || redirectingRef.current) return;
@@ -421,7 +445,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
-      const url = withApiBase(`/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
+      const url = withApiBase(`/api/v1/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`);
       const r = await fetch(url, { credentials: 'include' });
       if (r.ok) {
         const data = await r.json();
@@ -568,7 +592,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       }
 
       try {
-        const addrRes = await fetchWithAuth('/api/addresses/me');
+        const addrRes = await fetchWithAuth('/api/v1/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
           const items = (list.items || []) as Record<string, unknown>[];
@@ -577,7 +601,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
             const currentZip = def['postal_code'] || '';
             const newZip = (profile.postal_code || '').trim();
             if (newZip && newZip !== currentZip) {
-              const patchRes = await fetchWithAuth(`/api/addresses/me/${def['id']}`, {
+              const patchRes = await fetchWithAuth(`/api/v1/addresses/me/${def['id']}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ postal_code: newZip }),
@@ -590,7 +614,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               }
             }
           } else if (addressPayload) {
-            const createRes = await fetchWithAuth('/api/addresses/me', {
+            const createRes = await fetchWithAuth('/api/v1/addresses/me', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(addressPayload),
@@ -604,7 +628,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           }
         } else if (addrRes.status === 404) {
           if (addressPayload) {
-            const createRes = await fetchWithAuth('/api/addresses/me', {
+            const createRes = await fetchWithAuth('/api/v1/addresses/me', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(addressPayload),
@@ -895,7 +919,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
               </button>
               {openSkills && (
                 <div className="py-2">
-                  <SkillsPricingInline />
+                  <SkillsPricingInline instructorProfile={instructorMeta} />
                 </div>
               )}
             </div>

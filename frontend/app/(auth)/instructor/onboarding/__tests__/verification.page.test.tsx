@@ -19,6 +19,7 @@ const routerProxy = {
 jest.mock('next/navigation', () => ({
   useRouter: () => routerProxy,
   useSearchParams: () => searchParamsProxy,
+  usePathname: () => '/instructor/onboarding/verification',
 }));
 
 jest.mock('@stripe/stripe-js', () => ({
@@ -29,8 +30,8 @@ const mockFetchWithAuth = jest.fn();
 
 jest.mock('@/lib/api', () => ({
   API_ENDPOINTS: {
-    INSTRUCTOR_PROFILE: '/api/instructors/me',
-    STRIPE_IDENTITY_REFRESH: '/api/payments/identity/refresh',
+    INSTRUCTOR_PROFILE: '/api/v1/instructors/me',
+    STRIPE_IDENTITY_REFRESH: '/api/v1/payments/identity/refresh',
   },
   fetchWithAuth: (...args: unknown[]) => mockFetchWithAuth(...args),
   createStripeIdentitySession: jest.fn().mockResolvedValue({ verification_session_id: 'vs_123', client_secret: 'cs_123' }),
@@ -48,6 +49,29 @@ jest.mock('sonner', () => {
 jest.mock('@/components/instructor/BGCStep', () => ({
   __esModule: true,
   BGCStep: () => <div data-testid="bgc-step">BGC Step</div>,
+}));
+
+// Stable mock function for refresh to avoid dependency array issues
+const mockRefreshStepStatus = jest.fn();
+
+jest.mock('@/features/instructor-onboarding/useOnboardingStepStatus', () => ({
+  useOnboardingStepStatus: () => ({
+    loading: false,
+    stepStatus: {
+      'account-setup': 'done',
+      'skill-selection': 'done',
+      'verify-identity': 'pending',
+      'payment-setup': 'pending',
+    },
+    rawData: {
+      profile: { id: 'profile-1', identity_verified_at: null, identity_verification_session_id: null },
+      user: { first_name: 'Test', last_name: 'User' },
+      serviceAreas: [],
+      connectStatus: null,
+      bgcStatus: null,
+    },
+    refresh: mockRefreshStepStatus,
+  }),
 }));
 
 jest.mock('@/features/shared/hooks/useAuth', () => {
@@ -81,13 +105,13 @@ describe('Verification page', () => {
     (toast.error as jest.Mock).mockClear();
     (toast.info as jest.Mock).mockClear();
     mockFetchWithAuth.mockImplementation(async (url: unknown) => {
-      if (url === '/api/instructors/me') {
+      if (url === '/api/v1/instructors/me') {
         return {
           ok: true,
           json: async () => ({ id: 'inst-1', identity_verified_at: null }),
         } as unknown as Response;
       }
-      if (url === '/api/payments/identity/refresh') {
+      if (url === '/api/v1/payments/identity/refresh') {
         return {
           ok: true,
           json: async () => ({ verified: true }),
@@ -111,7 +135,8 @@ describe('Verification page', () => {
     currentSearchParams = new URLSearchParams('from=status');
     renderWithClient(<Step4Verification />);
 
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled());
+    // Wait for the Continue button to appear (component fully rendered)
+    await waitFor(() => expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
     expect(mockPush).toHaveBeenCalledWith('/instructor/onboarding/status');
   });
@@ -119,7 +144,8 @@ describe('Verification page', () => {
   it('navigates to payment setup by default', async () => {
     renderWithClient(<Step4Verification />);
 
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalled());
+    // Wait for the Continue button to appear (component fully rendered)
+    await waitFor(() => expect(screen.getByRole('button', { name: /continue/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
     expect(mockPush).toHaveBeenCalledWith('/instructor/onboarding/payment-setup');
   });
@@ -128,7 +154,7 @@ describe('Verification page', () => {
     currentSearchParams = new URLSearchParams('identity_return=true');
     renderWithClient(<Step4Verification />);
 
-    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith('/api/payments/identity/refresh', { method: 'POST' }));
+    await waitFor(() => expect(mockFetchWithAuth).toHaveBeenCalledWith('/api/v1/payments/identity/refresh', { method: 'POST' }));
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/instructor/onboarding/verification'));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Identity check complete', {
       description: 'Next, start your background check.',

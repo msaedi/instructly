@@ -118,11 +118,11 @@ def main() -> None:
 curl -sS -c /tmp/jar -H "Origin: https://preview.instainstru.com" -H "content-type: application/json" \\
   -X POST https://preview-api.instainstru.com/auth/login-with-session \\
   --data '{"email":"sarah.chen@example.com","password":"Test1234","guest_session_id":"audit"}'
-curl -sS -b /tmp/jar -H "Origin: https://preview.instainstru.com" https://preview-api.instainstru.com/api/addresses/me
+curl -sS -b /tmp/jar -H "Origin: https://preview.instainstru.com" https://preview-api.instainstru.com/api/v1/addresses/me
 curl -sS -b /tmp/jar -H "Origin: https://preview.instainstru.com" \\
-  "https://preview-api.instainstru.com/instructors/availability/week?start_date=2025-11-10"
+  "https://preview-api.instainstru.com/api/v1/instructors/availability/week?start_date=2025-11-10"
 curl -sS -H "Origin: https://preview.instainstru.com" -H "Authorization: Bearer $ACCESS_TOKEN" \\
-  "https://preview-api.instainstru.com/bookings/?status=COMPLETED"
+  "https://preview-api.instainstru.com/api/v1/bookings/?status=COMPLETED"
 ```
 """
         md.write(verification_block)

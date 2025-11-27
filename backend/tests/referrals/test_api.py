@@ -27,7 +27,7 @@ from app.repositories.referral_repository import (
     ReferralRewardRepository,
 )
 from app.repositories.user_repository import UserRepository
-from app.routes.referrals import _normalize_referral_landing_url
+from app.routes.v1.referrals import _normalize_referral_landing_url
 from app.schemas.referrals import AdminReferralsHealthOut, CheckoutApplyRequest
 from app.services.referral_checkout_service import ReferralCheckoutError
 from app.services.referral_service import ReferralService
@@ -89,7 +89,7 @@ def test_claim_anonymous_sets_cookie(db, client, referral_service):
     referrer = _create_user(db, "referrer_claim@example.com")
     code = referral_service.issue_code(referrer_user_id=referrer.id)
 
-    response = client.post("/api/referrals/claim", json={"code": code.code})
+    response = client.post("/api/v1/referrals/claim", json={"code": code.code})
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {"attributed": False, "reason": "anonymous"}
@@ -104,14 +104,14 @@ def test_claim_authenticated_user(db, client, referral_service):
     token = create_access_token(data={"sub": user.email})
     headers = {"Authorization": f"Bearer {token}"}
 
-    response = client.post("/api/referrals/claim", json={"code": code.code}, headers=headers)
+    response = client.post("/api/v1/referrals/claim", json={"code": code.code}, headers=headers)
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {"attributed": True, "reason": None}
 
     attribution_repo = ReferralAttributionRepository(db)
     assert attribution_repo.exists_for_user(user.id)
 
-    response_conflict = client.post("/api/referrals/claim", json={"code": code.code}, headers=headers)
+    response_conflict = client.post("/api/v1/referrals/claim", json={"code": code.code}, headers=headers)
     assert response_conflict.status_code == status.HTTP_409_CONFLICT
     assert response_conflict.json()["reason"] == "already_attributed"
 
@@ -206,7 +206,7 @@ def test_get_my_referral_ledger(db, client, referral_service, monkeypatch):
     redeemed.status = RewardStatus.REDEEMED
     db.commit()
 
-    response = client.get("/api/referrals/me", headers=headers)
+    response = client.get("/api/v1/referrals/me", headers=headers)
     assert response.status_code == status.HTTP_200_OK
     payload = response.json()
     assert payload["code"] == code.code
@@ -231,7 +231,7 @@ def test_referral_ledger_returns_code_when_step_enabled(db, client, monkeypatch)
     token = create_access_token(data={"sub": user.email})
     headers = {"Authorization": f"Bearer {token}"}
 
-    response = client.get("/api/referrals/me", headers=headers)
+    response = client.get("/api/v1/referrals/me", headers=headers)
 
     assert response.status_code == status.HTTP_200_OK
     payload = response.json()
@@ -250,7 +250,7 @@ def test_referral_ledger_reads_existing_code_when_step_disabled(
     token = create_access_token(data={"sub": user.email})
     headers = {"Authorization": f"Bearer {token}"}
 
-    response = client.get("/api/referrals/me", headers=headers)
+    response = client.get("/api/v1/referrals/me", headers=headers)
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["code"] == code.code
@@ -262,7 +262,7 @@ def test_referral_ledger_returns_503_when_issuance_disabled(db, client, monkeypa
     token = create_access_token(data={"sub": user.email})
     headers = {"Authorization": f"Bearer {token}"}
 
-    response = client.get("/api/referrals/me", headers=headers)
+    response = client.get("/api/v1/referrals/me", headers=headers)
 
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert response.headers["X-Referrals-Reason"] == "issuance_disabled(step=1)"
@@ -284,7 +284,7 @@ def test_referral_ledger_reports_db_timeout_reason(db, client, monkeypatch):
 
     monkeypatch.setattr(ReferralService, "ensure_code_for_user", _raise_timeout)
 
-    response = client.get("/api/referrals/me", headers=headers)
+    response = client.get("/api/v1/referrals/me", headers=headers)
 
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert (
@@ -300,7 +300,7 @@ def test_referral_ledger_concurrent_requests(db, client, monkeypatch):
     headers = {"Authorization": f"Bearer {token}"}
 
     def _fetch():
-        return client.get("/api/referrals/me", headers=headers)
+        return client.get("/api/v1/referrals/me", headers=headers)
 
     start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -378,7 +378,7 @@ def test_checkout_apply_success(db, client, referral_service, monkeypatch):
     _stub_checkout_service(monkeypatch, wallet_service=wallet_service, app_instance=client.app)
 
     response = client.post(
-        "/api/referrals/checkout/apply-referral",
+        "/api/v1/referrals/checkout/apply-referral",
         json=CheckoutApplyRequest(order_id="order-1").model_dump(),
         headers=headers,
     )
@@ -402,7 +402,7 @@ def test_checkout_apply_conflicts(db, client, referral_service, monkeypatch):
         )
 
         response = client.post(
-            "/api/referrals/checkout/apply-referral",
+            "/api/v1/referrals/checkout/apply-referral",
             json={"order_id": "order-err"},
             headers=headers,
         )
@@ -419,7 +419,7 @@ def test_checkout_apply_no_credit(db, client, referral_service, monkeypatch):
     _stub_checkout_service(monkeypatch, wallet_service=wallet_service, app_instance=client.app)
 
     response = client.post(
-        "/api/referrals/checkout/apply-referral",
+        "/api/v1/referrals/checkout/apply-referral",
         json={"order_id": "order-nocredit"},
         headers=headers,
     )
@@ -434,7 +434,7 @@ def test_admin_referral_config(db, client, referral_service, monkeypatch):
     token = create_access_token(data={"sub": admin.email})
     headers = {"Authorization": f"Bearer {token}"}
 
-    response = client.get("/api/admin/referrals/config", headers=headers)
+    response = client.get("/api/v1/admin/referrals/config", headers=headers)
     assert response.status_code == status.HTTP_200_OK
     payload = response.json()
     assert {
@@ -497,7 +497,7 @@ def test_admin_referral_summary(db, client, referral_service, monkeypatch):
         ts=datetime.now(timezone.utc),
     )
 
-    response = client.get("/api/admin/referrals/summary", headers=headers)
+    response = client.get("/api/v1/admin/referrals/summary", headers=headers)
     assert response.status_code == status.HTTP_200_OK
     summary = response.json()
     assert {
@@ -539,6 +539,6 @@ def test_admin_referral_health_endpoint(db, client, monkeypatch):
 
     monkeypatch.setattr(ReferralService, "get_admin_health", lambda self: health_payload)
 
-    response = client.get("/api/admin/referrals/health", headers=headers)
+    response = client.get("/api/v1/admin/referrals/health", headers=headers)
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == health_payload.model_dump()

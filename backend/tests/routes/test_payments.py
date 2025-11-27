@@ -42,18 +42,15 @@ class TestPaymentRoutes:
         # Define required endpoints
         required_endpoints = [
             # Instructor endpoints
-            "/api/payments/connect/onboard",
-            "/api/payments/connect/status",
-            "/api/payments/connect/dashboard",
-            "/api/payments/earnings",
+            "/api/v1/payments/connect/onboard",
+            "/api/v1/payments/connect/status",
+            "/api/v1/payments/connect/dashboard",
+            "/api/v1/payments/earnings",
             # Student endpoints
-            "/api/payments/methods",
-            "/api/payments/checkout",
-            # Webhook endpoints
-            "/api/payments/webhooks/stripe",
-            "/webhooks/stripe/payment-events",
-            "/webhooks/stripe/account-events",
-            "/webhooks/stripe/test",
+            "/api/v1/payments/methods",
+            "/api/v1/payments/checkout",
+            # Webhook endpoints (unified in v1)
+            "/api/v1/payments/webhooks/stripe",
         ]
 
         # Check each endpoint exists
@@ -79,13 +76,13 @@ class TestPaymentRoutes:
 
         # Define expected methods for each endpoint
         expected_methods = {
-            "/api/payments/connect/onboard": ["POST"],
-            "/api/payments/connect/status": ["GET"],
-            "/api/payments/connect/dashboard": ["GET"],
-            "/api/payments/earnings": ["GET"],
-            "/api/payments/methods": ["GET", "POST"],
-            "/api/payments/checkout": ["POST"],
-            "/api/payments/webhooks/stripe": ["POST"],
+            "/api/v1/payments/connect/onboard": ["POST"],
+            "/api/v1/payments/connect/status": ["GET"],
+            "/api/v1/payments/connect/dashboard": ["GET"],
+            "/api/v1/payments/earnings": ["GET"],
+            "/api/v1/payments/methods": ["GET", "POST"],
+            "/api/v1/payments/checkout": ["POST"],
+            "/api/v1/payments/webhooks/stripe": ["POST"],
         }
 
         # Check each endpoint has expected methods
@@ -100,10 +97,10 @@ class TestPaymentRoutes:
     def test_instructor_endpoints_require_auth(self, client: TestClient):
         """Test that instructor endpoints require authentication."""
         instructor_endpoints = [
-            ("/api/payments/connect/onboard", "POST"),
-            ("/api/payments/connect/status", "GET"),
-            ("/api/payments/connect/dashboard", "GET"),
-            ("/api/payments/earnings", "GET"),
+            ("/api/v1/payments/connect/onboard", "POST"),
+            ("/api/v1/payments/connect/status", "GET"),
+            ("/api/v1/payments/connect/dashboard", "GET"),
+            ("/api/v1/payments/earnings", "GET"),
         ]
 
         for endpoint, method in instructor_endpoints:
@@ -117,9 +114,9 @@ class TestPaymentRoutes:
     def test_student_endpoints_require_auth(self, client: TestClient):
         """Test that student endpoints require authentication."""
         student_endpoints = [
-            ("/api/payments/methods", "GET"),
-            ("/api/payments/methods", "POST"),
-            ("/api/payments/checkout", "POST"),
+            ("/api/v1/payments/methods", "GET"),
+            ("/api/v1/payments/methods", "POST"),
+            ("/api/v1/payments/checkout", "POST"),
         ]
 
         for endpoint, method in student_endpoints:
@@ -133,7 +130,7 @@ class TestPaymentRoutes:
     def test_webhook_endpoint_no_auth(self, client: TestClient):
         """Test that webhook endpoint doesn't require authentication."""
         # Webhook should return 400 for missing signature, not 401
-        response = client.post("/api/payments/webhooks/stripe", content="test")
+        response = client.post("/api/v1/payments/webhooks/stripe", content="test")
         assert (
             response.status_code != status.HTTP_401_UNAUTHORIZED
         ), "Webhook endpoint should not require authentication"
@@ -219,7 +216,7 @@ class TestPaymentRoutes:
 
         # Try to access instructor endpoints
         response = client.post(
-            "/api/payments/connect/onboard",
+            "/api/v1/payments/connect/onboard",
             headers=student_headers,
         )
         # Should get 403 Forbidden due to role check
@@ -234,7 +231,7 @@ class TestPaymentRoutes:
 
         # Try to access student endpoints
         response = client.post(
-            "/api/payments/methods",
+            "/api/v1/payments/methods",
             headers=instructor_headers,
             json={"payment_method_id": "pm_test", "set_as_default": False},
         )
@@ -246,7 +243,7 @@ class TestPaymentRoutes:
     def test_webhook_missing_signature(self, client: TestClient):
         """Test webhook endpoint with missing signature."""
         response = client.post(
-            "/api/payments/webhooks/stripe",
+            "/api/v1/payments/webhooks/stripe",
             content='{"type": "payment_intent.succeeded"}',
             headers={"Content-Type": "application/json"},
         )
@@ -255,7 +252,7 @@ class TestPaymentRoutes:
 
     @patch("stripe.Webhook.construct_event")
     @patch("app.services.stripe_service.StripeService.handle_webhook_event")
-    @patch("app.routes.payments.settings")
+    @patch("app.routes.v1.payments.settings")
     def test_webhook_with_valid_signature(
         self, mock_settings, mock_handle_event, mock_construct_event, client: TestClient, db: Session
     ):
@@ -270,7 +267,7 @@ class TestPaymentRoutes:
         mock_handle_event.return_value = {"success": True, "event_type": "payment_intent.succeeded"}
 
         response = client.post(
-            "/api/payments/webhooks/stripe",
+            "/api/v1/payments/webhooks/stripe",
             content='{"type": "payment_intent.succeeded"}',
             headers={"Content-Type": "application/json", "stripe-signature": "test_signature"},
         )
@@ -285,7 +282,7 @@ class TestPaymentRoutes:
         mock_handle_event.assert_called_once()
 
     @patch("stripe.Webhook.construct_event")
-    @patch("app.routes.payments.settings")
+    @patch("app.routes.v1.payments.settings")
     def test_webhook_invalid_signature(self, mock_settings, mock_construct_event, client: TestClient, db: Session):
         """Test webhook endpoint with invalid signature."""
 
@@ -298,7 +295,7 @@ class TestPaymentRoutes:
         )
 
         response = client.post(
-            "/api/payments/webhooks/stripe",
+            "/api/v1/payments/webhooks/stripe",
             content='{"type": "payment_intent.succeeded"}',
             headers={"Content-Type": "application/json", "stripe-signature": "invalid_signature"},
         )
@@ -308,7 +305,7 @@ class TestPaymentRoutes:
 
     @patch("stripe.Webhook.construct_event")
     @patch("app.services.stripe_service.StripeService.handle_webhook_event")
-    @patch("app.routes.payments.settings")
+    @patch("app.routes.v1.payments.settings")
     def test_webhook_processing_error_returns_200(
         self, mock_settings, mock_handle_event, mock_construct_event, client: TestClient, db: Session
     ):
@@ -325,7 +322,7 @@ class TestPaymentRoutes:
         mock_handle_event.side_effect = ServiceException("Processing error")
 
         response = client.post(
-            "/api/payments/webhooks/stripe",
+            "/api/v1/payments/webhooks/stripe",
             content='{"type": "payment_intent.succeeded"}',
             headers={"Content-Type": "application/json", "stripe-signature": "test_signature"},
         )
@@ -354,7 +351,7 @@ class TestPaymentRoutes:
             "details_submitted": True,
         }
 
-        response = client.get("/api/payments/connect/status", headers=instructor_headers)
+        response = client.get("/api/v1/payments/connect/status", headers=instructor_headers)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -387,7 +384,7 @@ class TestPaymentRoutes:
         )
         mock_get_methods.return_value = [mock_method]
 
-        response = client.get("/api/payments/methods", headers=student_headers)
+        response = client.get("/api/v1/payments/methods", headers=student_headers)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -411,7 +408,7 @@ class TestPaymentRoutes:
         db.commit()
 
         response = client.post(
-            "/api/payments/checkout",
+            "/api/v1/payments/checkout",
             headers=student_headers,
             json={"booking_id": str(ulid.ULID()), "payment_method_id": "pm_test", "save_payment_method": False},
         )
@@ -495,7 +492,7 @@ class TestPaymentRoutes:
         db.flush()
 
         response = client.post(
-            "/api/payments/checkout",
+            "/api/v1/payments/checkout",
             headers=student_headers,
             json={"booking_id": booking.id, "payment_method_id": "pm_test", "save_payment_method": False},
         )
@@ -508,49 +505,24 @@ class TestWebhookEndpoints:
     """Specific tests for webhook endpoints."""
 
     def test_stripe_webhooks_router_endpoints_exist(self, client: TestClient):
-        """Test that stripe_webhooks router endpoints are registered."""
+        """Test that stripe webhook endpoint is registered."""
         from app.main import fastapi_app
 
         routes = [route.path for route in fastapi_app.routes if hasattr(route, "path")]
 
-        webhook_endpoints = [
-            "/webhooks/stripe/payment-events",
-            "/webhooks/stripe/account-events",
-            "/webhooks/stripe/test",
-        ]
+        # V1 unified webhook endpoint
+        webhook_endpoint = "/api/v1/payments/webhooks/stripe"
+        assert webhook_endpoint in routes, f"Missing webhook endpoint: {webhook_endpoint}"
 
-        for endpoint in webhook_endpoints:
-            assert endpoint in routes, f"Missing webhook endpoint: {endpoint}"
-
-    def test_webhook_test_endpoint(self, client: TestClient):
-        """Test the webhook test endpoint."""
-        response = client.get("/webhooks/stripe/test")
-
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["status"] == "success"
-        assert "webhook" in data["message"].lower()
-
-    def test_payment_events_webhook_endpoint(self, client: TestClient):
-        """Test payment events webhook endpoint."""
+    def test_stripe_webhook_endpoint_requires_signature(self, client: TestClient):
+        """Test that the unified Stripe webhook endpoint requires signature."""
         response = client.post(
-            "/webhooks/stripe/payment-events",
-            json={"type": "payment_intent.succeeded"},
+            "/api/v1/payments/webhooks/stripe",
+            content=b'{"type": "payment_intent.succeeded"}',
             headers={"Content-Type": "application/json"},
         )
 
-        # Should require signature
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-    def test_account_events_webhook_endpoint(self, client: TestClient):
-        """Test account events webhook endpoint."""
-        response = client.post(
-            "/webhooks/stripe/account-events",
-            json={"type": "account.updated"},
-            headers={"Content-Type": "application/json"},
-        )
-
-        # Should require signature
+        # Should require signature (returns 400 without valid Stripe-Signature header)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
@@ -559,7 +531,7 @@ class TestTransactionHistory:
 
     def test_get_transaction_history_authenticated(self, client: TestClient, auth_headers_student: Dict[str, str]):
         """Test getting transaction history as authenticated student."""
-        response = client.get("/api/payments/transactions", headers=auth_headers_student)
+        response = client.get("/api/v1/payments/transactions", headers=auth_headers_student)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -567,13 +539,13 @@ class TestTransactionHistory:
 
     def test_get_transaction_history_unauthenticated(self, client: TestClient):
         """Test getting transaction history without authentication."""
-        response = client.get("/api/payments/transactions")
+        response = client.get("/api/v1/payments/transactions")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_get_transaction_history_with_pagination(self, client: TestClient, auth_headers_student: Dict[str, str]):
         """Test getting transaction history with pagination parameters."""
-        response = client.get("/api/payments/transactions?limit=10&offset=5", headers=auth_headers_student)
+        response = client.get("/api/v1/payments/transactions?limit=10&offset=5", headers=auth_headers_student)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -586,7 +558,7 @@ class TestCreditBalance:
 
     def test_get_credit_balance_authenticated(self, client: TestClient, auth_headers_student: Dict[str, str]):
         """Test getting credit balance as authenticated student."""
-        response = client.get("/api/payments/credits", headers=auth_headers_student)
+        response = client.get("/api/v1/payments/credits", headers=auth_headers_student)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -597,6 +569,6 @@ class TestCreditBalance:
 
     def test_get_credit_balance_unauthenticated(self, client: TestClient):
         """Test getting credit balance without authentication."""
-        response = client.get("/api/payments/credits")
+        response = client.get("/api/v1/payments/credits")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED

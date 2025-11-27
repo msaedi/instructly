@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 import pytest
 
-from app.routes.messages import ReactionRequest
+from app.routes.v1.messages import ReactionRequest
 
 
 @pytest.fixture(autouse=True)
@@ -15,7 +15,7 @@ def _enable_strict(monkeypatch):
 @pytest.fixture()
 def client(_enable_strict):
     import app.main as main
-    import app.routes.messages as routes
+    import app.routes.v1.messages as routes
     import app.schemas.base as base
     import app.schemas.message_requests as req
 
@@ -32,7 +32,7 @@ def test_send_message_rejects_extra_field(client: TestClient):
         "content": "hello",
         "unexpected": 1,
     }
-    resp = client.post("/api/messages/send", json=body)
+    resp = client.post("/api/v1/messages/send", json=body)
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422
@@ -45,7 +45,7 @@ def test_mark_read_rejects_extra_field(client: TestClient):
         "booking_id": "bk_1",
         "unexpected": 1,
     }
-    resp = client.post("/api/messages/mark-read", json=body)
+    resp = client.post("/api/v1/messages/mark-read", json=body)
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422
@@ -55,7 +55,7 @@ def test_mark_read_rejects_extra_field(client: TestClient):
 
 def test_reaction_request_rejects_extra_field(client: TestClient):
     # Endpoint requires auth; we only verify validation when body is parsed
-    resp = client.post("/api/messages/abc/reactions", json={"emoji": "👍", "unexpected": 1})
+    resp = client.post("/api/v1/messages/abc/reactions", json={"emoji": "👍", "unexpected": 1})
     if resp.status_code in (401, 403):
         pytest.skip("Auth prevented validation; covered in authenticated suites")
     assert resp.status_code == 422

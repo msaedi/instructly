@@ -27,7 +27,7 @@ export async function uiLoginAsAdmin(page: Page, loginPath = '/login') {
 
 export async function loginAsAdminViaApi(page: Page, apiBase = DEFAULT_API_BASE) {
   const guestSessionId = `e2e-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const response = await page.request.post(`${apiBase}/auth/login-with-session`, {
+  const response = await page.request.post(`${apiBase}/api/v1/auth/login-with-session`, {
     data: {
       email: ADMIN_EMAIL,
       password: ADMIN_PASSWORD,

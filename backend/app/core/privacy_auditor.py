@@ -386,49 +386,49 @@ class PrivacyAuditor:
         filter_endpoint = self.filter_endpoint
 
         endpoints: List[EndpointTest] = [
-            # Public endpoints
+            # Public endpoints (v1 paths)
             EndpointTest(
-                path="/api/search/instructors",
+                path="/api/v1/search/instructors",
                 method="GET",
                 category=EndpointCategory.PUBLIC,
                 params={"q": "piano", "limit": 5},
             ),
             EndpointTest(
-                path="/services/search",
+                path="/api/v1/services/search",
                 method="GET",
                 category=EndpointCategory.PUBLIC,
                 params={"q": "yoga"},
             ),
             EndpointTest(
-                path="/api/public/instructors/01J5TESTINSTR0000000000001/availability",
+                path="/api/v1/public/instructors/01J5TESTINSTR0000000000001/availability",
                 method="GET",
                 category=EndpointCategory.PUBLIC,
                 params={"start_date": "2025-01-20", "end_date": "2025-01-27"},
             ),
             EndpointTest(
-                path="/instructors/",
+                path="/api/v1/instructors/",
                 method="GET",
                 category=EndpointCategory.PUBLIC,
-                params={"service_catalog_id": 1, "limit": 10},
+                params={"service_catalog_id": "01J5TESTSERVICE00000000001", "limit": 10},
             ),
-            # Authenticated student endpoints
+            # Authenticated student endpoints (v1 paths)
             EndpointTest(
-                path="/api/bookings",
+                path="/api/v1/bookings",
                 method="GET",
                 category=EndpointCategory.STUDENT,
                 auth_required=True,
                 test_as_users=["john.smith@example.com"],
             ),
             EndpointTest(
-                path="/api/bookings/1",
+                path="/api/v1/bookings/01J5TESTBOOKING0000000001",
                 method="GET",
                 category=EndpointCategory.STUDENT,
                 auth_required=True,
                 test_as_users=["john.smith@example.com"],
             ),
-            # Authenticated instructor endpoints
+            # Authenticated instructor endpoints (v1 paths)
             EndpointTest(
-                path="/api/instructor/profile",
+                path="/api/v1/instructors/me",
                 method="GET",
                 category=EndpointCategory.INSTRUCTOR,
                 auth_required=True,

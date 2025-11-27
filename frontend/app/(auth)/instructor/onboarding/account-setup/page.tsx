@@ -1,20 +1,27 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import InstructorProfileForm, { type InstructorProfileFormHandle } from '@/features/instructor-profile/InstructorProfileForm';
-import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { OnboardingProgressHeader, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
 
 export default function AccountSetupPage() {
   const router = useRouter();
   const formRef = useRef<InstructorProfileFormHandle>(null);
   const [ctaPending, setCtaPending] = useState(false);
-  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(() => ({
-    'account-setup': 'pending',
-  }));
+  // Use unified step status evaluation
+  const { stepStatus: evaluatedStepStatus } = useOnboardingStepStatus();
+  const [localAccountStatus, setLocalAccountStatus] = useState<OnboardingStepStatus | null>(null);
+
+  // Use local status if set (after save), otherwise use evaluated status
+  const stepStatus = useMemo(() => ({
+    ...evaluatedStepStatus,
+    'account-setup': localAccountStatus || evaluatedStepStatus['account-setup'],
+  }), [evaluatedStepStatus, localAccountStatus]);
 
   const handleProgressStatus = (status: 'done' | 'failed') => {
-    setStepStatus((prev) => ({ ...prev, 'account-setup': status }));
+    setLocalAccountStatus(status);
   };
 
   const handleSaveContinue = async () => {

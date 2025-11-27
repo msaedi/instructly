@@ -99,7 +99,7 @@ function StudentDashboardContent() {
     refetch: refetchUserData,
   } = useQuery<AuthUser>({
     queryKey: queryKeys.user,
-    queryFn: queryFn('/auth/me', { requireAuth: true }),
+    queryFn: queryFn('/api/v1/auth/me', { requireAuth: true }),
     staleTime: CACHE_TIMES.SESSION, // Session-long cache
     retry: false,
   });
@@ -220,7 +220,7 @@ function StudentDashboardContent() {
   const loadAddresses = async () => {
     try {
       setIsLoadingAddresses(true);
-      const res = await fetchWithAuth('/api/addresses/me');
+      const res = await fetchWithAuth('/api/v1/addresses/me');
       if (!res.ok) {
         setAddresses([]);
         return;
@@ -239,7 +239,7 @@ function StudentDashboardContent() {
     // Preload TFA status in background
     void (async () => {
       try {
-        const res = await fetchWithAuth('/api/auth/2fa/status');
+        const res = await fetchWithAuth('/api/v1/2fa/status');
         if (res.ok) {
           const data = await res.json();
           setTfaStatus({ enabled: !!data.enabled, verified_at: data.verified_at || null, last_used_at: data.last_used_at || null });
@@ -480,7 +480,7 @@ function StudentDashboardContent() {
                                   modal.querySelector('#confirmBtn')?.addEventListener('click', () => { cleanup(); resolve(true); });
                                 });
                                 if (!ok) return;
-                                const res = await fetchWithAuth(`/api/addresses/me/${a.id}`, { method: 'DELETE' });
+                                const res = await fetchWithAuth(`/api/v1/addresses/me/${a.id}`, { method: 'DELETE' });
                                 if (res.ok) {
                                   toast.success('Address removed', {
                                     style: {
@@ -729,7 +729,7 @@ function StudentDashboardContent() {
           onClose={() => setShowTfaModal(false)}
           onChanged={async () => {
             try {
-              const res = await fetchWithAuth('/api/auth/2fa/status');
+              const res = await fetchWithAuth('/api/v1/2fa/status');
               if (res.ok) {
                 const data = await res.json();
                 setTfaStatus({ enabled: !!data.enabled, verified_at: data.verified_at || null, last_used_at: data.last_used_at || null });
@@ -1196,7 +1196,7 @@ function NotificationsTab() {
     // Load current status; if disabled, immediately initiate and show QR (no confirmation step)
     (async () => {
       try {
-        const res = await fetchWithAuth('/api/auth/2fa/status');
+        const res = await fetchWithAuth('/api/v1/2fa/status');
         if (res.ok) {
           const data = await res.json();
           if (data.enabled) {
@@ -1213,7 +1213,7 @@ function NotificationsTab() {
   const initiate = async () => {
     setError(null); setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/setup/initiate', { method: 'POST' });
+      const res = await fetchWithAuth('/api/v1/2fa/setup/initiate', { method: 'POST' });
       if (!res.ok) {
         setError('Failed to initiate 2FA.'); setLoading(false); return;
       }
@@ -1227,7 +1227,7 @@ function NotificationsTab() {
   const verify = async () => {
     setError(null); setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/setup/verify', {
+      const res = await fetchWithAuth('/api/v1/2fa/setup/verify', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code })
       });
       if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.detail || 'That code didn\'t work. Please try again.'); setLoading(false); return; }
@@ -1241,7 +1241,7 @@ function NotificationsTab() {
   const disable = async () => {
     setError(null); setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/disable', {
+      const res = await fetchWithAuth('/api/v1/2fa/disable', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current_password: currentPassword })
       });
       if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.detail || 'Failed to disable'); setLoading(false); return; }
@@ -1253,7 +1253,7 @@ function NotificationsTab() {
   const regen = async () => {
     setError(null); setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/auth/2fa/regenerate-backup-codes', { method: 'POST' });
+      const res = await fetchWithAuth('/api/v1/2fa/regenerate-backup-codes', { method: 'POST' });
       if (!res.ok) { setError('Failed to regenerate'); setLoading(false); return; }
       const data = await res.json();
       setBackupCodes(data.backup_codes || []);
@@ -1421,7 +1421,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetchWithAuth(`/api/addresses/places/autocomplete?q=${encodeURIComponent(query)}`);
+        const res = await fetchWithAuth(`/api/v1/addresses/places/autocomplete?q=${encodeURIComponent(query)}`);
         if (!res.ok) return;
         const data = await res.json();
         setSuggestions(data.items || []);
@@ -1435,7 +1435,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
       const payload = { ...form } as Record<string, unknown>;
       // Trim empty strings
       Object.keys(payload).forEach((k) => { if (payload[k] === '') delete payload[k]; });
-      const endpoint = mode === 'create' ? '/api/addresses/me' : `/api/addresses/me/${address?.id}`;
+      const endpoint = mode === 'create' ? '/api/v1/addresses/me' : `/api/v1/addresses/me/${address?.id}`;
       const method = mode === 'create' ? 'POST' : 'PATCH';
       const res = await fetchWithAuth(endpoint, {
         method,
@@ -1514,7 +1514,7 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
                         // Fetch normalized place details and auto-fill fields
                         const providerQuery = s.provider ? `&provider=${encodeURIComponent(s.provider)}` : '';
                         const res = await fetchWithAuth(
-                          `/api/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}${providerQuery}`,
+                          `/api/v1/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}${providerQuery}`,
                         );
                         if (res.ok) {
                           const d = (await res.json()) as Record<string, unknown>;
@@ -1611,7 +1611,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
       }
 
       // Soft delete account
-      const delRes = await fetchWithAuth('/api/privacy/delete/me', {
+      const delRes = await fetchWithAuth('/api/v1/privacy/delete/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ delete_account: true }),
@@ -1735,7 +1735,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unk
     logger.info('Submitting profile update');
 
     try {
-      const res = await fetchWithAuth('/auth/me', {
+      const res = await fetchWithAuth('/api/v1/auth/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData),
@@ -1869,7 +1869,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     setSubmitting(true);
     try {
       // Call in-app change password endpoint
-      const res = await fetchWithAuth('/auth/change-password', {
+      const res = await fetchWithAuth('/api/v1/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })

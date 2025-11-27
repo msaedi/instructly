@@ -17,7 +17,7 @@ const respondJson = (route: Route, body: unknown) =>
   });
 
 async function mockDashboardApis(page: Page) {
-  await page.route('**/auth/me', async (route) => {
+  await page.route('**/api/v1/auth/me', async (route) => {
     await respondJson(route, instructorUser);
   });
 
@@ -51,11 +51,11 @@ async function mockDashboardApis(page: Page) {
     });
   });
 
-  await page.route('**/api/addresses/service-areas/me', async (route) => {
+  await page.route('**/api/v1/addresses/service-areas/me', async (route) => {
     await respondJson(route, { items: [] });
   });
 
-  await page.route('**/api/payments/connect/status', async (route) => {
+  await page.route('**/api/v1/payments/connect/status', async (route) => {
     await respondJson(route, {
       charges_enabled: true,
       payouts_enabled: true,
@@ -63,11 +63,11 @@ async function mockDashboardApis(page: Page) {
     });
   });
 
-  await page.route('**/api/messages/unread-count', async (route) => {
+  await page.route('**/api/v1/messages/unread-count', async (route) => {
     await respondJson(route, { unread_count: 0, user_id: instructorUser.id });
   });
 
-  await page.route('**/bookings/**', async (route) => {
+  await page.route('**/api/v1/bookings**', async (route) => {
     const url = new URL(route.request().url());
     const params = url.searchParams;
     if (params.get('status') === 'COMPLETED') {
@@ -81,7 +81,7 @@ async function mockDashboardApis(page: Page) {
     await respondJson(route, { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false });
   });
 
-  await page.route('**/api/public/instructors/**/availability**', async (route) => {
+  await page.route('**/api/v1/public/instructors/**/availability**', async (route) => {
     await respondJson(route, {
       instructor_id: instructorUser.id,
       instructor_first_name: 'Sarah',
@@ -93,7 +93,7 @@ async function mockDashboardApis(page: Page) {
     });
   });
 
-  await page.route('**/api/reviews/instructor/*/ratings', async (route) => {
+  await page.route('**/api/v1/reviews/instructor/*/ratings', async (route) => {
     await respondJson(route, {
       overall: { rating: 4.53, total_reviews: 3, display_rating: '4.5' },
       by_service: [],

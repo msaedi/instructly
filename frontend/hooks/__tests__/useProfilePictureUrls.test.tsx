@@ -51,7 +51,7 @@ describe('useProfilePictureUrls', () => {
       throw new Error('fetchWithAuth was not called');
     }
     const [requestUrl] = firstCall;
-    expect(requestUrl).toContain('/api/users/profile-picture-urls?');
+    expect(requestUrl).toContain('/api/v1/users/profile-picture-urls?');
     expect(result.current['user-a']).toBe('https://cdn/avatar/a');
     expect(result.current['user-b']).toBeNull();
   });

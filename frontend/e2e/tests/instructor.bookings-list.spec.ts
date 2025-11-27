@@ -18,7 +18,7 @@ const respondJson = (route: Route, body: unknown) =>
 
 test.describe('[instructor] bookings list', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/auth/me', async (route) => {
+    await page.route('**/api/v1/auth/me', async (route) => {
       await respondJson(route, instructorUser);
     });
   });
@@ -33,7 +33,8 @@ test.describe('[instructor] bookings list', () => {
       resolvePast = resolve;
     });
 
-    await page.route('**/api/instructors/bookings/**', async (route) => {
+    // Mock v1 instructor-bookings endpoints
+    await page.route('**/api/v1/instructor-bookings/**', async (route) => {
       const url = new URL(route.request().url());
       const pathname = url.pathname;
 

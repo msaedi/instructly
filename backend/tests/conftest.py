@@ -79,6 +79,12 @@ CONFIG_ENV_KEYS = [
 
 
 @pytest.fixture
+def anyio_backend():
+    """Force anyio-based tests to run under asyncio backend."""
+    return "asyncio"
+
+
+@pytest.fixture
 def isolate_settings_env(monkeypatch):
     """Temporarily clear Settings-related env vars and reload the config module."""
 
@@ -108,7 +114,7 @@ settings.rate_limit_enabled = False
 
 from unittest.mock import AsyncMock, Mock
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.auth import get_password_hash
@@ -141,7 +147,12 @@ from app.models.referrals import (  # noqa: F401 ensures tables are registered
     WalletTransaction,
 )
 from app.models.region_boundary import RegionBoundary  # noqa: F401
-from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
+from app.models.service_catalog import (
+    InstructorService as Service,
+    ServiceAnalytics,
+    ServiceCatalog,
+    ServiceCategory,
+)
 from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.config_service import ConfigService
@@ -725,6 +736,54 @@ def _ensure_catalog_data():
     finally:
         session.close()
 
+
+def create_test_session() -> Session:
+    """Initialize and return a fresh SQLAlchemy session for tests."""
+    if settings.is_production_database(TEST_DATABASE_URL):
+        raise RuntimeError("CRITICAL: Refusing to create tables in what appears to be a production database!")
+
+    _prepare_database()
+    _ensure_catalog_data()
+    _ensure_rbac_roles()
+    return TestSessionLocal()
+
+
+def cleanup_test_database() -> None:
+    """Delete test data to preserve isolation between tests."""
+    cleanup_db = TestSessionLocal()
+    try:
+        if os.getenv("PYTEST_VERBOSE"):
+            print("\n🧹 Cleaning up test data...")
+
+        cleanup_db.query(Booking).delete()
+        cleanup_db.query(AvailabilityDay).delete()  # Bitmap-only storage now
+        cleanup_db.query(Service).delete()  # This is InstructorService
+        cleanup_db.query(StudentBadge).delete()
+        cleanup_db.query(BadgeProgress).delete()
+        cleanup_db.query(NotificationDelivery).delete()
+        cleanup_db.query(EventOutbox).delete()
+        cleanup_db.query(AuditLog).delete()
+
+        cleanup_db.query(ServiceCatalog).filter(
+            (ServiceCatalog.name.like("Test%"))
+            | (ServiceCatalog.name.like("%Test Service%"))
+            | (ServiceCatalog.slug.like("test-%"))
+        ).delete()
+
+        existing_catalog_ids = select(ServiceCatalog.id)
+        cleanup_db.query(ServiceAnalytics).filter(
+            ~ServiceAnalytics.service_catalog_id.in_(existing_catalog_ids)
+        ).delete(synchronize_session=False)
+
+        cleanup_db.query(InstructorProfile).delete()
+        cleanup_db.query(User).delete()
+        cleanup_db.commit()
+    except Exception as e:  # pragma: no cover - cleanup best effort
+        print(f"\n⚠️  Error during test cleanup: {e}")
+        cleanup_db.rollback()
+    finally:
+        cleanup_db.close()
+
 # =========================================================================
 # STRICT_SCHEMAS toggle fixture
 # =========================================================================
@@ -806,20 +865,7 @@ def db():
     SAFETY: Only runs on validated test databases.
     """
     # Extra safety check before creating tables
-    if settings.is_production_database(TEST_DATABASE_URL):
-        raise RuntimeError("CRITICAL: Refusing to create tables in what appears to be a production database!")
-
-    _prepare_database()
-
-    # Do not run direct DDL here; importing models above ensures tables are created
-
-    # Seed catalog data if needed
-    _ensure_catalog_data()
-    # Seed RBAC roles
-    _ensure_rbac_roles()
-
-    # Create a fresh session
-    session = TestSessionLocal()
+    session = create_test_session()
 
     yield session
 
@@ -827,55 +873,7 @@ def db():
     session.rollback()
     session.close()
 
-    # Clean all test data after each test
-    # SAFETY: We've already validated this is a test database
-    cleanup_db = TestSessionLocal()
-    try:
-        # Log what we're doing for transparency
-        if os.getenv("PYTEST_VERBOSE"):
-            print("\n🧹 Cleaning up test data...")
-
-        # Delete in dependency order to avoid FK violations
-        cleanup_db.query(Booking).delete()
-        cleanup_db.query(AvailabilityDay).delete()  # Bitmap-only storage now
-        cleanup_db.query(Service).delete()  # This is InstructorService
-
-        # Clean badge-related data (will cascade when users are deleted, but explicit is better)
-        cleanup_db.query(StudentBadge).delete()
-        cleanup_db.query(BadgeProgress).delete()
-        cleanup_db.query(NotificationDelivery).delete()
-        cleanup_db.query(EventOutbox).delete()
-        cleanup_db.query(AuditLog).delete()
-
-        # Clean up service catalog test data
-        # Only delete services with test patterns - preserve all seeded catalog data
-        from app.models.service_catalog import ServiceAnalytics
-
-        # Don't delete by ID anymore - we have 250+ services
-        # Only delete services that match test patterns
-        cleanup_db.query(ServiceCatalog).filter(
-            (ServiceCatalog.name.like("Test%"))
-            | (ServiceCatalog.name.like("%Test Service%"))
-            | (ServiceCatalog.slug.like("test-%"))
-        ).delete()
-
-        # Clean up analytics for deleted services
-        from sqlalchemy import select
-
-        # Create explicit select() to avoid SQLAlchemy warning
-        existing_catalog_ids = select(ServiceCatalog.id)
-        cleanup_db.query(ServiceAnalytics).filter(
-            ~ServiceAnalytics.service_catalog_id.in_(existing_catalog_ids)
-        ).delete(synchronize_session=False)
-
-        cleanup_db.query(InstructorProfile).delete()
-        cleanup_db.query(User).delete()
-        cleanup_db.commit()
-    except Exception as e:
-        print(f"\n⚠️  Error during test cleanup: {e}")
-        cleanup_db.rollback()
-    finally:
-        cleanup_db.close()
+    cleanup_test_database()
 
 
 @pytest.fixture
@@ -1767,8 +1765,6 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
 @pytest.fixture
 def sample_instructors_with_services(db: Session, test_password: str) -> list[User]:
     """Create sample instructors with services linked to catalog."""
-    from app.models.service_catalog import ServiceAnalytics
-
     instructors = []
 
     # Import unique data generator

@@ -22,7 +22,10 @@ import {
 } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { markRead, sendMessage, type MessageItem } from '@/features/shared/api/messages';
-import { bookingsApi } from '@/lib/api/bookings';
+import {
+  fetchInstructorUpcomingBookings,
+  fetchInstructorBookingsList,
+} from '@/src/api/services/instructor-bookings';
 import { formatDistanceToNow, format as formatDate } from 'date-fns';
 import { logger } from '@/lib/logger';
 import { messageService, type Message as MessageResponse } from '@/services/messageService';
@@ -400,9 +403,10 @@ export default function MessagesPage() {
     setConversationError(null);
 
     try {
+      // Use v1 instructor-bookings API
       const results = await Promise.allSettled([
-        bookingsApi.getMyBookings({ upcoming: true, per_page: 25 }),
-        bookingsApi.getMyBookings({ include_past_confirmed: true, per_page: 25 }),
+        fetchInstructorUpcomingBookings({ per_page: 25 }),
+        fetchInstructorBookingsList({ per_page: 25 }),
       ]);
 
       const bookingMap = new Map<string, Booking>();

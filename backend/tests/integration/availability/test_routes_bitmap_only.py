@@ -22,7 +22,7 @@ def test_week_get_uses_bitmap(
     db.commit()
 
     resp = bitmap_client.get(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         params={"start_date": week_start.isoformat()},
         headers=auth_headers_instructor,
     )
@@ -59,7 +59,7 @@ def test_week_post_uses_bitmap(
     }
 
     resp = bitmap_client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=payload,
         headers=auth_headers_instructor,
     )

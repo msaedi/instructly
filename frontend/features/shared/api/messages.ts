@@ -19,8 +19,9 @@ export type ConversationSummary = {
   type: 'student' | 'platform';
 };
 
+// Phase 10: Migrated to /api/v1/messages endpoints
 export async function getUnreadCount(): Promise<number> {
-  const res = await fetchWithAuth('/api/messages/unread-count');
+  const res = await fetchWithAuth('/api/v1/messages/unread-count');
   if (!res.ok) return 0;
   const data = (await res.json()) as { unread_count?: number };
   return Number(data?.unread_count ?? 0);
@@ -28,7 +29,7 @@ export async function getUnreadCount(): Promise<number> {
 
 // Basic history fetch by booking_id; backend guarantees chronological order
 export async function getHistory(bookingId: string): Promise<MessageItem[]> {
-  const res = await fetchWithAuth(`/api/messages/history/${encodeURIComponent(bookingId)}`);
+  const res = await fetchWithAuth(`/api/v1/messages/history/${encodeURIComponent(bookingId)}`);
   if (!res.ok) return [];
   const data = (await res.json()) as { messages: Array<{ id: string; text: string; sender?: string; created_at?: string }> };
   return (data?.messages || []).map((m) => ({
@@ -40,7 +41,7 @@ export async function getHistory(bookingId: string): Promise<MessageItem[]> {
 }
 
 export async function sendMessage(bookingId: string, text: string): Promise<{ id: string } | null> {
-  const res = await fetchWithAuth('/api/messages/send', {
+  const res = await fetchWithAuth('/api/v1/messages/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ booking_id: bookingId, content: text }),
@@ -52,7 +53,7 @@ export async function sendMessage(bookingId: string, text: string): Promise<{ id
 }
 
 export async function markRead(bookingId: string): Promise<number> {
-  const res = await fetchWithAuth('/api/messages/mark-read', {
+  const res = await fetchWithAuth('/api/v1/messages/mark-read', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ booking_id: bookingId }),

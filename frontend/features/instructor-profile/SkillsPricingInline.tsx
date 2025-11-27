@@ -25,9 +25,16 @@ type SelectedService = {
   location_types: Array<'in-person' | 'online'>;
 };
 
-interface Props { className?: string }
+interface Props {
+  className?: string;
+  /** Pre-fetched instructor profile to avoid duplicate API calls */
+  instructorProfile?: {
+    is_live?: boolean;
+    services?: unknown[];
+  } | null;
+}
 
-export default function SkillsPricingInline({ className }: Props) {
+export default function SkillsPricingInline({ className, instructorProfile }: Props) {
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [servicesByCategory, setServicesByCategory] = useState<Record<string, CatalogService[]>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -35,6 +42,9 @@ export default function SkillsPricingInline({ className }: Props) {
   const [svcLoading, setSvcLoading] = useState(false);
   const [svcSaving, setSvcSaving] = useState(false);
   const [error, setError] = useState('');
+  // Default to true (assume live) until we confirm otherwise - safer default
+  const [isInstructorLive, setIsInstructorLive] = useState(true);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const { config: pricingConfig } = usePricingConfig();
   const pricingFloors = pricingConfig?.price_floor_cents ?? null;
   const [skillsFilter, setSkillsFilter] = useState('');
@@ -100,12 +110,30 @@ export default function SkillsPricingInline({ className }: Props) {
           setServicesByCategory(map);
         }
 
-        // Prefill from profile
+        // Prefill from profile - use prop if provided, otherwise fetch
         try {
-          const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-          if (meRes.ok) {
-            const me = await meRes.json();
-            const mapped: SelectedService[] = (me.services || [])
+          let me: Record<string, unknown> | null = null;
+
+          if (instructorProfile) {
+            // Use pre-fetched profile data from parent (avoids duplicate API call)
+            me = instructorProfile as Record<string, unknown>;
+            logger.debug('SkillsPricingInline: using pre-fetched profile', { is_live: me['is_live'] });
+          } else {
+            // Fallback: fetch profile (only if not provided by parent)
+            const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+            if (meRes.ok) {
+              me = await meRes.json();
+              logger.debug('SkillsPricingInline: fetched profile', { is_live: me?.['is_live'] });
+            }
+          }
+
+          if (me) {
+            // Track if instructor is live (affects whether they can delete last skill)
+            const isLive = Boolean(me['is_live']);
+            logger.debug('SkillsPricingInline: instructor is_live status', { is_live: me['is_live'], parsed: isLive });
+            setIsInstructorLive(isLive);
+            setProfileLoaded(true);
+            const mapped: SelectedService[] = (me['services'] as unknown[] || [])
               .map((svc: unknown) => {
                 const s = svc as Record<string, unknown>;
                 const catalogId = String(s['service_catalog_id'] || '');
@@ -173,16 +201,57 @@ export default function SkillsPricingInline({ className }: Props) {
       }
     };
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only run on mount; instructorProfile is read once during initial load
   }, []);
 
   const toggleCategory = (slug: string) => {
     setCollapsed((prev) => ({ ...prev, [slug]: !prev[slug] }));
   };
 
+  // Helper to check if we can remove a skill (live instructors must have at least 1)
+  // Also blocks deletion if profile hasn't loaded yet (safety guard)
+  const canRemoveSkill = useCallback(() => {
+    // Block deletion until profile is loaded (we need to know if instructor is live)
+    if (!profileLoaded) return false;
+    // Non-live instructors can delete all skills
+    if (!isInstructorLive) return true;
+    // Live instructors must keep at least 1 skill
+    return selectedServices.length > 1;
+  }, [profileLoaded, isInstructorLive, selectedServices.length]);
+
+  const removeService = useCallback((catalogServiceId: string) => {
+    logger.debug('SkillsPricingInline: removeService called', {
+      catalogServiceId,
+      profileLoaded,
+      isInstructorLive,
+      selectedServicesCount: selectedServices.length,
+      canRemove: canRemoveSkill()
+    });
+    if (!canRemoveSkill()) {
+      if (!profileLoaded) {
+        setError('Please wait for profile to load before removing skills.');
+      } else {
+        setError('Live instructors must have at least one skill. Add another skill before removing this one.');
+      }
+      return;
+    }
+    setSelectedServices((prev) => prev.filter((s) => s.catalog_service_id !== catalogServiceId));
+  }, [canRemoveSkill, profileLoaded, isInstructorLive, selectedServices.length]);
+
   const toggleServiceSelection = (svc: CatalogService) => {
     setSelectedServices((prev) => {
       const exists = prev.some((s) => s.catalog_service_id === svc.id);
       if (exists) {
+        // Block deletion until profile is loaded
+        if (!profileLoaded) {
+          setError('Please wait for profile to load before removing skills.');
+          return prev;
+        }
+        // Check if we can remove (live instructors must have at least 1)
+        if (isInstructorLive && prev.length <= 1) {
+          setError('Live instructors must have at least one skill. Add another skill before removing this one.');
+          return prev;
+        }
         return prev.filter((s) => s.catalog_service_id !== svc.id);
       }
       const label = displayServiceName({ service_catalog_id: svc.id, service_catalog_name: svc.name }, hydrateCatalogNameById);
@@ -226,6 +295,22 @@ export default function SkillsPricingInline({ className }: Props) {
   const handleSave = useCallback(async () => {
     try {
       setSvcSaving(true);
+
+      // Safeguard: Don't save if profile hasn't loaded (we don't know if instructor is live)
+      if (!profileLoaded) {
+        logger.warn('SkillsPricingInline: Skipping save - profile not loaded yet');
+        setSvcSaving(false);
+        return;
+      }
+
+      // Safeguard: Live instructors must have at least one skill with a valid rate
+      const servicesWithRates = selectedServices.filter((s) => s.hourly_rate.trim() !== '');
+      if (isInstructorLive && servicesWithRates.length === 0) {
+        setError('Live instructors must have at least one skill. Please add a skill before saving.');
+        setSvcSaving(false);
+        return;
+      }
+
       if (pricingFloors && serviceFloorViolations.size > 0) {
         const iterator = serviceFloorViolations.entries().next();
         if (!iterator.done) {
@@ -277,7 +362,7 @@ export default function SkillsPricingInline({ className }: Props) {
     } finally {
       setSvcSaving(false);
     }
-  }, [pricingFloors, selectedServices, serviceFloorViolations]);
+  }, [profileLoaded, isInstructorLive, pricingFloors, selectedServices, serviceFloorViolations]);
 
   useEffect(() => {
     if (initialLoadRef.current) {
@@ -337,8 +422,13 @@ export default function SkillsPricingInline({ className }: Props) {
                     <button
                       type="button"
                       aria-label={`Remove ${s.name || s.service_catalog_name}`}
-                      className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50"
-                      onClick={() => setSelectedServices((prev) => prev.filter((x) => x.catalog_service_id !== s.catalog_service_id))}
+                      title={!canRemoveSkill() ? 'Live instructors must have at least one skill' : `Remove ${s.name || s.service_catalog_name}`}
+                      className={`ml-auto rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center ${
+                        !canRemoveSkill()
+                          ? 'text-gray-300 cursor-not-allowed'
+                          : 'text-[#7E22CE] hover:bg-purple-50'
+                      }`}
+                      onClick={() => removeService(s.catalog_service_id)}
                     >
                       &times;
                     </button>
@@ -398,8 +488,13 @@ export default function SkillsPricingInline({ className }: Props) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setSelectedServices((prev) => prev.filter((_, i) => i !== index))}
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-300 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors"
+                    onClick={() => removeService(s.catalog_service_id)}
+                    title={!canRemoveSkill() ? 'Live instructors must have at least one skill' : 'Remove skill'}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full bg-white border transition-colors ${
+                      !canRemoveSkill()
+                        ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                        : 'border-gray-300 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
+                    }`}
                     aria-label="Remove skill"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>

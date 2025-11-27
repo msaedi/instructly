@@ -1,16 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
+import { useEffect, useState } from 'react';
+import { getConnectStatus } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
-import { OnboardingProgressHeader, type OnboardingStepKey, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
+import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
 
 export default function Step3PaymentSetup() {
   const [connectLoading, setConnectLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [skillsSkipped, setSkillsSkipped] = useState<boolean>(false);
-  const [verificationComplete, setVerificationComplete] = useState(false);
   const [connectStatus, setConnectStatus] = useState<{
     has_account: boolean;
     onboarding_completed: boolean;
@@ -19,65 +19,24 @@ export default function Step3PaymentSetup() {
     details_submitted: boolean;
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [stepStatus, setStepStatus] = useState<Partial<Record<OnboardingStepKey, OnboardingStepStatus>>>(
-    () => ({
-      'account-setup': 'done',
-      'skill-selection': 'pending',
-      'verify-identity': 'pending',
-      'payment-setup': 'pending',
-    })
-  );
-  const completedSteps = useMemo(
-    () => ({
-      'account-setup': stepStatus['account-setup'] === 'done',
-      'skill-selection': stepStatus['skill-selection'] === 'done',
-      'verify-identity': stepStatus['verify-identity'] === 'done',
-    }),
-    [stepStatus]
-  );
+  // Use unified step status hook for consistent progress display
+  const { stepStatus, rawData, loading: hookLoading } = useOnboardingStepStatus();
 
+  // Sync local state from hook's rawData to avoid duplicate fetches
   useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-
-        // Check for Stripe Connect status
-        const status = await getConnectStatus().catch(() => null);
-        if (status) {
-          setConnectStatus(status);
-        }
-
-        // Check sessionStorage for skip flags
-        if (typeof window !== 'undefined') {
-          if (sessionStorage.getItem('skillsSkipped') === 'true') {
-            setSkillsSkipped(true);
-          }
-        }
-
-        // Check if instructor has completed verification or has no skills in profile
-        try {
-          const profileRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-          if (profileRes.ok) {
-            const profile = await profileRes.json();
-            if (!profile.services || profile.services.length === 0) {
-              setSkillsSkipped(true);
-            }
-            // Check if verification is complete
-            if (profile.identity_verified_at || profile.identity_verification_session_id) {
-              setVerificationComplete(true);
-            }
-          }
-        } catch {
-          // Ignore errors
-        }
-      } catch {
-        logger.warn('Failed to load status');
-      } finally {
-        setLoading(false);
-      }
-    };
-    void load();
-  }, []);
+    if (rawData.connectStatus) {
+      setConnectStatus(rawData.connectStatus);
+    }
+    // Check sessionStorage for skip flags
+    if (typeof window !== 'undefined' && sessionStorage.getItem('skillsSkipped') === 'true') {
+      setSkillsSkipped(true);
+    }
+    // Check if instructor has no skills
+    if (rawData.profile && (!rawData.profile.services || rawData.profile.services.length === 0)) {
+      setSkillsSkipped(true);
+    }
+    setLoading(hookLoading);
+  }, [rawData, hookLoading]);
 
   const enrollStripeConnect = async () => {
     try {
@@ -115,21 +74,12 @@ export default function Step3PaymentSetup() {
     }
   }, []);
 
-  useEffect(() => {
-    setStepStatus({
-      'account-setup': 'done',
-      'skill-selection': skillsSkipped ? 'failed' : 'done',
-      'verify-identity': verificationComplete ? 'done' : 'pending',
-      'payment-setup': connectStatus?.onboarding_completed ? 'done' : 'pending',
-    });
-  }, [skillsSkipped, verificationComplete, connectStatus]);
 
   return (
     <div className="min-h-screen">
       <OnboardingProgressHeader
         activeStep="payment-setup"
         stepStatus={stepStatus}
-        completedSteps={completedSteps}
       />
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">

@@ -1,12 +1,28 @@
-import { useQuery } from '@tanstack/react-query';
+/**
+ * Hook for instructor bookings
+ *
+ * ✅ MIGRATED TO V1 - Uses /api/v1/instructor-bookings endpoints
+ *
+ * Provides a unified interface for fetching instructor bookings with various filters.
+ * Routes to the appropriate v1 endpoint based on status and upcoming parameters.
+ */
 
-import {
-  protectedApi,
-  type InstructorBookingsParams,
-  type PaginatedBookingResponse,
-} from '@/features/shared/api/client';
 import type { BookingStatus } from '@/features/shared/api/types';
-import { CACHE_TIMES } from '@/lib/react-query/queryClient';
+import {
+  useInstructorBookingsList,
+  useInstructorUpcomingBookings,
+  useInstructorCompletedBookings,
+} from '@/src/api/services/instructor-bookings';
+import type { BookingResponse } from '@/src/api/generated/instructly.schemas';
+
+type PaginatedBookingResponse = {
+  items: BookingResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
 
 const EMPTY_PAGE: PaginatedBookingResponse = {
   items: [],
@@ -34,52 +50,85 @@ export function useInstructorBookings({
 }: UseInstructorBookingsOptions) {
   const cappedPerPage = Math.min(perPage, 100);
 
-  return useQuery({
-    queryKey: ['instructor', 'bookings', { status: status ?? null, upcoming: !!upcoming, page, perPage: cappedPerPage }],
-    queryFn: async ({ signal }) => {
-      let response:
-        | Awaited<ReturnType<typeof protectedApi.getInstructorBookings>>
-        | Awaited<ReturnType<typeof protectedApi.getInstructorUpcomingBookings>>;
-      const params: InstructorBookingsParams = {
+  // Route to appropriate v1 endpoint based on parameters
+  // Priority: specific endpoints first, then general list
+
+  // Case 1: Upcoming confirmed bookings
+  const upcomingResult = useInstructorUpcomingBookings(page, cappedPerPage);
+  const shouldUseUpcoming = status === 'CONFIRMED' && upcoming === true;
+
+  // Case 2: Completed bookings
+  const completedResult = useInstructorCompletedBookings(page, cappedPerPage);
+  const shouldUseCompleted = status === 'COMPLETED' && upcoming === false;
+
+  // Case 3: General list with filters
+  // Build params object that handles exactOptionalPropertyTypes
+  const listParams = enabled
+    ? {
+        ...(status !== undefined ? { status } : {}),
+        ...(upcoming !== undefined ? { upcoming } : {}),
         page,
         per_page: cappedPerPage,
-        signal,
-      };
-      if (status === 'CONFIRMED' && upcoming === true) {
-        response = await protectedApi.getInstructorUpcomingBookings(page, cappedPerPage, signal);
-      } else if (status === 'COMPLETED' && upcoming === false) {
-        response = await protectedApi.getInstructorCompletedBookings(page, cappedPerPage, signal);
-      } else {
-        if (typeof upcoming === 'boolean') {
-          params.upcoming = upcoming;
-        }
-        if (status) {
-          params.status = status;
-        }
-        response = await protectedApi.getInstructorBookings(params);
       }
-      if (response.error) {
-        if (response.status && response.status >= 400 && response.status < 500) {
-          return {
-            ...EMPTY_PAGE,
-            page,
-            per_page: cappedPerPage,
-          };
+    : undefined;
+
+  const listResult = useInstructorBookingsList(listParams);
+
+  // Return the appropriate result based on parameters
+  if (!enabled) {
+    return {
+      data: { ...EMPTY_PAGE, page, per_page: cappedPerPage },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: async () => ({ data: EMPTY_PAGE }),
+    };
+  }
+
+  if (shouldUseUpcoming) {
+    return {
+      ...upcomingResult,
+      data: upcomingResult.data
+        ? {
+            items: upcomingResult.data.items,
+            total: upcomingResult.data.total,
+            page: upcomingResult.data.page ?? page,
+            per_page: upcomingResult.data.per_page ?? cappedPerPage,
+            has_next: upcomingResult.data.has_next,
+            has_prev: upcomingResult.data.has_prev,
+          }
+        : { ...EMPTY_PAGE, page, per_page: cappedPerPage },
+    };
+  }
+
+  if (shouldUseCompleted) {
+    return {
+      ...completedResult,
+      data: completedResult.data
+        ? {
+            items: completedResult.data.items,
+            total: completedResult.data.total,
+            page: completedResult.data.page ?? page,
+            per_page: completedResult.data.per_page ?? cappedPerPage,
+            has_next: completedResult.data.has_next,
+            has_prev: completedResult.data.has_prev,
+          }
+        : { ...EMPTY_PAGE, page, per_page: cappedPerPage },
+    };
+  }
+
+  // Default to general list
+  return {
+    ...listResult,
+    data: listResult.data
+      ? {
+          items: listResult.data.items,
+          total: listResult.data.total,
+          page: listResult.data.page ?? page,
+          per_page: listResult.data.per_page ?? cappedPerPage,
+          has_next: listResult.data.has_next,
+          has_prev: listResult.data.has_prev,
         }
-        throw new Error(response.error);
-      }
-      if (response.data) {
-        return response.data;
-      }
-      return {
-        ...EMPTY_PAGE,
-        page,
-        per_page: cappedPerPage,
-      };
-    },
-    enabled,
-    staleTime: CACHE_TIMES.FREQUENT,
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
+      : { ...EMPTY_PAGE, page, per_page: cappedPerPage },
+  };
 }

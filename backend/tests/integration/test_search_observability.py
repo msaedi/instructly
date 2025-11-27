@@ -61,7 +61,7 @@ def test_persist_candidates_on_record_search(client: TestClient, db: Session):
         "observability_candidates": candidates,
     }
 
-    resp = client.post("/api/search-history/", json=payload, headers=_guest_headers())
+    resp = client.post("/api/v1/search-history/", json=payload, headers=_guest_headers())
     assert resp.status_code == 201, resp.text
     body = resp.json()
     event_id = body.get("search_event_id")
@@ -123,7 +123,7 @@ def test_search_service_returns_observability_candidates_and_can_persist(db: Ses
         "results_count": len(result.get("results", [])),
         "observability_candidates": obs,
     }
-    r2 = client.post("/api/search-history/", json=payload, headers=_guest_headers())
+    r2 = client.post("/api/v1/search-history/", json=payload, headers=_guest_headers())
     assert r2.status_code == 201, r2.text
     event_id = r2.json().get("search_event_id")
     rows = (

@@ -100,7 +100,7 @@ class TestPublicAvailability:
     def test_get_public_availability_no_auth_required(self, public_client, test_instructor, full_detail_settings):
         """Test that public endpoint doesn't require authentication."""
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": date.today().isoformat()},
         )
 
@@ -122,7 +122,7 @@ class TestPublicAvailability:
         # Request availability
         today = date.today()
         response = public_client.get(
-            f"/api/public/instructors/{instructor.id}/availability",
+            f"/api/v1/public/instructors/{instructor.id}/availability",
             params={"start_date": today.isoformat(), "end_date": (today + timedelta(days=2)).isoformat()},
         )
 
@@ -173,7 +173,7 @@ class TestPublicAvailability:
     def test_get_public_availability_instructor_not_found(self, public_client, full_detail_settings):
         """Test 404 when instructor doesn't exist."""
         response = public_client.get(
-            "/api/public/instructors/01J5TESTINSTR0000000000999/availability",
+            "/api/v1/public/instructors/01J5TESTINSTR0000000000999/availability",
             params={"start_date": date.today().isoformat()},
         )
 
@@ -192,7 +192,7 @@ class TestPublicAvailability:
 
         # Past start date based on instructor's timezone
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": (instructor_today - timedelta(days=1)).isoformat()},
         )
 
@@ -203,7 +203,7 @@ class TestPublicAvailability:
 
         # End before start
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={
                 "start_date": instructor_today.isoformat(),
                 "end_date": (instructor_today - timedelta(days=1)).isoformat(),
@@ -214,7 +214,7 @@ class TestPublicAvailability:
 
         # Range too large
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={
                 "start_date": instructor_today.isoformat(),
                 "end_date": (instructor_today + timedelta(days=100)).isoformat(),
@@ -251,7 +251,7 @@ class TestPublicAvailability:
         )
 
         response = public_client.get(
-            f"/api/public/instructors/{instructor.id}/availability",
+            f"/api/v1/public/instructors/{instructor.id}/availability",
             params={"start_date": target_date.isoformat(), "end_date": target_date.isoformat()},
         )
         if response.status_code == 404:
@@ -309,7 +309,7 @@ class TestPublicAvailability:
         db.commit()
 
         response = public_client.get(
-            f"/api/public/instructors/{instructor.id}/availability",
+            f"/api/v1/public/instructors/{instructor.id}/availability",
             params={"start_date": target_date.isoformat(), "end_date": target_date.isoformat()},
         )
         if response.status_code == 404:
@@ -373,7 +373,7 @@ class TestPublicAvailability:
         )
 
         response = public_client.get(
-            f"/api/public/instructors/{instructor.id}/next-available",
+            f"/api/v1/public/instructors/{instructor.id}/next-available",
             params={"duration_minutes": 60},
         )
         if response.status_code == 404:
@@ -387,7 +387,7 @@ class TestPublicAvailability:
     def test_get_public_availability_default_end_date(self, public_client, test_instructor, full_detail_settings):
         """Test that end_date defaults to configured days if not provided."""
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": date.today().isoformat()},
         )
 
@@ -444,7 +444,7 @@ class TestPublicAvailability:
         db.commit()
 
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": today.isoformat(), "end_date": today.isoformat()},
         )
 
@@ -463,7 +463,7 @@ class TestPublicAvailability:
         """Test that endpoint works with or without caching."""
         # Just test the endpoint works - caching is optional
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": date.today().isoformat()},
         )
 
@@ -474,7 +474,7 @@ class TestPublicAvailability:
 
         # Make a second request - should get same result
         response2 = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": date.today().isoformat()},
         )
 
@@ -518,7 +518,7 @@ class TestPublicAvailability:
 
         # Request next available for 60 minutes
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/next-available", params={"duration_minutes": 60}
+            f"/api/v1/public/instructors/{test_instructor.id}/next-available", params={"duration_minutes": 60}
         )
 
         if response.status_code == 404:
@@ -536,7 +536,7 @@ class TestPublicAvailability:
         """Test when no available slot exists."""
         # No slots created
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/next-available", params={"duration_minutes": 60}
+            f"/api/v1/public/instructors/{test_instructor.id}/next-available", params={"duration_minutes": 60}
         )
 
         if response.status_code == 404:
@@ -582,7 +582,7 @@ class TestPublicAvailability:
         db.commit()
 
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": today.isoformat(), "end_date": today.isoformat()},
         )
 
@@ -607,7 +607,7 @@ class TestPublicAvailability:
         db.commit()
 
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": today.isoformat()},
         )
 
@@ -636,7 +636,7 @@ class TestPublicAvailability:
         db.commit()
 
         response = public_client.get(
-            f"/api/public/instructors/{test_instructor.id}/availability",
+            f"/api/v1/public/instructors/{test_instructor.id}/availability",
             params={"start_date": today.isoformat(), "end_date": today.isoformat()},
         )
 

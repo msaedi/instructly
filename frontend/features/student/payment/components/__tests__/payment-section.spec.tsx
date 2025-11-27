@@ -1,8 +1,19 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
-import type { Booking } from '@/features/shared/api/client';
-import { protectedApi } from '@/features/shared/api/client';
+import type { BookingResponse } from '@/src/api/generated/instructly.schemas';
 import { BookingType, PaymentMethod, PaymentStatus } from '../../types';
+
+// Mock v1 bookings service
+const mockFetchBookingDetails = jest.fn();
+const mockCancelBookingImperative = jest.fn();
+
+jest.mock('@/src/api/services/bookings', () => ({
+  fetchBookingDetails: (...args: unknown[]) => mockFetchBookingDetails(...args),
+  cancelBookingImperative: (...args: unknown[]) => mockCancelBookingImperative(...args),
+}));
+
+// Type alias for backward compatibility
+type Booking = BookingResponse;
 
 const mockQueryClient = {
   invalidateQueries: jest.fn().mockResolvedValue(undefined),
@@ -173,6 +184,8 @@ beforeEach(() => {
   mockQueryClient.invalidateQueries.mockResolvedValue(undefined);
   mockCreateBooking.mockReset();
   mockCreateBooking.mockResolvedValue(undefined);
+  mockFetchBookingDetails.mockReset();
+  mockCancelBookingImperative.mockReset();
   mockPaymentService.listPaymentMethods.mockResolvedValue([
     { id: 'card-1', last4: '1111', brand: 'visa', is_default: true, created_at: '2024-01-01' },
   ]);
@@ -238,7 +251,8 @@ describe('PaymentSection referral integration', () => {
       service_area: null,
     } as unknown as Booking;
 
-    const getBookingSpy = jest.spyOn(protectedApi, 'getBooking').mockResolvedValue({ data: serverBooking, status: 200 });
+    // Mock v1 bookings service to return server booking
+    mockFetchBookingDetails.mockResolvedValue(serverBooking);
 
     const bookingData = {
       bookingId: 'order-123',
@@ -271,7 +285,7 @@ describe('PaymentSection referral integration', () => {
     fireEvent.click(screen.getByTestId('mock-apply-referral'));
 
     await waitFor(() => {
-      expect(getBookingSpy).toHaveBeenCalledWith('order-123');
+      expect(mockFetchBookingDetails).toHaveBeenCalledWith('order-123');
       expect(latestPaymentConfirmationProps.current).not.toBeNull();
     });
 
@@ -284,8 +298,6 @@ describe('PaymentSection referral integration', () => {
 
     const booking = confirmationProps['booking'] as { totalAmount?: number } | undefined;
     expect(booking?.totalAmount).toBeCloseTo(130, 5);
-
-    getBookingSpy.mockRestore();
   });
 });
 

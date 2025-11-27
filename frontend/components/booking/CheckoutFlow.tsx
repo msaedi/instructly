@@ -147,7 +147,7 @@ const PaymentForm: React.FC<{
       }
 
       // Create checkout session with backend
-      const response = await fetch('/api/payments/checkout', {
+      const response = await fetch('/api/v1/payments/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -420,7 +420,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
   useEffect(() => {
     const loadPaymentMethods = async () => {
       try {
-        const response = await fetch('/api/payments/methods', {
+        const response = await fetch('/api/v1/payments/methods', {
           headers: {
             // Cookies-only auth; do not attach bearer token
           },

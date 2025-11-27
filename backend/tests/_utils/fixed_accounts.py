@@ -157,7 +157,7 @@ def ensure_future_windows_via_api(client, monday: date, windows_by_date: Dict[st
             continue
 
     headers = auth_headers or {}
-    r = client.post("/instructors/availability/week", json=payload, headers=headers)
+    r = client.post("/api/v1/instructors/availability/week", json=payload, headers=headers)
     assert r.status_code in (200, 304, 409), f"seeding windows failed: {r.status_code} {r.text}"
 
 

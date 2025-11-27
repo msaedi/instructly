@@ -1,32 +1,51 @@
-import { useQuery } from '@tanstack/react-query';
+/**
+ * useInstructorProfileMe - Instructor profile hook (migrated to Phase 3 pattern)
+ *
+ * This hook now uses the new Orval-generated API client via our instructor service layer.
+ * It maintains backward compatibility with the existing interface while using the new architecture.
+ *
+ * Migration notes:
+ * - Uses useInstructorMe() from @/src/api/services/instructors
+ * - Still returns InstructorProfile type for backward compatibility
+ * - Query key now managed by centralized queryKeys factory
+ */
 
-import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
-import { CACHE_TIMES } from '@/lib/react-query/queryClient';
+import { useGetMyProfileApiV1InstructorsMeGet } from '@/src/api/generated/instructors-v1/instructors-v1';
+import { queryKeys } from '@/src/api/queryKeys';
 import type { InstructorProfile } from '@/types/instructor';
 
+/**
+ * Get current instructor profile (/api/v1/instructors/me).
+ *
+ * @param enabled - Whether to enable the query (default: true)
+ * @returns React Query result with InstructorProfile data
+ *
+ * @example
+ * ```tsx
+ * function InstructorDashboard() {
+ *   const { data: profile, isLoading, error } = useInstructorProfileMe();
+ *
+ *   if (isLoading) return <div>Loading...</div>;
+ *   if (error) return <div>Error loading profile</div>;
+ *   if (!profile) return <div>No profile found</div>;
+ *
+ *   return <div>Welcome, {profile.user?.first_name}!</div>;
+ * }
+ * ```
+ */
 export function useInstructorProfileMe(enabled: boolean = true) {
-  return useQuery<InstructorProfile>({
-    queryKey: ['instructor', 'me'],
-    queryFn: async () => {
-      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-      if (!response.ok) {
-        let message = 'Failed to load instructor profile';
-        try {
-          const errorBody = (await response.json()) as { detail?: string };
-          if (errorBody?.detail) {
-            message = errorBody.detail;
-          }
-        } catch {
-          // ignore parse errors
-        }
-        const error = new Error(message) as Error & { status?: number };
-        error.status = response.status;
-        throw error;
-      }
-      return (await response.json()) as InstructorProfile;
+  const result = useGetMyProfileApiV1InstructorsMeGet({
+    query: {
+      queryKey: queryKeys.instructors.me,
+      staleTime: 1000 * 60 * 15, // 15 minutes
+      enabled,
     },
-    staleTime: CACHE_TIMES.FREQUENT,
-    refetchOnWindowFocus: false,
-    enabled,
   });
+
+  // Transform the response to match the expected InstructorProfile type
+  // The Orval-generated response is compatible, but we cast for type safety
+  return {
+    ...result,
+    data: result.data as InstructorProfile | undefined,
+  };
 }

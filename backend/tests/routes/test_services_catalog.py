@@ -131,7 +131,8 @@ class TestAllServicesWithInstructorsEndpoint:
         }
 
         # Make the request
-        response = test_client.get("/services/catalog/all-with-instructors")
+        # Phase 13: Services migrated to /api/v1/services
+        response = test_client.get("/api/v1/services/catalog/all-with-instructors")
 
         # Assert the response
         assert response.status_code == 200
@@ -178,7 +179,8 @@ class TestAllServicesWithInstructorsEndpoint:
             },
         }
 
-        response = test_client.get("/services/catalog/all-with-instructors")
+        # Phase 13: Services migrated to /api/v1/services
+        response = test_client.get("/api/v1/services/catalog/all-with-instructors")
 
         assert response.status_code == 200
         data = response.json()
@@ -280,7 +282,8 @@ class TestAllServicesWithInstructorsEndpoint:
             },
         }
 
-        response = test_client.get("/services/catalog/all-with-instructors")
+        # Phase 13: Services migrated to /api/v1/services
+        response = test_client.get("/api/v1/services/catalog/all-with-instructors")
 
         assert response.status_code == 200
         data = response.json()
@@ -307,11 +310,12 @@ class TestAllServicesWithInstructorsEndpoint:
         mock_instructor_service.get_all_services_with_instructors.return_value = mock_response
 
         # First call
-        response1 = test_client.get("/services/catalog/all-with-instructors")
+        # Phase 13: Services migrated to /api/v1/services
+        response1 = test_client.get("/api/v1/services/catalog/all-with-instructors")
         assert response1.status_code == 200
 
         # Second call (would use cache in real implementation)
-        response2 = test_client.get("/services/catalog/all-with-instructors")
+        response2 = test_client.get("/api/v1/services/catalog/all-with-instructors")
         assert response2.status_code == 200
 
         # Verify service was called
@@ -338,7 +342,8 @@ class TestKidsAvailableServicesEndpoint:
             {"id": "svc2", "name": "Guitar", "slug": "guitar"},
         ]
 
-        resp = test_client.get("/services/catalog/kids-available")
+        # Phase 13: Services migrated to /api/v1/services
+        resp = test_client.get("/api/v1/services/catalog/kids-available")
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
@@ -347,6 +352,7 @@ class TestKidsAvailableServicesEndpoint:
 
     def test_kids_available_empty(self, test_client, mock_instructor_service):
         mock_instructor_service.get_kids_available_services.return_value = []
-        resp = test_client.get("/services/catalog/kids-available")
+        # Phase 13: Services migrated to /api/v1/services
+        resp = test_client.get("/api/v1/services/catalog/kids-available")
         assert resp.status_code == 200
         assert resp.json() == []

@@ -9,7 +9,6 @@ Validates and processes profile images:
 """
 
 from dataclasses import dataclass
-import imghdr
 import io
 import logging
 from typing import Tuple
@@ -36,10 +35,15 @@ class ImageProcessingService:
         pass
 
     def _verify_magic_bytes(self, data: bytes) -> str:
-        kind = imghdr.what(None, h=data)
-        if kind not in {"jpeg", "png"}:
+        """Verify image magic bytes using PIL and return content type."""
+        try:
+            with Image.open(io.BytesIO(data)) as img:
+                kind = img.format
+                if kind not in {"JPEG", "PNG"}:
+                    raise ValueError("Invalid image type")
+                return "image/jpeg" if kind == "JPEG" else "image/png"
+        except Exception:
             raise ValueError("Invalid image type")
-        return "image/jpeg" if kind == "jpeg" else "image/png"
 
     def _enforce_constraints(self, content_type: str, data: bytes) -> None:
         if content_type not in ALLOWED_CONTENT_TYPES:

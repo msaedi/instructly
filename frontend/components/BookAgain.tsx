@@ -33,7 +33,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
   // Fetch past completed bookings with React Query
   const { data: bookingsData, isLoading } = useQuery<BookingListResponse>({
     queryKey: [...queryKeys.bookings.history(), { include_past_confirmed: true, per_page: 50 }],
-    queryFn: queryFn('/bookings/', {
+    queryFn: queryFn('/api/v1/bookings', {
       params: {
         include_past_confirmed: true,
         per_page: 50, // Get more to ensure we find 3 unique instructors
@@ -122,7 +122,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
     return null;
   }
 
-  logger.info('BookAgain: Rendering component', {
+  logger.debug('BookAgain: Rendering component', {
     uniqueInstructorsLength: uniqueInstructors.length,
     instructors: uniqueInstructors.map((i) => ({
       id: i.instructorId,

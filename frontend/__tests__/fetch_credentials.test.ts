@@ -35,7 +35,7 @@ describe('fetchAPI', () => {
     } as Response;
     const spy = jest.spyOn(global, 'fetch').mockResolvedValue(mockResponse);
     const { fetchAPI } = await import('../lib/api');
-    await fetchAPI('/auth/ping');
+    await fetchAPI('/api/v1/auth/me');
     expect(spy).toHaveBeenCalled();
     const init = spy.mock.calls[0]?.[1] || {};
     expect(init.credentials).toBe('include');

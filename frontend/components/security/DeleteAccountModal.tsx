@@ -24,7 +24,7 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
     setSubmitting(true);
     try {
       // Verify password silently (backend expects form-encoded OAuth2 fields)
-      const loginRes = await fetchAPI('/auth/login', {
+      const loginRes = await fetchAPI('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ username: email, password }).toString(),
@@ -36,7 +36,7 @@ export default function DeleteAccountModal({ email, onClose, onDeleted }: Props)
       }
 
       // Soft delete account
-      const delRes = await fetchWithAuth('/api/privacy/delete/me', {
+      const delRes = await fetchWithAuth('/api/v1/privacy/delete/me', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ delete_account: true }),

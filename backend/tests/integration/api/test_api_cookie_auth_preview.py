@@ -40,10 +40,10 @@ def test_preview_session_cookie_powers_api_routes(
     client.cookies.clear()
     _set_session_cookie(client, test_student)
 
-    addresses = client.get("/api/addresses/me")
+    addresses = client.get("/api/v1/addresses/me")
     assert addresses.status_code == 200
 
-    referrals = client.get("/api/referrals/me")
+    referrals = client.get("/api/v1/referrals/me")
     assert referrals.status_code == 200
 
     fake_created = datetime.now(timezone.utc)
@@ -60,7 +60,7 @@ def test_preview_session_cookie_powers_api_routes(
             )
         ],
     )
-    payment_methods = client.get("/api/payments/methods")
+    payment_methods = client.get("/api/v1/payments/methods")
     assert payment_methods.status_code == 200
     assert payment_methods.json()
 
@@ -69,10 +69,10 @@ def test_preview_session_cookie_powers_api_routes(
     _set_session_cookie(client, test_instructor)
     start_date = "2024-01-01"
 
-    week = client.get(f"/instructors/availability/week?start_date={start_date}")
+    week = client.get(f"/api/v1/instructors/availability/week?start_date={start_date}")
     assert week.status_code == 200
 
-    booked = client.get(f"/instructors/availability/week/booked-slots?start_date={start_date}")
+    booked = client.get(f"/api/v1/instructors/availability/week/booked-slots?start_date={start_date}")
     assert booked.status_code == 200
 
     payload = {
@@ -91,7 +91,7 @@ def test_preview_session_cookie_powers_api_routes(
         "Referer": "https://preview.instainstru.com/instructors/dashboard",
     }
     save_resp = client.post(
-        "/instructors/availability/week",
+        "/api/v1/instructors/availability/week",
         json=payload,
         headers=csrf_headers,
     )

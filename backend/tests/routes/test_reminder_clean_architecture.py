@@ -31,12 +31,12 @@ class TestReminderEndpointCleanArchitecture:
     def test_reminder_endpoint_exists(self, client):
         """Verify the reminder endpoint is available."""
         # Without auth, should get 401 or 403
-        response = client.post("/bookings/send-reminders")
+        response = client.post("/api/v1/bookings/send-reminders")
         assert response.status_code in [401, 403]
 
     def test_reminder_endpoint_requires_admin(self, client, auth_headers_student):
         """Verify reminder endpoint requires admin access."""
-        response = client.post("/bookings/send-reminders", headers=auth_headers_student)
+        response = client.post("/api/v1/bookings/send-reminders", headers=auth_headers_student)
 
         # Should get forbidden (not a 404)
         assert response.status_code == 403
@@ -76,7 +76,7 @@ class TestReminderEndpointCleanArchitecture:
         headers = {"Authorization": f"Bearer {token}"}
 
         # Call endpoint
-        response = client.post("/bookings/send-reminders", headers=headers)
+        response = client.post("/api/v1/bookings/send-reminders", headers=headers)
 
         assert response.status_code == 200
         response_data = response.json()
@@ -89,7 +89,7 @@ class TestReminderEndpointCleanArchitecture:
     def test_reminder_response_format_is_clean(self, client, auth_headers_instructor):
         """Test reminder endpoint response doesn't include removed concepts."""
         # Even though not admin, we can test the response format from error
-        response = client.post("/bookings/send-reminders", headers=auth_headers_instructor)
+        response = client.post("/api/v1/bookings/send-reminders", headers=auth_headers_instructor)
 
         # Should get error, but error shouldn't reference slots
         assert response.status_code == 403

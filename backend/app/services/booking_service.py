@@ -1294,6 +1294,75 @@ class BookingService(BaseService):
 
         return refreshed_booking
 
+    @BaseService.measure_operation("mark_no_show")
+    def mark_no_show(self, booking_id: str, instructor: User) -> Booking:
+        """
+        Mark a booking as no-show (instructor only).
+
+        A no-show indicates the student did not attend the scheduled lesson.
+
+        Args:
+            booking_id: ID of booking to mark as no-show
+            instructor: Instructor marking as no-show
+
+        Returns:
+            Booking marked as no-show
+
+        Raises:
+            NotFoundException: If booking not found
+            ValidationException: If user is not instructor
+            BusinessRuleException: If booking cannot be marked as no-show
+        """
+        instructor_roles = cast(list[Any], getattr(instructor, "roles", []) or [])
+        is_instructor = any(
+            cast(str, getattr(role, "name", "")) == RoleName.INSTRUCTOR for role in instructor_roles
+        )
+        if not is_instructor:
+            raise ValidationException("Only instructors can mark bookings as no-show")
+
+        with self.transaction():
+            # Load and validate booking
+            booking = self.repository.get_booking_with_details(booking_id)
+
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if booking.instructor_id != instructor.id:
+                raise ValidationException("You can only mark your own bookings as no-show")
+
+            if booking.status != BookingStatus.CONFIRMED:
+                raise BusinessRuleException(
+                    f"Only confirmed bookings can be marked as no-show - current status: {booking.status}"
+                )
+
+            audit_before = self._snapshot_booking(booking)
+
+            # Mark as no-show using model method
+            booking.mark_no_show()
+
+            # Flush to persist status change
+            self.repository.flush()
+
+            self._enqueue_booking_outbox_event(booking, "booking.no_show")
+            audit_after = self._snapshot_booking(booking)
+            self._write_booking_audit(
+                booking,
+                "no_show",
+                actor=instructor,
+                before=audit_before,
+                after=audit_after,
+                default_role=RoleName.INSTRUCTOR.value,
+            )
+
+        # External operations outside transaction
+        # Reload booking with details for cache invalidation
+        refreshed_booking = self.repository.get_booking_with_details(booking_id)
+        if refreshed_booking is None:
+            raise NotFoundException("Booking not found")
+        self._invalidate_booking_caches(refreshed_booking)
+
+        return refreshed_booking
+
     @BaseService.measure_operation("check_availability")
     async def check_availability(
         self,

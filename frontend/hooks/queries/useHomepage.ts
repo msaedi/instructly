@@ -2,7 +2,7 @@ import { useQuery, useQueries } from '@tanstack/react-query';
 import { queryFn, convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi, TopServicesResponse } from '@/features/shared/api/client';
-import { useUser } from './useUser';
+import { useCurrentUser } from '@/src/api/hooks/useSession';
 import type { BookingListResponse } from '@/features/shared/api/types';
 import { SearchHistoryItem } from '@/lib/searchTracking';
 import { httpJson } from '@/features/shared/api/http';
@@ -32,12 +32,12 @@ import { loadBookingListSchema } from '@/features/shared/api/schemas/bookingList
  * ```
  */
 export function useUpcomingBookings(limit: number = 2) {
-  const { data: user } = useUser();
+  const user = useCurrentUser();
   const isAuthenticated = !!user;
 
   return useQuery<BookingListResponse>({
     queryKey: queryKeys.bookings.upcoming(limit),
-    queryFn: queryFn(`/bookings/upcoming?limit=${limit}`, {
+    queryFn: queryFn(`/api/v1/bookings/upcoming?limit=${limit}`, {
       requireAuth: true,
     }),
     enabled: isAuthenticated, // Only run if user is authenticated
@@ -116,17 +116,17 @@ export function useFeaturedServices() {
  * Only for authenticated users
  */
 export function useBookingHistory(limit: number = 50) {
-  const { data: user } = useUser();
+  const user = useCurrentUser();
   const isAuthenticated = !!user;
 
   return useQuery({
     queryKey: [...queryKeys.bookings.history(), { status: 'COMPLETED', limit }] as const,
     queryFn: async () =>
       httpJson<BookingListResponse>(
-        withApiBase(`/bookings/?status=COMPLETED&per_page=${limit}`),
+        withApiBase(`/api/v1/bookings?status=COMPLETED&per_page=${limit}`),
         { method: 'GET' },
         loadBookingListSchema,
-        { endpoint: 'GET /bookings' }
+        { endpoint: 'GET /api/v1/bookings' }
       ),
     enabled: isAuthenticated,
     staleTime: CACHE_TIMES.SLOW, // 15 minutes - historical data
@@ -189,7 +189,7 @@ interface HomepageData {
  * ```
  */
 export function useHomepageData(): HomepageData {
-  const { data: user } = useUser();
+  const user = useCurrentUser();
   const isAuthenticated = !!user;
 
   // Define all queries
@@ -198,7 +198,7 @@ export function useHomepageData(): HomepageData {
       // Upcoming bookings - only if authenticated
       {
         queryKey: queryKeys.bookings.upcoming(2),
-        queryFn: queryFn<BookingListResponse>('/bookings/upcoming?limit=2', {
+        queryFn: queryFn<BookingListResponse>('/api/v1/bookings/upcoming?limit=2', {
           requireAuth: true,
         }),
         enabled: isAuthenticated,
@@ -232,10 +232,10 @@ export function useHomepageData(): HomepageData {
         queryKey: queryKeys.bookings.history(1), // Page 1 for BookAgain component
         queryFn: async () =>
           httpJson<BookingListResponse>(
-            withApiBase('/bookings/?status=COMPLETED&per_page=50'),
+            withApiBase('/api/v1/bookings?status=COMPLETED&per_page=50'),
             { method: 'GET' },
             loadBookingListSchema,
-            { endpoint: 'GET /bookings' }
+            { endpoint: 'GET /api/v1/bookings' }
           ),
         enabled: isAuthenticated,
         staleTime: CACHE_TIMES.SLOW,
