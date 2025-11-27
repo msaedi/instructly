@@ -43,6 +43,8 @@ function Step3SkillsPricingInner() {
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
   // Use unified step status hook for consistent progress display
   const { stepStatus, rawData } = useOnboardingStepStatus();
+  // Check if instructor is already live (affects whether they can have 0 skills)
+  const isInstructorLive = rawData.profile?.is_live === true;
   // Single pricing config fetch - derive floors from config to avoid duplicate API calls
   const { config: pricingConfig } = usePricingConfig();
   const pricingFloors = pricingConfig?.price_floor_cents ?? null;
@@ -202,6 +204,11 @@ function Step3SkillsPricingInner() {
   };
 
   const removeService = (id: string) => {
+    // Prevent removing the last skill if instructor is already live
+    if (isInstructorLive && selected.length <= 1) {
+      setError('Live instructors must have at least one skill. Add another skill before removing this one.');
+      return;
+    }
     setSelected((prev) => prev.filter((s) => s.catalog_service_id !== id));
   };
 
@@ -227,8 +234,25 @@ function Step3SkillsPricingInner() {
         }
       }
       const nextUrl = redirectParam || '/instructor/onboarding/verification';
-      // If no skills selected, skip saving and go to verification step
+      // If no skills selected
       if (selected.length === 0) {
+        // Live instructors must have at least one skill
+        if (isInstructorLive) {
+          setError('Live instructors must have at least one skill.');
+          setSaving(false);
+          return;
+        }
+        // During onboarding: persist empty skills array to backend, then navigate
+        try {
+          await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ services: [] }),
+          });
+        } catch {
+          // Best effort - continue even if clearing fails
+          logger.warn('Failed to clear services, continuing to next step');
+        }
         // Store a flag that skills were skipped
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('skillsSkipped', 'true');
@@ -366,7 +390,12 @@ function Step3SkillsPricingInner() {
                   <button
                     type="button"
                     aria-label={`Remove ${s.name}`}
-                    className="ml-auto text-[#7E22CE] rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center hover:bg-purple-50 no-hover-shadow shrink-0"
+                    title={isInstructorLive && selected.length <= 1 ? 'Live instructors must have at least one skill' : `Remove ${s.name}`}
+                    className={`ml-auto rounded-full w-6 h-6 min-w-6 min-h-6 aspect-square inline-flex items-center justify-center no-hover-shadow shrink-0 ${
+                      isInstructorLive && selected.length <= 1
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : 'text-[#7E22CE] hover:bg-purple-50'
+                    }`}
                     onClick={() => removeService(s.catalog_service_id)}
                   >
                     &times;
@@ -485,8 +514,12 @@ function Step3SkillsPricingInner() {
                   </div>
                   <button
                     aria-label="Remove skill"
-                    title="Remove skill"
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-300 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors"
+                    title={isInstructorLive && selected.length <= 1 ? 'Live instructors must have at least one skill' : 'Remove skill'}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full bg-white border transition-colors ${
+                      isInstructorLive && selected.length <= 1
+                        ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                        : 'border-gray-300 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
+                    }`}
                     onClick={() => removeService(s.catalog_service_id)}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
