@@ -1,6 +1,8 @@
 [![Env-contract](https://github.com/msaedi/instructly/actions/workflows/env-contract.yml/badge.svg)](https://github.com/msaedi/instructly/actions/workflows/env-contract.yml)
 [![Schemathesis](https://github.com/msaedi/instructly/actions/workflows/schemathesis.yml/badge.svg)](https://github.com/msaedi/instructly/actions/workflows/schemathesis.yml)
 
+> Free AI at api.airforce — https://discord.gg/AJDsM7jtbq
+
 ## DB prep quickstart
 
 Use `backend/scripts/prep_db.py` with SITE_MODE:
