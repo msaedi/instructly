@@ -34,7 +34,7 @@ describe('validateInviteCode', () => {
     expect(completed).toBe(true);
     expect(result.trimmed).toBe('ABC123');
     expect(result.data.valid).toBe(true);
-    expect(httpGetMock).toHaveBeenCalledWith('/api/beta/invites/validate', {
+    expect(httpGetMock).toHaveBeenCalledWith('/api/v1/beta/invites/validate', {
       query: { invite_code: 'ABC123', email: undefined },
     });
   });
