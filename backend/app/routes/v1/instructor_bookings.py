@@ -207,6 +207,7 @@ async def list_instructor_bookings(
     "/{booking_id}/complete",
     response_model=BookingResponse,
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
+    responses={404: {"description": "Booking not found"}},
 )
 async def mark_lesson_complete(
     booking_id: str = Path(
@@ -322,6 +323,7 @@ async def mark_lesson_complete(
     "/{booking_id}/dispute",
     response_model=BookingResponse,
     dependencies=[Depends(require_beta_access("instructor")), Depends(rate_limit("write"))],
+    responses={404: {"description": "Booking not found"}},
 )
 async def dispute_completion(
     booking_id: str = Path(

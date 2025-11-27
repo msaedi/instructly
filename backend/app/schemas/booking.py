@@ -58,7 +58,10 @@ class BookingCreate(StrictRequestModel):
     booking_date: date = Field(..., description="Date of the booking")
     start_time: time = Field(..., description="Start time")
     selected_duration: int = Field(
-        ..., description="Selected duration in minutes from service's duration_options"
+        ...,
+        ge=15,
+        le=720,
+        description="Selected duration in minutes from service's duration_options",
     )
     student_note: Optional[str] = Field(
         None, max_length=1000, description="Optional note from student"
@@ -162,7 +165,9 @@ class BookingRescheduleRequest(StrictRequestModel):
 
     booking_date: date = Field(..., description="New date for the lesson")
     start_time: time = Field(..., description="New start time (HH:MM)")
-    selected_duration: int = Field(..., description="New selected duration in minutes")
+    selected_duration: int = Field(
+        ..., ge=15, le=720, description="New selected duration in minutes"
+    )
     instructor_service_id: Optional[str] = Field(
         None, description="Override service if needed (defaults to old)"
     )

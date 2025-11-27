@@ -1520,16 +1520,27 @@ fetch('/api/messages/...')  // BLOCKED by pre-commit
 | Domain | Endpoint Pattern | Status | Notes |
 |--------|------------------|--------|-------|
 | Instructors | `/api/v1/instructors/*` | ✅ Running | Public endpoints |
-| Student Bookings | `/api/v1/bookings/*` | ⏭️ Skipped | Requires auth - covered by integration tests |
-| Instructor Bookings | `/api/v1/instructor-bookings/*` | ⏭️ Skipped | Requires auth - covered by integration tests |
-| Messages | `/api/v1/messages/*` | ⏭️ Skipped | Requires auth - covered by integration tests |
-| Broader v1 | `/api/v1/*` | ⏭️ Skipped | Reserved for nightly contract suite |
+| Student Bookings | `/api/v1/bookings/*` | ✅ Running | Uses auth fixtures in Schemathesis |
+| Instructor Bookings | `/api/v1/instructor-bookings/*` | ✅ Running | Uses auth fixtures in Schemathesis |
+| Messages | `/api/v1/messages/*` | ✅ Running | Uses auth fixtures in Schemathesis |
+| Broader v1 | `/api/v1/*` | ⏭️ Nightly | Runs via nightly Schemathesis job |
 
-**Skip Justification:**
-- Bookings, instructor-bookings, and messages endpoints require authentication
-- Schemathesis cannot easily provide auth tokens in property-based tests
-- Schema compliance is verified through dedicated integration tests with proper auth fixtures
-- The "broader API v1" test is reserved for future nightly/CI contract suite
+**Skip Strategy:**
+- Per-domain tests run in CI with auth fixtures for student/instructor contexts.
+- Full `/api/v1/*` fuzzing runs in nightly CI (see `.github/workflows/nightly-schemathesis.yml`). Enable locally with `RUN_NIGHTLY_SCHEMATHESIS=1`.
+
+## Schemathesis Testing Strategy
+
+### Per-Domain Tests (Run in CI)
+- `test_api_v1_instructors_schema_compliance` – CI default
+- `test_api_v1_bookings_schema_compliance` – CI default (student auth)
+- `test_api_v1_instructor_bookings_schema_compliance` – CI default (instructor auth)
+- `test_api_v1_messages_schema_compliance` – CI default (student auth)
+
+### Full API Fuzzing (Nightly)
+- `test_api_v1_all_endpoints_schema_compliance` – 181 endpoints
+- Runs daily at 2 AM UTC via `.github/workflows/nightly-schemathesis.yml`
+- Local opt-in: `RUN_NIGHTLY_SCHEMATHESIS=1 pytest tests/integration/test_schemathesis_api_v1.py::test_api_v1_all_endpoints_schema_compliance -v`
 
 ### Known Remaining Legacy Consumers (Post-Phase 10)
 

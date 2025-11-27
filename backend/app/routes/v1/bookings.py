@@ -415,6 +415,11 @@ async def get_bookings(
     response_model=BookingCreateResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_beta_phase_access()), Depends(new_rate_limit("booking"))],
+    responses={
+        404: {"description": "Instructor or service not found"},
+        409: {"description": "Time slot not available"},
+        422: {"description": "Business rule violation (e.g., invalid duration)"},
+    },
 )
 @rate_limit(
     f"{settings.rate_limit_booking_per_minute}/minute",
@@ -473,6 +478,7 @@ async def create_booking(
     "/{booking_id}/preview",
     response_model=BookingPreviewResponse,
     dependencies=[Depends(new_rate_limit("read"))],
+    responses={404: {"description": "Booking not found"}},
 )
 async def get_booking_preview(
     booking_id: str = Path(
@@ -526,6 +532,7 @@ async def get_booking_preview(
     "/{booking_id}/pricing",
     response_model=PricingPreviewOut,
     dependencies=[Depends(new_rate_limit("read"))],
+    responses={404: {"description": "Booking not found"}, 403: {"description": "Access denied"}},
 )
 async def get_booking_pricing(
     booking_id: str = Path(
@@ -574,6 +581,7 @@ async def get_booking_pricing(
     "/{booking_id}",
     response_model=BookingResponse,
     dependencies=[Depends(new_rate_limit("read"))],
+    responses={404: {"description": "Booking not found"}},
 )
 async def get_booking_details(
     booking_id: str = Path(
@@ -614,6 +622,7 @@ async def get_booking_details(
     "/{booking_id}",
     response_model=BookingResponse,
     dependencies=[Depends(new_rate_limit("write"))],
+    responses={404: {"description": "Booking not found"}},
 )
 async def update_booking(
     booking_id: str = Path(
@@ -640,6 +649,7 @@ async def update_booking(
     "/{booking_id}/cancel",
     response_model=BookingResponse,
     dependencies=[Depends(new_rate_limit("write"))],
+    responses={404: {"description": "Booking not found"}},
 )
 async def cancel_booking(
     booking_id: str = Path(
@@ -666,6 +676,7 @@ async def cancel_booking(
     "/{booking_id}/reschedule",
     response_model=BookingResponse,
     dependencies=[Depends(new_rate_limit("write"))],
+    responses={404: {"description": "Booking not found"}, 409: {"description": "Time conflict"}},
 )
 async def reschedule_booking(
     booking_id: str = Path(
@@ -844,6 +855,10 @@ async def reschedule_booking(
     "/{booking_id}/complete",
     response_model=BookingResponse,
     dependencies=[Depends(new_rate_limit("write"))],
+    responses={
+        403: {"description": "Permission denied"},
+        404: {"description": "Booking not found"},
+    },
 )
 async def complete_booking(
     booking_id: str = Path(
@@ -871,6 +886,10 @@ async def complete_booking(
     "/{booking_id}/no-show",
     response_model=BookingResponse,
     dependencies=[Depends(new_rate_limit("write"))],
+    responses={
+        403: {"description": "Permission denied"},
+        404: {"description": "Booking not found"},
+    },
 )
 async def mark_booking_no_show(
     booking_id: str = Path(
@@ -901,6 +920,7 @@ async def mark_booking_no_show(
     "/{booking_id}/confirm-payment",
     response_model=BookingResponse,
     dependencies=[Depends(new_rate_limit("payment"))],
+    responses={404: {"description": "Booking not found"}},
 )
 async def confirm_booking_payment(
     booking_id: str = Path(
@@ -936,6 +956,7 @@ async def confirm_booking_payment(
     "/{booking_id}/payment-method",
     response_model=BookingResponse,
     dependencies=[Depends(new_rate_limit("payment"))],
+    responses={404: {"description": "Booking not found"}},
 )
 async def update_booking_payment_method(
     booking_id: str = Path(

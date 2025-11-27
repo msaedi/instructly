@@ -43,7 +43,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
@@ -111,7 +111,7 @@ class ReactionRequest(BaseModel):
 
 class EditMessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    content: str
+    content: str = Field(..., min_length=1, max_length=5000, description="New message content")
 
 
 # ============================================================================
@@ -183,6 +183,7 @@ async def get_unread_count(
         400: {"description": "Validation error"},
         401: {"description": "Not authenticated"},
         403: {"description": "Permission denied"},
+        422: {"description": "Either booking_id or message_ids must be provided"},
     },
 )
 async def mark_messages_as_read(
@@ -684,6 +685,8 @@ async def delete_message(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e),
         )
+    except HTTPException:
+        raise  # Re-raise HTTPExceptions (like 404) as-is
     except Exception as e:
         logger.error(f"Error deleting message: {str(e)}")
         raise HTTPException(
