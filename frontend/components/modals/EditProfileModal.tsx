@@ -93,6 +93,8 @@ interface EditProfileModalProps {
   preferredTeaching?: PreferredTeachingLocationInput[];
   /** Prefilled preferred public spaces */
   preferredPublic?: PreferredPublicSpaceInput[];
+  /** Pre-fetched instructor profile to avoid duplicate API calls */
+  instructorProfile?: Record<string, unknown> | null;
   /** Callback when areas variant saves */
   onSave?: (payload: {
     neighborhoods: SelectedNeighborhood[];
@@ -130,6 +132,7 @@ export default function EditProfileModal({
   preferredTeaching = [],
   preferredPublic = [],
   onSave,
+  instructorProfile,
 }: EditProfileModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -270,17 +273,25 @@ export default function EditProfileModal({
 
   const fetchProfile = useCallback(async () => {
     try {
-      logger.info('Fetching instructor profile for editing');
-      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+      let data: Record<string, unknown>;
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch profile');
+      // Use pre-fetched profile if available (avoids duplicate API call)
+      if (instructorProfile) {
+        logger.info('Using pre-fetched instructor profile for editing');
+        data = instructorProfile;
+      } else {
+        logger.info('Fetching instructor profile for editing');
+        const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch profile');
+        }
+
+        data = await response.json();
       }
 
-      const data = await response.json();
-
-      const neighborhoodsRaw = Array.isArray(data?.service_area_neighborhoods)
-        ? (data.service_area_neighborhoods as ServiceAreaItem[])
+      const neighborhoodsRaw = Array.isArray(data?.['service_area_neighborhoods'])
+        ? (data['service_area_neighborhoods'] as ServiceAreaItem[])
         : [];
       const neighborhoods = neighborhoodsRaw.reduce<ServiceAreaNeighborhood[]>((acc, item) => {
         const neighborhoodId = item.neighborhood_id || item.id;
@@ -297,9 +308,9 @@ export default function EditProfileModal({
       }, []);
 
       const serviceAreaSource = {
-        service_area_summary: (data?.service_area_summary as string | null | undefined) ?? null,
-        service_area_boroughs: Array.isArray(data?.service_area_boroughs)
-          ? (data.service_area_boroughs as string[])
+        service_area_summary: (data?.['service_area_summary'] as string | null | undefined) ?? null,
+        service_area_boroughs: Array.isArray(data?.['service_area_boroughs'])
+          ? (data['service_area_boroughs'] as string[])
           : [],
         service_area_neighborhoods: neighborhoods,
       };
@@ -329,12 +340,12 @@ export default function EditProfileModal({
         }
       } catch {}
 
-      const normalizedServices = await normalizeInstructorServices(data.services);
+      const normalizedServices = await normalizeInstructorServices(data['services'] as unknown[]);
 
       setProfileData({
-        bio: data.bio || '',
+        bio: (data['bio'] as string) || '',
         service_area_boroughs: boroughSelection,
-        years_experience: data.years_experience || 0,
+        years_experience: (data['years_experience'] as number) || 0,
         services: normalizedServices,
         first_name: firstName,
         last_name: lastName,
@@ -342,14 +353,14 @@ export default function EditProfileModal({
       });
 
       logger.debug('Profile data loaded', {
-        servicesCount: data.services?.length || 0,
+        servicesCount: Array.isArray(data['services']) ? data['services'].length : 0,
         boroughCount: boroughSelection.length,
       });
     } catch (err) {
       logger.error('Failed to load instructor profile', err);
       setError('Failed to load profile');
     }
-  }, []);
+  }, [instructorProfile]);
 
   useEffect(() => {
     if (isOpen) {

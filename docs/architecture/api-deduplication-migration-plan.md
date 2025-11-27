@@ -43,9 +43,9 @@ The frontend has multiple places fetching the same data independently, causing:
 | `app/(auth)/instructor/dashboard/page.tsx` | 350 | READ | ✅ Done | Uses hook |
 | `features/instructor-profile/InstructorProfileForm.tsx` | 152 | READ | ✅ Done | Uses hook |
 | `components/UserProfileDropdown.tsx` | 29 | READ | ✅ Done | Uses hook with skip |
-| `components/instructor/ProgressSteps.tsx` | 22 | READ | ⚠️ TODO | Needs hook |
-| `components/modals/EditProfileModal.tsx` | 274, 480 | READ | ⚠️ TODO | Needs hook or prop |
-| `app/dashboard/instructor/page.tsx` | 78 | READ | 🔍 Check | Old dashboard? |
+| `components/instructor/ProgressSteps.tsx` | - | READ | ✅ Done | **DELETED** (dead code) |
+| `components/modals/EditProfileModal.tsx` | 274 | READ | ✅ Done | Accepts prop, conditional fetch |
+| `app/dashboard/instructor/page.tsx` | 78 | READ | ✅ OK | Old dashboard - fallback fetch |
 | `features/instructor-onboarding/useOnboardingStepStatus.ts` | 70 | READ | ✅ OK | Unified hook (intentional) |
 | `app/(auth)/instructor/onboarding/status/page.tsx` | 141 | READ | ✅ OK | Uses unified hook |
 | `features/instructor-profile/SkillsPricingInline.tsx` | 123 | READ | ✅ Done | Conditional with prop |
@@ -201,13 +201,16 @@ After each migration:
 |------|------|--------|
 | 2025-11-27 | `features/instructor-profile/InstructorProfileForm.tsx` | Use `useInstructorProfileMe` hook |
 | 2025-11-27 | `features/instructor-profile/SkillsPricingInline.tsx` | Accept `instructorProfile` prop, conditional fetch |
+| 2025-11-27 | `components/instructor/ProgressSteps.tsx` | **DELETED** - unused dead code |
+| 2025-11-27 | `components/modals/EditProfileModal.tsx` | Accept `instructorProfile` prop, use when provided |
+| 2025-11-27 | `app/(auth)/instructor/dashboard/page.tsx` | Pass `instructorProfile` to EditProfileModal |
 
 ---
 
 ## Next Steps
 
-1. **ProgressSteps.tsx** - Convert to use `useInstructorProfileMe` or accept prop
-2. **EditProfileModal.tsx** - Pass profile data when opening modal
+1. ~~**ProgressSteps.tsx** - Convert to use `useInstructorProfileMe` or accept prop~~ ✅ Deleted (dead code)
+2. ~~**EditProfileModal.tsx** - Pass profile data when opening modal~~ ✅ Done
 3. **Create hooks for**: `/api/v1/auth/me`, `/api/v1/addresses/me` if not exists
 4. **Audit other endpoints** for similar patterns
 

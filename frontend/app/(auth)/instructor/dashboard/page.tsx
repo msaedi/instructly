@@ -1384,6 +1384,7 @@ export default function InstructorDashboardNew() {
           preferredTeaching={preferredTeachingLocations}
           preferredPublic={preferredPublicSpaces}
           onSave={handleAreasModalSave}
+          instructorProfile={instructorProfile as unknown as Record<string, unknown> | null}
         />
       )}
       <Modal isOpen={showVerifyModal} onClose={() => setShowVerifyModal(false)} title="" size="xl">
