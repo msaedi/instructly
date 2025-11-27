@@ -198,6 +198,9 @@ markers = [
     "schemathesis: Schemathesis-based API contract tests (run with: pytest -m schemathesis)",
     "unit: Unit tests",
     "integration: Integration tests",
+    "slow: Long-running tests (deselect with: pytest -m 'not slow')",
+    "stripe_e2e: Stripe end-to-end tests requiring live/mock Stripe",
+    "supporting_systems: Supporting systems clean architecture tests",
 ]
 filterwarnings = [
     "ignore::urllib3.exceptions.NotOpenSSLWarning",
