@@ -22,6 +22,7 @@ fi
 # Patterns to exclude (these are allowed to have /api/, /bookings, /instructors, and /messages strings)
 # Phase 9: Removed lib/api/bookings.ts from allowlist (file deleted)
 # Phase 10: Added messages service layer files to allowlist (use v1 endpoints)
+# Phase 11: Added middleware.ts (routing logic) and comment exclusion
 ALLOWED_PATTERNS=(
   "src/api/generated/"
   "src/api/orval-mutator.ts"
@@ -44,6 +45,7 @@ ALLOWED_PATTERNS=(
   "hooks/useMessageQueries.ts"
   "types/generated/"
   "example-usage.tsx"
+  "middleware.ts"
 )
 
 # Check if a file should be excluded
@@ -77,22 +79,26 @@ for file in "${FILES_TO_CHECK[@]}"; do
   # Search for legacy /api/ paths in string literals (NOT v1 or intentionally unversioned paths)
   # Allowed: /api/v1/, /api/beta/, /api/analytics/, /api/redis/, /api/database/,
   #          /api/proxy, /api/monitoring/, /api/webhooks/, /api/admin/bgc/
-  if grep -nP '["'\''`]/api/(?!v1/|beta/|analytics/|redis/|database/|proxy|monitoring/|webhooks/|admin/bgc/)' "$file" > /dev/null 2>&1; then
+  # Exclude comments (lines with // before the pattern)
+  if grep -nP '["'\''`]/api/(?!v1/|beta/|analytics/|redis/|database/|proxy|monitoring/|webhooks/|admin/bgc/)' "$file" 2>/dev/null | grep -vP '^\s*//|//.*["'\''`]/api/' > /dev/null 2>&1; then
     VIOLATIONS_API+=("$file")
   fi
 
   # Search for /bookings in string literals (Phase 7: block legacy bookings endpoints)
-  if grep -nP '["'\''`]/bookings' "$file" > /dev/null 2>&1; then
+  # Exclude comments
+  if grep -nP '["'\''`]/bookings' "$file" 2>/dev/null | grep -vP '^\s*//|//.*["'\''`]/bookings' > /dev/null 2>&1; then
     VIOLATIONS_BOOKINGS+=("$file")
   fi
 
   # Search for /instructors in string literals (Phase 7+: block legacy instructor endpoints)
-  if grep -nP '["'\''`]/instructors(?![/])' "$file" > /dev/null 2>&1; then
+  # Exclude comments
+  if grep -nP '["'\''`]/instructors(?![/])' "$file" 2>/dev/null | grep -vP '^\s*//|//.*["'\''`]/instructors' > /dev/null 2>&1; then
     VIOLATIONS_INSTRUCTORS+=("$file")
   fi
 
   # Search for /messages in string literals (Phase 10: block legacy messages endpoints)
-  if grep -nP '["'\''`]/messages(?![/])' "$file" > /dev/null 2>&1; then
+  # Exclude comments
+  if grep -nP '["'\''`]/messages(?![/])' "$file" 2>/dev/null | grep -vP '^\s*//|//.*["'\''`]/messages' > /dev/null 2>&1; then
     VIOLATIONS_MESSAGES+=("$file")
   fi
 done
@@ -106,7 +112,7 @@ if [ ${#VIOLATIONS_API[@]} -gt 0 ] || [ ${#VIOLATIONS_BOOKINGS[@]} -gt 0 ] || [ 
     echo "Files with legacy /api/ strings (should use /api/v1/):"
     for file in "${VIOLATIONS_API[@]}"; do
       echo "  - $file"
-      grep -nP '["'\''`]/api/(?!v1/|beta/|analytics/|redis/|database/|proxy|monitoring/|webhooks/|admin/bgc/)' "$file" | head -3 | sed 's/^/      /'
+      grep -nP '["'\''`]/api/(?!v1/|beta/|analytics/|redis/|database/|proxy|monitoring/|webhooks/|admin/bgc/)' "$file" 2>/dev/null | grep -vP '^\s*//|//.*["'\''`]/api/' | head -3 | sed 's/^/      /'
       echo ""
     done
   fi
@@ -115,7 +121,7 @@ if [ ${#VIOLATIONS_API[@]} -gt 0 ] || [ ${#VIOLATIONS_BOOKINGS[@]} -gt 0 ] || [ 
     echo "Files with raw /bookings strings (Phase 7 migration):"
     for file in "${VIOLATIONS_BOOKINGS[@]}"; do
       echo "  - $file"
-      grep -nP '["'\''`]/bookings' "$file" | head -3 | sed 's/^/      /'
+      grep -nP '["'\''`]/bookings' "$file" 2>/dev/null | grep -vP '^\s*//|//.*["'\''`]/bookings' | head -3 | sed 's/^/      /'
       echo ""
     done
   fi
@@ -124,7 +130,7 @@ if [ ${#VIOLATIONS_API[@]} -gt 0 ] || [ ${#VIOLATIONS_BOOKINGS[@]} -gt 0 ] || [ 
     echo "Files with raw /instructors strings (Phase 7+ instructor migration):"
     for file in "${VIOLATIONS_INSTRUCTORS[@]}"; do
       echo "  - $file"
-      grep -nP '["'\''`]/instructors(?![/])' "$file" | head -3 | sed 's/^/      /'
+      grep -nP '["'\''`]/instructors(?![/])' "$file" 2>/dev/null | grep -vP '^\s*//|//.*["'\''`]/instructors' | head -3 | sed 's/^/      /'
       echo ""
     done
   fi
@@ -133,7 +139,7 @@ if [ ${#VIOLATIONS_API[@]} -gt 0 ] || [ ${#VIOLATIONS_BOOKINGS[@]} -gt 0 ] || [ 
     echo "Files with raw /messages strings (Phase 10 messages migration):"
     for file in "${VIOLATIONS_MESSAGES[@]}"; do
       echo "  - $file"
-      grep -nP '["'\''`]/messages(?![/])' "$file" | head -3 | sed 's/^/      /'
+      grep -nP '["'\''`]/messages(?![/])' "$file" 2>/dev/null | grep -vP '^\s*//|//.*["'\''`]/messages' | head -3 | sed 's/^/      /'
       echo ""
     done
   fi

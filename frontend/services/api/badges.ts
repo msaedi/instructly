@@ -54,14 +54,14 @@ export const badgesApi = {
     if (typeof params.limit === 'number') search.set('limit', String(params.limit));
     if (typeof params.offset === 'number') search.set('offset', String(params.offset));
     const query = search.toString();
-    return requestJson(`/api/admin/badges/pending${query ? `?${query}` : ''}`);
+    return requestJson(`/api/v1/admin/badges/pending${query ? `?${query}` : ''}`);
   },
 
   confirmAward: (awardId: string): Promise<AdminAward> =>
-    requestJson(`/api/admin/badges/${awardId}/confirm`, { method: 'POST' }),
+    requestJson(`/api/v1/admin/badges/${awardId}/confirm`, { method: 'POST' }),
 
   revokeAward: (awardId: string): Promise<AdminAward> =>
-    requestJson(`/api/admin/badges/${awardId}/revoke`, { method: 'POST' }),
+    requestJson(`/api/v1/admin/badges/${awardId}/revoke`, { method: 'POST' }),
 };
 
 export type { BadgeApiError };

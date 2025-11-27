@@ -33,7 +33,7 @@ on:
         type: boolean
         default: false
       auth_smoke:
-        description: 'Run SameSite /auth/me smoke test'
+        description: 'Run SameSite /api/v1/auth/me smoke test'
         required: false
         type: boolean
         default: false
@@ -372,7 +372,7 @@ jobs:
 
             # Verify CSRF protection (cross-origin POST should fail)
             echo "Testing CSRF protection..."
-            CSRF_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/auth/me \
+            CSRF_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/api/v1/auth/me \
               -H 'Origin: http://localhost:3100' \
               -H 'Content-Type: application/json' \
               -d '{}')
@@ -384,7 +384,7 @@ jobs:
 
             # Auth sanity check with seeded user
             echo "Testing authentication flow..."
-            AUTH_RESPONSE=$(curl -sS -X POST http://localhost:8000/auth/login \
+            AUTH_RESPONSE=$(curl -sS -X POST http://localhost:8000/api/v1/auth/login \
               -H 'Content-Type: application/x-www-form-urlencoded' \
               --data-urlencode "username=${E2E_USER_EMAIL}" \
               --data-urlencode "password=${E2E_USER_PASSWORD}")
@@ -393,13 +393,13 @@ jobs:
             TOKEN=$(echo "$AUTH_RESPONSE" | jq -r '.access_token // empty' 2>/dev/null)
 
             if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] && [ "$TOKEN" != "" ]; then
-              echo "✅ Login successful, testing /auth/me..."
-              if curl -fsS http://localhost:8000/auth/me \
+              echo "✅ Login successful, testing /api/v1/auth/me..."
+              if curl -fsS http://localhost:8000/api/v1/auth/me \
                 -H "Authorization: Bearer $TOKEN" \
                 -o /dev/null; then
                 echo "✅ Auth flow verified (login + protected endpoint)"
               else
-                echo "❌ Auth verification failed: /auth/me not accessible"
+                echo "❌ Auth verification failed: /api/v1/auth/me not accessible"
                 exit 1
               fi
             else
