@@ -372,6 +372,7 @@ function SearchPageContent() {
       let response;
       let instructorsData: Instructor[] = [];
       let totalResults = 0;
+      let observabilityCandidates: Array<Record<string, unknown>> | undefined;
 
       if (query) {
         const nlResponse = await publicApi.searchWithNaturalLanguage(query);
@@ -477,6 +478,8 @@ function SearchPageContent() {
             (a, b) => ((b.relevance_score as number) || 0) - ((a.relevance_score as number) || 0)
           );
           totalResults = nlResponse.data.total_found;
+          // Capture observability candidates for analytics tracking
+          observabilityCandidates = nlResponse.data.search_metadata?.observability_candidates ?? undefined;
           setHasMore(false);
         }
       } else if (serviceCatalogId) {
@@ -593,12 +596,13 @@ function SearchPageContent() {
               searchQuery = category;
             }
 
-            // Record the search
+            // Record the search with observability candidates for analytics
             void recordSearch(
               {
                 query: searchQuery,
                 search_type: searchType,
                 results_count: totalResults,
+                ...(observabilityCandidates && { observability_candidates: observabilityCandidates }),
               },
               isAuthenticated
             );
