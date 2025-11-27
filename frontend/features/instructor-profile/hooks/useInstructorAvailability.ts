@@ -45,10 +45,7 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
     const parsedProvided = new Date(`${parsedStartDate}T00:00:00`);
     const parsedToday = new Date(`${todayIso}T00:00:00`);
     if (parsedProvided < parsedToday) {
-      logger.info('Requested start date is in the past; using today instead', {
-        requested: parsedStartDate,
-        today: todayIso,
-      });
+      // Note: This is expected behavior - don't log on every render
       return todayIso;
     }
     return parsedStartDate;
@@ -57,16 +54,14 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
   const startDateObj = new Date(`${sanitizedStartDate}T00:00:00`);
   const endDate = format(addDays(startDateObj, 6), 'yyyy-MM-dd');
 
-  logger.debug('useInstructorAvailability called', {
-    instructorId,
-    requestedStartDate: parsedStartDate,
-    startDate: sanitizedStartDate,
-    endDate,
-  });
-
   return useQuery<AvailabilityResponse>({
     queryKey: queryKeys.availability.week(instructorId, sanitizedStartDate),
     queryFn: async () => {
+      logger.debug('useInstructorAvailability queryFn executing', {
+        instructorId,
+        startDate: sanitizedStartDate,
+        endDate,
+      });
       logger.info('Fetching availability', { instructorId, start_date: sanitizedStartDate, end_date: endDate });
 
       const response = await publicApi.getInstructorAvailability(instructorId, {

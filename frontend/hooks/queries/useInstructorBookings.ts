@@ -50,20 +50,24 @@ export function useInstructorBookings({
 }: UseInstructorBookingsOptions) {
   const cappedPerPage = Math.min(perPage, 100);
 
-  // Route to appropriate v1 endpoint based on parameters
-  // Priority: specific endpoints first, then general list
+  // Determine which endpoint to use BEFORE calling hooks
+  // This ensures we only make ONE API call, not three
+  const shouldUseUpcoming = enabled && status === 'CONFIRMED' && upcoming === true;
+  const shouldUseCompleted = enabled && status === 'COMPLETED' && upcoming === false;
+  const shouldUseList = enabled && !shouldUseUpcoming && !shouldUseCompleted;
 
-  // Case 1: Upcoming confirmed bookings
-  const upcomingResult = useInstructorUpcomingBookings(page, cappedPerPage);
-  const shouldUseUpcoming = status === 'CONFIRMED' && upcoming === true;
+  // Case 1: Upcoming confirmed bookings (only enabled when needed)
+  const upcomingResult = useInstructorUpcomingBookings(page, cappedPerPage, {
+    enabled: shouldUseUpcoming,
+  });
 
-  // Case 2: Completed bookings
-  const completedResult = useInstructorCompletedBookings(page, cappedPerPage);
-  const shouldUseCompleted = status === 'COMPLETED' && upcoming === false;
+  // Case 2: Completed bookings (only enabled when needed)
+  const completedResult = useInstructorCompletedBookings(page, cappedPerPage, {
+    enabled: shouldUseCompleted,
+  });
 
-  // Case 3: General list with filters
-  // Build params object that handles exactOptionalPropertyTypes
-  const listParams = enabled
+  // Case 3: General list with filters (only enabled when needed)
+  const listParams = shouldUseList
     ? {
         ...(status !== undefined ? { status } : {}),
         ...(upcoming !== undefined ? { upcoming } : {}),
@@ -72,7 +76,9 @@ export function useInstructorBookings({
       }
     : undefined;
 
-  const listResult = useInstructorBookingsList(listParams);
+  const listResult = useInstructorBookingsList(listParams, {
+    enabled: shouldUseList,
+  });
 
   // Return the appropriate result based on parameters
   if (!enabled) {

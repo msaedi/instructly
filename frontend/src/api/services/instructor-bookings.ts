@@ -38,7 +38,8 @@ import type {
  * ```
  */
 export function useInstructorBookingsList(
-  params?: ListInstructorBookingsApiV1InstructorBookingsGetParams
+  params?: ListInstructorBookingsApiV1InstructorBookingsGetParams,
+  options?: { enabled?: boolean }
 ) {
   // Build query params that satisfy exactOptionalPropertyTypes
   const queryParams =
@@ -50,6 +51,7 @@ export function useInstructorBookingsList(
     query: {
       queryKey: queryKeys.bookings.instructor(queryParams),
       staleTime: 1000 * 60 * 5, // 5 minutes
+      enabled: options?.enabled ?? true,
     },
   });
 }
@@ -96,13 +98,18 @@ export function usePendingCompletionBookings(page: number = 1, perPage: number =
  * }
  * ```
  */
-export function useInstructorUpcomingBookings(page: number = 1, perPage: number = 20) {
+export function useInstructorUpcomingBookings(
+  page: number = 1,
+  perPage: number = 20,
+  options?: { enabled?: boolean }
+) {
   return useGetUpcomingBookingsApiV1InstructorBookingsUpcomingGet(
     { page, per_page: perPage },
     {
       query: {
         queryKey: queryKeys.bookings.instructor({ status: 'upcoming' }),
         staleTime: 1000 * 60 * 5, // 5 minutes
+        enabled: options?.enabled ?? true,
       },
     }
   );
@@ -122,13 +129,18 @@ export function useInstructorUpcomingBookings(page: number = 1, perPage: number 
  * }
  * ```
  */
-export function useInstructorCompletedBookings(page: number = 1, perPage: number = 20) {
+export function useInstructorCompletedBookings(
+  page: number = 1,
+  perPage: number = 20,
+  options?: { enabled?: boolean }
+) {
   return useGetCompletedBookingsApiV1InstructorBookingsCompletedGet(
     { page, per_page: perPage },
     {
       query: {
         queryKey: queryKeys.bookings.instructor({ status: 'completed' }),
         staleTime: 1000 * 60 * 15, // 15 minutes (completed bookings change rarely)
+        enabled: options?.enabled ?? true,
       },
     }
   );
