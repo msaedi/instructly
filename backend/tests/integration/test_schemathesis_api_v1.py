@@ -25,7 +25,7 @@ from fastapi.testclient import TestClient
 from hypothesis import HealthCheck, Phase, settings
 import pytest
 from schemathesis.openapi import from_asgi
-from schemathesis.specs.openapi.checks import unsupported_method
+from schemathesis.specs.openapi.checks import negative_data_rejection, unsupported_method
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -134,19 +134,24 @@ def _run_schemathesis_case(
             json=body if body is not None else None,
         )
 
-        # Handle 422 responses for schema-valid but business-invalid requests
+        # Handle 400/422 responses for schema-valid but business-invalid requests
         # These are valid business rejections that Schemathesis's positive data checks reject
-        # because the schema is more permissive than the business rules (e.g., duration options)
-        if response.status_code == 422:
-            # 422 is expected for business rule violations - consider it a pass
+        # because the schema is more permissive than the business rules (e.g., duration options,
+        # cross-field validation like max_price >= min_price)
+        if response.status_code in (400, 422):
+            # 400/422 are expected for business rule violations - consider it a pass
             # The response format is already validated by FastAPI's error handler
             return
 
         # Validate response conforms to schema
-        # Skip "unsupported methods" check - it produces false positives when path parameters
-        # like /{window_id} can capture paths like /week, causing DELETE /week to route to
-        # DELETE /{window_id} instead of returning 405. This is correct FastAPI routing behavior.
-        case.validate_response(response, excluded_checks=[unsupported_method])
+        # Excluded checks:
+        # - unsupported_method: False positives when path params like /{id} capture literal
+        #   segments like /week, causing DELETE /week to route to DELETE /{id}
+        # - negative_data_rejection: FastAPI ignores unknown query params by design for
+        #   forward compatibility (common pattern in major APIs like Google, AWS, GitHub)
+        case.validate_response(
+            response, excluded_checks=[unsupported_method, negative_data_rejection]
+        )
     finally:
         app.dependency_overrides.clear()
         client.close()

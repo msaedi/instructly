@@ -74,11 +74,12 @@ class InstructorFilterParams(BaseModel):
 
     @field_validator("age_group")
     def validate_age_group(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
+        # Treat None or empty string as "no filter"
+        if v is None or v == "":
+            return None
         vv = str(v).strip().lower()
-        if vv == "both":
-            # Treat 'both' as no filter
+        # Also treat stripped empty or 'both' as no filter
+        if vv == "" or vv == "both":
             return None
         if vv not in {"kids", "adults"}:
             raise ValueError("age_group must be one of: 'kids', 'adults'")

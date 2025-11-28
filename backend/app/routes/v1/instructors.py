@@ -72,6 +72,9 @@ def get_address_service(db: Session = Depends(get_db)) -> AddressService:
     "",
     response_model=PaginatedResponse[InstructorProfileResponse],
     dependencies=[Depends(rate_limit("read"))],
+    responses={
+        400: {"description": "Invalid filter parameters (e.g., max_price < min_price)"},
+    },
 )
 async def list_instructors(
     service_catalog_id: str = Query(..., description="Service catalog ID (required)"),
