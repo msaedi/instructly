@@ -17,18 +17,18 @@ jobs:
 
     services:
       postgres:
-        image: postgis/postgis:17-3.5
+        image: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: test_db
+          POSTGRES_DB: instainstru_test
         ports:
           - 5432:5432
         options: >-
           --health-cmd="pg_isready -U postgres"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=10
 
       redis:
         image: redis:7-alpine
@@ -64,21 +64,54 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: Set up environment
-        run: |
-          cd backend
-          cp .env.example .env.test || true
-          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_db" >> .env.test
-          echo "REDIS_URL=redis://localhost:6379" >> .env.test
-          echo "SECRET_KEY=test-secret-key-for-ci" >> .env.test
-          echo "TESTING=1" >> .env.test
-
       - name: Run database migrations
+        env:
+          SECRET_KEY: test-secret-key-for-ci
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          IS_TESTING: "true"
+          GEOCODING_PROVIDER: mock
+          RESEND_API_KEY: test-resend-key
+          FRONTEND_URL: http://localhost:3000
+          ENVIRONMENT: test
+          REDIS_URL: redis://localhost:6379
         run: |
           cd backend
-          alembic upgrade head
+          python -m alembic -c alembic.ini upgrade head
+
+      - name: Seed test data
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          SECRET_KEY: test-secret-key-for-ci
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          IS_TESTING: "true"
+          GEOCODING_PROVIDER: mock
+          RESEND_API_KEY: test-resend-key
+          FRONTEND_URL: http://localhost:3000
+          ENVIRONMENT: test
+          REDIS_URL: redis://localhost:6379
+        run: |
+          cd backend
+          # Seed roles and permissions first (required for RBAC)
+          python scripts/seed_roles_permissions.py
+          # Seed service catalog
+          python scripts/seed_catalog_only.py
+
+      - name: Generate service embeddings for NLS tests
+        env:
+          SECRET_KEY: test-secret-key-for-ci
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          IS_TESTING: "true"
+          RESEND_API_KEY: test-resend-key
+          FRONTEND_URL: http://localhost:3000
+          ENVIRONMENT: test
+          REDIS_URL: redis://localhost:6379
+          USE_TEST_DATABASE: "true"
+        run: |
+          cd backend
+          echo "Generating embeddings for service catalog..."
+          python scripts/generate_service_embeddings.py
 
       - name: Run Full API Schemathesis Tests
         run: |
@@ -91,11 +124,16 @@ jobs:
             -x \
             2>&1 | tee schemathesis-results.txt
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379
           SECRET_KEY: test-secret-key-for-ci
-          TESTING: 1
-          RUN_NIGHTLY_SCHEMATHESIS: 1
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          IS_TESTING: "true"
+          GEOCODING_PROVIDER: mock
+          RESEND_API_KEY: test-resend-key
+          FRONTEND_URL: http://localhost:3000
+          ENVIRONMENT: test
+          REDIS_URL: redis://localhost:6379
+          RUN_NIGHTLY_SCHEMATHESIS: "1"
 
       - name: Upload test results
         if: always()
