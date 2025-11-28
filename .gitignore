@@ -121,3 +121,6 @@ backend/TEST_INVENTORY.json
 
 # Test caches
 .hypothesis/
+
+# Temporary logs
+docs/temp-logs/

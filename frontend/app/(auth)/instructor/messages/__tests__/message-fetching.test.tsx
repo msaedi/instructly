@@ -5,18 +5,16 @@
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { useEffect, useState, useRef } from 'react';
-import type { Message } from '@/services/messageService';
+import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 
-// Mock the message service
-const mockGetMessageHistory = jest.fn();
-jest.mock('@/services/messageService', () => ({
-  messageService: {
-    getMessageHistory: (...args: unknown[]) => mockGetMessageHistory(...args),
-  },
+// Mock the message service (Orval layer)
+const mockFetchMessageHistory = jest.fn();
+jest.mock('@/src/api/services/messages', () => ({
+  fetchMessageHistory: (...args: unknown[]) => mockFetchMessageHistory(...args),
 }));
 
 // Simplified version of the fetch effect logic
-type MessagesByThread = Record<string, Message[]>;
+type MessagesByThread = Record<string, MessageResponse[]>;
 
 const useFetchMessagesEffect = (
   selectedChat: string | null,
@@ -45,7 +43,7 @@ const useFetchMessagesEffect = (
       fetchingThreadsRef.current.add(selectedChat);
 
       try {
-        const history = await mockGetMessageHistory(bookingId);
+        const history = await mockFetchMessageHistory(bookingId);
         const messages = history.messages || [];
 
         setMessagesByThread((prev) => ({
@@ -66,7 +64,7 @@ const useFetchMessagesEffect = (
     // Note: messagesByThread removed from dependencies to prevent infinite loop
   }, [selectedChat, activeConversation, currentUserId]);
 
-  return { messagesByThread, fetchCallCount: mockGetMessageHistory.mock.calls.length };
+  return { messagesByThread, fetchCallCount: mockFetchMessageHistory.mock.calls.length };
 };
 
 describe('Instructor Messages - Message Fetching', () => {
@@ -76,7 +74,7 @@ describe('Instructor Messages - Message Fetching', () => {
 
   it('fetches messages exactly once for zero-message conversations', async () => {
     // Mock zero-message response
-    mockGetMessageHistory.mockResolvedValue({
+    mockFetchMessageHistory.mockResolvedValue({
       messages: [],
       limit: 50,
       offset: 0,
@@ -97,10 +95,10 @@ describe('Instructor Messages - Message Fetching', () => {
 
     // Wait for the fetch to complete
     await waitFor(() => {
-      expect(mockGetMessageHistory).toHaveBeenCalledTimes(1);
+      expect(mockFetchMessageHistory).toHaveBeenCalledTimes(1);
     });
 
-    expect(mockGetMessageHistory).toHaveBeenCalledWith('booking-john-123');
+    expect(mockFetchMessageHistory).toHaveBeenCalledWith('booking-john-123');
 
     // Verify empty array was stored
     await waitFor(() => {
@@ -118,13 +116,13 @@ describe('Instructor Messages - Message Fetching', () => {
 
     // Should still be called only once
     await waitFor(() => {
-      expect(mockGetMessageHistory).toHaveBeenCalledTimes(1);
+      expect(mockFetchMessageHistory).toHaveBeenCalledTimes(1);
     });
   });
 
   it('fetches messages exactly once for conversations with messages', async () => {
     // Mock response with messages
-    const mockMessages: Message[] = [
+    const mockMessages: MessageResponse[] = [
       {
         id: 'msg-1',
         booking_id: 'booking-emma-456',
@@ -136,7 +134,7 @@ describe('Instructor Messages - Message Fetching', () => {
       },
     ];
 
-    mockGetMessageHistory.mockResolvedValue({
+    mockFetchMessageHistory.mockResolvedValue({
       messages: mockMessages,
       limit: 50,
       offset: 0,
@@ -157,10 +155,10 @@ describe('Instructor Messages - Message Fetching', () => {
 
     // Wait for the fetch to complete
     await waitFor(() => {
-      expect(mockGetMessageHistory).toHaveBeenCalledTimes(1);
+      expect(mockFetchMessageHistory).toHaveBeenCalledTimes(1);
     });
 
-    expect(mockGetMessageHistory).toHaveBeenCalledWith('booking-emma-456');
+    expect(mockFetchMessageHistory).toHaveBeenCalledWith('booking-emma-456');
 
     // Verify messages were stored
     await waitFor(() => {
@@ -178,13 +176,13 @@ describe('Instructor Messages - Message Fetching', () => {
 
     // Should still be called only once
     await waitFor(() => {
-      expect(mockGetMessageHistory).toHaveBeenCalledTimes(1);
+      expect(mockFetchMessageHistory).toHaveBeenCalledTimes(1);
     });
   });
 
   it('prevents duplicate simultaneous fetches for the same conversation', async () => {
     // Mock slow API response
-    mockGetMessageHistory.mockImplementation(
+    mockFetchMessageHistory.mockImplementation(
       () =>
         new Promise((resolve) => {
           setTimeout(
@@ -224,18 +222,18 @@ describe('Instructor Messages - Message Fetching', () => {
     // Wait for all to settle
     await waitFor(
       () => {
-        expect(mockGetMessageHistory).toHaveBeenCalledTimes(1);
+        expect(mockFetchMessageHistory).toHaveBeenCalledTimes(1);
       },
       { timeout: 500 }
     );
 
     // Even with rapid re-renders, should only fetch once
-    expect(mockGetMessageHistory).toHaveBeenCalledTimes(1);
+    expect(mockFetchMessageHistory).toHaveBeenCalledTimes(1);
   });
 
   it('allows retry on fetch error', async () => {
     // First call fails
-    mockGetMessageHistory.mockRejectedValueOnce(new Error('Network error'));
+    mockFetchMessageHistory.mockRejectedValueOnce(new Error('Network error'));
 
     const { rerender } = renderHook(
       ({ selectedChat, activeConversation, currentUserId }) =>
@@ -251,11 +249,11 @@ describe('Instructor Messages - Message Fetching', () => {
 
     // Wait for first call to fail
     await waitFor(() => {
-      expect(mockGetMessageHistory).toHaveBeenCalledTimes(1);
+      expect(mockFetchMessageHistory).toHaveBeenCalledTimes(1);
     });
 
     // Mock successful response for retry
-    mockGetMessageHistory.mockResolvedValueOnce({
+    mockFetchMessageHistory.mockResolvedValueOnce({
       messages: [],
       limit: 50,
       offset: 0,
@@ -277,7 +275,7 @@ describe('Instructor Messages - Message Fetching', () => {
 
     // Should retry on next selection
     await waitFor(() => {
-      expect(mockGetMessageHistory).toHaveBeenCalledTimes(2);
+      expect(mockFetchMessageHistory).toHaveBeenCalledTimes(2);
     });
   });
 });

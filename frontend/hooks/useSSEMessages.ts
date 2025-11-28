@@ -14,7 +14,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { logger } from '@/lib/logger';
-import { Message } from '@/services/messageService';
+import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import { withApiBase } from '@/lib/apiBase';
 
 // Connection states
@@ -30,7 +30,7 @@ export enum ConnectionStatus {
 interface UseSSEMessagesOptions {
   bookingId: string;
   enabled?: boolean;
-  onMessage?: (message: Message) => void;
+  onMessage?: (message: MessageResponse) => void;
   onConnectionChange?: (status: ConnectionStatus) => void;
   playSound?: boolean;
   showNotifications?: boolean;
@@ -40,7 +40,7 @@ interface UseSSEMessagesOptions {
 
 // Hook return type
 interface UseSSEMessagesReturn {
-  messages: Message[];
+  messages: MessageResponse[];
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
   disconnect: () => void;
@@ -63,7 +63,7 @@ export function useSSEMessages({
   maxReconnectAttempts: _maxReconnectAttempts = 5,
   reconnectDelay: _reconnectDelay = 1000,
 }: UseSSEMessagesOptions): UseSSEMessagesReturn {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<MessageResponse[]>([]);
   const [readReceipts, setReadReceipts] = useState<Record<string, Array<{ user_id: string; read_at: string }>>>({});
   const [typingStatus, setTypingStatus] = useState<{ userId: string; userName: string; until: number } | null>(null);
   const [reactionDeltas, setReactionDeltas] = useState<Record<string, Record<string, number>>>({});
@@ -79,16 +79,45 @@ export function useSSEMessages({
   const reconnectDelayRef = useRef(1000); // Start with 1 second
   const authFailureRef = useRef(false);
   const onMessageRef = useRef(onMessage);
+  const onConnectionChangeRef = useRef(onConnectionChange);
+  // Refs to store latest connect/disconnect functions - avoids effect dependency issues
+  const connectRef = useRef<() => void>(() => {});
+  const disconnectRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     onMessageRef.current = onMessage;
   }, [onMessage]);
 
+  useEffect(() => {
+    onConnectionChangeRef.current = onConnectionChange;
+  }, [onConnectionChange]);
+
+  // Auto-clear typing indicator when it expires
+  useEffect(() => {
+    if (!typingStatus) return;
+
+    const now = Date.now();
+    const remainingMs = typingStatus.until - now;
+
+    if (remainingMs <= 0) {
+      // Already expired, clear immediately
+      setTypingStatus(null);
+      return;
+    }
+
+    // Set timeout to clear when it expires
+    const timeout = setTimeout(() => {
+      setTypingStatus(null);
+    }, remainingMs);
+
+    return () => clearTimeout(timeout);
+  }, [typingStatus]);
+
   // Update connection status and notify listener
   const updateConnectionStatus = useCallback((status: ConnectionStatus) => {
     setConnectionStatus(status);
-    onConnectionChange?.(status);
-  }, [onConnectionChange]);
+    onConnectionChangeRef.current?.(status);
+  }, []);
 
   // Play notification sound
   const playNotificationSound = useCallback(() => {
@@ -116,7 +145,7 @@ export function useSSEMessages({
   }, [playSound]);
 
   // Show browser notification
-  const showBrowserNotification = useCallback((message: Message) => {
+  const showBrowserNotification = useCallback((message: MessageResponse) => {
     if (!showNotifications || !('Notification' in window)) return;
 
     // Request permission if not granted
@@ -149,6 +178,7 @@ export function useSSEMessages({
 
   // Process incoming message
   const processMessage = useCallback((messageData: unknown) => {
+    logger.info('[SSE] processMessage called', { messageData });
     try {
       // Type guard for message data
       if (!messageData || typeof messageData !== 'object') {
@@ -172,9 +202,11 @@ export function useSSEMessages({
 
       if (eventType === 'typing_status') {
         const { user_id, user_name } = data;
+        logger.debug('[SSE] typing_status event received:', { user_id, user_name, data });
         if (typeof user_id === 'string' && typeof user_name === 'string') {
           // Clear after 3 seconds
           setTypingStatus({ userId: user_id, userName: user_name, until: Date.now() + 3000 });
+          logger.debug('[SSE] typingStatus set:', { userId: user_id, userName: user_name });
         }
         return;
       }
@@ -195,11 +227,11 @@ export function useSSEMessages({
         return;
       }
 
-      const message: Message = {
+      const message: MessageResponse = {
         ...data,
         created_at: (data['created_at'] as string) || new Date().toISOString(),
         updated_at: (data['updated_at'] as string) || new Date().toISOString(),
-      } as Message;
+      } as MessageResponse;
 
       // Add to state
       setMessages(prev => [...prev, message]);
@@ -247,7 +279,11 @@ export function useSSEMessages({
 
   // Connect to SSE endpoint
   const connect = useCallback(() => {
-    if (!enabled || isUnmountingRef.current || authFailureRef.current) return;
+    logger.info('[SSE] connect() called', { enabled, bookingId, authFailure: authFailureRef.current });
+    if (!enabled || !bookingId || isUnmountingRef.current || authFailureRef.current) {
+      logger.info('[SSE] Connection skipped', { enabled, bookingId, isUnmounting: isUnmountingRef.current, authFailure: authFailureRef.current });
+      return;
+    }
 
     // Check if already connected or connecting
     if (eventSourceRef.current) {
@@ -302,6 +338,7 @@ export function useSSEMessages({
       // Typing indicator events
       eventSource.addEventListener('typing_status', (event) => {
         try {
+          logger.debug('[SSE] Raw typing_status event received');
           const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
         } catch {
@@ -415,6 +452,15 @@ export function useSSEMessages({
     reconnectAttemptsRef.current = 0;
   }, [bookingId, updateConnectionStatus]);
 
+  // Keep refs updated with latest functions
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
+  useEffect(() => {
+    disconnectRef.current = disconnect;
+  }, [disconnect]);
+
   // Manual reconnect
   const reconnect = useCallback(() => {
     authFailureRef.current = false;
@@ -430,26 +476,33 @@ export function useSSEMessages({
   }, []);
 
   // Setup and cleanup
+  // Using refs for connect/disconnect to avoid effect re-running when functions change
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !bookingId) {
       isUnmountingRef.current = true;
-      disconnect();
+      disconnectRef.current();
       return () => {};
     }
 
     isUnmountingRef.current = false;
+    // Clear messages when switching bookings
+    setMessages([]);
+    setReadReceipts({});
+    setTypingStatus(null);
+    setReactionDeltas({});
+
     const connectTimeout = setTimeout(() => {
       if (!isUnmountingRef.current) {
-        connect();
+        connectRef.current();
       }
     }, 100);
 
     return () => {
       isUnmountingRef.current = true;
       clearTimeout(connectTimeout);
-      disconnect();
+      disconnectRef.current();
     };
-  }, [enabled, connect, disconnect]);
+  }, [enabled, bookingId]);
 
   // Auto-clear typing status when expired
   useEffect(() => {

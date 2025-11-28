@@ -388,9 +388,16 @@ async def stream_messages(
             if notification_service:
                 try:
                     queue = await notification_service.subscribe(booking_id)
+                    logger.info(
+                        f"[SSE DEBUG] Subscribed to booking {booking_id}, queue: {queue is not None}"
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to subscribe to notifications: {str(e)}")
                     queue = None
+            else:
+                logger.warning(
+                    f"[SSE DEBUG] No notification service available for booking {booking_id}"
+                )
 
             # Start heartbeat task if notification service available
             if notification_service and queue:
@@ -416,6 +423,9 @@ async def stream_messages(
 
                             # Process the message
                             event_type = message_data.get("type") or "message"
+                            logger.info(
+                                f"[SSE DEBUG] Received message from queue: type={event_type}, booking={booking_id}"
+                            )
 
                             if event_type == "heartbeat":
                                 yield {
@@ -425,16 +435,11 @@ async def stream_messages(
                                     ),
                                 }
                             else:
-                                # Skip echo for our own outbound chat messages only
-                                if (
-                                    event_type == "message"
-                                    and message_data.get("sender_id") == current_user.id
-                                ):
-                                    continue
-
-                                # Mark as not mine for chat messages
+                                # Add is_mine flag for chat messages so frontend knows ownership
                                 if event_type == "message":
-                                    message_data["is_mine"] = False
+                                    message_data["is_mine"] = (
+                                        message_data.get("sender_id") == current_user.id
+                                    )
 
                                 yield {
                                     "event": event_type,

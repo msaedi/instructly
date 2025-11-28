@@ -83,6 +83,8 @@ class MessageService(BaseService):
             raise ValidationException(f"Cannot send messages for {booking.status.lower()} bookings")
 
         # Create the message
+        # Note: Database trigger `message_insert_notify` automatically broadcasts to
+        # SSE subscribers when a message is inserted (see migration 006)
         with self.transaction():
             message = self.repository.create_message(
                 booking_id=booking_id, sender_id=sender_id, content=content
