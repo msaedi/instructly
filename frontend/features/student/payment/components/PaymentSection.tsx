@@ -1157,7 +1157,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   }, [showPaymentMethodInline, currentStep, selectPaymentMethod, userCards, userChangingPayment]);
 
   // Override processPayment to create booking and process payment
-  const processPayment = async () => {
+  // Note: This function has many dependencies. We use a ref pattern to keep a stable
+  // reference for React.memo while always using the latest closure values.
+  const processPaymentImpl = async () => {
     const appliedCreditCents = Math.max(0, Math.round(creditSliderCents));
     const appliedCreditDollars = appliedCreditCents / 100;
     const normalizedTotalAmount =
@@ -1370,6 +1372,11 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     }
   };
 
+  // Stable reference for processPayment using ref pattern
+  const processPaymentRef = useRef(processPaymentImpl);
+  processPaymentRef.current = processPaymentImpl;
+  const processPayment = useCallback(() => processPaymentRef.current(), []);
+
   // Handle error retry
   const handleRetry = () => {
     resetPayment();
@@ -1378,6 +1385,25 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     setFloorViolationMessage(null);
     goToStep(PaymentStep.METHOD_SELECTION);
   };
+
+  // Stable callbacks for PaymentConfirmation to avoid breaking React.memo
+  const handleBackToMethodSelection = useCallback(() => {
+    goToStep(PaymentStep.METHOD_SELECTION);
+  }, [goToStep]);
+
+  const handleChangePaymentMethodInline = useCallback(() => {
+    setUserChangingPayment(true);
+    // Don't change step, just let user select a different method above
+  }, []);
+
+  const handleChangePaymentMethodStepwise = useCallback(() => {
+    setUserChangingPayment(true);
+    goToStep(PaymentStep.METHOD_SELECTION);
+  }, [goToStep]);
+
+  const handleClearFloorViolation = useCallback(() => {
+    setFloorViolationMessage(null);
+  }, []);
 
   // Show loading state while fetching payment data
   if (isLoadingPaymentMethods || isLoadingCredits) {
@@ -1443,13 +1469,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               referralAppliedCents={referralAppliedCents}
               referralActive={referralAppliedCents > 0}
               floorViolationMessage={floorViolationMessage}
-              onClearFloorViolation={() => setFloorViolationMessage(null)}
+              onClearFloorViolation={handleClearFloorViolation}
               onConfirm={processPayment}
-              onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
-              onChangePaymentMethod={() => {
-                setUserChangingPayment(true);
-                // Don't change step, just let user select a different method above
-              }}
+              onBack={handleBackToMethodSelection}
+              onChangePaymentMethod={handleChangePaymentMethodInline}
               onCreditToggle={handleCreditToggle}
               onCreditAmountChange={handleCreditAmountChange}
               onBookingUpdate={handleBookingUpdate}
@@ -1496,13 +1519,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
               referralAppliedCents={referralAppliedCents}
               referralActive={referralAppliedCents > 0}
               floorViolationMessage={floorViolationMessage}
-              onClearFloorViolation={() => setFloorViolationMessage(null)}
+              onClearFloorViolation={handleClearFloorViolation}
               onConfirm={processPayment}
-              onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
-              onChangePaymentMethod={() => {
-                setUserChangingPayment(true);
-                goToStep(PaymentStep.METHOD_SELECTION);
-              }}
+              onBack={handleBackToMethodSelection}
+              onChangePaymentMethod={handleChangePaymentMethodStepwise}
               onCreditToggle={handleCreditToggle}
               onCreditAmountChange={handleCreditAmountChange}
               onBookingUpdate={handleBookingUpdate}

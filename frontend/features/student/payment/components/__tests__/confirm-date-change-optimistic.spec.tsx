@@ -52,7 +52,7 @@ jest.mock('../PaymentConfirmation', () => {
 });
 
 jest.mock('@/lib/pricing/usePricingFloors', () => ({
-  usePricingFloors: () => ({ floors: null }),
+  usePricingFloors: () => ({ floors: null, config: { student_fee_pct: 0.12 }, isLoading: false, error: null }),
   usePricingConfig: () => ({ config: { student_fee_pct: 0.12 }, isLoading: false, error: null }),
 }));
 

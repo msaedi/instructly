@@ -34,5 +34,6 @@ export function usePricingConfig() {
 export function usePricingFloors() {
   const { config, isLoading, error } = usePricingConfig();
   const floors: PriceFloorConfig | null = config?.price_floor_cents ?? null;
-  return { floors, isLoading, error };
+  // Also expose config to avoid components calling usePricingConfig separately
+  return { floors, config, isLoading, error };
 }

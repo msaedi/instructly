@@ -15,7 +15,7 @@ import { renderWithQueryClient } from '../testUtils';
 let mockStudentFeePct = 0.12;
 
 jest.mock('@/lib/pricing/usePricingFloors', () => ({
-  usePricingFloors: () => ({ floors: null }),
+  usePricingFloors: () => ({ floors: null, config: { student_fee_pct: mockStudentFeePct }, isLoading: false, error: null }),
   usePricingConfig: () => ({ config: { student_fee_pct: mockStudentFeePct }, isLoading: false, error: null }),
 }));
 

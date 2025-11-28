@@ -13,7 +13,7 @@ import type { InstructorService } from '@/types/instructor';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
 import { logger } from '@/lib/logger';
-import { usePricingFloors, usePricingConfig } from '@/lib/pricing/usePricingFloors';
+import { usePricingFloors } from '@/lib/pricing/usePricingFloors';
 import { formatMeetingLocation, toStateCode } from '@/utils/address/format';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 import type { PlaceSuggestion } from '@/components/forms/PlacesAutocompleteInput';
@@ -101,7 +101,7 @@ interface PaymentConfirmationProps {
   onCreditsAccordionToggle?: (expanded: boolean) => void;
 }
 
-export default function PaymentConfirmation({
+function PaymentConfirmationInner({
   booking,
   paymentMethod,
   cardLast4,
@@ -125,10 +125,6 @@ export default function PaymentConfirmation({
   creditsAccordionExpanded,
   onCreditsAccordionToggle,
 }: PaymentConfirmationProps) {
-  if (process.env.NODE_ENV !== 'production') {
-    const summaryConsole = (globalThis as unknown as { console?: Console }).console;
-    summaryConsole?.info?.('[summary] client render');
-  }
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
   const [hasLocationInitialized, setHasLocationInitialized] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
@@ -140,7 +136,7 @@ export default function PaymentConfirmation({
   const [promoCode, setPromoCode] = useState('');
   const [promoActive, setPromoActive] = useState(promoApplied);
   const [promoError, setPromoError] = useState<string | null>(null);
-  const { floors: pricingFloors } = usePricingFloors();
+  const { floors: pricingFloors, config: pricingConfig } = usePricingFloors();
   const pricingPreviewContext = usePricingPreview(true);
   const pricingPreview = pricingPreviewContext?.preview ?? null;
   const isPricingPreviewLoading = pricingPreviewContext?.loading ?? false;
@@ -447,28 +443,18 @@ export default function PaymentConfirmation({
   const isLastMinute = booking.bookingType === BookingType.LAST_MINUTE;
   const creditsUsedCents = Math.max(0, Math.round(creditsUsed * 100));
 
-  // Keep derivedAppliedCreditCents for other parts of the component
-  const derivedAppliedCreditCents = pricingPreview
-    ? Math.max(0, pricingPreview.credit_applied_cents)
+  // Server-authoritative credit value
+  const serverCreditCents = pricingPreview?.credit_applied_cents ?? null;
+  const derivedAppliedCreditCents = serverCreditCents != null
+    ? Math.max(0, serverCreditCents)
     : creditsUsedCents;
 
-  // Use local state for the slider, independent from pricingPreview
-  const [displayAppliedCreditCents, setDisplayAppliedCreditCents] = useState(creditsUsedCents);
+  // Slider drag state - only set during active drag, null otherwise
+  // This eliminates the useEffect sync that caused extra renders
+  const [sliderDragCents, setSliderDragCents] = useState<number | null>(null);
 
-  const serverCreditCents = pricingPreview?.credit_applied_cents;
-
-  useEffect(() => {
-    if (serverCreditCents == null) {
-      return;
-    }
-    const serverCents = Math.max(0, serverCreditCents);
-    setDisplayAppliedCreditCents((prev) => {
-      if (Math.abs(serverCents - prev) > 1) {
-        return serverCents;
-      }
-      return prev;
-    });
-  }, [serverCreditCents]);
+  // Display value: use drag value during drag, otherwise derive from server
+  const displayAppliedCreditCents = sliderDragCents ?? derivedAppliedCreditCents;
   const appliedCreditDollars = displayAppliedCreditCents / 100;
 
   const totalBeforeCreditsCents = pricingPreview
@@ -525,38 +511,51 @@ export default function PaymentConfirmation({
     />
   );
 
-  const { config: pricingConfig } = usePricingConfig();
+  // Consolidated pricing display values - reduces memo chain cascade
+  // Previously: 3 chained useMemo + 8 inline calculations recalculating on every render
+  // Now: Single memo with all display values computed together
+  const pricingDisplayValues = useMemo(() => {
+    const fallbackBasePrice = Number.isFinite(booking.basePrice) ? Number(booking.basePrice) : 0;
+    const feePercent = computeStudentFeePercent({ preview: pricingPreview, config: pricingConfig });
+    const creditsLineCents = pricingPreview
+      ? Math.max(0, pricingPreview.credit_applied_cents)
+      : displayAppliedCreditCents;
 
-  const serviceSupportFeePercent = useMemo(
-    () => computeStudentFeePercent({ preview: pricingPreview, config: pricingConfig }),
-    [pricingConfig, pricingPreview],
-  );
+    return {
+      // Service fee display
+      serviceSupportFeePercent: feePercent,
+      serviceSupportFeeLabel: formatServiceSupportLabel(feePercent),
+      serviceSupportFeeTooltip: formatServiceSupportTooltip(feePercent),
+      // Price amounts
+      lessonAmountDisplay: pricingPreview
+        ? formatCentsToDisplay(pricingPreview.base_price_cents)
+        : `$${fallbackBasePrice.toFixed(2)}`,
+      serviceSupportFeeAmountDisplay: pricingPreview
+        ? formatCentsToDisplay(pricingPreview.student_fee_cents)
+        : null,
+      // Credits
+      creditsLineCents,
+      hasCreditsApplied: creditsLineCents > 0,
+      creditsAmountDisplay: formatCentsToDisplay(-creditsLineCents),
+      // Total
+      totalAmountDisplay: pricingPreview
+        ? formatCentsToDisplay(pricingPreview.student_pay_cents)
+        : null,
+      showFeesPlaceholder: Boolean(pricingPreviewError),
+    };
+  }, [booking.basePrice, pricingPreview, pricingConfig, displayAppliedCreditCents, pricingPreviewError]);
 
-  const serviceSupportFeeLabel = useMemo(
-    () => formatServiceSupportLabel(serviceSupportFeePercent),
-    [serviceSupportFeePercent],
-  );
-  const serviceSupportFeeTooltip = useMemo(
-    () => formatServiceSupportTooltip(serviceSupportFeePercent),
-    [serviceSupportFeePercent],
-  );
-
-  const fallbackBasePrice = Number.isFinite(booking.basePrice) ? Number(booking.basePrice) : 0;
-  const lessonAmountDisplay = pricingPreview
-    ? formatCentsToDisplay(pricingPreview.base_price_cents)
-    : `$${fallbackBasePrice.toFixed(2)}`;
-  const serviceSupportFeeAmountDisplay = pricingPreview
-    ? formatCentsToDisplay(pricingPreview.student_fee_cents)
-    : null;
-  const creditsLineCents = pricingPreview
-    ? Math.max(0, pricingPreview.credit_applied_cents)
-    : displayAppliedCreditCents;
-  const hasCreditsApplied = creditsLineCents > 0;
-  const creditsAmountDisplay = formatCentsToDisplay(-creditsLineCents);
-  const totalAmountDisplay = pricingPreview
-    ? formatCentsToDisplay(pricingPreview.student_pay_cents)
-    : null;
-  const showFeesPlaceholder = Boolean(pricingPreviewError);
+  // Destructure for backwards compatibility with existing JSX
+  const {
+    serviceSupportFeeLabel,
+    serviceSupportFeeTooltip,
+    lessonAmountDisplay,
+    serviceSupportFeeAmountDisplay,
+    hasCreditsApplied,
+    creditsAmountDisplay,
+    totalAmountDisplay,
+    showFeesPlaceholder,
+  } = pricingDisplayValues;
 
   const studentId = useMemo(() => {
     const fromBooking = (booking as unknown as { studentId?: string | null }).studentId;
@@ -1456,22 +1455,24 @@ export default function PaymentConfirmation({
                   onChange={(e) => {
                     const newValue = Number(e.target.value);
                     if (Number.isFinite(newValue)) {
-                      setDisplayAppliedCreditCents(Math.max(0, Math.round(newValue * 100)));
-                      // Don't call onCreditAmountChange on every change - too frequent
+                      // Set drag value for immediate visual feedback
+                      setSliderDragCents(Math.max(0, Math.round(newValue * 100)));
                     }
                   }}
                   onMouseUp={(e) => {
-                    // Call onCreditAmountChange when user releases the slider
+                    // Commit: call API and clear drag state so display falls back to server value
                     const newValue = Number((e.target as HTMLInputElement).value);
                     if (Number.isFinite(newValue)) {
                       onCreditAmountChange?.(newValue);
+                      setSliderDragCents(null);
                     }
                   }}
                   onTouchEnd={(e) => {
-                    // Also handle touch events for mobile
+                    // Same for touch: commit and clear drag state
                     const newValue = Number((e.target as HTMLInputElement).value);
                     if (Number.isFinite(newValue)) {
                       onCreditAmountChange?.(newValue);
+                      setSliderDragCents(null);
                     }
                   }}
                   className="w-full accent-purple-700"
@@ -1942,3 +1943,7 @@ export default function PaymentConfirmation({
     </div>
   );
 }
+
+// Wrap in React.memo to prevent re-renders from parent state changes
+const PaymentConfirmation = React.memo(PaymentConfirmationInner);
+export default PaymentConfirmation;
