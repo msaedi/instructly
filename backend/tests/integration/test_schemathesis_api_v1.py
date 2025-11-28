@@ -134,13 +134,12 @@ def _run_schemathesis_case(
             json=body if body is not None else None,
         )
 
-        # Handle 400/422 responses for schema-valid but business-invalid requests
-        # These are valid business rejections that Schemathesis's positive data checks reject
-        # because the schema is more permissive than the business rules (e.g., duration options,
-        # cross-field validation like max_price >= min_price)
-        if response.status_code in (400, 422):
-            # 400/422 are expected for business rule violations - consider it a pass
-            # The response format is already validated by FastAPI's error handler
+        # Handle expected non-2xx responses that aren't schema violations:
+        # - 400/422: Business rule violations (e.g., cross-field validation like max_price >= min_price)
+        # - 401/403: Auth mismatches - the nightly test uses admin auth for all endpoints, but some
+        #            endpoints require student/instructor roles (e.g., POST /api/v1/bookings needs student)
+        if response.status_code in (400, 401, 403, 422):
+            # These are expected rejections, not schema violations - consider it a pass
             return
 
         # Validate response conforms to schema

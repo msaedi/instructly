@@ -115,6 +115,7 @@ jobs:
 
       - name: Run Full API Schemathesis Tests
         run: |
+          set -o pipefail  # Ensure pipeline fails if pytest fails
           cd backend
           # Run the full API schema compliance test (normally skipped)
           pytest tests/integration/test_schemathesis_api_v1.py::test_api_v1_all_endpoints_schema_compliance \
