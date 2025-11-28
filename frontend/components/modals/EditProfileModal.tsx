@@ -5,8 +5,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { X, Plus, Trash2, DollarSign, ChevronDown, MapPin, BookOpen } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { publicApi } from '@/features/shared/api/client';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
+import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -243,6 +243,11 @@ export default function EditProfileModal({
   const [svcLoading, setSvcLoading] = useState(false);
   const [svcSaving, setSvcSaving] = useState(false);
   const [skillsFilter, setSkillsFilter] = useState('');
+
+  // Use React Query hooks for service data (prevents duplicate API calls)
+  const { data: categoriesData, isLoading: categoriesLoading } = useServiceCategories();
+  const { data: allServicesData, isLoading: allServicesLoading } = useAllServicesWithInstructors();
+
   const { config: pricingConfig } = usePricingConfig();
   const pricingFloors = pricingConfig?.price_floor_cents ?? null;
   const entryTierPct = useMemo(() => {
@@ -467,76 +472,93 @@ export default function EditProfileModal({
     setPublicPlaces(normalizePublic(preferredPublic));
   }, [isAreasVariant, isOpen, preferredPublic, preferredTeaching, selectedServiceAreas, areasPrefillAppliedRef]);
 
-  // Load services for services-only modal
+  // Sync loading state with React Query hooks
   useEffect(() => {
-    const load = async () => {
+    if (isOpen && variant === 'services') {
+      setSvcLoading(categoriesLoading || allServicesLoading);
+    }
+  }, [isOpen, variant, categoriesLoading, allServicesLoading]);
+
+  // Process service categories from hook data
+  useEffect(() => {
+    if (!(isOpen && variant === 'services')) return;
+    if (categoriesData) {
+      const filtered: ServiceCategory[] = categoriesData
+        .filter((c) => c.slug !== 'kids')
+        .map((c) => ({
+          id: c.id,
+          slug: c.slug,
+          name: c.name,
+          subtitle: c.subtitle ?? '',
+          description: c.description ?? '',
+          display_order: c.display_order,
+          icon_name: c.icon_name ?? '',
+        }));
+      setCategories(filtered);
+      const initialCollapsed: Record<string, boolean> = {};
+      for (const c of filtered) initialCollapsed[c.slug] = true;
+      setCollapsed(initialCollapsed);
+    }
+  }, [isOpen, variant, categoriesData]);
+
+  // Process all services from hook data
+  useEffect(() => {
+    if (!(isOpen && variant === 'services')) return;
+    if (allServicesData) {
+      const map: Record<string, CatalogService[]> = {};
+      for (const c of allServicesData.categories.filter((cat: { slug: string; services: unknown[] }) => cat.slug !== 'kids')) {
+        map[c.slug] = c.services;
+      }
+      setServicesByCategory(map);
+    }
+  }, [isOpen, variant, allServicesData]);
+
+  // Load instructor profile for prefilling services (separate from service catalog loading)
+  useEffect(() => {
+    const loadProfile = async () => {
       if (!(isOpen && variant === 'services')) return;
       try {
-        setSvcLoading(true);
-        const [cats, all] = await Promise.all([
-          publicApi.getServiceCategories(),
-          publicApi.getAllServicesWithInstructors(),
-        ]);
-        if (cats.status === 200 && cats.data) {
-          const filtered = cats.data.filter((c) => c.slug !== 'kids');
-          setCategories(filtered);
-          const initialCollapsed: Record<string, boolean> = {};
-          for (const c of filtered) initialCollapsed[c.slug] = true;
-          setCollapsed(initialCollapsed);
+        const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+        if (meRes.ok) {
+          const me = await meRes.json();
+          const mapped: SelectedService[] = (me.services || []).map((svc: unknown) => {
+            const s = svc as Record<string, unknown>;
+            const catalogId = String(s['service_catalog_id'] || '');
+            const serviceName = displayServiceName(
+              {
+                service_catalog_id: catalogId,
+                service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : (s['name'] as string | undefined) ?? null,
+              },
+              hydrateCatalogNameById
+            );
+            return {
+              catalog_service_id: catalogId,
+              service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : null,
+              name: serviceName,
+              hourly_rate: String(s['hourly_rate'] ?? ''),
+              ageGroup:
+                Array.isArray(s['age_groups']) && s['age_groups'].length === 2
+                  ? 'both'
+                  : ((s['age_groups'] as string[]) || []).includes('kids')
+                  ? 'kids'
+                  : 'adults',
+              description: (s['description'] as string) || '',
+              equipment: Array.isArray(s['equipment_required']) ? (s['equipment_required'] as string[]).join(', ') : '',
+              levels_taught:
+                Array.isArray(s['levels_taught']) && s['levels_taught'].length
+                  ? s['levels_taught'] as string[]
+                  : ['beginner', 'intermediate', 'advanced'],
+              duration_options: Array.isArray(s['duration_options']) && s['duration_options'].length ? s['duration_options'] as number[] : [60],
+              location_types: Array.isArray(s['location_types']) && s['location_types'].length ? s['location_types'] as string[] : ['in-person'],
+            };
+          });
+          if (mapped.length) setSelectedServices(mapped);
         }
-        if (all.status === 200 && all.data) {
-          const map: Record<string, CatalogService[]> = {};
-          for (const c of all.data.categories.filter((c: { slug: string; services: unknown[] }) => c.slug !== 'kids')) {
-            map[c.slug] = c.services;
-          }
-          setServicesByCategory(map);
-        }
-        // Prefill from profile
-        try {
-          const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-          if (meRes.ok) {
-            const me = await meRes.json();
-            const mapped: SelectedService[] = (me.services || []).map((svc: unknown) => {
-              const s = svc as Record<string, unknown>;
-              const catalogId = String(s['service_catalog_id'] || '');
-              const serviceName = displayServiceName(
-                {
-                  service_catalog_id: catalogId,
-                  service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : (s['name'] as string | undefined) ?? null,
-                },
-                hydrateCatalogNameById
-              );
-              return {
-                catalog_service_id: catalogId,
-                service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : null,
-                name: serviceName,
-                hourly_rate: String(s['hourly_rate'] ?? ''),
-                ageGroup:
-                  Array.isArray(s['age_groups']) && s['age_groups'].length === 2
-                    ? 'both'
-                    : ((s['age_groups'] as string[]) || []).includes('kids')
-                    ? 'kids'
-                    : 'adults',
-                description: (s['description'] as string) || '',
-                equipment: Array.isArray(s['equipment_required']) ? (s['equipment_required'] as string[]).join(', ') : '',
-                levels_taught:
-                  Array.isArray(s['levels_taught']) && s['levels_taught'].length
-                    ? s['levels_taught'] as string[]
-                    : ['beginner', 'intermediate', 'advanced'],
-                duration_options: Array.isArray(s['duration_options']) && s['duration_options'].length ? s['duration_options'] as number[] : [60],
-                location_types: Array.isArray(s['location_types']) && s['location_types'].length ? s['location_types'] as string[] : ['in-person'],
-              };
-            });
-            if (mapped.length) setSelectedServices(mapped);
-          }
-        } catch {}
       } catch {
-        setError('Failed to load services');
-      } finally {
-        setSvcLoading(false);
+        setError('Failed to load instructor profile');
       }
     };
-    void load();
+    void loadProfile();
   }, [isOpen, variant]);
 
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {

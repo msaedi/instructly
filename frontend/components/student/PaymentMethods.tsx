@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { logger } from '@/lib/logger';
 import { paymentService } from '@/services/api/payments';
 import DeletePaymentMethodModal from '@/components/modals/DeletePaymentMethodModal';
+import { usePaymentMethods, useInvalidatePaymentMethods } from '@/hooks/queries/usePaymentMethods';
 
 const stripePromise = loadStripe(
   process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || ''
@@ -194,38 +195,25 @@ const AddCardForm: React.FC<{
 };
 
 // Main PaymentMethods Component
-const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [loading, setLoading] = useState(true);
+const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId: _userId }) => {
+  // Use React Query hook for payment methods (prevents duplicate API calls)
+  const { data: paymentMethods = [], isLoading: loading, error: queryError } = usePaymentMethods();
+  const invalidatePaymentMethods = useInvalidatePaymentMethods();
+
   const [addingCard, setAddingCard] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [methodToDelete, setMethodToDelete] = useState<PaymentMethod | null>(null);
 
-  // Load payment methods
-  const loadPaymentMethods = async () => {
-    try {
-      setLoading(true);
-      const data = await paymentService.listPaymentMethods();
-      setPaymentMethods(data);
-      logger.info('Payment methods loaded', { count: data.length });
-    } catch (err) {
-      logger.error('Error loading payment methods:', err);
-      // Don't set error for empty list
-      if (err instanceof Error && !err.message.includes('404')) {
-        setError('Failed to load payment methods');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Show query error if present
+  const displayError = error || (queryError ? 'Failed to load payment methods' : null);
 
   // Set default payment method
   const setDefaultMethod = async (methodId: string) => {
     try {
       await paymentService.setDefaultPaymentMethod(methodId);
       logger.info('Default payment method updated');
-      await loadPaymentMethods();
+      void invalidatePaymentMethods(); // Refresh data via React Query
     } catch (err) {
       logger.error('Error setting default payment method:', err);
       setError('Failed to update default payment method');
@@ -241,17 +229,13 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
       logger.info('Payment method deleted');
       setDeleteModalOpen(false);
       setMethodToDelete(null);
-      await loadPaymentMethods();
+      void invalidatePaymentMethods(); // Refresh data via React Query
     } catch (err) {
       logger.error('Error deleting payment method:', err);
       setError('Failed to delete payment method');
       throw err; // Re-throw to let modal handle the error
     }
   };
-
-  useEffect(() => {
-    void loadPaymentMethods();
-  }, [userId]);
 
   if (loading) {
     return (
@@ -275,9 +259,9 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
         )}
       </div>
 
-      {error && (
+      {displayError && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
-          <p className="text-gray-600">{error}</p>
+          <p className="text-gray-600">{displayError}</p>
         </div>
       )}
 
@@ -286,9 +270,9 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
           <h3 className="text-lg font-medium mb-4">Add New Card</h3>
           <Elements stripe={stripePromise}>
             <AddCardForm
-              onSuccess={async () => {
+              onSuccess={() => {
                 setAddingCard(false);
-                await loadPaymentMethods();
+                void invalidatePaymentMethods(); // Refresh data via React Query
               }}
               onCancel={() => setAddingCard(false)}
             />

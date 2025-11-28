@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   DollarSign,
   TrendingUp,
@@ -19,18 +19,23 @@ import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
 import { paymentService } from '@/services/api/payments';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
-import type { EarningsResponse } from '@/services/api/payments';
+import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 
 interface PayoutsDashboardProps {
   instructorId: string;
 }
 
-const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => {
+const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId: _instructorId }) => {
   const [, setDashboardUrl] = useState<string | null>(null);
-  const [earnings, setEarnings] = useState<EarningsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openingDashboard, setOpeningDashboard] = useState(false);
+
+  // Use React Query hook for earnings data (prevents duplicate API calls)
+  const { data: earnings, isLoading: loading, error: queryError } = useInstructorEarnings();
+
+  // Show query error if present
+  const displayError = error || (queryError ? 'Failed to load earnings data' : null);
+
   const { config: pricingConfig } = usePricingConfig();
   const platformFeePct = useMemo(() => {
     const tiers = pricingConfig?.instructor_tiers ?? [];
@@ -44,25 +49,6 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => 
     const percent = platformFeePct * 100;
     return percent % 1 === 0 ? `${percent.toFixed(0)}%` : `${percent.toFixed(1)}%`;
   }, [platformFeePct]);
-
-  // Load earnings data
-  useEffect(() => {
-    const loadEarnings = async () => {
-      try {
-        setLoading(true);
-        const data = await paymentService.getEarnings();
-        setEarnings(data);
-        logger.info('Earnings loaded', data);
-      } catch (err) {
-        logger.error('Error loading earnings:', err);
-        setError('Failed to load earnings data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadEarnings();
-  }, [instructorId]);
 
   // Open Stripe Express dashboard
   const openStripeDashboard = async () => {
@@ -226,10 +212,10 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => 
           </Button>
         </div>
 
-        {error && (
+        {displayError && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2">
             <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-            <p className="text-sm text-red-700">{error}</p>
+            <p className="text-sm text-red-700">{displayError}</p>
           </div>
         )}
 

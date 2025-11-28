@@ -11,6 +11,8 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
+import { useSession } from '@/src/api/hooks/useSession';
+import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { formatProblemMessages } from '@/lib/httpErrors';
@@ -149,6 +151,10 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
 
   // Use React Query hook for instructor profile - leverages cache from dashboard
   const { data: instructorProfileFromHook, isLoading: isProfileLoading } = useInstructorProfileMe(true);
+  // Use React Query hooks for user session and addresses (prevents duplicate API calls)
+  const { data: userDataFromHook, isLoading: isUserLoading } = useSession();
+  const { data: addressesDataFromHook, isLoading: isAddressesLoading } = useUserAddresses();
+  const invalidateUserAddresses = useInvalidateUserAddresses();
   const [savingServiceAreas, setSavingServiceAreas] = useState(false);
   const [hasProfilePicture, setHasProfilePicture] = useState<boolean>(false);
   const shouldDefaultExpand = isOnboarding;
@@ -178,10 +184,10 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   //   return hasProfilePic && personalInfoFilled && bioOk && hasServiceArea;
   // }, [userId, profile.first_name, profile.last_name, profile.postal_code, profile.bio, selectedNeighborhoods.size]);
 
-  // Process instructor profile data when available from React Query hook
+  // Process instructor profile data when available from React Query hooks
   useEffect(() => {
-    // Wait for profile to load from React Query
-    if (isProfileLoading) return;
+    // Wait for all hooks to load from React Query
+    if (isProfileLoading || isUserLoading || isAddressesLoading) return;
 
     // Wait for hook data to be available (prevents loading with empty data)
     // On dashboard, the cache should already be populated from the parent's fetch
@@ -207,18 +213,15 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
         setInstructorMeta(data);
         logger.debug('Prefill: /instructors/me from cache', { keys: Object.keys(data || {}) });
 
-        // Get user info for name fields (use /auth/me)
-        const userRes = await fetchWithAuth(API_ENDPOINTS.ME);
-        logger.debug('Prefill: /auth/me status', { status: userRes.status });
+        // Get user info for name fields from React Query hook (no API call needed)
         let firstName = '';
         let lastName = '';
         let userZip = '';
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          firstName = userData['first_name'] || '';
-          lastName = userData['last_name'] || '';
-          userZip = userData['zip_code'] || '';
-          logger.debug('Prefill: /auth/me body', { first_name: firstName, last_name: lastName, id: userData['id'], zip_code: userZip });
+        if (userDataFromHook) {
+          firstName = userDataFromHook.first_name || '';
+          lastName = userDataFromHook.last_name || '';
+          userZip = userDataFromHook.zip_code || '';
+          logger.debug('Prefill: /auth/me from cache', { first_name: firstName, last_name: lastName, id: userDataFromHook.id, zip_code: userZip });
         } else if (data && data['user']) {
           // Fallback to instructor payload's embedded user if available
           const userObj = data['user'] as Record<string, unknown>;
@@ -228,18 +231,14 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           logger.debug('Prefill: using instructor.user fallback', { first_name: firstName, last_name: lastName, zip_code: userZip });
         }
 
-        // Get postal code from default address
+        // Get postal code from default address using React Query hook data (no API call needed)
         let postalCode = '';
-        try {
-          const addrRes = await fetchWithAuth('/api/v1/addresses/me');
-          logger.debug('Prefill: /api/v1/addresses/me status', { status: addrRes.status });
-          if (addrRes.ok) {
-            const list = await addrRes.json();
-            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
-            postalCode = def?.['postal_code'] || '';
-            logger.debug('Prefill: selected default address', { id: def?.['id'], postal_code: postalCode });
-          }
-        } catch {}
+        if (addressesDataFromHook?.items) {
+          const items = addressesDataFromHook.items;
+          const def = items.find((a) => a.is_default) ?? items[0];
+          postalCode = def?.postal_code ?? '';
+          logger.debug('Prefill: /addresses/me from cache', { id: def?.id, postal_code: postalCode });
+        }
         // if no default address zip, fallback to user zip from /auth/me
         if (!postalCode && userZip) {
           postalCode = userZip;
@@ -344,13 +343,12 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           }
         } catch {}
 
-        // Detect NYC from default address postal code if available
+        // Detect NYC from default address postal code using hook data
         try {
-          const addrRes = await fetchWithAuth('/api/v1/addresses/me');
-          if (addrRes.ok) {
-            const list = await addrRes.json();
-            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>)['is_default']) || (list.items || [])[0];
-            const zip = def?.['postal_code'];
+          if (addressesDataFromHook?.items) {
+            const items = addressesDataFromHook.items;
+            const def = items.find((a) => a.is_default) ?? items[0];
+            const zip = def?.postal_code;
             if (zip) {
               const nycRes = await fetch(withApiBase(`${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`), {
                 credentials: 'include',
@@ -372,7 +370,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       }
     };
     void load();
-  }, [instructorProfileFromHook, isProfileLoading]);
+  }, [instructorProfileFromHook, isProfileLoading, userDataFromHook, isUserLoading, addressesDataFromHook, isAddressesLoading]);
 
   useEffect(() => {
     if (!isOnboarding || !instructorMeta || redirectingRef.current) return;
@@ -640,6 +638,9 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
       } catch (addressError) {
         logger.warn('Failed to sync address during profile save', addressError instanceof Error ? addressError : undefined);
       }
+
+      // Invalidate addresses cache after any address operations
+      void invalidateUserAddresses();
 
       // Persist service areas (StrictMode-safe guard)
       if (!inFlightServiceAreasRef.current) {

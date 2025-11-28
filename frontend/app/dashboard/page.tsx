@@ -12,17 +12,14 @@
  * @module dashboard/page
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 
 // Import centralized types
-import { RequestStatus } from '@/types/api';
-import { getErrorMessage } from '@/types/common';
-import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName } from '@/types/enums';
+import { useSession } from '@/src/api/hooks/useSession';
 
 /**
  * Dashboard router component
@@ -34,119 +31,59 @@ import { RoleName } from '@/types/enums';
  */
 export default function Dashboard() {
   const router = useRouter();
-  const [status, setStatus] = useState<RequestStatus>(RequestStatus.LOADING);
-  const [error, setError] = useState<string | null>(null);
+  // Use React Query hook for user session (prevents duplicate API calls)
+  const { data: userData, isLoading, error: queryError } = useSession();
 
+  // Redirect based on role when user data is available
   useEffect(() => {
-    /**
-     * Check user authentication and role, then redirect accordingly
-     */
-    const checkUserRoleAndRedirect = async () => {
-      logger.info('Dashboard: Checking user role for redirect');
+    // Still loading
+    if (isLoading) return;
 
-      try {
-        logger.time('fetchUserData');
-        const response = await fetchWithAuth(API_ENDPOINTS.ME);
-        logger.timeEnd('fetchUserData');
+    // Error fetching user - redirect to login
+    if (queryError) {
+      logger.warn('Dashboard: Failed to fetch user data, redirecting to login');
+      router.push('/login');
+      return;
+    }
 
-        if (response.status === 401) {
-          logger.warn('Dashboard: Not authenticated, redirecting to login');
-          router.push('/login');
-          return;
-        }
+    // No user data - not authenticated
+    if (!userData) {
+      logger.warn('Dashboard: Not authenticated, redirecting to login');
+      router.push('/login');
+      return;
+    }
 
-        if (!response.ok) {
-          logger.warn('Dashboard: Failed to fetch user data', {
-            status: response.status,
-            statusText: response.statusText,
-          });
+    logger.info('Dashboard: User data fetched successfully', {
+      userId: userData.id,
+      roles: userData.roles,
+      permissions: userData.permissions,
+    });
 
-          router.push('/login');
-          return;
-        }
+    // Redirect based on role (inline check since userData type differs from User type)
+    const userRoles = userData.roles ?? [];
+    if (userRoles.includes(RoleName.INSTRUCTOR)) {
+      logger.info('Dashboard: Redirecting instructor to instructor dashboard', {
+        userId: userData.id,
+        roles: userData.roles,
+      });
+      router.push('/dashboard/instructor');
+    } else if (userRoles.includes(RoleName.STUDENT)) {
+      logger.info('Dashboard: Redirecting student to student dashboard', {
+        userId: userData.id,
+        roles: userData.roles,
+      });
+      router.push('/dashboard/student');
+    } else {
+      // Handle unexpected role - redirect to login
+      logger.error('Dashboard: Unknown user roles', null, {
+        userId: userData.id,
+        roles: userData.roles,
+      });
+      router.push('/login');
+    }
+  }, [userData, isLoading, queryError, router]);
 
-        const userData = await response.json();
-        logger.info('Dashboard: User data fetched successfully', {
-          userId: userData.id,
-          roles: userData.roles,
-          permissions: userData.permissions,
-        });
-
-        // Redirect based on role
-        if (hasRole(userData, RoleName.INSTRUCTOR)) {
-          logger.info('Dashboard: Redirecting instructor to instructor dashboard', {
-            userId: userData.id,
-            roles: userData.roles,
-          });
-          router.push('/dashboard/instructor');
-        } else if (hasRole(userData, RoleName.STUDENT)) {
-          logger.info('Dashboard: Redirecting student to student dashboard', {
-            userId: userData.id,
-            roles: userData.roles,
-          });
-          router.push('/dashboard/student');
-        } else {
-          // Handle unexpected role
-          logger.error('Dashboard: Unknown user roles', null, {
-            userId: userData.id,
-            roles: userData.roles,
-          });
-          setError(`Unknown user roles: ${userData.roles?.join(', ') || 'none'}`);
-          setStatus(RequestStatus.ERROR);
-        }
-      } catch (error) {
-        const errorMessage = getErrorMessage(error);
-        logger.error('Dashboard: Error checking user role', error, {
-          errorMessage,
-        });
-
-        setError(errorMessage);
-        setStatus(RequestStatus.ERROR);
-
-        // On error, redirect to login after a delay
-        setTimeout(() => {
-          logger.info('Dashboard: Redirecting to login after error');
-          router.push('/login');
-        }, 2000);
-      }
-    };
-
-    void checkUserRoleAndRedirect();
-  }, [router]);
-
-  // Error state
-  if (status === RequestStatus.ERROR && error) {
-    logger.debug('Dashboard: Rendering error state', { error });
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center">
-          <div className="bg-red-100 dark:bg-red-900/20 rounded-full p-4 mx-auto w-16 h-16 flex items-center justify-center mb-4">
-            <svg
-              className="w-8 h-8 text-red-600 dark:text-red-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-            Something went wrong
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-500">Redirecting to login...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Loading state
+  // Loading state (will redirect once data is fetched)
   logger.debug('Dashboard: Rendering loading state');
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">

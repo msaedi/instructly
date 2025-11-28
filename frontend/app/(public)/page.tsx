@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
+import { type TopServiceSummary } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { BRAND_LEGAL_NAME } from '@/lib/branding';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -16,6 +16,9 @@ import { RoleName, SearchType } from '@/types/enums';
 import { NotificationBar } from '@/components/NotificationBar';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
+import { useFeaturedServices } from '@/hooks/queries/useHomepage';
+import { useServiceCategories } from '@/hooks/queries/useServices';
+import { publicApi } from '@/features/shared/api/client';
 import { getActivityBackground } from '@/lib/services/assetService';
 import {
   Search,
@@ -139,19 +142,10 @@ export default function HomePage() {
 
   // React Query hooks for fetching data with caching
   // These prevent duplicate API calls and improve performance
-  const { data: topServicesData } = useQuery({
-    queryKey: queryKeys.services.topPerCategory,
-    queryFn: async () => {
-      const response = await publicApi.getTopServicesPerCategory();
-      if (response.error) {
-        throw new Error(response.error);
-      }
-      return response.data;
-    },
-    staleTime: CACHE_TIMES.STATIC, // 1 hour cache for static content
-    enabled: true, // Always fetch, don't make it conditional to avoid hook order issues
-  });
+  const { data: topServicesData } = useFeaturedServices();
+  const { data: categoriesData } = useServiceCategories();
 
+  // Kids services - inline query (no dedicated hook exists yet)
   const { data: kidsServicesData } = useQuery({
     queryKey: queryKeys.services.kidsAvailable,
     queryFn: async () => {
@@ -162,20 +156,6 @@ export default function HomePage() {
       return response.data;
     },
     staleTime: CACHE_TIMES.STATIC, // 1 hour cache
-    enabled: true,
-  });
-
-  const { data: categoriesData } = useQuery({
-    queryKey: queryKeys.services.categories,
-    queryFn: async () => {
-      const response = await publicApi.getServiceCategories();
-      if (response.error) {
-        throw new Error(response.error);
-      }
-      return response.data;
-    },
-    staleTime: CACHE_TIMES.STATIC, // 1 hour cache
-    enabled: true,
   });
 
   // Process the cached data into the format the component expects

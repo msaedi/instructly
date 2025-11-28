@@ -1,19 +1,18 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- Legacy file being replaced by Phoenix routes under (auth)/instructor/ */
 // frontend/app/dashboard/instructor/page.tsx
 'use client';
 // LEGACY-ONLY: This is the legacy instructor dashboard. Phoenix routes live under (auth)/instructor/*.
 
 import { BRAND } from '@/app/config/brand';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Star } from 'lucide-react';
 import Link from 'next/link';
 import { Edit, Calendar, ExternalLink, LogOut, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 import EditProfileModal from '@/components/modals/EditProfileModal';
 import DeleteProfileModal from '@/components/modals/DeleteProfileModal';
-import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
+import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor';
+import { getInstructorDisplayName } from '@/types/instructor';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -21,6 +20,10 @@ import StripeOnboarding from '@/components/instructor/StripeOnboarding';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { useInstructorReviews } from '@/features/instructor-profile/hooks/useInstructorReviews';
 import { formatDistanceToNow } from 'date-fns';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
+import { useStripeConnectStatus } from '@/hooks/queries/useStripeConnectStatus';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/src/api/queryKeys';
 
 /**
  * InstructorDashboard Component
@@ -46,12 +49,20 @@ import { formatDistanceToNow } from 'date-fns';
 export default function InstructorDashboard() {
   const router = useRouter();
   const { logout } = useAuth();
-  const [profile, setProfile] = useState<InstructorProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [connectStatus, setConnectStatus] = useState<any>(null);
+
+  // Use React Query hooks for instructor profile and Stripe Connect status (prevents duplicate API calls)
+  const { data: profile, isLoading, error: profileError } = useInstructorProfileMe();
+  const { data: connectStatus } = useStripeConnectStatus();
+
+  // Derive error message from query error
+  const error = profileError
+    ? (profileError as Error)?.message?.includes?.('404')
+      ? 'No instructor profile found. Please complete your profile setup.'
+      : 'Failed to load profile'
+    : null;
 
   const instructorProfileId = profile?.id ?? profile?.user_id ?? '';
   const { data: ratingsData, isLoading: ratingsLoading } = useInstructorRatingsQuery(instructorProfileId);
@@ -67,69 +78,25 @@ export default function InstructorDashboard() {
       ? `${totalReviews} review${totalReviews === 1 ? '' : 's'}`
       : 'No reviews yet';
 
-  /**
-   * Fetch instructor profile data
-   * Redirects to login if not authenticated
-   * Handles 404 case for instructors without profiles
-   */
-  const fetchProfile = useCallback(async () => {
-    try {
-      logger.info('Fetching instructor profile');
-      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+  // Handle authentication redirect
+  useEffect(() => {
+    if (profileError && (profileError as Error)?.message?.includes?.('401')) {
+      logger.warn('Not authenticated, redirecting to login');
+      router.push('/login?redirect=/dashboard/instructor');
+    }
+  }, [profileError, router]);
 
-      if (response.status === 401) {
-        logger.warn('Not authenticated, redirecting to login');
-        router.push('/login?redirect=/dashboard/instructor');
-        return;
-      }
-
-      if (response.status === 404) {
-        logger.warn('No instructor profile found');
-        setError('No instructor profile found. Please complete your profile setup.');
-        setIsLoading(false);
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch profile');
-      }
-
-      const data: InstructorProfile = await response.json();
-
-      // Validate data structure
-      if (!data.user || !data.services) {
-        logger.error('Invalid profile data structure', undefined, { data });
-        throw new Error('Invalid profile data received');
-      }
-
-      const serviceAreaBoroughs = getServiceAreaBoroughs(data);
+  // Log when profile is loaded
+  useEffect(() => {
+    if (profile) {
+      const serviceAreaBoroughs = getServiceAreaBoroughs(profile);
       logger.info('Instructor profile loaded successfully', {
-        userId: data.user_id,
-        servicesCount: data.services.length,
+        userId: profile.user_id,
+        servicesCount: profile.services?.length ?? 0,
         boroughCount: serviceAreaBoroughs.length,
       });
-
-      setProfile(data);
-    } catch (err) {
-      logger.error('Error fetching instructor profile', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setIsLoading(false);
     }
-  }, [router]);
-
-  useEffect(() => {
-    logger.info('Instructor dashboard loaded');
-    void fetchProfile();
-    void (async () => {
-      try {
-        const s = await getConnectStatus();
-        setConnectStatus(s);
-      } catch {
-        logger.warn('Failed to load connect status');
-      }
-    })();
-  }, [router, fetchProfile]);
+  }, [profile]);
 
   /**
    * Handle user logout
@@ -142,11 +109,11 @@ export default function InstructorDashboard() {
 
   /**
    * Handle successful profile update
-   * Refreshes profile data and closes modal
+   * Invalidates cache to refresh profile data and closes modal
    */
   const handleProfileUpdate = () => {
     logger.info('Profile updated, refreshing data');
-    void fetchProfile();
+    void queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me });
     setShowEditModal(false);
   };
 

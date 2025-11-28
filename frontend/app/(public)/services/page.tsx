@@ -8,9 +8,7 @@ import { publicApi, type CatalogService } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { getString, getNumber, getBoolean, getStringArray } from '@/lib/typesafe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-// Removed recordSearch and SearchType - tracking now handled by search page
-import { useQuery } from '@tanstack/react-query';
-import { queryKeys } from '@/lib/react-query/queryClient';
+import { useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 
 // Progressive loading configuration
 const INITIAL_SERVICES_COUNT = 15;
@@ -102,17 +100,12 @@ export default function AllServicesPage() {
     void fetchKids();
   }, []);
 
-  // Add React Query hook for fetching services
+  // Use React Query hook for fetching services (prevents duplicate API calls)
   const {
-    data: servicesResponse,
+    data: servicesData,
     error: queryError,
     isLoading: queryLoading,
-  } = useQuery({
-    queryKey: queryKeys.services?.withInstructors || ['services', 'withInstructors'],
-    queryFn: () => publicApi.getAllServicesWithInstructors(),
-    staleTime: 1000 * 60 * 15, // 15 minutes - service counts change moderately
-    gcTime: 1000 * 60 * 30, // 30 minutes
-  });
+  } = useAllServicesWithInstructors();
 
   // Sync loading state with React Query
   useEffect(() => {
@@ -124,30 +117,14 @@ export default function AllServicesPage() {
     if (queryError) {
       logger.error('Failed to fetch services', queryError as Error);
       setError('Failed to load services. Please try again later.');
+      setLoading(false);
       return;
     }
 
-    // If React Query has the data, use it
-    if (servicesResponse) {
-      if (servicesResponse.error) {
-        logger.error(
-          'Failed to fetch services with instructors',
-          new Error(servicesResponse.error)
-        );
-        setError('Failed to load services');
-        setLoading(false);
-        return;
-      }
-
-      if (!servicesResponse.data) {
-        logger.error('No services data received');
-        setError('No services available');
-        setLoading(false);
-        return;
-      }
-
+    // If React Query has the data, use it (hook extracts .data automatically)
+    if (servicesData) {
       // Transform the response to match our component's expected structure
-      const categories: CategoryWithServices[] = servicesResponse.data.categories.map(
+      const categories: CategoryWithServices[] = servicesData.categories.map(
         (category: { id: string; slug: string; name: string; subtitle: string; services: unknown[] }) => {
           // Find matching emoji from CATEGORY_CONFIG
           const config = CATEGORY_CONFIG.find((c) => c.slug === category.slug);
@@ -189,90 +166,13 @@ export default function AllServicesPage() {
 
       logger.info('Loaded all services with instructor data', {
         categoriesCount: categories.length,
-        totalServices: servicesResponse.data.metadata.total_services,
-        cached: servicesResponse.data.metadata.cached_for_seconds,
+        totalServices: servicesData.metadata.total_services,
+        cached: servicesData.metadata.cached_for_seconds,
       });
 
       setLoading(false);
-      return;
     }
-
-    // Fallback to original fetching logic if React Query data not available
-    const fetchServices = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Use the new optimized endpoint
-        const response = await publicApi.getAllServicesWithInstructors();
-
-        if (response.error) {
-          logger.error('Failed to fetch services with instructors', new Error(response.error));
-          setError('Failed to load services');
-          return;
-        }
-
-        if (!response.data) {
-          logger.error('No services data received');
-          setError('No services available');
-          return;
-        }
-
-        // Transform the response to match our component's expected structure
-        const categories: CategoryWithServices[] = response.data.categories.map((category) => {
-          // Find matching emoji from CATEGORY_CONFIG
-          const config = CATEGORY_CONFIG.find((c) => c.slug === category.slug);
-
-          return {
-            id: category.id,
-            slug: category.slug,
-            name: category.name.toUpperCase(), // Ensure uppercase for consistency
-            icon: config?.icon || Search, // Default icon if not found
-            subtitle: category.subtitle,
-            services: category.services.map((service: unknown) => {
-              return {
-                id: getString(service, 'id', ''),
-                category_id: getString(service, 'category_id', ''),
-                name: getString(service, 'name', ''),
-                slug: getString(service, 'slug', ''),
-                description: getString(service, 'description', ''),
-                search_terms: getStringArray(service, 'search_terms', []),
-                display_order: getNumber(service, 'display_order', 0),
-                online_capable: getBoolean(service, 'online_capable', false),
-                requires_certification: getBoolean(service, 'requires_certification', false),
-                is_active: getBoolean(service, 'is_active', true),
-                instructor_count: getNumber(service, 'instructor_count', 0),
-                ...(getNumber(service, 'actual_min_price') ? { actual_min_price: getNumber(service, 'actual_min_price') } : {}),
-                ...(getNumber(service, 'actual_max_price') ? { actual_max_price: getNumber(service, 'actual_max_price') } : {}),
-              };
-            }),
-          };
-        });
-
-        setCategoriesWithServices(categories);
-
-        // Initialize visible services count for each category
-        const initialVisible: Record<string, number> = {};
-        categories.forEach((cat) => {
-          initialVisible[cat.slug] = INITIAL_SERVICES_COUNT;
-        });
-        setVisibleServices(initialVisible);
-
-        logger.info('Loaded all services with instructor data', {
-          categoriesCount: categories.length,
-          totalServices: response.data.metadata.total_services,
-          cached: response.data.metadata.cached_for_seconds,
-        });
-      } catch (err) {
-        logger.error('Failed to fetch services', err as Error);
-        setError('Failed to load services. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void fetchServices();
-  }, [servicesResponse, queryError]);
+  }, [servicesData, queryError]);
 
   // Derive display categories with kids services injected at render-time to avoid race conditions
   const displayCategories = useMemo(() => {
