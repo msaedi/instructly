@@ -8,6 +8,7 @@ import { hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServ
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { evaluatePriceFloorViolations, formatCents, type FloorViolation } from '@/lib/pricing/priceFloors';
 import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 
 type CatalogService = { id: string; name: string };
 type ServiceCategory = { slug: string; name: string };
@@ -51,6 +52,8 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   // Use React Query hooks for service data (prevents duplicate API calls)
   const { data: categoriesData, isLoading: categoriesLoading } = useServiceCategories();
   const { data: allServicesData, isLoading: allServicesLoading } = useAllServicesWithInstructors();
+  // Use React Query hook for instructor profile when prop not provided (prevents duplicate API calls)
+  const { data: profileFromHook } = useInstructorProfileMe(!instructorProfile);
   const [skillsFilter, setSkillsFilter] = useState('');
   const [requestedSkill, setRequestedSkill] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
@@ -117,98 +120,84 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
     }
   }, [allServicesData]);
 
-  // Load instructor profile (prefilled services) - separate from service catalog loading
+  // Load instructor profile (prefilled services) - uses prop or React Query hook data
   useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        let me: Record<string, unknown> | null = null;
+    // Use prop if provided, otherwise use hook data
+    const profileData = instructorProfile ?? profileFromHook;
+    if (!profileData) return;
 
-        if (instructorProfile) {
-          // Use pre-fetched profile data from parent (avoids duplicate API call)
-          me = instructorProfile as Record<string, unknown>;
-          logger.debug('SkillsPricingInline: using pre-fetched profile', { is_live: me['is_live'] });
-        } else {
-          // Fallback: fetch profile (only if not provided by parent)
-          const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-          if (meRes.ok) {
-            me = await meRes.json();
-            logger.debug('SkillsPricingInline: fetched profile', { is_live: me?.['is_live'] });
-          }
-        }
+    const me = profileData as Record<string, unknown>;
+    logger.debug('SkillsPricingInline: using profile data', {
+      source: instructorProfile ? 'prop' : 'hook',
+      is_live: me['is_live'],
+    });
 
-        if (me) {
-          // Track if instructor is live (affects whether they can delete last skill)
-          const isLive = Boolean(me['is_live']);
-          logger.debug('SkillsPricingInline: instructor is_live status', { is_live: me['is_live'], parsed: isLive });
-          setIsInstructorLive(isLive);
-          setProfileLoaded(true);
-          const mapped: SelectedService[] = (me['services'] as unknown[] || [])
-            .map((svc: unknown) => {
-              const s = svc as Record<string, unknown>;
-              const catalogId = String(s['service_catalog_id'] || '');
-              const serviceName = displayServiceName(
-                {
-                  service_catalog_id: catalogId,
-                  service_catalog_name:
-                    typeof s['service_catalog_name'] === 'string'
-                      ? (s['service_catalog_name'] as string)
-                      : (s['name'] as string | undefined) ?? null,
-                },
-                hydrateCatalogNameById,
-              );
-              return {
-                catalog_service_id: catalogId,
-                service_catalog_name:
-                  typeof s['service_catalog_name'] === 'string'
-                    ? (s['service_catalog_name'] as string)
-                    : null,
-                name: serviceName,
-                hourly_rate: String(s['hourly_rate'] ?? ''),
-                ageGroup:
-                  Array.isArray(s['age_groups']) && (s['age_groups'] as string[]).length === 2
-                    ? 'both'
-                    : ((s['age_groups'] as string[]) || []).includes('kids')
-                    ? 'kids'
-                    : 'adults',
-                description: (s['description'] as string) || '',
-                equipment: Array.isArray(s['equipment_required'])
-                  ? (s['equipment_required'] as string[]).join(', ')
-                  : '',
-                levels_taught:
-                  Array.isArray(s['levels_taught']) && (s['levels_taught'] as string[]).length
-                    ? (s['levels_taught'] as Array<'beginner' | 'intermediate' | 'advanced'>)
-                    : ['beginner', 'intermediate', 'advanced'],
-                duration_options:
-                  Array.isArray(s['duration_options']) && (s['duration_options'] as number[]).length
-                    ? (s['duration_options'] as number[])
-                    : [60],
-                location_types:
-                  Array.isArray(s['location_types']) && (s['location_types'] as string[]).length
-                    ? (s['location_types'] as Array<'in-person' | 'online'>)
-                    : ['in-person'],
-              } as SelectedService;
-            })
-            .filter((svc: SelectedService) => svc.catalog_service_id);
+    // Track if instructor is live (affects whether they can delete last skill)
+    const isLive = Boolean(me['is_live']);
+    logger.debug('SkillsPricingInline: instructor is_live status', { is_live: me['is_live'], parsed: isLive });
+    setIsInstructorLive(isLive);
+    setProfileLoaded(true);
 
-          if (mapped.length) {
-            const deduped = Array.from(
-              new Map(
-                mapped.map((mappedService: SelectedService) => [
-                  mappedService.catalog_service_id,
-                  mappedService,
-                ]),
-              ).values(),
-            );
-            setSelectedServices(deduped);
-          }
-        }
-      } catch {
-        setError('Failed to load instructor profile');
-      }
-    };
-    void loadProfile();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only run on mount; instructorProfile is read once during initial load
-  }, []);
+    const mapped: SelectedService[] = (me['services'] as unknown[] || [])
+      .map((svc: unknown) => {
+        const s = svc as Record<string, unknown>;
+        const catalogId = String(s['service_catalog_id'] || '');
+        const serviceName = displayServiceName(
+          {
+            service_catalog_id: catalogId,
+            service_catalog_name:
+              typeof s['service_catalog_name'] === 'string'
+                ? (s['service_catalog_name'] as string)
+                : (s['name'] as string | undefined) ?? null,
+          },
+          hydrateCatalogNameById,
+        );
+        return {
+          catalog_service_id: catalogId,
+          service_catalog_name:
+            typeof s['service_catalog_name'] === 'string'
+              ? (s['service_catalog_name'] as string)
+              : null,
+          name: serviceName,
+          hourly_rate: String(s['hourly_rate'] ?? ''),
+          ageGroup:
+            Array.isArray(s['age_groups']) && (s['age_groups'] as string[]).length === 2
+              ? 'both'
+              : ((s['age_groups'] as string[]) || []).includes('kids')
+              ? 'kids'
+              : 'adults',
+          description: (s['description'] as string) || '',
+          equipment: Array.isArray(s['equipment_required'])
+            ? (s['equipment_required'] as string[]).join(', ')
+            : '',
+          levels_taught:
+            Array.isArray(s['levels_taught']) && (s['levels_taught'] as string[]).length
+              ? (s['levels_taught'] as Array<'beginner' | 'intermediate' | 'advanced'>)
+              : ['beginner', 'intermediate', 'advanced'],
+          duration_options:
+            Array.isArray(s['duration_options']) && (s['duration_options'] as number[]).length
+              ? (s['duration_options'] as number[])
+              : [60],
+          location_types:
+            Array.isArray(s['location_types']) && (s['location_types'] as string[]).length
+              ? (s['location_types'] as Array<'in-person' | 'online'>)
+              : ['in-person'],
+        } as SelectedService;
+      })
+      .filter((svc: SelectedService) => svc.catalog_service_id);
+
+    if (mapped.length) {
+      const deduped = Array.from(
+        new Map(
+          mapped.map((mappedService: SelectedService) => [
+            mappedService.catalog_service_id,
+            mappedService,
+          ]),
+        ).values(),
+      );
+      setSelectedServices(deduped);
+    }
+  }, [instructorProfile, profileFromHook]);
 
   const toggleCategory = (slug: string) => {
     setCollapsed((prev) => ({ ...prev, [slug]: !prev[slug] }));

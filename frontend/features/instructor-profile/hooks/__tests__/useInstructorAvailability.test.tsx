@@ -58,9 +58,10 @@ describe('useInstructorAvailability', () => {
       })
     );
 
+    // Query key now includes daysAhead (default: 7)
     const cached = queryClient
       .getQueryCache()
-      .find({ queryKey: queryKeys.availability.week('inst-1', '2025-01-12') });
+      .find({ queryKey: [...queryKeys.availability.week('inst-1', '2025-01-12'), 7] });
     expect(cached).toBeTruthy();
   });
 

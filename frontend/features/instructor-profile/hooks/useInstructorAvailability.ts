@@ -27,8 +27,12 @@ interface AvailabilityResponse {
 /**
  * Hook to fetch instructor availability for the week
  * Uses 5-minute cache as availability changes frequently
+ *
+ * @param instructorId - The instructor's user ID
+ * @param startDate - Optional start date (defaults to today)
+ * @param daysAhead - Number of days to fetch (default: 7, max: 30)
  */
-export function useInstructorAvailability(instructorId: string, startDate?: string) {
+export function useInstructorAvailability(instructorId: string, startDate?: string, daysAhead: number = 7) {
   const now = new Date();
   const todayIso = format(now, 'yyyy-MM-dd');
   const parsedStartDate = (() => {
@@ -52,10 +56,12 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
   })();
 
   const startDateObj = new Date(`${sanitizedStartDate}T00:00:00`);
-  const endDate = format(addDays(startDateObj, 6), 'yyyy-MM-dd');
+  // Calculate end date based on daysAhead (subtract 1 because start date is day 1)
+  const endDate = format(addDays(startDateObj, Math.min(daysAhead, 30) - 1), 'yyyy-MM-dd');
 
   return useQuery<AvailabilityResponse>({
-    queryKey: queryKeys.availability.week(instructorId, sanitizedStartDate),
+    // Include daysAhead in queryKey so different durations are cached separately
+    queryKey: [...queryKeys.availability.week(instructorId, sanitizedStartDate), daysAhead],
     queryFn: async () => {
       logger.debug('useInstructorAvailability queryFn executing', {
         instructorId,

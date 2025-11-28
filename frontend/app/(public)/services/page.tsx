@@ -4,11 +4,12 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles, type LucideProps } from 'lucide-react';
-import { publicApi, type CatalogService } from '@/features/shared/api/client';
+import { type CatalogService } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { getString, getNumber, getBoolean, getStringArray } from '@/lib/typesafe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useAllServicesWithInstructors } from '@/hooks/queries/useServices';
+import { useKidsAvailableServices } from '@/hooks/queries/useKidsAvailableServices';
 
 // Progressive loading configuration
 const INITIAL_SERVICES_COUNT = 15;
@@ -80,25 +81,14 @@ export default function AllServicesPage() {
   `;
 
   const [categoriesWithServices, setCategoriesWithServices] = useState<CategoryWithServices[]>([]);
-  const [kidsServices, setKidsServices] = useState<Array<{ id: string; name: string; slug: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [visibleServices, setVisibleServices] = useState<Record<string, number>>({});
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { /* isAuthenticated */ } = useAuth();
 
-  // Load kids-available services independently so they show regardless of which data path loads
-  useEffect(() => {
-    const fetchKids = async () => {
-      try {
-        const res = await publicApi.getKidsAvailableServices();
-        if (res.data) setKidsServices(res.data);
-      } catch {
-        // non-fatal
-      }
-    };
-    void fetchKids();
-  }, []);
+  // Use React Query hook for kids-available services (prevents duplicate API calls)
+  const { data: kidsServices = [] } = useKidsAvailableServices();
 
   // Use React Query hook for fetching services (prevents duplicate API calls)
   const {

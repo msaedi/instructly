@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { Star, ArrowLeft, ChevronLeft, ChevronRight, Check } from 'lucide-react';
-import { reviewsApi, ReviewItem, ReviewListPageResponse } from '@/services/api/reviews';
+import { useInstructorReviews } from '@/features/instructor-profile/hooks/useInstructorReviews';
 import { formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -27,57 +27,31 @@ export default function InstructorAllReviewsPage() {
   const params = useParams();
   const router = useRouter();
   const instructorId = params['id'] as string;
-  const [reviews, setReviews] = useState<ReviewItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(12);
-  const [hasNext, setHasNext] = useState(false);
-  const [hasPrev, setHasPrev] = useState(false);
-  const [total, setTotal] = useState(0);
 
   const [minRating, setMinRating] = useState<number | undefined>(undefined);
   const [withText, setWithText] = useState<boolean>(false);
 
-  // Use explicit options inline for consistency with shared Select styles
+  // Build options object conditionally to satisfy exactOptionalPropertyTypes
+  const reviewsOpts = {
+    ...(minRating !== undefined && { minRating }),
+    ...(withText && { withText }),
+  };
 
-  useEffect(() => {
-    let mounted = true;
-    setLoading(true);
-    (async () => {
-      try {
-        const opts: { minRating?: number; withText?: boolean } = {};
+  // Use React Query hook for reviews (prevents duplicate API calls)
+  const { data, isLoading: loading, error: queryError } = useInstructorReviews(
+    instructorId,
+    page,
+    perPage,
+    Object.keys(reviewsOpts).length > 0 ? reviewsOpts : undefined
+  );
 
-        if (minRating !== undefined) {
-          opts.minRating = minRating;
-        }
-
-        if (withText !== undefined) {
-          opts.withText = withText;
-        }
-
-        const res: ReviewListPageResponse = await reviewsApi.getRecent(
-          instructorId,
-          undefined,
-          perPage,
-          page,
-          Object.keys(opts).length > 0 ? opts : undefined
-        );
-        if (!mounted) return;
-        setReviews(res.reviews || []);
-        setHasNext(res.has_next);
-        setHasPrev(res.has_prev);
-        setTotal(res.total);
-      } catch (e: unknown) {
-        if (mounted) setError((e as Error)?.message || 'Failed to load reviews');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [instructorId, page, perPage, minRating, withText]);
+  const reviews = data?.reviews ?? [];
+  const hasNext = data?.has_next ?? false;
+  const hasPrev = data?.has_prev ?? false;
+  const total = data?.total ?? 0;
+  const error = queryError ? (queryError as Error).message || 'Failed to load reviews' : null;
 
   return (
     <div className="min-h-screen bg-background">

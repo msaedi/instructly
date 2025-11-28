@@ -1,14 +1,14 @@
 // frontend/components/AvailabilityCalendar.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { publicApi } from '@/features/shared/api/client';
+import { useState, useEffect, useMemo } from 'react';
 import { logger } from '@/lib/logger';
 import dynamic from 'next/dynamic';
 const TimeSelectionModal = dynamic(() => import('@/features/student/booking/public/TimeSelectionFacade'));
 import { Instructor } from '@/features/student/booking/types';
 import { getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 import { at } from '@/lib/ts/safe';
+import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 
 interface TimeSlot {
   start_time: string;
@@ -32,9 +32,15 @@ export default function AvailabilityCalendar({
 }: AvailabilityCalendarProps) {
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // Use React Query hook for availability (prevents duplicate API calls)
+  const { data: availabilityData, isLoading: loading, error: queryError } = useInstructorAvailability(
+    instructorId,
+    undefined, // startDate - defaults to today
+    14 // daysAhead - fetch 14 days
+  );
+
+  const error = queryError ? 'Unable to load availability. Please try again.' : null;
 
   // Modal State
   const [isTimeSelectionModalOpen, setIsTimeSelectionModalOpen] = useState(false);
@@ -120,86 +126,40 @@ export default function AvailabilityCalendar({
     }
   }, [shouldOpenModalFromIntent, selectedDate, selectedTime, loading]);
 
-  // Fetch availability data
-  useEffect(() => {
-    const fetchAvailability = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const firstDay = at(next14Days, 0);
-        const lastDay = at(next14Days, next14Days.length - 1);
-        if (!firstDay || !lastDay) {
-          throw new Error('Invalid date range');
-        }
-        const startDate = firstDay.date;
-        const endDate = lastDay.date;
+  // Transform hook data into AvailabilityDay[] format
+  const availability = useMemo((): AvailabilityDay[] => {
+    if (!availabilityData?.availability_by_date) {
+      // Return empty availability for all 14 days when no data
+      return next14Days.map((day) => ({ date: day.date, slots: [] }));
+    }
 
-        logger.info('Fetching availability for instructor', { instructorId, startDate, endDate });
-
-        // Call the real availability API
-        const response = await publicApi.getInstructorAvailability(instructorId, {
-          start_date: startDate,
-          end_date: endDate,
-        });
-
-        logger.debug('Availability API response received', {
-          hasData: !!response.data,
-          hasError: !!response.error,
-          status: response.status,
-          dataKeys: response.data ? Object.keys(response.data) : [],
-        });
-
-        if (response.data) {
-          // Transform API response to our expected format
-          const availabilityMap = new Map<string, TimeSlot[]>();
-
-          if (response.data.availability_by_date) {
-            Object.entries(response.data.availability_by_date).forEach(
-              ([date, dayData]: [string, { available_slots?: { start_time: string; end_time: string }[] }]) => {
-                const slots = dayData.available_slots
-                  ? dayData.available_slots.map((slot: { start_time: string; end_time: string }) => ({
-                      start_time: slot.start_time,
-                      end_time: slot.end_time,
-                      is_available: true, // All slots from available_slots are available
-                    }))
-                  : [];
-                availabilityMap.set(date, slots);
-              }
-            );
-          }
-
-          // Create availability data for all 14 days
-          const availabilityData: AvailabilityDay[] = next14Days.map((day) => {
-            const date = day?.date;
-            if (!date) return { date: '', slots: [] };
-            return {
-              date,
-              slots: availabilityMap.get(date) || [],
-            };
-          }).filter(day => day.date !== '') as AvailabilityDay[];
-
-          setAvailability(availabilityData);
-          logger.info('Availability data processed successfully', {
-            totalDays: availabilityData.length,
-            daysWithSlots: availabilityData.filter((day) => day.slots.length > 0).length,
-          });
-        } else {
-          setError(response.error || 'Failed to load availability');
-          // Fall back to empty availability
-          setAvailability(next14Days.map((day) => ({ date: day?.date || '', slots: [] })).filter(day => day.date !== ''));
-        }
-      } catch (error) {
-        logger.error('Failed to fetch availability', error, { instructorId });
-        setError('Unable to load availability. Please try again.');
-        // Fall back to empty availability on error
-        setAvailability(next14Days.map((day) => ({ date: day.date, slots: [] })));
-      } finally {
-        setLoading(false);
+    // Build availability map from hook data
+    const availabilityMap = new Map<string, TimeSlot[]>();
+    Object.entries(availabilityData.availability_by_date).forEach(
+      ([date, dayData]: [string, { available_slots?: { start_time: string; end_time: string }[] }]) => {
+        const slots = dayData.available_slots
+          ? dayData.available_slots.map((slot: { start_time: string; end_time: string }) => ({
+              start_time: slot.start_time,
+              end_time: slot.end_time,
+              is_available: true,
+            }))
+          : [];
+        availabilityMap.set(date, slots);
       }
-    };
+    );
 
-    void fetchAvailability();
-  }, [instructorId, next14Days]);
+    // Create availability data for all 14 days
+    return next14Days
+      .map((day) => {
+        const date = day?.date;
+        if (!date) return { date: '', slots: [] };
+        return {
+          date,
+          slots: availabilityMap.get(date) || [],
+        };
+      })
+      .filter((day) => day.date !== '') as AvailabilityDay[];
+  }, [availabilityData, next14Days]);
 
   const getAvailableSlots = (date: string) => {
     const dayAvailability = availability.find((day) => day.date === date);
