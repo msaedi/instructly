@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Star, Heart, Share2, ShieldCheck } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
@@ -6,8 +6,8 @@ import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
+import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
 import { toast } from 'sonner';
-import { logger } from '@/lib/logger';
 import type { InstructorProfile } from '@/types/instructor';
 
 interface InstructorHeaderProps {
@@ -18,22 +18,12 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [isSaved, setIsSaved] = useState(instructor.is_favorited || false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Update favorite status and count when instructor prop changes
-  useEffect(() => {
-    setIsSaved(instructor.is_favorited || false);
-  }, [instructor.is_favorited]);
-
-  // Check favorite status on mount if user is logged in
-  useEffect(() => {
-    if (user && instructor?.user_id) {
-      favoritesApi.check(instructor.user_id)
-        .then(res => setIsSaved(res.is_favorited))
-        .catch(() => setIsSaved(false));
-    }
-  }, [user, instructor?.user_id]);
+  // Use React Query hook for favorite status (prevents duplicate API calls)
+  const { data: favoriteStatus } = useFavoriteStatus(instructor.user_id, instructor.is_favorited);
+  const setFavoriteStatus = useSetFavoriteStatus();
+  const isSaved = favoriteStatus ?? instructor.is_favorited ?? false;
 
   // Get display name with privacy (FirstName L.)
   const getDisplayName = (): string => {
@@ -84,7 +74,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
 
     // Optimistic update
     const newSavedState = !isSaved;
-    setIsSaved(newSavedState);
+    setFavoriteStatus(instructor.user_id, newSavedState);
     setIsLoading(true);
 
     try {
@@ -97,11 +87,10 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
       }
       // Invalidate favorites list so dashboard tab reflects updates immediately
       await queryClient.invalidateQueries({ queryKey: ['favorites'] });
-    } catch (error) {
+    } catch {
       // Revert on error
-      setIsSaved(isSaved);
+      setFavoriteStatus(instructor.user_id, isSaved);
       toast.error('Failed to update favorite');
-      logger.error('Favorite toggle error', error as Error);
     } finally {
       setIsLoading(false);
     }

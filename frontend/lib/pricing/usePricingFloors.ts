@@ -1,42 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { fetchPricingConfig, type PricingConfig } from '@/lib/api/pricing';
 import type { PriceFloorConfig } from '@/lib/pricing/priceFloors';
-import { logger } from '@/lib/logger';
+import { CACHE_TIMES } from '@/lib/react-query/queryClient';
 
+/**
+ * Query key for pricing config - exported for cache invalidation
+ */
+export const PRICING_CONFIG_QUERY_KEY = ['config', 'pricing'] as const;
+
+/**
+ * Hook to fetch pricing configuration with React Query caching.
+ * This prevents duplicate API calls from React Strict Mode and
+ * enables query deduplication across multiple components.
+ */
 export function usePricingConfig() {
-  const [config, setConfig] = useState<PricingConfig | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error } = useQuery<PricingConfig, Error>({
+    queryKey: PRICING_CONFIG_QUERY_KEY,
+    queryFn: async () => {
+      const response = await fetchPricingConfig();
+      return response.config;
+    },
+    staleTime: CACHE_TIMES.STATIC, // 1 hour - pricing config rarely changes
+    refetchOnWindowFocus: false,
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetchPricingConfig();
-        if (!cancelled) {
-          setConfig(response.config);
-          setError(null);
-        }
-      } catch (err) {
-        logger.error('Failed to fetch pricing config', err as Error);
-        if (!cancelled) {
-          setError('Unable to load pricing configuration.');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { config, isLoading, error };
+  return {
+    config: data ?? null,
+    isLoading,
+    error: error ? 'Unable to load pricing configuration.' : null,
+  };
 }
 
 export function usePricingFloors() {

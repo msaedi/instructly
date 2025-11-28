@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/pricing';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
+import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
 import { reviewsApi } from '@/services/api/reviews';
 import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
 import { toast } from 'sonner';
@@ -131,7 +132,11 @@ export default function InstructorCard({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
-  const [isFavorited, setIsFavorited] = useState(false);
+
+  // Use React Query hook for favorite status (prevents duplicate API calls)
+  const { data: favoriteStatus } = useFavoriteStatus(instructor.user_id);
+  const setFavoriteStatus = useSetFavoriteStatus();
+  const isFavorited = favoriteStatus ?? false;
   const [isLoadingFavorite, setIsLoadingFavorite] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
@@ -201,16 +206,7 @@ export default function InstructorCard({
     void fetchServiceCatalog();
   }, []);
 
-  // Check favorite status on mount if user is logged in
-  useEffect(() => {
-    if (user && instructor?.user_id) {
-      void favoritesApi.check(instructor.user_id)
-        .then(res => setIsFavorited(res.is_favorited))
-        .catch(() => setIsFavorited(false));
-    }
-  }, [user, instructor?.user_id]);
-
-  // (React Query handles caching and avoids duplicate fetches)
+  // Favorite status is now handled by useFavoriteStatus hook (React Query)
 
   // Fetch a couple of recent reviews to preview on the card
   useEffect(() => {
@@ -332,7 +328,7 @@ const findNextAvailableSlot = (
     if (isLoadingFavorite) return;
 
     // Optimistic update
-    setIsFavorited(!isFavorited);
+    setFavoriteStatus(instructor.user_id, !isFavorited);
     setIsLoadingFavorite(true);
 
     try {
@@ -345,11 +341,10 @@ const findNextAvailableSlot = (
       }
       // Invalidate favorites list so dashboard tab reflects updates immediately
       await queryClient.invalidateQueries({ queryKey: ['favorites'] });
-    } catch (error) {
+    } catch {
       // Revert on error
-      setIsFavorited(isFavorited);
+      setFavoriteStatus(instructor.user_id, isFavorited);
       toast.error('Failed to update favorite');
-      logger.error('Favorite toggle error', error as Error);
     } finally {
       setIsLoadingFavorite(false);
     }

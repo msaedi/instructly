@@ -29,6 +29,15 @@ jest.mock('@/hooks/useSSEMessages', () => {
   };
 });
 
+// Mock useMessageConfig to avoid QueryClient dependency
+jest.mock('@/src/api/services/messages', () => ({
+  useMessageConfig: () => ({
+    data: { edit_window_minutes: 5 },
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 const baseProps = {
   bookingId: 'booking-123',
   currentUserId: 'user-1',

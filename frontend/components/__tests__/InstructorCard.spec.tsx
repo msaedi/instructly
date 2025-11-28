@@ -14,7 +14,13 @@ jest.mock('next/navigation', () => ({
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({
     invalidateQueries: jest.fn(),
+    setQueryData: jest.fn(),
   }),
+}));
+
+jest.mock('@/hooks/queries/useFavoriteStatus', () => ({
+  useFavoriteStatus: () => ({ data: false, isLoading: false }),
+  useSetFavoriteStatus: () => jest.fn(),
 }));
 
 jest.mock('@/features/shared/hooks/useAuth', () => ({

@@ -19,6 +19,7 @@ import { format, isToday, isYesterday } from 'date-fns';
 import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown, Pencil } from 'lucide-react';
 import { useSSEMessages, ConnectionStatus } from '@/hooks/useSSEMessages';
 import { useMessageHistory, useSendMessage, useMarkAsRead } from '@/hooks/useMessageQueries';
+import { useMessageConfig } from '@/src/api/services/messages';
 import { Message } from '@/services/messageService';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
@@ -48,8 +49,10 @@ export function Chat({
   onClose: _onClose,
   isReadOnly = false,
 }: ChatProps) {
-  // Config: fetched from backend to avoid drift
-  const [editWindowMinutes, setEditWindowMinutes] = useState<number>(5);
+  // Config: fetched from backend via React Query (prevents duplicate API calls)
+  const { data: messageConfig } = useMessageConfig();
+  const editWindowMinutes = messageConfig?.edit_window_minutes ?? 5;
+
   const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const MAX_EDIT_ROWS = 5;
   const EDIT_LINE_HEIGHT_PX = 20; // approx for text-[15px] leading-5
@@ -61,15 +64,6 @@ export function Chat({
     const newHeight = Math.min(el.scrollHeight, cap);
     el.style.height = `${newHeight}px`;
     el.style.overflowY = el.scrollHeight > cap ? 'auto' : 'hidden';
-  }, []);
-  useEffect(() => {
-    (async () => {
-      try {
-        const { messageService } = await import('@/services/messageService');
-        const cfg = await messageService.getMessageConfig();
-        if (cfg?.edit_window_minutes) setEditWindowMinutes(cfg.edit_window_minutes);
-      } catch {}
-    })();
   }, []);
 
   // (moved autosize effect below where edit state is declared)

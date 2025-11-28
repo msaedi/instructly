@@ -25,6 +25,15 @@ jest.mock('@/lib/profileServiceAreas', () => ({
   getServiceAreaBoroughs: jest.fn(() => []),
 }));
 
+jest.mock('@/lib/pricing/usePricingFloors', () => ({
+  usePricingConfig: () => ({
+    config: { price_floor_cents: { private_in_person: 8500, private_remote: 6500 } },
+    isLoading: false,
+    error: null,
+  }),
+  PRICING_CONFIG_QUERY_KEY: ['config', 'pricing'],
+}));
+
 jest.mock('@/lib/api', () => ({
   fetchWithAuth: jest.fn(async (url: string) => {
     if (url === '/api/v1/addresses/service-areas/me') {

@@ -23,6 +23,8 @@ import type { FavoritesListResponse } from '@/features/shared/api/types';
 import { getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { StudentBadgesSection } from '@/features/student/badges/StudentBadgesSection';
 import RewardsPanel from '@/features/referrals/RewardsPanel';
+import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
+import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
 // Use dashboard-specific saved address shape (differs from common Address)
 type SavedAddress = {
   id: string;
@@ -70,12 +72,17 @@ function StudentDashboardContent() {
   const [showDelete, setShowDelete] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showTfaModal, setShowTfaModal] = useState(false);
-  const [addresses, setAddresses] = useState<SavedAddress[] | null>(null);
-  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState<null | { mode: 'create' } | { mode: 'edit'; address: SavedAddress }>(null);
-  const [tfaStatus, setTfaStatus] = useState<{ enabled: boolean; verified_at?: string | null; last_used_at?: string | null } | null>(null);
   const [, setProfilePhoto] = useState<string | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
+
+  // Use React Query hooks for addresses and 2FA status (prevents duplicate API calls)
+  const { data: addressesData, isLoading: isLoadingAddresses } = useUserAddresses();
+  const invalidateAddresses = useInvalidateUserAddresses();
+  const addresses = addressesData?.items as SavedAddress[] | undefined ?? null;
+
+  const { data: tfaStatus } = useTfaStatus();
+  const invalidateTfaStatus = useInvalidateTfaStatus();
 
   const tabs = useMemo(
     () => [
@@ -215,38 +222,7 @@ function StudentDashboardContent() {
   const memberSince = decodeUlidTimestamp(userData?.id || '');
 
   // Note: Profile photo uploads are handled by <ProfilePictureUpload />
-
-  // Load addresses
-  const loadAddresses = async () => {
-    try {
-      setIsLoadingAddresses(true);
-      const res = await fetchWithAuth('/api/v1/addresses/me');
-      if (!res.ok) {
-        setAddresses([]);
-        return;
-      }
-      const data = await res.json();
-      setAddresses(data.items || []);
-    } catch {
-      setAddresses([]);
-    } finally {
-      setIsLoadingAddresses(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadAddresses();
-    // Preload TFA status in background
-    void (async () => {
-      try {
-        const res = await fetchWithAuth('/api/v1/2fa/status');
-        if (res.ok) {
-          const data = await res.json();
-          setTfaStatus({ enabled: !!data.enabled, verified_at: data.verified_at || null, last_used_at: data.last_used_at || null });
-        }
-      } catch {}
-    })();
-  }, []);
+  // Addresses and 2FA status are now loaded via React Query hooks (useUserAddresses, useTfaStatus)
 
   // Loading state
   if (isLoading) {
@@ -490,7 +466,7 @@ function StudentDashboardContent() {
                                       boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
                                     },
                                   });
-                                  void loadAddresses();
+                                  void invalidateAddresses();
                                 } else {
                                   toast.error('Failed to remove address', {
                                     style: {
@@ -719,7 +695,7 @@ function StudentDashboardContent() {
           onClose={() => setShowAddressModal(null)}
           onSaved={() => {
             setShowAddressModal(null);
-            void loadAddresses();
+            void invalidateAddresses();
           }}
         />
       )}
@@ -727,14 +703,8 @@ function StudentDashboardContent() {
       {showTfaModal && (
         <TfaModal
           onClose={() => setShowTfaModal(false)}
-          onChanged={async () => {
-            try {
-              const res = await fetchWithAuth('/api/v1/2fa/status');
-              if (res.ok) {
-                const data = await res.json();
-                setTfaStatus({ enabled: !!data.enabled, verified_at: data.verified_at || null, last_used_at: data.last_used_at || null });
-              }
-            } catch {}
+          onChanged={() => {
+            void invalidateTfaStatus();
           }}
         />
       )}

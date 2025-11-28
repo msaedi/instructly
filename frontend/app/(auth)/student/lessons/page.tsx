@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { flushSync } from 'react-dom';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import Link from 'next/link';
 import { useCurrentLessons, useCompletedLessons } from '@/hooks/useMyLessons';
 import { LessonCard } from '@/components/lessons/LessonCard';
-import { reviewsApi } from '@/services/api/reviews';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -17,6 +15,7 @@ import { isApiError } from '@/lib/react-query/api';
 import { ChatModal } from '@/components/chat/ChatModal';
 import type { Booking } from '@/types/booking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { useRatingsBatch, useExistingReviews } from '@/hooks/queries/useReviewsBatch';
 
 function MyLessonsContent() {
   const router = useRouter();
@@ -62,73 +61,32 @@ function MyLessonsContent() {
       ? upcomingLessons?.items
       : historyLessons?.items;
 
-  const [lessonMeta, setLessonMeta] = useState<{ ratings: Record<string, { rating: number | null; review_count: number }>; reviewed: Record<string, boolean> }>({ ratings: {}, reviewed: {} });
-
-  // Batch fetch ratings for visible lessons
-  useEffect(() => {
-    let mounted = true;
+  // Derive instructor IDs for batch ratings lookup
+  const uniqueInstructorIds = useMemo(() => {
     const visible = lessons || [];
-    if (!visible || visible.length === 0) return;
-    const uniqueInstructorIds = Array.from(new Set(visible.map((l) => l.instructor_id))).filter(Boolean) as string[];
-    (async () => {
-      try {
-        const res = await reviewsApi.getRatingsBatch(uniqueInstructorIds);
-        if (!mounted) return;
-        const ratingsMap: Record<string, { rating: number | null; review_count: number }> = {};
-        for (const item of res.results) {
-          ratingsMap[item.instructor_id] = { rating: item.rating, review_count: item.review_count };
-        }
-        flushSync(() => {
-          setLessonMeta((prev) => ({ ...prev, ratings: ratingsMap }));
-        });
-      } catch {
-        if (!mounted) return;
-        flushSync(() => {
-          setLessonMeta((prev) => ({ ...prev, ratings: {} }));
-        });
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
+    return Array.from(new Set(visible.map((l) => l.instructor_id))).filter(Boolean) as string[];
   }, [lessons]);
 
-  // Batch fetch existing reviews for visible completed lessons to avoid per-card existence checks
-  useEffect(() => {
-    let mounted = true;
+  // Derive booking IDs that might have reviews (completed or past-confirmed lessons)
+  const checkableBookingIds = useMemo(() => {
     const visible = lessons || [];
-    // Include lessons that are COMPLETED or CONFIRMED and already in the past
     const now = new Date();
-    const checkable = visible.filter((l) => {
-      if (l.status === 'COMPLETED') return true;
-      if (l.status === 'CONFIRMED') {
-        const lessonDateTime = new Date(`${l.booking_date}T${l.start_time}`);
-        return lessonDateTime < now;
-      }
-      return false;
-    });
-    if (checkable.length === 0) return;
-    const ids = checkable.map((l) => l.id);
-    (async () => {
-      try {
-        const existing = await reviewsApi.getExistingForBookings(ids);
-        if (!mounted) return;
-        const reviewedMap: Record<string, boolean> = {};
-        for (const bid of existing) reviewedMap[bid] = true;
-        flushSync(() => {
-          setLessonMeta((prev) => ({ ...prev, reviewed: reviewedMap }));
-        });
-      } catch {
-        if (!mounted) return;
-        flushSync(() => {
-          setLessonMeta((prev) => ({ ...prev, reviewed: {} }));
-        });
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
+    return visible
+      .filter((l) => {
+        if (l.status === 'COMPLETED') return true;
+        if (l.status === 'CONFIRMED') {
+          const lessonDateTime = new Date(`${l.booking_date}T${l.start_time}`);
+          return lessonDateTime < now;
+        }
+        return false;
+      })
+      .map((l) => l.id);
   }, [lessons]);
+
+  // Use React Query hooks for batch data fetching (prevents duplicate API calls)
+  const { data: ratingsMap = {} } = useRatingsBatch(uniqueInstructorIds);
+  const { data: existingReviewsData } = useExistingReviews(checkableBookingIds);
+  const reviewedMap = existingReviewsData?.reviewedMap ?? {};
 
   // Update URL when tab changes
   const handleTabChange = (tab: 'upcoming' | 'history') => {
@@ -268,7 +226,7 @@ function MyLessonsContent() {
             // Check if lesson is in the past (for lessons that haven't been marked COMPLETED yet)
             const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}`);
             const isPastLesson = hasMounted ? (lessonDateTime < new Date()) : false;
-            const br = lessonMeta.ratings[lesson.instructor_id];
+            const br = ratingsMap[lesson.instructor_id];
 
             return (
               <LessonCard
@@ -281,7 +239,7 @@ function MyLessonsContent() {
                 onReviewTip={() => router.push(`/student/review/${lesson.id}`)}
                 {...(typeof br?.rating === 'number' && { prefetchedRating: br.rating })}
                 {...(typeof br?.review_count === 'number' && { prefetchedReviewCount: br.review_count })}
-                prefetchedReviewed={!!lessonMeta.reviewed[lesson.id]}
+                prefetchedReviewed={!!reviewedMap[lesson.id]}
                 suppressFetchRating={true}
                 suppressFetchReviewed={true}
               />

@@ -1,4 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { usePricingFloors } from '../usePricingFloors';
 import { fetchPricingConfig } from '@/lib/api/pricing';
 
@@ -7,6 +9,19 @@ jest.mock('@/lib/api/pricing', () => ({
 }));
 
 const mockFloors = { private_in_person: 8500, private_remote: 6500 };
+
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  };
+};
 
 describe('usePricingFloors', () => {
   beforeEach(() => {
@@ -19,7 +34,7 @@ describe('usePricingFloors', () => {
       updated_at: null,
     });
 
-    const { result } = renderHook(() => usePricingFloors());
+    const { result } = renderHook(() => usePricingFloors(), { wrapper: createWrapper() });
 
     expect(result.current.isLoading).toBe(true);
 
@@ -36,7 +51,8 @@ describe('usePricingFloors', () => {
       updated_at: '2024-01-01T00:00:00Z',
     });
 
-    const { result, rerender } = renderHook(() => usePricingFloors());
+    const wrapper = createWrapper();
+    const { result, rerender } = renderHook(() => usePricingFloors(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.floors).toEqual(mockFloors);
