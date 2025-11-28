@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { format, addDays } from 'date-fns';
-import { useInstructorAvailability } from '../hooks/useInstructorAvailability';
+import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';

@@ -13,7 +13,7 @@ import { BookingButton } from '@/features/instructor-profile/components/BookingB
 import { InstructorProfileSkeleton } from '@/features/instructor-profile/components/InstructorProfileSkeleton';
 import { useInstructorProfile } from '@/features/instructor-profile/hooks/useInstructorProfile';
 import { useBookingModal } from '@/features/instructor-profile/hooks/useBookingModal';
-import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
+import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { useRouter as useNextRouter } from 'next/navigation';
 import { calculateEndTime } from '@/features/shared/utils/booking';

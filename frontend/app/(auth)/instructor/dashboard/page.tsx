@@ -18,7 +18,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import Modal from '@/components/Modal';
 import { Calendar, SquareArrowDownLeft, DollarSign, Eye, MessageSquare, Bell, Menu, X, ChevronDown } from 'lucide-react';
-import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
+import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
 import { getCurrentWeekRange } from '@/types/common';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
 import EditProfileModal from '@/components/modals/EditProfileModal';

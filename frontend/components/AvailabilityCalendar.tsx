@@ -8,7 +8,7 @@ const TimeSelectionModal = dynamic(() => import('@/features/student/booking/publ
 import { Instructor } from '@/features/student/booking/types';
 import { getBookingIntent, clearBookingIntent } from '@/features/shared/utils/booking';
 import { at } from '@/lib/ts/safe';
-import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
+import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
 
 interface TimeSlot {
   start_time: string;

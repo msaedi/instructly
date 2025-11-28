@@ -3,7 +3,7 @@ import { Calendar, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useInstructorAvailability } from '../hooks/useInstructorAvailability';
+import { useInstructorAvailability } from '@/hooks/queries/useInstructorAvailability';
 import { format, addDays } from 'date-fns';
 import { logger } from '@/lib/logger';
 
