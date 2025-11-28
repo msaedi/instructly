@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
 import { ApiProblemError } from '@/lib/api/fetch';
+import { usePaymentMethods } from '@/hooks/queries/usePaymentMethods';
 import {
   fetchPricingPreview,
   type PricingPreviewResponse,
@@ -334,8 +335,8 @@ const PaymentForm: React.FC<{
 
 // Main CheckoutFlow Component
 const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCancel }) => {
-  const [savedMethods, setSavedMethods] = useState<PaymentMethod[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Use React Query hook for payment methods (deduplicates API calls)
+  const { data: savedMethods = [], isLoading: loading } = usePaymentMethods();
   const [error, setError] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [pricingPreview, setPricingPreview] = useState<PricingPreviewResponse | null>(null);
@@ -416,29 +417,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
     };
   }, [booking.id]);
 
-  // Load saved payment methods
-  useEffect(() => {
-    const loadPaymentMethods = async () => {
-      try {
-        const response = await fetch('/api/v1/payments/methods', {
-          headers: {
-            // Cookies-only auth; do not attach bearer token
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setSavedMethods(data);
-        }
-      } catch (err) {
-        logger.error('Error loading payment methods:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadPaymentMethods();
-  }, []);
+  // Payment methods now loaded via usePaymentMethods hook above
 
   const handlePaymentSuccess = (paymentIntentId: string) => {
     setPaymentStatus('success');

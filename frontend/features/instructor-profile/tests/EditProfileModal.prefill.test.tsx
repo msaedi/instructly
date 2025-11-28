@@ -65,21 +65,32 @@ jest.mock('@/lib/api', () => ({
 }));
 
 import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import EditProfileModal from '@/components/modals/EditProfileModal';
+
+const createTestQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
 
 describe('EditProfileModal preferred locations prefill', () => {
   it('prefills teaching and public locations from props when opened', async () => {
+    const queryClient = createTestQueryClient();
     render(
-      <EditProfileModal
-        isOpen
-        onClose={() => {}}
-        onSuccess={() => {}}
-        variant="areas"
-        selectedServiceAreas={[]}
-        preferredTeaching={[{ address: '225 Cherry Street, NYC', label: 'Home1' }]}
-        preferredPublic={[{ address: 'Central Park Zoo' }]}
-        onSave={jest.fn()}
-      />
+      <QueryClientProvider client={queryClient}>
+        <EditProfileModal
+          isOpen
+          onClose={() => {}}
+          onSuccess={() => {}}
+          variant="areas"
+          selectedServiceAreas={[]}
+          preferredTeaching={[{ address: '225 Cherry Street, NYC', label: 'Home1' }]}
+          preferredPublic={[{ address: 'Central Park Zoo' }]}
+          onSave={jest.fn()}
+        />
+      </QueryClientProvider>
     );
 
     await waitFor(() => {

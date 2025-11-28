@@ -10,6 +10,7 @@ import type { CatalogService, ServiceCategory } from '@/features/shared/api/clie
 import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { PlacesAutocompleteInput } from '@/components/forms/PlacesAutocompleteInput';
 import { normalizeInstructorServices, hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
@@ -216,7 +217,11 @@ export default function EditProfileModal({
   const [publicPlaces, setPublicPlaces] = useState<PreferredPublicSpaceInput[]>([]);
   const [savingAreas, setSavingAreas] = useState(false);
   const areasPrefillAppliedRef = useRef(false);
+  const serviceAreasPrefillAppliedRef = useRef(false);
   const isAreasVariant = variant === 'areas';
+
+  // Use React Query hook for service areas (deduplicates API calls)
+  const { data: serviceAreasData } = useInstructorServiceAreas(isOpen);
   // Skills and pricing (onboarding-like)
   type AgeGroup = 'kids' | 'adults' | 'both';
   type SelectedService = {
@@ -367,30 +372,30 @@ export default function EditProfileModal({
       logger.debug('Edit profile modal opened');
       setError(''); // Clear any previous errors when modal opens
       void fetchProfile();
-      // Prefill selected neighborhoods from backend when opening areas-only variant
-      void (async () => {
-        try {
-          const areasRes = await fetchWithAuth('/api/v1/addresses/service-areas/me');
-          if (areasRes.ok) {
-            const json = await areasRes.json();
-            const items = (json.items || []) as ServiceAreaItem[];
-            const ids = items
-              .map((a) => a.neighborhood_id || a.id)
-              .filter((v): v is string => typeof v === 'string');
-            setSelectedNeighborhoods(new Set(ids));
-            setIdToItem((prev) => {
-              const next = { ...prev } as Record<string, ServiceAreaItem>;
-              for (const a of items) {
-                const nid = a.neighborhood_id || a.id;
-                if (nid) next[nid] = a;
-              }
-              return next;
-            });
-          }
-        } catch {}
-      })();
+      // Reset prefill flags when modal opens
+      serviceAreasPrefillAppliedRef.current = false;
     }
   }, [fetchProfile, isOpen]);
+
+  // Prefill selected neighborhoods from hook data (replaces direct fetch)
+  useEffect(() => {
+    if (!isOpen || !serviceAreasData || serviceAreasPrefillAppliedRef.current) return;
+    serviceAreasPrefillAppliedRef.current = true;
+
+    const items = (serviceAreasData.items || []) as ServiceAreaItem[];
+    const ids = items
+      .map((a) => a.neighborhood_id || a.id)
+      .filter((v): v is string => typeof v === 'string');
+    setSelectedNeighborhoods(new Set(ids));
+    setIdToItem((prev) => {
+      const next = { ...prev } as Record<string, ServiceAreaItem>;
+      for (const a of items) {
+        const nid = a.neighborhood_id || a.id;
+        if (nid) next[nid] = a;
+      }
+      return next;
+    });
+  }, [isOpen, serviceAreasData]);
 
   useEffect(() => {
     if (!isOpen || !isAreasVariant) {

@@ -12,19 +12,19 @@ import ChangePasswordModal from '@/components/security/ChangePasswordModal';
 import DeleteAccountModal from '@/components/security/DeleteAccountModal';
 import PauseAccountModal from '@/components/security/PauseAccountModal';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+import { useUser } from '@/hooks/queries/useUser';
+import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
+import { useTfaStatus, useInvalidateTfaStatus } from '@/hooks/queries/useTfaStatus';
 
 const RewardsPanel = dynamic(() => import('@/features/referrals/RewardsPanel'), { ssr: false });
 
 export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [openAccount, setOpenAccount] = useState(false);
   const [openRefer, setOpenRefer] = useState(false);
-  const [accountLoading, setAccountLoading] = useState(false);
-  const [accountLoaded, setAccountLoaded] = useState(false);
   const [openSecurity, setOpenSecurity] = useState(false);
   const [openStatus, setOpenStatus] = useState(false);
   const [openPassword, setOpenPassword] = useState(false);
   const [openPreferences, setOpenPreferences] = useState(false);
-  const [tfaEnabled, setTfaEnabled] = useState<boolean | null>(null);
   const [showTfaModal, setShowTfaModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
@@ -34,65 +34,38 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
   const [mobile, setMobile] = useState('');
   const [zip, setZip] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
+  const [formInitialized, setFormInitialized] = useState(false);
 
-  useEffect(() => {
-    if (!(embedded && openSecurity)) return;
-    void (async () => {
-      try {
-        const res = await fetchWithAuth('/api/v1/2fa/status');
-        if (res.ok) {
-          const body = await res.json();
-          setTfaEnabled(Boolean(body?.enabled));
-        }
-      } catch {
-        // ignore fetch errors; modal will handle retry
-      }
-    })();
-  }, [embedded, openSecurity]);
+  // React Query hooks for data fetching (replaces useEffect fetches)
+  const { data: tfaStatus } = useTfaStatus(embedded && openSecurity);
+  const { data: userData, isLoading: userLoading } = useUser();
+  const { data: addressData, isLoading: addressLoading } = useUserAddresses(embedded);
+  const invalidateTfaStatus = useInvalidateTfaStatus();
+  const invalidateAddresses = useInvalidateUserAddresses();
 
+  // Derived state from hooks
+  const tfaEnabled = tfaStatus?.enabled ?? null;
+  const accountLoading = userLoading || addressLoading;
+
+  // Sync hook data to local editable state (once on initial load)
   useEffect(() => {
-    let ignore = false;
-    const load = async () => {
-      if (!embedded || accountLoaded) return;
-      try {
-        setAccountLoading(true);
-        try {
-          const me = await fetchWithAuth(API_ENDPOINTS.ME);
-          if (me.ok) {
-            const u = await me.json();
-            if (!ignore) {
-              const fn = (u?.first_name || '').toString().trim();
-              const ln = (u?.last_name || '').toString().trim();
-              setFullName([fn, ln].filter(Boolean).join(' ').trim());
-              setEmail((u?.email || '').toString());
-              setMobile((u?.phone || u?.phone_number || '').toString());
-            }
-          }
-        } catch {
-          // ignore profile load errors; inputs remain blank
-        }
-        try {
-          const addrRes = await fetchWithAuth('/api/v1/addresses/me');
-          if (addrRes.ok) {
-            const list = await addrRes.json();
-            const items = Array.isArray(list?.items) ? list.items : [];
-            const def =
-              items.find((a: { is_default?: boolean }) => a?.is_default) || (items.length > 0 ? items[0] : null);
-            if (!ignore) setZip((def?.postal_code || '').toString());
-          }
-        } catch {
-          // ignore address load errors
-        }
-        if (!ignore) setAccountLoaded(true);
-      } finally {
-        if (!ignore) setAccountLoading(false);
-      }
-    };
-    void load();
-    return () => {
-      ignore = true;
-    };
-  }, [embedded, accountLoaded]);
+    if (!embedded || formInitialized) return;
+    if (userData) {
+      const fn = (userData.first_name || '').toString().trim();
+      const ln = (userData.last_name || '').toString().trim();
+      setFullName([fn, ln].filter(Boolean).join(' ').trim());
+      setEmail((userData.email || '').toString());
+      setMobile((userData.phone || '').toString());
+    }
+    if (addressData?.items) {
+      const items = addressData.items;
+      const def = items.find((a) => a.is_default) || (items.length > 0 ? items[0] : null);
+      if (def) setZip((def.postal_code || '').toString());
+    }
+    if (userData && addressData) {
+      setFormInitialized(true);
+    }
+  }, [embedded, formInitialized, userData, addressData]);
 
   const handleSaveAccount = async () => {
     try {
@@ -144,6 +117,8 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
         // ignore address update failures; toast covers failure below
       }
 
+      // Invalidate caches to reflect the changes
+      void invalidateAddresses();
       toast.success('Account details updated');
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to update account details');
@@ -433,16 +408,9 @@ export function SettingsImpl({ embedded = false }: { embedded?: boolean }) {
                 {showTfaModal && (
                   <TfaModal
                     onClose={() => setShowTfaModal(false)}
-                    onChanged={async () => {
-                      try {
-                        const res = await fetchWithAuth('/api/v1/2fa/status');
-                        if (res.ok) {
-                          const data = await res.json();
-                          setTfaEnabled(Boolean(data.enabled));
-                        }
-                      } catch {
-                        // ignore refresh errors
-                      }
+                    onChanged={() => {
+                      // Invalidate cache to refetch 2FA status
+                      void invalidateTfaStatus();
                     }}
                   />
                 )}

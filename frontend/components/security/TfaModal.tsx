@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchWithAuth } from '@/lib/api';
 import { toast } from 'sonner';
+import { useTfaStatus } from '@/hooks/queries/useTfaStatus';
 
 type Props = {
   onClose: () => void;
@@ -20,24 +21,14 @@ export default function TfaModal({ onClose, onChanged }: Props) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasInitiatedRef = useRef(false);
 
+  // Use React Query hook for 2FA status (deduplicates calls)
+  const { data: tfaStatus, isSuccess: tfaStatusLoaded } = useTfaStatus();
+
+  // Handle keyboard escape
   useEffect(() => {
     setMounted(true);
-    (async () => {
-      try {
-        const res = await fetchWithAuth('/api/v1/2fa/status');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.enabled) {
-          setStep('enabled');
-        } else {
-          setStep('show');
-          await initiate();
-        }
-      } catch {
-        // ignore status load errors; modal buttons allow retry
-      }
-    })();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -46,6 +37,21 @@ export default function TfaModal({ onClose, onChanged }: Props) {
       window.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
+
+  // Determine initial step based on 2FA status from hook
+  useEffect(() => {
+    if (!tfaStatusLoaded || step !== 'idle') return;
+    if (tfaStatus?.enabled) {
+      setStep('enabled');
+    } else {
+      setStep('show');
+      // Auto-initiate setup if 2FA not enabled (only once)
+      if (!hasInitiatedRef.current) {
+        hasInitiatedRef.current = true;
+        void initiate();
+      }
+    }
+  }, [tfaStatusLoaded, tfaStatus, step]);
 
   const initiate = async () => {
     setError(null);

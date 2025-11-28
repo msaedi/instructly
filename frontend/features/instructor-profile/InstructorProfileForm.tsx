@@ -146,7 +146,6 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const redirectingRef = useRef(false);
   // Fetch guard to prevent duplicate API calls in React Strict Mode
   const hasFetchedPrefillRef = useRef(false);
-  const hasFetchedProfilePicRef = useRef(false);
 
   // Use React Query hook for instructor profile - leverages cache from dashboard
   const { data: instructorProfileFromHook, isLoading: isProfileLoading } = useInstructorProfileMe(true);
@@ -160,22 +159,14 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const [openPreferences, setOpenPreferences] = useState(false);
   const [openSkills, setOpenSkills] = useState(false);
 
+  // Derive profile picture status from instructor profile hook (avoids duplicate API call)
   useEffect(() => {
-    // Skip if already fetched (prevents duplicate calls in React Strict Mode)
-    if (hasFetchedProfilePicRef.current) return;
-    hasFetchedProfilePicRef.current = true;
-
-    (async () => {
-      try {
-        const res = await fetchWithAuth(API_ENDPOINTS.ME);
-        if (res.ok) {
-          const me = await res.json();
-          const hasPic = Boolean(me?.has_profile_picture) || Number.isFinite(me?.profile_picture_version);
-          setHasProfilePicture(hasPic);
-        }
-      } catch {}
-    })();
-  }, []);
+    if (!instructorProfileFromHook) return;
+    const hasPic =
+      Boolean(instructorProfileFromHook.has_profile_picture) ||
+      Number.isFinite(instructorProfileFromHook.profile_picture_version);
+    setHasProfilePicture(hasPic);
+  }, [instructorProfileFromHook]);
 
   // Onboarding progress UI removed
   // Derived completion flag (reserved for future server-driven rendering)

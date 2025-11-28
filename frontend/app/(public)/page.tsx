@@ -39,8 +39,8 @@ import {
 } from 'lucide-react';
 import { recordSearch } from '@/lib/searchTracking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { fetchWithAuth } from '@/lib/api';
 import { useBeta } from '@/contexts/BetaContext';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 
 const LEGAL_FOOTER_LINK_CLASSES =
   'text-gray-600 dark:text-gray-400 hover:text-[#7E22CE] dark:hover:text-purple-400 no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#7E22CE]';
@@ -122,11 +122,14 @@ export default function HomePage() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
   const [isClient, setIsClient] = useState(false);
-  const [isInstructorLive, setIsInstructorLive] = useState<boolean | null>(null);
   const [hasSessionCookie, setHasSessionCookie] = useState(false);
   const router = useRouter();
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const isInstructor = isAuthenticated && hasRole(user, RoleName.INSTRUCTOR);
+
+  // Use React Query hook for instructor profile (deduplicates API calls)
+  const { data: instructorProfile } = useInstructorProfileMe(isInstructor);
+  const isInstructorLive = instructorProfile?.is_live ?? null;
   const { config } = useBeta();
   const hideStudentUi = config.site === 'beta' && config.phase === 'instructor_only';
   const shouldShowBookAgain =
@@ -285,26 +288,7 @@ export default function HomePage() {
     }
   };
 
-  // Probe instructor live status for nav label/link
-  useEffect(() => {
-    const probeInstructorStatus = async () => {
-      try {
-        if (isAuthenticated && hasRole(user, RoleName.INSTRUCTOR)) {
-          const res = await fetchWithAuth('/instructors/me');
-          if (res.ok) {
-            const prof = await res.json();
-            setIsInstructorLive(!!prof?.is_live);
-          } else if (res.status === 401 || res.status === 404) {
-            setIsInstructorLive(false);
-          }
-        }
-      } catch {
-        // ignore – nav will default to Finish Onboarding
-      }
-    };
-
-    void probeInstructorStatus();
-  }, [isAuthenticated, user]);
+  // Instructor live status now loaded via useInstructorProfileMe hook above
 
   // Detect touch device
   useEffect(() => {
