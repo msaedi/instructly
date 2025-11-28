@@ -331,9 +331,10 @@ class MessageRepository(BaseRepository[Message]):
             raise RepositoryException(f"Failed to apply message edit: {str(e)}")
 
     def notify_booking_channel(self, booking_id: str, payload: Mapping[str, Any]) -> None:
-        """Send a JSON payload to the booking chat LISTEN/NOTIFY channel.
+        """Send a JSON payload to the booking chat LISTEN/NOTIFY channel (DEPRECATED).
 
         This is allowed at repository level for DB adjacency per repo pattern rules.
+        Kept for backward compatibility - new code should use notify_user_channel.
         """
         try:
             import json as _json
@@ -352,6 +353,29 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             # Non-fatal
             logger.warning(f"notify_booking_channel failed: {e}")
+
+    def notify_user_channel(self, user_id: str, payload: Mapping[str, Any]) -> None:
+        """Send a JSON payload to a user's inbox LISTEN/NOTIFY channel.
+
+        This is allowed at repository level for DB adjacency per repo pattern rules.
+        """
+        try:
+            import json as _json
+
+            from sqlalchemy import text
+
+            self.db.execute(
+                text("SELECT pg_notify(:channel, :payload)"),
+                {"channel": f"user_{user_id}_inbox", "payload": _json.dumps(payload)},
+            )
+            # Ensure NOTIFY is flushed on platforms where autocommit is disabled
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            # Non-fatal
+            logger.warning(f"notify_user_channel failed: {e}")
 
     def get_booking_participants(self, booking_id: str) -> Optional[Tuple[str, str]]:
         """

@@ -49,7 +49,10 @@ filtered_bookings_schema = schema.include(path_regex="/api/v1/bookings.*")
 filtered_instructor_bookings_schema = schema.include(path_regex="/api/v1/instructor-bookings.*")
 
 # Phase 10: Add filter for messages v1 endpoints
-filtered_messages_schema = schema.include(path_regex="/api/v1/messages.*")
+# Exclude SSE streaming endpoint (/stream) - these need async streaming tests, not HTTP request/response
+filtered_messages_schema = schema.include(path_regex="/api/v1/messages.*").exclude(
+    path_regex="/api/v1/messages/stream$"
+)
 
 
 def _run_schemathesis_case(

@@ -709,8 +709,8 @@ def upgrade() -> None:
     op.create_index("ix_message_notifications_message_id", "message_notifications", ["message_id"])
 
     if is_postgres:
-        # Create PostgreSQL NOTIFY function for real-time messaging
-        print("Creating PostgreSQL NOTIFY function for real-time messaging (PostgreSQL only)...")
+        # Create PostgreSQL NOTIFY function for real-time messaging (per-user channels)
+        print("Creating PostgreSQL NOTIFY function for per-user channels (PostgreSQL only)...")
         op.execute(
             """
             CREATE OR REPLACE FUNCTION public.notify_new_message()
@@ -718,23 +718,45 @@ def upgrade() -> None:
             SET search_path = public
             AS $$
             DECLARE
-                payload json;
-                sender_first_name TEXT;
-                sender_last_name TEXT;
+                v_booking RECORD;
+                v_payload JSONB;
+                v_sender_name TEXT;
             BEGIN
-                SELECT first_name, last_name INTO sender_first_name, sender_last_name FROM users WHERE id = NEW.sender_id;
-                payload = json_build_object(
-                    'id', NEW.id,
-                    'booking_id', NEW.booking_id,
-                    'sender_id', NEW.sender_id,
-                    'sender_first_name', sender_first_name,
-                    'sender_last_name', sender_last_name,
-                    'content', NEW.content,
-                    'created_at', NEW.created_at,
-                    'is_deleted', NEW.is_deleted,
-                    'type', 'message'
+                -- Get booking participants
+                SELECT b.instructor_id, b.student_id INTO v_booking
+                FROM bookings b WHERE b.id = NEW.booking_id;
+
+                -- Get sender name for display
+                SELECT first_name INTO v_sender_name
+                FROM users WHERE id = NEW.sender_id;
+
+                -- Build payload with conversation_id for client-side routing
+                v_payload := jsonb_build_object(
+                    'type', 'new_message',
+                    'conversation_id', NEW.booking_id,
+                    'message', jsonb_build_object(
+                        'id', NEW.id,
+                        'content', NEW.content,
+                        'sender_id', NEW.sender_id,
+                        'sender_name', v_sender_name,
+                        'created_at', NEW.created_at,
+                        'booking_id', NEW.booking_id,
+                        'is_deleted', NEW.is_deleted
+                    )
                 );
-                PERFORM pg_notify('booking_chat_' || NEW.booking_id::text, payload::text);
+
+                -- Notify instructor's channel
+                PERFORM pg_notify(
+                    'user_' || v_booking.instructor_id || '_inbox',
+                    v_payload::text
+                );
+
+                -- Notify student's channel
+                PERFORM pg_notify(
+                    'user_' || v_booking.student_id || '_inbox',
+                    v_payload::text
+                );
+
                 RETURN NEW;
             END;
             $$ LANGUAGE plpgsql;
@@ -751,7 +773,7 @@ def upgrade() -> None:
         """
         )
 
-        # Read receipt trigger: when a notification is marked read, update messages.read_by and notify
+        # Read receipt trigger: when a notification is marked read, update messages.read_by and notify per-user channel
         op.execute(
             """
             CREATE OR REPLACE FUNCTION public.handle_message_read_receipt()
@@ -759,27 +781,37 @@ def upgrade() -> None:
             SET search_path = public
             AS $$
             DECLARE
-                payload json;
-                booking_id VARCHAR(26);
-                reader_first_name TEXT;
-                reader_last_name TEXT;
+                v_payload JSONB;
+                v_booking RECORD;
+                v_message RECORD;
+                v_recipient_id VARCHAR(26);
             BEGIN
                 IF TG_OP = 'UPDATE' AND NEW.is_read = TRUE AND (OLD.is_read IS DISTINCT FROM NEW.is_read) THEN
+                    -- Update read_by array
                     UPDATE messages SET read_by = COALESCE(read_by, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('user_id', NEW.user_id, 'read_at', NEW.read_at))
                     WHERE id = NEW.message_id;
-                    SELECT m.booking_id INTO booking_id FROM messages m WHERE m.id = NEW.message_id;
-                    SELECT first_name, last_name INTO reader_first_name, reader_last_name FROM users WHERE id = NEW.user_id;
-                    payload = json_build_object(
+
+                    -- Get message and booking info
+                    SELECT m.booking_id, m.sender_id INTO v_message FROM messages m WHERE m.id = NEW.message_id;
+                    SELECT b.instructor_id, b.student_id INTO v_booking FROM bookings b WHERE b.id = v_message.booking_id;
+
+                    -- Determine recipient (the message sender, not the reader)
+                    v_recipient_id := v_message.sender_id;
+
+                    -- Build payload
+                    v_payload := jsonb_build_object(
                         'type', 'read_receipt',
+                        'conversation_id', v_message.booking_id,
                         'message_id', NEW.message_id,
-                        'user_id', NEW.user_id,
-                        'reader_first_name', reader_first_name,
-                        'reader_last_name', reader_last_name,
+                        'reader_id', NEW.user_id,
                         'read_at', NEW.read_at
                     );
-                    IF booking_id IS NOT NULL THEN
-                        PERFORM pg_notify('booking_chat_' || booking_id::text, payload::text);
-                    END IF;
+
+                    -- Notify the sender that their message was read
+                    PERFORM pg_notify(
+                        'user_' || v_recipient_id || '_inbox',
+                        v_payload::text
+                    );
                 END IF;
                 RETURN NEW;
             END;

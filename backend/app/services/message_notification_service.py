@@ -93,7 +93,7 @@ class MessageNotificationService:
 
     async def subscribe(self, booking_id: str) -> asyncio.Queue[Dict[str, Any]]:
         """
-        Subscribe to notifications for a specific booking.
+        Subscribe to notifications for a specific booking (DEPRECATED - kept for backward compatibility).
 
         Args:
             booking_id: ID of the booking to subscribe to
@@ -120,9 +120,38 @@ class MessageNotificationService:
 
         return queue
 
+    async def subscribe_user(self, user_id: str) -> asyncio.Queue[Dict[str, Any]]:
+        """
+        Subscribe to notifications for a specific user (all their conversations).
+
+        Args:
+            user_id: ID of the user to subscribe to
+
+        Returns:
+            Queue that will receive message notifications for all user's conversations
+        """
+        queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
+
+        if user_id not in self.subscribers:
+            self.subscribers[user_id] = set()
+            # Start listening to this user's channel
+            if self.connection:
+                channel_name = f"user_{user_id}_inbox"
+                await self.connection.add_listener(channel_name, self._handle_notification)
+                self.logger.info(f"[SSE DEBUG] Started listening to user channel: {channel_name}")
+            else:
+                self.logger.warning(
+                    f"[SSE DEBUG] No connection available for user channel subscription: {user_id}"
+                )
+
+        self.subscribers[user_id].add(queue)
+        self.logger.info(f"Added subscriber for user {user_id}")
+
+        return queue
+
     async def unsubscribe(self, booking_id: str, queue: asyncio.Queue[Dict[str, Any]]) -> None:
         """
-        Unsubscribe from notifications for a booking.
+        Unsubscribe from notifications for a booking (DEPRECATED - kept for backward compatibility).
 
         Args:
             booking_id: ID of the booking
@@ -140,6 +169,27 @@ class MessageNotificationService:
                     self.logger.info(f"Stopped listening to channel: {channel_name}")
 
         self.logger.info(f"Removed subscriber for booking {booking_id}")
+
+    async def unsubscribe_user(self, user_id: str, queue: asyncio.Queue[Dict[str, Any]]) -> None:
+        """
+        Unsubscribe from notifications for a user.
+
+        Args:
+            user_id: ID of the user
+            queue: Queue to remove from subscribers
+        """
+        if user_id in self.subscribers:
+            self.subscribers[user_id].discard(queue)
+
+            # If no more subscribers for this user, stop listening
+            if not self.subscribers[user_id]:
+                del self.subscribers[user_id]
+                if self.connection:
+                    channel_name = f"user_{user_id}_inbox"
+                    await self.connection.remove_listener(channel_name, self._handle_notification)
+                    self.logger.info(f"Stopped listening to user channel: {channel_name}")
+
+        self.logger.info(f"Removed subscriber for user {user_id}")
 
     async def _listen_for_notifications(self) -> None:
         """
@@ -198,22 +248,39 @@ class MessageNotificationService:
         Args:
             connection: The asyncpg connection
             pid: Process ID of the notifying backend
-            channel: Channel name (e.g., "booking_chat_123")
+            channel: Channel name (e.g., "user_123_inbox" or "booking_chat_123")
             payload: JSON payload containing message data
         """
         self.logger.info(f"[SSE DEBUG] Received notification on channel {channel}")
         try:
-            # Extract booking ID from channel name
-            if channel.startswith("booking_chat_"):
-                booking_id = channel.replace("booking_chat_", "")
+            # Parse the JSON payload
+            decoded = json.loads(payload)
+            message_data: Dict[str, Any]
+            if isinstance(decoded, dict):
+                message_data = decoded
+            else:
+                message_data = {"payload": decoded}
 
-                # Parse the JSON payload
-                decoded = json.loads(payload)
-                message_data: Dict[str, Any]
-                if isinstance(decoded, dict):
-                    message_data = decoded
+            # Handle user inbox channels (new format)
+            if channel.startswith("user_") and channel.endswith("_inbox"):
+                # Extract user ID from channel name: "user_123_inbox" -> "123"
+                user_id = channel[5:-6]  # Remove "user_" prefix and "_inbox" suffix
+
+                # Send to all subscribers for this user
+                if user_id in self.subscribers:
+                    subscriber_count = len(self.subscribers[user_id])
+                    self.logger.info(
+                        f"[SSE DEBUG] Sending to {subscriber_count} subscribers for user {user_id}"
+                    )
+                    for queue in self.subscribers[user_id]:
+                        # Use asyncio.create_task to avoid blocking
+                        asyncio.create_task(self._send_to_queue(queue, message_data))
                 else:
-                    message_data = {"payload": decoded}
+                    self.logger.info(f"[SSE DEBUG] No subscribers for user {user_id}")
+
+            # Handle legacy booking channels (old format - kept for backward compatibility)
+            elif channel.startswith("booking_chat_"):
+                booking_id = channel.replace("booking_chat_", "")
 
                 # Send to all subscribers for this booking
                 if booking_id in self.subscribers:
@@ -226,10 +293,6 @@ class MessageNotificationService:
                         asyncio.create_task(self._send_to_queue(queue, message_data))
                 else:
                     self.logger.info(f"[SSE DEBUG] No subscribers for booking {booking_id}")
-
-                self.logger.debug(
-                    f"Delivered notification for booking {booking_id} to {len(self.subscribers.get(booking_id, []))} subscribers"
-                )
 
         except Exception as e:
             self.logger.error(f"Error handling notification: {str(e)}")
