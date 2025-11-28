@@ -6,9 +6,7 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Star, MapPin, Clock, DollarSign, Check } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
-import { httpJson } from '@/features/shared/api/http';
-import { withApiBase } from '@/lib/apiBase';
-import { loadInstructorProfileSchema } from '@/features/shared/api/schemas/instructorProfile';
+import { useInstructorProfile } from '@/features/instructor-profile/hooks/useInstructorProfile';
 // Align with available public types; fall back to minimal shapes if not exported
 type PublicTimeSlot = { start_time: string; end_time: string };
 type PublicDayAvailability = { available_slots?: PublicTimeSlot[] };
@@ -72,41 +70,41 @@ export default function QuickBookingPage() {
   const [confirmingBooking] = useState(false);
   const serviceAreaDisplay = instructor ? getServiceAreaDisplay(instructor) || 'NYC' : 'NYC';
 
-  // Fetch instructor data
+  // Use React Query hook for instructor data (prevents duplicate API calls)
+  const { data: instructorData, isLoading: instructorLoading, error: instructorError } = useInstructorProfile(instructorId);
+
+  // Transform hook data to component state
   useEffect(() => {
-    const fetchInstructor = async () => {
-      try {
-        const data = await httpJson<Record<string, unknown>>(
-          withApiBase(`/instructors/${instructorId}`),
-          { method: 'GET' },
-          loadInstructorProfileSchema,
-          { endpoint: 'GET /instructors/:id' }
-        );
+    if (instructorLoading) {
+      setLoading(true);
+      return;
+    }
 
-        const d = data as Record<string, unknown>;
-        setInstructor({
-          ...(data as unknown as InstructorData),
-          rating: (d['rating'] as number) || 4.8,
-          total_reviews: (d['total_reviews'] as number) || Math.floor(Math.random() * 200) + 50,
-          verified: typeof d['verified'] !== 'undefined' ? Boolean(d['verified']) : true,
-        });
+    if (instructorError) {
+      logger.error('Error fetching instructor', instructorError);
+      setError('Failed to load instructor');
+      setLoading(false);
+      return;
+    }
 
-        const services = (data as { services?: Service[] }).services || [];
-        if (services.length > 0 && services[0]) {
-          setSelectedService(services[0]);
-          const defaultDuration = services[0].duration_options?.[0] || 60;
-          setDuration(defaultDuration);
-        }
-      } catch (err) {
-        logger.error('Error fetching instructor', err);
-        setError('Failed to load instructor');
-      } finally {
-        setLoading(false);
+    if (instructorData) {
+      const d = instructorData as unknown as Record<string, unknown>;
+      setInstructor({
+        ...(instructorData as unknown as InstructorData),
+        rating: (d['rating'] as number) || 4.8,
+        total_reviews: (d['total_reviews'] as number) || Math.floor(Math.random() * 200) + 50,
+        verified: typeof d['verified'] !== 'undefined' ? Boolean(d['verified']) : true,
+      });
+
+      const services = (instructorData as { services?: Service[] }).services || [];
+      if (services.length > 0 && services[0]) {
+        setSelectedService(services[0]);
+        const defaultDuration = services[0].duration_options?.[0] || 60;
+        setDuration(defaultDuration);
       }
-    };
-
-    void fetchInstructor();
-  }, [instructorId]);
+      setLoading(false);
+    }
+  }, [instructorData, instructorLoading, instructorError]);
 
   // Check if we have preselected time on mount
   useEffect(() => {

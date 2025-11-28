@@ -7,6 +7,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
+import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -247,6 +248,8 @@ export default function EditProfileModal({
   // Use React Query hooks for service data (prevents duplicate API calls)
   const { data: categoriesData, isLoading: categoriesLoading } = useServiceCategories();
   const { data: allServicesData, isLoading: allServicesLoading } = useAllServicesWithInstructors();
+  // Use React Query hook for instructor profile (prevents duplicate API calls when variant is 'services')
+  const { data: instructorProfileFromHook } = useInstructorProfileMe(isOpen && variant === 'services');
 
   const { config: pricingConfig } = usePricingConfig();
   const pricingFloors = pricingConfig?.price_floor_cents ?? null;
@@ -285,10 +288,13 @@ export default function EditProfileModal({
     try {
       let data: Record<string, unknown>;
 
-      // Use pre-fetched profile if available (avoids duplicate API call)
+      // Use pre-fetched profile or hook data if available (avoids duplicate API call)
       if (instructorProfile) {
         logger.info('Using pre-fetched instructor profile for editing');
         data = instructorProfile;
+      } else if (instructorProfileFromHook) {
+        logger.info('Using React Query hook data for editing');
+        data = instructorProfileFromHook as unknown as Record<string, unknown>;
       } else {
         logger.info('Fetching instructor profile for editing');
         const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
@@ -370,7 +376,7 @@ export default function EditProfileModal({
       logger.error('Failed to load instructor profile', err);
       setError('Failed to load profile');
     }
-  }, [instructorProfile]);
+  }, [instructorProfile, instructorProfileFromHook]);
 
   useEffect(() => {
     if (isOpen) {
@@ -513,53 +519,46 @@ export default function EditProfileModal({
     }
   }, [isOpen, variant, allServicesData]);
 
-  // Load instructor profile for prefilling services (separate from service catalog loading)
+  // Load instructor profile for prefilling services (uses React Query hook - prevents duplicate API calls)
   useEffect(() => {
-    const loadProfile = async () => {
-      if (!(isOpen && variant === 'services')) return;
-      try {
-        const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-        if (meRes.ok) {
-          const me = await meRes.json();
-          const mapped: SelectedService[] = (me.services || []).map((svc: unknown) => {
-            const s = svc as Record<string, unknown>;
-            const catalogId = String(s['service_catalog_id'] || '');
-            const serviceName = displayServiceName(
-              {
-                service_catalog_id: catalogId,
-                service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : (s['name'] as string | undefined) ?? null,
-              },
-              hydrateCatalogNameById
-            );
-            return {
-              catalog_service_id: catalogId,
-              service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : null,
-              name: serviceName,
-              hourly_rate: String(s['hourly_rate'] ?? ''),
-              ageGroup:
-                Array.isArray(s['age_groups']) && s['age_groups'].length === 2
-                  ? 'both'
-                  : ((s['age_groups'] as string[]) || []).includes('kids')
-                  ? 'kids'
-                  : 'adults',
-              description: (s['description'] as string) || '',
-              equipment: Array.isArray(s['equipment_required']) ? (s['equipment_required'] as string[]).join(', ') : '',
-              levels_taught:
-                Array.isArray(s['levels_taught']) && s['levels_taught'].length
-                  ? s['levels_taught'] as string[]
-                  : ['beginner', 'intermediate', 'advanced'],
-              duration_options: Array.isArray(s['duration_options']) && s['duration_options'].length ? s['duration_options'] as number[] : [60],
-              location_types: Array.isArray(s['location_types']) && s['location_types'].length ? s['location_types'] as string[] : ['in-person'],
-            };
-          });
-          if (mapped.length) setSelectedServices(mapped);
-        }
-      } catch {
-        setError('Failed to load instructor profile');
-      }
-    };
-    void loadProfile();
-  }, [isOpen, variant]);
+    if (!(isOpen && variant === 'services')) return;
+    if (!instructorProfileFromHook) return;
+
+    // Transform hook data to match SelectedService format
+    const me = instructorProfileFromHook as unknown as Record<string, unknown>;
+    const mapped: SelectedService[] = ((me['services'] as unknown[]) || []).map((svc: unknown) => {
+      const s = svc as Record<string, unknown>;
+      const catalogId = String(s['service_catalog_id'] || '');
+      const serviceName = displayServiceName(
+        {
+          service_catalog_id: catalogId,
+          service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : (s['name'] as string | undefined) ?? null,
+        },
+        hydrateCatalogNameById
+      );
+      return {
+        catalog_service_id: catalogId,
+        service_catalog_name: typeof s['service_catalog_name'] === 'string' ? s['service_catalog_name'] : null,
+        name: serviceName,
+        hourly_rate: String(s['hourly_rate'] ?? ''),
+        ageGroup:
+          Array.isArray(s['age_groups']) && s['age_groups'].length === 2
+            ? 'both'
+            : ((s['age_groups'] as string[]) || []).includes('kids')
+            ? 'kids'
+            : 'adults',
+        description: (s['description'] as string) || '',
+        equipment: Array.isArray(s['equipment_required']) ? (s['equipment_required'] as string[]).join(', ') : '',
+        levels_taught:
+          Array.isArray(s['levels_taught']) && s['levels_taught'].length
+            ? s['levels_taught'] as Array<'beginner' | 'intermediate' | 'advanced'>
+            : ['beginner', 'intermediate', 'advanced'],
+        duration_options: Array.isArray(s['duration_options']) && s['duration_options'].length ? s['duration_options'] as number[] : [60],
+        location_types: Array.isArray(s['location_types']) && s['location_types'].length ? s['location_types'] as Array<'in-person' | 'online'> : ['in-person'],
+      };
+    });
+    if (mapped.length) setSelectedServices(mapped);
+  }, [isOpen, variant, instructorProfileFromHook]);
 
   const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
