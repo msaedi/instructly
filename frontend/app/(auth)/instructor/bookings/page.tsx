@@ -32,9 +32,11 @@ function BookingsPageImpl() {
       setActiveTab(value);
       const nextParams = new URLSearchParams(searchParams.toString());
       nextParams.set(TAB_PARAM, value);
-      router.replace(`/instructor/bookings?${nextParams.toString()}`, { scroll: false });
+      // Use correct base path depending on whether we're embedded in dashboard
+      const basePath = embedded ? '/instructor/dashboard' : '/instructor/bookings';
+      router.replace(`${basePath}?${nextParams.toString()}`, { scroll: false });
     },
-    [router, searchParams]
+    [router, searchParams, embedded]
   );
 
   const upcomingQuery = useInstructorBookings({

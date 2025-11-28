@@ -22,7 +22,7 @@ import { useInstructorAvailability } from '@/features/instructor-profile/hooks/u
 import { getCurrentWeekRange } from '@/types/common';
 import { useInstructorBookings } from '@/hooks/queries/useInstructorBookings';
 import EditProfileModal from '@/components/modals/EditProfileModal';
-import { getConnectStatus, createStripeIdentitySession, createSignedUpload, fetchWithAuth } from '@/lib/api';
+import { createStripeIdentitySession, createSignedUpload, fetchWithAuth } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import { InstructorProfile } from '@/types/instructor';
@@ -30,11 +30,12 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { normalizeInstructorServices } from '@/lib/instructorServices';
 import { getServiceAreaBoroughs } from '@/lib/profileServiceAreas';
 import { httpPut } from '@/features/shared/api/http';
-import { messageService } from '@/services/messageService';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
+import { useStripeConnectStatus } from '@/hooks/queries/useStripeConnectStatus';
+import { useUnreadCount } from '@/src/api/services/messages';
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
@@ -194,7 +195,9 @@ export default function InstructorDashboardNew() {
   const [showMessages, setShowMessages] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showMoreMobile, setShowMoreMobile] = useState(false);
-  const [unreadMessageCount, setUnreadMessageCount] = useState<number>(0);
+  // Use React Query for unread message count (deduplicates API calls)
+  const { data: unreadCountData } = useUnreadCount(true);
+  const unreadMessageCount = unreadCountData?.unread_count ?? 0;
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -331,14 +334,14 @@ export default function InstructorDashboardNew() {
   }, [activePanel]);
 
   // No overlay animations; keep load simple and stable
-  const [connectStatus, setConnectStatus] = useState<{
-    charges_enabled?: boolean;
-    payouts_enabled?: boolean;
-    details_submitted?: boolean;
-  } | null>(null);
+  // Use React Query for Stripe Connect status (deduplicates API calls)
+  const {
+    data: connectStatus,
+    refetch: refetchConnectStatus,
+    isRefetching: isRefreshingConnect,
+  } = useStripeConnectStatus(true);
 
   const [isStartingStripeOnboarding, setIsStartingStripeOnboarding] = useState(false);
-  const [isRefreshingConnect, setIsRefreshingConnect] = useState(false);
   const [serviceAreaSelections, setServiceAreaSelections] = useState<NeighborhoodSelection[]>([]);
   const [preferredTeachingLocations, setPreferredTeachingLocations] = useState<PreferredTeachingLocation[]>([]);
   const [preferredPublicSpaces, setPreferredPublicSpaces] = useState<PreferredPublicSpace[]>([]);
@@ -395,14 +398,6 @@ export default function InstructorDashboardNew() {
 
   useEffect(() => {
     logger.info('Instructor dashboard (new) loaded');
-    void (async () => {
-      try {
-        const s = await getConnectStatus();
-        setConnectStatus(s);
-      } catch {
-        logger.warn('Failed to load connect status');
-      }
-    })();
   }, []);
 
   useEffect(() => {
@@ -531,18 +526,7 @@ export default function InstructorDashboardNew() {
     return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
   }, []);
 
-  useEffect(() => {
-    let ignore = false;
-    (async () => {
-      try {
-        const res = await messageService.getUnreadCount();
-        if (!ignore) setUnreadMessageCount(res?.unread_count ?? 0);
-      } catch {
-        if (!ignore) setUnreadMessageCount(0);
-      }
-    })();
-    return () => { ignore = true; };
-  }, []);
+  // useUnreadCount hook handles fetching (above) - React Query deduplicates calls
 
   const diffMinutes = useCallback((start: string, end: string): number => {
     const s = parseTimeToMinutes(start);
@@ -726,13 +710,7 @@ export default function InstructorDashboardNew() {
               label="Messages"
               isOpen={showMessages}
               onToggle={() => {
-                setShowMessages((prev) => {
-                  const next = !prev;
-                  if (!prev && next && unreadMessageCount > 0) {
-                    setUnreadMessageCount(0);
-                  }
-                  return next;
-                });
+                setShowMessages((prev) => !prev);
                 setShowNotifications(false);
                 setIsMobileMenuOpen(false);
               }}
@@ -747,7 +725,6 @@ export default function InstructorDashboardNew() {
                   <button
                     className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
                     onClick={() => {
-                      setUnreadMessageCount(0);
                       setShowMessages(false);
                       router.push('/instructor/messages');
                     }}
@@ -1030,9 +1007,9 @@ export default function InstructorDashboardNew() {
 
         {/* Snapshot Cards directly under header */}
         <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-8">
-          {/* Bookings card - clickable link */}
-          <Link
-            href="/instructor/bookings?tab=past"
+          {/* Bookings card - clickable button, navigates to past tab since it shows completed count */}
+          <button
+            onClick={() => router.push('/instructor/dashboard?panel=bookings&tab=past', { scroll: false })}
             className="group block h-32 w-full rounded-md border border-gray-200 bg-white p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
             aria-label="Open bookings"
           >
@@ -1048,7 +1025,7 @@ export default function InstructorDashboardNew() {
                 <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
               </div>
             </div>
-          </Link>
+          </button>
 
           {/* Earnings card - clickable with outline icon */}
           <button
@@ -1104,15 +1081,11 @@ export default function InstructorDashboardNew() {
                     type="button"
                     onClick={async () => {
                       if (isRefreshingConnect) return;
-                      setIsRefreshingConnect(true);
                       try {
-                        const s = await getConnectStatus();
-                        setConnectStatus(s);
+                        await refetchConnectStatus();
                         try { (await import('sonner')).toast?.info?.('Status refreshed'); } catch {}
                       } catch {
                         try { (await import('sonner')).toast?.error?.('Failed to refresh status'); } catch {}
-                      } finally {
-                        setIsRefreshingConnect(false);
                       }
                     }}
                     aria-label="Refresh status"
@@ -1244,8 +1217,8 @@ export default function InstructorDashboardNew() {
                   <button
                     onClick={async () => {
                       try {
-                        const resp = await getConnectStatus();
-                        setConnectStatus(resp);
+                        // Refresh status and get latest data
+                        const { data: resp } = await refetchConnectStatus();
                         if (!resp || !(resp.charges_enabled && resp.details_submitted)) {
                           alert('Your Stripe onboarding is not completed yet. Please finish onboarding first.');
                           return;
