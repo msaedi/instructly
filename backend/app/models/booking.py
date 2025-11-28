@@ -119,6 +119,9 @@ class Booking(Base):
     instructor_service = relationship("InstructorService", backref="bookings")
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
     messages = relationship("Message", back_populates="booking", cascade="all, delete-orphan")
+    conversation_state = relationship(
+        "ConversationState", back_populates="booking", uselist=False, cascade="all, delete-orphan"
+    )
     payment_intent = relationship(
         "PaymentIntent", back_populates="booking", uselist=False, cascade="all, delete-orphan"
     )

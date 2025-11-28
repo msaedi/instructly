@@ -20,6 +20,7 @@ from .audit_log import AuditLog
 from .availability import BlackoutDate
 from .availability_day import AvailabilityDay  # noqa: F401
 from .booking import Booking, BookingStatus
+from .conversation_state import ConversationState
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
 from .favorite import UserFavorite
 from .instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
@@ -92,6 +93,7 @@ __all__ = [
     # Messaging models
     "Message",
     "MessageNotification",
+    "ConversationState",
     # Monitoring models
     "AlertHistory",
     # Address/Spatial models

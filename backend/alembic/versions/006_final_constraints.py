@@ -659,6 +659,35 @@ def upgrade() -> None:
     op.create_index("ix_messages_sender_id", "messages", ["sender_id"])
     op.create_index("ix_messages_created_at", "messages", ["created_at"])
 
+    # Add conversation_state table for O(1) inbox queries
+    print("Creating conversation_state table for efficient inbox state...")
+    op.create_table(
+        "conversation_state",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
+        sa.Column("student_id", sa.String(26), nullable=False),
+        sa.Column("instructor_unread_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("student_unread_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("last_message_id", sa.String(26), nullable=True),
+        sa.Column("last_message_preview", sa.String(100), nullable=True),
+        sa.Column("last_message_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("last_message_sender_id", sa.String(26), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["student_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["last_message_id"], ["messages.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("booking_id", name="uq_conversation_state_booking"),
+    )
+
+    # Add indexes for conversation_state
+    op.create_index("ix_conversation_state_instructor_id", "conversation_state", ["instructor_id"])
+    op.create_index("ix_conversation_state_student_id", "conversation_state", ["student_id"])
+    op.create_index("ix_conversation_state_last_message_at", "conversation_state", ["last_message_at"])
+
     # Add message_notifications table for tracking unread messages
     print("Creating message_notifications table...")
     op.create_table(
@@ -764,6 +793,71 @@ def upgrade() -> None:
             AFTER UPDATE ON message_notifications
             FOR EACH ROW
             EXECUTE FUNCTION public.handle_message_read_receipt();
+            """
+        )
+
+        # Conversation state auto-update trigger
+        print("Creating conversation_state auto-update trigger (PostgreSQL only)...")
+        op.execute(
+            """
+            CREATE OR REPLACE FUNCTION public.update_conversation_state()
+            RETURNS TRIGGER
+            SET search_path = public
+            AS $$
+            DECLARE
+                v_booking RECORD;
+                v_preview TEXT;
+            BEGIN
+                -- Get booking info
+                SELECT instructor_id, student_id INTO v_booking
+                FROM bookings WHERE id = NEW.booking_id;
+
+                -- Truncate message for preview
+                v_preview := LEFT(NEW.content, 100);
+
+                -- Upsert conversation state
+                INSERT INTO conversation_state (
+                    id, booking_id, instructor_id, student_id,
+                    instructor_unread_count, student_unread_count,
+                    last_message_id, last_message_preview, last_message_at, last_message_sender_id,
+                    created_at, updated_at
+                )
+                SELECT
+                    substring(md5(random()::text || clock_timestamp()::text) from 1 for 26),
+                    NEW.booking_id, v_booking.instructor_id, v_booking.student_id,
+                    CASE WHEN NEW.sender_id = v_booking.student_id THEN 1 ELSE 0 END,
+                    CASE WHEN NEW.sender_id = v_booking.instructor_id THEN 1 ELSE 0 END,
+                    NEW.id, v_preview, NEW.created_at, NEW.sender_id,
+                    NOW(), NOW()
+                ON CONFLICT (booking_id) DO UPDATE SET
+                    instructor_unread_count = CASE
+                        WHEN NEW.sender_id = conversation_state.student_id
+                        THEN conversation_state.instructor_unread_count + 1
+                        ELSE conversation_state.instructor_unread_count
+                    END,
+                    student_unread_count = CASE
+                        WHEN NEW.sender_id = conversation_state.instructor_id
+                        THEN conversation_state.student_unread_count + 1
+                        ELSE conversation_state.student_unread_count
+                    END,
+                    last_message_id = NEW.id,
+                    last_message_preview = v_preview,
+                    last_message_at = NEW.created_at,
+                    last_message_sender_id = NEW.sender_id,
+                    updated_at = NOW();
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """
+        )
+
+        op.execute(
+            """
+            CREATE TRIGGER conversation_state_update
+            AFTER INSERT ON messages
+            FOR EACH ROW
+            EXECUTE FUNCTION public.update_conversation_state();
             """
         )
 
@@ -1308,6 +1402,19 @@ def downgrade() -> None:
         print("Dropping read receipt trigger and function (PostgreSQL only)...")
         op.execute("DROP TRIGGER IF EXISTS message_read_receipt_notify ON message_notifications;")
         op.execute("DROP FUNCTION IF EXISTS public.handle_message_read_receipt();")
+
+    # Drop conversation_state trigger and function
+    if is_postgres:
+        print("Dropping conversation_state trigger and function (PostgreSQL only)...")
+        op.execute("DROP TRIGGER IF EXISTS conversation_state_update ON messages;")
+        op.execute("DROP FUNCTION IF EXISTS public.update_conversation_state();")
+
+    # Drop conversation_state table (before messages since it has FK to messages)
+    print("Dropping conversation_state table...")
+    op.drop_index("ix_conversation_state_last_message_at", "conversation_state")
+    op.drop_index("ix_conversation_state_student_id", "conversation_state")
+    op.drop_index("ix_conversation_state_instructor_id", "conversation_state")
+    op.drop_table("conversation_state")
 
     # Drop Phase 2 tables that depend on messages first
     print("Dropping message_reactions and message_edits tables...")
