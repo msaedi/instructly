@@ -101,7 +101,6 @@ export class NavigationStateManager {
       const referrer = document.referrer;
       const bookingFlowPages = [
         '/student/booking/confirm',  // Payment/confirmation page
-        '/booking/confirmation',      // Alternative confirmation URL
         '/payment',                   // Payment page
         '/login',                     // Login page
         '/signup'                     // Signup page
