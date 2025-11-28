@@ -31,6 +31,10 @@ jest.mock('@/hooks/queries/useRatings', () => ({
   useSearchRatingQuery: () => ({ data: null }),
 }));
 
+jest.mock('@/src/api/services/reviews', () => ({
+  useRecentReviews: () => ({ data: { reviews: [] }, isLoading: false }),
+}));
+
 jest.mock('@/services/api/favorites', () => ({
   favoritesApi: {
     check: jest.fn().mockResolvedValue({ is_favorited: false }),

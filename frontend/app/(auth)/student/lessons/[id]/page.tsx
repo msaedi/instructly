@@ -19,6 +19,7 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { isApiError } from '@/lib/react-query/api';
 import { StatusBadge } from '@/components/ui/status-badge';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { useReviewForBooking } from '@/src/api/services/reviews';
 
 type LessonPaymentSummary = {
   lesson_amount: number;
@@ -52,9 +53,12 @@ export default function LessonDetailsPage() {
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
-  const [reviewed, setReviewed] = useState(false);
 
   const { data: lesson, isLoading, error } = useLessonDetails(lessonId);
+
+  // Use React Query hook to check if a review exists (prevents duplicate API calls)
+  const { data: existingReview } = useReviewForBooking(lesson?.id ?? '');
+  const reviewed = !!existingReview;
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -69,24 +73,6 @@ export default function LessonDetailsPage() {
       redirectToLogin(`/student/lessons/${lessonId}`);
     }
   }, [error, redirectToLogin, lessonId]);
-
-  // Check if a review exists for this booking to toggle CTA
-  useEffect(() => {
-    if (!lesson?.id) return;
-    let mounted = true;
-    (async () => {
-      try {
-        const { reviewsApi } = await import('@/services/api/reviews');
-        const r = await reviewsApi.getByBooking(lesson.id);
-        if (mounted) setReviewed(!!r);
-      } catch {
-        if (mounted) setReviewed(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [lesson?.id]);
 
   // Show loading while checking auth
   if (isAuthLoading) {

@@ -17,8 +17,8 @@ import {
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
 import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavoriteStatus';
-import { reviewsApi } from '@/services/api/reviews';
 import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
+import { useRecentReviews } from '@/src/api/services/reviews';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
@@ -167,7 +167,13 @@ export default function InstructorCard({
   const rating = typeof searchRating?.primary_rating === 'number' ? searchRating?.primary_rating : null;
   const reviewCount = searchRating?.review_count || 0;
   const showRating = typeof rating === 'number' && reviewCount >= 3;
-  const [recentReviews, setRecentReviews] = useState<import('@/services/api/reviews').ReviewItem[]>([]);
+
+  // Use React Query hook for recent reviews (prevents duplicate API calls)
+  const { data: recentReviewsData } = useRecentReviews({
+    instructorId: instructor.user_id,
+    limit: 2,
+  });
+  const recentReviews = recentReviewsData?.reviews ?? [];
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
   const bgcStatusValue = (instructor as { bgc_status?: string }).bgc_status;
@@ -207,20 +213,7 @@ export default function InstructorCard({
   }, []);
 
   // Favorite status is now handled by useFavoriteStatus hook (React Query)
-
-  // Fetch a couple of recent reviews to preview on the card
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const { reviews } = await reviewsApi.getRecent(instructor.user_id, undefined, 2);
-        if (mounted) setRecentReviews(reviews || []);
-      } catch {
-        if (mounted) setRecentReviews([]);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [instructor.user_id]);
+  // Recent reviews are now handled by useRecentReviews hook (React Query)
 
   useEffect(() => {
     if (!bookingDraftId) {

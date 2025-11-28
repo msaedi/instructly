@@ -15,6 +15,7 @@ import { getStripe } from '@/features/student/payment/utils/stripe';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
 import { logger } from '@/lib/logger';
+import { useReviewForBooking } from '@/src/api/services/reviews';
 
 export default function ReviewPage() {
   const params = useParams();
@@ -28,12 +29,15 @@ export default function ReviewPage() {
   const [review, setReview] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addToFavorites, setAddToFavorites] = useState(false);
-  const [hasExistingReview, setHasExistingReview] = useState(false);
   const [selectedTip, setSelectedTip] = useState<number | null>(null);
   const [customTip, setCustomTip] = useState('');
   const [showCustomTip, setShowCustomTip] = useState(false);
 
   const { data: lesson, isLoading, error } = useLessonDetails(lessonId);
+
+  // Use React Query hook for existing review check (prevents duplicate API calls)
+  const { data: existingReview } = useReviewForBooking(lesson?.id ?? '');
+  const hasExistingReview = !!existingReview;
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -48,21 +52,6 @@ export default function ReviewPage() {
       redirectToLogin(`/student/review/${lessonId}`);
     }
   }, [error, redirectToLogin, lessonId]);
-
-  // Check if review already exists
-  useEffect(() => {
-    if (!lesson?.id) return;
-    const checkExistingReview = async () => {
-      try {
-        const { reviewsApi } = await import('@/services/api/reviews');
-        const r = await reviewsApi.getByBooking(lesson.id);
-        setHasExistingReview(!!r);
-      } catch (error) {
-        logger.error('Failed to check existing review', error as Error);
-      }
-    };
-    void checkExistingReview();
-  }, [lesson]);
 
   // Show loading while checking auth
   if (isAuthLoading || isLoading) {

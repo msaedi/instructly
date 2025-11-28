@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Download,
   Loader2,
@@ -14,6 +14,7 @@ import PaymentMethods from '@/components/student/PaymentMethods';
 import { useCredits } from '@/features/shared/payment/hooks/useCredits';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
+import { useTransactionHistory } from '@/hooks/queries/useTransactionHistory';
 
 interface BillingTabProps {
   userId: string;
@@ -39,38 +40,19 @@ interface Transaction {
 
 const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
   const queryClient = useQueryClient();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [promoCode, setPromoCode] = useState('');
-  const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [showMoreTransactions, setShowMoreTransactions] = useState(false);
 
   // Use shared credits hook with React Query
   const { data: creditBalance, isLoading: isLoadingCredits, refetch: refetchCredits } = useCredits();
 
+  // Use React Query hook for transaction history (prevents duplicate API calls)
+  const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactionHistory();
+  const transactions = (transactionsData ?? []) as Transaction[];
 
-  // Load transactions from real API
-  useEffect(() => {
-    const loadTransactions = async () => {
-      try {
-        setIsLoadingTransactions(true);
-        const data = await paymentService.getTransactionHistory();
-        setTransactions(data as unknown as Transaction[]);
-        logger.info('Transactions loaded', { count: data.length });
-      } catch (err) {
-        logger.error('Error loading transactions:', err);
-        // If API fails, don't show error - just show empty state
-        setTransactions([]);
-      } finally {
-        setIsLoadingTransactions(false);
-      }
-    };
-
-    void loadTransactions();
-  }, [userId]);
-
-  // Credits are now loaded via the shared useCredits hook
-  // No manual loading needed
+  // Suppress unused userId warning - it was used for dependency tracking
+  void userId;
 
   // Apply promo code
   const handleApplyPromoCode = async () => {

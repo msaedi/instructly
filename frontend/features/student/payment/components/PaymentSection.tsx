@@ -1090,7 +1090,9 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     commitCreditPreview,
   ]);
 
-  // Fetch real payment methods from backend
+  // Note: Using direct fetch instead of usePaymentMethods hook.
+  // Checkout is a one-time flow where caching provides minimal benefit,
+  // and the timing differences cause test failures due to stale closures.
   useEffect(() => {
     const fetchPaymentMethods = async () => {
       try {
