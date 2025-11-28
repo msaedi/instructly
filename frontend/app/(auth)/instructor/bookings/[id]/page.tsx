@@ -1,42 +1,19 @@
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Calendar, Clock, MapPin, User, DollarSign } from 'lucide-react';
 import Link from 'next/link';
-import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
-import { Booking, getLocationTypeIcon } from '@/types/booking';
-import { logger } from '@/lib/logger';
+import { getLocationTypeIcon, type LocationType } from '@/types/booking';
 import { at } from '@/lib/ts/safe';
+import { useBooking } from '@/src/api/services/bookings';
 
 export default function BookingDetailsPage() {
   const params = useParams();
   const bookingId = params['id'] as string;
 
-  const [booking, setBooking] = useState<Booking | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchBookingDetails = useCallback(async () => {
-    try {
-      logger.debug('Fetching booking details', { bookingId });
-      const response = await fetchWithAuth(`${API_ENDPOINTS.BOOKINGS}/${bookingId}`);
-      if (!response.ok) throw new Error('Failed to fetch booking details');
-      const data = await response.json();
-      setBooking(data);
-    } catch (err) {
-      logger.error('Error fetching booking', err, { bookingId });
-      setError('Failed to load booking details');
-    } finally {
-      setLoading(false);
-    }
-  }, [bookingId]);
-
-  useEffect(() => {
-    if (bookingId) {
-      void fetchBookingDetails();
-    }
-  }, [bookingId, fetchBookingDetails]);
+  // Use React Query hook for booking details (prevents duplicate API calls)
+  const { data: booking, isLoading: loading, error: queryError } = useBooking(bookingId);
+  const error = queryError ? 'Failed to load booking details' : null;
 
   const formatTime = (timeStr: string) => {
     const parts = timeStr.split(':');
@@ -149,7 +126,7 @@ export default function BookingDetailsPage() {
             </div>
             <div className="text-gray-600">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">{booking.location_type ? getLocationTypeIcon(booking.location_type) : '📍'}</span>
+                <span className="text-lg">{booking.location_type ? getLocationTypeIcon(booking.location_type as LocationType) : '📍'}</span>
                 <span className="font-medium">{booking.location_type === 'student_home' ? "Student's Home" : booking.location_type === 'instructor_location' ? "Instructor's Location" : 'Neutral Location'}</span>
               </div>
               {booking.meeting_location && <p className="ml-7 text-sm">{booking.meeting_location}</p>}
