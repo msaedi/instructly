@@ -12,10 +12,28 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import subprocess
 from typing import Any, Dict, List, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
+
+
+def _normalize_timestamp(ts: str | None) -> str | None:
+    """Ensure timestamp has timezone info (RFC 3339 compliant).
+
+    Legacy timestamps in metrics_history.json may be missing timezone designator.
+    This function adds 'Z' (UTC) suffix to naive timestamps to make them valid
+    RFC 3339 / JSON Schema date-time format.
+    """
+    if ts is None:
+        return None
+    # If already has timezone info (Z, +HH:MM, or -HH:MM), return as-is
+    if re.search(r"(Z|[+-]\d{2}:\d{2})$", ts):
+        return ts
+    # Add UTC timezone designator
+    return ts + "Z"
+
 
 from ...core.enums import PermissionName
 from ...dependencies.permissions import require_permission
@@ -130,6 +148,11 @@ async def get_codebase_metrics_history(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to read history: {str(e)}",
         )
+
+    # Normalize timestamps to RFC 3339 format (legacy data may be missing timezone)
+    for entry in history:
+        if "timestamp" in entry:
+            entry["timestamp"] = _normalize_timestamp(entry["timestamp"])
 
     # Let Pydantic coerce the list entries
     return CodebaseHistoryResponse(items=history[-200:])
