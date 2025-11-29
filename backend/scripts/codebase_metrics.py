@@ -5,7 +5,7 @@ Provides detailed statistics about the codebase size and composition.
 Excludes all auto-generated and dependency files.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import subprocess
@@ -430,7 +430,7 @@ class CodebaseAnalyzer:
         git_stats = self.get_git_stats()
 
         metrics = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "total_lines": backend["total_lines"] + frontend["total_lines"],
             "total_files": backend["total_files"] + frontend["total_files"],
             "backend_lines": backend["total_lines"],
@@ -496,7 +496,7 @@ def main():
         git_stats = analyzer.get_git_stats()
 
         data = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "backend": backend,
             "frontend": frontend,
             "git": git_stats,

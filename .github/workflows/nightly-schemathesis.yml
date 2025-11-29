@@ -122,7 +122,6 @@ jobs:
             -v \
             --tb=short \
             --no-header \
-            -x \
             2>&1 | tee schemathesis-results.txt
         env:
           SECRET_KEY: test-secret-key-for-ci
