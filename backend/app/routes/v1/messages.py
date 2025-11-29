@@ -17,13 +17,15 @@ Key Features:
 
 Endpoints (organized with static routes BEFORE dynamic routes):
     === Static Routes (Section 1) ===
+    GET /stream - SSE endpoint for per-user real-time messages (Phase 2)
     GET /config - Get message configuration (edit window, etc.)
     GET /unread-count - Get total unread count for current user
+    GET /inbox-state - Get all conversations with unread counts (Phase 3)
     POST /mark-read - Mark messages as read
     POST /send - Send a message to a booking chat
 
     === Booking-specific Routes (Section 2) ===
-    GET /stream/{booking_id} - SSE endpoint for real-time messages
+    GET /stream/{booking_id} - (DEPRECATED) SSE endpoint for booking-specific messages
     GET /history/{booking_id} - Get paginated message history
     POST /typing/{booking_id} - Send typing indicator
 

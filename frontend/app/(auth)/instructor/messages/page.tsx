@@ -14,7 +14,7 @@ import { ArrowLeft, Bell, MessageSquare, ChevronDown } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useSendTypingIndicator } from '@/src/api/services/messages';
 import { useAuthStatus } from '@/hooks/queries/useAuth';
-import { useSSEMessages } from '@/hooks/useSSEMessages';
+import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 
 // Extracted components and hooks
 import {
@@ -119,15 +119,43 @@ export default function MessagesPage() {
     } catch {}
   }, [selectedBookingId, sendTypingMutation]);
 
-  // SSE connection
-  const { typingStatus: sseTypingStatus } = useSSEMessages({
-    bookingId: selectedBookingId,
-    enabled: !!selectedBookingId && messageDisplay === 'inbox',
-    onMessage: (message) => {
-      if (!selectedChat || !activeConversation || !currentUser?.id) return;
-      handleSSEMessage(message as SSEMessageWithOwnership, selectedChat, activeConversation);
-    },
-  });
+  // SSE connection (Phase 4: per-user inbox)
+  const { subscribe } = useMessageStream();
+  const [sseTypingStatus, setSseTypingStatus] = useState<{ userId: string; userName: string; until: number } | null>(null);
+
+  // Subscribe to active conversation's events
+  useEffect(() => {
+    if (!selectedBookingId || messageDisplay !== 'inbox') {
+      setSseTypingStatus(null);
+      return;
+    }
+
+    const unsubscribe = subscribe(selectedBookingId, {
+      onMessage: (message, _isMine) => {
+        if (!selectedChat || !activeConversation || !currentUser?.id) return;
+        const sseMessage = {
+          id: message.id,
+          booking_id: message.booking_id,
+          sender_id: message.sender_id,
+          content: message.content,
+          created_at: message.created_at,
+          updated_at: message.created_at, // Use created_at as fallback
+          is_deleted: false,
+          is_mine: message.sender_id === currentUser.id,
+        } as SSEMessageWithOwnership;
+        handleSSEMessage(sseMessage, selectedChat, activeConversation);
+      },
+      onTyping: (userId, userName, isTyping) => {
+        if (isTyping) {
+          setSseTypingStatus({ userId, userName, until: Date.now() + 3000 });
+        } else {
+          setSseTypingStatus(null);
+        }
+      },
+    });
+
+    return unsubscribe;
+  }, [selectedBookingId, messageDisplay, subscribe, selectedChat, activeConversation, currentUser?.id, handleSSEMessage]);
 
   // Filter conversations
   const filteredConversations = useMemo(() => {

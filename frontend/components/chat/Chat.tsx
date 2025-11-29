@@ -18,7 +18,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown, Pencil } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSSEMessages, ConnectionStatus } from '@/hooks/useSSEMessages';
+import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import {
   useMessageConfig,
   useMessageHistory,
@@ -33,6 +33,15 @@ import { queryKeys } from '@/src/api/queryKeys';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
+
+// Connection status enum (internal to Chat component)
+enum ConnectionStatus {
+  CONNECTING = 'connecting',
+  CONNECTED = 'connected',
+  DISCONNECTED = 'disconnected',
+  ERROR = 'error',
+  RECONNECTING = 'reconnecting',
+}
 
 // Type for read_by entries from message response
 type ReadByEntry = { user_id: string; read_at: string };
@@ -104,24 +113,106 @@ export function Chat({
   const sendTypingMutation = useSendTypingIndicator();
   const lastMarkedUnreadByBookingRef = useRef<Record<string, string | null>>({});
 
-  // Real-time messages via SSE
-  const {
-    messages: realtimeMessages,
-    connectionStatus,
-    reconnect,
-    readReceipts,
-    typingStatus,
-    reactionDeltas,
-  } = useSSEMessages({
-    bookingId,
-    enabled: true,
-    onMessage: (message) => {
-      // Mark message as read if it's from the other user
-      if (message.sender_id !== currentUserId) {
-        markMessagesAsRead.mutate({ data: { message_ids: [message.id] } });
-      }
-    },
-  });
+  // Real-time messages via SSE (Phase 4: per-user inbox)
+  const { subscribe, isConnected, connectionError } = useMessageStream();
+  const [realtimeMessages, setRealtimeMessages] = useState<MessageResponse[]>([]);
+  const [readReceipts, setReadReceipts] = useState<
+    Record<string, Array<{ user_id: string; read_at: string }>>
+  >({});
+  const [typingStatus, setTypingStatus] = useState<{
+    userId: string;
+    userName: string;
+    until: number;
+  } | null>(null);
+  const [reactionDeltas, setReactionDeltas] = useState<
+    Record<string, Record<string, number>>
+  >({});
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Map connection state to legacy status enum
+  const connectionStatus: ConnectionStatus = connectionError
+    ? ConnectionStatus.ERROR
+    : isConnected
+    ? ConnectionStatus.CONNECTED
+    : ConnectionStatus.DISCONNECTED;
+
+  const reconnect = () => {
+    // Reconnect is automatic in new implementation
+    window.location.reload();
+  };
+
+  // Subscribe to this conversation's events
+  useEffect(() => {
+    const unsubscribe = subscribe(bookingId, {
+      onMessage: (message, isMine) => {
+        // Add message to realtime state with deduplication
+        setRealtimeMessages((prev) => {
+          if (prev.some((m) => m.id === message.id)) return prev;
+          return [
+            ...prev,
+            {
+              id: message.id,
+              content: message.content,
+              sender_id: message.sender_id,
+              booking_id: message.booking_id,
+              created_at: message.created_at,
+              updated_at: message.created_at,
+              is_deleted: false,
+            } as MessageResponse,
+          ];
+        });
+
+        // Mark message as read if it's from the other user
+        if (!isMine && message.sender_id !== currentUserId) {
+          markMessagesAsRead.mutate({ data: { message_ids: [message.id] } });
+        }
+      },
+      onTyping: (userId, userName, isTyping) => {
+        if (isTyping) {
+          setTypingStatus({ userId, userName, until: Date.now() + 3000 });
+          // Clear typing after 3 seconds if no update
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = setTimeout(
+            () => setTypingStatus(null),
+            3000
+          );
+        } else {
+          setTypingStatus(null);
+        }
+      },
+      onReadReceipt: (messageIds, readerId) => {
+        setReadReceipts((prev) => {
+          const updated = { ...prev };
+          messageIds.forEach((msgId) => {
+            const existing = updated[msgId] || [];
+            if (!existing.find((r) => r.user_id === readerId)) {
+              updated[msgId] = [
+                ...existing,
+                { user_id: readerId, read_at: new Date().toISOString() },
+              ];
+            }
+          });
+          return updated;
+        });
+      },
+      onReaction: (messageId, emoji, action) => {
+        setReactionDeltas((prev) => {
+          const current = prev[messageId] || {};
+          const delta = action === 'added' ? 1 : -1;
+          const nextCount = (current[emoji] || 0) + delta;
+          return {
+            ...prev,
+            [messageId]: { ...current, [emoji]: nextCount },
+          };
+        });
+      },
+    });
+
+    return () => {
+      unsubscribe();
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, [bookingId, subscribe, currentUserId, markMessagesAsRead]);
 
   // Debug: Log typing status changes to diagnose Issue 3
   useEffect(() => {
@@ -290,7 +381,6 @@ export function Chat({
   };
 
   // Typing indicator: send best-effort signal with debounce (1s)
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const handleTyping = () => {
     try {
       sendTypingMutation.mutate({ bookingId });
@@ -606,23 +696,9 @@ export function Chat({
     return (
       <div className={cn(
         'flex items-center justify-center py-2 px-4 text-sm',
-        connectionStatus === ConnectionStatus.CONNECTING && 'bg-blue-50 text-blue-700',
-        connectionStatus === ConnectionStatus.RECONNECTING && 'bg-yellow-50 text-yellow-700',
         connectionStatus === ConnectionStatus.ERROR && 'bg-red-50 text-red-700',
         connectionStatus === ConnectionStatus.DISCONNECTED && 'bg-gray-50 text-gray-700'
       )}>
-        {connectionStatus === ConnectionStatus.CONNECTING && (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Connecting...
-          </>
-        )}
-        {connectionStatus === ConnectionStatus.RECONNECTING && (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Reconnecting...
-          </>
-        )}
         {connectionStatus === ConnectionStatus.ERROR && (
           <>
             <AlertCircle className="w-4 h-4 mr-2" />

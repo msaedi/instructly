@@ -10,7 +10,7 @@ const mockUseEditMessage = jest.fn();
 const mockUseAddReaction = jest.fn();
 const mockUseRemoveReaction = jest.fn();
 const mockUseSendTypingIndicator = jest.fn();
-const mockUseSSEMessages = jest.fn();
+const mockUseMessageStream = jest.fn();
 
 // Mock useQueryClient from react-query
 jest.mock('@tanstack/react-query', () => ({
@@ -20,20 +20,10 @@ jest.mock('@tanstack/react-query', () => ({
   }),
 }));
 
-jest.mock('@/hooks/useSSEMessages', () => {
-  const connectionStatusValues = {
-    CONNECTED: 'connected',
-    CONNECTING: 'connecting',
-    DISCONNECTED: 'disconnected',
-    RECONNECTING: 'reconnecting',
-    ERROR: 'error',
-  } as const;
-
-  return {
-    ConnectionStatus: connectionStatusValues,
-    useSSEMessages: (...args: unknown[]) => mockUseSSEMessages(...args),
-  };
-});
+// Mock UserMessageStreamProvider (Phase 4: per-user SSE)
+jest.mock('@/providers/UserMessageStreamProvider', () => ({
+  useMessageStream: (...args: unknown[]) => mockUseMessageStream(...args),
+}));
 
 // Mock all message services from Orval layer
 jest.mock('@/src/api/services/messages', () => ({
@@ -113,15 +103,10 @@ describe('Chat mark-as-read behavior', () => {
     mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseSendTypingIndicator.mockReturnValue({ mutate: jest.fn() });
-    mockUseSSEMessages.mockReturnValue({
-      messages: [],
-      connectionStatus: 'connected',
-      reconnect: jest.fn(),
-      disconnect: jest.fn(),
-      clearMessages: jest.fn(),
-      readReceipts: {},
-      typingStatus: null,
-      reactionDeltas: {},
+    mockUseMessageStream.mockReturnValue({
+      isConnected: true,
+      connectionError: null,
+      subscribe: jest.fn(() => jest.fn()), // Returns unsubscribe function
     });
 
     historyResponse = defaultHistoryResponse();
