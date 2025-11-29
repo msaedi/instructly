@@ -153,3 +153,6 @@ class InboxStateResponse(StrictModel):
 
     conversations: List[ConversationSummary]
     total_unread: int
+    unread_conversations: int = Field(
+        ..., description="Count of conversations with unread messages (not total messages)"
+    )

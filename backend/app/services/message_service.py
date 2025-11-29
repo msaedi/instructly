@@ -448,12 +448,16 @@ class MessageService(BaseService):
             user_role: 'instructor' or 'student'
 
         Returns:
-            Dict with conversations list and total_unread count
+            Dict with conversations list, total_unread count, and unread_conversations count
         """
         conversations = self.repository.get_inbox_state(user_id, user_role)
         is_instructor = user_role == "instructor"
 
-        result: Dict[str, Any] = {"conversations": [], "total_unread": 0}
+        result: Dict[str, Any] = {
+            "conversations": [],
+            "total_unread": 0,
+            "unread_conversations": 0,
+        }
 
         for conv in conversations:
             # Get the OTHER user (not the current user)
@@ -482,6 +486,8 @@ class MessageService(BaseService):
             )
 
             result["total_unread"] += unread
+            if unread > 0:
+                result["unread_conversations"] += 1
 
         return result
 

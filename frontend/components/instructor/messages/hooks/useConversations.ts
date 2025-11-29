@@ -23,6 +23,7 @@ export type UseConversationsResult = {
   error: string | null;
   totalUnread: number;
   unreadConversations: ConversationEntry[];
+  unreadConversationsCount: number;
   loadConversations: () => void;
 };
 
@@ -87,6 +88,7 @@ export function useConversations({
   }, [inboxState, currentUserId]);
 
   const totalUnread = inboxState?.total_unread ?? 0;
+  const unreadConversationsCount = inboxState?.unread_conversations ?? 0;
 
   const unreadConversations = useMemo(
     () => conversations.filter((convo) => convo.unread > 0),
@@ -112,6 +114,7 @@ export function useConversations({
     error: isError ? 'Unable to load conversations' : null,
     totalUnread,
     unreadConversations,
+    unreadConversationsCount,
     loadConversations,
   };
 }

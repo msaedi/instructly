@@ -388,7 +388,7 @@ async def get_inbox_state(
             # that gets caught and returns 304
             response.status_code = status.HTTP_304_NOT_MODIFIED
             # Return empty response for 304 - client will use cached version
-            return InboxStateResponse(conversations=[], total_unread=0)
+            return InboxStateResponse(conversations=[], total_unread=0, unread_conversations=0)
 
         # Set ETag header for successful response
         response.headers["ETag"] = f'"{etag}"'

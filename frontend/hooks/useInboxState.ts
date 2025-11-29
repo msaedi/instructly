@@ -27,6 +27,7 @@ export interface ConversationSummary {
 export interface InboxState {
   conversations: ConversationSummary[];
   total_unread: number;
+  unread_conversations: number;
 }
 
 // Polling intervals

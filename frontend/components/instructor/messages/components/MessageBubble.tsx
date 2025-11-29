@@ -14,11 +14,15 @@ import { formatShortDate } from '../utils/formatters';
 export type MessageBubbleProps = {
   message: MessageWithAttachments;
   isLastInstructor: boolean;
+  showSenderName?: boolean;
+  senderName?: string;
 };
 
 export function MessageBubble({
   message,
   isLastInstructor,
+  showSenderName = false,
+  senderName,
 }: MessageBubbleProps) {
   const attachmentList = message.attachments || [];
   const displayText = message.text?.trim();
@@ -50,9 +54,17 @@ export function MessageBubble({
 
   return (
     <div className={`flex ${message.sender === 'instructor' ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`group relative max-w-xs lg:max-w-md rounded-lg px-4 pt-6 pb-3 pr-14 ${bubbleClasses}`}
-      >
+      <div className={`flex flex-col ${message.sender === 'instructor' ? 'items-end' : 'items-start'}`}>
+        {/* Sender name */}
+        {showSenderName && senderName && (
+          <div className={`text-xs text-gray-500 mb-1 ${message.sender === 'instructor' ? 'mr-2' : 'ml-2'}`}>
+            {senderName}
+          </div>
+        )}
+
+        <div
+          className={`group relative max-w-xs lg:max-w-md rounded-lg px-4 pt-6 pb-3 pr-14 ${bubbleClasses}`}
+        >
         {shortDate && (
           <div
             className={`absolute top-2 right-3 flex flex-col items-end text-[11px] ${
@@ -115,6 +127,7 @@ export function MessageBubble({
             {deliveryLabel}
           </p>
         )}
+        </div>
       </div>
     </div>
   );

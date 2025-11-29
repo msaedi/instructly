@@ -70,8 +70,8 @@ export default function MessagesPage() {
     setConversations,
     isLoading: isLoadingConversations,
     error: conversationError,
-    totalUnread,
     unreadConversations,
+    unreadConversationsCount,
   } = useConversations({ currentUserId: currentUser?.id, isLoadingUser });
 
   const { draftsByThread, updateDraft, clearDraft, getDraftKey } = useMessageDrafts();
@@ -386,9 +386,9 @@ export default function MessagesPage() {
                 title="Messages"
               >
                 <MessageSquare className="w-6 h-6 transition-colors group-hover:fill-current" style={{ fill: showMessages ? 'currentColor' : undefined }} />
-                {totalUnread > 0 && (
+                {unreadConversationsCount > 0 && (
                   <span className="pointer-events-none absolute -top-0.5 -right-0.5 inline-flex min-w-[1.2rem] h-5 items-center justify-center rounded-full bg-[#7E22CE] px-1 text-[0.65rem] font-semibold text-white">
-                    {totalUnread > 9 ? '9+' : totalUnread}
+                    {unreadConversationsCount > 9 ? '9+' : unreadConversationsCount}
                   </span>
                 )}
               </button>
@@ -543,13 +543,22 @@ export default function MessagesPage() {
                           <p className="text-sm text-gray-500">Draft your message and choose who to send it to.</p>
                         </div>
                       )}
-                      {threadMessages.map((message, index) => (
-                        <MessageBubble
-                          key={message.id}
-                          message={message}
-                          isLastInstructor={message.sender === 'instructor' && index === threadMessages.length - 1}
-                        />
-                      ))}
+                      {threadMessages.map((message, index) => {
+                        const showSenderName = index === 0 || threadMessages[index - 1]?.sender !== message.sender;
+                        const senderName = message.sender === 'instructor'
+                          ? (currentUser?.first_name || 'You')
+                          : (activeConversation?.name || 'Student');
+
+                        return (
+                          <MessageBubble
+                            key={message.id}
+                            message={message}
+                            isLastInstructor={message.sender === 'instructor' && index === threadMessages.length - 1}
+                            showSenderName={showSenderName}
+                            senderName={senderName}
+                          />
+                        );
+                      })}
                     </div>
 
                     <div className="flex-shrink-0">
