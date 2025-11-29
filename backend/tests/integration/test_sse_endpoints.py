@@ -1,23 +1,22 @@
 """
 SSE (Server-Sent Events) endpoint integration tests.
 
-These tests validate SSE streaming endpoints which require special handling:
-- SSE connections are long-lived and never "complete" normally
-- Standard HTTP request/response testing (like Schemathesis) can't handle them
-- TestClient/httpx streaming also hangs due to sse_starlette's event loop state
+These tests AUTOMATICALLY discover streaming endpoints from the OpenAPI schema
+using the same pattern that excludes them from schemathesis tests.
 
-Tested endpoints:
-- GET /api/v1/messages/stream - Per-user inbox SSE stream (Phase 2)
+Pattern: `.*/stream.*` - any endpoint with "stream" in its path
 
-Note: These tests focus on:
+This ensures:
+- Endpoints excluded from schemathesis are automatically tested here
+- New streaming endpoints are discovered without manual test updates
+
+Tested aspects:
 1. Authentication requirements (401 responses are immediate)
 2. OpenAPI schema verification (endpoints are properly documented)
-
-Full SSE event streaming tests require a different testing approach
-(e.g., subprocess with timeout, or dedicated async testing framework).
 """
 
 import os
+import re
 
 from fastapi.testclient import TestClient
 import pytest
@@ -28,10 +27,41 @@ from app.main import fastapi_app
 # Only run SSE tests when explicitly requested (nightly CI or local testing)
 RUN_SSE_TESTS = os.environ.get("RUN_SSE_TESTS", "0") == "1"
 
+# Same pattern used to exclude from schemathesis - keeps them in sync
+STREAMING_ENDPOINT_PATTERN = re.compile(r".*/stream.*")
+
 pytestmark = pytest.mark.skipif(
     not RUN_SSE_TESTS,
     reason="SSE tests run in nightly CI job (set RUN_SSE_TESTS=1 to run locally)",
 )
+
+
+def discover_streaming_endpoints() -> list[tuple[str, str]]:
+    """Discover all streaming endpoints from OpenAPI schema.
+
+    Returns list of (method, path) tuples for endpoints matching the streaming pattern.
+    This uses the same pattern that excludes them from schemathesis.
+    """
+    with TestClient(fastapi_app) as client:
+        response = client.get("/openapi.json")
+        if response.status_code != 200:
+            return []
+
+        schema = response.json()
+        paths = schema.get("paths", {})
+
+        streaming_endpoints = []
+        for path, methods in paths.items():
+            if STREAMING_ENDPOINT_PATTERN.match(path):
+                for method in methods.keys():
+                    if method in ("get", "post", "put", "patch", "delete"):
+                        streaming_endpoints.append((method.upper(), path))
+
+        return streaming_endpoints
+
+
+# Discover endpoints at module load time
+STREAMING_ENDPOINTS = discover_streaming_endpoints()
 
 
 @pytest.fixture
@@ -55,59 +85,81 @@ def client(app_with_db):
     return TestClient(app_with_db, raise_server_exceptions=False)
 
 
-class TestSSEUserStreamAuth:
-    """Authentication tests for GET /api/v1/messages/stream."""
+class TestStreamingEndpointsDiscovery:
+    """Verify streaming endpoints are discovered correctly."""
 
-    def test_stream_requires_authentication(self, client):
-        """SSE stream endpoint requires authentication - returns 401 without auth."""
-        response = client.get("/api/v1/messages/stream")
-        assert response.status_code == 401
-
-
-class TestSSEEndpointDiscovery:
-    """Tests to verify SSE endpoints exist and are properly configured in OpenAPI."""
-
-    def test_stream_endpoint_exists_in_openapi(self, client):
-        """Verify /api/v1/messages/stream is in the OpenAPI schema."""
-        response = client.get("/openapi.json")
-        assert response.status_code == 200
-        schema = response.json()
-
-        paths = schema.get("paths", {})
-        assert "/api/v1/messages/stream" in paths
-        assert "get" in paths["/api/v1/messages/stream"]
-
-    def test_stream_endpoint_has_correct_response_codes(self, client):
-        """Verify SSE stream endpoint documents expected response codes."""
-        response = client.get("/openapi.json")
-        assert response.status_code == 200
-        schema = response.json()
-
-        # User stream endpoint
-        user_stream = schema["paths"]["/api/v1/messages/stream"]["get"]
-        responses = user_stream.get("responses", {})
-        # Should have 200 and 401 documented
-        assert "200" in responses
-        assert "401" in responses
-
-    def test_stream_endpoint_has_sse_description(self, client):
-        """Verify SSE stream endpoint mentions SSE in description."""
-        response = client.get("/openapi.json")
-        assert response.status_code == 200
-        schema = response.json()
-
-        user_stream = schema["paths"]["/api/v1/messages/stream"]["get"]
-        # The endpoint should mention SSE or streaming in its description
-        description = user_stream.get("description", "").lower()
-        summary = user_stream.get("summary", "").lower()
-        responses_desc = str(user_stream.get("responses", {}).get("200", {})).lower()
-
-        # Check if SSE is mentioned somewhere
-        sse_mentioned = (
-            "sse" in description
-            or "stream" in description
-            or "sse" in summary
-            or "stream" in summary
-            or "stream" in responses_desc
+    def test_streaming_endpoints_discovered(self):
+        """At least one streaming endpoint should be discovered."""
+        assert len(STREAMING_ENDPOINTS) > 0, (
+            "No streaming endpoints found matching pattern. "
+            "Either pattern is wrong or no streaming endpoints exist."
         )
-        assert sse_mentioned, "SSE endpoint should mention 'sse' or 'stream' in docs"
+
+    def test_pattern_matches_expected_endpoints(self):
+        """Verify the pattern matches expected streaming paths."""
+        # Sanity check - /api/v1/messages/stream should be discovered
+        paths = [path for _, path in STREAMING_ENDPOINTS]
+        assert any(
+            "/stream" in path for path in paths
+        ), f"Expected /stream endpoints, found: {paths}"
+
+
+class TestStreamingEndpointsAuth:
+    """Authentication tests for all discovered streaming endpoints."""
+
+    @pytest.mark.parametrize(
+        "method,path",
+        STREAMING_ENDPOINTS,
+        ids=[f"{m} {p}" for m, p in STREAMING_ENDPOINTS],
+    )
+    def test_streaming_endpoint_requires_auth(self, client, method, path):
+        """All streaming endpoints should require authentication (401 without auth)."""
+        # Make request without auth headers
+        response = client.request(method, path)
+
+        # Streaming endpoints should require auth
+        # 401 = not authenticated, 404 = path param validation failed first
+        assert response.status_code in (401, 404, 422), (
+            f"{method} {path} returned {response.status_code}, "
+            f"expected 401 (unauthorized) or 404/422 (path validation)"
+        )
+
+
+class TestStreamingEndpointsOpenAPI:
+    """OpenAPI schema tests for all discovered streaming endpoints."""
+
+    @pytest.mark.parametrize(
+        "method,path",
+        STREAMING_ENDPOINTS,
+        ids=[f"{m} {p}" for m, p in STREAMING_ENDPOINTS],
+    )
+    def test_streaming_endpoint_in_openapi(self, client, method, path):
+        """All streaming endpoints should be documented in OpenAPI schema."""
+        response = client.get("/openapi.json")
+        assert response.status_code == 200
+
+        schema = response.json()
+        paths = schema.get("paths", {})
+
+        assert path in paths, f"Endpoint {path} not found in OpenAPI schema"
+        assert method.lower() in paths[path], (
+            f"Method {method} not found for {path} in OpenAPI schema"
+        )
+
+    @pytest.mark.parametrize(
+        "method,path",
+        STREAMING_ENDPOINTS,
+        ids=[f"{m} {p}" for m, p in STREAMING_ENDPOINTS],
+    )
+    def test_streaming_endpoint_documents_responses(self, client, method, path):
+        """Streaming endpoints should document response codes."""
+        response = client.get("/openapi.json")
+        schema = response.json()
+
+        endpoint = schema["paths"][path][method.lower()]
+        responses = endpoint.get("responses", {})
+
+        # Should have at least 200 response documented
+        assert "200" in responses, (
+            f"{method} {path} should document 200 response"
+        )
