@@ -40,9 +40,9 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 import json
 import logging
-from typing import Any
+from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
@@ -59,6 +59,7 @@ from ...models.user import User
 from ...schemas.message_requests import MarkMessagesReadRequest, SendMessageRequest
 from ...schemas.message_responses import (
     DeleteMessageResponse,
+    InboxStateResponse,
     MarkMessagesReadResponse,
     MessageConfigResponse,
     MessageResponse,
@@ -337,6 +338,67 @@ async def get_unread_count(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get unread count",
+        )
+
+
+@router.get(
+    "/inbox-state",
+    response_model=InboxStateResponse,
+    dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
+    responses={
+        200: {"description": "Inbox state with all conversations"},
+        304: {"description": "Not Modified - content unchanged (ETag match)"},
+        401: {"description": "Not authenticated"},
+        403: {"description": "Permission denied"},
+    },
+)
+async def get_inbox_state(
+    response: Response,
+    current_user: User = Depends(get_current_active_user),
+    service: MessageService = Depends(get_message_service),
+    if_none_match: Optional[str] = Header(None, alias="If-None-Match"),
+) -> InboxStateResponse:
+    """
+    Get all conversations with unread counts and last message previews.
+
+    Supports ETag caching - returns 304 Not Modified if content unchanged.
+    Poll this endpoint every 5-15 seconds for inbox updates.
+
+    Returns:
+        - conversations: List of all user's conversations
+        - total_unread: Sum of all unread messages
+
+    Requires VIEW_MESSAGES permission.
+    """
+    try:
+        # Determine user role
+        user_role = "instructor" if current_user.role == "instructor" else "student"
+
+        # Get inbox state from service
+        inbox_state = service.get_inbox_state(current_user.id, user_role)
+
+        # Generate ETag
+        etag = service.generate_inbox_etag(inbox_state)
+
+        # Check if client has current version (ETag match)
+        if if_none_match and if_none_match.strip('"') == etag:
+            # FastAPI doesn't have a clean way to return 304, so we raise an exception
+            # that gets caught and returns 304
+            response.status_code = status.HTTP_304_NOT_MODIFIED
+            # Return empty response for 304 - client will use cached version
+            return InboxStateResponse(conversations=[], total_unread=0)
+
+        # Set ETag header for successful response
+        response.headers["ETag"] = f'"{etag}"'
+
+        # Return validated response model
+        return InboxStateResponse(**inbox_state)
+
+    except Exception as e:
+        logger.error(f"Error getting inbox state: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get inbox state",
         )
 
 

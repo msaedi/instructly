@@ -526,3 +526,73 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             self.logger.error(f"Error removing reaction: {str(e)}")
             raise RepositoryException(f"Failed to remove reaction: {str(e)}")
+
+    # Phase 3: Inbox state
+    def get_inbox_state(self, user_id: str, user_role: str) -> List[Any]:
+        """
+        Fetch all conversation states for a user in a single query.
+
+        Args:
+            user_id: The user's ID
+            user_role: 'instructor' or 'student' to determine which conversations to fetch
+
+        Returns:
+            List of ConversationState objects with related user data eager-loaded
+        """
+        try:
+            from ..models.conversation_state import ConversationState
+
+            query = self.db.query(ConversationState).options(
+                joinedload(ConversationState.booking),
+                joinedload(ConversationState.student),
+                joinedload(ConversationState.instructor),
+            )
+
+            if user_role == "instructor":
+                query = query.filter(ConversationState.instructor_id == user_id)
+            else:
+                query = query.filter(ConversationState.student_id == user_id)
+
+            # Order by most recent message first
+            query = query.order_by(ConversationState.last_message_at.desc().nullslast())
+
+            return cast(List[Any], query.all())
+
+        except Exception as e:
+            self.logger.error(f"Error fetching inbox state: {str(e)}")
+            raise RepositoryException(f"Failed to fetch inbox state: {str(e)}")
+
+    def reset_conversation_unread_count(
+        self, booking_id: str, user_id: str, is_instructor: bool
+    ) -> None:
+        """
+        Reset the unread count in conversation_state for a specific user.
+
+        Args:
+            booking_id: ID of the booking/conversation
+            user_id: ID of the user whose unread count should be reset
+            is_instructor: True if user is instructor, False if student
+        """
+        try:
+            from ..models.conversation_state import ConversationState
+
+            # Update the conversation_state unread count
+            self.db.query(ConversationState).filter(
+                ConversationState.booking_id == booking_id
+            ).update(
+                {
+                    ConversationState.instructor_unread_count
+                    if is_instructor
+                    else ConversationState.student_unread_count: 0,
+                    ConversationState.updated_at: func.now(),
+                },
+                synchronize_session=False,
+            )
+
+            self.logger.info(
+                f"Reset conversation_state unread count for booking {booking_id}, user {user_id}"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Failed to reset conversation_state unread count: {str(e)}")
+            raise RepositoryException(f"Failed to reset conversation_state unread count: {str(e)}")

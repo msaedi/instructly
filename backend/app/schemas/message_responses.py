@@ -112,3 +112,44 @@ class MessageConfigResponse(StrictModel):
     """Public config values for messaging UI."""
 
     edit_window_minutes: int
+
+
+# Phase 3: Inbox state schemas
+class OtherUserInfo(StrictModel):
+    """Info about the other participant in a conversation."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    id: str
+    name: str
+    avatar_url: Optional[str] = None
+
+
+class LastMessageInfo(StrictModel):
+    """Preview information about the last message in a conversation."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    preview: str
+    at: datetime
+    is_mine: bool
+
+
+class ConversationSummary(StrictModel):
+    """Summary of a conversation for inbox display."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    id: str = Field(..., description="Booking ID / conversation ID")
+    other_user: OtherUserInfo
+    unread_count: int
+    last_message: Optional[LastMessageInfo] = None
+
+
+class InboxStateResponse(StrictModel):
+    """Complete inbox state with all conversations and unread counts."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    conversations: List[ConversationSummary]
+    total_unread: int

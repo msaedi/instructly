@@ -10,7 +10,7 @@ Handles business logic for the messaging system including:
 """
 
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -248,7 +248,12 @@ class MessageService(BaseService):
         message_ids = [msg.id for msg in unread_messages]
 
         if message_ids:
-            return self.mark_messages_as_read(message_ids, user_id)
+            count = self.mark_messages_as_read(message_ids, user_id)
+
+            # Also update conversation_state to reset unread count
+            self._reset_conversation_unread_count(booking_id, user_id)
+
+            return count
         return 0
 
     @BaseService.measure_operation("delete_message")
@@ -431,3 +436,95 @@ class MessageService(BaseService):
         except Exception as e:
             # Log but don't fail the message send
             self.logger.error(f"Failed to send offline notification: {str(e)}")
+
+    # Phase 3: Inbox state
+    @BaseService.measure_operation("get_inbox_state")
+    def get_inbox_state(self, user_id: str, user_role: str) -> Dict[str, Any]:
+        """
+        Get all conversations for a user with unread counts and previews.
+
+        Args:
+            user_id: ID of the user
+            user_role: 'instructor' or 'student'
+
+        Returns:
+            Dict with conversations list and total_unread count
+        """
+        conversations = self.repository.get_inbox_state(user_id, user_role)
+        is_instructor = user_role == "instructor"
+
+        result: Dict[str, Any] = {"conversations": [], "total_unread": 0}
+
+        for conv in conversations:
+            # Get the OTHER user (not the current user)
+            other_user = conv.student if is_instructor else conv.instructor
+            unread = conv.instructor_unread_count if is_instructor else conv.student_unread_count
+
+            result["conversations"].append(
+                {
+                    "id": conv.booking_id,
+                    "other_user": {
+                        "id": other_user.id,
+                        "name": f"{other_user.first_name} {other_user.last_name[0]}."
+                        if other_user.last_name
+                        else other_user.first_name,
+                        "avatar_url": getattr(other_user, "avatar_url", None),
+                    },
+                    "unread_count": unread,
+                    "last_message": {
+                        "preview": conv.last_message_preview,
+                        "at": conv.last_message_at.isoformat() if conv.last_message_at else None,
+                        "is_mine": conv.last_message_sender_id == user_id,
+                    }
+                    if conv.last_message_id
+                    else None,
+                }
+            )
+
+            result["total_unread"] += unread
+
+        return result
+
+    @BaseService.measure_operation("generate_inbox_etag")
+    def generate_inbox_etag(self, inbox_state: Dict[str, Any]) -> str:
+        """
+        Generate ETag hash from inbox state for caching.
+
+        Args:
+            inbox_state: The inbox state dictionary
+
+        Returns:
+            MD5 hash of the inbox state (hex digest)
+        """
+        from hashlib import md5
+        import json
+
+        # Sort keys for consistent hashing
+        content = json.dumps(inbox_state, sort_keys=True, default=str)
+        return md5(content.encode()).hexdigest()
+
+    def _reset_conversation_unread_count(self, booking_id: str, user_id: str) -> None:
+        """
+        Reset the unread count in conversation_state for a specific user.
+
+        Args:
+            booking_id: ID of the booking/conversation
+            user_id: ID of the user whose unread count should be reset
+        """
+        try:
+            # Get user repository to fetch user
+            from ..repositories.factory import RepositoryFactory
+
+            user_repository = RepositoryFactory.create_user_repository(self.db)
+            user = user_repository.get_by_id(user_id)
+            if not user:
+                return
+
+            is_instructor = user.role == "instructor"
+
+            # Use repository method to reset unread count
+            self.repository.reset_conversation_unread_count(booking_id, user_id, is_instructor)
+
+        except Exception as e:
+            # Log but don't fail the operation
+            self.logger.error(f"Failed to reset conversation_state unread count: {str(e)}")
