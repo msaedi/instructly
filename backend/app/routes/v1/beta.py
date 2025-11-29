@@ -350,6 +350,10 @@ def send_invite_batch_async(
 def get_invite_batch_progress(
     task_id: str, _admin: None = Depends(require_role("admin"))
 ) -> InviteBatchProgressResponse:
+    # Validate task_id to prevent Celery AsyncResult from being created with empty ID
+    # (causes ValueError in __del__ during garbage collection)
+    if not task_id or not task_id.strip():
+        raise HTTPException(status_code=422, detail="task_id must not be empty")
     result = celery_app.AsyncResult(task_id)
     meta = result.info or {}
     state = result.state or "PENDING"
