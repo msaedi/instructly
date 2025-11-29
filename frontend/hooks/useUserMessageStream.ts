@@ -48,6 +48,13 @@ export function useUserMessageStream() {
 
   // Route event to appropriate handler
   const routeEvent = useCallback((event: SSEEvent) => {
+    // First, notify the global handler (if subscribed)
+    const globalHandlers = handlersRef.current.get('__global__');
+    if (globalHandlers && event.type === 'new_message') {
+      globalHandlers.onMessage?.(event.message, event.is_mine);
+    }
+
+    // Then, notify the conversation-specific handler
     const handlers = handlersRef.current.get(event.conversation_id);
     if (!handlers) {
       logger.debug('[SSE] No handler for conversation', {
