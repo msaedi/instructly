@@ -287,12 +287,16 @@ def test_api_v1_messages_schema_compliance(case, db: Session, auth_headers_stude
 
 # Additional test for all /api/v1/** endpoints (not just specific domains)
 # Reserved for nightly/CI contract suite - see architecture doc for details
+# Exclude SSE streaming endpoints - they hold connections open indefinitely and cause test hangs
+nightly_schema = schema.include(path_regex="/api/v1/.*").exclude(path_regex=".*/stream.*")
+
+
 @pytest.mark.skipif(
     not RUN_NIGHTLY_SCHEMATHESIS,
     reason="Full API Schemathesis fuzzing runs in nightly CI job (set RUN_NIGHTLY_SCHEMATHESIS=1 to run locally)",
 )
 @pytest.mark.schemathesis
-@schema.include(path_regex="/api/v1/.*").parametrize()
+@nightly_schema.parametrize()
 @settings(max_examples=1, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 def test_api_v1_all_endpoints_schema_compliance(case, db: Session, auth_headers_admin):
     """
