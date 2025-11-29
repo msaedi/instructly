@@ -60,7 +60,9 @@ export default function MessagesPage() {
   const notifRef = useRef<HTMLDivElement | null>(null);
   const [showMessages, setShowMessages] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll ref
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Extracted hooks
   const {
@@ -111,6 +113,7 @@ export default function MessagesPage() {
   // Typing indicator
   const sendTypingMutation = useSendTypingIndicator();
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sseTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleTyping = useCallback(() => {
     if (!selectedBookingId) return;
@@ -119,9 +122,49 @@ export default function MessagesPage() {
     } catch {}
   }, [selectedBookingId, sendTypingMutation]);
 
+  // Auto-scroll to bottom
+  const scrollToBottom = useCallback(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, []);
+
   // SSE connection (Phase 4: per-user inbox)
   const { subscribe } = useMessageStream();
   const [sseTypingStatus, setSseTypingStatus] = useState<{ userId: string; userName: string; until: number } | null>(null);
+
+  // Use ref to store latest handleSSEMessage to avoid re-render loop
+  const handleSSEMessageRef = useRef(handleSSEMessage);
+  useEffect(() => {
+    handleSSEMessageRef.current = handleSSEMessage;
+  }, [handleSSEMessage]);
+
+  // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
+  const handleSSEMessageWrapper = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string }, _isMine: boolean) => {
+    if (!selectedChat || !activeConversation || !currentUser?.id) return;
+    const sseMessage = {
+      id: message.id,
+      booking_id: message.booking_id,
+      sender_id: message.sender_id,
+      content: message.content,
+      created_at: message.created_at,
+      updated_at: message.created_at, // Use created_at as fallback
+      is_deleted: false,
+      is_mine: message.sender_id === currentUser.id,
+    } as SSEMessageWithOwnership;
+    handleSSEMessageRef.current(sseMessage, selectedChat, activeConversation);
+  }, [selectedChat, activeConversation, currentUser?.id]);
+
+  const handleSSETyping = useCallback((userId: string, userName: string, isTyping: boolean) => {
+    if (isTyping) {
+      setSseTypingStatus({ userId, userName, until: Date.now() + 3000 });
+      // Clear typing after 3 seconds if no update
+      if (sseTypingTimeoutRef.current) clearTimeout(sseTypingTimeoutRef.current);
+      sseTypingTimeoutRef.current = setTimeout(() => setSseTypingStatus(null), 3000);
+    } else {
+      setSseTypingStatus(null);
+    }
+  }, []);
 
   // Subscribe to active conversation's events
   useEffect(() => {
@@ -131,31 +174,12 @@ export default function MessagesPage() {
     }
 
     const unsubscribe = subscribe(selectedBookingId, {
-      onMessage: (message, _isMine) => {
-        if (!selectedChat || !activeConversation || !currentUser?.id) return;
-        const sseMessage = {
-          id: message.id,
-          booking_id: message.booking_id,
-          sender_id: message.sender_id,
-          content: message.content,
-          created_at: message.created_at,
-          updated_at: message.created_at, // Use created_at as fallback
-          is_deleted: false,
-          is_mine: message.sender_id === currentUser.id,
-        } as SSEMessageWithOwnership;
-        handleSSEMessage(sseMessage, selectedChat, activeConversation);
-      },
-      onTyping: (userId, userName, isTyping) => {
-        if (isTyping) {
-          setSseTypingStatus({ userId, userName, until: Date.now() + 3000 });
-        } else {
-          setSseTypingStatus(null);
-        }
-      },
+      onMessage: handleSSEMessageWrapper,
+      onTyping: handleSSETyping,
     });
 
     return unsubscribe;
-  }, [selectedBookingId, messageDisplay, subscribe, selectedChat, activeConversation, currentUser?.id, handleSSEMessage]);
+  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping]);
 
   // Filter conversations
   const filteredConversations = useMemo(() => {
@@ -246,10 +270,10 @@ export default function MessagesPage() {
     }
   }, [messageDisplay, selectedChat, setThreadMessagesForDisplay]);
 
-  // Scroll to bottom on new messages
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [threadMessages, selectedChat]);
+    scrollToBottom();
+  }, [threadMessages.length, scrollToBottom]);
 
   // Load draft when switching conversations
   useEffect(() => {
@@ -341,9 +365,9 @@ export default function MessagesPage() {
     : null;
 
   return (
-    <div className="min-h-screen">
+    <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4">
+      <header className="bg-white backdrop-blur-sm border-b border-gray-200 px-4 sm:px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
             <Link href="/instructor/dashboard" className="inline-block">
@@ -422,7 +446,8 @@ export default function MessagesPage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
+      <div className="flex-1 overflow-hidden">
+        <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl h-full flex flex-col">
         {/* Mobile back */}
         <Link href="/instructor/dashboard" className="inline-flex items-center gap-1 text-[#7E22CE] mb-4 sm:hidden">
           <ArrowLeft className="w-4 h-4" />
@@ -475,8 +500,8 @@ export default function MessagesPage() {
             onTemplatesUpdate={setTemplates}
           />
         ) : (
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="flex flex-col lg:flex-row min-h-[600px]">
+          <div className="flex-1 bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col">
+            <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
               {/* Sidebar */}
               <ConversationList
                 conversations={conversationSource}
@@ -497,7 +522,7 @@ export default function MessagesPage() {
               />
 
               {/* Chat area */}
-              <div className="flex-1 flex flex-col">
+              <div className="flex-1 flex flex-col overflow-hidden">
                 {selectedChat ? (
                   <>
                     <ChatHeader
@@ -512,7 +537,7 @@ export default function MessagesPage() {
                     />
 
                     {/* Messages */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
                       {isComposeView && threadMessages.length === 0 && (
                         <div className="flex items-center justify-center py-12">
                           <p className="text-sm text-gray-500">Draft your message and choose who to send it to.</p>
@@ -525,21 +550,22 @@ export default function MessagesPage() {
                           isLastInstructor={message.sender === 'instructor' && index === threadMessages.length - 1}
                         />
                       ))}
-                      <div ref={messagesEndRef} />
                     </div>
 
-                    <MessageInput
-                      messageText={messageText}
-                      pendingAttachments={pendingAttachments}
-                      isSendDisabled={isSendDisabled}
-                      typingUserName={typingUserName}
-                      messageDisplay={messageDisplay}
-                      onMessageChange={handleMessageChange}
-                      onKeyPress={handleKeyPress}
-                      onSend={handleSend}
-                      onAttachmentAdd={(files) => files && setPendingAttachments((prev) => [...prev, ...Array.from(files)])}
-                      onAttachmentRemove={(index) => setPendingAttachments((prev) => prev.filter((_, i) => i !== index))}
-                    />
+                    <div className="flex-shrink-0">
+                      <MessageInput
+                        messageText={messageText}
+                        pendingAttachments={pendingAttachments}
+                        isSendDisabled={isSendDisabled}
+                        typingUserName={typingUserName}
+                        messageDisplay={messageDisplay}
+                        onMessageChange={handleMessageChange}
+                        onKeyPress={handleKeyPress}
+                        onSend={handleSend}
+                        onAttachmentAdd={(files) => files && setPendingAttachments((prev) => [...prev, ...Array.from(files)])}
+                        onAttachmentRemove={(index) => setPendingAttachments((prev) => prev.filter((_, i) => i !== index))}
+                      />
+                    </div>
                   </>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-gray-500">
@@ -554,6 +580,7 @@ export default function MessagesPage() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

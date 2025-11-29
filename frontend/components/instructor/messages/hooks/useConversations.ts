@@ -5,7 +5,7 @@
  * Integrates with SSE to invalidate cache when new messages arrive.
  */
 
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { useInboxState } from '@/hooks/useInboxState';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import type { ConversationEntry } from '../types';
@@ -33,6 +33,12 @@ export function useConversations({
   const { data: inboxState, isLoading, isError, invalidate } = useInboxState();
   const { subscribe } = useMessageStream();
 
+  // Use ref to store latest invalidate to avoid re-render loop
+  const invalidateRef = useRef(invalidate);
+  useEffect(() => {
+    invalidateRef.current = invalidate;
+  }, [invalidate]);
+
   // Invalidate inbox state when SSE receives a message for ANY conversation
   useEffect(() => {
     // Subscribe to all conversations using a catch-all pattern
@@ -41,12 +47,12 @@ export function useConversations({
     const unsubscribe = subscribe('__global__', {
       onMessage: () => {
         // New message arrived - refresh inbox state
-        invalidate();
+        invalidateRef.current();
       },
     });
 
     return unsubscribe;
-  }, [subscribe, invalidate]);
+  }, [subscribe]);
 
   // Transform backend ConversationSummary to frontend ConversationEntry format
   const conversations = useMemo<ConversationEntry[]>(() => {

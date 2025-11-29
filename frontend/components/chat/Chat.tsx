@@ -103,10 +103,10 @@ export function Chat({
   } = useMessageHistory(bookingId);
 
 
-  // Mutations
+  // Mutations - destructure mutate functions for stable references
   const queryClient = useQueryClient();
   const sendMessageMutation = useSendMessage();
-  const markMessagesAsRead = useMarkMessagesAsRead();
+  const { mutate: markMessagesAsReadMutate } = useMarkMessagesAsRead();
   const editMessageMutation = useEditMessage();
   const addReactionMutation = useAddReaction();
   const removeReactionMutation = useRemoveReaction();
@@ -141,78 +141,98 @@ export function Chat({
     window.location.reload();
   };
 
+  // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
+  const handleSSEMessage = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string }, isMine: boolean) => {
+    // Add message to realtime state with deduplication
+    setRealtimeMessages((prev) => {
+      if (prev.some((m) => m.id === message.id)) return prev;
+      return [
+        ...prev,
+        {
+          id: message.id,
+          content: message.content,
+          sender_id: message.sender_id,
+          booking_id: message.booking_id,
+          created_at: message.created_at,
+          updated_at: message.created_at,
+          is_deleted: false,
+        } as MessageResponse,
+      ];
+    });
+
+    // Mark message as read if it's from the other user
+    if (!isMine && message.sender_id !== currentUserId) {
+      markMessagesAsReadMutate({ data: { message_ids: [message.id] } });
+    }
+  }, [currentUserId, markMessagesAsReadMutate]);
+
+  const handleSSETyping = useCallback((userId: string, userName: string, isTyping: boolean) => {
+    if (isTyping) {
+      setTypingStatus({ userId, userName, until: Date.now() + 3000 });
+      // Clear typing after 3 seconds if no update
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => setTypingStatus(null), 3000);
+    } else {
+      setTypingStatus(null);
+    }
+  }, []);
+
+  const handleReadReceipt = useCallback((messageIds: string[], readerId: string) => {
+    // Defensive check: SSE event might send undefined
+    if (!messageIds || !Array.isArray(messageIds)) {
+      logger.warn('[Chat] Invalid read receipt event', { messageIds, readerId });
+      return;
+    }
+
+    setReadReceipts((prev) => {
+      const updated = { ...prev };
+      messageIds.forEach((msgId) => {
+        const existing = updated[msgId] || [];
+        if (!existing.find((r) => r.user_id === readerId)) {
+          updated[msgId] = [
+            ...existing,
+            { user_id: readerId, read_at: new Date().toISOString() },
+          ];
+        }
+      });
+      return updated;
+    });
+  }, []);
+
+  const handleReaction = useCallback((messageId: string, emoji: string, action: 'added' | 'removed') => {
+    setReactionDeltas((prev) => {
+      const current = prev[messageId] || {};
+      const delta = action === 'added' ? 1 : -1;
+      const nextCount = (current[emoji] || 0) + delta;
+      return {
+        ...prev,
+        [messageId]: { ...current, [emoji]: nextCount },
+      };
+    });
+  }, []);
+
   // Subscribe to this conversation's events
   useEffect(() => {
-    const unsubscribe = subscribe(bookingId, {
-      onMessage: (message, isMine) => {
-        // Add message to realtime state with deduplication
-        setRealtimeMessages((prev) => {
-          if (prev.some((m) => m.id === message.id)) return prev;
-          return [
-            ...prev,
-            {
-              id: message.id,
-              content: message.content,
-              sender_id: message.sender_id,
-              booking_id: message.booking_id,
-              created_at: message.created_at,
-              updated_at: message.created_at,
-              is_deleted: false,
-            } as MessageResponse,
-          ];
-        });
+    if (!bookingId) return;
 
-        // Mark message as read if it's from the other user
-        if (!isMine && message.sender_id !== currentUserId) {
-          markMessagesAsRead.mutate({ data: { message_ids: [message.id] } });
-        }
-      },
-      onTyping: (userId, userName, isTyping) => {
-        if (isTyping) {
-          setTypingStatus({ userId, userName, until: Date.now() + 3000 });
-          // Clear typing after 3 seconds if no update
-          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-          typingTimeoutRef.current = setTimeout(
-            () => setTypingStatus(null),
-            3000
-          );
-        } else {
-          setTypingStatus(null);
-        }
-      },
-      onReadReceipt: (messageIds, readerId) => {
-        setReadReceipts((prev) => {
-          const updated = { ...prev };
-          messageIds.forEach((msgId) => {
-            const existing = updated[msgId] || [];
-            if (!existing.find((r) => r.user_id === readerId)) {
-              updated[msgId] = [
-                ...existing,
-                { user_id: readerId, read_at: new Date().toISOString() },
-              ];
-            }
-          });
-          return updated;
-        });
-      },
-      onReaction: (messageId, emoji, action) => {
-        setReactionDeltas((prev) => {
-          const current = prev[messageId] || {};
-          const delta = action === 'added' ? 1 : -1;
-          const nextCount = (current[emoji] || 0) + delta;
-          return {
-            ...prev,
-            [messageId]: { ...current, [emoji]: nextCount },
-          };
-        });
-      },
+    // Invalidate message history cache when chat opens to fetch any missed messages
+    // This ensures messages sent while chat was closed are loaded
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.messages.history(bookingId),
+    });
+
+    const unsubscribe = subscribe(bookingId, {
+      onMessage: handleSSEMessage,
+      onTyping: handleSSETyping,
+      onReadReceipt: handleReadReceipt,
+      onReaction: handleReaction,
     });
 
     return () => {
       unsubscribe();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [bookingId, subscribe, currentUserId, markMessagesAsRead]);
+  }, [bookingId, subscribe, handleSSEMessage, handleSSETyping, handleReadReceipt, handleReaction, queryClient]);
 
   // Debug: Log typing status changes to diagnose Issue 3
   useEffect(() => {
@@ -339,8 +359,8 @@ export function Chat({
     }
 
     lastMarkedUnreadByBookingRef.current[bookingId] = latestUnreadMessageId;
-    markMessagesAsRead.mutate({ data: { booking_id: bookingId } });
-  }, [bookingId, latestUnreadMessageId, markMessagesAsRead]);
+    markMessagesAsReadMutate({ data: { booking_id: bookingId } });
+  }, [bookingId, latestUnreadMessageId, markMessagesAsReadMutate]);
 
   // Handle send message - SSE echoes message back with is_mine flag
   const handleSendMessage = async () => {

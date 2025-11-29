@@ -49,7 +49,7 @@ export function ConversationList({
   onConversationDelete,
 }: ConversationListProps) {
   return (
-    <aside className="w-full lg:w-80 xl:w-96 border-b border-gray-200 lg:border-b-0 lg:border-r flex flex-col">
+    <aside className="w-full lg:w-80 xl:w-96 border-b border-gray-200 lg:border-b-0 lg:border-r flex flex-col min-h-0 max-h-full overflow-hidden">
       {/* Search and compose */}
       <div className="p-4 border-b border-gray-200 flex items-center gap-2">
         <div className="relative flex-1">
@@ -117,7 +117,7 @@ export function ConversationList({
       </div>
 
       {/* Conversation list */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {isLoading && conversations.length === 0 ? (
           <div className="p-4 text-sm text-gray-500">Loading conversations...</div>
         ) : (
