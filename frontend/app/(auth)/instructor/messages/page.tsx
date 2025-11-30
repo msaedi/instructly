@@ -11,7 +11,7 @@ import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent }
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { format, isToday, isYesterday } from 'date-fns';
-import { ArrowLeft, Bell, MessageSquare, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Bell, MessageSquare, ChevronDown, Undo2 } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useSendTypingIndicator, useAddReaction, useRemoveReaction, markMessagesAsReadImperative } from '@/src/api/services/messages';
 import { useAuthStatus } from '@/hooks/queries/useAuth';
@@ -181,6 +181,20 @@ export default function MessagesPage() {
     }
     updateStateMutation.mutate({ bookingId, state: 'trashed' });
   }, [updateStateMutation, selectedChat]);
+
+  const handleRestoreConversation = useCallback((bookingId: string) => {
+    // Restore conversation to active state
+    updateStateMutation.mutate(
+      { bookingId, state: 'active' },
+      {
+        onSuccess: () => {
+          // After cache is invalidated, clear selection and switch back to inbox
+          setSelectedChat(null);
+          setMessageDisplay('inbox');
+        }
+      }
+    );
+  }, [updateStateMutation]);
 
   // Derived state
   const isComposeView = selectedChat === COMPOSE_THREAD_ID;
@@ -868,6 +882,23 @@ export default function MessagesPage() {
                       onComposeRecipientSelect={(conv) => { setComposeRecipient(conv); setComposeRecipientQuery(''); }}
                       onComposeRecipientClear={() => { setComposeRecipient(null); setComposeRecipientQuery(''); }}
                     />
+
+                    {/* Restore button for archived/trashed conversations */}
+                    {(messageDisplay === 'archived' || messageDisplay === 'trash') && selectedChat && (
+                      <div className="flex items-center justify-between px-4 py-2 bg-amber-50 border-b border-amber-200">
+                        <span className="text-sm text-amber-800">
+                          {messageDisplay === 'archived' ? 'Archived' : 'Trashed'} messages are read-only
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRestoreConversation(selectedChat)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#7E22CE] bg-white border border-[#7E22CE] rounded-md hover:bg-purple-50 transition-colors"
+                        >
+                          <Undo2 className="h-4 w-4" />
+                          Restore to Inbox
+                        </button>
+                      </div>
+                    )}
 
                     {/* Messages */}
                     <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">

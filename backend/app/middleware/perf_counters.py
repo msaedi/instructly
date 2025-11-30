@@ -137,15 +137,7 @@ class PerfCounterMiddleware(BaseHTTPMiddleware):
         response.headers["x-db-query-count"] = str(state.db_queries)
         response.headers["x-cache-hits"] = str(state.cache_hits)
         response.headers["x-cache-misses"] = str(state.cache_misses)
-        logger.info(
-            "final counters %s %s db=%s hits=%s misses=%s state_id=%s",
-            request.method,
-            request.url.path,
-            state.db_queries,
-            state.cache_hits,
-            state.cache_misses,
-            id(state),
-        )
+        # Per-request logging removed - counters available in response headers
 
         response.headers["x-db-table-availability_slots"] = str(
             state.table_counts.get("availability_slots", 0)
@@ -153,15 +145,7 @@ class PerfCounterMiddleware(BaseHTTPMiddleware):
 
         if track_sql:
             response.headers["x-db-sql-samples"] = str(len(state.sql_statements))
-            if state.sql_statements:
-                preview = "\n".join(state.sql_statements[:5])
-                logger.info(
-                    "SQL statements for %s %s:\n%s%s",
-                    request.method,
-                    request.url.path,
-                    preview,
-                    "\n..." if len(state.sql_statements) > 5 else "",
-                )
+            # SQL logging removed - count available in response headers
 
         if state.cache_keys:
             response.headers["x-cache-key"] = state.cache_keys[0]

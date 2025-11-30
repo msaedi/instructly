@@ -33,14 +33,10 @@ export function useUserMessageStream() {
   const subscribe = useCallback(
     (conversationId: string, handlers: ConversationHandlers) => {
       handlersRef.current.set(conversationId, handlers);
-      logger.debug('[SSE] Subscribed to conversation', { conversationId });
 
       // Return unsubscribe function
       return () => {
         handlersRef.current.delete(conversationId);
-        logger.debug('[SSE] Unsubscribed from conversation', {
-          conversationId,
-        });
       };
     },
     []
@@ -57,11 +53,7 @@ export function useUserMessageStream() {
     // Then, notify the conversation-specific handler
     const handlers = handlersRef.current.get(event.conversation_id);
     if (!handlers) {
-      logger.debug('[SSE] No handler for conversation', {
-        conversation_id: event.conversation_id,
-        type: event.type,
-      });
-      return; // No subscriber for this conversation
+      return; // No subscriber for this conversation - this is expected behavior
     }
 
     switch (event.type) {
