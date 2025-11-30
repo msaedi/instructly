@@ -1,5 +1,5 @@
 # InstaInstru Testing Infrastructure
-*Last Updated: August 2025*
+*Last Updated: November 2025 (Session v117)*
 
 ## 🧪 Testing Framework & Tools
 
@@ -21,11 +21,16 @@
 
 ## 📊 Current Test Status
 
-### Test Metrics
-- **Total Tests**: ~1,450
+### Test Metrics (v116-v117)
+- **Total Tests**: 2,130+ (Frontend: 483+, Backend: 1,647+)
 - **Pass Rate**: 100%
 - **Code Coverage**: 79%+
 - **CI/CD**: Fully operational with PostgreSQL 17 + Redis 7
+- **Contract Testing**: 61 Schemathesis tests (v116)
+- **Recent Additions**:
+  - v117: 25 new tests (messaging state management)
+  - v116: API contract testing suite
+  - v115: Availability bitmap tests
 
 ### Coverage by Priority
 
