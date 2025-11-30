@@ -10,11 +10,13 @@
 import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { format, isToday, isYesterday } from 'date-fns';
 import { ArrowLeft, Bell, MessageSquare, ChevronDown } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { useSendTypingIndicator } from '@/src/api/services/messages';
+import { useSendTypingIndicator, useAddReaction, useRemoveReaction, markMessagesAsReadImperative } from '@/src/api/services/messages';
 import { useAuthStatus } from '@/hooks/queries/useAuth';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
+import { logger } from '@/lib/logger';
 
 // Extracted components and hooks
 import {
@@ -97,6 +99,7 @@ export default function MessagesPage() {
     handleArchiveConversation,
     handleDeleteConversation,
     setThreadMessagesForDisplay,
+    updateThreadMessage,
   } = useMessageThread({
     currentUserId: currentUser?.id,
     conversations,
@@ -105,9 +108,12 @@ export default function MessagesPage() {
 
   // Derived state
   const isComposeView = selectedChat === COMPOSE_THREAD_ID;
-  const activeConversation = selectedChat && !isComposeView
-    ? conversations.find((conv) => conv.id === selectedChat) ?? null
-    : null;
+  const activeConversation = useMemo(
+    () => selectedChat && !isComposeView
+      ? conversations.find((conv) => conv.id === selectedChat) ?? null
+      : null,
+    [selectedChat, isComposeView, conversations]
+  );
   const selectedBookingId = activeConversation?.primaryBookingId ?? '';
 
   // Typing indicator
@@ -122,6 +128,13 @@ export default function MessagesPage() {
     } catch {}
   }, [selectedBookingId, sendTypingMutation]);
 
+  // Reaction mutations and state
+  const addReactionMutation = useAddReaction();
+  const removeReactionMutation = useRemoveReaction();
+  const [userReactions, setUserReactions] = useState<Record<string, string | null>>({});
+  const [openReactionsForMessageId, setOpenReactionsForMessageId] = useState<string | null>(null);
+  const [processingReaction, setProcessingReaction] = useState<string | null>(null);
+
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
     if (messagesContainerRef.current) {
@@ -132,6 +145,7 @@ export default function MessagesPage() {
   // SSE connection (Phase 4: per-user inbox)
   const { subscribe } = useMessageStream();
   const [sseTypingStatus, setSseTypingStatus] = useState<{ userId: string; userName: string; until: number } | null>(null);
+  const [readReceipts, setReadReceipts] = useState<Record<string, Array<{ user_id: string; read_at: string }>>>({});
 
   // Use ref to store latest handleSSEMessage to avoid re-render loop
   const handleSSEMessageRef = useRef(handleSSEMessage);
@@ -139,9 +153,20 @@ export default function MessagesPage() {
     handleSSEMessageRef.current = handleSSEMessage;
   }, [handleSSEMessage]);
 
+  // Store latest values in refs to avoid recreating subscription
+  const selectedChatRef = useRef(selectedChat);
+  const activeConversationRef = useRef(activeConversation);
+  const currentUserIdRef = useRef(currentUser?.id);
+
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+    activeConversationRef.current = activeConversation;
+    currentUserIdRef.current = currentUser?.id;
+  }, [selectedChat, activeConversation, currentUser?.id]);
+
   // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
-  const handleSSEMessageWrapper = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string }, _isMine: boolean) => {
-    if (!selectedChat || !activeConversation || !currentUser?.id) return;
+  const handleSSEMessageWrapper = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string; delivered_at?: string | null }, _isMine: boolean) => {
+    if (!selectedChatRef.current || !activeConversationRef.current || !currentUserIdRef.current) return;
     const sseMessage = {
       id: message.id,
       booking_id: message.booking_id,
@@ -150,10 +175,11 @@ export default function MessagesPage() {
       created_at: message.created_at,
       updated_at: message.created_at, // Use created_at as fallback
       is_deleted: false,
-      is_mine: message.sender_id === currentUser.id,
+      is_mine: message.sender_id === currentUserIdRef.current,
+      delivered_at: message.delivered_at,
     } as SSEMessageWithOwnership;
-    handleSSEMessageRef.current(sseMessage, selectedChat, activeConversation);
-  }, [selectedChat, activeConversation, currentUser?.id]);
+    handleSSEMessageRef.current(sseMessage, selectedChatRef.current, activeConversationRef.current);
+  }, []);
 
   const handleSSETyping = useCallback((userId: string, userName: string, isTyping: boolean) => {
     if (isTyping) {
@@ -166,6 +192,146 @@ export default function MessagesPage() {
     }
   }, []);
 
+  const handleReadReceipt = useCallback((messageIds: string[], readerId: string) => {
+    if (!messageIds || !Array.isArray(messageIds)) {
+      return;
+    }
+
+    setReadReceipts((prev) => {
+      const updated = { ...prev };
+      messageIds.forEach((msgId) => {
+        const existing = updated[msgId] || [];
+        if (!existing.find((r) => r.user_id === readerId)) {
+          updated[msgId] = [...existing, { user_id: readerId, read_at: new Date().toISOString() }];
+        }
+      });
+      return updated;
+    });
+  }, []);
+
+  const handleReaction = useCallback((messageId: string, emoji: string, action: 'added' | 'removed', userId: string) => {
+    // Update threadMessages reactions locally when SSE event is received
+    updateThreadMessage(messageId, (msg) => {
+      // Update reactions object
+      const updatedReactions = { ...(msg.reactions || {}) };
+      const currentCount = updatedReactions[emoji] || 0;
+      const newCount = action === 'added' ? currentCount + 1 : Math.max(0, currentCount - 1);
+
+      if (newCount === 0) {
+        delete updatedReactions[emoji];
+      } else {
+        updatedReactions[emoji] = newCount;
+      }
+
+      // Update my_reactions if it's the current user
+      let updatedMyReactions = msg.my_reactions || [];
+      if (userId === currentUser?.id) {
+        if (action === 'added') {
+          // Add emoji if not already there
+          if (!updatedMyReactions.includes(emoji)) {
+            updatedMyReactions = [emoji]; // Users can only have one reaction
+          }
+        } else {
+          // Remove emoji
+          updatedMyReactions = updatedMyReactions.filter((e) => e !== emoji);
+        }
+      }
+
+      return {
+        ...msg,
+        reactions: updatedReactions,
+        my_reactions: updatedMyReactions,
+      };
+    });
+  }, [currentUser?.id, updateThreadMessage]);
+
+  const handleAddReaction = useCallback(async (messageId: string, emoji: string) => {
+    // Prevent multiple simultaneous reactions
+    if (processingReaction !== null) {
+      return;
+    }
+
+    try {
+      setProcessingReaction(messageId);
+      setOpenReactionsForMessageId(null); // Close popover immediately
+
+      // Find the message to check current user's reaction
+      const message = threadMessages.find((m) => m.id === messageId);
+      if (!message) {
+        return;
+      }
+
+      // Get current state
+      const myReactions = message.my_reactions || [];
+      const localReaction = userReactions[messageId];
+      const currentReaction = localReaction !== undefined ? localReaction : myReactions[0];
+
+      // If user is trying to add a reaction when they already have one (and it's different)
+      if (currentReaction && currentReaction !== emoji) {
+        // Update local state immediately
+        setUserReactions((prev) => ({ ...prev, [messageId]: emoji }));
+
+        // Remove old reaction
+        try {
+          await removeReactionMutation.mutateAsync({ messageId, data: { emoji: currentReaction } });
+        } catch {
+          // Revert local state
+          setUserReactions((prev) => ({ ...prev, [messageId]: currentReaction }));
+          return;
+        }
+
+        // Add new reaction
+        try {
+          await addReactionMutation.mutateAsync({ messageId, data: { emoji } });
+        } catch {
+          // Revert to no reaction
+          setUserReactions((prev) => ({ ...prev, [messageId]: null }));
+        }
+      } else if (currentReaction === emoji) {
+        // Toggle off - remove the reaction
+        setUserReactions((prev) => ({ ...prev, [messageId]: null }));
+
+        try {
+          await removeReactionMutation.mutateAsync({ messageId, data: { emoji } });
+        } catch {
+          // Revert local state
+          setUserReactions((prev) => ({ ...prev, [messageId]: emoji }));
+        }
+      } else {
+        // No current reaction, add the new one
+        setUserReactions((prev) => ({ ...prev, [messageId]: emoji }));
+
+        try {
+          await addReactionMutation.mutateAsync({ messageId, data: { emoji } });
+        } catch {
+          // Revert local state
+          setUserReactions((prev) => ({ ...prev, [messageId]: null }));
+        }
+      }
+    } finally {
+      setProcessingReaction(null);
+    }
+  }, [processingReaction, threadMessages, userReactions, removeReactionMutation, addReactionMutation]);
+
+  // Initialize userReactions from server data when messages load
+  useEffect(() => {
+    setUserReactions((prev) => {
+      const updated: Record<string, string | null> = { ...prev };
+      let hasChanges = false;
+
+      threadMessages.forEach((message) => {
+        // Only initialize if not already in state
+        if (!(message.id in updated)) {
+          const myReactions = message.my_reactions || [];
+          updated[message.id] = myReactions[0] || null;
+          hasChanges = true;
+        }
+      });
+
+      return hasChanges ? updated : prev;
+    });
+  }, [threadMessages]); // Removed userReactions dependency to prevent infinite loops
+
   // Subscribe to active conversation's events
   useEffect(() => {
     if (!selectedBookingId || messageDisplay !== 'inbox') {
@@ -176,10 +342,12 @@ export default function MessagesPage() {
     const unsubscribe = subscribe(selectedBookingId, {
       onMessage: handleSSEMessageWrapper,
       onTyping: handleSSETyping,
+      onReadReceipt: handleReadReceipt,
+      onReaction: handleReaction,
     });
 
     return unsubscribe;
-  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping]);
+  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleReadReceipt, handleReaction]);
 
   // Filter conversations
   const filteredConversations = useMemo(() => {
@@ -231,6 +399,38 @@ export default function MessagesPage() {
       .slice(0, 5);
   }, [composeRecipientQuery, composeRecipient?.id, conversations]);
 
+  // Merge read receipts from message history and SSE events
+  const mergedReadReceipts = useMemo(() => {
+    const map: Record<string, Array<{ user_id: string; read_at: string }>> = { ...readReceipts };
+    for (const m of threadMessages) {
+      if (m.read_by && Array.isArray(m.read_by)) {
+        const existing = map[m.id] || [];
+        const combined = [...existing];
+        for (const r of m.read_by as Array<{ user_id: string; read_at: string }>) {
+          if (!combined.find((x) => x.user_id === r.user_id && x.read_at === r.read_at)) {
+            if (r.user_id && r.read_at) combined.push({ user_id: r.user_id, read_at: r.read_at });
+          }
+        }
+        map[m.id] = combined;
+      }
+    }
+    return map;
+  }, [threadMessages, readReceipts]);
+
+  // Find last instructor message that has been read (for "Read at" timestamp display)
+  const lastInstructorReadMessageId = useMemo(() => {
+    if (!currentUser?.id) return null;
+    let latest: { id: string; ts: number } | null = null;
+    for (const m of threadMessages) {
+      if (m.sender !== 'instructor' && m.senderId !== currentUser.id) continue;
+      const reads = mergedReadReceipts[m.id] || [];
+      if (reads.length === 0) continue;
+      const t = new Date(m.createdAt || '').getTime();
+      if (!latest || t > latest.ts) latest = { id: m.id, ts: t };
+    }
+    return latest?.id ?? null;
+  }, [threadMessages, mergedReadReceipts, currentUser?.id]);
+
   // Get primary booking ID for a thread
   const getPrimaryBookingId = useCallback((threadId: string | null) => {
     if (!threadId) return null;
@@ -274,6 +474,25 @@ export default function MessagesPage() {
   useEffect(() => {
     scrollToBottom();
   }, [threadMessages.length, scrollToBottom]);
+
+  // Continuously mark student messages as read when viewing conversation
+  useEffect(() => {
+    if (!selectedChat || selectedChat === COMPOSE_THREAD_ID || !activeConversation || !currentUser) return;
+
+    // Find unread student messages
+    const unreadStudentMessages = threadMessages.filter(msg =>
+      msg.sender !== 'instructor' &&
+      msg.senderId !== currentUser.id &&
+      !mergedReadReceipts[msg.id]?.some(r => r.user_id === currentUser.id)
+    );
+
+    if (unreadStudentMessages.length > 0 && activeConversation.primaryBookingId) {
+      // Mark all unread student messages as read
+      markMessagesAsReadImperative({ booking_id: activeConversation.primaryBookingId }).catch(err => {
+        logger.error('[Instructor] Failed to mark messages as read', err);
+      });
+    }
+  }, [selectedChat, activeConversation, threadMessages, mergedReadReceipts, currentUser]);
 
   // Load draft when switching conversations
   useEffect(() => {
@@ -548,6 +767,26 @@ export default function MessagesPage() {
                         const senderName = message.sender === 'instructor'
                           ? (currentUser?.first_name || 'You')
                           : (activeConversation?.name || 'Student');
+                        const readReceiptCount = mergedReadReceipts[message.id]?.length ?? 0;
+                        const hasDeliveredAt = !!message.delivered_at;
+
+                        const isOwnMessage = message.sender === 'instructor';
+                        const currentReaction: string | null =
+                          message.id in userReactions
+                            ? userReactions[message.id]!  // We know it exists, so assert non-null access
+                            : (message.my_reactions?.[0] ?? null);
+
+                        // Format read timestamp for last read message (iMessage-style)
+                        const isLastRead = message.id === lastInstructorReadMessageId;
+                        const readTimestamp = isLastRead && readReceiptCount > 0
+                          ? (() => {
+                              const firstReceipt = mergedReadReceipts[message.id]?.[0];
+                              const readAt = new Date(firstReceipt?.read_at || '');
+                              if (isToday(readAt)) return `Read at ${format(readAt, 'h:mm a')}`;
+                              if (isYesterday(readAt)) return `Read yesterday at ${format(readAt, 'h:mm a')}`;
+                              return `Read on ${format(readAt, 'MMM d')} at ${format(readAt, 'h:mm a')}`;
+                            })()
+                          : undefined;
 
                         return (
                           <MessageBubble
@@ -556,6 +795,21 @@ export default function MessagesPage() {
                             isLastInstructor={message.sender === 'instructor' && index === threadMessages.length - 1}
                             showSenderName={showSenderName}
                             senderName={senderName}
+                            showReadIndicator={message.sender === 'instructor'}
+                            readReceiptCount={readReceiptCount}
+                            hasDeliveredAt={hasDeliveredAt}
+                            {...(readTimestamp ? { readTimestamp } : {})}
+                            // Reaction props
+                            isOwnMessage={isOwnMessage}
+                            currentReaction={currentReaction}
+                            onReactionClick={(emoji) => handleAddReaction(message.id, emoji)}
+                            showReactionPicker={openReactionsForMessageId === message.id}
+                            onToggleReactionPicker={() =>
+                              setOpenReactionsForMessageId(
+                                openReactionsForMessageId === message.id ? null : message.id
+                              )
+                            }
+                            processingReaction={processingReaction !== null}
                           />
                         );
                       })}

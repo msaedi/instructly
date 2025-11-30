@@ -65,6 +65,10 @@ export type UseMessageThreadResult = {
     selectedChat: string,
     messageDisplay: MessageDisplayMode
   ) => void;
+  updateThreadMessage: (
+    messageId: string,
+    updater: (message: MessageWithAttachments) => MessageWithAttachments
+  ) => void;
 };
 
 export function useMessageThread({
@@ -86,7 +90,7 @@ export function useMessageThread({
   const archivedMessagesByThreadRef = useRef<Record<string, MessageWithAttachments[]>>({});
   const trashMessagesByThreadRef = useRef<Record<string, MessageWithAttachments[]>>({});
   const threadMessagesRef = useRef<MessageWithAttachments[]>([]);
-  const markedReadThreadsRef = useRef<Set<string>>(new Set());
+  const markedReadThreadsRef = useRef<Map<string, number>>(new Map());
   const fetchingThreadsRef = useRef<Set<string>>(new Set());
   const loadedThreadsRef = useRef<Set<string>>(new Set());
 
@@ -173,19 +177,27 @@ export function useMessageThread({
 
         loadedThreadsRef.current.add(selectedChat);
 
-        // Mark messages as read
-        if (unreadCount > 0 && !markedReadThreadsRef.current.has(bookingId)) {
-          markedReadThreadsRef.current.add(bookingId);
-          try {
-            await markMessagesAsReadImperative({ booking_id: bookingId });
-            setConversations((prev) =>
-              prev.map((conv) =>
-                conv.id === selectedChat ? { ...conv, unread: 0 } : conv
-              )
-            );
-          } catch {
-            markedReadThreadsRef.current.delete(bookingId);
+        // Mark messages as read (continuously, not just once)
+        if (unreadCount > 0) {
+          // Only prevent duplicate calls for the SAME unread count
+          const lastCount = markedReadThreadsRef.current.get(bookingId) ?? -1;
+          if (lastCount !== unreadCount) {
+            markedReadThreadsRef.current.set(bookingId, unreadCount);
+            try {
+              await markMessagesAsReadImperative({ booking_id: bookingId });
+              setConversations((prev) =>
+                prev.map((conv) =>
+                  conv.id === selectedChat ? { ...conv, unread: 0 } : conv
+                )
+              );
+              markedReadThreadsRef.current.set(bookingId, 0);
+            } catch {
+              markedReadThreadsRef.current.set(bookingId, lastCount);
+            }
           }
+        } else {
+          // No unread messages, reset the counter
+          markedReadThreadsRef.current.set(bookingId, 0);
         }
       } catch (error) {
         logger.error('Failed to fetch messages for conversation', { conversationId: selectedChat, error });
@@ -205,26 +217,47 @@ export function useMessageThread({
   ) => {
     if (!currentUserId) return;
 
-    // Skip own messages
-    if (message.is_mine === true || message.sender_id === currentUserId) {
-      return;
-    }
-
     const mappedMessage = mapMessageFromResponse(
       message as MessageResponse,
       activeConversation,
       currentUserId
     );
 
-    // Add to current thread
+    // For own messages: update existing message with new fields (e.g., delivered_at)
+    // For other messages: add new message to thread
+    const isOwnMessage = message.is_mine === true || message.sender_id === currentUserId;
+
+    // Add or update in current thread
     setMessagesByThread((prev) => {
       const existing = prev[selectedChat] ?? [];
-      if (existing.some((m) => m.id === mappedMessage.id)) return prev;
+      const existingIndex = existing.findIndex((m) => m.id === mappedMessage.id);
+      if (existingIndex !== -1) {
+        // Update existing message (e.g., delivered_at for own messages)
+        const updated = [...existing];
+        updated[existingIndex] = {
+          ...updated[existingIndex]!,
+          delivered_at: mappedMessage.delivered_at ?? updated[existingIndex]!.delivered_at,
+        };
+        return { ...prev, [selectedChat]: updated };
+      }
+      // Only add new messages from other users
+      if (isOwnMessage) return prev;
       return { ...prev, [selectedChat]: [...existing, mappedMessage] };
     });
 
     setThreadMessages((prev) => {
-      if (prev.some((m) => m.id === mappedMessage.id)) return prev;
+      const existingIndex = prev.findIndex((m) => m.id === mappedMessage.id);
+      if (existingIndex !== -1) {
+        // Update existing message
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex]!,
+          delivered_at: mappedMessage.delivered_at ?? updated[existingIndex]!.delivered_at,
+        };
+        return updated;
+      }
+      // Only add new messages from other users
+      if (isOwnMessage) return prev;
       return [...prev, mappedMessage];
     });
 
@@ -357,6 +390,7 @@ export function useMessageThread({
     // Send to server
     const bookingIdTarget = getPrimaryBookingId(targetThreadId);
     let resolvedServerId: string | undefined;
+    let deliveredAtFromBackend: string | null = null;
 
     try {
       if (bookingIdTarget) {
@@ -368,6 +402,8 @@ export function useMessageThread({
           content: composedForServer,
         });
         resolvedServerId = res?.message?.id ?? undefined;
+        // Store delivered_at from backend response
+        deliveredAtFromBackend = res?.message?.delivered_at ?? null;
       }
     } catch (error) {
       logger.warn('Failed to persist instructor message', { error });
@@ -379,6 +415,8 @@ export function useMessageThread({
       ...optimistic,
       id: resolvedServerId ?? optimisticId,
       delivery: { status: 'delivered', timeLabel: deliveredAt },
+      // Add delivered_at field from backend response (Bug #4 fix)
+      delivered_at: deliveredAtFromBackend,
     };
 
     const applyDeliveryUpdate = (collection: MessageWithAttachments[]): MessageWithAttachments[] => {
@@ -387,7 +425,7 @@ export function useMessageThread({
       if (!hasMatch) return [...collection, deliveredMessage];
       return collection.map((m): MessageWithAttachments =>
         m.id === optimisticId || (resolvedServerId && m.id === resolvedServerId)
-          ? { ...m, id: deliveredMessage.id, delivery: deliveredMessage.delivery }
+          ? { ...m, id: deliveredMessage.id, delivery: deliveredMessage.delivery, delivered_at: deliveredMessage.delivered_at }
           : m
       );
     };
@@ -460,6 +498,36 @@ export function useMessageThread({
     logger.info('Deleted conversation', { conversationId, messageCount: allMessages.length });
   }, []);
 
+  // Update a specific message (e.g., for reaction updates)
+  const updateThreadMessage = useCallback((
+    messageId: string,
+    updater: (message: MessageWithAttachments) => MessageWithAttachments
+  ) => {
+    // Update in all state objects
+    setThreadMessages((prev) => prev.map((msg) => msg.id === messageId ? updater(msg) : msg));
+    setMessagesByThread((prev) => {
+      const updated = { ...prev };
+      for (const threadId in updated) {
+        updated[threadId] = updated[threadId]?.map((msg) => msg.id === messageId ? updater(msg) : msg) ?? [];
+      }
+      return updated;
+    });
+    setArchivedMessagesByThread((prev) => {
+      const updated = { ...prev };
+      for (const threadId in updated) {
+        updated[threadId] = updated[threadId]?.map((msg) => msg.id === messageId ? updater(msg) : msg) ?? [];
+      }
+      return updated;
+    });
+    setTrashMessagesByThread((prev) => {
+      const updated = { ...prev };
+      for (const threadId in updated) {
+        updated[threadId] = updated[threadId]?.map((msg) => msg.id === messageId ? updater(msg) : msg) ?? [];
+      }
+      return updated;
+    });
+  }, []);
+
   return {
     threadMessages,
     messagesByThread,
@@ -471,5 +539,6 @@ export function useMessageThread({
     handleArchiveConversation,
     handleDeleteConversation,
     setThreadMessagesForDisplay,
+    updateThreadMessage,
   };
 }

@@ -140,7 +140,8 @@ class MessageService(BaseService):
                     }
                 )
             for m in messages:
-                if not getattr(m, "read_by", None):
+                original_read_by = getattr(m, "read_by", None)
+                if not original_read_by:
                     setattr(m, "read_by", message_id_to_reads.get(m.id, []))
 
             # Reactions summary and my reactions via repository
@@ -301,15 +302,20 @@ class MessageService(BaseService):
             else:
                 ok = bool(self.repository.add_reaction(message_id, user_id, emoji))
 
-            # Notify via NOTIFY for SSE consumers through repository
+            # Notify via NOTIFY for SSE consumers - send to both participants' inbox channels
             payload = {
                 "type": "reaction_update",
+                "conversation_id": message.booking_id,
                 "message_id": message_id,
                 "emoji": emoji,
                 "user_id": user_id,
                 "action": action,
             }
-            self.repository.notify_booking_channel(message.booking_id, payload)
+            # Get booking to know both participants
+            booking = self.booking_repository.get_by_id(message.booking_id)
+            if booking:
+                self.repository.notify_user_channel(booking.instructor_id, payload)
+                self.repository.notify_user_channel(booking.student_id, payload)
             return ok
 
     @BaseService.measure_operation("remove_reaction")
@@ -323,12 +329,17 @@ class MessageService(BaseService):
             ok = bool(self.repository.remove_reaction(message_id, user_id, emoji))
             payload = {
                 "type": "reaction_update",
+                "conversation_id": message.booking_id,
                 "message_id": message_id,
                 "emoji": emoji,
                 "user_id": user_id,
                 "action": "removed",
             }
-            self.repository.notify_booking_channel(message.booking_id, payload)
+            # Get booking to know both participants
+            booking = self.booking_repository.get_by_id(message.booking_id)
+            if booking:
+                self.repository.notify_user_channel(booking.instructor_id, payload)
+                self.repository.notify_user_channel(booking.student_id, payload)
             return ok
 
     @BaseService.measure_operation("edit_message")

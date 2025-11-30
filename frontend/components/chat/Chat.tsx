@@ -142,10 +142,20 @@ export function Chat({
   };
 
   // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
-  const handleSSEMessage = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string }, isMine: boolean) => {
-    // Add message to realtime state with deduplication
+  const handleSSEMessage = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string; delivered_at?: string | null }, isMine: boolean) => {
+    // Add message to realtime state, or update existing message with new fields (e.g., delivered_at)
     setRealtimeMessages((prev) => {
-      if (prev.some((m) => m.id === message.id)) return prev;
+      const existingIndex = prev.findIndex((m) => m.id === message.id);
+      if (existingIndex !== -1) {
+        // Update existing message (e.g., to add delivered_at timestamp)
+        const updated = [...prev];
+        const deliveredAt = message.delivered_at ?? updated[existingIndex]!.delivered_at;
+        updated[existingIndex] = {
+          ...updated[existingIndex]!,
+          ...(deliveredAt ? { delivered_at: deliveredAt } : {}),
+        };
+        return updated;
+      }
       return [
         ...prev,
         {
@@ -156,6 +166,7 @@ export function Chat({
           created_at: message.created_at,
           updated_at: message.created_at,
           is_deleted: false,
+          ...(message.delivered_at ? { delivered_at: message.delivered_at } : {}),
         } as MessageResponse,
       ];
     });
@@ -199,15 +210,16 @@ export function Chat({
     });
   }, []);
 
-  const handleReaction = useCallback((messageId: string, emoji: string, action: 'added' | 'removed') => {
+  const handleReaction = useCallback((messageId: string, emoji: string, action: 'added' | 'removed', _userId: string) => {
     setReactionDeltas((prev) => {
       const current = prev[messageId] || {};
       const delta = action === 'added' ? 1 : -1;
       const nextCount = (current[emoji] || 0) + delta;
-      return {
+      const updated = {
         ...prev,
         [messageId]: { ...current, [emoji]: nextCount },
       };
+      return updated;
     });
   }, []);
 
@@ -233,15 +245,6 @@ export function Chat({
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, [bookingId, subscribe, handleSSEMessage, handleSSETyping, handleReadReceipt, handleReaction, queryClient]);
-
-  // Debug: Log typing status changes to diagnose Issue 3
-  useEffect(() => {
-    logger.debug('[Chat] typingStatus changed:', {
-      typingStatus,
-      currentUserId,
-      willShow: typingStatus && typingStatus.userId !== currentUserId && !isReadOnly,
-    });
-  }, [typingStatus, currentUserId, isReadOnly]);
 
   // Combine history and real-time messages with deduplication
   const allMessages = React.useMemo(() => {
@@ -888,11 +891,13 @@ export function Chat({
                               {formatMessageDate(message.created_at)}
                             </span>
                             {isOwn && (
-                              // Show double check if any read receipt exists for this message
+                              // WhatsApp-style indicators: gray sent → gray delivered → blue read
                               (mergedReadReceipts[message.id]?.length ?? 0) > 0 ? (
-                                <CheckCheck className="w-3 h-3" />
+                                <CheckCheck className="w-3 h-3 text-blue-500" />
+                              ) : message.delivered_at ? (
+                                <CheckCheck className="w-3 h-3 text-gray-400" />
                               ) : (
-                                <Check className="w-3 h-3" />
+                                <Check className="w-3 h-3 text-gray-400" />
                               )
                             )}
                             {message.edited_at && (
@@ -935,6 +940,17 @@ export function Chat({
                               // Increment new reaction
                               displayReactions[localReaction] = (displayReactions[localReaction] || 0) + 1;
                             }
+                          }
+
+                          // Apply SSE reaction deltas for real-time updates from other users
+                          const messageDelta = reactionDeltas[message.id];
+                          if (messageDelta) {
+                            Object.entries(messageDelta).forEach(([emoji, delta]) => {
+                              displayReactions[emoji] = Math.max(0, (displayReactions[emoji] || 0) + delta);
+                              if (displayReactions[emoji] === 0) {
+                                delete displayReactions[emoji];
+                              }
+                            });
                           }
 
                           const entries = Object.entries(displayReactions).filter(([, c]) => c > 0);

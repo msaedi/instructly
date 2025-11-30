@@ -51,6 +51,11 @@ export type MessageWithAttachments = MessageItem & {
   senderId?: string | undefined;
   isArchived?: boolean | undefined;
   isTrashed?: boolean | undefined;
+  read_by?: ReadByEntry[] | undefined;
+  delivered_at?: string | null | undefined;
+  // Reaction fields
+  reactions?: Record<string, number> | undefined;
+  my_reactions?: string[] | undefined;
 };
 
 /**

@@ -93,6 +93,14 @@ export const mapMessageFromResponse = (
     mapped.isArchived = Boolean((message as { is_deleted?: boolean }).is_deleted);
   }
 
+  // Preserve delivered_at and read_by from API response
+  if (message.delivered_at) {
+    mapped.delivered_at = message.delivered_at;
+  }
+  if (message.read_by) {
+    mapped.read_by = message.read_by as ReadByEntry[];
+  }
+
   return mapped;
 };
 

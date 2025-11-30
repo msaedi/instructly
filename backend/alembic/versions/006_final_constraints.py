@@ -721,6 +721,7 @@ def upgrade() -> None:
                 v_booking RECORD;
                 v_payload JSONB;
                 v_sender_name TEXT;
+                v_delivered_at TIMESTAMP WITH TIME ZONE;
             BEGIN
                 -- Get booking participants
                 SELECT b.instructor_id, b.student_id INTO v_booking
@@ -729,6 +730,10 @@ def upgrade() -> None:
                 -- Get sender name for display
                 SELECT first_name INTO v_sender_name
                 FROM users WHERE id = NEW.sender_id;
+
+                -- Set delivered_at timestamp (message is delivered when SSE is sent)
+                v_delivered_at := NOW();
+                UPDATE messages SET delivered_at = v_delivered_at WHERE id = NEW.id;
 
                 -- Build payload with conversation_id for client-side routing
                 v_payload := jsonb_build_object(
@@ -741,7 +746,8 @@ def upgrade() -> None:
                         'sender_name', v_sender_name,
                         'created_at', NEW.created_at,
                         'booking_id', NEW.booking_id,
-                        'is_deleted', NEW.is_deleted
+                        'is_deleted', NEW.is_deleted,
+                        'delivered_at', v_delivered_at
                     )
                 );
 

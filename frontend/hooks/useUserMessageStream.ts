@@ -12,7 +12,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
-import type { SSEEvent, ConversationHandlers } from '@/types/messaging';
+import type { SSEEvent, ConversationHandlers, SSEReadReceiptEvent } from '@/types/messaging';
 
 const SSE_ENDPOINT = '/api/v1/messages/stream';
 const RECONNECT_DELAY = 3000;
@@ -71,9 +71,14 @@ export function useUserMessageStream() {
       case 'typing_status':
         handlers.onTyping?.(event.user_id, event.user_name, event.is_typing);
         break;
-      case 'read_receipt':
-        handlers.onReadReceipt?.(event.message_ids, event.reader_id);
+      case 'read_receipt': {
+        // Database trigger sends message_id (singular), but handler expects message_ids (array)
+        // TypeScript doesn't know about message_id, so we use type assertion
+        const eventWithMessageId = event as SSEReadReceiptEvent & { message_id?: string };
+        const messageIds = event.message_ids || (eventWithMessageId.message_id ? [eventWithMessageId.message_id] : []);
+        handlers.onReadReceipt?.(messageIds, event.reader_id);
         break;
+      }
       case 'reaction_update':
         handlers.onReaction?.(event.message_id, event.emoji, event.action, event.user_id);
         break;

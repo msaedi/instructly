@@ -51,7 +51,12 @@ class MessageRepository(BaseRepository[Message]):
             RepositoryException: If creation fails
         """
         try:
-            message = Message(booking_id=booking_id, sender_id=sender_id, content=content)
+            message = Message(
+                booking_id=booking_id,
+                sender_id=sender_id,
+                content=content,
+                delivered_at=datetime.now(timezone.utc),  # Mark as delivered immediately
+            )
             self.db.add(message)
             self.db.flush()  # Get the ID without committing
 
@@ -147,6 +152,7 @@ class MessageRepository(BaseRepository[Message]):
             Number of messages marked as read
         """
         try:
+            # Update notifications
             count = cast(
                 int,
                 (
@@ -167,6 +173,24 @@ class MessageRepository(BaseRepository[Message]):
                     )
                 ),
             )
+
+            # Update Message.read_by field for persistence
+            if count > 0:
+                read_at = datetime.now(timezone.utc).isoformat()
+                messages = self.db.query(Message).filter(Message.id.in_(message_ids)).all()
+
+                for message in messages:
+                    # Get existing read_by array or initialize empty list
+                    read_by = message.read_by if message.read_by else []
+
+                    # Check if user hasn't already read this message
+                    if not any(r.get("user_id") == user_id for r in read_by):
+                        read_by.append({"user_id": user_id, "read_at": read_at})
+                        message.read_by = read_by
+                        # Force SQLAlchemy to detect the change
+                        from sqlalchemy.orm.attributes import flag_modified
+
+                        flag_modified(message, "read_by")
 
             self.logger.info(f"Marked {count} messages as read for user {user_id}")
             return count

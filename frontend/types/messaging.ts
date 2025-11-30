@@ -23,6 +23,7 @@ export interface SSEMessageEvent {
     sender_name: string;
     created_at: string;
     booking_id: string;
+    delivered_at?: string | null;
   };
 }
 
