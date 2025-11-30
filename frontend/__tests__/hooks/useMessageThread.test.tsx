@@ -323,11 +323,12 @@ describe('useMessageThread', () => {
 
       expect(result.current.threadMessages).toEqual([]);
 
-      await act(async () => {
+      act(() => {
         result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
-        await waitFor(() => {
-          expect(result.current.threadMessages.length).toBeGreaterThan(0);
-        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBeGreaterThan(0);
       });
 
       expect(result.current.threadMessages.length).toBe(1);
@@ -345,11 +346,12 @@ describe('useMessageThread', () => {
         { wrapper: createWrapper() }
       );
 
-      await act(async () => {
+      act(() => {
         result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
-        await waitFor(() => {
-          expect(result.current.messagesByThread['conv1']).toBeDefined();
-        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.messagesByThread['conv1']).toBeDefined();
       });
 
       expect(result.current.messagesByThread['conv1']?.length).toBe(1);

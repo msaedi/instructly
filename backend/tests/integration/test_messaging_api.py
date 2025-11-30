@@ -30,8 +30,9 @@ class TestMessagingAPI:
 
         assert response.status_code == 201
         data = response.json()
-        assert "delivered_at" in data
-        assert data["delivered_at"] is not None
+        assert "message" in data
+        assert "delivered_at" in data["message"]
+        assert data["message"]["delivered_at"] is not None
 
     def test_message_history_includes_delivered_at(
         self, client_type, request, auth_headers_instructor, auth_headers_student, test_booking
@@ -48,7 +49,7 @@ class TestMessagingAPI:
 
         # Get message history
         response = client.get(
-            f"/api/v1/messages/{test_booking.id}/history",
+            f"/api/v1/messages/history/{test_booking.id}",
             headers=auth_headers_instructor,
         )
 
@@ -81,7 +82,7 @@ class TestMessagingAPI:
 
         # Get message history
         response = client.get(
-            f"/api/v1/messages/{test_booking.id}/history",
+            f"/api/v1/messages/history/{test_booking.id}",
             headers=auth_headers_instructor,
         )
 
@@ -217,7 +218,7 @@ class TestMessagingAPI:
 
         # Get first 2 messages
         response = client.get(
-            f"/api/v1/messages/{test_booking.id}/history",
+            f"/api/v1/messages/history/{test_booking.id}",
             params={"limit": 2, "offset": 0},
             headers=auth_headers_instructor,
         )
@@ -271,7 +272,7 @@ class TestMessagingAPI:
         )
 
         assert message_response.status_code == 201
-        message_id = message_response.json()["id"]
+        message_id = message_response.json()["message"]["id"]
 
         # Add reaction
         reaction_response = client.post(

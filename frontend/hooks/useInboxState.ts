@@ -4,6 +4,14 @@ import { usePageVisibility } from './usePageVisibility';
 import { useAuthStatus } from './queries/useAuth';
 import { withApiBase } from '@/lib/apiBase';
 
+// Custom error class for 304 Not Modified responses
+class NotModifiedError extends Error {
+  constructor() {
+    super('Not Modified');
+    this.name = 'NotModifiedError';
+  }
+}
+
 // Types matching backend response
 export interface OtherUserInfo {
   id: string;
@@ -51,7 +59,7 @@ export function useInboxState() {
   const [isActive, setIsActive] = useState(true);
 
   // Fetch function with ETag support
-  const fetchInboxState = useCallback(async (): Promise<InboxState | null> => {
+  const fetchInboxState = useCallback(async (): Promise<InboxState> => {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -67,7 +75,7 @@ export function useInboxState() {
       credentials: 'include',
     });
 
-    // 304 Not Modified - nothing changed
+    // 304 Not Modified - throw to tell React Query to keep previous data
     if (response.status === 304) {
       unchangedCountRef.current += 1;
 
@@ -76,8 +84,8 @@ export function useInboxState() {
         setIsActive(false);
       }
 
-      // Return null to keep previous data
-      return null;
+      // Throw special error that we catch in React Query config
+      throw new NotModifiedError();
     }
 
     if (!response.ok) {
@@ -108,8 +116,12 @@ export function useInboxState() {
     },
     refetchOnWindowFocus: true,
     staleTime: ACTIVE_INTERVAL, // Consider data stale after interval
-
-    // Keep previous data when fetch returns null (304)
+    retry: (failureCount, error) => {
+      // Don't retry on 304
+      if (error instanceof NotModifiedError) return false;
+      return failureCount < 3;
+    },
+    // Keep previous data on 304 error
     placeholderData: (previousData) => previousData,
   });
 

@@ -210,7 +210,12 @@ export function Chat({
     });
   }, []);
 
-  const handleReaction = useCallback((messageId: string, emoji: string, action: 'added' | 'removed', _userId: string) => {
+  const handleReaction = useCallback((messageId: string, emoji: string, action: 'added' | 'removed', userId: string) => {
+    // Skip SSE deltas for current user's own reactions - already handled optimistically
+    if (userId === currentUserId) {
+      return;
+    }
+
     setReactionDeltas((prev) => {
       const current = prev[messageId] || {};
       const delta = action === 'added' ? 1 : -1;
@@ -221,7 +226,7 @@ export function Chat({
       };
       return updated;
     });
-  }, []);
+  }, [currentUserId]);
 
   // Subscribe to this conversation's events
   useEffect(() => {

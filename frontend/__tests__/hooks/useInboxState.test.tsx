@@ -130,18 +130,16 @@ describe('useInboxState', () => {
       expect(result.current.data).toEqual(mockResponse);
     });
 
-    // Clear the mock to track new calls
-    (global.fetch as jest.Mock).mockClear();
-
     // Trigger refetch by advancing timers
-    jest.advanceTimersByTime(5000);
+    await jest.advanceTimersByTimeAsync(5000);
 
+    // Wait for the second call (304 response)
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalled();
+      expect(global.fetch).toHaveBeenCalledTimes(2);
     });
 
     // Should have sent If-None-Match header with ETag
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(global.fetch).toHaveBeenLastCalledWith(
       'http://localhost:3000/api/v1/messages/inbox-state',
       expect.objectContaining({
         headers: expect.objectContaining({
@@ -151,7 +149,9 @@ describe('useInboxState', () => {
     );
 
     // Should still have previous data (not null/undefined)
-    expect(result.current.data).toEqual(mockResponse);
+    await waitFor(() => {
+      expect(result.current.data).toEqual(mockResponse);
+    });
   });
 
   it('should include unread_conversations count', async () => {
@@ -208,7 +208,7 @@ describe('useInboxState', () => {
     });
 
     // Wait a bit
-    jest.advanceTimersByTime(10000);
+    await jest.advanceTimersByTimeAsync(10000);
 
     // Should not have called fetch
     expect(global.fetch).not.toHaveBeenCalled();
@@ -222,7 +222,7 @@ describe('useInboxState', () => {
     });
 
     // Wait a bit
-    jest.advanceTimersByTime(10000);
+    await jest.advanceTimersByTimeAsync(10000);
 
     // Should not have called fetch
     expect(global.fetch).not.toHaveBeenCalled();
@@ -255,7 +255,7 @@ describe('useInboxState', () => {
 
     // Clear and advance by active interval (5 seconds)
     (global.fetch as jest.Mock).mockClear();
-    jest.advanceTimersByTime(5000);
+    await jest.advanceTimersByTimeAsync(5000);
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalled();
@@ -300,7 +300,7 @@ describe('useInboxState', () => {
     // Trigger 3 consecutive 304s (ACTIVITY_THRESHOLD)
     for (let i = 0; i < 3; i++) {
       (global.fetch as jest.Mock).mockClear();
-      jest.advanceTimersByTime(5000);
+      await jest.advanceTimersByTimeAsync(5000);
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalled();
       });
