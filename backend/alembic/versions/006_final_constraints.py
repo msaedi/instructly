@@ -1227,6 +1227,13 @@ def upgrade() -> None:
         "LENGTH(content) > 0 AND LENGTH(content) <= 1000",
     )
 
+    # Add check constraint for conversation state values
+    op.create_check_constraint(
+        "ck_conversation_user_state_state",
+        "conversation_user_state",
+        "state IN ('active', 'archived', 'trashed')",
+    )
+
     if is_postgres:
         print("Enabling RLS (idempotent) with permissive policies on application tables...")
         exclude_tables = [
@@ -1424,6 +1431,7 @@ def downgrade() -> None:
     op.drop_table("user_addresses")
 
     op.drop_constraint("check_message_content_length", "messages", type_="check")
+    op.drop_constraint("ck_conversation_user_state_state", "conversation_user_state", type_="check")
     op.drop_constraint("check_time_order", "bookings", type_="check")
     op.drop_constraint("check_rate_positive", "bookings", type_="check")
     op.drop_constraint("check_price_non_negative", "bookings", type_="check")

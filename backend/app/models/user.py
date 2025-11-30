@@ -213,6 +213,13 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
+    # Conversation state relationships (archive/trash)
+    conversation_states = relationship(
+        "ConversationUserState",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
     def __init__(self, **kwargs: Any) -> None:
         """Initialize a new user and log the creation."""
         super().__init__(**kwargs)

@@ -122,6 +122,9 @@ class Booking(Base):
     conversation_state = relationship(
         "ConversationState", back_populates="booking", uselist=False, cascade="all, delete-orphan"
     )
+    conversation_states = relationship(
+        "ConversationUserState", back_populates="booking", cascade="all, delete-orphan"
+    )
     payment_intent = relationship(
         "PaymentIntent", back_populates="booking", uselist=False, cascade="all, delete-orphan"
     )

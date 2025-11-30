@@ -266,6 +266,35 @@ def upgrade() -> None:
     op.create_index("idx_favorites_student", "user_favorites", ["student_id"])
     op.create_index("idx_favorites_instructor", "user_favorites", ["instructor_id"])
 
+    # Create conversation_user_state table for archive/trash functionality
+    op.create_table(
+        "conversation_user_state",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("state", sa.String(20), nullable=False, server_default="active"),
+        sa.Column("state_changed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("user_id", "booking_id", name="uq_conversation_user_state_user_booking"),
+        comment="User-specific conversation states (active, archived, trashed)",
+    )
+
+    # Create indexes for conversation_user_state
+    op.create_index(
+        "ix_conversation_user_state_user_state",
+        "conversation_user_state",
+        ["user_id", "state"]
+    )
+
     # ======== PAYMENT TABLES ========
     # Create stripe_customers table - Maps users to Stripe customer IDs
     op.create_table(
@@ -633,6 +662,10 @@ def downgrade() -> None:
         op.drop_table("user_favorites")
     except:
         pass  # Table might not exist
+
+    # Drop conversation_user_state indexes and table
+    op.drop_index("ix_conversation_user_state_user_state", table_name="conversation_user_state")
+    op.drop_table("conversation_user_state")
 
     # Drop password_reset_tokens indexes and table
     op.drop_index("idx_password_reset_tokens_user_id", table_name="password_reset_tokens")
