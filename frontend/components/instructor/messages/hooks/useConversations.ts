@@ -6,14 +6,18 @@
  */
 
 import { useMemo, useEffect, useRef } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useInboxState } from '@/hooks/useInboxState';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
+import { withApiBase } from '@/lib/apiBase';
 import type { ConversationEntry } from '../types';
 import { getInitials, formatRelativeTime } from '../utils';
 
 export type UseConversationsOptions = {
   currentUserId: string | undefined;
   isLoadingUser: boolean;
+  stateFilter?: 'archived' | 'trashed' | null | undefined;
+  typeFilter?: 'student' | 'platform' | null | undefined;
 };
 
 export type UseConversationsResult = {
@@ -25,13 +29,23 @@ export type UseConversationsResult = {
   unreadConversations: ConversationEntry[];
   unreadConversationsCount: number;
   loadConversations: () => void;
+  stateCounts?: {
+    active: number;
+    archived: number;
+    trashed: number;
+  } | undefined;
 };
 
 export function useConversations({
   currentUserId,
   isLoadingUser,
+  stateFilter,
+  typeFilter,
 }: UseConversationsOptions): UseConversationsResult {
-  const { data: inboxState, isLoading, isError, invalidate } = useInboxState();
+  const { data: inboxState, isLoading, isError, invalidate } = useInboxState({
+    stateFilter,
+    typeFilter,
+  });
   const { subscribe } = useMessageStream();
 
   // Use ref to store latest invalidate to avoid re-render loop
@@ -116,5 +130,46 @@ export function useConversations({
     unreadConversations,
     unreadConversationsCount,
     loadConversations,
+    stateCounts: inboxState?.state_counts,
   };
+}
+
+/**
+ * useUpdateConversationState - Mutation hook for updating conversation state
+ *
+ * Allows archiving, trashing, or restoring conversations.
+ * Automatically invalidates inbox-state queries to refresh the UI.
+ */
+export function useUpdateConversationState() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      bookingId,
+      state,
+    }: {
+      bookingId: string;
+      state: 'active' | 'archived' | 'trashed';
+    }) => {
+      const response = await fetch(
+        withApiBase(`/api/v1/messages/conversations/${bookingId}/state`),
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ state }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to update conversation state');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate all inbox-state queries to refetch with updated state
+      void queryClient.invalidateQueries({ queryKey: ['inbox-state'] });
+    },
+  });
 }

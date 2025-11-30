@@ -204,6 +204,20 @@ describe('RescheduleModal', () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
+    // Navigate to tomorrow's month if it's different from current month
+    const today = new Date();
+    if (tomorrow.getMonth() !== today.getMonth()) {
+      const nextMonthButtons = screen.getAllByLabelText(/Next month/i);
+      const nextMonthButton = nextMonthButtons[0];
+      if (!nextMonthButton) {
+        throw new Error('Next month button not found');
+      }
+      await act(async () => {
+        fireEvent.click(nextMonthButton);
+        await Promise.resolve();
+      });
+    }
+
     const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
     const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
     if (!dayButton) {
@@ -215,7 +229,10 @@ describe('RescheduleModal', () => {
     // Confirm should be enabled after auto-selecting first time
     await waitFor(() => {
       const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
-      expect(confirmButtons[0]).not.toBeDisabled();
+      const confirmButton = confirmButtons[0];
+      if (confirmButton) {
+        expect(confirmButton).not.toBeDisabled();
+      }
     });
   });
 
@@ -234,6 +251,21 @@ describe('RescheduleModal', () => {
     await waitFor(() => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
+
+    // Navigate to tomorrow's month if it's different from current month
+    const today = new Date();
+    if (tomorrow.getMonth() !== today.getMonth()) {
+      const nextMonthButtons = screen.getAllByLabelText(/Next month/i);
+      const nextMonthButton = nextMonthButtons[0];
+      if (!nextMonthButton) {
+        throw new Error('Next month button not found');
+      }
+      await act(async () => {
+        fireEvent.click(nextMonthButton);
+        await Promise.resolve();
+      });
+    }
+
     const dayButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
     const dayButton = dayButtons.find((btn) => !btn.disabled) ?? dayButtons[0];
     if (!dayButton) {
@@ -245,7 +277,10 @@ describe('RescheduleModal', () => {
     // Auto-selected time should enable confirm
     await waitFor(() => {
       const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
-      expect(confirmButtons[0]).not.toBeDisabled();
+      const confirmButton = confirmButtons[0];
+      if (confirmButton) {
+        expect(confirmButton).not.toBeDisabled();
+      }
     });
   });
 
@@ -301,6 +336,21 @@ describe('RescheduleModal', () => {
     await waitFor(() => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
+
+    // Navigate to tomorrow's month if it's different from current month
+    const today = new Date();
+    if (tomorrow.getMonth() !== today.getMonth()) {
+      const nextMonthButtons = screen.getAllByLabelText(/Next month/i);
+      const nextMonthButton = nextMonthButtons[0];
+      if (!nextMonthButton) {
+        throw new Error('Next month button not found');
+      }
+      await act(async () => {
+        fireEvent.click(nextMonthButton);
+        await Promise.resolve();
+      });
+    }
+
     const dateButtons = (await screen.findAllByTestId(`cal-day-${tomorrowIso}`)) as HTMLButtonElement[];
     const dateButton = dateButtons.find((btn) => !btn.disabled) ?? dateButtons[0];
     if (!dateButton) {
@@ -314,8 +364,9 @@ describe('RescheduleModal', () => {
     // Click confirm (pick the first button instance)
     const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
     await act(async () => {
-      if (confirmButtons[0]) {
-        fireEvent.click(confirmButtons[0]);
+      const confirmButton = confirmButtons[0];
+      if (confirmButton) {
+        fireEvent.click(confirmButton);
       }
       await Promise.resolve();
     });

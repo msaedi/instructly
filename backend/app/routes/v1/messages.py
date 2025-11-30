@@ -42,7 +42,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 import json
 import logging
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -60,6 +60,7 @@ from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
 from ...schemas.message_requests import MarkMessagesReadRequest, SendMessageRequest
 from ...schemas.message_responses import (
+    ConversationStateUpdateResponse,
     DeleteMessageResponse,
     InboxStateResponse,
     MarkMessagesReadResponse,
@@ -115,6 +116,11 @@ class ReactionRequest(BaseModel):
 class EditMessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     content: str = Field(..., min_length=1, max_length=5000, description="New message content")
+
+
+class ConversationStateUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    state: Literal["active", "archived", "trashed"]
 
 
 # ============================================================================
@@ -351,6 +357,8 @@ async def get_inbox_state(
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
     if_none_match: Optional[str] = Header(None, alias="If-None-Match"),
+    state: Optional[str] = Query(None, pattern="^(archived|trashed)$"),
+    type: Optional[str] = Query(None, pattern="^(student|platform)$"),
 ) -> InboxStateResponse:
     """
     Get all conversations with unread counts and last message previews.
@@ -358,9 +366,14 @@ async def get_inbox_state(
     Supports ETag caching - returns 304 Not Modified if content unchanged.
     Poll this endpoint every 5-15 seconds for inbox updates.
 
+    Query Parameters:
+        - state: Filter by conversation state ('archived', 'trashed', or None for active)
+        - type: Filter by conversation type ('student', 'platform')
+
     Returns:
-        - conversations: List of all user's conversations
+        - conversations: List of filtered conversations
         - total_unread: Sum of all unread messages
+        - state_counts: Count of conversations by state
 
     Requires VIEW_MESSAGES permission.
     """
@@ -368,8 +381,10 @@ async def get_inbox_state(
         # Determine user role
         user_role = "instructor" if current_user.role == "instructor" else "student"
 
-        # Get inbox state from service
-        inbox_state = service.get_inbox_state(current_user.id, user_role)
+        # Get inbox state from service with filters
+        inbox_state = service.get_inbox_state(
+            current_user.id, user_role, state_filter=state, type_filter=type
+        )
 
         # Generate ETag
         etag = service.generate_inbox_etag(inbox_state)
@@ -517,6 +532,55 @@ async def send_message(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send message",
+        )
+
+
+@router.put(
+    "/conversations/{booking_id}/state",
+    response_model=ConversationStateUpdateResponse,
+    dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
+    responses={
+        200: {"description": "Conversation state updated"},
+        400: {"description": "Invalid state value"},
+        401: {"description": "Not authenticated"},
+        403: {"description": "Permission denied"},
+    },
+)
+async def update_conversation_state(
+    booking_id: str,
+    body: ConversationStateUpdate,
+    current_user: User = Depends(get_current_active_user),
+    service: MessageService = Depends(get_message_service),
+) -> ConversationStateUpdateResponse:
+    """
+    Update conversation state (archive, trash, or restore).
+
+    Sets the conversation state for the current user only (doesn't affect other participant).
+
+    Request body:
+        - state: 'active', 'archived', or 'trashed'
+
+    Returns:
+        Dict with booking_id, state, and state_changed_at
+
+    Requires VIEW_MESSAGES permission.
+    """
+    try:
+        result = service.set_conversation_state(
+            user_id=current_user.id, booking_id=booking_id, state=body.state
+        )
+        return result
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Error updating conversation state: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update conversation state",
         )
 
 

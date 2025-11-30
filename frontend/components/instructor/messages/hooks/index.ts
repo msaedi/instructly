@@ -2,7 +2,7 @@
  * Hook exports for instructor messages
  */
 
-export { useConversations } from './useConversations';
+export { useConversations, useUpdateConversationState } from './useConversations';
 export type { UseConversationsOptions, UseConversationsResult } from './useConversations';
 
 export { useMessageDrafts } from './useMessageDrafts';

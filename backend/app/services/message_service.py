@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from ..core.exceptions import ForbiddenException, NotFoundException, ValidationException
 from ..models.booking import Booking, BookingStatus
 from ..models.message import Message
+from ..repositories.conversation_state_repository import ConversationStateRepository
 from ..repositories.factory import RepositoryFactory
 from ..repositories.message_repository import MessageRepository
 from .base import BaseService
@@ -44,6 +45,7 @@ class MessageService(BaseService):
         super().__init__(db)
         self.repository: MessageRepository = RepositoryFactory.create_message_repository(db)
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
+        self.conversation_state_repository = ConversationStateRepository(db)
         self.notification_service = notification_service
         self.logger = logging.getLogger(__name__)
 
@@ -89,6 +91,11 @@ class MessageService(BaseService):
             message = self.repository.create_message(
                 booking_id=booking_id, sender_id=sender_id, content=content
             )
+
+            # AUTO-RESTORE: If recipient has archived/trashed this conversation, restore it
+            recipient_id = self._get_recipient_id(booking_id, sender_id)
+            if recipient_id:
+                self.conversation_state_repository.restore_to_active(recipient_id, booking_id)
 
             # Send email notification if recipient is offline
             self._send_offline_notification(booking, sender_id, content)
@@ -450,34 +457,53 @@ class MessageService(BaseService):
 
     # Phase 3: Inbox state
     @BaseService.measure_operation("get_inbox_state")
-    def get_inbox_state(self, user_id: str, user_role: str) -> Dict[str, Any]:
+    def get_inbox_state(
+        self,
+        user_id: str,
+        user_role: str,
+        state_filter: Optional[str] = None,  # None = active only, 'archived', 'trashed'
+        type_filter: Optional[str] = None,  # None = all, 'student', 'platform'
+    ) -> Dict[str, Any]:
         """
         Get all conversations for a user with unread counts and previews.
 
         Args:
             user_id: ID of the user
             user_role: 'instructor' or 'student'
+            state_filter: Optional filter by state ('archived', 'trashed', or None for active)
+            type_filter: Optional filter by type ('student', 'platform')
 
         Returns:
-            Dict with conversations list, total_unread count, and unread_conversations count
+            Dict with conversations list, total_unread count, unread_conversations count, and state_counts
         """
-        conversations = self.repository.get_inbox_state(user_id, user_role)
+        # Get all booking IDs that are archived or trashed for this user
+        archived_ids = set(
+            self.conversation_state_repository.get_booking_ids_by_state(user_id, "archived")
+        )
+        trashed_ids = set(
+            self.conversation_state_repository.get_booking_ids_by_state(user_id, "trashed")
+        )
+
+        # Get all conversations from repository
+        all_conversations = self.repository.get_inbox_state(user_id, user_role)
         is_instructor = user_role == "instructor"
 
-        result: Dict[str, Any] = {
-            "conversations": [],
-            "total_unread": 0,
-            "unread_conversations": 0,
-        }
-
-        for conv in conversations:
+        # Build conversation list with state information
+        conversation_list = []
+        for conv in all_conversations:
             # Get the OTHER user (not the current user)
             other_user = conv.student if is_instructor else conv.instructor
             unread = conv.instructor_unread_count if is_instructor else conv.student_unread_count
 
-            result["conversations"].append(
+            # Determine conversation type (student vs platform)
+            # Platform messages would be identified by a specific user or role
+            # For now, assume all are 'student' unless we have platform message logic
+            conv_type = "student"  # TODO: Add platform message detection if needed
+
+            conversation_list.append(
                 {
                     "id": conv.booking_id,
+                    "type": conv_type,
                     "other_user": {
                         "id": other_user.id,
                         "name": f"{other_user.first_name} {other_user.last_name[0]}."
@@ -496,9 +522,48 @@ class MessageService(BaseService):
                 }
             )
 
-            result["total_unread"] += unread
-            if unread > 0:
-                result["unread_conversations"] += 1
+        # Filter by state
+        if state_filter == "archived":
+            filtered_conversations = [c for c in conversation_list if c["id"] in archived_ids]
+        elif state_filter == "trashed":
+            filtered_conversations = [c for c in conversation_list if c["id"] in trashed_ids]
+        else:
+            # Default: active only (exclude archived and trashed)
+            filtered_conversations = [
+                c
+                for c in conversation_list
+                if c["id"] not in archived_ids and c["id"] not in trashed_ids
+            ]
+
+        # Filter by type (student vs platform)
+        if type_filter == "student":
+            filtered_conversations = [
+                c for c in filtered_conversations if c.get("type") == "student"
+            ]
+        elif type_filter == "platform":
+            filtered_conversations = [
+                c for c in filtered_conversations if c.get("type") == "platform"
+            ]
+
+        # Calculate counts for active conversations
+        active_conversations = [
+            c
+            for c in conversation_list
+            if c["id"] not in archived_ids and c["id"] not in trashed_ids
+        ]
+
+        result: Dict[str, Any] = {
+            "conversations": filtered_conversations,
+            "total_unread": sum(c.get("unread_count", 0) for c in filtered_conversations),
+            "unread_conversations": len(
+                [c for c in filtered_conversations if c.get("unread_count", 0) > 0]
+            ),
+            "state_counts": {
+                "active": len(active_conversations),
+                "archived": len(archived_ids),
+                "trashed": len(trashed_ids),
+            },
+        }
 
         return result
 
@@ -519,6 +584,71 @@ class MessageService(BaseService):
         # Sort keys for consistent hashing
         content = json.dumps(inbox_state, sort_keys=True, default=str)
         return md5(content.encode()).hexdigest()
+
+    @BaseService.measure_operation("set_conversation_state")
+    def set_conversation_state(self, user_id: str, booking_id: str, state: str) -> Dict[str, Any]:
+        """
+        Set conversation state (archive, trash, or restore).
+
+        Args:
+            user_id: ID of the user
+            booking_id: ID of the booking/conversation
+            state: New state ('active', 'archived', 'trashed')
+
+        Returns:
+            Dict with booking_id, state, and state_changed_at
+
+        Raises:
+            ValueError: If state is invalid
+        """
+        if state not in ("active", "archived", "trashed"):
+            raise ValueError(f"Invalid state: {state}")
+
+        with self.transaction():
+            result = self.conversation_state_repository.set_state(user_id, booking_id, state)
+
+        return {
+            "booking_id": booking_id,
+            "state": result.state,
+            "state_changed_at": result.state_changed_at.isoformat()
+            if result.state_changed_at
+            else None,
+        }
+
+    @BaseService.measure_operation("get_conversation_state")
+    def get_conversation_state(self, user_id: str, booking_id: str) -> str:
+        """
+        Get conversation state for a user. Defaults to 'active' if no record.
+
+        Args:
+            user_id: ID of the user
+            booking_id: ID of the booking/conversation
+
+        Returns:
+            State string ('active', 'archived', or 'trashed')
+        """
+        state_record = self.conversation_state_repository.get_state(user_id, booking_id)
+        return state_record.state if state_record else "active"
+
+    def _get_recipient_id(self, booking_id: str, sender_id: str) -> Optional[str]:
+        """
+        Get the other participant in the conversation.
+
+        Args:
+            booking_id: ID of the booking
+            sender_id: ID of the sender
+
+        Returns:
+            User ID of the recipient, or None if booking not found
+        """
+        booking = self.booking_repository.get_by_id(booking_id)
+        if not booking:
+            return None
+        if booking.student_id == sender_id:
+            return str(booking.instructor_id)
+        elif booking.instructor_id == sender_id:
+            return str(booking.student_id)
+        return None
 
     def _reset_conversation_unread_count(self, booking_id: str, user_id: str) -> None:
         """

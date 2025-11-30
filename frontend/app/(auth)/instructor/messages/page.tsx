@@ -29,6 +29,7 @@ import {
 
 import {
   useConversations,
+  useUpdateConversationState,
   useMessageDrafts,
   useMessageThread,
   useTemplates,
@@ -41,6 +42,24 @@ import {
   MessageInput,
   TemplateEditor,
 } from '@/components/instructor/messages/components';
+
+// Helper to convert messageDisplay to API filter parameters
+function getFiltersForDisplay(
+  messageDisplay: MessageDisplayMode,
+  typeFilter: 'all' | 'student' | 'platform'
+): { stateFilter: 'archived' | 'trashed' | null; apiTypeFilter: 'student' | 'platform' | null } {
+  let stateFilter: 'archived' | 'trashed' | null = null;
+
+  if (messageDisplay === 'archived') {
+    stateFilter = 'archived';
+  } else if (messageDisplay === 'trash') {
+    stateFilter = 'trashed';
+  }
+
+  const apiTypeFilter = typeFilter === 'all' ? null : typeFilter;
+
+  return { stateFilter, apiTypeFilter };
+}
 
 export default function MessagesPage() {
   const router = useRouter();
@@ -66,6 +85,9 @@ export default function MessagesPage() {
   // Auto-scroll ref
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
+  // Calculate filters for backend
+  const { stateFilter, apiTypeFilter } = getFiltersForDisplay(messageDisplay, typeFilter);
+
   // Extracted hooks
   const {
     conversations,
@@ -74,7 +96,15 @@ export default function MessagesPage() {
     error: conversationError,
     unreadConversations,
     unreadConversationsCount,
-  } = useConversations({ currentUserId: currentUser?.id, isLoadingUser });
+  } = useConversations({
+    currentUserId: currentUser?.id,
+    isLoadingUser,
+    stateFilter,
+    typeFilter: apiTypeFilter,
+  });
+
+  // Mutation hook for conversation state management
+  const updateStateMutation = useUpdateConversationState();
 
   const { draftsByThread, updateDraft, clearDraft, getDraftKey } = useMessageDrafts();
 
@@ -96,8 +126,6 @@ export default function MessagesPage() {
     loadThreadMessages,
     handleSSEMessage,
     handleSendMessage: sendMessage,
-    handleArchiveConversation,
-    handleDeleteConversation,
     setThreadMessagesForDisplay,
     updateThreadMessage,
     invalidateConversationCache,
@@ -106,6 +134,15 @@ export default function MessagesPage() {
     conversations,
     setConversations,
   });
+
+  // Backend-powered archive/trash handlers
+  const handleArchiveConversation = useCallback((bookingId: string) => {
+    updateStateMutation.mutate({ bookingId, state: 'archived' });
+  }, [updateStateMutation]);
+
+  const handleDeleteConversation = useCallback((bookingId: string) => {
+    updateStateMutation.mutate({ bookingId, state: 'trashed' });
+  }, [updateStateMutation]);
 
   // Derived state
   const isComposeView = selectedChat === COMPOSE_THREAD_ID;
@@ -350,22 +387,13 @@ export default function MessagesPage() {
     return unsubscribe;
   }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleReadReceipt, handleReaction]);
 
-  // Filter conversations
+  // Filter conversations (backend now handles state/type filtering, we just filter by search text)
   const filteredConversations = useMemo(() => {
-    let list = conversations.filter((conv) => {
+    return conversations.filter((conv) => {
       const matchesText = conv.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = typeFilter === 'all' || conv.type === typeFilter;
-      return matchesText && matchesType;
+      return matchesText;
     });
-
-    if (messageDisplay === 'archived') {
-      list = list.filter((conv) => (archivedMessagesByThread[conv.id]?.length ?? 0) > 0);
-    } else if (messageDisplay === 'trash') {
-      list = list.filter((conv) => (trashMessagesByThread[conv.id]?.length ?? 0) > 0);
-    }
-
-    return list;
-  }, [conversations, searchQuery, typeFilter, messageDisplay, archivedMessagesByThread, trashMessagesByThread]);
+  }, [conversations, searchQuery]);
 
   // Compose list entry
   const composeListEntry: ConversationEntry = useMemo(() => ({

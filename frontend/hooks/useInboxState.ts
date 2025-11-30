@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePageVisibility } from './usePageVisibility';
 import { useAuthStatus } from './queries/useAuth';
@@ -36,6 +36,16 @@ export interface InboxState {
   conversations: ConversationSummary[];
   total_unread: number;
   unread_conversations: number;
+  state_counts?: {
+    active: number;
+    archived: number;
+    trashed: number;
+  };
+}
+
+export interface UseInboxStateOptions {
+  stateFilter?: 'archived' | 'trashed' | null | undefined;  // null = active
+  typeFilter?: 'student' | 'platform' | null | undefined;   // null = all
 }
 
 // Polling intervals
@@ -43,10 +53,8 @@ const ACTIVE_INTERVAL = 5000; // 5 seconds when activity detected
 const IDLE_INTERVAL = 15000; // 15 seconds when quiet
 const ACTIVITY_THRESHOLD = 3; // Number of unchanged polls before going idle
 
-// Query key for cache management
-export const inboxStateQueryKey = ['inbox-state'] as const;
-
-export function useInboxState() {
+export function useInboxState(options: UseInboxStateOptions = {}) {
+  const { stateFilter, typeFilter } = options;
   const { isAuthenticated } = useAuthStatus();
   const isVisible = usePageVisibility();
   const queryClient = useQueryClient();
@@ -58,7 +66,10 @@ export function useInboxState() {
   const unchangedCountRef = useRef(0);
   const [isActive, setIsActive] = useState(true);
 
-  // Fetch function with ETag support
+  // Query key includes filters (wrapped in useMemo to avoid recreating on every render)
+  const queryKey = useMemo(() => ['inbox-state', stateFilter, typeFilter] as const, [stateFilter, typeFilter]);
+
+  // Fetch function with ETag support and filters
   const fetchInboxState = useCallback(async (): Promise<InboxState> => {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -69,7 +80,15 @@ export function useInboxState() {
       headers['If-None-Match'] = etagRef.current;
     }
 
-    const response = await fetch(withApiBase('/api/v1/messages/inbox-state'), {
+    // Build query string with filters
+    const params = new URLSearchParams();
+    if (stateFilter) params.append('state', stateFilter);
+    if (typeFilter) params.append('type', typeFilter);
+
+    const queryString = params.toString();
+    const url = `/api/v1/messages/inbox-state${queryString ? `?${queryString}` : ''}`;
+
+    const response = await fetch(withApiBase(url), {
       method: 'GET',
       headers,
       credentials: 'include',
@@ -103,11 +122,11 @@ export function useInboxState() {
     setIsActive(true);
 
     return response.json();
-  }, []);
+  }, [stateFilter, typeFilter]);
 
   // React Query with adaptive polling
   const query = useQuery({
-    queryKey: inboxStateQueryKey,
+    queryKey,
     queryFn: fetchInboxState,
     enabled: isAuthenticated && isVisible,
     refetchInterval: () => {
@@ -132,13 +151,13 @@ export function useInboxState() {
     unchangedCountRef.current = 0;
     // Clear ETag to force full fetch
     etagRef.current = null;
-    void queryClient.invalidateQueries({ queryKey: inboxStateQueryKey });
-  }, [queryClient]);
+    void queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
   // Invalidate cache (call when SSE receives new message for non-active conversation)
   const invalidate = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: inboxStateQueryKey });
-  }, [queryClient]);
+    void queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
   return {
     data: query.data ?? undefined,
