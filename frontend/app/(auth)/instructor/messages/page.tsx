@@ -94,13 +94,21 @@ export default function MessagesPage() {
     setConversations,
     isLoading: isLoadingConversations,
     error: conversationError,
-    unreadConversations,
-    unreadConversationsCount,
   } = useConversations({
     currentUserId: currentUser?.id,
     isLoadingUser,
     stateFilter,
     typeFilter: apiTypeFilter,
+  });
+
+  // Global unread count and conversations for notification badge (always unfiltered)
+  const {
+    unreadConversationsCount: globalUnreadCount,
+    unreadConversations: globalUnreadConversations,
+  } = useConversations({
+    currentUserId: currentUser?.id,
+    isLoadingUser,
+    // No filters - always get global inbox unread count
   });
 
   // Mutation hook for conversation state management
@@ -733,16 +741,16 @@ export default function MessagesPage() {
                 title="Messages"
               >
                 <MessageSquare className="w-6 h-6 transition-colors group-hover:fill-current" style={{ fill: showMessages ? 'currentColor' : undefined }} />
-                {unreadConversationsCount > 0 && (
+                {globalUnreadCount > 0 && (
                   <span className="pointer-events-none absolute -top-0.5 -right-0.5 inline-flex min-w-[1.2rem] h-5 items-center justify-center rounded-full bg-[#7E22CE] px-1 text-[0.65rem] font-semibold text-white">
-                    {unreadConversationsCount > 9 ? '9+' : unreadConversationsCount}
+                    {globalUnreadCount > 9 ? '9+' : globalUnreadCount}
                   </span>
                 )}
               </button>
               {showMessages && (
                 <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
                   <ul className="max-h-80 overflow-auto p-2 space-y-2">
-                    {unreadConversations.length === 0 ? (
+                    {globalUnreadConversations.length === 0 ? (
                       <>
                         <li className="px-2 py-2 text-sm text-gray-600">No unread messages.</li>
                         <li>
@@ -752,9 +760,9 @@ export default function MessagesPage() {
                         </li>
                       </>
                     ) : (
-                      unreadConversations.map((conv) => (
+                      globalUnreadConversations.map((conv) => (
                         <li key={conv.id}>
-                          <button type="button" onClick={() => { setShowMessages(false); handleConversationSelect(conv.id); }} className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50">
+                          <button type="button" onClick={() => { setShowMessages(false); setMessageDisplay('inbox'); handleConversationSelect(conv.id); }} className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50">
                             <p className="text-sm font-medium text-gray-900 truncate">{conv.name}</p>
                             <p className="text-xs text-gray-500 truncate">{conv.lastMessage || 'New message'}</p>
                           </button>
