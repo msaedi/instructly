@@ -100,6 +100,7 @@ export default function MessagesPage() {
     handleDeleteConversation,
     setThreadMessagesForDisplay,
     updateThreadMessage,
+    invalidateConversationCache,
   } = useMessageThread({
     currentUserId: currentUser?.id,
     conversations,
@@ -456,12 +457,25 @@ export default function MessagesPage() {
     setSelectedChat(filteredConversations[0]?.id ?? null);
   }, [filteredConversations, selectedChat, mailSection]);
 
+  // Track previous selectedChat to detect actual changes (prevent re-render loop)
+  const prevSelectedChatRef = useRef<string | null>(null);
+
   // Load messages when conversation selected
   useEffect(() => {
-    if (selectedChat && selectedChat !== COMPOSE_THREAD_ID && activeConversation) {
+    // Only run when selectedChat actually changes to a new conversation
+    if (
+      selectedChat &&
+      selectedChat !== COMPOSE_THREAD_ID &&
+      selectedChat !== prevSelectedChatRef.current &&
+      activeConversation
+    ) {
+      // Invalidate cache to force fresh fetch when switching conversations
+      // This ensures new messages (shown in sidebar via inbox polling) appear immediately
+      invalidateConversationCache(selectedChat);
       loadThreadMessages(selectedChat, activeConversation, messageDisplay);
+      prevSelectedChatRef.current = selectedChat;
     }
-  }, [selectedChat, activeConversation, messageDisplay, loadThreadMessages]);
+  }, [selectedChat, activeConversation, messageDisplay, loadThreadMessages, invalidateConversationCache]);
 
   // Update thread messages on display mode change
   useEffect(() => {

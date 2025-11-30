@@ -181,16 +181,11 @@ async def stream_user_messages(
             if notification_service:
                 try:
                     queue = await notification_service.subscribe_user(current_user.id)
-                    logger.info(
-                        f"[SSE DEBUG] Subscribed to user {current_user.id} inbox, queue: {queue is not None}"
-                    )
                 except Exception as e:
                     logger.warning(f"Failed to subscribe to user inbox: {str(e)}")
                     queue = None
             else:
-                logger.warning(
-                    f"[SSE DEBUG] No notification service available for user {current_user.id}"
-                )
+                logger.warning(f"No notification service available for user {current_user.id}")
 
             # Main event loop
             last_heartbeat = datetime.now(timezone.utc)
@@ -206,9 +201,6 @@ async def stream_user_messages(
 
                             # Process the message
                             event_type = message_data.get("type") or "message"
-                            logger.info(
-                                f"[SSE DEBUG] Received message from queue: type={event_type}, user={current_user.id}"
-                            )
 
                             if event_type == "heartbeat":
                                 yield {

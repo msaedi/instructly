@@ -69,6 +69,7 @@ export type UseMessageThreadResult = {
     messageId: string,
     updater: (message: MessageWithAttachments) => MessageWithAttachments
   ) => void;
+  invalidateConversationCache: (conversationId: string) => void;
 };
 
 export function useMessageThread({
@@ -528,6 +529,11 @@ export function useMessageThread({
     });
   }, []);
 
+  // Invalidate conversation cache to force refetch on next view
+  const invalidateConversationCache = useCallback((conversationId: string) => {
+    loadedThreadsRef.current.delete(conversationId);
+  }, []);
+
   return {
     threadMessages,
     messagesByThread,
@@ -540,5 +546,6 @@ export function useMessageThread({
     handleDeleteConversation,
     setThreadMessagesForDisplay,
     updateThreadMessage,
+    invalidateConversationCache,
   };
 }
