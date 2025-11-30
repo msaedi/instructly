@@ -73,7 +73,7 @@ export function ConversationList({
       </div>
 
       {/* Filters */}
-      <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap gap-2 items-center">
+      <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap gap-1.5 items-center">
         {FILTER_OPTIONS.map((option) => {
           const isActive = option.value === typeFilter && messageDisplay === 'inbox';
           return (
@@ -84,7 +84,7 @@ export function ConversationList({
                 onTypeFilterChange(option.value);
                 onMessageDisplayChange('inbox');
               }}
-              className={`text-xs font-medium rounded-full px-3 py-1 transition-colors ${
+              className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
                 isActive ? 'bg-[#7E22CE] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -95,7 +95,7 @@ export function ConversationList({
         <button
           type="button"
           onClick={() => onMessageDisplayChange('archived')}
-          className={`text-xs font-medium rounded-full px-3 py-1 transition-colors ${
+          className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
             messageDisplay === 'archived'
               ? 'bg-[#7E22CE] text-white'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -106,7 +106,7 @@ export function ConversationList({
         <button
           type="button"
           onClick={() => onMessageDisplayChange('trash')}
-          className={`text-xs font-medium rounded-full px-3 py-1 transition-colors ${
+          className={`text-xs font-medium rounded-full px-2.5 py-1 transition-colors ${
             messageDisplay === 'trash'
               ? 'bg-[#7E22CE] text-white'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
