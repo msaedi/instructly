@@ -135,14 +135,52 @@ export default function MessagesPage() {
     setConversations,
   });
 
+  // Track previous conversation IDs to detect reappearances (auto-restored conversations)
+  const previousConversationIds = useRef<Set<string>>(new Set());
+  const prevSelectedChatRef = useRef<string | null>(null);
+
+  // Track if selection was intentionally cleared (archive/trash) to prevent auto-select
+  const intentionallyClearedRef = useRef(false);
+
+  useEffect(() => {
+    if (conversations) {
+      const currentIds = new Set(conversations.map((c) => c.id));
+
+      // Find conversations that just appeared (weren't in previous list)
+      for (const conv of conversations) {
+        if (!previousConversationIds.current.has(conv.id)) {
+          // This conversation just appeared - invalidate its cache
+          // This handles auto-restored conversations (were archived/trashed, now active)
+          invalidateConversationCache(conv.id);
+
+          // ALWAYS clear prevSelectedChatRef to force reload when this conversation is selected
+          // Don't check if it's currently selected - it will be auto-selected soon
+          prevSelectedChatRef.current = null;
+        }
+      }
+
+      previousConversationIds.current = currentIds;
+    }
+  }, [conversations, invalidateConversationCache]);
+
   // Backend-powered archive/trash handlers
   const handleArchiveConversation = useCallback((bookingId: string) => {
+    // If archiving the currently selected conversation, clear selection
+    if (selectedChat === bookingId) {
+      intentionallyClearedRef.current = true;
+      setSelectedChat(null);
+    }
     updateStateMutation.mutate({ bookingId, state: 'archived' });
-  }, [updateStateMutation]);
+  }, [updateStateMutation, selectedChat]);
 
   const handleDeleteConversation = useCallback((bookingId: string) => {
+    // If trashing the currently selected conversation, clear selection
+    if (selectedChat === bookingId) {
+      intentionallyClearedRef.current = true;
+      setSelectedChat(null);
+    }
     updateStateMutation.mutate({ bookingId, state: 'trashed' });
-  }, [updateStateMutation]);
+  }, [updateStateMutation, selectedChat]);
 
   // Derived state
   const isComposeView = selectedChat === COMPOSE_THREAD_ID;
@@ -175,9 +213,14 @@ export default function MessagesPage() {
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-    }
+    // Double RAF ensures DOM is fully painted before scrolling
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (messagesContainerRef.current) {
+          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+      });
+    });
   }, []);
 
   // SSE connection (Phase 4: per-user inbox)
@@ -479,29 +522,56 @@ export default function MessagesPage() {
     return () => document.removeEventListener('click', onDocClick);
   }, []);
 
-  // Auto-select first conversation
+  // Auto-select first conversation (but only if current selection is valid)
   useEffect(() => {
-    if (mailSection !== 'inbox' || selectedChat || filteredConversations.length === 0) return;
-    setSelectedChat(filteredConversations[0]?.id ?? null);
+    if (mailSection !== 'inbox' || filteredConversations.length === 0) return;
+
+    // Don't auto-select if user just archived/trashed a conversation
+    if (intentionallyClearedRef.current) {
+      intentionallyClearedRef.current = false;
+      return;
+    }
+
+    // Only auto-select if:
+    // 1. Nothing is selected, OR
+    // 2. Current selection is not in the list (conversation was archived/trashed)
+    const isCurrentSelectionValid = selectedChat && filteredConversations.some(c => c.id === selectedChat);
+
+    if (!selectedChat || !isCurrentSelectionValid) {
+      setSelectedChat(filteredConversations[0]?.id ?? null);
+    }
   }, [filteredConversations, selectedChat, mailSection]);
 
-  // Track previous selectedChat to detect actual changes (prevent re-render loop)
-  const prevSelectedChatRef = useRef<string | null>(null);
+  // Track previous messageDisplay to detect actual changes
+  const prevMessageDisplayRef = useRef<MessageDisplayMode>(messageDisplay);
 
-  // Load messages when conversation selected
+  // Clear selection when switching display modes to allow auto-select to pick first conversation
   useEffect(() => {
-    // Only run when selectedChat actually changes to a new conversation
+    if (messageDisplay !== prevMessageDisplayRef.current) {
+      setSelectedChat(null);
+    }
+  }, [messageDisplay]);
+
+  // Load messages when conversation selected OR when switching between All/Archived/Trash views
+  useEffect(() => {
+    const conversationChanged = selectedChat !== prevSelectedChatRef.current;
+    const displayModeChanged = messageDisplay !== prevMessageDisplayRef.current;
+
+    // Load messages when:
+    // 1. Conversation changed to a new one, OR
+    // 2. Display mode changed (All -> Archived, etc.) and a conversation is selected
     if (
       selectedChat &&
       selectedChat !== COMPOSE_THREAD_ID &&
-      selectedChat !== prevSelectedChatRef.current &&
-      activeConversation
+      activeConversation &&
+      (conversationChanged || displayModeChanged)
     ) {
-      // Invalidate cache to force fresh fetch when switching conversations
+      // Invalidate cache to force fresh fetch when switching conversations or display modes
       // This ensures new messages (shown in sidebar via inbox polling) appear immediately
       invalidateConversationCache(selectedChat);
       loadThreadMessages(selectedChat, activeConversation, messageDisplay);
       prevSelectedChatRef.current = selectedChat;
+      prevMessageDisplayRef.current = messageDisplay;
     }
   }, [selectedChat, activeConversation, messageDisplay, loadThreadMessages, invalidateConversationCache]);
 
@@ -512,10 +582,12 @@ export default function MessagesPage() {
     }
   }, [messageDisplay, selectedChat, setThreadMessagesForDisplay]);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom when messages change OR when conversation changes
   useEffect(() => {
-    scrollToBottom();
-  }, [threadMessages.length, scrollToBottom]);
+    if (threadMessages.length > 0) {
+      scrollToBottom();
+    }
+  }, [threadMessages.length, selectedChat, messageDisplay, scrollToBottom]);
 
   // Continuously mark student messages as read when viewing conversation
   useEffect(() => {

@@ -128,7 +128,7 @@ export function useMessageThread({
   const loadThreadMessages = useCallback((
     selectedChat: string,
     activeConversation: ConversationEntry | null,
-    messageDisplay: MessageDisplayMode
+    _messageDisplay: MessageDisplayMode
   ) => {
     if (!selectedChat || selectedChat === COMPOSE_THREAD_ID || !activeConversation || !currentUserId) return;
 
@@ -153,20 +153,32 @@ export function useMessageThread({
           mapMessageFromResponse(msg, activeConversation, currentUserId)
         );
 
-        const activeMessages = mappedMessages.filter((msg) => !msg.isArchived && !msg.isTrashed);
-        const archivedMessages = mappedMessages.filter((msg) => msg.isArchived && !msg.isTrashed);
+        // DON'T filter by message flags - archive/trash is conversation-level state
+        // Just use all mapped messages for the conversation
+        const allMessages = mappedMessages;
 
-        setMessagesByThread((prev) => ({ ...prev, [selectedChat]: activeMessages }));
-        setArchivedMessagesByThread((prev) => ({ ...prev, [selectedChat]: archivedMessages }));
+        // MERGE instead of REPLACE - keep SSE messages that arrived but aren't in history yet
+        const existing = messagesByThreadRef.current[selectedChat] || [];
+        const historyIds = new Set(allMessages.map(m => m.id));
 
-        // Set visible messages based on display mode
-        if (messageDisplay === 'archived') {
-          setThreadMessages(archivedMessages);
-        } else if (messageDisplay === 'trash') {
-          setThreadMessages(trashMessagesByThreadRef.current[selectedChat] ?? []);
-        } else {
-          setThreadMessages(activeMessages);
-        }
+        // Keep any messages that arrived via SSE but aren't in history yet
+        const sseOnlyMessages = existing.filter(m => !historyIds.has(m.id));
+
+        // Combine and sort by timestamp
+        const mergedMessages = [...allMessages, ...sseOnlyMessages].sort(
+          (a, b) => {
+            const timeA = new Date(a.createdAt || '').getTime();
+            const timeB = new Date(b.createdAt || '').getTime();
+            return timeA - timeB;
+          }
+        );
+
+        // Store in the main cache
+        setMessagesByThread((prev) => ({ ...prev, [selectedChat]: mergedMessages }));
+
+        // Display ALL messages regardless of view mode
+        // The read-only state is handled by the UI based on conversation state, not message flags
+        setThreadMessages(mergedMessages);
 
         // Update conversation unread count
         const unreadCount = computeUnreadFromMessages(messages, activeConversation, currentUserId);
