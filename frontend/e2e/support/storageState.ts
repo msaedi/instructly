@@ -73,10 +73,27 @@ const toStorageStateCookie = (
       ? cookie.expires
       : Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30;
 
-  const domain =
-    cookie.name.startsWith('__Host-') && secure ? '' : sanitizedDomain || removePort(parsed.hostname);
+  // __Host-* cookies cannot have a domain attribute - use url instead
+  const isHostCookie = cookie.name.startsWith('__Host-') && secure;
 
-  if (!domain && !cookie.name.startsWith('__Host-')) {
+  if (isHostCookie) {
+    // For __Host-* cookies, use url instead of domain (Playwright requires one or the other)
+    const cookieUrl = `${parsed.protocol}//${parsed.hostname}`;
+    return {
+      name: cookie.name,
+      value: cookie.value,
+      url: cookieUrl,
+      path: '/',
+      httpOnly,
+      secure,
+      sameSite,
+      expires,
+    };
+  }
+
+  const domain = sanitizedDomain || removePort(parsed.hostname);
+
+  if (!domain) {
     throw createError(label, 'Unable to determine cookie domain', { name: cookie.name });
   }
 
@@ -114,8 +131,8 @@ export const normalizeStorageState = (
       if (cookie.sameSite !== 'Lax') {
         throw createError(options?.label, 'HTTP storage state cookies must use SameSite=Lax', cookie);
       }
-      if (!cookie.domain) {
-        throw createError(options?.label, 'HTTP storage state cookies require a domain', cookie);
+      if (!cookie.domain && !cookie.url) {
+        throw createError(options?.label, 'HTTP storage state cookies require a domain or url', cookie);
       }
       if (cookie.path !== '/') {
         throw createError(options?.label, 'HTTP storage state cookies must use path=/', cookie);
@@ -127,8 +144,12 @@ export const normalizeStorageState = (
       if (cookie.path !== '/') {
         throw createError(options?.label, '__Host-* cookies must use path=/', cookie);
       }
+      // __Host-* cookies use url instead of domain
       if (cookie.domain) {
         throw createError(options?.label, '__Host-* cookies cannot specify domain in storageState', cookie);
+      }
+      if (!cookie.url) {
+        throw createError(options?.label, '__Host-* cookies must specify url in storageState', cookie);
       }
     }
   });

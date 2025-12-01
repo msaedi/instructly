@@ -31,8 +31,9 @@ export type PlaywrightCookie = {
 export type StorageStateCookie = {
   name: string;
   value: string;
-  domain: string;
-  path: string;
+  domain?: string;
+  path?: string;
+  url?: string;
   httpOnly: boolean;
   secure: boolean;
   sameSite: SameSiteOption;

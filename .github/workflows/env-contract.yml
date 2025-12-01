@@ -83,14 +83,16 @@ jobs:
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
         env:
           PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
+          PLAYWRIGHT_API_BASE_URL: ${{ env.PLAYWRIGHT_API_BASE_URL }}
           GATE_CODE: ${{ env.GATE_CODE }}
           E2E_HEADERS_TEST: ${{ env.E2E_HEADERS_TEST }}
           E2E_RATE_LIMIT_TEST: ${{ env.E2E_RATE_LIMIT_TEST }}
           API_ONLY: ${{ env.API_ONLY }}
+          E2E_PROJECT: anon
         run: |
           set -euo pipefail
           mkdir -p ../.artifacts
-          npx --yes playwright test e2e/env-contract.spec.ts --reporter=line 2>&1 | tee ../.artifacts/pw.log
+          npx --yes playwright test e2e/env-contract.spec.ts --project=anon --reporter=line 2>&1 | tee ../.artifacts/pw.log
       - name: Extract env-contract evidence + write job summary (non-blocking)
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
         shell: bash
@@ -251,10 +253,11 @@ jobs:
           E2E_HEADERS_TEST: ${{ env.E2E_HEADERS_TEST }}
           E2E_RATE_LIMIT_TEST: ${{ env.E2E_RATE_LIMIT_TEST }}
           API_ONLY: ${{ env.API_ONLY }}
+          E2E_PROJECT: anon
         run: |
           set -euo pipefail
           mkdir -p ../.artifacts
-          npx --yes playwright test e2e/env-contract.spec.ts --reporter=line 2>&1 | tee ../.artifacts/pw.log
+          npx --yes playwright test e2e/env-contract.spec.ts --project=anon --reporter=line 2>&1 | tee ../.artifacts/pw.log
       - name: Extract env-contract evidence + write job summary (non-blocking)
         if: ${{ env.PLAYWRIGHT_BASE_URL != '' }}
         shell: bash
