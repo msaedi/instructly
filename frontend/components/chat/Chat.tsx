@@ -375,6 +375,12 @@ export function Chat({
     const content = inputMessage.trim();
     if (!content) return;
 
+    logger.debug('[MSG-DEBUG] Message SEND: Starting', {
+      bookingId,
+      contentLength: content.length,
+      timestamp: new Date().toISOString()
+    });
+
     // Clear input immediately for responsiveness
     setInputMessage('');
 
@@ -385,16 +391,29 @@ export function Chat({
     }
 
     try {
-      await sendMessageMutation.mutateAsync({
+      logger.debug('[MSG-DEBUG] Message SEND: Calling mutation', {
+        bookingId,
+        timestamp: new Date().toISOString()
+      });
+      const result = await sendMessageMutation.mutateAsync({
         data: {
           booking_id: bookingId,
           content,
         },
       });
+      logger.debug('[MSG-DEBUG] Message SEND: Success', {
+        messageId: result?.message?.id,
+        success: result?.success,
+        timestamp: new Date().toISOString()
+      });
       // Message will appear via SSE echo with is_mine flag
       scrollToBottom();
     } catch (error) {
-      logger.error('Failed to send message', error);
+      logger.error('[MSG-DEBUG] Message SEND: FAILED', {
+        error: error instanceof Error ? error.message : error,
+        bookingId,
+        timestamp: new Date().toISOString()
+      });
       // Restore input message on error so user can retry
       setInputMessage(content);
     }
@@ -428,14 +447,25 @@ export function Chat({
   const [processingReaction, setProcessingReaction] = useState<string | null>(null);
   const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
   const handleAddReaction = async (messageId: string, emoji: string) => {
+    logger.debug('[MSG-DEBUG] Reaction: Starting', {
+      messageId,
+      emoji,
+      bookingId,
+      timestamp: new Date().toISOString()
+    });
+
     // For optimistic/temporary messages with negative IDs
     if (messageId.startsWith('-')) {
+      logger.debug('[MSG-DEBUG] Reaction: Skipping temp message');
       return;
     }
 
     // Prevent multiple simultaneous reactions GLOBALLY (not just per message)
     if (processingReaction !== null) {
-      logger.warn(`Already processing reaction, ignoring new reaction request`);
+      logger.warn('[MSG-DEBUG] Reaction: Already processing, ignoring', {
+        processingReaction,
+        newRequest: { messageId, emoji }
+      });
       return;
     }
 
@@ -448,7 +478,7 @@ export function Chat({
       // Find the message to check current user's reaction
       const message = allMessages.find(m => m.id === messageId);
       if (!message) {
-        logger.error(`Message ${messageId} not found`);
+        logger.error('[MSG-DEBUG] Reaction: Message not found', { messageId });
         return;
       }
 
@@ -457,25 +487,43 @@ export function Chat({
       const localReaction = userReactions[messageId];
       const currentReaction = localReaction !== undefined ? localReaction : myReactions[0];
 
-      logger.info(`Reaction state for message ${messageId}:`, {
+      logger.debug('[MSG-DEBUG] Reaction: Current state', {
+        messageId,
         requestedEmoji: emoji,
         serverReactions: myReactions,
         localReaction,
-        currentReaction
+        currentReaction,
+        timestamp: new Date().toISOString()
       });
 
       // If user is trying to add a reaction when they already have one (and it's different)
       // Force remove the old one first
       if (currentReaction && currentReaction !== emoji) {
-        logger.info(`User already has reaction ${currentReaction}, will replace with ${emoji}`);
+        logger.debug('[MSG-DEBUG] Reaction: Replacing existing', {
+          oldEmoji: currentReaction,
+          newEmoji: emoji,
+          messageId,
+          timestamp: new Date().toISOString()
+        });
         // Update local state immediately to show the change
         setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
 
         // Remove old reaction
         try {
+          logger.debug('[MSG-DEBUG] Reaction: Calling removeReactionMutation', {
+            messageId,
+            emoji: currentReaction,
+            timestamp: new Date().toISOString()
+          });
           await removeReactionMutation.mutateAsync({ messageId, data: { emoji: currentReaction } });
-        } catch {
-          logger.error(`Failed to remove old reaction ${currentReaction}`);
+          logger.debug('[MSG-DEBUG] Reaction: removeReactionMutation SUCCESS', { timestamp: new Date().toISOString() });
+        } catch (err) {
+          logger.error('[MSG-DEBUG] Reaction: removeReactionMutation FAILED', {
+            error: err instanceof Error ? err.message : err,
+            messageId,
+            emoji: currentReaction,
+            timestamp: new Date().toISOString()
+          });
           // Revert local state
           setUserReactions(prev => ({ ...prev, [messageId]: currentReaction }));
           return;
@@ -483,34 +531,75 @@ export function Chat({
 
         // Add new reaction
         try {
+          logger.debug('[MSG-DEBUG] Reaction: Calling addReactionMutation', {
+            messageId,
+            emoji,
+            timestamp: new Date().toISOString()
+          });
           await addReactionMutation.mutateAsync({ messageId, data: { emoji } });
-        } catch {
-          logger.error(`Failed to add new reaction ${emoji}`);
+          logger.debug('[MSG-DEBUG] Reaction: addReactionMutation SUCCESS', { timestamp: new Date().toISOString() });
+        } catch (err) {
+          logger.error('[MSG-DEBUG] Reaction: addReactionMutation FAILED', {
+            error: err instanceof Error ? err.message : err,
+            messageId,
+            emoji,
+            timestamp: new Date().toISOString()
+          });
           // Revert to no reaction since we removed the old one
           setUserReactions(prev => ({ ...prev, [messageId]: null }));
           return;
         }
       } else if (currentReaction === emoji) {
         // Toggle off - remove the reaction
-        logger.info(`Toggling off reaction ${emoji} from message ${messageId}`);
+        logger.debug('[MSG-DEBUG] Reaction: Toggling off', {
+          emoji,
+          messageId,
+          timestamp: new Date().toISOString()
+        });
         setUserReactions(prev => ({ ...prev, [messageId]: null }));
 
         try {
+          logger.debug('[MSG-DEBUG] Reaction: Calling removeReactionMutation for toggle', {
+            messageId,
+            emoji,
+            timestamp: new Date().toISOString()
+          });
           await removeReactionMutation.mutateAsync({ messageId, data: { emoji } });
-        } catch {
-          logger.error(`Failed to remove reaction ${emoji}`);
+          logger.debug('[MSG-DEBUG] Reaction: removeReactionMutation SUCCESS (toggle)', { timestamp: new Date().toISOString() });
+        } catch (err) {
+          logger.error('[MSG-DEBUG] Reaction: removeReactionMutation FAILED (toggle)', {
+            error: err instanceof Error ? err.message : err,
+            messageId,
+            emoji,
+            timestamp: new Date().toISOString()
+          });
           // Revert local state
           setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
         }
       } else {
         // No current reaction, add the new one
-        logger.info(`Adding new reaction ${emoji} to message ${messageId}`);
+        logger.debug('[MSG-DEBUG] Reaction: Adding new', {
+          emoji,
+          messageId,
+          timestamp: new Date().toISOString()
+        });
         setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
 
         try {
+          logger.debug('[MSG-DEBUG] Reaction: Calling addReactionMutation (new)', {
+            messageId,
+            emoji,
+            timestamp: new Date().toISOString()
+          });
           await addReactionMutation.mutateAsync({ messageId, data: { emoji } });
-        } catch {
-          logger.error(`Failed to add reaction ${emoji}`);
+          logger.debug('[MSG-DEBUG] Reaction: addReactionMutation SUCCESS (new)', { timestamp: new Date().toISOString() });
+        } catch (err) {
+          logger.error('[MSG-DEBUG] Reaction: addReactionMutation FAILED (new)', {
+            error: err instanceof Error ? err.message : err,
+            messageId,
+            emoji,
+            timestamp: new Date().toISOString()
+          });
           // Revert local state
           setUserReactions(prev => ({ ...prev, [messageId]: null }));
         }

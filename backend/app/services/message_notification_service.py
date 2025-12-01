@@ -131,19 +131,44 @@ class MessageNotificationService:
         """
         queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
 
+        # [MSG-DEBUG] Log subscription attempt
+        self.logger.info(
+            "[MSG-DEBUG] NotificationService.subscribe_user: Starting",
+            extra={
+                "user_id": user_id,
+                "existing_subscribers": list(self.subscribers.keys()),
+                "has_connection": self.connection is not None,
+            },
+        )
+
         if user_id not in self.subscribers:
             self.subscribers[user_id] = set()
             # Start listening to this user's channel
             if self.connection:
                 channel_name = f"user_{user_id}_inbox"
+                self.logger.info(
+                    "[MSG-DEBUG] NotificationService.subscribe_user: Adding LISTEN to channel",
+                    extra={"user_id": user_id, "channel_name": channel_name},
+                )
                 await self.connection.add_listener(channel_name, self._handle_notification)
+                self.logger.info(
+                    "[MSG-DEBUG] NotificationService.subscribe_user: LISTEN registered",
+                    extra={"user_id": user_id, "channel_name": channel_name},
+                )
             else:
                 self.logger.warning(
-                    f"No connection available for user channel subscription: {user_id}"
+                    "[MSG-DEBUG] NotificationService.subscribe_user: NO CONNECTION",
+                    extra={"user_id": user_id},
                 )
 
         self.subscribers[user_id].add(queue)
-        self.logger.info(f"Added subscriber for user {user_id}")
+        self.logger.info(
+            "[MSG-DEBUG] NotificationService.subscribe_user: Subscription complete",
+            extra={
+                "user_id": user_id,
+                "total_subscribers_for_user": len(self.subscribers[user_id]),
+            },
+        )
 
         return queue
 
@@ -249,6 +274,16 @@ class MessageNotificationService:
             channel: Channel name (e.g., "user_123_inbox" or "booking_chat_123")
             payload: JSON payload containing message data
         """
+        # [MSG-DEBUG] Log incoming notification
+        self.logger.info(
+            "[MSG-DEBUG] NotificationService._handle_notification: NOTIFY received",
+            extra={
+                "channel": channel,
+                "pid": pid,
+                "payload_preview": payload[:200] if len(payload) > 200 else payload,
+            },
+        )
+
         try:
             # Parse the JSON payload
             decoded = json.loads(payload)
@@ -258,6 +293,19 @@ class MessageNotificationService:
             else:
                 message_data = {"payload": decoded}
 
+            # [MSG-DEBUG] Log parsed notification data
+            self.logger.info(
+                "[MSG-DEBUG] NotificationService._handle_notification: Parsed",
+                extra={
+                    "channel": channel,
+                    "event_type": message_data.get("type"),
+                    "conversation_id": message_data.get("conversation_id"),
+                    "message_id": message_data.get("message", {}).get("id")
+                    if isinstance(message_data.get("message"), dict)
+                    else None,
+                },
+            )
+
             # Handle user inbox channels (new format)
             if channel.startswith("user_") and channel.endswith("_inbox"):
                 # Extract user ID from channel name: "user_123_inbox" -> "123"
@@ -265,11 +313,26 @@ class MessageNotificationService:
 
                 # Send to all subscribers for this user
                 if user_id in self.subscribers:
+                    subscriber_count = len(self.subscribers[user_id])
+                    self.logger.info(
+                        "[MSG-DEBUG] NotificationService._handle_notification: Routing to user queues",
+                        extra={
+                            "user_id": user_id,
+                            "subscriber_count": subscriber_count,
+                            "event_type": message_data.get("type"),
+                        },
+                    )
                     for queue in self.subscribers[user_id]:
                         # Use asyncio.create_task to avoid blocking
                         asyncio.create_task(self._send_to_queue(queue, message_data))
                 else:
-                    pass  # No subscribers for this user
+                    self.logger.warning(
+                        "[MSG-DEBUG] NotificationService._handle_notification: No subscribers for user",
+                        extra={
+                            "user_id": user_id,
+                            "active_subscribers": list(self.subscribers.keys()),
+                        },
+                    )
 
             # Handle legacy booking channels (old format - kept for backward compatibility)
             elif channel.startswith("booking_chat_"):
@@ -277,14 +340,28 @@ class MessageNotificationService:
 
                 # Send to all subscribers for this booking
                 if booking_id in self.subscribers:
+                    subscriber_count = len(self.subscribers[booking_id])
+                    self.logger.info(
+                        "[MSG-DEBUG] NotificationService._handle_notification: Routing to booking queues",
+                        extra={
+                            "booking_id": booking_id,
+                            "subscriber_count": subscriber_count,
+                        },
+                    )
                     for queue in self.subscribers[booking_id]:
                         # Use asyncio.create_task to avoid blocking
                         asyncio.create_task(self._send_to_queue(queue, message_data))
                 else:
-                    pass  # No subscribers for this booking
+                    self.logger.warning(
+                        "[MSG-DEBUG] NotificationService._handle_notification: No subscribers for booking",
+                        extra={"booking_id": booking_id},
+                    )
 
         except Exception as e:
-            self.logger.error(f"Error handling notification: {str(e)}")
+            self.logger.error(
+                "[MSG-DEBUG] NotificationService._handle_notification: ERROR",
+                extra={"channel": channel, "error": str(e), "error_type": type(e).__name__},
+            )
 
     async def _send_to_queue(
         self, queue: asyncio.Queue[Dict[str, Any]], message_data: Dict[str, Any]
@@ -299,8 +376,18 @@ class MessageNotificationService:
         try:
             # Don't block if queue is full
             queue.put_nowait(message_data)
+            self.logger.info(
+                "[MSG-DEBUG] NotificationService._send_to_queue: Message queued successfully",
+                extra={
+                    "event_type": message_data.get("type"),
+                    "queue_size": queue.qsize(),
+                },
+            )
         except asyncio.QueueFull:
-            self.logger.warning("Subscriber queue is full, dropping message")
+            self.logger.warning(
+                "[MSG-DEBUG] NotificationService._send_to_queue: Queue full, message dropped",
+                extra={"event_type": message_data.get("type")},
+            )
 
     async def send_heartbeat(self, booking_id: str) -> None:
         """

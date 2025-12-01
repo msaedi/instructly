@@ -369,15 +369,23 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from .routes.v1.messages import set_notification_service as set_v1_notification_service
     from .services.message_notification_service import MessageNotificationService
 
+    logger.info("[MSG-DEBUG] Startup: Initializing MessageNotificationService...")
     notification_service = MessageNotificationService()
     try:
+        logger.info("[MSG-DEBUG] Startup: Starting notification service (PostgreSQL LISTEN)...")
         await notification_service.start()
         # Set notification service for both legacy and v1 routers during migration
         set_legacy_notification_service(notification_service)
         set_v1_notification_service(notification_service)
-        logger.info("Message notification service started successfully")
+        logger.info(
+            "[MSG-DEBUG] Startup: MessageNotificationService started successfully, "
+            "SSE real-time messaging ENABLED"
+        )
     except Exception as e:
-        logger.error(f"Failed to start message notification service: {str(e)}")
+        logger.error(
+            "[MSG-DEBUG] Startup: MessageNotificationService FAILED - real-time messaging DISABLED",
+            extra={"error": str(e), "error_type": type(e).__name__},
+        )
         # Continue without real-time messaging if it fails
 
     if getattr(settings, "bgc_expiry_enabled", False):
