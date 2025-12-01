@@ -207,13 +207,13 @@ test.describe('Referral surfaces', () => {
       await route.continue();
     });
 
-    await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded' });
     await page.getByLabel(/email/i).fill(studentEmail);
     await page.getByLabel(/password/i).fill(studentPassword);
     await page.getByRole('button', { name: /log in|sign in|submit/i }).click();
     await page.waitForTimeout(500);
 
-    await page.goto(`${base}/student/dashboard?tab=rewards`, { waitUntil: 'networkidle' });
+    await page.goto(`${base}/student/dashboard?tab=rewards`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: 'Your rewards' })).toBeVisible();
     await expect(page.getByRole('button', { name: /send invites/i })).toBeVisible();
 
@@ -251,7 +251,7 @@ test.describe('Referral surfaces', () => {
     const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
     await bypassGateIfPresent(page, base, process.env.GATE_CODE);
 
-    await page.goto(`${base}/referral`, { waitUntil: 'networkidle' });
+    await page.goto(`${base}/referral`, { waitUntil: 'domcontentloaded' });
     await expect(
       page.getByRole('heading', { name: 'Book your first $75+ lesson and get $20 off.' })
     ).toBeVisible();
@@ -265,14 +265,16 @@ test.describe('Referral surfaces', () => {
     const base = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3100';
     await bypassGateIfPresent(page, base, process.env.GATE_CODE);
 
-    await page.goto(`${base}/checkout?orderId=ORDER-PROMO&subtotalCents=9000&promo=1`, { waitUntil: 'networkidle' });
+    await page.goto(`${base}/checkout?orderId=ORDER-PROMO&subtotalCents=9000&promo=1`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Referral credit can’t be combined with other promotions.').first()).toBeVisible();
     await expect(page.getByRole('button', { name: /apply referral credit/i })).toHaveCount(0);
 
-    await page.goto(`${base}/checkout?orderId=ORDER-SMALL&subtotalCents=5000`, { waitUntil: 'networkidle' });
+    await page.goto(`${base}/checkout?orderId=ORDER-SMALL&subtotalCents=5000`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Spend $75+ to use your $20 credit.')).toBeVisible();
 
-    await page.route('**/api/v1/referrals/checkout/apply-referral', async (route) => {
+    // Match both direct API calls and proxied calls (e.g., /api/proxy/api/v1/...)
+    const routePattern = /referrals\/checkout\/apply-referral/;
+    await page.route(routePattern, async (route) => {
       if (route.request().method() === 'OPTIONS') {
         await route.fulfill({ status: 204 });
         return;
@@ -284,11 +286,17 @@ test.describe('Referral surfaces', () => {
       });
     });
 
-    await page.goto(`${base}/checkout?orderId=ORDER-OK&subtotalCents=9000`, { waitUntil: 'networkidle' });
-    await page.getByRole('button', { name: /apply referral credit/i }).click();
-    const appliedMessage = page.locator('p', { hasText: 'Referral credit applied' }).first();
-    await expect(appliedMessage).toBeVisible();
+    // Use 'load' to ensure full page load including React hydration
+    await page.goto(`${base}/checkout?orderId=ORDER-OK&subtotalCents=9000`, { waitUntil: 'load' });
+    const applyButton = page.getByRole('button', { name: /apply referral credit/i });
+    await expect(applyButton).toBeVisible({ timeout: 10000 });
+    await expect(applyButton).toBeEnabled({ timeout: 5000 });
+    // Wait for React hydration to complete
+    await page.waitForTimeout(500);
 
-    await page.unroute('**/api/v1/referrals/checkout/apply-referral');
+    await applyButton.click();
+    await expect(page.getByText('Referral credit applied').first()).toBeVisible({ timeout: 10000 });
+
+    await page.unroute(routePattern);
   });
 });

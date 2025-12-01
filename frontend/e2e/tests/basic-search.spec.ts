@@ -83,7 +83,7 @@ test.describe('Basic Search Flow', () => {
     // Wait for page to load and check if we have either:
     // 1. A search results container, or
     // 2. Some content indicating the page loaded
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Just verify the search page loaded successfully
     // The actual search results depend on backend implementation

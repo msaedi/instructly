@@ -911,7 +911,7 @@ test.describe('Lesson Details Page', () => {
 
   test('should open reschedule modal when reschedule button is clicked', async ({ page }) => {
     await page.goto('/student/lessons/1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Wait for and click reschedule button
     const rescheduleBtn = page.locator('button:has-text("Reschedule lesson")');
@@ -928,7 +928,7 @@ test.describe('Lesson Details Page', () => {
 
   test('should show cancellation warning when cancel button is clicked', async ({ page }) => {
     await page.goto('/student/lessons/1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Wait for and click cancel button
     const cancelBtn = page.locator('button:has-text("Cancel lesson")');
@@ -948,7 +948,7 @@ test.describe('Lesson Details Page', () => {
 
   test('should switch from cancel to reschedule modal', async ({ page }) => {
     await page.goto('/student/lessons/1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Open cancel modal
     const cancelBtn = page.locator('button:has-text("Cancel lesson")');
@@ -969,7 +969,7 @@ test.describe('Lesson Details Page', () => {
 
   test('should navigate back to My Lessons', async ({ page }) => {
     await page.goto('/student/lessons/1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Wait for and click back button
     const backBtn = page.locator('text=Back to My Lessons');
@@ -988,7 +988,7 @@ test.describe('Completed Lessons', () => {
 
   test('should display completed lesson with correct status', async ({ page }) => {
     await page.goto('/student/lessons');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Switch to History tab
     await page.waitForSelector('button:has-text("History")', { timeout: 10000 });
@@ -1000,7 +1000,7 @@ test.describe('Completed Lessons', () => {
 
   test('should show Book Again button for completed lessons', async ({ page }) => {
     await page.goto('/student/lessons/2');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Wait for completed status
     await expect(page.locator('text=COMPLETED')).toBeVisible({ timeout: 10000 });
@@ -1017,7 +1017,7 @@ test.describe('Completed Lessons', () => {
 
   test('should navigate to instructor profile when Book Again is clicked', async ({ page }) => {
     await page.goto('/student/lessons/2');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Wait for and click Book Again button
     const bookAgainBtn = page.locator('button:has-text("Book Again")');
@@ -1030,7 +1030,7 @@ test.describe('Completed Lessons', () => {
 
   test('should display receipt for completed lessons', async ({ page }) => {
     await page.goto('/student/lessons/2');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Wait for receipt section - look for h2 with Receipt text
     await expect(page.locator('h2:has-text("Receipt")')).toBeVisible({ timeout: 10000 });
@@ -1052,7 +1052,7 @@ test.describe('Mobile Responsiveness', () => {
 
   test('should work on mobile viewport', async ({ page }) => {
     await page.goto('/student/lessons');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify page loads correctly
     await expect(page.locator('h1:has-text("My Lessons")')).toBeVisible({ timeout: 10000 });
@@ -1079,7 +1079,7 @@ test.describe('Mobile Responsiveness', () => {
 
   test('should show mobile-friendly lesson details', async ({ page }) => {
     await page.goto('/student/lessons/1');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Wait for content - assert specific service heading
     await expect(page.getByRole('heading', { name: upcomingLesson.service }).first()).toBeVisible({ timeout: 10000 });
@@ -1167,7 +1167,7 @@ test.describe('Error Handling', () => {
 
     try {
       await page.goto('/student/lessons');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       await expect(page.locator('text=Failed to load lessons')).toBeVisible({ timeout: 10000 });
       await expect(page.locator('text=There was an error loading your lessons')).toBeVisible();

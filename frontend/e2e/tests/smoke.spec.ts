@@ -106,7 +106,7 @@ test.describe('Rate limit guardrails', () => {
     });
 
     await page.goto('/search?q=piano');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
 
     // Prefer explicit test id to avoid copy variations
@@ -158,7 +158,7 @@ test.describe('Rate limit guardrails', () => {
     });
 
     await page.goto('/search?q=guitar');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000);
 
     await expect(page.locator('[data-testid="rate-limit-banner"]')).toBeVisible({ timeout: 30000 });

@@ -299,7 +299,7 @@ test.describe('Student Booking Journey', () => {
     await homePage.goto();
 
     // Wait for page to fully load
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify homepage loaded
     await expect(page).toHaveTitle(/iNSTAiNSTRU/i);

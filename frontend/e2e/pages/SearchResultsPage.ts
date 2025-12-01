@@ -47,7 +47,7 @@ export class SearchResultsPage {
 
   async waitForResults() {
     // Wait for either results or error message
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('domcontentloaded');
     // Wait for main content to load - handle both success and error states
     // Use Playwright's or() for multiple selectors
     await this.page

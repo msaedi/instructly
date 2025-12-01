@@ -22,7 +22,7 @@ export async function uiLoginAsAdmin(page: Page, loginPath = '/login') {
   await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
   await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: /sign in|log in|submit/i }).click();
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 }
 
 export async function loginAsAdminViaApi(page: Page, apiBase = DEFAULT_API_BASE) {

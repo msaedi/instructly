@@ -19,7 +19,7 @@ test.describe('beta invite redemption across origins', () => {
     const projectBase = test.info().project.use?.baseURL ?? process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3100';
     const previewBase = process.env.E2E_PREVIEW_BASE_URL || projectBase;
     const betaBase = process.env.E2E_BETA_BASE_URL || previewBase;
-    await page.goto(new URL('/admin/beta/invites', projectBase).toString(), { waitUntil: 'networkidle' });
+    await page.goto(new URL('/admin/beta/invites', projectBase).toString(), { waitUntil: 'domcontentloaded' });
 
     const inviteeEmail = `invitee+${Date.now()}@example.com`;
     const inviteEmailInput = page.getByTestId('invite-email-input');

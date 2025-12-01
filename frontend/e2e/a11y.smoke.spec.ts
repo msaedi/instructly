@@ -44,7 +44,7 @@ test('home a11y smoke (logs by default; fails only when A11Y_STRICT=1)', async (
 
   await bypassGateIfPresent(page, base, process.env.GATE_CODE);
   await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(100);
 
   // Prefer a main-like region; fallback to body
