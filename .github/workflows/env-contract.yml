@@ -60,7 +60,6 @@ concurrency:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       PLAYWRIGHT_BASE_URL: ${{ (github.event_name == 'schedule' && vars.PREVIEW_BASE_URL) || inputs.base_url || vars.PREVIEW_BASE_URL }}
       PLAYWRIGHT_API_BASE_URL: ${{ (github.event_name == 'schedule' && vars.PREVIEW_API_BASE_URL) || inputs.api_base_url || vars.PREVIEW_API_BASE_URL }}
@@ -225,7 +224,6 @@ jobs:
         run: echo "PLAYWRIGHT_BASE_URL not set; skipping"
   beta-api:
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       PLAYWRIGHT_BASE_URL: ${{ vars.BETA_BASE_URL }}
       PLAYWRIGHT_API_BASE_URL: ${{ vars.BETA_API_BASE_URL }}

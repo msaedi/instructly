@@ -71,8 +71,15 @@ async function loginWithSession({ email, password, statePath }: StateConfig): Pr
   const maxAttempts = 4;
   let delay = 800;
 
+  // Extract frontend origin for CSRF headers - backend validates Origin matches frontend domain
+  const frontendOrigin = new URL(PLAYWRIGHT_BASE).origin;
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const response = await ctx.post('/api/v1/auth/login-with-session', {
+      headers: {
+        Origin: frontendOrigin,
+        Referer: `${frontendOrigin}/`,
+      },
       data: {
         email,
         password,
