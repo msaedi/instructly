@@ -808,7 +808,10 @@ class WeekOperationService(BaseService):
         while current <= end_date:
             week_start = current - timedelta(days=current.weekday())
             affected_weeks.add(week_start)
-            current += timedelta(days=7)
+            # Advance to the next Monday (start of next week), not just +7 days.
+            # This ensures we don't skip weeks when start_date isn't a Monday.
+            next_monday = week_start + timedelta(days=7)
+            current = next_monday
         return affected_weeks
 
     def _format_pattern_application_result(
