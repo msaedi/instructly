@@ -303,7 +303,7 @@ test.describe('Instructor availability calendar', () => {
       await page.getByTestId('conflict-refresh').click();
       await alignCalendarToWeek(page, week.iso.base);
     } else {
-      await page.reload({ waitUntil: 'networkidle' });
+      await page.reload({ waitUntil: 'domcontentloaded' });
       await alignCalendarToWeek(page, week.iso.base);
     }
     const followupWeekResponse = await followupWeekResponsePromise;

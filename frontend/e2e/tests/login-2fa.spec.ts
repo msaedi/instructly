@@ -270,7 +270,7 @@ test.describe('Login routing without 2FA', () => {
 
       const hydrationReady = waitForLoginHydration(page);
       await page.goto(LOGIN_URL);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       await hydrationReady;
       await waitForFormInteractivity(page);
       await page.getByLabel(/email/i).fill(scenario.user.email);
@@ -316,7 +316,7 @@ test.describe('2FA flows', () => {
 
     const hydrationReady = waitForLoginHydration(page);
     await page.goto(LOGIN_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await hydrationReady;
     await waitForFormInteractivity(page);
     await page.getByLabel(/email/i).fill(USERS.instructor2fa.email);
@@ -364,7 +364,7 @@ test.describe('2FA flows', () => {
 
     const hydrationReady = waitForLoginHydration(page);
     await page.goto(LOGIN_URL);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await hydrationReady;
     await waitForFormInteractivity(page);
     await page.getByLabel(/email/i).fill(USERS.instructor2fa.email);

@@ -260,7 +260,7 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
 
   await page.goto(`${APP_ORIGIN}/instructor/profile`);
   await page.waitForURL('**/instructor/profile**');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 
   const serviceAreasCard = page.getByTestId('service-areas-card').first();
   await serviceAreasCard.waitFor();
@@ -304,7 +304,7 @@ test('preferred places: add two -> save -> reload -> persisted', async ({ page }
 
   await page.goto(`${APP_ORIGIN}/instructor/profile`);
   await page.waitForURL('**/instructor/profile**');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 
   await page.getByTestId('service-areas-card').click();
   const preferredPlacesCardReload = page.getByTestId('preferred-places-card').first();

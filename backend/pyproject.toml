@@ -208,4 +208,5 @@ filterwarnings = [
     "ignore:'crypt' is deprecated.*:DeprecationWarning:passlib.*",
     "ignore:datetime.datetime.utcnow.*is deprecated.*:DeprecationWarning:jose.*",
     "ignore:datetime.datetime.utcnow.*is deprecated.*:DeprecationWarning:sqlalchemy.*",
+    "ignore:datetime.datetime.utcnow.*is deprecated.*:DeprecationWarning:sse_starlette.*",
 ]

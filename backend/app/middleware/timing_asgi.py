@@ -47,8 +47,7 @@ class TimingMiddlewareASGI:
             await self.app(scope, receive, send)
             return
 
-        # Log request start
-        logger.info(f"[TIMING] Starting request: {method} {path}")
+        # Track timing for slow request detection (no per-request logging)
         start_time = time.time()
 
         # Create a wrapper for send to add timing header
@@ -56,9 +55,6 @@ class TimingMiddlewareASGI:
             if message["type"] == "http.response.start":
                 # Calculate processing time
                 process_time = (time.time() - start_time) * 1000  # Convert to ms
-
-                # Log response timing
-                logger.info(f"[TIMING] Response for: {path}, duration: {process_time:.2f}ms")
 
                 # Add timing header
                 headers = MutableHeaders(scope=message)

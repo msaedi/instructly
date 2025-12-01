@@ -1,5 +1,5 @@
 # InstaInstru Architecture Decisions
-*Last Updated: August 2025*
+*Last Updated: January 2025 (Session v117)*
 
 ## Core Architecture Decisions
 
@@ -22,6 +22,15 @@
 | **No Singletons** | ✅ Active | Dependency injection everywhere | All services use DI pattern |
 | **Schema-Owned Privacy** | ✅ Active | Schemas handle privacy transformation | `InstructorInfo.from_user()` returns "FirstName L." |
 | **React Query Mandatory** | ✅ Active | All frontend data fetching uses React Query | No fetch() or useEffect for API calls |
+| **Bitmap Availability** | ✅ Active | 1440-bit per day (minutes-based) | 70% storage reduction vs slots, atomic week saves |
+| **24hr Pre-Authorization** | ✅ Active | Authorize T-24hr, capture T+24hr | Chargeback protection, student confirmation window |
+| **GCRA Rate Limiting** | ✅ Active | Runtime config, shadow mode | Triple financial protection, consistent behavior |
+| **API v1 Versioning** | ✅ Active | All routes under `/api/v1/*` | Contract testing, safe evolution, ready for v2 |
+| **Dual Environments** | ✅ Active | Preview + Beta domains | Phased rollout, stakeholder testing |
+| **Two-Factor Auth** | ✅ Active | TOTP + backup codes | Instructor account security |
+| **Referral Fraud Detection** | ✅ Active | Device fingerprinting, household limits | Prevent abuse while enabling growth |
+| **Event-Driven Badges** | ✅ Active | Trigger-based achievement awarding | Gamification without manual tracking |
+| **Background Checks** | ✅ Active | Checkr integration, adverse action workflow | Trust & safety compliance |
 
 ## Defensive Measures (Preventing Regression)
 
@@ -106,3 +115,82 @@ class InstructorInfo:
 5. **No slot IDs** - Time-based booking only
 6. **No new migrations during dev** - Modify existing files
 7. **Default to INT database** - Production requires explicit confirmation
+
+## Messaging Architecture Decisions (v117)
+
+### Per-User Conversation State
+**Decision**: Conversation state (active/archived/trashed) is per-user, not global.
+
+**Rationale**:
+- Each participant can independently organize their inbox
+- Student archives conversation, instructor still sees it
+- Better privacy and UX
+
+**Implementation**:
+```sql
+conversation_user_state:
+  - booking_id (FK)
+  - user_id (FK)
+  - state: 'active' | 'archived' | 'trashed'
+  - UNIQUE(booking_id, user_id)
+```
+
+### Auto-Restore on New Message
+**Decision**: Archived/trashed conversations automatically restore to active when new message arrives.
+
+**Rationale**:
+- Prevents orphaned conversations
+- Users never miss important messages
+- Better than manual check
+
+**Implementation**:
+```python
+if conversation.state in ['archived', 'trashed']:
+    restore_to_active()
+    notify_user()
+```
+
+### Conversation-Level vs Message-Level State
+**Decision**: State applies to entire conversation, not individual messages.
+
+**Rationale**:
+- Simpler mental model
+- Matches user expectations ("archive this conversation")
+- Avoids complex filtering logic
+
+**Anti-Pattern**: Filtering messages by `isArchived` flag (removed in v117)
+
+### Separate Unfiltered Queries for Notifications
+**Decision**: Notification badge/dropdown uses separate unfiltered query.
+
+**Rationale**:
+- Badge should show ALL unread messages
+- Current filter (Archived/Trash) shouldn't hide notifications
+- User never misses important messages
+
+**Implementation**:
+```typescript
+// Filtered query for current view
+const { conversations } = useConversations({ stateFilter, typeFilter });
+
+// Unfiltered query for global notifications
+const { globalUnreadConversations } = useConversations({
+  // No filters
+});
+```
+
+### Independent Audit Approach for Debugging
+**Decision**: Perform read-only audit before implementing fixes.
+
+**Methodology**:
+1. **Audit Phase**: Read all code, analyze root causes, document findings
+2. **Fix Phase**: Implement fixes based on audit
+3. **Validation Phase**: Run tests, verify no regressions
+
+**Benefits**:
+- Prevents hasty fixes
+- Reveals cascading issues
+- Better documentation
+- Fewer regressions
+
+**Results in v117**: Fixed 7 bugs through systematic audit, zero regressions.

@@ -123,7 +123,7 @@ test.describe('Slot Preservation on Back Navigation', () => {
 
     // Navigate directly to payment page
     await page.goto('/student/booking/confirm');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     console.log('Reached payment page');
 
     // 8. Verify booking data was stored

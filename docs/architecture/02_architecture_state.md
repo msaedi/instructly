@@ -1,5 +1,5 @@
 # InstaInstru Architecture State
-*Last Updated: August 2025*
+*Last Updated: November 2025 (Session v117)*
 
 ## 🗏 Service Layer Architecture (100% COMPLETE)
 
@@ -41,7 +41,7 @@ backend/app/services/
 Repository Pattern fully implemented across all services with pre-commit enforcement.
 
 ### Repository Status
-- **12 repositories** implemented
+- **13 repositories** implemented
 - **100% service coverage**
 - **Zero direct DB queries** in services
 - **Pre-commit hooks** prevent regression
@@ -54,6 +54,8 @@ Repository Pattern fully implemented across all services with pre-commit enforce
 - UserRepository (User + timezone management)
 - PermissionRepository (RBAC with 30 permissions)
 - FavoritesRepository (Student favorites)
+- ConversationStateRepository (Messaging archive/trash management)
+- MessageRepository (Message persistence with delivered_at/read_by)
 
 ## 🎨 Frontend Architecture (SERVICE-FIRST COMPLETE)
 
@@ -79,34 +81,34 @@ export const availabilityService = {
 
 ## 📊 Database Schema Architecture
 
-### Current Migrations (7 Total)
-1. **001_initial_schema** - Users, auth, indexes
-2. **002_instructor_system** - Profiles, services (soft delete)
-3. **003_availability_system** - Single-table design (no InstructorAvailability)
-4. **004_booking_system** - Bookings, password reset (no FK to slots)
-5. **005_performance_indexes** - Composite indexes
-6. **006_final_constraints** - Check constraints
-7. **007_remove_booking_slot_dependency** - True layer independence
+### Core Database Tables
+
+| Table | Purpose | Key Features |
+|-------|---------|--------------|
+| **users** | User accounts | ULID IDs, timezone, 2FA fields |
+| **instructor_profiles** | Instructor details | Bio, photo, verified status |
+| **services** | Service catalog | Soft delete, pricing, duration |
+| **availability_slots** | Instructor availability | Bitmap-based (1440-bit/day) |
+| **bookings** | Lesson bookings | Time-based (no slot FKs) |
+| **messages** | Chat messages | delivered_at, read_by |
+| **conversation_user_state** | Per-user inbox state | active/archived/trashed |
+| **reviews** | Student reviews | 5-star, text, instructor responses |
+| **user_favorites** | Student favorites | UNIQUE(user_id, instructor_id) |
+| **platform_credits** | Student wallet | Balance tracking, top-ups |
+| **referral_codes** | Referral program | Give $20/Get $20, fraud detection |
+| **student_badges** | Achievements | 7 badge types, event-driven |
+| **background_checks** | Checkr integration | Status, adverse action workflow |
+| **user_addresses** | Address management | PostGIS geocoding |
+| **instructor_service_areas** | Coverage areas | PostGIS regions |
 
 ### Key Architectural Decisions
-1. **One-Way Relationships** - Bookings reference slots (nullable), not vice versa
-2. **Single-Table Availability** - Just availability_slots table
+1. **ULID IDs** - All IDs are 26-character strings (sortable, non-sequential)
+2. **Bitmap Availability** - 1440-bit per day (70% storage reduction)
 3. **Time-Based Booking** - No slot IDs, just {instructor_id, date, start_time, end_time}
-4. **Soft Delete** - Services have is_active flag
-5. **No PostgreSQL Enums** - VARCHAR with CHECK constraints
-6. **ULID IDs** - All IDs are 26-character strings
-
-### Database Relationships
-```
-Users (1) ──────> (0..1) InstructorProfile
-  │                              │
-  │                              ├─> (0..*) Services
-  │                              │
-  ├─> (0..*) Bookings            └─> (0..*) AvailabilitySlots
-  │                                         (no relationship)
-  ├─> (0..*) PasswordResetTokens
-  └─> (0..*) UserFavorites
-```
+4. **Per-User Conversation State** - Independent archive/trash per participant
+5. **PostGIS Spatial** - Region boundaries, distance queries
+6. **Event-Driven Badges** - Trigger-based achievement awarding
+7. **Device Fingerprinting** - Referral fraud detection
 
 ## 📌 API Architecture
 
@@ -219,10 +221,15 @@ Client Response
 - **Repository Pattern** - 100% implementation
 - **Frontend Technical Debt** - Service-first transformation complete
 
-### Remaining Issues
-- **Frontend components** still assume slot IDs exist in some places
-- **Payment integration** not implemented
-- **Reviews/ratings** system missing
+### All Systems Complete ✅
+- Payment integration via Stripe Connect
+- Reviews/ratings with instructor responses
+- Background checks via Checkr
+- Referral system with fraud detection
+- Achievement/badge gamification
+- 2FA with TOTP + backup codes
+- Rate limiting with GCRA algorithm
+- Dual environments (preview + beta)
 
 ## 🎯 Architecture Maturity
 
@@ -236,25 +243,39 @@ Client Response
 - Test Infrastructure ✅
 - Performance Monitoring ✅
 
-### Frontend: B+ Grade
-- Service-First Architecture ✅
+### Frontend: A Grade
+- TypeScript Strictest Config ✅
+- Service-First Architecture (270+ services) ✅
 - React Query Integration ✅
 - Natural Language Search ✅
-- Some slot ID assumptions remain ⚠️
+- API Contract Enforcement ✅
+
+## 🏗️ Domain-Specific Architectures
+
+### Payments (Stripe Connect)
+- **Pre-Authorization**: Authorize T-24hr, capture T+24hr
+- **Platform Credits**: Auto-apply at checkout, balance tracking
+- **Tiered Commissions**: 15% → 12% → 10% based on volume
+- **Idempotency**: Request ID tracking for financial operations
+
+### Rate Limiting (GCRA Algorithm)
+- **Identity Chain**: User ID → IP fallback
+- **Financial Protection**: Triple limits on booking/payment/refund
+- **Runtime Config**: Hot-reload via HMAC-secured endpoints
+- **Shadow Mode**: Observe before enforce
+
+### Referral System
+- **Give $20/Get $20**: Student and referrer both get credits
+- **Fraud Detection**: Device fingerprinting, household limits
+- **Attribution**: First-touch, email/phone verification
+
+### Achievements (Gamification)
+- **7 Badge Types**: Milestones, habits, excellence, verified
+- **Event-Driven**: Trigger-based awarding on booking/review events
+- **Hold Mechanism**: Quality badges require admin approval
 
 ## 📝 Architecture Decision Records
 
-Key decisions documented:
-1. One-Way Relationship Design
-2. Repository Pattern Implementation
-3. Soft Delete Strategy
-4. Cache Strategy
-5. Layer Independence
-6. Single-Table Design
-7. Time-Based Booking
-8. No Singletons - DI Only
-9. RBAC over Role-Based
-10. Database Safety 3-Tier
-11. Privacy-First Analytics
-12. PostgreSQL UPSERT for Race Conditions
-13. Render Redis Migration
+*See `architecture-decisions.md` for full rationale and implementation details*
+
+Key decisions: ULID IDs, Bitmap Availability, 24hr Pre-Auth, Per-User State, GCRA Rate Limiting, API v1 Versioning, Dual Environments, Repository Pattern, Database Safety, Privacy Framework

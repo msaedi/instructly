@@ -156,7 +156,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
       await Promise.all([
         page.waitForURL((url) => !url.toString().includes('login'), {
           timeout: 10000,
-          waitUntil: 'networkidle'
+          waitUntil: 'domcontentloaded'
         }).catch(async (e) => {
           console.log('❌ Navigation timeout after login');
           // Check if we're still on login page with an error
@@ -203,7 +203,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
         console.log('❓ Unexpected redirect to:', newUrl);
       }
 
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     } catch {
       // Not on login page, continue
       console.log('Not on login page, continuing...');
@@ -361,7 +361,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
       await Promise.all([
         page.waitForURL((url) => !url.toString().includes('login'), {
           timeout: 10000,
-          waitUntil: 'networkidle'
+          waitUntil: 'domcontentloaded'
         }).catch(async (e) => {
           console.log('❌ Navigation timeout after login');
           // Check if we're still on login page with an error

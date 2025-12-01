@@ -15,10 +15,11 @@ import ast
 import inspect
 from pathlib import Path
 import re
-from typing import Any, List, Optional, Set
+from typing import Any, List, Optional, Set, get_args, get_origin, get_type_hints
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 import pytest
 
 from app.main import fastapi_app as app
@@ -416,9 +417,38 @@ class TestResponseModelCoverage:
 
         return models
 
+    def _get_nested_models(self, model: type, seen: Optional[Set[type]] = None) -> Set[type]:
+        """Recursively find all Pydantic models referenced by a model."""
+        if seen is None:
+            seen = set()
+
+        if model in seen or not (isinstance(model, type) and issubclass(model, BaseModel)):
+            return seen
+
+        seen.add(model)
+
+        try:
+            hints = get_type_hints(model)
+        except Exception:
+            return seen
+
+        for field_type in hints.values():
+            # Handle Optional, List, Union, etc.
+            origin = get_origin(field_type)
+            if origin is not None:
+                args = get_args(field_type)
+                for arg in args:
+                    if isinstance(arg, type) and issubclass(arg, BaseModel):
+                        self._get_nested_models(arg, seen)
+            elif isinstance(field_type, type) and issubclass(field_type, BaseModel):
+                self._get_nested_models(field_type, seen)
+
+        return seen
+
     def _find_used_response_models(self) -> Set[str]:
-        """Find all response models actually used in routes."""
-        used = set()
+        """Find all response models actually used in routes, including nested models."""
+        # First, find models directly declared as response_model
+        directly_used = set()
         routes_path = Path("app/routes")
 
         for py_file in routes_path.rglob("*.py"):
@@ -428,14 +458,43 @@ class TestResponseModelCoverage:
             # Find response_model= declarations
             pattern = r"response_model=(\w+)"
             matches = re.findall(pattern, content)
-            used.update(matches)
+            directly_used.update(matches)
 
             # Also find List[Model] patterns
             pattern = r"response_model=List\[(\w+)\]"
             matches = re.findall(pattern, content)
-            used.update(matches)
+            directly_used.update(matches)
 
-        return used
+        # Now recursively find all nested models
+        all_used_models = set()
+
+        # Dynamically import all response schemas to get actual model classes
+        import importlib
+        schemas_path = Path("app/schemas")
+
+        model_classes = {}
+        for py_file in schemas_path.glob("*_responses.py"):
+            module_name = f"app.schemas.{py_file.stem}"
+            try:
+                module = importlib.import_module(module_name)
+                for name in dir(module):
+                    obj = getattr(module, name)
+                    if isinstance(obj, type) and issubclass(obj, BaseModel) and obj != BaseModel:
+                        model_classes[name] = obj
+            except ImportError:
+                continue
+
+        # For each directly used model, find all nested models
+        for model_name in directly_used:
+            # Add the directly used model itself
+            all_used_models.add(model_name)
+
+            # Then find and add all its nested models
+            if model_name in model_classes:
+                nested = self._get_nested_models(model_classes[model_name])
+                all_used_models.update(m.__name__ for m in nested)
+
+        return all_used_models
 
 
 class TestEndpointResponseValidation:

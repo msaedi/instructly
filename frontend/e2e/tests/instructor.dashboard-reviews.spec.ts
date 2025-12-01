@@ -30,6 +30,7 @@ async function mockDashboardApis(page: Page) {
       preferred_teaching_locations: [],
       preferred_public_spaces: [],
       years_experience: 5,
+      is_live: true, // Required to show dashboard instead of onboarding
       user: {
         first_name: 'Sarah',
         last_initial: 'C',

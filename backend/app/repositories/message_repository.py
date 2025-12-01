@@ -51,7 +51,12 @@ class MessageRepository(BaseRepository[Message]):
             RepositoryException: If creation fails
         """
         try:
-            message = Message(booking_id=booking_id, sender_id=sender_id, content=content)
+            message = Message(
+                booking_id=booking_id,
+                sender_id=sender_id,
+                content=content,
+                delivered_at=datetime.now(timezone.utc),  # Mark as delivered immediately
+            )
             self.db.add(message)
             self.db.flush()  # Get the ID without committing
 
@@ -147,6 +152,7 @@ class MessageRepository(BaseRepository[Message]):
             Number of messages marked as read
         """
         try:
+            # Update notifications
             count = cast(
                 int,
                 (
@@ -167,6 +173,24 @@ class MessageRepository(BaseRepository[Message]):
                     )
                 ),
             )
+
+            # Update Message.read_by field for persistence
+            if count > 0:
+                read_at = datetime.now(timezone.utc).isoformat()
+                messages = self.db.query(Message).filter(Message.id.in_(message_ids)).all()
+
+                for message in messages:
+                    # Get existing read_by array or initialize empty list
+                    read_by = message.read_by if message.read_by else []
+
+                    # Check if user hasn't already read this message
+                    if not any(r.get("user_id") == user_id for r in read_by):
+                        read_by.append({"user_id": user_id, "read_at": read_at})
+                        message.read_by = read_by
+                        # Force SQLAlchemy to detect the change
+                        from sqlalchemy.orm.attributes import flag_modified
+
+                        flag_modified(message, "read_by")
 
             self.logger.info(f"Marked {count} messages as read for user {user_id}")
             return count
@@ -331,9 +355,10 @@ class MessageRepository(BaseRepository[Message]):
             raise RepositoryException(f"Failed to apply message edit: {str(e)}")
 
     def notify_booking_channel(self, booking_id: str, payload: Mapping[str, Any]) -> None:
-        """Send a JSON payload to the booking chat LISTEN/NOTIFY channel.
+        """Send a JSON payload to the booking chat LISTEN/NOTIFY channel (DEPRECATED).
 
         This is allowed at repository level for DB adjacency per repo pattern rules.
+        Kept for backward compatibility - new code should use notify_user_channel.
         """
         try:
             import json as _json
@@ -352,6 +377,29 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             # Non-fatal
             logger.warning(f"notify_booking_channel failed: {e}")
+
+    def notify_user_channel(self, user_id: str, payload: Mapping[str, Any]) -> None:
+        """Send a JSON payload to a user's inbox LISTEN/NOTIFY channel.
+
+        This is allowed at repository level for DB adjacency per repo pattern rules.
+        """
+        try:
+            import json as _json
+
+            from sqlalchemy import text
+
+            self.db.execute(
+                text("SELECT pg_notify(:channel, :payload)"),
+                {"channel": f"user_{user_id}_inbox", "payload": _json.dumps(payload)},
+            )
+            # Ensure NOTIFY is flushed on platforms where autocommit is disabled
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            # Non-fatal
+            logger.warning(f"notify_user_channel failed: {e}")
 
     def get_booking_participants(self, booking_id: str) -> Optional[Tuple[str, str]]:
         """
@@ -502,3 +550,73 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             self.logger.error(f"Error removing reaction: {str(e)}")
             raise RepositoryException(f"Failed to remove reaction: {str(e)}")
+
+    # Phase 3: Inbox state
+    def get_inbox_state(self, user_id: str, user_role: str) -> List[Any]:
+        """
+        Fetch all conversation states for a user in a single query.
+
+        Args:
+            user_id: The user's ID
+            user_role: 'instructor' or 'student' to determine which conversations to fetch
+
+        Returns:
+            List of ConversationState objects with related user data eager-loaded
+        """
+        try:
+            from ..models.conversation_state import ConversationState
+
+            query = self.db.query(ConversationState).options(
+                joinedload(ConversationState.booking),
+                joinedload(ConversationState.student),
+                joinedload(ConversationState.instructor),
+            )
+
+            if user_role == "instructor":
+                query = query.filter(ConversationState.instructor_id == user_id)
+            else:
+                query = query.filter(ConversationState.student_id == user_id)
+
+            # Order by most recent message first
+            query = query.order_by(ConversationState.last_message_at.desc().nullslast())
+
+            return cast(List[Any], query.all())
+
+        except Exception as e:
+            self.logger.error(f"Error fetching inbox state: {str(e)}")
+            raise RepositoryException(f"Failed to fetch inbox state: {str(e)}")
+
+    def reset_conversation_unread_count(
+        self, booking_id: str, user_id: str, is_instructor: bool
+    ) -> None:
+        """
+        Reset the unread count in conversation_state for a specific user.
+
+        Args:
+            booking_id: ID of the booking/conversation
+            user_id: ID of the user whose unread count should be reset
+            is_instructor: True if user is instructor, False if student
+        """
+        try:
+            from ..models.conversation_state import ConversationState
+
+            # Update the conversation_state unread count
+            self.db.query(ConversationState).filter(
+                ConversationState.booking_id == booking_id
+            ).update(
+                {
+                    ConversationState.instructor_unread_count
+                    if is_instructor
+                    else ConversationState.student_unread_count: 0,
+                    ConversationState.updated_at: func.now(),
+                },
+                synchronize_session=False,
+            )
+
+            self.logger.info(
+                f"Reset conversation_state unread count for booking {booking_id}, user {user_id}"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Failed to reset conversation_state unread count: {str(e)}")
+            raise RepositoryException(f"Failed to reset conversation_state unread count: {str(e)}")

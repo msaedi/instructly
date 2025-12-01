@@ -17,13 +17,15 @@ Key Features:
 
 Endpoints (organized with static routes BEFORE dynamic routes):
     === Static Routes (Section 1) ===
+    GET /stream - SSE endpoint for per-user real-time messages (Phase 2)
     GET /config - Get message configuration (edit window, etc.)
     GET /unread-count - Get total unread count for current user
+    GET /inbox-state - Get all conversations with unread counts (Phase 3)
     POST /mark-read - Mark messages as read
     POST /send - Send a message to a booking chat
 
     === Booking-specific Routes (Section 2) ===
-    GET /stream/{booking_id} - SSE endpoint for real-time messages
+    GET /stream/{booking_id} - (DEPRECATED) SSE endpoint for booking-specific messages
     GET /history/{booking_id} - Get paginated message history
     POST /typing/{booking_id} - Send typing indicator
 
@@ -35,14 +37,14 @@ Endpoints (organized with static routes BEFORE dynamic routes):
 """
 
 import asyncio
-from asyncio import Queue, Task
+from asyncio import Queue
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 import json
 import logging
-from typing import Any
+from typing import Any, Literal, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
@@ -58,7 +60,9 @@ from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
 from ...schemas.message_requests import MarkMessagesReadRequest, SendMessageRequest
 from ...schemas.message_responses import (
+    ConversationStateUpdateResponse,
     DeleteMessageResponse,
+    InboxStateResponse,
     MarkMessagesReadResponse,
     MessageConfigResponse,
     MessageResponse,
@@ -114,10 +118,173 @@ class EditMessageRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=5000, description="New message content")
 
 
+class ConversationStateUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    state: Literal["active", "archived", "trashed"]
+
+
 # ============================================================================
 # SECTION 1: Static routes (no path parameters)
 # MUST be defined before dynamic routes to prevent matching issues
 # ============================================================================
+
+
+@router.get(
+    "/stream",
+    responses={
+        200: {"description": "SSE stream established for user's inbox"},
+        401: {"description": "Not authenticated"},
+        403: {"description": "Permission denied"},
+    },
+)
+async def stream_user_messages(
+    current_user: User = Depends(get_current_user_sse),
+    service: MessageService = Depends(get_message_service),
+) -> EventSourceResponse:
+    """
+    SSE endpoint for real-time message streaming - per-user inbox.
+
+    Establishes a Server-Sent Events connection for receiving
+    real-time messages across ALL user's conversations.
+
+    Events include conversation_id for client-side routing.
+    Requires VIEW_MESSAGES permission.
+    """
+
+    # Check if user has VIEW_MESSAGES permission
+    from ...services.permission_service import PermissionService
+
+    permission_service = PermissionService(service.db)
+    if not permission_service.user_has_permission(current_user.id, PermissionName.VIEW_MESSAGES):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to view messages",
+        )
+
+    async def event_generator() -> AsyncGenerator[dict[str, str], None]:
+        """Generate SSE events for the user's inbox."""
+        queue: Queue[dict[str, Any]] | None = None
+        notification_service: MessageNotificationService | None = None
+
+        try:
+            # Send initial connection confirmation
+            yield {
+                "event": "connected",
+                "data": json.dumps({"user_id": current_user.id, "status": "connected"}),
+            }
+
+            # Small delay to ensure connection is established
+            await asyncio.sleep(0.1)
+
+            # Try to get notification service
+            try:
+                notification_service = get_notification_service()
+            except RuntimeError as e:
+                logger.warning(f"Notification service not available: {str(e)}")
+                notification_service = None
+
+            # Subscribe to user's inbox channel
+            if notification_service:
+                try:
+                    queue = await notification_service.subscribe_user(current_user.id)
+                except Exception as e:
+                    logger.warning(f"Failed to subscribe to user inbox: {str(e)}")
+                    queue = None
+            else:
+                logger.warning(f"No notification service available for user {current_user.id}")
+
+            # Main event loop
+            last_heartbeat = datetime.now(timezone.utc)
+
+            while True:
+                try:
+                    if queue:
+                        # Try to get message from queue with timeout
+                        try:
+                            message_data = await asyncio.wait_for(
+                                queue.get(), timeout=30.0
+                            )  # 30 second timeout
+
+                            # Process the message
+                            event_type = message_data.get("type") or "message"
+
+                            if event_type == "heartbeat":
+                                yield {
+                                    "event": "heartbeat",
+                                    "data": json.dumps(
+                                        {"timestamp": message_data.get("timestamp")}
+                                    ),
+                                }
+                            else:
+                                # Add is_mine flag for chat messages
+                                if event_type == "new_message" and message_data.get("message"):
+                                    message_data["is_mine"] = (
+                                        message_data["message"].get("sender_id") == current_user.id
+                                    )
+
+                                yield {
+                                    "event": event_type,
+                                    "data": json.dumps(message_data),
+                                }
+                        except asyncio.TimeoutError:
+                            # Timeout is normal - send keep-alive
+                            yield {
+                                "event": "keep-alive",
+                                "data": json.dumps(
+                                    {
+                                        "status": "alive",
+                                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                                    }
+                                ),
+                            }
+                    else:
+                        # No queue available, send periodic heartbeats
+                        await asyncio.sleep(5)
+                        now = datetime.now(timezone.utc)
+                        if (now - last_heartbeat).total_seconds() >= 30:
+                            yield {
+                                "event": "heartbeat",
+                                "data": json.dumps(
+                                    {
+                                        "timestamp": now.isoformat(),
+                                    }
+                                ),
+                            }
+                            last_heartbeat = now
+
+                except Exception as e:
+                    # Log error but continue
+                    logger.error(f"Error in SSE stream for user {current_user.id}: {str(e)}")
+                    # Small delay before continuing
+                    await asyncio.sleep(1)
+                    continue
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in SSE generator for user {current_user.id}: {str(e)}")
+            raise
+        finally:
+            # Clean up subscription
+            if notification_service and queue:
+                try:
+                    await notification_service.unsubscribe_user(current_user.id, queue)
+                except Exception as e:
+                    logger.error(f"Error during unsubscribe: {str(e)}")
+
+    # Create EventSourceResponse with appropriate headers
+    return EventSourceResponse(
+        event_generator(),
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+        media_type="text/event-stream",
+    )
 
 
 @router.get(
@@ -171,6 +338,76 @@ async def get_unread_count(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get unread count",
+        )
+
+
+@router.get(
+    "/inbox-state",
+    response_model=InboxStateResponse,
+    dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
+    responses={
+        200: {"description": "Inbox state with all conversations"},
+        304: {"description": "Not Modified - content unchanged (ETag match)"},
+        401: {"description": "Not authenticated"},
+        403: {"description": "Permission denied"},
+    },
+)
+async def get_inbox_state(
+    response: Response,
+    current_user: User = Depends(get_current_active_user),
+    service: MessageService = Depends(get_message_service),
+    if_none_match: Optional[str] = Header(None, alias="If-None-Match"),
+    state: Optional[str] = Query(None, pattern="^(archived|trashed)$"),
+    type: Optional[str] = Query(None, pattern="^(student|platform)$"),
+) -> InboxStateResponse:
+    """
+    Get all conversations with unread counts and last message previews.
+
+    Supports ETag caching - returns 304 Not Modified if content unchanged.
+    Poll this endpoint every 5-15 seconds for inbox updates.
+
+    Query Parameters:
+        - state: Filter by conversation state ('archived', 'trashed', or None for active)
+        - type: Filter by conversation type ('student', 'platform')
+
+    Returns:
+        - conversations: List of filtered conversations
+        - total_unread: Sum of all unread messages
+        - state_counts: Count of conversations by state
+
+    Requires VIEW_MESSAGES permission.
+    """
+    try:
+        # Determine user role
+        user_role = "instructor" if current_user.role == "instructor" else "student"
+
+        # Get inbox state from service with filters
+        inbox_state = service.get_inbox_state(
+            current_user.id, user_role, state_filter=state, type_filter=type
+        )
+
+        # Generate ETag
+        etag = service.generate_inbox_etag(inbox_state)
+
+        # Check if client has current version (ETag match)
+        if if_none_match and if_none_match.strip('"') == etag:
+            # FastAPI doesn't have a clean way to return 304, so we raise an exception
+            # that gets caught and returns 304
+            response.status_code = status.HTTP_304_NOT_MODIFIED
+            # Return empty response for 304 - client will use cached version
+            return InboxStateResponse(conversations=[], total_unread=0, unread_conversations=0)
+
+        # Set ETag header for successful response
+        response.headers["ETag"] = f'"{etag}"'
+
+        # Return validated response model
+        return InboxStateResponse(**inbox_state)
+
+    except Exception as e:
+        logger.error(f"Error getting inbox state: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get inbox state",
         )
 
 
@@ -298,214 +535,65 @@ async def send_message(
         )
 
 
+@router.put(
+    "/conversations/{booking_id}/state",
+    response_model=ConversationStateUpdateResponse,
+    dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
+    responses={
+        200: {"description": "Conversation state updated"},
+        400: {"description": "Invalid state value"},
+        401: {"description": "Not authenticated"},
+        403: {"description": "Permission denied"},
+    },
+)
+async def update_conversation_state(
+    booking_id: str,
+    body: ConversationStateUpdate,
+    current_user: User = Depends(get_current_active_user),
+    service: MessageService = Depends(get_message_service),
+) -> ConversationStateUpdateResponse:
+    """
+    Update conversation state (archive, trash, or restore).
+
+    Sets the conversation state for the current user only (doesn't affect other participant).
+
+    Request body:
+        - state: 'active', 'archived', or 'trashed'
+
+    Returns:
+        Dict with booking_id, state, and state_changed_at
+
+    Requires VIEW_MESSAGES permission.
+    """
+    try:
+        result = service.set_conversation_state(
+            user_id=current_user.id, booking_id=booking_id, state=body.state
+        )
+        return result
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Error updating conversation state: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update conversation state",
+        )
+
+
 # ============================================================================
 # SECTION 2: Booking-specific routes (with {booking_id} parameter)
 # These use /stream/, /history/, /typing/ prefixes to avoid conflicts
 # ============================================================================
 
 
-async def _send_heartbeats(
-    notification_service: MessageNotificationService, booking_id: str
-) -> None:
-    """Send periodic heartbeats to keep connection alive."""
-    while True:
-        await asyncio.sleep(30)  # Send heartbeat every 30 seconds
-        await notification_service.send_heartbeat(booking_id)
-
-
-@router.get(
-    "/stream/{booking_id}",
-    responses={
-        200: {"description": "SSE stream established"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied or no access to booking"},
-    },
-)
-async def stream_messages(
-    booking_id: str,
-    current_user: User = Depends(get_current_user_sse),
-    service: MessageService = Depends(get_message_service),
-) -> EventSourceResponse:
-    """
-    SSE endpoint for real-time message streaming.
-
-    Establishes a Server-Sent Events connection for receiving
-    real-time messages for a specific booking.
-
-    Requires VIEW_MESSAGES permission.
-    Note: Permission check is done manually since SSE endpoints
-    can't use regular FastAPI dependencies with EventSource.
-    """
-
-    # Check if user has VIEW_MESSAGES permission using PermissionService
-    from ...services.permission_service import PermissionService
-
-    permission_service = PermissionService(service.db)
-    if not permission_service.user_has_permission(current_user.id, PermissionName.VIEW_MESSAGES):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to view messages",
-        )
-
-    # Verify user has access to this booking
-    try:
-        if not service._user_has_booking_access(booking_id, current_user.id):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have access to this booking",
-            )
-    except Exception as e:
-        logger.error(f"Error checking booking access: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access check failed: {str(e)}",
-        )
-
-    async def event_generator() -> AsyncGenerator[dict[str, str], None]:
-        """Generate SSE events for the client."""
-        queue: Queue[dict[str, Any]] | None = None
-        heartbeat_task: Task[None] | None = None
-        notification_service: MessageNotificationService | None = None
-
-        try:
-            # Send initial connection confirmation
-            yield {
-                "event": "connected",
-                "data": json.dumps({"booking_id": booking_id, "status": "connected"}),
-            }
-
-            # Small delay to ensure connection is established
-            await asyncio.sleep(0.1)
-
-            # Try to get notification service (optional)
-            try:
-                notification_service = get_notification_service()
-            except RuntimeError as e:
-                logger.warning(f"Notification service not available: {str(e)}")
-                notification_service = None
-
-            # Subscribe to notifications if service available
-            if notification_service:
-                try:
-                    queue = await notification_service.subscribe(booking_id)
-                except Exception as e:
-                    logger.warning(f"Failed to subscribe to notifications: {str(e)}")
-                    queue = None
-
-            # Start heartbeat task if notification service available
-            if notification_service and queue:
-                try:
-                    heartbeat_task = asyncio.create_task(
-                        _send_heartbeats(notification_service, booking_id)
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to start heartbeat task: {str(e)}")
-                    heartbeat_task = None
-
-            # Main event loop
-            last_heartbeat = datetime.now(timezone.utc)
-
-            while True:
-                try:
-                    if queue:
-                        # Try to get message from queue with timeout
-                        try:
-                            message_data = await asyncio.wait_for(
-                                queue.get(), timeout=30.0
-                            )  # 30 second timeout
-
-                            # Process the message
-                            event_type = message_data.get("type") or "message"
-
-                            if event_type == "heartbeat":
-                                yield {
-                                    "event": "heartbeat",
-                                    "data": json.dumps(
-                                        {"timestamp": message_data.get("timestamp")}
-                                    ),
-                                }
-                            else:
-                                # Skip echo for our own outbound chat messages only
-                                if (
-                                    event_type == "message"
-                                    and message_data.get("sender_id") == current_user.id
-                                ):
-                                    continue
-
-                                # Mark as not mine for chat messages
-                                if event_type == "message":
-                                    message_data["is_mine"] = False
-
-                                yield {
-                                    "event": event_type,
-                                    "data": json.dumps(message_data),
-                                }
-                        except asyncio.TimeoutError:
-                            # Timeout is normal - send keep-alive
-                            yield {
-                                "event": "keep-alive",
-                                "data": json.dumps(
-                                    {
-                                        "status": "alive",
-                                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                                    }
-                                ),
-                            }
-                    else:
-                        # No queue available, send periodic heartbeats
-                        await asyncio.sleep(5)
-                        now = datetime.now(timezone.utc)
-                        if (now - last_heartbeat).total_seconds() >= 30:
-                            yield {
-                                "event": "heartbeat",
-                                "data": json.dumps(
-                                    {
-                                        "timestamp": now.isoformat(),
-                                    }
-                                ),
-                            }
-                            last_heartbeat = now
-
-                except Exception as e:
-                    # Log error but continue
-                    logger.error(f"Error in SSE stream for booking {booking_id}: {str(e)}")
-                    # Small delay before continuing
-                    await asyncio.sleep(1)
-                    continue
-
-        except asyncio.CancelledError:
-            if heartbeat_task:
-                heartbeat_task.cancel()
-            raise
-        except Exception as e:
-            logger.error(f"Error in SSE generator for booking {booking_id}: {str(e)}")
-            raise
-        finally:
-            # Clean up subscription
-            if notification_service and queue:
-                try:
-                    await notification_service.unsubscribe(booking_id, queue)
-                except Exception as e:
-                    logger.error(f"Error during unsubscribe: {str(e)}")
-            if heartbeat_task:
-                try:
-                    heartbeat_task.cancel()
-                except Exception as e:
-                    logger.error(f"Error cancelling heartbeat: {str(e)}")
-
-    # Create EventSourceResponse with appropriate headers
-    return EventSourceResponse(
-        event_generator(),
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-            "Content-Type": "text/event-stream",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
-        media_type="text/event-stream",
-    )
+# DEPRECATED: Per-booking SSE endpoint removed in Phase 2
+# Replaced by /stream (per-user inbox) for ALL user conversations
+# Old endpoint: /stream/{booking_id}
+# New endpoint: /stream (no booking_id - receives all user's messages)
 
 
 @router.get(

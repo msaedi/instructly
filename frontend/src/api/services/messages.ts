@@ -9,6 +9,7 @@
  * Phase 10: Messages domain migrated to /api/v1/messages
  */
 
+import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/api/queryKeys';
 import {
   useGetMessageConfigApiV1MessagesConfigGet,
@@ -72,9 +73,9 @@ export function useUnreadCount(enabled: boolean = true) {
   return useGetUnreadCountApiV1MessagesUnreadCountGet({
     query: {
       queryKey: queryKeys.messages.unreadCount,
-      staleTime: 1000 * 60, // 1 minute
+      staleTime: 1000 * 30, // 30 seconds
       enabled,
-      refetchInterval: 1000 * 60, // Poll every minute when visible
+      refetchInterval: 1000 * 30, // Poll every 30 seconds - matches conversation refresh
     },
   });
 }
@@ -151,6 +152,7 @@ export function useSendMessage() {
  * Mark messages as read mutation.
  *
  * Can mark either all messages in a booking OR specific message IDs.
+ * Automatically invalidates the unread count query on success.
  *
  * @example
  * ```tsx
@@ -165,7 +167,17 @@ export function useSendMessage() {
  * ```
  */
 export function useMarkMessagesAsRead() {
-  return useMarkMessagesAsReadApiV1MessagesMarkReadPost();
+  const queryClient = useQueryClient();
+  return useMarkMessagesAsReadApiV1MessagesMarkReadPost({
+    mutation: {
+      onSuccess: () => {
+        // Invalidate unread count so dashboard badge updates
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.messages.unreadCount,
+        });
+      },
+    },
+  });
 }
 
 /**

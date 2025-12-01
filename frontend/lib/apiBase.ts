@@ -19,8 +19,6 @@ type ResolveContext = {
   useProxy?: boolean | undefined;
 };
 
-type DebugReason = 'env' | 'proxy' | 'cache-or-derived' | 'app-env';
-
 const LOCAL_DEFAULT_API = 'http://localhost:8000';
 const LOCAL_BETA_FE_HOST = 'beta-local.instainstru.com';
 const LOCAL_BETA_API_BASE = 'http://api.beta-local.instainstru.com:8000';
@@ -200,10 +198,10 @@ function deriveDevBase(host: string, protocol: string, storage: StorageLayer | u
   return LOCAL_DEFAULT_API;
 }
 
-function resolveBase(context: ResolveContext): { base: string; reason: DebugReason } {
+function resolveBase(context: ResolveContext): string {
   const envBase = sanitize(context.envBase);
   if (envBase) {
-    return { base: envBase, reason: 'env' };
+    return envBase;
   }
 
   const normalizedAppEnv = context.appEnv.trim().toLowerCase();
@@ -213,17 +211,17 @@ function resolveBase(context: ResolveContext): { base: string; reason: DebugReas
 
   if (context.platform === 'ssr') {
     if (remoteBase) {
-      return { base: remoteBase, reason: 'app-env' };
+      return remoteBase;
     }
-    return { base: '', reason: 'app-env' };
+    return '';
   }
 
   if (remoteBase) {
-    return { base: remoteBase, reason: 'app-env' };
+    return remoteBase;
   }
 
   if (context.useProxy && DEV_APP_ENVS.has(normalizedAppEnv)) {
-    return { base: '/api/proxy', reason: 'proxy' };
+    return '/api/proxy';
   }
 
   if (context.platform === 'csr' && context.host) {
@@ -231,15 +229,15 @@ function resolveBase(context: ResolveContext): { base: string; reason: DebugReas
     const shouldCache = DEV_APP_ENVS.has(normalizedAppEnv);
     const resolved = deriveDevBase(context.host, protocol, shouldCache ? context.storage ?? getMemoryStorageLayer() : undefined, shouldCache);
     if (resolved) {
-      return { base: resolved, reason: 'cache-or-derived' };
+      return resolved;
     }
   }
 
   if (remoteBase) {
-    return { base: remoteBase, reason: 'app-env' };
+    return remoteBase;
   }
 
-  return { base: LOCAL_DEFAULT_API, reason: 'app-env' };
+  return LOCAL_DEFAULT_API;
 }
 
 export function getApiBase(): string {
@@ -277,13 +275,12 @@ export function getApiBase(): string {
 
   const result = resolveBase(baseArgs);
 
-  debugLog(result.reason, result.base, host, appEnv);
-  return result.base;
+  // Debug logging removed - was too verbose (logged on every API call)
+  return result;
 }
 
 export function resolveBaseForTest(context: ResolveContext): string {
-  const result = resolveBase(context);
-  return result.base;
+  return resolveBase(context);
 }
 
 export function resetApiBaseTestState(): void {
@@ -299,20 +296,6 @@ export function withApiBase(path: string): string {
   const cleanPath = path.replace(/^\/+/, '');
   const normalizedBase = base.replace(/\/+$/, '');
   return `${normalizedBase}/${cleanPath}`;
-}
-
-function debugLog(reason: DebugReason, decidedBase: string, host?: string | null, appEnv?: string): void {
-  if (process.env.NODE_ENV === 'production') {
-    return;
-  }
-
-  logger.debug('[api-base]', {
-    ctx: typeof window === 'undefined' ? 'SSR' : 'CSR',
-    host,
-    decidedBase,
-    reason,
-    appEnv,
-  });
 }
 
 // Guard against deprecated NEXT_PUBLIC_API_URL usage

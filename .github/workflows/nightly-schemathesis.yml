@@ -147,3 +147,120 @@ jobs:
         if: failure()
         run: |
           echo "::error::Nightly Schemathesis tests failed! Check the artifacts for details."
+
+  sse-endpoints:
+    name: SSE Endpoint Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: instainstru_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run database migrations
+        env:
+          SECRET_KEY: test-secret-key-for-ci
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          IS_TESTING: "true"
+          GEOCODING_PROVIDER: mock
+          RESEND_API_KEY: test-resend-key
+          FRONTEND_URL: http://localhost:3000
+          ENVIRONMENT: test
+          REDIS_URL: redis://localhost:6379
+        run: |
+          cd backend
+          python -m alembic -c alembic.ini upgrade head
+
+      - name: Seed test data
+        env:
+          SECRET_KEY: test-secret-key-for-ci
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          IS_TESTING: "true"
+          GEOCODING_PROVIDER: mock
+          RESEND_API_KEY: test-resend-key
+          FRONTEND_URL: http://localhost:3000
+          ENVIRONMENT: test
+          REDIS_URL: redis://localhost:6379
+        run: |
+          cd backend
+          python scripts/seed_roles_permissions.py
+
+      - name: Run SSE Endpoint Tests
+        run: |
+          set -o pipefail
+          cd backend
+          pytest tests/integration/test_sse_endpoints.py \
+            -v \
+            --tb=short \
+            --no-header \
+            2>&1 | tee sse-results.txt
+        env:
+          SECRET_KEY: test-secret-key-for-ci
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+          IS_TESTING: "true"
+          GEOCODING_PROVIDER: mock
+          RESEND_API_KEY: test-resend-key
+          FRONTEND_URL: http://localhost:3000
+          ENVIRONMENT: test
+          REDIS_URL: redis://localhost:6379
+          RUN_SSE_TESTS: "1"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sse-results
+          path: backend/sse-results.txt
+          retention-days: 30
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::SSE endpoint tests failed! Check the artifacts for details."

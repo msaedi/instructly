@@ -250,7 +250,7 @@ class TestRoutingInvariants:
             ("/api/v1/bookings/{booking_id}/pricing", "/api/v1/bookings/{booking_id}/preview"),
             ("/api/v1/bookings/{booking_id}/preview", "/api/v1/bookings/{booking_id}/pricing"),
             # Messages v1: Static routes defined before dynamic {message_id}
-            # Phase 10: /config, /unread-count, /mark-read, /send defined before /{message_id}
+            # Phase 10: /config, /unread-count, /mark-read, /send, /stream defined before /{message_id}
             ("/api/v1/messages/config", "/api/v1/messages/{message_id}"),
             ("/api/v1/messages/{message_id}", "/api/v1/messages/config"),
             ("/api/v1/messages/unread-count", "/api/v1/messages/{message_id}"),
@@ -259,6 +259,12 @@ class TestRoutingInvariants:
             ("/api/v1/messages/{message_id}", "/api/v1/messages/mark-read"),
             ("/api/v1/messages/send", "/api/v1/messages/{message_id}"),
             ("/api/v1/messages/{message_id}", "/api/v1/messages/send"),
+            # Phase 2: /stream (per-user SSE) defined before /{message_id}
+            ("/api/v1/messages/stream", "/api/v1/messages/{message_id}"),
+            ("/api/v1/messages/{message_id}", "/api/v1/messages/stream"),
+            # Phase 3: /inbox-state defined before /{message_id}
+            ("/api/v1/messages/inbox-state", "/api/v1/messages/{message_id}"),
+            ("/api/v1/messages/{message_id}", "/api/v1/messages/inbox-state"),
             # Reviews v1: Static routes defined before dynamic {booking_id}
             ("/api/v1/reviews/booking/existing", "/api/v1/reviews/booking/{booking_id}"),
             ("/api/v1/reviews/booking/{booking_id}", "/api/v1/reviews/booking/existing"),
@@ -506,7 +512,7 @@ class TestRoutingInvariants:
             "/api/v1/messages/unread-count",  # GET
             "/api/v1/messages/mark-read",  # POST
             "/api/v1/messages/send",  # POST
-            "/api/v1/messages/stream/{booking_id}",  # GET (SSE)
+            "/api/v1/messages/stream",  # GET (SSE - per-user inbox, Phase 2)
             "/api/v1/messages/history/{booking_id}",  # GET
             "/api/v1/messages/typing/{booking_id}",  # POST
             "/api/v1/messages/{message_id}",  # PATCH, DELETE

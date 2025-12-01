@@ -1,5 +1,5 @@
 # InstaInstru Repository Pattern Architecture
-*Last Updated: August 2025*
+*Last Updated: November 2025 (Session v117)*
 
 ## 🏗️ Repository Pattern Overview
 
@@ -67,8 +67,10 @@ Centralized creation of all repository instances:
 - `create_analytics_repository()`
 - `create_permission_repository()`
 - `create_favorites_repository()`
+- `create_conversation_state_repository()`
+- `create_message_repository()`
 
-## 🔧 Implemented Repositories (12 Total)
+## 🔧 Implemented Repositories (13 Total)
 
 ### Core Business Repositories
 1. **SlotManagerRepository** - 13 methods, 97% coverage
@@ -85,10 +87,12 @@ Centralized creation of all repository instances:
 10. **AnalyticsRepository** - Event tracking, metrics
 11. **PermissionRepository** - RBAC system, 30 permissions
 12. **FavoritesRepository** - Student favorites management
+13. **ConversationStateRepository** - Messaging archive/trash management (v117)
+14. **MessageRepository** - Message persistence with delivered_at/read_by (v117)
 
 ## 📊 Service Coverage
 
-### Services with Dedicated Repositories (12)
+### Services with Dedicated Repositories (13)
 All services properly use repositories for data access
 
 ### Services Using BaseService Only (12)

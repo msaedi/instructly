@@ -17,15 +17,37 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown, Pencil } from 'lucide-react';
-import { useSSEMessages, ConnectionStatus } from '@/hooks/useSSEMessages';
-import { useMessageHistory, useSendMessage, useMarkAsRead } from '@/hooks/useMessageQueries';
-import { useMessageConfig } from '@/src/api/services/messages';
-import { Message } from '@/services/messageService';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMessageStream } from '@/providers/UserMessageStreamProvider';
+import {
+  useMessageConfig,
+  useMessageHistory,
+  useSendMessage,
+  useMarkMessagesAsRead,
+  useEditMessage,
+  useAddReaction,
+  useRemoveReaction,
+  useSendTypingIndicator,
+} from '@/src/api/services/messages';
+import { queryKeys } from '@/src/api/queryKeys';
+import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 
+// Connection status enum (internal to Chat component)
+enum ConnectionStatus {
+  CONNECTING = 'connecting',
+  CONNECTED = 'connected',
+  DISCONNECTED = 'disconnected',
+  ERROR = 'error',
+  RECONNECTING = 'reconnecting',
+}
+
+// Type for read_by entries from message response
+type ReadByEntry = { user_id: string; read_at: string };
+
 // Extended message type with reactions
-interface MessageWithReactions extends Message {
+interface MessageWithReactions extends MessageResponse {
   my_reactions?: string[];
   reactions?: Record<string, number>;
 }
@@ -80,46 +102,158 @@ export function Chat({
     error: historyError,
   } = useMessageHistory(bookingId);
 
-  // Clear optimistic messages when history is refreshed
-  // Since optimistic messages have negative timestamp IDs (as strings), we only keep those that are truly optimistic
-  useEffect(() => {
-    if (historyData?.messages) {
-      // Keep only optimistic messages (those with IDs starting with '-')
-      // Real messages from the server will have ULID strings
-      setOptimisticMessages(prev => prev.filter(msg => msg.id.startsWith('-')));
-    }
-  }, [historyData]);
 
-  // Mutations
-  const sendMessage = useSendMessage();
-  const markAsRead = useMarkAsRead();
+  // Mutations - destructure mutate functions for stable references
+  const queryClient = useQueryClient();
+  const sendMessageMutation = useSendMessage();
+  const { mutate: markMessagesAsReadMutate } = useMarkMessagesAsRead();
+  const editMessageMutation = useEditMessage();
+  const addReactionMutation = useAddReaction();
+  const removeReactionMutation = useRemoveReaction();
+  const sendTypingMutation = useSendTypingIndicator();
   const lastMarkedUnreadByBookingRef = useRef<Record<string, string | null>>({});
 
-  // Real-time messages via SSE
-  const {
-    messages: realtimeMessages,
-    connectionStatus,
-    reconnect,
-    readReceipts,
-    typingStatus,
-    reactionDeltas,
-  } = useSSEMessages({
-    bookingId,
-    enabled: true,
-    onMessage: (message) => {
-      // Mark message as read if it's from the other user
-      if (message.sender_id !== currentUserId) {
-        markAsRead.mutate({ message_ids: [message.id] });
+  // Real-time messages via SSE (Phase 4: per-user inbox)
+  const { subscribe, isConnected, connectionError } = useMessageStream();
+  const [realtimeMessages, setRealtimeMessages] = useState<MessageResponse[]>([]);
+  const [readReceipts, setReadReceipts] = useState<
+    Record<string, Array<{ user_id: string; read_at: string }>>
+  >({});
+  const [typingStatus, setTypingStatus] = useState<{
+    userId: string;
+    userName: string;
+    until: number;
+  } | null>(null);
+  const [reactionDeltas, setReactionDeltas] = useState<
+    Record<string, Record<string, number>>
+  >({});
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Map connection state to legacy status enum
+  const connectionStatus: ConnectionStatus = connectionError
+    ? ConnectionStatus.ERROR
+    : isConnected
+    ? ConnectionStatus.CONNECTED
+    : ConnectionStatus.DISCONNECTED;
+
+  const reconnect = () => {
+    // Reconnect is automatic in new implementation
+    window.location.reload();
+  };
+
+  // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
+  const handleSSEMessage = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string; delivered_at?: string | null }, isMine: boolean) => {
+    // Add message to realtime state, or update existing message with new fields (e.g., delivered_at)
+    setRealtimeMessages((prev) => {
+      const existingIndex = prev.findIndex((m) => m.id === message.id);
+      if (existingIndex !== -1) {
+        // Update existing message (e.g., to add delivered_at timestamp)
+        const updated = [...prev];
+        const deliveredAt = message.delivered_at ?? updated[existingIndex]!.delivered_at;
+        updated[existingIndex] = {
+          ...updated[existingIndex]!,
+          ...(deliveredAt ? { delivered_at: deliveredAt } : {}),
+        };
+        return updated;
       }
-    },
-  });
+      return [
+        ...prev,
+        {
+          id: message.id,
+          content: message.content,
+          sender_id: message.sender_id,
+          booking_id: message.booking_id,
+          created_at: message.created_at,
+          updated_at: message.created_at,
+          is_deleted: false,
+          ...(message.delivered_at ? { delivered_at: message.delivered_at } : {}),
+        } as MessageResponse,
+      ];
+    });
 
-  // State for optimistically added messages (sent by current user)
-  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
+    // Mark message as read if it's from the other user
+    if (!isMine && message.sender_id !== currentUserId) {
+      markMessagesAsReadMutate({ data: { message_ids: [message.id] } });
+    }
+  }, [currentUserId, markMessagesAsReadMutate]);
 
-  // Combine history, optimistic, and real-time messages with deduplication
+  const handleSSETyping = useCallback((userId: string, userName: string, isTyping: boolean) => {
+    if (isTyping) {
+      setTypingStatus({ userId, userName, until: Date.now() + 3000 });
+      // Clear typing after 3 seconds if no update
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => setTypingStatus(null), 3000);
+    } else {
+      setTypingStatus(null);
+    }
+  }, []);
+
+  const handleReadReceipt = useCallback((messageIds: string[], readerId: string) => {
+    // Defensive check: SSE event might send undefined
+    if (!messageIds || !Array.isArray(messageIds)) {
+      logger.warn('[Chat] Invalid read receipt event', { messageIds, readerId });
+      return;
+    }
+
+    setReadReceipts((prev) => {
+      const updated = { ...prev };
+      messageIds.forEach((msgId) => {
+        const existing = updated[msgId] || [];
+        if (!existing.find((r) => r.user_id === readerId)) {
+          updated[msgId] = [
+            ...existing,
+            { user_id: readerId, read_at: new Date().toISOString() },
+          ];
+        }
+      });
+      return updated;
+    });
+  }, []);
+
+  const handleReaction = useCallback((messageId: string, emoji: string, action: 'added' | 'removed', userId: string) => {
+    // Skip SSE deltas for current user's own reactions - already handled optimistically
+    if (userId === currentUserId) {
+      return;
+    }
+
+    setReactionDeltas((prev) => {
+      const current = prev[messageId] || {};
+      const delta = action === 'added' ? 1 : -1;
+      const nextCount = (current[emoji] || 0) + delta;
+      const updated = {
+        ...prev,
+        [messageId]: { ...current, [emoji]: nextCount },
+      };
+      return updated;
+    });
+  }, [currentUserId]);
+
+  // Subscribe to this conversation's events
+  useEffect(() => {
+    if (!bookingId) return;
+
+    // Invalidate message history cache when chat opens to fetch any missed messages
+    // This ensures messages sent while chat was closed are loaded
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.messages.history(bookingId),
+    });
+
+    const unsubscribe = subscribe(bookingId, {
+      onMessage: handleSSEMessage,
+      onTyping: handleSSETyping,
+      onReadReceipt: handleReadReceipt,
+      onReaction: handleReaction,
+    });
+
+    return () => {
+      unsubscribe();
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    };
+  }, [bookingId, subscribe, handleSSEMessage, handleSSETyping, handleReadReceipt, handleReaction, queryClient]);
+
+  // Combine history and real-time messages with deduplication
   const allMessages = React.useMemo(() => {
-    const messageMap = new Map<string, Message>();
+    const messageMap = new Map<string, MessageResponse>();
 
     // Add history messages
     (historyData?.messages || []).forEach(msg => {
@@ -127,22 +261,18 @@ export function Chat({
     });
 
     // Add real-time messages (only if not already in history)
+    // SSE now echoes messages to sender with is_mine flag
     realtimeMessages.forEach(msg => {
       if (!messageMap.has(msg.id)) {
         messageMap.set(msg.id, msg);
       }
     });
 
-    // Add optimistic messages (they have negative IDs so won't conflict)
-    optimisticMessages.forEach(msg => {
-      messageMap.set(msg.id, msg);
-    });
-
     // Convert to array and sort by time
     return Array.from(messageMap.values()).sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
-  }, [historyData?.messages, realtimeMessages, optimisticMessages]);
+  }, [historyData?.messages, realtimeMessages]);
 
   // Build a stable read map derived from server-provided read_by and live receipts
   const mergedReadReceipts = React.useMemo(() => {
@@ -151,7 +281,8 @@ export function Chat({
       if (m.read_by && Array.isArray(m.read_by)) {
         const existing = map[m.id] || [];
         const combined = [...existing];
-        for (const r of m.read_by) {
+        const readByEntries = m.read_by as ReadByEntry[];
+        for (const r of readByEntries) {
           if (!combined.find(x => x.user_id === r.user_id && x.read_at === r.read_at)) {
             if (r.user_id && r.read_at) combined.push({ user_id: r.user_id, read_at: r.read_at });
           }
@@ -236,52 +367,35 @@ export function Chat({
     }
 
     lastMarkedUnreadByBookingRef.current[bookingId] = latestUnreadMessageId;
-    markAsRead.mutate({ booking_id: bookingId });
-  }, [bookingId, latestUnreadMessageId, markAsRead]);
+    markMessagesAsReadMutate({ data: { booking_id: bookingId } });
+  }, [bookingId, latestUnreadMessageId, markMessagesAsReadMutate]);
 
-  // Handle send message with optimistic update
+  // Handle send message - SSE echoes message back with is_mine flag
   const handleSendMessage = async () => {
     const content = inputMessage.trim();
     if (!content) return;
 
+    // Clear input immediately for responsiveness
     setInputMessage('');
 
-    // Create optimistic message with temporary ID
-    const tempId = -Date.now(); // Negative ID to distinguish from real IDs
-    const optimisticMessage: Message = {
-      id: tempId.toString(),
-      booking_id: bookingId,
-      sender_id: currentUserId,
-      content,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      is_deleted: false,
-      sender: {
-        id: currentUserId,
-        full_name: currentUserName,
-        email: '', // Not needed for display
-      },
-    };
-
-    // Add optimistic message immediately
-    setOptimisticMessages(prev => [...prev, optimisticMessage]);
-    scrollToBottom();
+    // Cancel any pending typing indicator
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
 
     try {
-      await sendMessage.mutateAsync({
-        booking_id: bookingId,
-        content,
+      await sendMessageMutation.mutateAsync({
+        data: {
+          booking_id: bookingId,
+          content,
+        },
       });
-
-      // Remove the optimistic message after successful send
-      // The real message will appear in historyData after React Query invalidation
-      setOptimisticMessages(prev => prev.filter(msg => msg.id !== tempId.toString()));
-
+      // Message will appear via SSE echo with is_mine flag
+      scrollToBottom();
     } catch (error) {
       logger.error('Failed to send message', error);
-      // Remove optimistic message on error
-      setOptimisticMessages(prev => prev.filter(msg => msg.id !== tempId.toString()));
-      // Restore input message on error
+      // Restore input message on error so user can retry
       setInputMessage(content);
     }
   };
@@ -295,11 +409,9 @@ export function Chat({
   };
 
   // Typing indicator: send best-effort signal with debounce (1s)
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const handleTyping = async () => {
+  const handleTyping = () => {
     try {
-      const { messageService } = await import('@/services/messageService');
-      await messageService.sendTyping(bookingId);
+      sendTypingMutation.mutate({ bookingId });
     } catch {}
   };
 
@@ -308,7 +420,7 @@ export function Chat({
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       void handleTyping();
-    }, 1000);
+    }, 300); // 300ms debounce for more responsive typing indicator
   };
 
   // Quick reactions toggle per-message
@@ -329,7 +441,6 @@ export function Chat({
 
     try {
       setProcessingReaction(messageId);
-      const { messageService } = await import('@/services/messageService');
 
       // Optimistic UX: close popover immediately
       setOpenReactionsForMessageId(null);
@@ -361,8 +472,9 @@ export function Chat({
         setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
 
         // Remove old reaction
-        const removed = await messageService.removeReaction(messageId, currentReaction);
-        if (!removed) {
+        try {
+          await removeReactionMutation.mutateAsync({ messageId, data: { emoji: currentReaction } });
+        } catch {
           logger.error(`Failed to remove old reaction ${currentReaction}`);
           // Revert local state
           setUserReactions(prev => ({ ...prev, [messageId]: currentReaction }));
@@ -370,8 +482,9 @@ export function Chat({
         }
 
         // Add new reaction
-        const added = await messageService.addReaction(messageId, emoji);
-        if (!added) {
+        try {
+          await addReactionMutation.mutateAsync({ messageId, data: { emoji } });
+        } catch {
           logger.error(`Failed to add new reaction ${emoji}`);
           // Revert to no reaction since we removed the old one
           setUserReactions(prev => ({ ...prev, [messageId]: null }));
@@ -382,8 +495,9 @@ export function Chat({
         logger.info(`Toggling off reaction ${emoji} from message ${messageId}`);
         setUserReactions(prev => ({ ...prev, [messageId]: null }));
 
-        const removed = await messageService.removeReaction(messageId, emoji);
-        if (!removed) {
+        try {
+          await removeReactionMutation.mutateAsync({ messageId, data: { emoji } });
+        } catch {
           logger.error(`Failed to remove reaction ${emoji}`);
           // Revert local state
           setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
@@ -393,8 +507,9 @@ export function Chat({
         logger.info(`Adding new reaction ${emoji} to message ${messageId}`);
         setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
 
-        const added = await messageService.addReaction(messageId, emoji);
-        if (!added) {
+        try {
+          await addReactionMutation.mutateAsync({ messageId, data: { emoji } });
+        } catch {
           logger.error(`Failed to add reaction ${emoji}`);
           // Revert local state
           setUserReactions(prev => ({ ...prev, [messageId]: null }));
@@ -409,7 +524,7 @@ export function Chat({
         const keepEmoji = userReactions[messageId] || updatedReactions[0];
         for (const extraEmoji of updatedReactions) {
           if (extraEmoji !== keepEmoji) {
-            await messageService.removeReaction(messageId, extraEmoji);
+            await removeReactionMutation.mutateAsync({ messageId, data: { emoji: extraEmoji } });
           }
         }
       }
@@ -427,6 +542,11 @@ export function Chat({
         }));
       }
     } finally {
+      // Invalidate message history cache so reactions persist on reopen
+      // This ensures fresh data is fetched next time chat is opened
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.messages.history(bookingId),
+      });
       // Add a small delay before allowing new reactions to prevent race conditions
       setTimeout(() => {
         setProcessingReaction(null);
@@ -443,7 +563,7 @@ export function Chat({
       requestAnimationFrame(() => autosizeEditingTextarea());
     }
   }, [editingMessageId, editingContent, autosizeEditingTextarea]);
-  const startEdit = (message: Message) => {
+  const startEdit = (message: MessageResponse) => {
     if (!canEditMessage(message)) return;
     setEditingMessageId(message.id);
     setEditingContent(message.content);
@@ -458,20 +578,18 @@ export function Chat({
     if (!target || !canEditMessage(target)) return;
     setIsSavingEdit(true);
     try {
-      const { messageService } = await import('@/services/messageService');
-      // TypeScript should know editingMessageId is string here due to the guard above
-      const messageId: string = editingMessageId;
-      const ok = await messageService.editMessage(messageId, editingContent.trim());
-      if (ok) {
-        setEditingMessageId(null);
-        setEditingContent("");
-      }
+      await editMessageMutation.mutateAsync({
+        messageId: editingMessageId,
+        data: { content: editingContent.trim() },
+      });
+      setEditingMessageId(null);
+      setEditingContent("");
     } finally {
       setIsSavingEdit(false);
     }
   };
 
-  const canEditMessage = (message: Message): boolean => {
+  const canEditMessage = (message: MessageResponse): boolean => {
     if (message.sender_id !== currentUserId) return false;
     const created = new Date(message.created_at).getTime();
     const now = Date.now();
@@ -529,11 +647,13 @@ export function Chat({
     // Clean up multiple reactions on server
     if (cleanupMessages.length > 0) {
       (async () => {
-        const { messageService } = await import('@/services/messageService');
         for (const cleanup of cleanupMessages) {
           for (const emojiToRemove of cleanup.removeEmojis) {
             try {
-              await messageService.removeReaction(cleanup.messageId, emojiToRemove);
+              await removeReactionMutation.mutateAsync({
+                messageId: cleanup.messageId,
+                data: { emoji: emojiToRemove },
+              });
               logger.info(`Cleaned up extra reaction ${emojiToRemove} from message ${cleanup.messageId}`);
             } catch (error) {
               logger.error(`Failed to clean up reaction ${emojiToRemove}`, error);
@@ -542,11 +662,11 @@ export function Chat({
         }
       })();
     }
-  }, [allMessages, userReactions]); // Only re-run when messages or reactions change
+  }, [allMessages, userReactions, removeReactionMutation]); // Only re-run when messages or reactions change
 
   // Local reaction toggle function removed - optimistic updates handled in handleAddReaction
 
-  const isEmojiMyReacted = (message: Message, emoji: string): boolean => {
+  const isEmojiMyReacted = (message: MessageResponse, emoji: string): boolean => {
     // Check our local state for the current reaction
     const localReaction = userReactions[message.id];
     if (localReaction !== undefined) {
@@ -593,7 +713,7 @@ export function Chat({
     }
     groups[date].push(message);
     return groups;
-  }, {} as Record<string, Message[]>);
+  }, {} as Record<string, MessageResponse[]>);
 
   // Connection status component
   const ConnectionIndicator = () => {
@@ -604,23 +724,9 @@ export function Chat({
     return (
       <div className={cn(
         'flex items-center justify-center py-2 px-4 text-sm',
-        connectionStatus === ConnectionStatus.CONNECTING && 'bg-blue-50 text-blue-700',
-        connectionStatus === ConnectionStatus.RECONNECTING && 'bg-yellow-50 text-yellow-700',
         connectionStatus === ConnectionStatus.ERROR && 'bg-red-50 text-red-700',
         connectionStatus === ConnectionStatus.DISCONNECTED && 'bg-gray-50 text-gray-700'
       )}>
-        {connectionStatus === ConnectionStatus.CONNECTING && (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Connecting...
-          </>
-        )}
-        {connectionStatus === ConnectionStatus.RECONNECTING && (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Reconnecting...
-          </>
-        )}
         {connectionStatus === ConnectionStatus.ERROR && (
           <>
             <AlertCircle className="w-4 h-4 mr-2" />
@@ -790,11 +896,13 @@ export function Chat({
                               {formatMessageDate(message.created_at)}
                             </span>
                             {isOwn && (
-                              // Show double check if any read receipt exists for this message
+                              // WhatsApp-style indicators: gray sent → gray delivered → blue read
                               (mergedReadReceipts[message.id]?.length ?? 0) > 0 ? (
-                                <CheckCheck className="w-3 h-3" />
+                                <CheckCheck className="w-3 h-3 text-blue-500" />
+                              ) : message.delivered_at ? (
+                                <CheckCheck className="w-3 h-3 text-gray-400" />
                               ) : (
-                                <Check className="w-3 h-3" />
+                                <Check className="w-3 h-3 text-gray-400" />
                               )
                             )}
                             {message.edited_at && (
@@ -837,6 +945,17 @@ export function Chat({
                               // Increment new reaction
                               displayReactions[localReaction] = (displayReactions[localReaction] || 0) + 1;
                             }
+                          }
+
+                          // Apply SSE reaction deltas for real-time updates from other users
+                          const messageDelta = reactionDeltas[message.id];
+                          if (messageDelta) {
+                            Object.entries(messageDelta).forEach(([emoji, delta]) => {
+                              displayReactions[emoji] = Math.max(0, (displayReactions[emoji] || 0) + delta);
+                              if (displayReactions[emoji] === 0) {
+                                delete displayReactions[emoji];
+                              }
+                            });
                           }
 
                           const entries = Object.entries(displayReactions).filter(([, c]) => c > 0);
@@ -978,16 +1097,16 @@ export function Chat({
             {/* Removed quick reaction picker next to Send to prevent accidental self-reactions */}
             <button
               onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || sendMessage.isPending}
+              disabled={!inputMessage.trim() || sendMessageMutation.isPending}
               className={cn(
                 'rounded-full p-2 md:p-2.5 transition-colors shadow-sm',
-                inputMessage.trim() && !sendMessage.isPending
+                inputMessage.trim() && !sendMessageMutation.isPending
                   ? 'bg-[#7E22CE] text-white hover:bg-[#7E22CE] ring-1 ring-[#7E22CE]/20 dark:bg-purple-600 dark:hover:bg-[#7E22CE]'
                   : 'bg-gray-100 text-gray-400 ring-1 ring-gray-200 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500 dark:ring-gray-700'
               )}
-              aria-label={sendMessage.isPending ? 'Sending message' : 'Send message'}
+              aria-label={sendMessageMutation.isPending ? 'Sending message' : 'Send message'}
             >
-              {sendMessage.isPending ? (
+              {sendMessageMutation.isPending ? (
                 <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
               ) : typingStatus && typingStatus.userId === currentUserId ? (
                 <span className="text-xs px-1">…</span>

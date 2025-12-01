@@ -35,7 +35,7 @@ import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useStripeConnectStatus } from '@/hooks/queries/useStripeConnectStatus';
-import { useUnreadCount } from '@/src/api/services/messages';
+import { useInboxState } from '@/hooks/useInboxState';
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
@@ -195,9 +195,10 @@ export default function InstructorDashboardNew() {
   const [showMessages, setShowMessages] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showMoreMobile, setShowMoreMobile] = useState(false);
-  // Use React Query for unread message count (deduplicates API calls)
-  const { data: unreadCountData } = useUnreadCount(true);
-  const unreadMessageCount = unreadCountData?.unread_count ?? 0;
+  // Use React Query for inbox state (deduplicates API calls)
+  const { data: inboxState } = useInboxState();
+  const unreadConversationsCount = inboxState?.unread_conversations ?? 0;
+  const unreadConversations = (inboxState?.conversations ?? []).filter(conv => conv.unread_count > 0);
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -715,23 +716,43 @@ export default function InstructorDashboardNew() {
                 setIsMobileMenuOpen(false);
               }}
               containerRef={msgRef}
-              badgeCount={unreadMessageCount}
+              badgeCount={unreadConversationsCount}
             >
               <ul className="max-h-80 overflow-auto p-2 space-y-2">
-                <li className="px-2 py-2 text-sm text-gray-600">
-                  You’ll see student replies here once someone messages you.
-                </li>
-                <li>
-                  <button
-                    className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
-                    onClick={() => {
-                      setShowMessages(false);
-                      router.push('/instructor/messages');
-                    }}
-                  >
-                    Open inbox
-                  </button>
-                </li>
+                {unreadConversations.length === 0 ? (
+                  <>
+                    <li className="px-2 py-2 text-sm text-gray-600">
+                      No unread messages.
+                    </li>
+                    <li>
+                      <button
+                        className="w-full text-left text-sm text-gray-700 px-2 py-2 hover:bg-gray-50 rounded"
+                        onClick={() => {
+                          setShowMessages(false);
+                          router.push('/instructor/messages');
+                        }}
+                      >
+                        Open inbox
+                      </button>
+                    </li>
+                  </>
+                ) : (
+                  unreadConversations.map((conv) => (
+                    <li key={conv.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMessages(false);
+                          router.push('/instructor/messages');
+                        }}
+                        className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50"
+                      >
+                        <p className="text-sm font-medium text-gray-900 truncate">{conv.other_user.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{conv.last_message?.preview || 'New message'}</p>
+                      </button>
+                    </li>
+                  ))
+                )}
               </ul>
             </DashboardPopover>
             <DashboardPopover

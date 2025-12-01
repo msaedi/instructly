@@ -659,6 +659,35 @@ def upgrade() -> None:
     op.create_index("ix_messages_sender_id", "messages", ["sender_id"])
     op.create_index("ix_messages_created_at", "messages", ["created_at"])
 
+    # Add conversation_state table for O(1) inbox queries
+    print("Creating conversation_state table for efficient inbox state...")
+    op.create_table(
+        "conversation_state",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
+        sa.Column("student_id", sa.String(26), nullable=False),
+        sa.Column("instructor_unread_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("student_unread_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("last_message_id", sa.String(26), nullable=True),
+        sa.Column("last_message_preview", sa.String(100), nullable=True),
+        sa.Column("last_message_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("last_message_sender_id", sa.String(26), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["student_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["last_message_id"], ["messages.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("booking_id", name="uq_conversation_state_booking"),
+    )
+
+    # Add indexes for conversation_state
+    op.create_index("ix_conversation_state_instructor_id", "conversation_state", ["instructor_id"])
+    op.create_index("ix_conversation_state_student_id", "conversation_state", ["student_id"])
+    op.create_index("ix_conversation_state_last_message_at", "conversation_state", ["last_message_at"])
+
     # Add message_notifications table for tracking unread messages
     print("Creating message_notifications table...")
     op.create_table(
@@ -680,8 +709,8 @@ def upgrade() -> None:
     op.create_index("ix_message_notifications_message_id", "message_notifications", ["message_id"])
 
     if is_postgres:
-        # Create PostgreSQL NOTIFY function for real-time messaging
-        print("Creating PostgreSQL NOTIFY function for real-time messaging (PostgreSQL only)...")
+        # Create PostgreSQL NOTIFY function for real-time messaging (per-user channels)
+        print("Creating PostgreSQL NOTIFY function for per-user channels (PostgreSQL only)...")
         op.execute(
             """
             CREATE OR REPLACE FUNCTION public.notify_new_message()
@@ -689,23 +718,51 @@ def upgrade() -> None:
             SET search_path = public
             AS $$
             DECLARE
-                payload json;
-                sender_first_name TEXT;
-                sender_last_name TEXT;
+                v_booking RECORD;
+                v_payload JSONB;
+                v_sender_name TEXT;
+                v_delivered_at TIMESTAMP WITH TIME ZONE;
             BEGIN
-                SELECT first_name, last_name INTO sender_first_name, sender_last_name FROM users WHERE id = NEW.sender_id;
-                payload = json_build_object(
-                    'id', NEW.id,
-                    'booking_id', NEW.booking_id,
-                    'sender_id', NEW.sender_id,
-                    'sender_first_name', sender_first_name,
-                    'sender_last_name', sender_last_name,
-                    'content', NEW.content,
-                    'created_at', NEW.created_at,
-                    'is_deleted', NEW.is_deleted,
-                    'type', 'message'
+                -- Get booking participants
+                SELECT b.instructor_id, b.student_id INTO v_booking
+                FROM bookings b WHERE b.id = NEW.booking_id;
+
+                -- Get sender name for display
+                SELECT first_name INTO v_sender_name
+                FROM users WHERE id = NEW.sender_id;
+
+                -- Set delivered_at timestamp (message is delivered when SSE is sent)
+                v_delivered_at := NOW();
+                UPDATE messages SET delivered_at = v_delivered_at WHERE id = NEW.id;
+
+                -- Build payload with conversation_id for client-side routing
+                v_payload := jsonb_build_object(
+                    'type', 'new_message',
+                    'conversation_id', NEW.booking_id,
+                    'message', jsonb_build_object(
+                        'id', NEW.id,
+                        'content', NEW.content,
+                        'sender_id', NEW.sender_id,
+                        'sender_name', v_sender_name,
+                        'created_at', NEW.created_at,
+                        'booking_id', NEW.booking_id,
+                        'is_deleted', NEW.is_deleted,
+                        'delivered_at', v_delivered_at
+                    )
                 );
-                PERFORM pg_notify('booking_chat_' || NEW.booking_id::text, payload::text);
+
+                -- Notify instructor's channel
+                PERFORM pg_notify(
+                    'user_' || v_booking.instructor_id || '_inbox',
+                    v_payload::text
+                );
+
+                -- Notify student's channel
+                PERFORM pg_notify(
+                    'user_' || v_booking.student_id || '_inbox',
+                    v_payload::text
+                );
+
                 RETURN NEW;
             END;
             $$ LANGUAGE plpgsql;
@@ -722,7 +779,7 @@ def upgrade() -> None:
         """
         )
 
-        # Read receipt trigger: when a notification is marked read, update messages.read_by and notify
+        # Read receipt trigger: when a notification is marked read, update messages.read_by and notify per-user channel
         op.execute(
             """
             CREATE OR REPLACE FUNCTION public.handle_message_read_receipt()
@@ -730,27 +787,37 @@ def upgrade() -> None:
             SET search_path = public
             AS $$
             DECLARE
-                payload json;
-                booking_id VARCHAR(26);
-                reader_first_name TEXT;
-                reader_last_name TEXT;
+                v_payload JSONB;
+                v_booking RECORD;
+                v_message RECORD;
+                v_recipient_id VARCHAR(26);
             BEGIN
                 IF TG_OP = 'UPDATE' AND NEW.is_read = TRUE AND (OLD.is_read IS DISTINCT FROM NEW.is_read) THEN
+                    -- Update read_by array
                     UPDATE messages SET read_by = COALESCE(read_by, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('user_id', NEW.user_id, 'read_at', NEW.read_at))
                     WHERE id = NEW.message_id;
-                    SELECT m.booking_id INTO booking_id FROM messages m WHERE m.id = NEW.message_id;
-                    SELECT first_name, last_name INTO reader_first_name, reader_last_name FROM users WHERE id = NEW.user_id;
-                    payload = json_build_object(
+
+                    -- Get message and booking info
+                    SELECT m.booking_id, m.sender_id INTO v_message FROM messages m WHERE m.id = NEW.message_id;
+                    SELECT b.instructor_id, b.student_id INTO v_booking FROM bookings b WHERE b.id = v_message.booking_id;
+
+                    -- Determine recipient (the message sender, not the reader)
+                    v_recipient_id := v_message.sender_id;
+
+                    -- Build payload
+                    v_payload := jsonb_build_object(
                         'type', 'read_receipt',
+                        'conversation_id', v_message.booking_id,
                         'message_id', NEW.message_id,
-                        'user_id', NEW.user_id,
-                        'reader_first_name', reader_first_name,
-                        'reader_last_name', reader_last_name,
+                        'reader_id', NEW.user_id,
                         'read_at', NEW.read_at
                     );
-                    IF booking_id IS NOT NULL THEN
-                        PERFORM pg_notify('booking_chat_' || booking_id::text, payload::text);
-                    END IF;
+
+                    -- Notify the sender that their message was read
+                    PERFORM pg_notify(
+                        'user_' || v_recipient_id || '_inbox',
+                        v_payload::text
+                    );
                 END IF;
                 RETURN NEW;
             END;
@@ -764,6 +831,71 @@ def upgrade() -> None:
             AFTER UPDATE ON message_notifications
             FOR EACH ROW
             EXECUTE FUNCTION public.handle_message_read_receipt();
+            """
+        )
+
+        # Conversation state auto-update trigger
+        print("Creating conversation_state auto-update trigger (PostgreSQL only)...")
+        op.execute(
+            """
+            CREATE OR REPLACE FUNCTION public.update_conversation_state()
+            RETURNS TRIGGER
+            SET search_path = public
+            AS $$
+            DECLARE
+                v_booking RECORD;
+                v_preview TEXT;
+            BEGIN
+                -- Get booking info
+                SELECT instructor_id, student_id INTO v_booking
+                FROM bookings WHERE id = NEW.booking_id;
+
+                -- Truncate message for preview
+                v_preview := LEFT(NEW.content, 100);
+
+                -- Upsert conversation state
+                INSERT INTO conversation_state (
+                    id, booking_id, instructor_id, student_id,
+                    instructor_unread_count, student_unread_count,
+                    last_message_id, last_message_preview, last_message_at, last_message_sender_id,
+                    created_at, updated_at
+                )
+                SELECT
+                    substring(md5(random()::text || clock_timestamp()::text) from 1 for 26),
+                    NEW.booking_id, v_booking.instructor_id, v_booking.student_id,
+                    CASE WHEN NEW.sender_id = v_booking.student_id THEN 1 ELSE 0 END,
+                    CASE WHEN NEW.sender_id = v_booking.instructor_id THEN 1 ELSE 0 END,
+                    NEW.id, v_preview, NEW.created_at, NEW.sender_id,
+                    NOW(), NOW()
+                ON CONFLICT (booking_id) DO UPDATE SET
+                    instructor_unread_count = CASE
+                        WHEN NEW.sender_id = conversation_state.student_id
+                        THEN conversation_state.instructor_unread_count + 1
+                        ELSE conversation_state.instructor_unread_count
+                    END,
+                    student_unread_count = CASE
+                        WHEN NEW.sender_id = conversation_state.instructor_id
+                        THEN conversation_state.student_unread_count + 1
+                        ELSE conversation_state.student_unread_count
+                    END,
+                    last_message_id = NEW.id,
+                    last_message_preview = v_preview,
+                    last_message_at = NEW.created_at,
+                    last_message_sender_id = NEW.sender_id,
+                    updated_at = NOW();
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """
+        )
+
+        op.execute(
+            """
+            CREATE TRIGGER conversation_state_update
+            AFTER INSERT ON messages
+            FOR EACH ROW
+            EXECUTE FUNCTION public.update_conversation_state();
             """
         )
 
@@ -1095,6 +1227,13 @@ def upgrade() -> None:
         "LENGTH(content) > 0 AND LENGTH(content) <= 1000",
     )
 
+    # Add check constraint for conversation state values
+    op.create_check_constraint(
+        "ck_conversation_user_state_state",
+        "conversation_user_state",
+        "state IN ('active', 'archived', 'trashed')",
+    )
+
     if is_postgres:
         print("Enabling RLS (idempotent) with permissive policies on application tables...")
         exclude_tables = [
@@ -1292,6 +1431,7 @@ def downgrade() -> None:
     op.drop_table("user_addresses")
 
     op.drop_constraint("check_message_content_length", "messages", type_="check")
+    op.drop_constraint("ck_conversation_user_state_state", "conversation_user_state", type_="check")
     op.drop_constraint("check_time_order", "bookings", type_="check")
     op.drop_constraint("check_rate_positive", "bookings", type_="check")
     op.drop_constraint("check_price_non_negative", "bookings", type_="check")
@@ -1308,6 +1448,19 @@ def downgrade() -> None:
         print("Dropping read receipt trigger and function (PostgreSQL only)...")
         op.execute("DROP TRIGGER IF EXISTS message_read_receipt_notify ON message_notifications;")
         op.execute("DROP FUNCTION IF EXISTS public.handle_message_read_receipt();")
+
+    # Drop conversation_state trigger and function
+    if is_postgres:
+        print("Dropping conversation_state trigger and function (PostgreSQL only)...")
+        op.execute("DROP TRIGGER IF EXISTS conversation_state_update ON messages;")
+        op.execute("DROP FUNCTION IF EXISTS public.update_conversation_state();")
+
+    # Drop conversation_state table (before messages since it has FK to messages)
+    print("Dropping conversation_state table...")
+    op.drop_index("ix_conversation_state_last_message_at", "conversation_state")
+    op.drop_index("ix_conversation_state_student_id", "conversation_state")
+    op.drop_index("ix_conversation_state_instructor_id", "conversation_state")
+    op.drop_table("conversation_state")
 
     # Drop Phase 2 tables that depend on messages first
     print("Dropping message_reactions and message_edits tables...")
