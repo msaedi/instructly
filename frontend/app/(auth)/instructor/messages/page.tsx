@@ -13,10 +13,9 @@ import { useRouter } from 'next/navigation';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ArrowLeft, Bell, MessageSquare, ChevronDown, Undo2 } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { useSendTypingIndicator, useAddReaction, useRemoveReaction, markMessagesAsReadImperative } from '@/src/api/services/messages';
+import { useSendTypingIndicator, useAddReaction, useRemoveReaction } from '@/src/api/services/messages';
 import { useAuthStatus } from '@/hooks/queries/useAuth';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
-import { logger } from '@/lib/logger';
 
 // Extracted components and hooks
 import {
@@ -610,25 +609,6 @@ export default function MessagesPage() {
       scrollToBottom();
     }
   }, [threadMessages.length, selectedChat, messageDisplay, scrollToBottom]);
-
-  // Continuously mark student messages as read when viewing conversation
-  useEffect(() => {
-    if (!selectedChat || selectedChat === COMPOSE_THREAD_ID || !activeConversation || !currentUser) return;
-
-    // Find unread student messages
-    const unreadStudentMessages = threadMessages.filter(msg =>
-      msg.sender !== 'instructor' &&
-      msg.senderId !== currentUser.id &&
-      !mergedReadReceipts[msg.id]?.some(r => r.user_id === currentUser.id)
-    );
-
-    if (unreadStudentMessages.length > 0 && activeConversation.primaryBookingId) {
-      // Mark all unread student messages as read
-      markMessagesAsReadImperative({ booking_id: activeConversation.primaryBookingId }).catch(err => {
-        logger.error('[Instructor] Failed to mark messages as read', err);
-      });
-    }
-  }, [selectedChat, activeConversation, threadMessages, mergedReadReceipts, currentUser]);
 
   // Load draft when switching conversations
   useEffect(() => {
