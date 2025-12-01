@@ -14,7 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { logger } from '@/lib/logger';
 import { queryKeys } from '@/src/api/queryKeys';
 import {
-  fetchMessageHistory,
+  useMessageHistory,
   sendMessageImperative,
   markMessagesAsReadImperative,
 } from '@/src/api/services/messages';
@@ -77,6 +77,8 @@ export function useMessageThread({
   conversations: _conversations,
   setConversations,
 }: UseMessageThreadOptions): UseMessageThreadResult {
+  const HISTORY_LIMIT = 100;
+  const HISTORY_OFFSET = 0;
   const queryClient = useQueryClient();
 
   // Thread messages state
@@ -84,7 +86,11 @@ export function useMessageThread({
   const [messagesByThread, setMessagesByThread] = useState<Record<string, MessageWithAttachments[]>>({});
   const [archivedMessagesByThread, setArchivedMessagesByThread] = useState<Record<string, MessageWithAttachments[]>>({});
   const [trashMessagesByThread, setTrashMessagesByThread] = useState<Record<string, MessageWithAttachments[]>>({});
-
+  const [historyTarget, setHistoryTarget] = useState<{
+    threadId: string;
+    conversation: ConversationEntry;
+  } | null>(null);
+  const lastHistoryAppliedRef = useRef<string | null>(null);
 
   // Refs for current state access in callbacks
   const messagesByThreadRef = useRef<Record<string, MessageWithAttachments[]>>({});
@@ -92,8 +98,11 @@ export function useMessageThread({
   const trashMessagesByThreadRef = useRef<Record<string, MessageWithAttachments[]>>({});
   const threadMessagesRef = useRef<MessageWithAttachments[]>([]);
   const markedReadThreadsRef = useRef<Map<string, number>>(new Map());
-  const fetchingThreadsRef = useRef<Set<string>>(new Set());
-  const loadedThreadsRef = useRef<Set<string>>(new Set());
+  const conversationsRef = useRef<ConversationEntry[]>(_conversations ?? []);
+
+  useEffect(() => {
+    conversationsRef.current = _conversations ?? [];
+  }, [_conversations]);
 
   // Keep refs in sync
   useEffect(() => {
@@ -108,6 +117,12 @@ export function useMessageThread({
   useEffect(() => {
     threadMessagesRef.current = threadMessages;
   }, [threadMessages]);
+
+  const historyBookingId = historyTarget?.conversation.primaryBookingId ?? '';
+  const {
+    data: historyData,
+    error: historyError,
+  } = useMessageHistory(historyBookingId, HISTORY_LIMIT, HISTORY_OFFSET, Boolean(historyBookingId));
 
   // Set thread messages for current display mode
   const setThreadMessagesForDisplay = useCallback((
@@ -132,95 +147,109 @@ export function useMessageThread({
   ) => {
     if (!selectedChat || selectedChat === COMPOSE_THREAD_ID || !activeConversation || !currentUserId) return;
 
-    // Skip if already loaded or loading
-    if (loadedThreadsRef.current.has(selectedChat)) return;
-    if (fetchingThreadsRef.current.has(selectedChat)) return;
-
-    fetchingThreadsRef.current.add(selectedChat);
-
     const bookingId = activeConversation.primaryBookingId;
-    if (!bookingId) {
-      fetchingThreadsRef.current.delete(selectedChat);
-      return;
+    if (!bookingId) return;
+
+    setHistoryTarget({ threadId: selectedChat, conversation: activeConversation });
+
+    // Proactively mark as read on first view of this conversation to avoid duplicate effects
+    const lastMarked = markedReadThreadsRef.current.get(bookingId);
+    if (lastMarked === undefined) {
+      markedReadThreadsRef.current.set(bookingId, 0);
+      void markMessagesAsReadImperative({ booking_id: bookingId }).catch(() => {
+        markedReadThreadsRef.current.delete(bookingId);
+      });
     }
 
-    const fetchMessages = async () => {
-      try {
-        const history = await fetchMessageHistory(bookingId, { limit: 100, offset: 0 });
-        const messages = history.messages || [];
+    // Show any cached thread immediately while React Query fetches fresh data
+    const existing = messagesByThreadRef.current[selectedChat];
+    if (existing) {
+      setThreadMessages(existing);
+    } else {
+      setThreadMessages([]);
+    }
+  }, [currentUserId]);
 
-        const mappedMessages = messages.map((msg) =>
-          mapMessageFromResponse(msg, activeConversation, currentUserId)
-        );
+  // When React Query returns history data, merge it into local state and handle read status
+  useEffect(() => {
+    if (!historyTarget || !historyData || !currentUserId) return;
 
-        // DON'T filter by message flags - archive/trash is conversation-level state
-        // Just use all mapped messages for the conversation
-        const allMessages = mappedMessages;
+    const { threadId, conversation } = historyTarget;
+    const messages = historyData.messages || [];
 
-        // MERGE instead of REPLACE - keep SSE messages that arrived but aren't in history yet
-        const existing = messagesByThreadRef.current[selectedChat] || [];
-        const historyIds = new Set(allMessages.map(m => m.id));
+    // Guard against re-processing identical history payloads (prevents render loops in tests)
+    const lastMessageId = messages[messages.length - 1]?.id ?? 'none';
+    const dedupeKey = `${threadId}:${messages.length}:${lastMessageId}`;
+    if (lastHistoryAppliedRef.current === dedupeKey) {
+      return;
+    }
+    lastHistoryAppliedRef.current = dedupeKey;
 
-        // Keep any messages that arrived via SSE but aren't in history yet
-        const sseOnlyMessages = existing.filter(m => !historyIds.has(m.id));
+    const mappedMessages = messages.map((msg) =>
+      mapMessageFromResponse(msg, conversation, currentUserId)
+    );
 
-        // Combine and sort by timestamp
-        const mergedMessages = [...allMessages, ...sseOnlyMessages].sort(
-          (a, b) => {
-            const timeA = new Date(a.createdAt || '').getTime();
-            const timeB = new Date(b.createdAt || '').getTime();
-            return timeA - timeB;
-          }
-        );
+    // Merge history with any SSE-only messages we already have
+    const existing = messagesByThreadRef.current[threadId] || [];
+    const historyIds = new Set(mappedMessages.map((m) => m.id));
+    const sseOnlyMessages = existing.filter((m) => !historyIds.has(m.id));
 
-        // Store in the main cache
-        setMessagesByThread((prev) => ({ ...prev, [selectedChat]: mergedMessages }));
+    const mergedMessages = [...mappedMessages, ...sseOnlyMessages].sort((a, b) => {
+      const timeA = new Date(a.createdAt || '').getTime();
+      const timeB = new Date(b.createdAt || '').getTime();
+      return timeA - timeB;
+    });
 
-        // Display ALL messages regardless of view mode
-        // The read-only state is handled by the UI based on conversation state, not message flags
-        setThreadMessages(mergedMessages);
+    setMessagesByThread((prev) => ({ ...prev, [threadId]: mergedMessages }));
+    setThreadMessages(mergedMessages);
 
-        // Update conversation unread count
-        const unreadCount = computeUnreadFromMessages(messages, activeConversation, currentUserId);
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === selectedChat ? { ...conv, unread: unreadCount } : conv
-          )
-        );
+    // Update conversation unread count
+    const unreadCount = computeUnreadFromMessages(messages, conversation, currentUserId);
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === threadId ? { ...conv, unread: unreadCount } : conv
+      )
+    );
 
-        loadedThreadsRef.current.add(selectedChat);
+    // Mark messages as read for this booking when needed
+    const bookingId = conversation.primaryBookingId;
+    if (bookingId) {
+      const lastCount = markedReadThreadsRef.current.get(bookingId);
+      const shouldMarkRead = unreadCount > 0 || lastCount === undefined;
 
-        // Mark messages as read (continuously, not just once)
-        if (unreadCount > 0) {
-          // Only prevent duplicate calls for the SAME unread count
-          const lastCount = markedReadThreadsRef.current.get(bookingId) ?? -1;
-          if (lastCount !== unreadCount) {
-            markedReadThreadsRef.current.set(bookingId, unreadCount);
-            try {
-              await markMessagesAsReadImperative({ booking_id: bookingId });
-              setConversations((prev) =>
-                prev.map((conv) =>
-                  conv.id === selectedChat ? { ...conv, unread: 0 } : conv
-                )
-              );
-              markedReadThreadsRef.current.set(bookingId, 0);
-            } catch {
+      if (shouldMarkRead) {
+        markedReadThreadsRef.current.set(bookingId, unreadCount);
+        markMessagesAsReadImperative({ booking_id: bookingId })
+          .then(() => {
+            setConversations((prev) =>
+              prev.map((conv) =>
+                conv.id === threadId ? { ...conv, unread: 0 } : conv
+              )
+            );
+            markedReadThreadsRef.current.set(bookingId, 0);
+          })
+          .catch(() => {
+            // Revert the last known count on failure
+            if (lastCount !== undefined) {
               markedReadThreadsRef.current.set(bookingId, lastCount);
+            } else {
+              markedReadThreadsRef.current.delete(bookingId);
             }
-          }
-        } else {
-          // No unread messages, reset the counter
-          markedReadThreadsRef.current.set(bookingId, 0);
-        }
-      } catch (error) {
-        logger.error('Failed to fetch messages for conversation', { conversationId: selectedChat, error });
-      } finally {
-        fetchingThreadsRef.current.delete(selectedChat);
+          });
+      } else {
+        markedReadThreadsRef.current.set(bookingId, 0);
       }
-    };
+    }
+  }, [historyData, historyTarget, currentUserId, setConversations]);
 
-    void fetchMessages();
-  }, [currentUserId, setConversations]);
+  useEffect(() => {
+    if (historyError && historyTarget) {
+      logger.error('Failed to fetch messages for conversation', {
+        conversationId: historyTarget.threadId,
+        error: historyError,
+      });
+    }
+  }, [historyError, historyTarget]);
 
   // Handle SSE message
   const handleSSEMessage = useCallback((
@@ -543,8 +572,14 @@ export function useMessageThread({
 
   // Invalidate conversation cache to force refetch on next view
   const invalidateConversationCache = useCallback((conversationId: string) => {
-    loadedThreadsRef.current.delete(conversationId);
-  }, []);
+    const conversation = conversationsRef.current.find((c) => c.id === conversationId);
+    const bookingId = conversation?.primaryBookingId;
+    if (!bookingId) return;
+
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.messages.history(bookingId, { limit: HISTORY_LIMIT, offset: HISTORY_OFFSET }),
+    });
+  }, [queryClient, HISTORY_LIMIT, HISTORY_OFFSET]);
 
   return {
     threadMessages,
