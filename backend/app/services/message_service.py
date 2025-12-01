@@ -67,6 +67,16 @@ class MessageService(BaseService):
             ForbiddenError: If user doesn't have access to the booking
             NotFoundException: If booking not found
         """
+        # [MSG-DEBUG] Log service method entry
+        self.logger.info(
+            "[MSG-DEBUG] MessageService.send_message: Starting",
+            extra={
+                "booking_id": booking_id,
+                "sender_id": sender_id,
+                "content_length": len(content) if content else 0,
+            },
+        )
+
         # Validate content
         if not content or not content.strip():
             raise ValidationException("Message content cannot be empty")
@@ -84,12 +94,33 @@ class MessageService(BaseService):
         if booking.status not in [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]:
             raise ValidationException(f"Cannot send messages for {booking.status.lower()} bookings")
 
+        self.logger.info(
+            "[MSG-DEBUG] MessageService.send_message: Validation passed, creating message",
+            extra={
+                "booking_id": booking_id,
+                "booking_status": booking.status.value
+                if hasattr(booking.status, "value")
+                else str(booking.status),
+                "student_id": booking.student_id,
+                "instructor_id": booking.instructor_id,
+            },
+        )
+
         # Create the message
         # Note: Database trigger `message_insert_notify` automatically broadcasts to
         # SSE subscribers when a message is inserted (see migration 006)
         with self.transaction():
             message = self.repository.create_message(
                 booking_id=booking_id, sender_id=sender_id, content=content
+            )
+
+            self.logger.info(
+                "[MSG-DEBUG] MessageService.send_message: Message created, DB trigger should fire",
+                extra={
+                    "booking_id": booking_id,
+                    "message_id": message.id,
+                    "sender_id": sender_id,
+                },
             )
 
             # AUTO-RESTORE: If recipient has archived/trashed this conversation, restore it
@@ -100,7 +131,15 @@ class MessageService(BaseService):
             # Send email notification if recipient is offline
             self._send_offline_notification(booking, sender_id, content)
 
-            self.logger.info(f"Message sent: booking={booking_id}, sender={sender_id}")
+            self.logger.info(
+                "[MSG-DEBUG] MessageService.send_message: Success",
+                extra={
+                    "booking_id": booking_id,
+                    "message_id": message.id,
+                    "sender_id": sender_id,
+                    "recipient_id": recipient_id,
+                },
+            )
             return message
 
     @BaseService.measure_operation("get_message_history")
@@ -292,6 +331,12 @@ class MessageService(BaseService):
     # Phase 2: reactions
     @BaseService.measure_operation("add_reaction")
     def add_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
+        # [MSG-DEBUG] Log reaction add entry
+        self.logger.info(
+            "[MSG-DEBUG] MessageService.add_reaction: Starting",
+            extra={"message_id": message_id, "user_id": user_id, "emoji": emoji},
+        )
+
         # Access: user must be participant of the booking of this message
         message = self.repository.get_by_id(message_id)
         if not message:
@@ -309,6 +354,18 @@ class MessageService(BaseService):
             else:
                 ok = bool(self.repository.add_reaction(message_id, user_id, emoji))
 
+            self.logger.info(
+                "[MSG-DEBUG] MessageService.add_reaction: Reaction processed",
+                extra={
+                    "message_id": message_id,
+                    "user_id": user_id,
+                    "emoji": emoji,
+                    "action": action,
+                    "ok": ok,
+                    "booking_id": message.booking_id,
+                },
+            )
+
             # Notify via NOTIFY for SSE consumers - send to both participants' inbox channels
             payload = {
                 "type": "reaction_update",
@@ -321,12 +378,31 @@ class MessageService(BaseService):
             # Get booking to know both participants
             booking = self.booking_repository.get_by_id(message.booking_id)
             if booking:
+                self.logger.info(
+                    "[MSG-DEBUG] MessageService.add_reaction: Sending NOTIFY to both participants",
+                    extra={
+                        "instructor_id": booking.instructor_id,
+                        "student_id": booking.student_id,
+                        "payload_type": payload["type"],
+                    },
+                )
                 self.repository.notify_user_channel(booking.instructor_id, payload)
                 self.repository.notify_user_channel(booking.student_id, payload)
+            else:
+                self.logger.warning(
+                    "[MSG-DEBUG] MessageService.add_reaction: Booking not found for NOTIFY",
+                    extra={"booking_id": message.booking_id},
+                )
             return ok
 
     @BaseService.measure_operation("remove_reaction")
     def remove_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
+        # [MSG-DEBUG] Log reaction remove entry
+        self.logger.info(
+            "[MSG-DEBUG] MessageService.remove_reaction: Starting",
+            extra={"message_id": message_id, "user_id": user_id, "emoji": emoji},
+        )
+
         message = self.repository.get_by_id(message_id)
         if not message:
             return False
@@ -334,6 +410,18 @@ class MessageService(BaseService):
             raise ForbiddenException("You don't have access to this booking")
         with self.transaction():
             ok = bool(self.repository.remove_reaction(message_id, user_id, emoji))
+
+            self.logger.info(
+                "[MSG-DEBUG] MessageService.remove_reaction: Reaction removed",
+                extra={
+                    "message_id": message_id,
+                    "user_id": user_id,
+                    "emoji": emoji,
+                    "ok": ok,
+                    "booking_id": message.booking_id,
+                },
+            )
+
             payload = {
                 "type": "reaction_update",
                 "conversation_id": message.booking_id,
@@ -345,8 +433,20 @@ class MessageService(BaseService):
             # Get booking to know both participants
             booking = self.booking_repository.get_by_id(message.booking_id)
             if booking:
+                self.logger.info(
+                    "[MSG-DEBUG] MessageService.remove_reaction: Sending NOTIFY to both participants",
+                    extra={
+                        "instructor_id": booking.instructor_id,
+                        "student_id": booking.student_id,
+                    },
+                )
                 self.repository.notify_user_channel(booking.instructor_id, payload)
                 self.repository.notify_user_channel(booking.student_id, payload)
+            else:
+                self.logger.warning(
+                    "[MSG-DEBUG] MessageService.remove_reaction: Booking not found for NOTIFY",
+                    extra={"booking_id": message.booking_id},
+                )
             return ok
 
     @BaseService.measure_operation("edit_message")

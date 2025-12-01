@@ -150,16 +150,34 @@ async def stream_user_messages(
     Events include conversation_id for client-side routing.
     Requires VIEW_MESSAGES permission.
     """
+    # [MSG-DEBUG] Log SSE connection attempt
+    logger.info(
+        "[MSG-DEBUG] SSE: Connection attempt",
+        extra={
+            "user_id": current_user.id,
+            "user_email": current_user.email,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
     # Check if user has VIEW_MESSAGES permission
     from ...services.permission_service import PermissionService
 
     permission_service = PermissionService(service.db)
     if not permission_service.user_has_permission(current_user.id, PermissionName.VIEW_MESSAGES):
+        logger.warning(
+            "[MSG-DEBUG] SSE: Permission denied",
+            extra={"user_id": current_user.id, "permission": "VIEW_MESSAGES"},
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to view messages",
         )
+
+    logger.info(
+        "[MSG-DEBUG] SSE: Permission granted, starting generator",
+        extra={"user_id": current_user.id},
+    )
 
     async def event_generator() -> AsyncGenerator[dict[str, str], None]:
         """Generate SSE events for the user's inbox."""
@@ -167,11 +185,24 @@ async def stream_user_messages(
         notification_service: MessageNotificationService | None = None
 
         try:
+            # [MSG-DEBUG] Log generator start
+            logger.info(
+                "[MSG-DEBUG] SSE: Generator started",
+                extra={
+                    "user_id": current_user.id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+
             # Send initial connection confirmation
             yield {
                 "event": "connected",
                 "data": json.dumps({"user_id": current_user.id, "status": "connected"}),
             }
+            logger.info(
+                "[MSG-DEBUG] SSE: Connected event sent",
+                extra={"user_id": current_user.id},
+            )
 
             # Small delay to ensure connection is established
             await asyncio.sleep(0.1)
@@ -179,22 +210,46 @@ async def stream_user_messages(
             # Try to get notification service
             try:
                 notification_service = get_notification_service()
+                logger.info(
+                    "[MSG-DEBUG] SSE: Notification service obtained",
+                    extra={"user_id": current_user.id},
+                )
             except RuntimeError as e:
-                logger.warning(f"Notification service not available: {str(e)}")
+                logger.warning(
+                    "[MSG-DEBUG] SSE: Notification service not available",
+                    extra={"user_id": current_user.id, "error": str(e)},
+                )
                 notification_service = None
 
             # Subscribe to user's inbox channel
             if notification_service:
                 try:
                     queue = await notification_service.subscribe_user(current_user.id)
+                    logger.info(
+                        "[MSG-DEBUG] SSE: Subscribed to user inbox channel",
+                        extra={
+                            "user_id": current_user.id,
+                            "channel": f"user_{current_user.id}_inbox",
+                        },
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to subscribe to user inbox: {str(e)}")
+                    logger.warning(
+                        "[MSG-DEBUG] SSE: Failed to subscribe to user inbox",
+                        extra={"user_id": current_user.id, "error": str(e)},
+                    )
                     queue = None
             else:
-                logger.warning(f"No notification service available for user {current_user.id}")
+                logger.warning(
+                    "[MSG-DEBUG] SSE: No notification service available",
+                    extra={"user_id": current_user.id},
+                )
 
             # Main event loop
             last_heartbeat = datetime.now(timezone.utc)
+            logger.info(
+                "[MSG-DEBUG] SSE: Entering main event loop",
+                extra={"user_id": current_user.id, "has_queue": queue is not None},
+            )
 
             while True:
                 try:
@@ -204,6 +259,20 @@ async def stream_user_messages(
                             message_data = await asyncio.wait_for(
                                 queue.get(), timeout=30.0
                             )  # 30 second timeout
+
+                            # [MSG-DEBUG] Log received message from queue
+                            logger.info(
+                                "[MSG-DEBUG] SSE: Message received from queue",
+                                extra={
+                                    "user_id": current_user.id,
+                                    "event_type": message_data.get("type"),
+                                    "conversation_id": message_data.get("conversation_id"),
+                                    "message_id": message_data.get("message", {}).get("id")
+                                    if isinstance(message_data.get("message"), dict)
+                                    else None,
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                },
+                            )
 
                             # Process the message
                             event_type = message_data.get("type") or "message"
@@ -221,6 +290,25 @@ async def stream_user_messages(
                                     message_data["is_mine"] = (
                                         message_data["message"].get("sender_id") == current_user.id
                                     )
+                                    logger.info(
+                                        "[MSG-DEBUG] SSE: Yielding new_message event",
+                                        extra={
+                                            "user_id": current_user.id,
+                                            "is_mine": message_data["is_mine"],
+                                            "conversation_id": message_data.get("conversation_id"),
+                                            "sender_id": message_data["message"].get("sender_id"),
+                                        },
+                                    )
+
+                                # [MSG-DEBUG] Log event being yielded
+                                logger.info(
+                                    "[MSG-DEBUG] SSE: Yielding event",
+                                    extra={
+                                        "user_id": current_user.id,
+                                        "event_type": event_type,
+                                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                                    },
+                                )
 
                                 yield {
                                     "event": event_type,
@@ -228,6 +316,10 @@ async def stream_user_messages(
                                 }
                         except asyncio.TimeoutError:
                             # Timeout is normal - send keep-alive
+                            logger.debug(
+                                "[MSG-DEBUG] SSE: Sending keep-alive (timeout)",
+                                extra={"user_id": current_user.id},
+                            )
                             yield {
                                 "event": "keep-alive",
                                 "data": json.dumps(
@@ -242,6 +334,10 @@ async def stream_user_messages(
                         await asyncio.sleep(5)
                         now = datetime.now(timezone.utc)
                         if (now - last_heartbeat).total_seconds() >= 30:
+                            logger.debug(
+                                "[MSG-DEBUG] SSE: Sending heartbeat (no queue)",
+                                extra={"user_id": current_user.id},
+                            )
                             yield {
                                 "event": "heartbeat",
                                 "data": json.dumps(
@@ -254,7 +350,14 @@ async def stream_user_messages(
 
                 except Exception as e:
                     # Log error but continue
-                    logger.error(f"Error in SSE stream for user {current_user.id}: {str(e)}")
+                    logger.error(
+                        "[MSG-DEBUG] SSE: Error in event loop",
+                        extra={
+                            "user_id": current_user.id,
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        },
+                    )
                     # Small delay before continuing
                     await asyncio.sleep(1)
                     continue
@@ -500,11 +603,33 @@ async def send_message(
     Requires SEND_MESSAGES permission.
     Rate limited to 10 messages per minute.
     """
+    # [MSG-DEBUG] Log message send attempt
+    logger.info(
+        "[MSG-DEBUG] Message SEND: Request received",
+        extra={
+            "user_id": current_user.id,
+            "booking_id": request.booking_id,
+            "content_length": len(request.content) if request.content else 0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
     try:
         message = service.send_message(
             booking_id=request.booking_id,
             sender_id=current_user.id,
             content=request.content,
+        )
+
+        # [MSG-DEBUG] Log successful message send
+        logger.info(
+            "[MSG-DEBUG] Message SEND: Success",
+            extra={
+                "user_id": current_user.id,
+                "booking_id": request.booking_id,
+                "message_id": message.id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
         )
 
         return SendMessageResponse(
@@ -513,22 +638,55 @@ async def send_message(
         )
 
     except ValidationException as e:
+        logger.warning(
+            "[MSG-DEBUG] Message SEND: Validation error",
+            extra={
+                "user_id": current_user.id,
+                "booking_id": request.booking_id,
+                "error": str(e),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
     except ForbiddenException as e:
+        logger.warning(
+            "[MSG-DEBUG] Message SEND: Forbidden",
+            extra={
+                "user_id": current_user.id,
+                "booking_id": request.booking_id,
+                "error": str(e),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e),
         )
     except NotFoundException as e:
+        logger.warning(
+            "[MSG-DEBUG] Message SEND: Not found",
+            extra={
+                "user_id": current_user.id,
+                "booking_id": request.booking_id,
+                "error": str(e),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
     except Exception as e:
-        logger.error(f"Error sending message: {str(e)}", exc_info=True)
+        logger.error(
+            "[MSG-DEBUG] Message SEND: Unexpected error",
+            extra={
+                "user_id": current_user.id,
+                "booking_id": request.booking_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send message",
@@ -808,15 +966,59 @@ async def add_reaction(
     Requires SEND_MESSAGES permission.
     Rate limited to 10 per minute.
     """
+    # [MSG-DEBUG] Log reaction add attempt
+    logger.info(
+        "[MSG-DEBUG] Reaction ADD: Request received",
+        extra={
+            "user_id": current_user.id,
+            "message_id": message_id,
+            "emoji": request.emoji,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
     try:
         service.add_reaction(message_id, current_user.id, request.emoji)
+        logger.info(
+            "[MSG-DEBUG] Reaction ADD: Success",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "emoji": request.emoji,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ForbiddenException as e:
+        logger.warning(
+            "[MSG-DEBUG] Reaction ADD: Forbidden",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+            },
+        )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except NotFoundException as e:
+        logger.warning(
+            "[MSG-DEBUG] Reaction ADD: Not found",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+            },
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
-        logger.error(f"Error adding reaction: {str(e)}")
+        logger.error(
+            "[MSG-DEBUG] Reaction ADD: Unexpected error",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add reaction"
         )
@@ -846,13 +1048,49 @@ async def remove_reaction(
     Requires SEND_MESSAGES permission.
     Rate limited to 10 per minute.
     """
+    # [MSG-DEBUG] Log reaction remove attempt
+    logger.info(
+        "[MSG-DEBUG] Reaction REMOVE: Request received",
+        extra={
+            "user_id": current_user.id,
+            "message_id": message_id,
+            "emoji": request.emoji,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
     try:
         service.remove_reaction(message_id, current_user.id, request.emoji)
+        logger.info(
+            "[MSG-DEBUG] Reaction REMOVE: Success",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "emoji": request.emoji,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ForbiddenException as e:
+        logger.warning(
+            "[MSG-DEBUG] Reaction REMOVE: Forbidden",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+            },
+        )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
-        logger.error(f"Error removing reaction: {str(e)}")
+        logger.error(
+            "[MSG-DEBUG] Reaction REMOVE: Unexpected error",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to remove reaction"
         )
