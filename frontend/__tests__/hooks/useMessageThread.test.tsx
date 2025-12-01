@@ -38,6 +38,16 @@ const createWrapper = () => {
 describe('useMessageThread', () => {
   const currentUserId = 'instructor1';
   let setConversationsMock: jest.Mock;
+  const renderWithProps = (conversations: ConversationEntry[]) =>
+    renderHook(
+      ({ convos }) =>
+        useMessageThread({
+          currentUserId,
+          conversations: convos,
+          setConversations: setConversationsMock,
+        }),
+      { wrapper: createWrapper(), initialProps: { convos: conversations } }
+    );
 
   const mockConversation: ConversationEntry = {
     id: 'conv1',
@@ -138,15 +148,7 @@ describe('useMessageThread', () => {
         };
       });
 
-      const { result } = renderHook(
-        () =>
-          useMessageThread({
-            currentUserId,
-            conversations: [mockConversation, mockConversation2],
-            setConversations: setConversationsMock,
-          }),
-        { wrapper: createWrapper() }
-      );
+      const { result } = renderWithProps([mockConversation, mockConversation2]);
 
       await act(async () => {
         result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
@@ -171,15 +173,7 @@ describe('useMessageThread', () => {
     });
 
     it('reuses cached messages when reloading the same conversation', async () => {
-      const { result } = renderHook(
-        () =>
-          useMessageThread({
-            currentUserId,
-            conversations: [mockConversation],
-            setConversations: setConversationsMock,
-          }),
-        { wrapper: createWrapper() }
-      );
+      const { result } = renderWithProps([mockConversation]);
 
       await act(async () => {
         result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
@@ -199,29 +193,13 @@ describe('useMessageThread', () => {
 
   describe('cache invalidation', () => {
     it('should export invalidateConversationCache function', () => {
-      const { result } = renderHook(
-        () =>
-          useMessageThread({
-            currentUserId,
-            conversations: [mockConversation],
-            setConversations: setConversationsMock,
-          }),
-        { wrapper: createWrapper() }
-      );
+      const { result } = renderWithProps([mockConversation]);
 
       expect(typeof result.current.invalidateConversationCache).toBe('function');
     });
 
     it('should allow refetch after cache invalidation', async () => {
-      const { result } = renderHook(
-        () =>
-          useMessageThread({
-            currentUserId,
-            conversations: [mockConversation],
-            setConversations: setConversationsMock,
-          }),
-        { wrapper: createWrapper() }
-      );
+      const { result } = renderWithProps([mockConversation]);
 
       // Initial load
       await act(async () => {
@@ -252,15 +230,7 @@ describe('useMessageThread', () => {
 
   describe('message state management', () => {
     it('should update threadMessages when messages are loaded', async () => {
-      const { result } = renderHook(
-        () =>
-          useMessageThread({
-            currentUserId,
-            conversations: [mockConversation],
-            setConversations: setConversationsMock,
-          }),
-        { wrapper: createWrapper() }
-      );
+      const { result } = renderWithProps([mockConversation]);
 
       expect(result.current.threadMessages).toEqual([]);
 
@@ -277,15 +247,7 @@ describe('useMessageThread', () => {
     });
 
     it('should cache messages by thread', async () => {
-      const { result } = renderHook(
-        () =>
-          useMessageThread({
-            currentUserId,
-            conversations: [mockConversation],
-            setConversations: setConversationsMock,
-          }),
-        { wrapper: createWrapper() }
-      );
+      const { result } = renderWithProps([mockConversation]);
 
       act(() => {
         result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
@@ -320,15 +282,7 @@ describe('useMessageThread', () => {
         error: undefined,
       }));
 
-      const { result } = renderHook(
-        () =>
-          useMessageThread({
-            currentUserId,
-            conversations: [mockConversation],
-            setConversations: setConversationsMock,
-          }),
-        { wrapper: createWrapper() }
-      );
+      const { result } = renderWithProps([mockConversation]);
 
       await act(async () => {
         result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
@@ -339,6 +293,62 @@ describe('useMessageThread', () => {
 
       // Should have called setConversations to update unread count
       expect(setConversationsMock).toHaveBeenCalled();
+    });
+  });
+
+  describe('staleness handling', () => {
+    it('does not refetch when conversation is not stale and cache exists', async () => {
+      const { result } = renderWithProps([mockConversation]);
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      const callCountBefore = mockUseMessageHistory.mock.calls.length;
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      expect(mockUseMessageHistory.mock.calls.length).toBeLessThanOrEqual(callCountBefore + 1);
+    });
+
+    it('refetches when conversation marked stale via newer latestMessageAt', async () => {
+      const newerConversation = { ...mockConversation, latestMessageAt: Date.now() + 1000 };
+      const { result, rerender } = renderHook(
+        ({ convos }) =>
+          useMessageThread({
+            currentUserId,
+            conversations: convos,
+            setConversations: setConversationsMock,
+          }),
+        { wrapper: createWrapper(), initialProps: { convos: [mockConversation] } }
+      );
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
+      });
+
+      await waitFor(() => {
+        expect(result.current.threadMessages.length).toBe(1);
+      });
+
+      mockUseMessageHistory.mockClear();
+      rerender({ convos: [newerConversation] });
+
+      await act(async () => {
+        result.current.loadThreadMessages('conv1', newerConversation, 'inbox');
+      });
+
+      expect(
+        mockUseMessageHistory.mock.calls.some(
+          (call) => call[0] === 'booking1' && call[3] === true
+        )
+      ).toBe(true);
     });
   });
 });

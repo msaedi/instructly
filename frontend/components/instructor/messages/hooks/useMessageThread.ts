@@ -91,6 +91,8 @@ export function useMessageThread({
     conversation: ConversationEntry;
   } | null>(null);
   const lastHistoryAppliedRef = useRef<string | null>(null);
+  const lastSeenTimestampRef = useRef<Map<string, number>>(new Map());
+  const staleThreadsRef = useRef<Set<string>>(new Set());
 
   // Refs for current state access in callbacks
   const messagesByThreadRef = useRef<Record<string, MessageWithAttachments[]>>({});
@@ -117,6 +119,28 @@ export function useMessageThread({
   useEffect(() => {
     threadMessagesRef.current = threadMessages;
   }, [threadMessages]);
+
+  // Helper: update last seen timestamp and clear stale flag
+  const updateLastSeenTimestamp = useCallback((threadId: string, timestampMs: number | undefined) => {
+    if (!threadId || !timestampMs || Number.isNaN(timestampMs)) return;
+    lastSeenTimestampRef.current.set(threadId, timestampMs);
+    staleThreadsRef.current.delete(threadId);
+  }, []);
+
+  // When inbox-state derived conversations update, mark stale threads whose latestMessageAt advanced
+  useEffect(() => {
+    if (!conversationsRef.current) return;
+    for (const conv of conversationsRef.current) {
+      if (!conv?.id) continue;
+      const latest = conv.latestMessageAt ?? 0;
+      const hasSeen = lastSeenTimestampRef.current.has(conv.id);
+      if (!hasSeen) continue; // unseen threads will fetch on first view
+      const lastSeen = lastSeenTimestampRef.current.get(conv.id) ?? 0;
+      if (latest > lastSeen) {
+        staleThreadsRef.current.add(conv.id);
+      }
+    }
+  }, [_conversations]);
 
   const historyBookingId = historyTarget?.conversation.primaryBookingId ?? '';
   const {
@@ -150,7 +174,34 @@ export function useMessageThread({
     const bookingId = activeConversation.primaryBookingId;
     if (!bookingId) return;
 
-    setHistoryTarget({ threadId: selectedChat, conversation: activeConversation });
+    const cached = messagesByThreadRef.current[selectedChat];
+    const hasCache = Boolean(cached && cached.length > 0);
+    const isStale = staleThreadsRef.current.has(selectedChat);
+    const shouldFetchHistory = isStale || !hasCache;
+
+    // Show any cached thread immediately while React Query fetches fresh data
+    const existing = messagesByThreadRef.current[selectedChat];
+    if (existing) {
+      setThreadMessages(existing);
+    } else {
+      setThreadMessages([]);
+    }
+
+    // Initialize last-seen to current latestMessageAt so inbox polling doesn't mark stale immediately
+    if (!lastSeenTimestampRef.current.has(selectedChat)) {
+      const initialTs = activeConversation.latestMessageAt ?? 0;
+      if (initialTs > 0) {
+        lastSeenTimestampRef.current.set(selectedChat, initialTs);
+      }
+    }
+
+    if (shouldFetchHistory) {
+      staleThreadsRef.current.delete(selectedChat);
+      setHistoryTarget({ threadId: selectedChat, conversation: activeConversation });
+    } else if (!hasCache) {
+      // If no cache but also not stale (shouldn't happen), force fetch
+      setHistoryTarget({ threadId: selectedChat, conversation: activeConversation });
+    }
 
     // Proactively mark as read on first view of this conversation to avoid duplicate effects
     const lastMarked = markedReadThreadsRef.current.get(bookingId);
@@ -159,14 +210,6 @@ export function useMessageThread({
       void markMessagesAsReadImperative({ booking_id: bookingId }).catch(() => {
         markedReadThreadsRef.current.delete(bookingId);
       });
-    }
-
-    // Show any cached thread immediately while React Query fetches fresh data
-    const existing = messagesByThreadRef.current[selectedChat];
-    if (existing) {
-      setThreadMessages(existing);
-    } else {
-      setThreadMessages([]);
     }
   }, [currentUserId]);
 
@@ -202,6 +245,12 @@ export function useMessageThread({
 
     setMessagesByThread((prev) => ({ ...prev, [threadId]: mergedMessages }));
     setThreadMessages(mergedMessages);
+
+    // Track last seen message timestamp for staleness checks
+    const lastTimestamp = mergedMessages.length > 0
+      ? new Date(mergedMessages[mergedMessages.length - 1]?.createdAt || '').getTime()
+      : (conversation.latestMessageAt ?? undefined);
+    updateLastSeenTimestamp(threadId, lastTimestamp);
 
     // Update conversation unread count
     const unreadCount = computeUnreadFromMessages(messages, conversation, currentUserId);
@@ -240,7 +289,7 @@ export function useMessageThread({
         markedReadThreadsRef.current.set(bookingId, 0);
       }
     }
-  }, [historyData, historyTarget, currentUserId, setConversations]);
+  }, [historyData, historyTarget, currentUserId, setConversations, updateLastSeenTimestamp]);
 
   useEffect(() => {
     if (historyError && historyTarget) {
@@ -296,11 +345,14 @@ export function useMessageThread({
           ...updated[existingIndex]!,
           delivered_at: mappedMessage.delivered_at ?? updated[existingIndex]!.delivered_at,
         };
+        updateLastSeenTimestamp(selectedChat, new Date(mappedMessage.createdAt || '').getTime());
         return updated;
       }
       // Only add new messages from other users
       if (isOwnMessage) return prev;
-      return [...prev, mappedMessage];
+      const next = [...prev, mappedMessage];
+      updateLastSeenTimestamp(selectedChat, new Date(mappedMessage.createdAt || '').getTime());
+      return next;
     });
 
     // Update conversation preview
@@ -322,7 +374,7 @@ export function useMessageThread({
 
     // Invalidate unread count
     void queryClient.invalidateQueries({ queryKey: queryKeys.messages.unreadCount });
-  }, [currentUserId, setConversations, queryClient]);
+  }, [currentUserId, setConversations, queryClient, updateLastSeenTimestamp]);
 
   // Send message
   const handleSendMessage = useCallback(async ({
@@ -433,6 +485,8 @@ export function useMessageThread({
     const bookingIdTarget = getPrimaryBookingId(targetThreadId);
     let resolvedServerId: string | undefined;
     let deliveredAtFromBackend: string | null = null;
+    const optimisticTimestamp = new Date().getTime();
+    updateLastSeenTimestamp(targetThreadId, optimisticTimestamp);
 
     try {
       if (bookingIdTarget) {
@@ -481,7 +535,7 @@ export function useMessageThread({
     }));
 
     onSuccess(targetThreadId, switchingFromCompose);
-  }, [currentUserId, setConversations]);
+  }, [currentUserId, setConversations, updateLastSeenTimestamp]);
 
   // Archive conversation - moves all active messages to archived
   const handleArchiveConversation = useCallback((conversationId: string) => {
