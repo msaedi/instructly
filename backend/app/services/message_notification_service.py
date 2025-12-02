@@ -37,6 +37,8 @@ class MessageNotificationService:
         self.listen_task: Optional[asyncio.Task[None]] = None
         self.is_listening = False
         self.logger = logging.getLogger(__name__)
+        # Track startup test result
+        self._startup_test_received = False
 
     async def start(self) -> None:
         """
@@ -47,8 +49,22 @@ class MessageNotificationService:
         """
         try:
             # Create dedicated connection for LISTEN
-            # Use the active database URL from settings (respects INT/STG/PROD)
-            db_url = str(settings.database_url)
+            # Use session pooler URL for LISTEN/NOTIFY (bypasses PgBouncer transaction mode)
+            # Falls back to regular database URL for local dev where pooler isn't used
+            db_url = str(settings.listen_database_url)
+
+            # [MSG-DEBUG] Log which connection is being used for LISTEN
+            using_session_pooler = settings.database_url_session is not None
+            # Mask credentials in log output
+            host_part = db_url.split("@")[1] if "@" in db_url else "local"
+            self.logger.info(
+                "[MSG-DEBUG] NotificationService.start: Connecting for LISTEN/NOTIFY",
+                extra={
+                    "using_session_pooler": using_session_pooler,
+                    "host": host_part.split("/")[0] if "/" in host_part else host_part,
+                },
+            )
+
             # Convert SQLAlchemy URL to asyncpg format
             if db_url.startswith("postgresql://"):
                 db_url = db_url.replace("postgresql://", "postgres://")
@@ -61,7 +77,16 @@ class MessageNotificationService:
             # Start the listener task
             self.listen_task = asyncio.create_task(self._listen_for_notifications())
 
-            self.logger.info("Message notification service started successfully")
+            # Test LISTEN/NOTIFY is working with a startup test
+            await self._run_startup_test()
+
+            self.logger.info(
+                "[MSG-DEBUG] NotificationService.start: Service started successfully",
+                extra={
+                    "using_session_pooler": using_session_pooler,
+                    "listen_notify_working": self._startup_test_received,
+                },
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to start notification service: {str(e)}")
@@ -214,6 +239,74 @@ class MessageNotificationService:
 
         self.logger.info(f"Removed subscriber for user {user_id}")
 
+    async def _run_startup_test(self) -> None:
+        """
+        Test that LISTEN/NOTIFY is working by sending a test notification.
+
+        This verifies the database connection supports LISTEN/NOTIFY (not broken by PgBouncer
+        transaction pooling). Without session mode, the listener would be lost after each
+        transaction, causing this test to fail.
+        """
+        if not self.connection:
+            self.logger.warning("[MSG-DEBUG] Cannot run startup test: no connection")
+            return
+
+        test_channel = "startup_test_channel"
+        test_payload = "startup_test"
+
+        self.logger.info(
+            "[MSG-DEBUG] NotificationService._run_startup_test: Starting LISTEN/NOTIFY test..."
+        )
+
+        try:
+            # Add listener for test channel
+            await self.connection.add_listener(test_channel, self._handle_startup_test)
+            self.logger.info(
+                "[MSG-DEBUG] NotificationService._run_startup_test: LISTEN registered",
+                extra={"channel": test_channel},
+            )
+
+            # Send NOTIFY to test channel
+            await self.connection.execute(f"NOTIFY {test_channel}, '{test_payload}'")
+            self.logger.info(
+                "[MSG-DEBUG] NotificationService._run_startup_test: NOTIFY sent, waiting for callback..."
+            )
+
+            # Wait a moment for the notification to be received
+            await asyncio.sleep(0.5)
+
+            # Check if test was received
+            if self._startup_test_received:
+                self.logger.info(
+                    "[MSG-DEBUG] NotificationService._run_startup_test: SUCCESS - LISTEN/NOTIFY is WORKING!"
+                )
+            else:
+                self.logger.error(
+                    "[MSG-DEBUG] NotificationService._run_startup_test: FAILED - NOTIFY not received! "
+                    "Real-time messaging will NOT work. Check if DATABASE_URL_SESSION is configured "
+                    "with Supabase session pooler (port 5432)."
+                )
+
+            # Clean up test listener
+            await self.connection.remove_listener(test_channel, self._handle_startup_test)
+
+        except Exception as e:
+            self.logger.error(
+                "[MSG-DEBUG] NotificationService._run_startup_test: ERROR during test",
+                extra={"error": str(e), "error_type": type(e).__name__},
+            )
+
+    def _handle_startup_test(
+        self, connection: Connection, pid: int, channel: str, payload: str
+    ) -> None:
+        """Handle the startup test notification callback."""
+        self.logger.info(
+            "[MSG-DEBUG] NotificationService._handle_startup_test: NOTIFY RECEIVED!",
+            extra={"channel": channel, "payload": payload, "pid": pid},
+        )
+        if payload == "startup_test":
+            self._startup_test_received = True
+
     async def _listen_for_notifications(self) -> None:
         """
         Main listener loop that processes PostgreSQL notifications.
@@ -225,10 +318,14 @@ class MessageNotificationService:
             try:
                 if not self.connection or self.connection.is_closed():
                     # Reconnect if connection was lost (without spawning new task)
-                    self.logger.info("Connection lost, attempting to reconnect...")
+                    self.logger.info(
+                        "[MSG-DEBUG] NotificationService._listen_for_notifications: Connection lost, reconnecting..."
+                    )
                     try:
-                        # Use the active database URL from settings
-                        db_url = str(settings.database_url)
+                        # Use session pooler URL for LISTEN/NOTIFY
+                        db_url = str(settings.listen_database_url)
+                        using_session_pooler = settings.database_url_session is not None
+
                         # Convert SQLAlchemy URL to asyncpg format
                         if db_url.startswith("postgresql://"):
                             db_url = db_url.replace("postgresql://", "postgres://")
@@ -238,13 +335,23 @@ class MessageNotificationService:
                         self.connection = await asyncpg.connect(db_url)
 
                         # Re-subscribe to all channels we were listening to
-                        for booking_id in self.subscribers.keys():
-                            channel_name = f"booking_chat_{booking_id}"
+                        for subscriber_id in self.subscribers.keys():
+                            # Determine channel type based on subscriber format
+                            if subscriber_id.startswith("user_"):
+                                channel_name = f"{subscriber_id}_inbox"
+                            else:
+                                channel_name = f"booking_chat_{subscriber_id}"
                             await self.connection.add_listener(
                                 channel_name, self._handle_notification
                             )
 
-                        self.logger.info("Successfully reconnected to database")
+                        self.logger.info(
+                            "[MSG-DEBUG] NotificationService._listen_for_notifications: Reconnected successfully",
+                            extra={
+                                "using_session_pooler": using_session_pooler,
+                                "resubscribed_channels": len(self.subscribers),
+                            },
+                        )
                     except Exception as e:
                         self.logger.error(f"Failed to reconnect: {str(e)}")
                         await asyncio.sleep(5)
