@@ -229,49 +229,35 @@ export function Chat({
   }, [currentUserId]);
 
   const handleMessageEdited = useCallback((messageId: string, newContent: string, _editorId: string) => {
-    // DEBUG: Log entry
     logger.debug('[MSG-DEBUG] handleMessageEdited CALLED', {
       messageId,
       newContent,
       currentBookingId: bookingId,
     });
 
-    // Must match the exact key used by useMessageHistory (default pagination: limit=50, offset=0)
-    const cacheKey = queryKeys.messages.history(bookingId, { limit: 50, offset: 0 });
-
-    // DEBUG: Log cache state before update
-    const currentCache = queryClient.getQueryData(cacheKey);
-    logger.debug('[MSG-DEBUG] handleMessageEdited cache BEFORE', {
-      cacheExists: !!currentCache,
-      messageCount: (currentCache as { messages?: MessageResponse[] } | undefined)?.messages?.length,
+    // Update local realtime messages state (for messages sent this session)
+    setRealtimeMessages((prev) => {
+      const messageIndex = prev.findIndex((m) => m.id === messageId);
+      if (messageIndex !== -1) {
+        logger.debug('[MSG-DEBUG] handleMessageEdited updating realtimeMessages');
+        const updated = [...prev];
+        updated[messageIndex] = {
+          ...updated[messageIndex]!,
+          content: newContent,
+          edited_at: new Date().toISOString(),
+        };
+        return updated;
+      }
+      return prev;
     });
 
-    // Update message cache when edit received via SSE
-    queryClient.setQueryData(
-      cacheKey,
-      (old: { messages: MessageResponse[] } | undefined) => {
-        if (!old) {
-          logger.debug('[MSG-DEBUG] handleMessageEdited NO OLD DATA');
-          return old;
-        }
+    // Invalidate React Query cache to refetch (for historical messages)
+    // This ensures the edit is reflected even if message was from history
+    void queryClient.invalidateQueries({
+      queryKey: ['messages', 'history', bookingId],
+    });
 
-        const messageExists = old.messages.some((m) => m.id === messageId);
-        logger.debug('[MSG-DEBUG] handleMessageEdited updating', {
-          messageExists,
-          messageId,
-          oldMessageCount: old.messages.length,
-        });
-
-        return {
-          ...old,
-          messages: old.messages.map((msg) =>
-            msg.id === messageId
-              ? { ...msg, content: newContent, edited_at: new Date().toISOString() }
-              : msg
-          ),
-        };
-      }
-    );
+    logger.debug('[MSG-DEBUG] handleMessageEdited DONE - updated local state + invalidated cache');
   }, [bookingId, queryClient]);
 
   // Subscribe to this conversation's events
