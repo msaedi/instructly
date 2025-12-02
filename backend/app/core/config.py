@@ -227,6 +227,15 @@ class Settings(BaseSettings):
     )  # From env TEST_DATABASE_URL
     stg_database_url_raw: str = Field("", alias="stg_database_url")  # From env STG_DATABASE_URL
 
+    # Session pooler URL for LISTEN/NOTIFY (bypasses PgBouncer transaction mode)
+    # Supabase session pooler uses port 5432, transaction pooler uses port 6543
+    # Only needed for asyncpg LISTEN connections; all other DB operations use transaction pooler
+    database_url_session: Optional[str] = Field(
+        default=None,
+        alias="DATABASE_URL_SESSION",
+        description="Session pooler URL for LISTEN/NOTIFY (Supabase port 5432)",
+    )
+
     # Legacy flags for backward compatibility
     is_testing: bool = False  # Set to True when running tests
 
@@ -892,6 +901,21 @@ class Settings(BaseSettings):
     def stg_database_url(self) -> str:
         """Staging database URL."""
         return self.stg_database_url_raw
+
+    @property
+    def listen_database_url(self) -> str:
+        """
+        Database URL for LISTEN/NOTIFY operations (asyncpg connections).
+
+        Returns the session pooler URL if configured, otherwise falls back to
+        the regular database URL. This is necessary because Supabase's transaction
+        pooler (PgBouncer) doesn't support LISTEN/NOTIFY - the connection is
+        released after each transaction, losing the listener.
+
+        For local development, no separate URL is needed since local PostgreSQL
+        supports LISTEN/NOTIFY directly without a pooler.
+        """
+        return self.database_url_session or self.database_url
 
     @model_validator(mode="after")
     def _load_sender_profiles(self) -> "Settings":

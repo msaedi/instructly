@@ -369,6 +369,18 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from .routes.v1.messages import set_notification_service as set_v1_notification_service
     from .services.message_notification_service import MessageNotificationService
 
+    # [MSG-DEBUG] Log which database connection type is being used for LISTEN/NOTIFY
+    # Session pooler (port 5432) is required for Supabase to support LISTEN/NOTIFY
+    # Transaction pooler (port 6543) releases connections after each transaction, breaking LISTEN
+    if settings.database_url_session:
+        logger.info(
+            "[MSG-DEBUG] Startup: Using SESSION POOLER for LISTEN/NOTIFY (real-time messaging should work)"
+        )
+    else:
+        logger.info(
+            "[MSG-DEBUG] Startup: Using default DATABASE_URL for LISTEN/NOTIFY (local mode or no session pooler configured)"
+        )
+
     logger.info("[MSG-DEBUG] Startup: Initializing MessageNotificationService...")
     notification_service = MessageNotificationService()
     try:
