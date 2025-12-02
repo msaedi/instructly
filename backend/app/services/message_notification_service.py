@@ -631,6 +631,41 @@ class MessageNotificationService:
                 )
                 return  # Don't route heartbeats to user queues
 
+            # Handle message_notifications channel (used by send_message/reaction/edit_notification)
+            # These contain recipient_ids and should be routed to user queues
+            if channel == self.HEARTBEAT_CHANNEL:
+                recipient_ids = message_data.get("recipient_ids", [])
+                notification_type = message_data.get("type")
+                if recipient_ids:
+                    self.logger.info(
+                        "[MSG-DEBUG] NotificationService._handle_notification: Routing message_notifications to user queues",
+                        extra={
+                            "recipient_ids": recipient_ids,
+                            "event_type": notification_type,
+                            "message_id": message_data.get("message_id")
+                            or (
+                                message_data.get("message", {}).get("id")
+                                if isinstance(message_data.get("message"), dict)
+                                else None
+                            ),
+                        },
+                    )
+                    for user_id in recipient_ids:
+                        if user_id in self.subscribers:
+                            for queue in self.subscribers[user_id]:
+                                asyncio.create_task(self._send_to_queue(queue, message_data))
+                        else:
+                            self.logger.debug(
+                                "[MSG-DEBUG] No subscriber for user_id",
+                                extra={"user_id": user_id},
+                            )
+                else:
+                    self.logger.warning(
+                        "[MSG-DEBUG] message_notifications with no recipient_ids",
+                        extra={"event_type": notification_type},
+                    )
+                return
+
             # [MSG-DEBUG] Log parsed notification data (for non-heartbeat messages)
             self.logger.info(
                 "[MSG-DEBUG] NotificationService._handle_notification: Parsed",
@@ -938,5 +973,67 @@ class MessageNotificationService:
             self.logger.error(
                 "[MSG-DEBUG] Failed to send edit notification",
                 extra={"error": str(e), "message_id": message_id},
+            )
+            return False
+
+    async def send_read_notification(
+        self,
+        conversation_id: str,
+        reader_id: str,
+        recipient_id: str,
+        message_ids: list[str],
+        read_at: str,
+    ) -> bool:
+        """
+        Send read receipt NOTIFY through the session pooler connection.
+
+        Notifies the sender that their messages have been read.
+
+        Args:
+            conversation_id: The conversation ID (booking_id)
+            reader_id: ID of the user who read the messages
+            recipient_id: ID of the user who sent the messages (to be notified)
+            message_ids: List of message IDs that were marked as read
+            read_at: ISO timestamp when messages were read
+
+        Returns:
+            True if notification was sent successfully, False otherwise
+        """
+        if not self.connection or self.connection.is_closed():
+            self.logger.warning("[MSG-DEBUG] Cannot send read notification - no connection")
+            return False
+
+        try:
+            payload = json.dumps(
+                {
+                    "type": "read_receipt",
+                    "conversation_id": conversation_id,
+                    "reader_id": reader_id,
+                    "recipient_ids": [recipient_id],  # Only notify the sender
+                    "message_ids": message_ids,
+                    "read_at": read_at,
+                }
+            )
+
+            escaped_payload = payload.replace("'", "''")
+
+            await self.connection.execute(f"NOTIFY {self.HEARTBEAT_CHANNEL}, '{escaped_payload}'")
+
+            self.logger.info(
+                "[MSG-DEBUG] Read notification sent via session pooler",
+                extra={
+                    "conversation_id": conversation_id,
+                    "reader_id": reader_id,
+                    "recipient_id": recipient_id,
+                    "message_count": len(message_ids),
+                    "channel": self.HEARTBEAT_CHANNEL,
+                },
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(
+                "[MSG-DEBUG] Failed to send read notification",
+                extra={"error": str(e), "conversation_id": conversation_id},
             )
             return False
