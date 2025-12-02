@@ -228,6 +228,24 @@ export function Chat({
     });
   }, [currentUserId]);
 
+  const handleMessageEdited = useCallback((messageId: string, newContent: string, _editorId: string) => {
+    // Update message cache when edit received via SSE
+    queryClient.setQueryData(
+      queryKeys.messages.history(bookingId),
+      (old: { messages: MessageResponse[] } | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          messages: old.messages.map((msg) =>
+            msg.id === messageId
+              ? { ...msg, content: newContent, edited_at: new Date().toISOString() }
+              : msg
+          ),
+        };
+      }
+    );
+  }, [bookingId, queryClient]);
+
   // Subscribe to this conversation's events
   useEffect(() => {
     if (!bookingId) return;
@@ -243,13 +261,14 @@ export function Chat({
       onTyping: handleSSETyping,
       onReadReceipt: handleReadReceipt,
       onReaction: handleReaction,
+      onMessageEdited: handleMessageEdited,
     });
 
     return () => {
       unsubscribe();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [bookingId, subscribe, handleSSEMessage, handleSSETyping, handleReadReceipt, handleReaction, queryClient]);
+  }, [bookingId, subscribe, handleSSEMessage, handleSSETyping, handleReadReceipt, handleReaction, handleMessageEdited, queryClient]);
 
   // Combine history and real-time messages with deduplication
   const allMessages = React.useMemo(() => {
