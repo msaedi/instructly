@@ -219,9 +219,12 @@ export function useUserMessageStream() {
       resetHeartbeat();
       try {
         const data: SSEEvent = JSON.parse((event as MessageEvent).data);
+        const editData = data as SSEMessageEditedEvent;
         logger.debug('[MSG-DEBUG] SSE: message_edited event', {
           conversationId: data.conversation_id,
-          messageId: (data as { message_id?: string }).message_id,
+          messageId: editData.message_id,
+          newContent: editData.data?.content,
+          hasContent: !!editData.data?.content,
           timestamp: debugTimestamp()
         });
         routeEvent(data);
