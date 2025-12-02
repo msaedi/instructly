@@ -16,6 +16,7 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useSendTypingIndicator, useAddReaction, useRemoveReaction } from '@/src/api/services/messages';
 import { useAuthStatus } from '@/hooks/queries/useAuth';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
+import { logger } from '@/lib/logger';
 
 // Extracted components and hooks
 import {
