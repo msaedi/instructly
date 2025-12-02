@@ -52,6 +52,10 @@ class ReadyProbeResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response body for /ready endpoint."""
 
-    status: Literal["ok", "db_not_ready", "cache_not_ready"] = Field(
+    status: Literal["ok", "db_not_ready", "cache_not_ready", "degraded"] = Field(
         description="Overall readiness status"
+    )
+    notifications_healthy: bool | None = Field(
+        default=None,
+        description="Health status of the notification service (real-time messaging)",
     )

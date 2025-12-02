@@ -792,6 +792,66 @@ class MessageNotificationService:
         """
         return len(self.subscribers.get(booking_id, []))
 
+    def is_healthy(self) -> bool:
+        """
+        Check if the notification service is healthy.
+
+        Health is determined by:
+        1. Service is actively listening
+        2. Connection exists and is not closed
+        3. Heartbeat was received recently (within 90s = 3 * HEARTBEAT_INTERVAL)
+
+        Returns:
+            True if healthy, False otherwise
+        """
+        # Not running
+        if not self.is_listening:
+            self.logger.debug("[MSG-DEBUG] is_healthy: False - not listening")
+            return False
+
+        # No connection or connection closed
+        if not self.connection or self.connection.is_closed():
+            self.logger.debug("[MSG-DEBUG] is_healthy: False - no connection or closed")
+            return False
+
+        # Check if we've received a heartbeat recently
+        # Allow up to 90 seconds (3 missed heartbeats) before considering unhealthy
+        max_heartbeat_age = self.HEARTBEAT_INTERVAL * 3
+        if self._last_heartbeat_received is not None:
+            heartbeat_age = time.time() - self._last_heartbeat_received
+            if heartbeat_age > max_heartbeat_age:
+                self.logger.debug(
+                    "[MSG-DEBUG] is_healthy: False - heartbeat too old",
+                    extra={
+                        "heartbeat_age": round(heartbeat_age, 1),
+                        "max_age": max_heartbeat_age,
+                    },
+                )
+                return False
+
+        return True
+
+    def get_health_details(self) -> Dict[str, Any]:
+        """
+        Get detailed health information for diagnostics.
+
+        Returns:
+            Dictionary with health details
+        """
+        heartbeat_age = None
+        if self._last_heartbeat_received is not None:
+            heartbeat_age = round(time.time() - self._last_heartbeat_received, 1)
+
+        return {
+            "is_listening": self.is_listening,
+            "has_connection": self.connection is not None,
+            "connection_closed": self.connection.is_closed() if self.connection else None,
+            "subscriber_count": sum(len(queues) for queues in self.subscribers.values()),
+            "last_heartbeat_age_seconds": heartbeat_age,
+            "heartbeat_interval": self.HEARTBEAT_INTERVAL,
+            "healthy": self.is_healthy(),
+        }
+
     async def send_message_notification(
         self,
         conversation_id: str,
