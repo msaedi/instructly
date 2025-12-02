@@ -632,6 +632,39 @@ async def send_message(
             },
         )
 
+        # Send notification via session pooler (same connection as LISTEN)
+        # This bypasses the DB trigger which uses transaction pooler
+        try:
+            notification_service = get_notification_service()
+            recipient_id = service.get_recipient_id(request.booking_id, str(current_user.id))
+            if recipient_id:
+                await notification_service.send_message_notification(
+                    conversation_id=request.booking_id,
+                    sender_id=str(current_user.id),
+                    recipient_id=recipient_id,
+                    message_data={
+                        "id": str(message.id),
+                        "content": message.content,
+                        "sender_id": str(message.sender_id),
+                        "created_at": message.created_at.isoformat()
+                        if message.created_at
+                        else None,
+                    },
+                )
+                logger.info(
+                    "[MSG-DEBUG] Message SEND: Notification sent via session pooler",
+                    extra={
+                        "message_id": message.id,
+                        "recipient_id": recipient_id,
+                    },
+                )
+        except Exception as e:
+            # Don't fail the request if notification fails - message is already saved
+            logger.error(
+                "[MSG-DEBUG] Message SEND: Notification failed (message still saved)",
+                extra={"error": str(e), "message_id": message.id},
+            )
+
         return SendMessageResponse(
             success=True,
             message=MessageResponse.model_validate(message),
@@ -978,6 +1011,9 @@ async def add_reaction(
     )
 
     try:
+        # Get message info first for notification
+        message = service.get_message_by_id(message_id, str(current_user.id))
+
         service.add_reaction(message_id, current_user.id, request.emoji)
         logger.info(
             "[MSG-DEBUG] Reaction ADD: Success",
@@ -988,6 +1024,35 @@ async def add_reaction(
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
+
+        # Send notification via session pooler
+        if message:
+            try:
+                notification_service = get_notification_service()
+                recipient_id = service.get_recipient_id(
+                    str(message.booking_id), str(current_user.id)
+                )
+                if recipient_id:
+                    await notification_service.send_reaction_notification(
+                        conversation_id=str(message.booking_id),
+                        message_id=message_id,
+                        user_id=str(current_user.id),
+                        recipient_id=recipient_id,
+                        reaction_data={
+                            "emoji": request.emoji,
+                            "action": "added",
+                        },
+                    )
+                    logger.info(
+                        "[MSG-DEBUG] Reaction ADD: Notification sent via session pooler",
+                        extra={"message_id": message_id, "recipient_id": recipient_id},
+                    )
+            except Exception as e:
+                logger.error(
+                    "[MSG-DEBUG] Reaction ADD: Notification failed",
+                    extra={"error": str(e), "message_id": message_id},
+                )
+
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ForbiddenException as e:
         logger.warning(

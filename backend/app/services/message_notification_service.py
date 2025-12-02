@@ -364,10 +364,13 @@ class MessageNotificationService:
                 if self.connection and not self.connection.is_closed():
                     # Send heartbeat through the SAME connection that's listening
                     heartbeat_payload = json.dumps({"type": "heartbeat", "timestamp": time.time()})
+
+                    # Set timestamp BEFORE sending (fixes race condition with watchdog)
+                    self._heartbeat_sent_at = time.time()
+
                     await self.connection.execute(
                         f"NOTIFY {self.HEARTBEAT_CHANNEL}, '{heartbeat_payload}'"
                     )
-                    self._heartbeat_sent_at = time.time()
                     self.logger.info(
                         "[MSG-DEBUG] Heartbeat NOTIFY sent",
                         extra={"timestamp": self._heartbeat_sent_at},
@@ -753,3 +756,127 @@ class MessageNotificationService:
             Number of active subscribers
         """
         return len(self.subscribers.get(booking_id, []))
+
+    async def send_message_notification(
+        self,
+        conversation_id: str,
+        sender_id: str,
+        recipient_id: str,
+        message_data: Dict[str, Any],
+    ) -> bool:
+        """
+        Send NOTIFY through the session pooler connection (same as LISTEN).
+
+        This ensures the notification reaches our listener, unlike DB triggers
+        which go through the transaction pooler (different pool = no delivery).
+
+        Args:
+            conversation_id: The conversation ID
+            sender_id: ID of the message sender
+            recipient_id: ID of the message recipient
+            message_data: Message data to include in notification
+
+        Returns:
+            True if notification was sent successfully, False otherwise
+        """
+        if not self.connection or self.connection.is_closed():
+            self.logger.warning("[MSG-DEBUG] Cannot send message notification - no connection")
+            return False
+
+        try:
+            # Build notification payload
+            payload = json.dumps(
+                {
+                    "type": "new_message",
+                    "conversation_id": conversation_id,
+                    "sender_id": sender_id,
+                    "recipient_ids": [sender_id, recipient_id],
+                    "message": message_data,
+                }
+            )
+
+            # Escape single quotes in JSON payload for SQL
+            escaped_payload = payload.replace("'", "''")
+
+            # Send on the SAME connection that's doing LISTEN
+            await self.connection.execute(f"NOTIFY {self.HEARTBEAT_CHANNEL}, '{escaped_payload}'")
+
+            self.logger.info(
+                "[MSG-DEBUG] Message notification sent via session pooler",
+                extra={
+                    "conversation_id": conversation_id,
+                    "sender_id": sender_id,
+                    "recipient_id": recipient_id,
+                    "channel": self.HEARTBEAT_CHANNEL,
+                },
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(
+                "[MSG-DEBUG] Failed to send message notification",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "conversation_id": conversation_id,
+                },
+            )
+            return False
+
+    async def send_reaction_notification(
+        self,
+        conversation_id: str,
+        message_id: str,
+        user_id: str,
+        recipient_id: str,
+        reaction_data: Dict[str, Any],
+    ) -> bool:
+        """
+        Send reaction NOTIFY through the session pooler connection.
+
+        Args:
+            conversation_id: The conversation ID
+            message_id: ID of the message being reacted to
+            user_id: ID of the user adding reaction
+            recipient_id: ID of the other participant
+            reaction_data: Reaction data to include
+
+        Returns:
+            True if notification was sent successfully, False otherwise
+        """
+        if not self.connection or self.connection.is_closed():
+            self.logger.warning("[MSG-DEBUG] Cannot send reaction notification - no connection")
+            return False
+
+        try:
+            payload = json.dumps(
+                {
+                    "type": "reaction_update",
+                    "conversation_id": conversation_id,
+                    "message_id": message_id,
+                    "user_id": user_id,
+                    "recipient_ids": [user_id, recipient_id],
+                    "reaction": reaction_data,
+                }
+            )
+
+            escaped_payload = payload.replace("'", "''")
+
+            await self.connection.execute(f"NOTIFY {self.HEARTBEAT_CHANNEL}, '{escaped_payload}'")
+
+            self.logger.info(
+                "[MSG-DEBUG] Reaction notification sent via session pooler",
+                extra={
+                    "conversation_id": conversation_id,
+                    "message_id": message_id,
+                    "channel": self.HEARTBEAT_CHANNEL,
+                },
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(
+                "[MSG-DEBUG] Failed to send reaction notification",
+                extra={"error": str(e), "message_id": message_id},
+            )
+            return False

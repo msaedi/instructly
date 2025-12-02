@@ -142,6 +142,25 @@ class MessageService(BaseService):
             )
             return message
 
+    @BaseService.measure_operation("get_message_by_id")
+    def get_message_by_id(self, message_id: str, user_id: str) -> Optional[Message]:
+        """
+        Get a message by ID if the user has access.
+
+        Args:
+            message_id: ID of the message
+            user_id: ID of the requesting user
+
+        Returns:
+            The message if found and user has access, None otherwise
+        """
+        message = self.repository.get_by_id(message_id)
+        if not message:
+            return None
+        if not self._user_has_booking_access(message.booking_id, user_id):
+            return None
+        return message
+
     @BaseService.measure_operation("get_message_history")
     def get_message_history(
         self, booking_id: str, user_id: str, limit: int = 50, offset: int = 0
@@ -749,6 +768,20 @@ class MessageService(BaseService):
         elif booking.instructor_id == sender_id:
             return str(booking.student_id)
         return None
+
+    @BaseService.measure_operation("get_recipient_id")
+    def get_recipient_id(self, booking_id: str, sender_id: str) -> Optional[str]:
+        """
+        Get the other participant in the conversation (public wrapper).
+
+        Args:
+            booking_id: ID of the booking
+            sender_id: ID of the sender
+
+        Returns:
+            User ID of the recipient, or None if booking not found
+        """
+        return self._get_recipient_id(booking_id, sender_id)
 
     def _reset_conversation_unread_count(self, booking_id: str, user_id: str) -> None:
         """
