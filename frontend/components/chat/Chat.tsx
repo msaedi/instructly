@@ -236,8 +236,11 @@ export function Chat({
       currentBookingId: bookingId,
     });
 
+    // Must match the exact key used by useMessageHistory (default pagination: limit=50, offset=0)
+    const cacheKey = queryKeys.messages.history(bookingId, { limit: 50, offset: 0 });
+
     // DEBUG: Log cache state before update
-    const currentCache = queryClient.getQueryData(queryKeys.messages.history(bookingId));
+    const currentCache = queryClient.getQueryData(cacheKey);
     logger.debug('[MSG-DEBUG] handleMessageEdited cache BEFORE', {
       cacheExists: !!currentCache,
       messageCount: (currentCache as { messages?: MessageResponse[] } | undefined)?.messages?.length,
@@ -245,7 +248,7 @@ export function Chat({
 
     // Update message cache when edit received via SSE
     queryClient.setQueryData(
-      queryKeys.messages.history(bookingId),
+      cacheKey,
       (old: { messages: MessageResponse[] } | undefined) => {
         if (!old) {
           logger.debug('[MSG-DEBUG] handleMessageEdited NO OLD DATA');
