@@ -904,17 +904,99 @@ async def edit_message(
     Only the sender can edit their own messages within the edit window.
     Requires SEND_MESSAGES permission.
     """
+    # [MSG-DEBUG] Log edit attempt
+    logger.info(
+        "[MSG-DEBUG] Message EDIT: Request received",
+        extra={
+            "user_id": current_user.id,
+            "message_id": message_id,
+            "new_content_length": len(request.content) if request.content else 0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
     try:
         service.edit_message(message_id, current_user.id, request.content)
+        logger.info(
+            "[MSG-DEBUG] Message EDIT: Success",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+        # Send notification via session pooler (same connection as LISTEN)
+        try:
+            message = service.get_message_by_id(message_id, str(current_user.id))
+            if message:
+                notification_service = get_notification_service()
+                recipient_id = service.get_recipient_id(
+                    str(message.booking_id), str(current_user.id)
+                )
+                if recipient_id:
+                    await notification_service.send_edit_notification(
+                        conversation_id=str(message.booking_id),
+                        message_id=message_id,
+                        editor_id=str(current_user.id),
+                        recipient_id=recipient_id,
+                        new_content=request.content,
+                    )
+                    logger.info(
+                        "[MSG-DEBUG] Message EDIT: Notification sent via session pooler",
+                        extra={
+                            "message_id": message_id,
+                            "recipient_id": recipient_id,
+                        },
+                    )
+        except Exception as e:
+            # Don't fail the request if notification fails - edit is already saved
+            logger.error(
+                "[MSG-DEBUG] Message EDIT: Notification failed (edit still saved)",
+                extra={"error": str(e), "message_id": message_id},
+            )
+
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ValidationException as e:
+        logger.warning(
+            "[MSG-DEBUG] Message EDIT: Validation error",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+            },
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except ForbiddenException as e:
+        logger.warning(
+            "[MSG-DEBUG] Message EDIT: Forbidden",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+            },
+        )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except NotFoundException as e:
+        logger.warning(
+            "[MSG-DEBUG] Message EDIT: Not found",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+            },
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
-        logger.error(f"Error editing message: {str(e)}")
+        logger.error(
+            "[MSG-DEBUG] Message EDIT: Unexpected error",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to edit message"
         )

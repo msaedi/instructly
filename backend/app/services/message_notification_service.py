@@ -880,3 +880,63 @@ class MessageNotificationService:
                 extra={"error": str(e), "message_id": message_id},
             )
             return False
+
+    async def send_edit_notification(
+        self,
+        conversation_id: str,
+        message_id: str,
+        editor_id: str,
+        recipient_id: str,
+        new_content: str,
+    ) -> bool:
+        """
+        Send edit NOTIFY through the session pooler connection.
+
+        Args:
+            conversation_id: The conversation ID (booking_id)
+            message_id: ID of the message being edited
+            editor_id: ID of the user editing the message
+            recipient_id: ID of the other participant
+            new_content: The new message content after editing
+
+        Returns:
+            True if notification was sent successfully, False otherwise
+        """
+        if not self.connection or self.connection.is_closed():
+            self.logger.warning("[MSG-DEBUG] Cannot send edit notification - no connection")
+            return False
+
+        try:
+            payload = json.dumps(
+                {
+                    "type": "message_edited",
+                    "conversation_id": conversation_id,
+                    "message_id": message_id,
+                    "editor_id": editor_id,
+                    "recipient_ids": [editor_id, recipient_id],
+                    "data": {
+                        "content": new_content,
+                    },
+                }
+            )
+
+            escaped_payload = payload.replace("'", "''")
+
+            await self.connection.execute(f"NOTIFY {self.HEARTBEAT_CHANNEL}, '{escaped_payload}'")
+
+            self.logger.info(
+                "[MSG-DEBUG] Edit notification sent via session pooler",
+                extra={
+                    "conversation_id": conversation_id,
+                    "message_id": message_id,
+                    "channel": self.HEARTBEAT_CHANNEL,
+                },
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(
+                "[MSG-DEBUG] Failed to send edit notification",
+                extra={"error": str(e), "message_id": message_id},
+            )
+            return False
