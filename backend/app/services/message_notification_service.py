@@ -11,6 +11,7 @@ Uses dependency injection pattern - NO SINGLETONS.
 import asyncio
 import json
 import logging
+import threading
 import time
 from typing import Any, Dict, Optional, Set
 
@@ -52,6 +53,13 @@ class MessageNotificationService:
         self._heartbeat_sent_at: Optional[float] = None
         self._heartbeat_task: Optional[asyncio.Task[None]] = None
         self._watchdog_task: Optional[asyncio.Task[None]] = None
+
+        # Threading-based watchdog (independent of event loop)
+        self._thread_watchdog: Optional[threading.Thread] = None
+        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
+
+        # Reconnection state to prevent double-reconnects
+        self._reconnecting: bool = False
 
     async def start(self) -> None:
         """
@@ -96,6 +104,11 @@ class MessageNotificationService:
             # Start heartbeat system to detect silent connection deaths
             await self._start_heartbeat_system()
 
+            # Store event loop reference and start thread-based watchdog
+            # The thread watchdog can detect issues even if the event loop is frozen
+            self._event_loop = asyncio.get_running_loop()
+            self._start_thread_watchdog()
+
             self.logger.info(
                 "[MSG-DEBUG] NotificationService.start: Service started successfully",
                 extra={
@@ -103,6 +116,7 @@ class MessageNotificationService:
                     "listen_notify_working": self._startup_test_received,
                     "heartbeat_interval": self.HEARTBEAT_INTERVAL,
                     "heartbeat_timeout": self.HEARTBEAT_TIMEOUT,
+                    "thread_watchdog_started": self._thread_watchdog is not None,
                 },
             )
 
@@ -116,7 +130,14 @@ class MessageNotificationService:
 
         Closes the PostgreSQL connection and cancels the listener task.
         """
+        self.logger.info("[MSG-DEBUG] Stopping notification service...")
         self.is_listening = False
+
+        # Stop thread watchdog first (will exit on next iteration due to is_listening=False)
+        if self._thread_watchdog and self._thread_watchdog.is_alive():
+            self._thread_watchdog.join(timeout=5)
+            if self._thread_watchdog.is_alive():
+                self.logger.warning("[MSG-DEBUG] Thread watchdog did not stop in time")
 
         # Cancel heartbeat and watchdog tasks
         if self._heartbeat_task and not self._heartbeat_task.done():
@@ -143,12 +164,15 @@ class MessageNotificationService:
             await self.connection.close()
             self.connection = None
 
-        # Clear all subscribers and reset heartbeat state
+        # Clear all subscribers and reset state
         self.subscribers.clear()
         self._last_heartbeat_received = None
         self._heartbeat_sent_at = None
         self._heartbeat_task = None
         self._watchdog_task = None
+        self._thread_watchdog = None
+        self._event_loop = None
+        self._reconnecting = False
 
         self.logger.info("Message notification service stopped")
 
@@ -458,40 +482,168 @@ class MessageNotificationService:
         It cancels the heartbeat and watchdog tasks, closes the connection, and
         triggers the listener loop to reconnect.
         """
-        self.logger.info("[MSG-DEBUG] Forcing reconnection...")
+        if self._reconnecting:
+            self.logger.debug("[MSG-DEBUG] Reconnection already in progress, skipping")
+            return
 
-        # Cancel heartbeat and watchdog tasks
-        if self._heartbeat_task and not self._heartbeat_task.done():
-            self._heartbeat_task.cancel()
-            try:
-                await self._heartbeat_task
-            except asyncio.CancelledError:
-                pass
-        if self._watchdog_task and not self._watchdog_task.done():
-            self._watchdog_task.cancel()
-            try:
-                await self._watchdog_task
-            except asyncio.CancelledError:
-                pass
+        self._reconnecting = True
+        try:
+            self.logger.info("[MSG-DEBUG] Forcing reconnection...")
 
-        # Close existing connection
-        if self.connection and not self.connection.is_closed():
-            try:
-                await self.connection.close()
-            except Exception as e:
-                self.logger.warning(
-                    "[MSG-DEBUG] Error closing connection during force reconnect",
-                    extra={"error": str(e)},
-                )
+            # Cancel heartbeat and watchdog tasks
+            if self._heartbeat_task and not self._heartbeat_task.done():
+                self._heartbeat_task.cancel()
+                try:
+                    await self._heartbeat_task
+                except asyncio.CancelledError:
+                    pass
+            if self._watchdog_task and not self._watchdog_task.done():
+                self._watchdog_task.cancel()
+                try:
+                    await self._watchdog_task
+                except asyncio.CancelledError:
+                    pass
 
-        # Reset state - the listener loop will detect connection is None and reconnect
-        self.connection = None
-        self._last_heartbeat_received = None
-        self._heartbeat_sent_at = None
-        self._heartbeat_task = None
-        self._watchdog_task = None
+            # Close existing connection
+            if self.connection and not self.connection.is_closed():
+                try:
+                    await self.connection.close()
+                except Exception as e:
+                    self.logger.warning(
+                        "[MSG-DEBUG] Error closing connection during force reconnect",
+                        extra={"error": str(e)},
+                    )
 
-        self.logger.info("[MSG-DEBUG] Force reconnect complete - listener loop will reconnect")
+            # Reset state - the listener loop will detect connection is None and reconnect
+            self.connection = None
+            self._last_heartbeat_received = None
+            self._heartbeat_sent_at = None
+            self._heartbeat_task = None
+            self._watchdog_task = None
+
+            self.logger.info("[MSG-DEBUG] Force reconnect complete - listener loop will reconnect")
+        finally:
+            self._reconnecting = False
+
+    async def _is_connection_alive(self) -> bool:
+        """
+        Check if the PostgreSQL connection is still responsive.
+
+        Attempts a simple query to verify the connection is alive.
+
+        Returns:
+            True if connection is responsive, False otherwise
+        """
+        try:
+            if not self.connection or self.connection.is_closed():
+                return False
+
+            # Try a simple query with timeout
+            await asyncio.wait_for(
+                self.connection.fetchval("SELECT 1"),
+                timeout=5.0,
+            )
+            return True
+        except asyncio.TimeoutError:
+            self.logger.warning("[MSG-DEBUG] Connection alive check timed out")
+            return False
+        except Exception as e:
+            self.logger.warning(
+                "[MSG-DEBUG] Connection alive check failed",
+                extra={"error": str(e), "error_type": type(e).__name__},
+            )
+            return False
+
+    def _start_thread_watchdog(self) -> None:
+        """
+        Start a threading-based watchdog that monitors connection health.
+
+        This watchdog runs in a separate thread, independent of the asyncio event loop.
+        If the event loop freezes (e.g., due to a hung connection), this thread can
+        still detect the issue and attempt to trigger recovery.
+        """
+
+        def watchdog_loop() -> None:
+            self.logger.info("[MSG-DEBUG] Thread watchdog started")
+
+            while self.is_listening:
+                try:
+                    time.sleep(15)  # Check every 15 seconds
+
+                    if not self.is_listening:
+                        break
+
+                    # Skip if already reconnecting
+                    if self._reconnecting:
+                        self.logger.debug("[MSG-DEBUG] Thread watchdog: reconnection in progress")
+                        continue
+
+                    # Check heartbeat timing
+                    if self._last_heartbeat_received is not None:
+                        seconds_since_heartbeat = time.time() - self._last_heartbeat_received
+
+                        if seconds_since_heartbeat > 90:  # 3 missed heartbeats
+                            self.logger.critical(
+                                "[MSG-DEBUG] THREAD WATCHDOG ALERT: No heartbeat for "
+                                f"{seconds_since_heartbeat:.0f}s! Triggering reconnect...",
+                                extra={
+                                    "seconds_since_heartbeat": round(seconds_since_heartbeat, 1),
+                                    "event_loop_running": self._event_loop.is_running()
+                                    if self._event_loop
+                                    else None,
+                                },
+                            )
+
+                            # Try to trigger reconnect via the event loop
+                            if self._event_loop and self._event_loop.is_running():
+                                try:
+                                    future = asyncio.run_coroutine_threadsafe(
+                                        self._force_reconnect(), self._event_loop
+                                    )
+                                    # Wait up to 10 seconds for reconnect to complete
+                                    future.result(timeout=10)
+                                    self.logger.info(
+                                        "[MSG-DEBUG] Thread watchdog: reconnect triggered successfully"
+                                    )
+                                except Exception as e:
+                                    self.logger.error(
+                                        "[MSG-DEBUG] Thread watchdog: failed to trigger reconnect",
+                                        extra={"error": str(e), "error_type": type(e).__name__},
+                                    )
+                            else:
+                                self.logger.error(
+                                    "[MSG-DEBUG] Thread watchdog: event loop not running, "
+                                    "cannot trigger reconnect"
+                                )
+
+                        elif seconds_since_heartbeat > 60:  # 2 missed heartbeats - warning
+                            self.logger.warning(
+                                f"[MSG-DEBUG] Thread watchdog warning: no heartbeat for "
+                                f"{seconds_since_heartbeat:.0f}s"
+                            )
+
+                    # Also check if connection is closed
+                    if (
+                        self.connection
+                        and hasattr(self.connection, "is_closed")
+                        and self.connection.is_closed()
+                    ):
+                        self.logger.warning("[MSG-DEBUG] Thread watchdog: connection is closed")
+
+                except Exception as e:
+                    self.logger.error(
+                        "[MSG-DEBUG] Thread watchdog error",
+                        extra={"error": str(e), "error_type": type(e).__name__},
+                    )
+
+            self.logger.info("[MSG-DEBUG] Thread watchdog stopped")
+
+        self._thread_watchdog = threading.Thread(
+            target=watchdog_loop,
+            daemon=True,
+            name="msg-notification-thread-watchdog",
+        )
+        self._thread_watchdog.start()
 
     async def _start_heartbeat_system(self) -> None:
         """Start the heartbeat and watchdog tasks after connection is established."""
@@ -798,8 +950,9 @@ class MessageNotificationService:
 
         Health is determined by:
         1. Service is actively listening
-        2. Connection exists and is not closed
-        3. Heartbeat was received recently (within 90s = 3 * HEARTBEAT_INTERVAL)
+        2. Not currently reconnecting
+        3. Connection exists and is not closed
+        4. Heartbeat was received recently (within 90s = 3 * HEARTBEAT_INTERVAL)
 
         Returns:
             True if healthy, False otherwise
@@ -807,6 +960,11 @@ class MessageNotificationService:
         # Not running
         if not self.is_listening:
             self.logger.debug("[MSG-DEBUG] is_healthy: False - not listening")
+            return False
+
+        # Currently reconnecting
+        if self._reconnecting:
+            self.logger.debug("[MSG-DEBUG] is_healthy: False - reconnecting")
             return False
 
         # No connection or connection closed
@@ -844,11 +1002,15 @@ class MessageNotificationService:
 
         return {
             "is_listening": self.is_listening,
+            "reconnecting": self._reconnecting,
             "has_connection": self.connection is not None,
             "connection_closed": self.connection.is_closed() if self.connection else None,
             "subscriber_count": sum(len(queues) for queues in self.subscribers.values()),
             "last_heartbeat_age_seconds": heartbeat_age,
             "heartbeat_interval": self.HEARTBEAT_INTERVAL,
+            "thread_watchdog_alive": self._thread_watchdog.is_alive()
+            if self._thread_watchdog
+            else False,
             "healthy": self.is_healthy(),
         }
 
