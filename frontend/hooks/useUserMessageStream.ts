@@ -12,7 +12,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
-import type { SSEEvent, ConversationHandlers, SSEReadReceiptEvent } from '@/types/messaging';
+import type { SSEEvent, ConversationHandlers, SSEReadReceiptEvent, SSEMessageEditedEvent } from '@/types/messaging';
 
 const SSE_ENDPOINT = '/api/v1/messages/stream';
 const RECONNECT_DELAY = 3000;
@@ -77,6 +77,11 @@ export function useUserMessageStream() {
       case 'reaction_update':
         handlers.onReaction?.(event.message_id, event.emoji, event.action, event.user_id);
         break;
+      case 'message_edited': {
+        const editEvent = event as SSEMessageEditedEvent;
+        handlers.onMessageEdited?.(editEvent.message_id, editEvent.data.content, editEvent.editor_id);
+        break;
+      }
     }
   }, []);
 
@@ -207,6 +212,21 @@ export function useUserMessageStream() {
         routeEvent(data);
       } catch (err) {
         logger.error('[MSG-DEBUG] SSE: Failed to parse reaction_update', { err, timestamp: debugTimestamp() });
+      }
+    });
+
+    eventSource.addEventListener('message_edited', (event) => {
+      resetHeartbeat();
+      try {
+        const data: SSEEvent = JSON.parse((event as MessageEvent).data);
+        logger.debug('[MSG-DEBUG] SSE: message_edited event', {
+          conversationId: data.conversation_id,
+          messageId: (data as { message_id?: string }).message_id,
+          timestamp: debugTimestamp()
+        });
+        routeEvent(data);
+      } catch (err) {
+        logger.error('[MSG-DEBUG] SSE: Failed to parse message_edited', { err, timestamp: debugTimestamp() });
       }
     });
 

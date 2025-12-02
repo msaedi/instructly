@@ -348,6 +348,16 @@ export default function MessagesPage() {
     });
   }, [currentUser?.id, updateThreadMessage]);
 
+  const handleMessageEdited = useCallback((messageId: string, newContent: string, _editorId: string) => {
+    // Update threadMessages when message edited via SSE
+    updateThreadMessage(messageId, (msg) => ({
+      ...msg,
+      content: newContent,
+      isEdited: true,
+      editedAt: new Date().toISOString(),
+    }));
+  }, [updateThreadMessage]);
+
   const handleAddReaction = useCallback(async (messageId: string, emoji: string) => {
     // Prevent multiple simultaneous reactions
     if (processingReaction !== null) {
@@ -447,10 +457,11 @@ export default function MessagesPage() {
       onTyping: handleSSETyping,
       onReadReceipt: handleReadReceipt,
       onReaction: handleReaction,
+      onMessageEdited: handleMessageEdited,
     });
 
     return unsubscribe;
-  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleReadReceipt, handleReaction]);
+  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleReadReceipt, handleReaction, handleMessageEdited]);
 
   // Filter conversations (backend now handles state/type filtering, we just filter by search text)
   const filteredConversations = useMemo(() => {
