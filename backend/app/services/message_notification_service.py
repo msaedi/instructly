@@ -34,7 +34,8 @@ class MessageNotificationService:
     # Heartbeat configuration
     HEARTBEAT_INTERVAL = 30  # Send heartbeat every 30 seconds
     HEARTBEAT_TIMEOUT = 10  # If no heartbeat received in 10s after sending, reconnect
-    HEARTBEAT_CHANNEL = "heartbeat_channel"  # Dedicated channel for heartbeat
+    # Use the SAME channel as real messages to verify the actual message path works
+    HEARTBEAT_CHANNEL = "message_notifications"
 
     def __init__(self) -> None:
         """Initialize the notification service."""
@@ -388,20 +389,6 @@ class MessageNotificationService:
 
         self.logger.info("[MSG-DEBUG] Heartbeat loop exited")
 
-    def _handle_heartbeat(
-        self, connection: Connection, pid: int, channel: str, payload: str
-    ) -> None:
-        """Handle heartbeat notification callback."""
-        self._last_heartbeat_received = time.time()
-        self.logger.info(
-            "[MSG-DEBUG] Heartbeat received - connection alive",
-            extra={
-                "channel": channel,
-                "pid": pid,
-                "last_heartbeat": self._last_heartbeat_received,
-            },
-        )
-
     async def _watchdog_loop(self) -> None:
         """
         Monitor heartbeat responses and reconnect if the connection dies silently.
@@ -442,6 +429,12 @@ class MessageNotificationService:
                             )
                             await self._force_reconnect()
                             break
+                        else:
+                            # Heartbeat was received, reset sent timestamp to wait for next cycle
+                            self._heartbeat_sent_at = None
+                            self.logger.debug(
+                                "[MSG-DEBUG] Heartbeat confirmed, resetting for next cycle"
+                            )
 
             except asyncio.CancelledError:
                 self.logger.info("[MSG-DEBUG] Watchdog loop cancelled")
@@ -504,10 +497,11 @@ class MessageNotificationService:
             return
 
         try:
-            # Add listener for heartbeat channel
-            await self.connection.add_listener(self.HEARTBEAT_CHANNEL, self._handle_heartbeat)
+            # Add listener for heartbeat channel (uses same handler as real messages)
+            # This ensures we're testing the SAME path that real messages use
+            await self.connection.add_listener(self.HEARTBEAT_CHANNEL, self._handle_notification)
             self.logger.info(
-                "[MSG-DEBUG] Heartbeat LISTEN registered",
+                "[MSG-DEBUG] Heartbeat LISTEN registered on message_notifications channel",
                 extra={"channel": self.HEARTBEAT_CHANNEL},
             )
 
@@ -622,7 +616,19 @@ class MessageNotificationService:
             else:
                 message_data = {"payload": decoded}
 
-            # [MSG-DEBUG] Log parsed notification data
+            # Check if this is a heartbeat - handle it and return early
+            if message_data.get("type") == "heartbeat":
+                self._last_heartbeat_received = time.time()
+                self.logger.info(
+                    "[MSG-DEBUG] Heartbeat received on message channel - connection alive",
+                    extra={
+                        "channel": channel,
+                        "timestamp": self._last_heartbeat_received,
+                    },
+                )
+                return  # Don't route heartbeats to user queues
+
+            # [MSG-DEBUG] Log parsed notification data (for non-heartbeat messages)
             self.logger.info(
                 "[MSG-DEBUG] NotificationService._handle_notification: Parsed",
                 extra={
