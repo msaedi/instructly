@@ -79,7 +79,21 @@ export function useUserMessageStream() {
         break;
       case 'message_edited': {
         const editEvent = event as SSEMessageEditedEvent;
-        handlers.onMessageEdited?.(editEvent.message_id, editEvent.data.content, editEvent.editor_id);
+        // DEBUG: Check if handler exists
+        logger.debug('[MSG-DEBUG] SSE: message_edited handler check', {
+          hasHandler: !!handlers.onMessageEdited,
+          conversationId: editEvent.conversation_id,
+          messageId: editEvent.message_id,
+          hasContent: !!editEvent.data?.content,
+        });
+        if (handlers.onMessageEdited && editEvent.data?.content) {
+          logger.debug('[MSG-DEBUG] SSE: CALLING onMessageEdited handler');
+          handlers.onMessageEdited(editEvent.message_id, editEvent.data.content, editEvent.editor_id);
+        } else {
+          logger.debug('[MSG-DEBUG] SSE: NOT calling handler', {
+            reason: !handlers.onMessageEdited ? 'no handler registered' : 'no content in payload',
+          });
+        }
         break;
       }
     }

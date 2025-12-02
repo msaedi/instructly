@@ -349,14 +349,28 @@ export default function MessagesPage() {
   }, [currentUser?.id, updateThreadMessage]);
 
   const handleMessageEdited = useCallback((messageId: string, newContent: string, _editorId: string) => {
+    // DEBUG: Log entry
+    logger.debug('[MSG-DEBUG] handleMessageEdited CALLED (instructor)', {
+      messageId,
+      newContent,
+      selectedChat,
+    });
+
     // Update threadMessages when message edited via SSE
-    updateThreadMessage(messageId, (msg) => ({
-      ...msg,
-      content: newContent,
-      isEdited: true,
-      editedAt: new Date().toISOString(),
-    }));
-  }, [updateThreadMessage]);
+    // Note: MessageWithAttachments uses 'text' field, not 'content'
+    updateThreadMessage(messageId, (msg) => {
+      logger.debug('[MSG-DEBUG] handleMessageEdited updating message', {
+        oldText: msg.text,
+        newContent,
+      });
+      return {
+        ...msg,
+        text: newContent,
+        isEdited: true,
+        editedAt: new Date().toISOString(),
+      };
+    });
+  }, [updateThreadMessage, selectedChat]);
 
   const handleAddReaction = useCallback(async (messageId: string, emoji: string) => {
     // Prevent multiple simultaneous reactions

@@ -229,11 +229,36 @@ export function Chat({
   }, [currentUserId]);
 
   const handleMessageEdited = useCallback((messageId: string, newContent: string, _editorId: string) => {
+    // DEBUG: Log entry
+    logger.debug('[MSG-DEBUG] handleMessageEdited CALLED', {
+      messageId,
+      newContent,
+      currentBookingId: bookingId,
+    });
+
+    // DEBUG: Log cache state before update
+    const currentCache = queryClient.getQueryData(queryKeys.messages.history(bookingId));
+    logger.debug('[MSG-DEBUG] handleMessageEdited cache BEFORE', {
+      cacheExists: !!currentCache,
+      messageCount: (currentCache as { messages?: MessageResponse[] } | undefined)?.messages?.length,
+    });
+
     // Update message cache when edit received via SSE
     queryClient.setQueryData(
       queryKeys.messages.history(bookingId),
       (old: { messages: MessageResponse[] } | undefined) => {
-        if (!old) return old;
+        if (!old) {
+          logger.debug('[MSG-DEBUG] handleMessageEdited NO OLD DATA');
+          return old;
+        }
+
+        const messageExists = old.messages.some((m) => m.id === messageId);
+        logger.debug('[MSG-DEBUG] handleMessageEdited updating', {
+          messageExists,
+          messageId,
+          oldMessageCount: old.messages.length,
+        });
+
         return {
           ...old,
           messages: old.messages.map((msg) =>
