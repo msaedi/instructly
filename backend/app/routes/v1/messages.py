@@ -538,20 +538,63 @@ async def mark_messages_as_read(
     Requires VIEW_MESSAGES permission.
     """
     try:
+        booking_id: Optional[str] = None
+        marked_message_ids: list[str] = []
+
         if request.booking_id:
+            booking_id = request.booking_id
+            # Get unread messages before marking (to get IDs for notification)
+            unread_messages = service.repository.get_unread_messages(booking_id, current_user.id)
+            marked_message_ids = [msg.id for msg in unread_messages]
+
             # Mark all messages in booking as read
             count = service.mark_booking_messages_as_read(
-                booking_id=request.booking_id,
+                booking_id=booking_id,
                 user_id=current_user.id,
             )
         elif request.message_ids:
+            marked_message_ids = request.message_ids
             # Mark specific messages as read
             count = service.mark_messages_as_read(
                 message_ids=request.message_ids,
                 user_id=current_user.id,
             )
+            # Get booking_id from first message for notification
+            if marked_message_ids:
+                first_msg = service.repository.get_by_id(marked_message_ids[0])
+                if first_msg:
+                    booking_id = first_msg.booking_id
         else:
             raise ValidationException("Either booking_id or message_ids must be provided")
+
+        # Send read notification to the message sender(s)
+        if count > 0 and booking_id and marked_message_ids:
+            try:
+                notification_service = get_notification_service()
+                recipient_id = service.get_recipient_id(booking_id, str(current_user.id))
+                if recipient_id:
+                    read_at = datetime.now(timezone.utc).isoformat()
+                    await notification_service.send_read_notification(
+                        conversation_id=booking_id,
+                        reader_id=str(current_user.id),
+                        recipient_id=recipient_id,
+                        message_ids=marked_message_ids,
+                        read_at=read_at,
+                    )
+                    logger.info(
+                        "[MSG-DEBUG] Mark-read: Notification sent",
+                        extra={
+                            "reader_id": current_user.id,
+                            "recipient_id": recipient_id,
+                            "message_count": len(marked_message_ids),
+                        },
+                    )
+            except Exception as e:
+                # Don't fail the request if notification fails - messages are already marked
+                logger.error(
+                    "[MSG-DEBUG] Mark-read: Notification failed",
+                    extra={"error": str(e), "booking_id": booking_id},
+                )
 
         return MarkMessagesReadResponse(
             success=True,
