@@ -11,6 +11,7 @@ Uses dependency injection pattern - NO SINGLETONS.
 import asyncio
 import json
 import logging
+import time
 from typing import Any, Dict, Optional, Set
 
 import asyncpg
@@ -30,6 +31,11 @@ class MessageNotificationService:
     operations, separate from the main SQLAlchemy connection pool.
     """
 
+    # Heartbeat configuration
+    HEARTBEAT_INTERVAL = 30  # Send heartbeat every 30 seconds
+    HEARTBEAT_TIMEOUT = 10  # If no heartbeat received in 10s after sending, reconnect
+    HEARTBEAT_CHANNEL = "heartbeat_channel"  # Dedicated channel for heartbeat
+
     def __init__(self) -> None:
         """Initialize the notification service."""
         self.connection: Optional[Connection] = None
@@ -39,6 +45,12 @@ class MessageNotificationService:
         self.logger = logging.getLogger(__name__)
         # Track startup test result
         self._startup_test_received = False
+
+        # Heartbeat tracking for detecting silent connection deaths
+        self._last_heartbeat_received: Optional[float] = None
+        self._heartbeat_sent_at: Optional[float] = None
+        self._heartbeat_task: Optional[asyncio.Task[None]] = None
+        self._watchdog_task: Optional[asyncio.Task[None]] = None
 
     async def start(self) -> None:
         """
@@ -80,11 +92,16 @@ class MessageNotificationService:
             # Test LISTEN/NOTIFY is working with a startup test
             await self._run_startup_test()
 
+            # Start heartbeat system to detect silent connection deaths
+            await self._start_heartbeat_system()
+
             self.logger.info(
                 "[MSG-DEBUG] NotificationService.start: Service started successfully",
                 extra={
                     "using_session_pooler": using_session_pooler,
                     "listen_notify_working": self._startup_test_received,
+                    "heartbeat_interval": self.HEARTBEAT_INTERVAL,
+                    "heartbeat_timeout": self.HEARTBEAT_TIMEOUT,
                 },
             )
 
@@ -100,6 +117,20 @@ class MessageNotificationService:
         """
         self.is_listening = False
 
+        # Cancel heartbeat and watchdog tasks
+        if self._heartbeat_task and not self._heartbeat_task.done():
+            self._heartbeat_task.cancel()
+            try:
+                await self._heartbeat_task
+            except asyncio.CancelledError:
+                pass
+        if self._watchdog_task and not self._watchdog_task.done():
+            self._watchdog_task.cancel()
+            try:
+                await self._watchdog_task
+            except asyncio.CancelledError:
+                pass
+
         if self.listen_task:
             self.listen_task.cancel()
             try:
@@ -111,8 +142,12 @@ class MessageNotificationService:
             await self.connection.close()
             self.connection = None
 
-        # Clear all subscribers
+        # Clear all subscribers and reset heartbeat state
         self.subscribers.clear()
+        self._last_heartbeat_received = None
+        self._heartbeat_sent_at = None
+        self._heartbeat_task = None
+        self._watchdog_task = None
 
         self.logger.info("Message notification service stopped")
 
@@ -307,6 +342,189 @@ class MessageNotificationService:
         if payload == "startup_test":
             self._startup_test_received = True
 
+    async def _heartbeat_loop(self) -> None:
+        """
+        Periodically send heartbeat NOTIFY to verify the LISTEN connection is alive.
+
+        The heartbeat is sent through the SAME connection that's listening, which
+        verifies the actual LISTEN path works. If the connection has died silently
+        (common with Supabase session pooler after ~5-7 minutes), the heartbeat
+        send will fail or the response won't be received.
+        """
+        self.logger.info("[MSG-DEBUG] Heartbeat loop started")
+
+        while self.is_listening:
+            try:
+                await asyncio.sleep(self.HEARTBEAT_INTERVAL)
+
+                if not self.is_listening:
+                    break
+
+                if self.connection and not self.connection.is_closed():
+                    # Send heartbeat through the SAME connection that's listening
+                    heartbeat_payload = json.dumps({"type": "heartbeat", "timestamp": time.time()})
+                    await self.connection.execute(
+                        f"NOTIFY {self.HEARTBEAT_CHANNEL}, '{heartbeat_payload}'"
+                    )
+                    self._heartbeat_sent_at = time.time()
+                    self.logger.info(
+                        "[MSG-DEBUG] Heartbeat NOTIFY sent",
+                        extra={"timestamp": self._heartbeat_sent_at},
+                    )
+                else:
+                    self.logger.warning("[MSG-DEBUG] Heartbeat loop: connection not available")
+
+            except asyncio.CancelledError:
+                self.logger.info("[MSG-DEBUG] Heartbeat loop cancelled")
+                break
+            except Exception as e:
+                self.logger.error(
+                    "[MSG-DEBUG] Heartbeat send failed - connection may be dead",
+                    extra={"error": str(e), "error_type": type(e).__name__},
+                )
+                # Connection is dead, trigger reconnect
+                await self._force_reconnect()
+                break
+
+        self.logger.info("[MSG-DEBUG] Heartbeat loop exited")
+
+    def _handle_heartbeat(
+        self, connection: Connection, pid: int, channel: str, payload: str
+    ) -> None:
+        """Handle heartbeat notification callback."""
+        self._last_heartbeat_received = time.time()
+        self.logger.info(
+            "[MSG-DEBUG] Heartbeat received - connection alive",
+            extra={
+                "channel": channel,
+                "pid": pid,
+                "last_heartbeat": self._last_heartbeat_received,
+            },
+        )
+
+    async def _watchdog_loop(self) -> None:
+        """
+        Monitor heartbeat responses and reconnect if the connection dies silently.
+
+        The watchdog checks if heartbeats are being received. If a heartbeat was
+        sent but not received within the timeout, the connection has died silently
+        and we need to force a reconnection.
+        """
+        self.logger.info("[MSG-DEBUG] Watchdog loop started")
+
+        while self.is_listening:
+            try:
+                await asyncio.sleep(5)  # Check every 5 seconds
+
+                if not self.is_listening:
+                    break
+
+                # Only check if we've sent a heartbeat
+                if self._heartbeat_sent_at is not None:
+                    time_since_sent = time.time() - self._heartbeat_sent_at
+
+                    # If heartbeat was sent but not received within timeout
+                    if time_since_sent > self.HEARTBEAT_TIMEOUT:
+                        # Check if heartbeat was received after it was sent
+                        heartbeat_received_after_send = (
+                            self._last_heartbeat_received is not None
+                            and self._last_heartbeat_received >= self._heartbeat_sent_at
+                        )
+
+                        if not heartbeat_received_after_send:
+                            self.logger.warning(
+                                "[MSG-DEBUG] Heartbeat missed! Connection appears dead, forcing reconnect...",
+                                extra={
+                                    "time_since_sent": round(time_since_sent, 1),
+                                    "last_heartbeat_received": self._last_heartbeat_received,
+                                    "heartbeat_sent_at": self._heartbeat_sent_at,
+                                },
+                            )
+                            await self._force_reconnect()
+                            break
+
+            except asyncio.CancelledError:
+                self.logger.info("[MSG-DEBUG] Watchdog loop cancelled")
+                break
+            except Exception as e:
+                self.logger.error(
+                    "[MSG-DEBUG] Watchdog error",
+                    extra={"error": str(e), "error_type": type(e).__name__},
+                )
+
+        self.logger.info("[MSG-DEBUG] Watchdog loop exited")
+
+    async def _force_reconnect(self) -> None:
+        """
+        Force close and reconnect the LISTEN connection.
+
+        This is called when a silent connection death is detected (heartbeat missed).
+        It cancels the heartbeat and watchdog tasks, closes the connection, and
+        triggers the listener loop to reconnect.
+        """
+        self.logger.info("[MSG-DEBUG] Forcing reconnection...")
+
+        # Cancel heartbeat and watchdog tasks
+        if self._heartbeat_task and not self._heartbeat_task.done():
+            self._heartbeat_task.cancel()
+            try:
+                await self._heartbeat_task
+            except asyncio.CancelledError:
+                pass
+        if self._watchdog_task and not self._watchdog_task.done():
+            self._watchdog_task.cancel()
+            try:
+                await self._watchdog_task
+            except asyncio.CancelledError:
+                pass
+
+        # Close existing connection
+        if self.connection and not self.connection.is_closed():
+            try:
+                await self.connection.close()
+            except Exception as e:
+                self.logger.warning(
+                    "[MSG-DEBUG] Error closing connection during force reconnect",
+                    extra={"error": str(e)},
+                )
+
+        # Reset state - the listener loop will detect connection is None and reconnect
+        self.connection = None
+        self._last_heartbeat_received = None
+        self._heartbeat_sent_at = None
+        self._heartbeat_task = None
+        self._watchdog_task = None
+
+        self.logger.info("[MSG-DEBUG] Force reconnect complete - listener loop will reconnect")
+
+    async def _start_heartbeat_system(self) -> None:
+        """Start the heartbeat and watchdog tasks after connection is established."""
+        if not self.connection:
+            self.logger.warning("[MSG-DEBUG] Cannot start heartbeat system: no connection")
+            return
+
+        try:
+            # Add listener for heartbeat channel
+            await self.connection.add_listener(self.HEARTBEAT_CHANNEL, self._handle_heartbeat)
+            self.logger.info(
+                "[MSG-DEBUG] Heartbeat LISTEN registered",
+                extra={"channel": self.HEARTBEAT_CHANNEL},
+            )
+
+            # Start heartbeat and watchdog tasks
+            self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
+            self._watchdog_task = asyncio.create_task(self._watchdog_loop())
+
+            self.logger.info(
+                "[MSG-DEBUG] Heartbeat system started - will detect silent connection deaths"
+            )
+
+        except Exception as e:
+            self.logger.error(
+                "[MSG-DEBUG] Failed to start heartbeat system",
+                extra={"error": str(e), "error_type": type(e).__name__},
+            )
+
     async def _listen_for_notifications(self) -> None:
         """
         Main listener loop that processes PostgreSQL notifications.
@@ -345,11 +563,15 @@ class MessageNotificationService:
                                 channel_name, self._handle_notification
                             )
 
+                        # Restart heartbeat system after reconnection
+                        await self._start_heartbeat_system()
+
                         self.logger.info(
                             "[MSG-DEBUG] NotificationService._listen_for_notifications: Reconnected successfully",
                             extra={
                                 "using_session_pooler": using_session_pooler,
                                 "resubscribed_channels": len(self.subscribers),
+                                "heartbeat_restarted": True,
                             },
                         )
                     except Exception as e:
