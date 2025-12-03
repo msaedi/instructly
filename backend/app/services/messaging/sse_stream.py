@@ -217,14 +217,24 @@ def format_message_from_db(message: Message, user_id: str) -> Dict[str, str]:
 
     These are missed messages fetched from the database on reconnect.
     """
+
+    def _iso(dt: Any) -> Optional[str]:
+        """Safely convert datetime-like objects to ISO strings."""
+        from datetime import date, datetime
+
+        if isinstance(dt, (datetime, date)):
+            return dt.isoformat()
+        return None
+
     payload = {
         "message": {
             "id": message.id,
             "content": message.content,
             "sender_id": message.sender_id,
             "booking_id": message.booking_id,
-            "created_at": message.created_at.isoformat() if message.created_at else None,
-            "edited_at": message.edited_at.isoformat() if message.edited_at else None,
+            "created_at": _iso(getattr(message, "created_at", None)),
+            "edited_at": _iso(getattr(message, "edited_at", None)),
+            "delivered_at": _iso(getattr(message, "delivered_at", None)),
             "reactions": [],  # Reactions loaded separately if needed
         },
         "conversation_id": message.booking_id,

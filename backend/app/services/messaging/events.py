@@ -56,6 +56,7 @@ def build_new_message_event(
     booking_id: str,
     recipient_ids: List[str],
     created_at: datetime,
+    delivered_at: Optional[datetime] = None,
     reactions: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Build a new_message event."""
@@ -68,6 +69,7 @@ def build_new_message_event(
                 "sender_id": sender_id,
                 "booking_id": booking_id,
                 "created_at": created_at.isoformat(),
+                "delivered_at": delivered_at.isoformat() if delivered_at else None,
                 "edited_at": None,
                 "reactions": reactions or [],
             },

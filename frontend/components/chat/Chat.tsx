@@ -510,7 +510,41 @@ export function Chat({
         success: result?.success,
         timestamp: new Date().toISOString()
       });
-      // Message will appear via SSE echo with is_mine flag
+
+      // Use server response to set delivered_at immediately for own messages
+      const serverMessage = result?.message;
+      if (serverMessage) {
+        setRealtimeMessages((prev) => {
+          const existingIndex = prev.findIndex((m) => m.id === serverMessage.id);
+          if (existingIndex !== -1) {
+            const updated = [...prev];
+            updated[existingIndex] = {
+              ...updated[existingIndex]!,
+              delivered_at:
+                serverMessage.delivered_at ??
+                updated[existingIndex]!.delivered_at ??
+                null,
+            };
+            return updated;
+          }
+
+          return [
+            ...prev,
+            {
+              id: serverMessage.id,
+              content: serverMessage.content,
+              sender_id: serverMessage.sender_id,
+              booking_id: serverMessage.booking_id,
+              created_at: serverMessage.created_at,
+              updated_at: serverMessage.updated_at ?? serverMessage.created_at,
+              is_deleted: serverMessage.is_deleted ?? false,
+              delivered_at: serverMessage.delivered_at ?? null,
+            } as MessageResponse,
+          ];
+        });
+      }
+
+      // SSE echo will still arrive; dedup handled in allMessages
       scrollToBottom();
     } catch (error) {
       logger.error('[MSG-DEBUG] Message SEND: FAILED', {
