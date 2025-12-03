@@ -51,6 +51,6 @@ async def close_async_redis_client() -> None:
     global _async_redis_client
 
     if _async_redis_client is not None:
-        await _async_redis_client.close()
+        await _async_redis_client.aclose()
         _async_redis_client = None
         logger.info("[REDIS-PUBSUB] Async Redis client closed")

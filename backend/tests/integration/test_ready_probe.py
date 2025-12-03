@@ -70,6 +70,15 @@ def test_ready_probe_success(client: TestClient, monkeypatch) -> None:
         session_factory=lambda: DummySession(),
         redis_factory=lambda: DummyRedis(),
     )
+    # Mock notification service as not initialized (raises RuntimeError)
+    # This tests the case where DB and Redis are up but notification service isn't started
+    def _not_initialized():
+        raise RuntimeError("Notification service not initialized")
+
+    monkeypatch.setattr(
+        "app.routes.v1.messages.get_notification_service",
+        _not_initialized,
+    )
     resp = client.get("/ready")
     assert resp.status_code == 200
     # notifications_healthy is None when notification service is not initialized
