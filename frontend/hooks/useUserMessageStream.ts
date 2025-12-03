@@ -26,6 +26,14 @@ export function useUserMessageStream() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
+  // [MSG-DEBUG] Log hook initialization and auth state changes
+  logger.debug('[MSG-DEBUG] useUserMessageStream hook called', {
+    isAuthenticated,
+    hasUser: !!user,
+    userId: user?.id,
+    timestamp: debugTimestamp(),
+  });
+
   // Map of conversation_id -> handlers
   const handlersRef = useRef<Map<string, ConversationHandlers>>(new Map());
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -35,10 +43,27 @@ export function useUserMessageStream() {
   // Subscribe a conversation to receive events
   const subscribe = useCallback(
     (conversationId: string, handlers: ConversationHandlers) => {
+      logger.debug('[MSG-DEBUG] SSE: subscribe() called', {
+        conversationId,
+        hasOnMessage: !!handlers.onMessage,
+        hasOnTyping: !!handlers.onTyping,
+        hasOnReadReceipt: !!handlers.onReadReceipt,
+        currentSubscribers: Array.from(handlersRef.current.keys()),
+        timestamp: debugTimestamp(),
+      });
       handlersRef.current.set(conversationId, handlers);
+      logger.debug('[MSG-DEBUG] SSE: Subscription added', {
+        conversationId,
+        allSubscribers: Array.from(handlersRef.current.keys()),
+        timestamp: debugTimestamp(),
+      });
 
       // Return unsubscribe function
       return () => {
+        logger.debug('[MSG-DEBUG] SSE: unsubscribe() called', {
+          conversationId,
+          timestamp: debugTimestamp(),
+        });
         handlersRef.current.delete(conversationId);
       };
     },
@@ -47,17 +72,37 @@ export function useUserMessageStream() {
 
   // Route event to appropriate handler
   const routeEvent = useCallback((event: SSEEvent) => {
+    logger.debug('[MSG-DEBUG] SSE: routeEvent() called', {
+      eventType: event.type,
+      conversationId: event.conversation_id,
+      allSubscribers: Array.from(handlersRef.current.keys()),
+      timestamp: debugTimestamp(),
+    });
+
     // First, notify the global handler (if subscribed)
     const globalHandlers = handlersRef.current.get('__global__');
     if (globalHandlers && event.type === 'new_message') {
+      logger.debug('[MSG-DEBUG] SSE: Calling global handler for new_message');
       globalHandlers.onMessage?.(event.message, event.is_mine);
     }
 
     // Then, notify the conversation-specific handler
     const handlers = handlersRef.current.get(event.conversation_id);
     if (!handlers) {
+      logger.debug('[MSG-DEBUG] SSE: No handler found for conversation', {
+        conversationId: event.conversation_id,
+        availableSubscribers: Array.from(handlersRef.current.keys()),
+        timestamp: debugTimestamp(),
+      });
       return; // No subscriber for this conversation - this is expected behavior
     }
+
+    logger.debug('[MSG-DEBUG] SSE: Handler found, routing event', {
+      eventType: event.type,
+      conversationId: event.conversation_id,
+      hasOnMessage: !!handlers.onMessage,
+      timestamp: debugTimestamp(),
+    });
 
     switch (event.type) {
       case 'new_message':
@@ -99,6 +144,9 @@ export function useUserMessageStream() {
     }
   }, []);
 
+  // Ref to store connect function for use in heartbeat timeout
+  const connectRef = useRef<(() => void) | null>(null);
+
   // Reset heartbeat timeout
   const resetHeartbeat = useCallback(() => {
     if (heartbeatTimeoutRef.current) {
@@ -107,8 +155,27 @@ export function useUserMessageStream() {
     heartbeatTimeoutRef.current = setTimeout(() => {
       // No heartbeat received, connection may be dead
       logger.warn('[SSE] Heartbeat timeout, reconnecting...');
-      eventSourceRef.current?.close();
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;  // Clear ref so connect() doesn't skip
+      }
       setIsConnected(false);
+      setConnectionError('Heartbeat timeout');
+
+      // Schedule reconnect after delay (same pattern as error handler)
+      logger.debug('[MSG-DEBUG] SSE: Scheduling reconnect after heartbeat timeout', {
+        delayMs: RECONNECT_DELAY,
+        timestamp: debugTimestamp(),
+      });
+      reconnectTimeoutRef.current = setTimeout(() => {
+        logger.debug('[MSG-DEBUG] SSE: Attempting reconnect after heartbeat timeout...', {
+          timestamp: debugTimestamp(),
+        });
+        logger.info('[SSE] Attempting reconnect after heartbeat timeout...');
+        if (connectRef.current) {
+          connectRef.current();
+        }
+      }, RECONNECT_DELAY);
     }, HEARTBEAT_TIMEOUT);
   }, []);
 
@@ -171,7 +238,8 @@ export function useUserMessageStream() {
           rawDataPreview: typeof rawData === 'string' ? rawData.substring(0, 200) : rawData,
           timestamp: debugTimestamp()
         });
-        const data: SSEEvent = JSON.parse(rawData);
+        const parsed = JSON.parse(rawData);
+        const data: SSEEvent = { ...parsed, type: 'new_message' };
         logger.debug('[MSG-DEBUG] SSE: new_message parsed', {
           type: data.type,
           conversationId: data.conversation_id,
@@ -187,7 +255,8 @@ export function useUserMessageStream() {
 
     eventSource.addEventListener('typing_status', (event) => {
       try {
-        const data: SSEEvent = JSON.parse((event as MessageEvent).data);
+        const parsed = JSON.parse((event as MessageEvent).data);
+        const data: SSEEvent = { ...parsed, type: 'typing_status' };
         logger.debug('[MSG-DEBUG] SSE: typing_status event', {
           conversationId: data.conversation_id,
           userId: (data as { user_id?: string }).user_id,
@@ -201,7 +270,8 @@ export function useUserMessageStream() {
 
     eventSource.addEventListener('read_receipt', (event) => {
       try {
-        const data: SSEEvent = JSON.parse((event as MessageEvent).data);
+        const parsed = JSON.parse((event as MessageEvent).data);
+        const data: SSEEvent = { ...parsed, type: 'read_receipt' };
         logger.debug('[MSG-DEBUG] SSE: read_receipt event', {
           conversationId: data.conversation_id,
           messageIds: (data as { message_ids?: string[] }).message_ids,
@@ -215,7 +285,8 @@ export function useUserMessageStream() {
 
     eventSource.addEventListener('reaction_update', (event) => {
       try {
-        const data: SSEEvent = JSON.parse((event as MessageEvent).data);
+        const parsed = JSON.parse((event as MessageEvent).data);
+        const data: SSEEvent = { ...parsed, type: 'reaction_update' };
         logger.debug('[MSG-DEBUG] SSE: reaction_update event', {
           conversationId: data.conversation_id,
           messageId: (data as { message_id?: string }).message_id,
@@ -232,7 +303,8 @@ export function useUserMessageStream() {
     eventSource.addEventListener('message_edited', (event) => {
       resetHeartbeat();
       try {
-        const data: SSEEvent = JSON.parse((event as MessageEvent).data);
+        const parsed = JSON.parse((event as MessageEvent).data);
+        const data: SSEEvent = { ...parsed, type: 'message_edited' };
         const editData = data as SSEMessageEditedEvent;
         logger.debug('[MSG-DEBUG] SSE: message_edited event', {
           conversationId: data.conversation_id,
@@ -271,9 +343,28 @@ export function useUserMessageStream() {
     eventSourceRef.current = eventSource;
   }, [isAuthenticated, resetHeartbeat, routeEvent]);
 
+  // Keep connectRef updated so heartbeat timeout can call it
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
   // Connect on mount, cleanup on unmount
   useEffect(() => {
-    if (!isAuthenticated || !user) return;
+    logger.debug('[MSG-DEBUG] SSE useEffect running', {
+      isAuthenticated,
+      hasUser: !!user,
+      userId: user?.id,
+      timestamp: debugTimestamp(),
+    });
+
+    if (!isAuthenticated || !user) {
+      logger.debug('[MSG-DEBUG] SSE useEffect: early return (not authenticated or no user)', {
+        isAuthenticated,
+        hasUser: !!user,
+        timestamp: debugTimestamp(),
+      });
+      return;
+    }
 
     connect();
 

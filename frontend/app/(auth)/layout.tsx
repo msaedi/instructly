@@ -11,11 +11,13 @@
  */
 
 import { UserMessageStreamProvider } from '@/providers/UserMessageStreamProvider';
+import { logger } from '@/lib/logger';
 
 export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  logger.debug('[MSG-DEBUG] AuthLayout rendering (auth group layout)');
   return <UserMessageStreamProvider>{children}</UserMessageStreamProvider>;
 }

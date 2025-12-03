@@ -374,6 +374,17 @@ export function useMessageThread({
 
     // Invalidate unread count
     void queryClient.invalidateQueries({ queryKey: queryKeys.messages.unreadCount });
+
+    // If we're viewing this thread and received a message from the other user, mark as read server-side
+    if (!isOwnMessage && activeConversation.primaryBookingId) {
+      markedReadThreadsRef.current.set(activeConversation.primaryBookingId, 0);
+      void markMessagesAsReadImperative({ booking_id: activeConversation.primaryBookingId }).catch((err) => {
+        logger.warn('[MSG-DEBUG] Failed to mark messages as read from SSE handler', {
+          bookingId: activeConversation.primaryBookingId,
+          error: err instanceof Error ? err.message : err,
+        });
+      });
+    }
   }, [currentUserId, setConversations, queryClient, updateLastSeenTimestamp]);
 
   // Send message

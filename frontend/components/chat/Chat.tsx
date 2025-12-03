@@ -143,11 +143,28 @@ export function Chat({
 
   // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
   const handleSSEMessage = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string; delivered_at?: string | null }, isMine: boolean) => {
+    logger.debug('[MSG-DEBUG] Chat: handleSSEMessage CALLED', {
+      messageId: message?.id,
+      content: message?.content?.substring(0, 50),
+      isMine,
+      bookingId,
+      timestamp: new Date().toISOString(),
+    });
+
     // Add message to realtime state, or update existing message with new fields (e.g., delivered_at)
     setRealtimeMessages((prev) => {
+      logger.debug('[MSG-DEBUG] Chat: setRealtimeMessages called', {
+        prevLength: prev.length,
+        messageId: message.id,
+        timestamp: new Date().toISOString(),
+      });
       const existingIndex = prev.findIndex((m) => m.id === message.id);
       if (existingIndex !== -1) {
         // Update existing message (e.g., to add delivered_at timestamp)
+        logger.debug('[MSG-DEBUG] Chat: Updating existing message', {
+          messageId: message.id,
+          existingIndex,
+        });
         const updated = [...prev];
         const deliveredAt = message.delivered_at ?? updated[existingIndex]!.delivered_at;
         updated[existingIndex] = {
@@ -156,6 +173,12 @@ export function Chat({
         };
         return updated;
       }
+      logger.debug('[MSG-DEBUG] Chat: Adding NEW message to realtimeMessages', {
+        messageId: message.id,
+        content: message.content?.substring(0, 30),
+        newLength: prev.length + 1,
+        timestamp: new Date().toISOString(),
+      });
       return [
         ...prev,
         {
@@ -175,7 +198,7 @@ export function Chat({
     if (!isMine && message.sender_id !== currentUserId) {
       markMessagesAsReadMutate({ data: { message_ids: [message.id] } });
     }
-  }, [currentUserId, markMessagesAsReadMutate]);
+  }, [bookingId, currentUserId, markMessagesAsReadMutate]);
 
   const handleSSETyping = useCallback((userId: string, userName: string, isTyping: boolean) => {
     if (isTyping) {
@@ -254,7 +277,8 @@ export function Chat({
     // Invalidate React Query cache to refetch (for historical messages)
     // This ensures the edit is reflected even if message was from history
     void queryClient.invalidateQueries({
-      queryKey: ['messages', 'history', bookingId],
+      queryKey: queryKeys.messages.history(bookingId),
+      exact: false,
     });
 
     logger.debug('[MSG-DEBUG] handleMessageEdited DONE - updated local state + invalidated cache');
@@ -262,12 +286,28 @@ export function Chat({
 
   // Subscribe to this conversation's events
   useEffect(() => {
-    if (!bookingId) return;
+    logger.debug('[MSG-DEBUG] Chat: subscription useEffect running', {
+      bookingId,
+      hasSubscribe: !!subscribe,
+      hasHandleSSEMessage: !!handleSSEMessage,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (!bookingId) {
+      logger.debug('[MSG-DEBUG] Chat: subscription useEffect - no bookingId, returning');
+      return;
+    }
 
     // Invalidate message history cache when chat opens to fetch any missed messages
     // This ensures messages sent while chat was closed are loaded
     void queryClient.invalidateQueries({
       queryKey: queryKeys.messages.history(bookingId),
+      exact: false,
+    });
+
+    logger.debug('[MSG-DEBUG] Chat: Subscribing to conversation', {
+      bookingId,
+      timestamp: new Date().toISOString(),
     });
 
     const unsubscribe = subscribe(bookingId, {
@@ -278,7 +318,16 @@ export function Chat({
       onMessageEdited: handleMessageEdited,
     });
 
+    logger.debug('[MSG-DEBUG] Chat: Subscription complete', {
+      bookingId,
+      timestamp: new Date().toISOString(),
+    });
+
     return () => {
+      logger.debug('[MSG-DEBUG] Chat: Unsubscribing from conversation', {
+        bookingId,
+        timestamp: new Date().toISOString(),
+      });
       unsubscribe();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
@@ -286,6 +335,13 @@ export function Chat({
 
   // Combine history and real-time messages with deduplication
   const allMessages = React.useMemo(() => {
+    logger.debug('[MSG-DEBUG] Chat: allMessages memo recalculating', {
+      historyCount: historyData?.messages?.length ?? 0,
+      realtimeCount: realtimeMessages.length,
+      realtimeIds: realtimeMessages.map(m => m.id),
+      timestamp: new Date().toISOString(),
+    });
+
     const messageMap = new Map<string, MessageResponse>();
 
     // Add history messages
@@ -298,13 +354,28 @@ export function Chat({
     realtimeMessages.forEach(msg => {
       if (!messageMap.has(msg.id)) {
         messageMap.set(msg.id, msg);
+        logger.debug('[MSG-DEBUG] Chat: allMessages - added realtime message', {
+          messageId: msg.id,
+          content: msg.content?.substring(0, 30),
+        });
+      } else {
+        logger.debug('[MSG-DEBUG] Chat: allMessages - skipped duplicate', {
+          messageId: msg.id,
+        });
       }
     });
 
-    // Convert to array and sort by time
-    return Array.from(messageMap.values()).sort(
+    const result = Array.from(messageMap.values()).sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
+
+    logger.debug('[MSG-DEBUG] Chat: allMessages result', {
+      totalCount: result.length,
+      lastMessageId: result[result.length - 1]?.id,
+      lastMessageContent: result[result.length - 1]?.content?.substring(0, 30),
+    });
+
+    return result;
   }, [historyData?.messages, realtimeMessages]);
 
   // Build a stable read map derived from server-provided read_by and live receipts
@@ -668,6 +739,7 @@ export function Chat({
       // This ensures fresh data is fetched next time chat is opened
       void queryClient.invalidateQueries({
         queryKey: queryKeys.messages.history(bookingId),
+        exact: false,
       });
       // Add a small delay before allowing new reactions to prevent race conditions
       setTimeout(() => {
