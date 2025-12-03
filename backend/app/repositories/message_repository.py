@@ -339,6 +339,7 @@ class MessageRepository(BaseRepository[Message]):
         try:
             from datetime import datetime, timezone
 
+            from ..models.conversation_state import ConversationState
             from ..models.message import MessageEdit
 
             message = self.db.query(Message).filter(Message.id == message_id).first()
@@ -349,6 +350,17 @@ class MessageRepository(BaseRepository[Message]):
             # Update message
             message.content = new_content
             message.edited_at = datetime.now(timezone.utc)
+
+            # If this message is the latest for the conversation, update preview
+            self.db.query(ConversationState).filter(
+                ConversationState.last_message_id == message_id
+            ).update(
+                {
+                    "last_message_preview": new_content[:100],
+                    "updated_at": datetime.now(timezone.utc),
+                },
+                synchronize_session=False,
+            )
             return True
         except Exception as e:
             self.logger.error(f"Error applying message edit: {str(e)}")

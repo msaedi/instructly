@@ -64,6 +64,10 @@ export function useConversations({
         // New message arrived - refresh inbox state
         invalidateRef.current();
       },
+      onMessageEdited: () => {
+        // Edited message may change conversation preview
+        invalidateRef.current();
+      },
     });
 
     return unsubscribe;
