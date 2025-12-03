@@ -132,6 +132,7 @@ def build_message_edited_event(
             "new_content": new_content,
             "edited_at": edited_at.isoformat(),
             "editor_id": editor_id,
+            "data": {"content": new_content},
         },
     )
 
