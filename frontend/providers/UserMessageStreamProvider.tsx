@@ -13,6 +13,7 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { useUserMessageStream } from '@/hooks/useUserMessageStream';
 import type { ConversationHandlers } from '@/types/messaging';
+import { logger } from '@/lib/logger';
 
 interface UserMessageStreamContextValue {
   isConnected: boolean;
@@ -31,7 +32,12 @@ export function UserMessageStreamProvider({
 }: {
   children: ReactNode;
 }) {
+  logger.debug('[MSG-DEBUG] UserMessageStreamProvider rendering');
   const stream = useUserMessageStream();
+  logger.debug('[MSG-DEBUG] UserMessageStreamProvider: hook returned', {
+    isConnected: stream.isConnected,
+    hasError: !!stream.connectionError,
+  });
 
   return (
     <UserMessageStreamContext.Provider value={stream}>
