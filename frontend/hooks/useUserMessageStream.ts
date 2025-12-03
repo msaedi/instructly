@@ -81,9 +81,21 @@ export function useUserMessageStream() {
 
     // First, notify the global handler (if subscribed)
     const globalHandlers = handlersRef.current.get('__global__');
-    if (globalHandlers && event.type === 'new_message') {
-      logger.debug('[MSG-DEBUG] SSE: Calling global handler for new_message');
-      globalHandlers.onMessage?.(event.message, event.is_mine);
+    if (globalHandlers) {
+      if (event.type === 'new_message') {
+        logger.debug('[MSG-DEBUG] SSE: Calling global handler for new_message');
+        globalHandlers.onMessage?.(event.message, event.is_mine);
+      } else if (event.type === 'message_edited') {
+        logger.debug('[MSG-DEBUG] SSE: Calling global handler for message_edited');
+        const editEvent = event as SSEMessageEditedEvent;
+        if (globalHandlers.onMessageEdited && editEvent.data?.content) {
+          globalHandlers.onMessageEdited(
+            editEvent.message_id,
+            editEvent.data.content,
+            editEvent.editor_id
+          );
+        }
+      }
     }
 
     // Then, notify the conversation-specific handler
