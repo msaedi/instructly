@@ -18,6 +18,7 @@ import asyncio
 from datetime import datetime, timezone
 import json
 import logging
+import time
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -131,29 +132,31 @@ async def stream_with_heartbeat(
 
     Yields events from Redis, plus heartbeat markers every `interval` seconds.
     """
+    last_activity = time.monotonic()
     while True:
-        try:
-            # Wait for Redis event with timeout
-            message = await asyncio.wait_for(
-                pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0),
-                timeout=interval,
-            )
+        # Poll Redis with a short timeout (non-blocking)
+        message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
 
-            if message is not None and message.get("type") == "message":
-                # Parse the JSON payload
-                try:
-                    event = json.loads(message["data"])
-                    yield event
-                except json.JSONDecodeError as e:
-                    logger.warning(f"[SSE-STREAM] Invalid JSON in Redis message: {e}")
-
-        except asyncio.TimeoutError:
-            # No event received within interval, send heartbeat
-            logger.debug(
-                "[SSE-HEARTBEAT] Timeout triggered, generating heartbeat",
-                extra={"user_id": user_id, "interval": interval},
-            )
-            yield {"_heartbeat": True}
+        if message is not None and message.get("type") == "message":
+            try:
+                event = json.loads(message["data"])
+                last_activity = time.monotonic()
+                yield event
+            except json.JSONDecodeError as e:
+                logger.warning(f"[SSE-STREAM] Invalid JSON in Redis message: {e}")
+        else:
+            elapsed = time.monotonic() - last_activity
+            if elapsed >= interval:
+                logger.debug(
+                    "[SSE-HEARTBEAT] Timeout triggered, generating heartbeat",
+                    extra={
+                        "user_id": user_id,
+                        "interval": interval,
+                        "idle_seconds": round(elapsed, 1),
+                    },
+                )
+                last_activity = time.monotonic()
+                yield {"_heartbeat": True}
 
 
 def format_redis_event(event: Dict[str, Any], user_id: str) -> Dict[str, str]:
