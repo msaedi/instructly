@@ -86,17 +86,16 @@ async def create_sse_stream(
             )
 
             # Step 4: Stream events with heartbeat
-            async for event in stream_with_heartbeat(pubsub, HEARTBEAT_INTERVAL):
+            async for event in stream_with_heartbeat(pubsub, HEARTBEAT_INTERVAL, user_id=user_id):
                 if event.get("_heartbeat"):
-                    yield {
-                        "event": "heartbeat",
-                        "data": json.dumps(
-                            {
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            }
-                        ),
-                    }
+                    # SSE comment heartbeat to keep proxies/browsers from timing out
+                    logger.info(f"[SSE-HEARTBEAT] Sending heartbeat for user {user_id}")
+                    yield ": heartbeat\n\n"
                 else:
+                    logger.debug(
+                        "[SSE-STREAM] Yielding event",
+                        extra={"user_id": user_id, "event_type": event.get("type")},
+                    )
                     yield format_redis_event(event, user_id)
 
     except asyncio.CancelledError:
@@ -125,6 +124,7 @@ async def create_sse_stream(
 async def stream_with_heartbeat(
     pubsub: Any,
     interval: int,
+    user_id: Optional[str] = None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Wrap a Redis PubSub to inject heartbeats.
@@ -149,6 +149,10 @@ async def stream_with_heartbeat(
 
         except asyncio.TimeoutError:
             # No event received within interval, send heartbeat
+            logger.debug(
+                "[SSE-HEARTBEAT] Timeout triggered, generating heartbeat",
+                extra={"user_id": user_id, "interval": interval},
+            )
             yield {"_heartbeat": True}
 
 
