@@ -520,6 +520,7 @@ async def send_message(
                 booking_id=request.booking_id,
                 recipient_ids=recipient_ids,
                 created_at=message.created_at,
+                delivered_at=message.delivered_at,
             )
             logger.debug(
                 "[REDIS-PUBSUB] Message SEND: Published to Redis",

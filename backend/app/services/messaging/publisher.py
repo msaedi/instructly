@@ -34,6 +34,7 @@ async def publish_new_message(
     booking_id: str,
     recipient_ids: List[str],
     created_at: datetime,
+    delivered_at: Optional[datetime] = None,
     reactions: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     """
@@ -55,6 +56,7 @@ async def publish_new_message(
         booking_id=booking_id,
         recipient_ids=recipient_ids,
         created_at=created_at,
+        delivered_at=delivered_at,
         reactions=reactions,
     )
 
