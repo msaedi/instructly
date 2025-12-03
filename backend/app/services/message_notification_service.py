@@ -9,6 +9,7 @@ Uses dependency injection pattern - NO SINGLETONS.
 """
 
 import asyncio
+from concurrent.futures import Future as ConcurrentFuture
 import json
 import logging
 import threading
@@ -597,14 +598,31 @@ class MessageNotificationService:
                             # Try to trigger reconnect via the event loop
                             if self._event_loop and self._event_loop.is_running():
                                 try:
-                                    future = asyncio.run_coroutine_threadsafe(
+                                    future: ConcurrentFuture[
+                                        None
+                                    ] = asyncio.run_coroutine_threadsafe(
                                         self._force_reconnect(), self._event_loop
                                     )
-                                    # Wait up to 10 seconds for reconnect to complete
-                                    future.result(timeout=10)
-                                    self.logger.info(
-                                        "[MSG-DEBUG] Thread watchdog: reconnect triggered successfully"
-                                    )
+
+                                    # Do not block the watchdog thread waiting for completion; log asynchronously
+                                    def _log_future_result(fut: ConcurrentFuture[None]) -> None:
+                                        try:
+                                            fut.result()
+                                            self.logger.info(
+                                                "[MSG-DEBUG] Thread watchdog: reconnect triggered successfully"
+                                            )
+                                        except (
+                                            Exception
+                                        ) as err:  # pragma: no cover - best-effort logging
+                                            self.logger.error(
+                                                "[MSG-DEBUG] Thread watchdog: failed to trigger reconnect",
+                                                extra={
+                                                    "error": str(err),
+                                                    "error_type": type(err).__name__,
+                                                },
+                                            )
+
+                                    future.add_done_callback(_log_future_result)
                                 except Exception as e:
                                     self.logger.error(
                                         "[MSG-DEBUG] Thread watchdog: failed to trigger reconnect",
