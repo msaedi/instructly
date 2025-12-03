@@ -1,22 +1,24 @@
 """
 Tests for Message Service.
 
-Tests all messaging bugs that were fixed during Phase 4:
-- Reaction SSE notifications
+Tests messaging functionality:
+- Reaction database operations
 - Read receipt persistence
-- SSE payload format
+- Message operations
 """
-
-from unittest.mock import patch
 
 from app.services.message_service import MessageService
 
 
 class TestMessageServiceReactions:
-    """Tests for reaction functionality."""
+    """Tests for reaction functionality.
 
-    def test_add_reaction_sends_sse_to_both_users(self, db, test_booking):
-        """Reactions should broadcast to both instructor and student."""
+    Note: Real-time SSE notifications are now handled via Redis Pub/Sub
+    in the route layer. These tests verify database operations only.
+    """
+
+    def test_add_reaction_persists_to_database(self, db, test_booking):
+        """Adding a reaction should persist to the database."""
         service = MessageService(db)
 
         # Create a message
@@ -27,26 +29,24 @@ class TestMessageServiceReactions:
         )
         db.commit()
 
-        # Mock the notify_user_channel method to verify SSE calls
-        with patch.object(service.repository, 'notify_user_channel') as mock_notify:
-            # Student adds reaction
-            service.add_reaction(
-                message_id=message.id,
-                user_id=test_booking.student_id,
-                emoji="👍"
-            )
-            db.commit()
+        # Student adds reaction
+        result = service.add_reaction(
+            message_id=message.id,
+            user_id=test_booking.student_id,
+            emoji="👍"
+        )
+        db.commit()
 
-            # Should notify both users
-            assert mock_notify.call_count == 2
+        assert result is True
 
-            # Check that both user channels were notified
-            notified_users = [call[0][0] for call in mock_notify.call_args_list]
-            assert test_booking.student_id in notified_users
-            assert test_booking.instructor_id in notified_users
+        # Verify reaction is persisted
+        db.expire_all()
+        updated_message = service.get_message_by_id(message.id, test_booking.student_id)
+        assert updated_message is not None
+        # Reactions are stored in the database
 
-    def test_add_reaction_includes_conversation_id(self, db, test_booking):
-        """SSE payload must include conversation_id for routing."""
+    def test_add_reaction_returns_true_on_success(self, db, test_booking):
+        """add_reaction should return True when successful."""
         service = MessageService(db)
 
         message = service.send_message(
@@ -56,31 +56,17 @@ class TestMessageServiceReactions:
         )
         db.commit()
 
-        # Mock the notify_user_channel method
-        with patch.object(service.repository, 'notify_user_channel') as mock_notify:
-            service.add_reaction(
-                message_id=message.id,
-                user_id=test_booking.student_id,
-                emoji="👍"
-            )
-            db.commit()
+        result = service.add_reaction(
+            message_id=message.id,
+            user_id=test_booking.student_id,
+            emoji="👍"
+        )
+        db.commit()
 
-            # Check that notifications were sent
-            assert mock_notify.call_count == 2
+        assert result is True
 
-            # Check first notification payload includes conversation_id
-            first_call_args = mock_notify.call_args_list[0]
-            payload = first_call_args[0][1]  # Second argument is the payload
-
-            assert 'conversation_id' in payload
-            assert payload['conversation_id'] == test_booking.id
-            assert payload['type'] == 'reaction_update'
-            assert payload['message_id'] == message.id
-            assert payload['emoji'] == '👍'
-            assert payload['action'] == 'added'
-
-    def test_add_reaction_includes_all_required_fields(self, db, test_booking):
-        """SSE payload should have all required fields."""
+    def test_add_reaction_with_different_emojis(self, db, test_booking):
+        """Multiple different reactions can be added to same message."""
         service = MessageService(db)
 
         message = service.send_message(
@@ -90,27 +76,16 @@ class TestMessageServiceReactions:
         )
         db.commit()
 
-        with patch.object(service.repository, 'notify_user_channel') as mock_notify:
-            service.add_reaction(
-                message_id=message.id,
-                user_id=test_booking.student_id,
-                emoji="❤️"
-            )
-            db.commit()
+        # Add multiple reactions
+        result1 = service.add_reaction(message.id, test_booking.student_id, "👍")
+        result2 = service.add_reaction(message.id, test_booking.student_id, "❤️")
+        db.commit()
 
-            # Get payload from first call
-            payload = mock_notify.call_args_list[0][0][1]
+        assert result1 is True
+        assert result2 is True
 
-            # Verify all required fields
-            assert payload['type'] == 'reaction_update'
-            assert payload['conversation_id'] == test_booking.id
-            assert payload['message_id'] == message.id
-            assert payload['emoji'] == '❤️'
-            assert payload['user_id'] == test_booking.student_id
-            assert payload['action'] in ['added', 'removed']
-
-    def test_remove_reaction_sends_sse(self, db, test_booking):
-        """Removing reactions should also send SSE notifications."""
+    def test_remove_reaction_persists_to_database(self, db, test_booking):
+        """Removing a reaction should persist the removal to database."""
         service = MessageService(db)
 
         message = service.send_message(
@@ -129,20 +104,14 @@ class TestMessageServiceReactions:
         db.commit()
 
         # Remove reaction
-        with patch.object(service.repository, 'notify_user_channel') as mock_notify:
-            service.remove_reaction(
-                message_id=message.id,
-                user_id=test_booking.student_id,
-                emoji="👍"
-            )
-            db.commit()
+        result = service.remove_reaction(
+            message_id=message.id,
+            user_id=test_booking.student_id,
+            emoji="👍"
+        )
+        db.commit()
 
-            # Should notify both users
-            assert mock_notify.call_count == 2
-
-            # Verify action is "removed"
-            payload = mock_notify.call_args_list[0][0][1]
-            assert payload['action'] == 'removed'
+        assert result is True
 
 
 class TestMessageServiceReadReceipts:

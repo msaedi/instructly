@@ -576,37 +576,10 @@ async def mark_messages_as_read(
         else:
             raise ValidationException("Either booking_id or message_ids must be provided")
 
-        # Send read notification to the message sender(s)
+        # Redis Pub/Sub publishing (fire-and-forget)
         if count > 0 and booking_id and marked_message_ids:
             try:
-                notification_service = get_notification_service()
                 recipient_id = service.get_recipient_id(booking_id, str(current_user.id))
-                if recipient_id:
-                    read_at = datetime.now(timezone.utc).isoformat()
-                    await notification_service.send_read_notification(
-                        conversation_id=booking_id,
-                        reader_id=str(current_user.id),
-                        recipient_id=recipient_id,
-                        message_ids=marked_message_ids,
-                        read_at=read_at,
-                    )
-                    logger.info(
-                        "[MSG-DEBUG] Mark-read: Notification sent",
-                        extra={
-                            "reader_id": current_user.id,
-                            "recipient_id": recipient_id,
-                            "message_count": len(marked_message_ids),
-                        },
-                    )
-            except Exception as e:
-                # Don't fail the request if notification fails - messages are already marked
-                logger.error(
-                    "[MSG-DEBUG] Mark-read: Notification failed",
-                    extra={"error": str(e), "booking_id": booking_id},
-                )
-
-            # Redis Pub/Sub publishing (Phase 1 - fire-and-forget)
-            try:
                 await publish_read_receipt(
                     conversation_id=booking_id,
                     reader_id=str(current_user.id),
@@ -702,40 +675,7 @@ async def send_message(
             },
         )
 
-        # Send notification via session pooler (same connection as LISTEN)
-        # This bypasses the DB trigger which uses transaction pooler
-        try:
-            notification_service = get_notification_service()
-            recipient_id = service.get_recipient_id(request.booking_id, str(current_user.id))
-            if recipient_id:
-                await notification_service.send_message_notification(
-                    conversation_id=request.booking_id,
-                    sender_id=str(current_user.id),
-                    recipient_id=recipient_id,
-                    message_data={
-                        "id": str(message.id),
-                        "content": message.content,
-                        "sender_id": str(message.sender_id),
-                        "created_at": message.created_at.isoformat()
-                        if message.created_at
-                        else None,
-                    },
-                )
-                logger.info(
-                    "[MSG-DEBUG] Message SEND: Notification sent via session pooler",
-                    extra={
-                        "message_id": message.id,
-                        "recipient_id": recipient_id,
-                    },
-                )
-        except Exception as e:
-            # Don't fail the request if notification fails - message is already saved
-            logger.error(
-                "[MSG-DEBUG] Message SEND: Notification failed (message still saved)",
-                extra={"error": str(e), "message_id": message.id},
-            )
-
-        # Redis Pub/Sub publishing (Phase 1 - fire-and-forget, alongside LISTEN/NOTIFY)
+        # Redis Pub/Sub publishing (fire-and-forget)
         try:
             recipient_id = service.get_recipient_id(request.booking_id, str(current_user.id))
             recipient_ids = [recipient_id] if recipient_id else []
@@ -853,7 +793,7 @@ async def update_conversation_state(
         result = service.set_conversation_state(
             user_id=current_user.id, booking_id=booking_id, state=body.state
         )
-        return result
+        return ConversationStateUpdateResponse(**result)
 
     except ValueError as e:
         raise HTTPException(
@@ -1040,53 +980,29 @@ async def edit_message(
             },
         )
 
-        # Send notification via session pooler (same connection as LISTEN)
+        # Redis Pub/Sub publishing (fire-and-forget)
         try:
             message = service.get_message_by_id(message_id, str(current_user.id))
             if message:
-                notification_service = get_notification_service()
                 recipient_id = service.get_recipient_id(
                     str(message.booking_id), str(current_user.id)
                 )
                 if recipient_id:
-                    await notification_service.send_edit_notification(
+                    await publish_message_edited(
                         conversation_id=str(message.booking_id),
                         message_id=message_id,
-                        editor_id=str(current_user.id),
-                        recipient_id=recipient_id,
                         new_content=request.content,
+                        editor_id=str(current_user.id),
+                        edited_at=message.edited_at or datetime.now(timezone.utc),
+                        recipient_ids=[recipient_id],
                     )
-                    logger.info(
-                        "[MSG-DEBUG] Message EDIT: Notification sent via session pooler",
-                        extra={
-                            "message_id": message_id,
-                            "recipient_id": recipient_id,
-                        },
+                    logger.debug(
+                        "[REDIS-PUBSUB] Message EDIT: Published to Redis",
+                        extra={"message_id": message_id},
                     )
-
-                    # Redis Pub/Sub publishing (Phase 1 - fire-and-forget)
-                    try:
-                        await publish_message_edited(
-                            conversation_id=str(message.booking_id),
-                            message_id=message_id,
-                            new_content=request.content,
-                            editor_id=str(current_user.id),
-                            edited_at=message.edited_at or datetime.now(timezone.utc),
-                            recipient_ids=[recipient_id],
-                        )
-                        logger.debug(
-                            "[REDIS-PUBSUB] Message EDIT: Published to Redis",
-                            extra={"message_id": message_id},
-                        )
-                    except Exception as redis_err:
-                        logger.error(
-                            "[REDIS-PUBSUB] Message EDIT: Redis publish failed",
-                            extra={"error": str(redis_err), "message_id": message_id},
-                        )
         except Exception as e:
-            # Don't fail the request if notification fails - edit is already saved
             logger.error(
-                "[MSG-DEBUG] Message EDIT: Notification failed (edit still saved)",
+                "[REDIS-PUBSUB] Message EDIT: Redis publish failed",
                 extra={"error": str(e), "message_id": message_id},
             )
 
@@ -1241,51 +1157,28 @@ async def add_reaction(
             },
         )
 
-        # Send notification via session pooler
+        # Redis Pub/Sub publishing (fire-and-forget)
         if message:
             try:
-                notification_service = get_notification_service()
                 recipient_id = service.get_recipient_id(
                     str(message.booking_id), str(current_user.id)
                 )
                 if recipient_id:
-                    await notification_service.send_reaction_notification(
+                    await publish_reaction_update(
                         conversation_id=str(message.booking_id),
                         message_id=message_id,
                         user_id=str(current_user.id),
-                        recipient_id=recipient_id,
-                        reaction_data={
-                            "emoji": request.emoji,
-                            "action": "added",
-                        },
+                        emoji=request.emoji,
+                        action="added",
+                        recipient_ids=[recipient_id],
                     )
-                    logger.info(
-                        "[MSG-DEBUG] Reaction ADD: Notification sent via session pooler",
-                        extra={"message_id": message_id, "recipient_id": recipient_id},
+                    logger.debug(
+                        "[REDIS-PUBSUB] Reaction ADD: Published to Redis",
+                        extra={"message_id": message_id},
                     )
-
-                    # Redis Pub/Sub publishing (Phase 1 - fire-and-forget)
-                    try:
-                        await publish_reaction_update(
-                            conversation_id=str(message.booking_id),
-                            message_id=message_id,
-                            user_id=str(current_user.id),
-                            emoji=request.emoji,
-                            action="added",
-                            recipient_ids=[recipient_id],
-                        )
-                        logger.debug(
-                            "[REDIS-PUBSUB] Reaction ADD: Published to Redis",
-                            extra={"message_id": message_id},
-                        )
-                    except Exception as redis_err:
-                        logger.error(
-                            "[REDIS-PUBSUB] Reaction ADD: Redis publish failed",
-                            extra={"error": str(redis_err), "message_id": message_id},
-                        )
             except Exception as e:
                 logger.error(
-                    "[MSG-DEBUG] Reaction ADD: Notification failed",
+                    "[REDIS-PUBSUB] Reaction ADD: Redis publish failed",
                     extra={"error": str(e), "message_id": message_id},
                 )
 
@@ -1375,7 +1268,7 @@ async def remove_reaction(
             },
         )
 
-        # Redis Pub/Sub publishing (Phase 1 - fire-and-forget)
+        # Redis Pub/Sub publishing (fire-and-forget)
         if message:
             try:
                 recipient_id = service.get_recipient_id(

@@ -385,33 +385,7 @@ class MessageService(BaseService):
                 },
             )
 
-            # Notify via NOTIFY for SSE consumers - send to both participants' inbox channels
-            payload = {
-                "type": "reaction_update",
-                "conversation_id": message.booking_id,
-                "message_id": message_id,
-                "emoji": emoji,
-                "user_id": user_id,
-                "action": action,
-            }
-            # Get booking to know both participants
-            booking = self.booking_repository.get_by_id(message.booking_id)
-            if booking:
-                self.logger.info(
-                    "[MSG-DEBUG] MessageService.add_reaction: Sending NOTIFY to both participants",
-                    extra={
-                        "instructor_id": booking.instructor_id,
-                        "student_id": booking.student_id,
-                        "payload_type": payload["type"],
-                    },
-                )
-                self.repository.notify_user_channel(booking.instructor_id, payload)
-                self.repository.notify_user_channel(booking.student_id, payload)
-            else:
-                self.logger.warning(
-                    "[MSG-DEBUG] MessageService.add_reaction: Booking not found for NOTIFY",
-                    extra={"booking_id": message.booking_id},
-                )
+            # Note: Real-time notification is now handled via Redis Pub/Sub in the route
             return ok
 
     @BaseService.measure_operation("remove_reaction")
@@ -441,31 +415,7 @@ class MessageService(BaseService):
                 },
             )
 
-            payload = {
-                "type": "reaction_update",
-                "conversation_id": message.booking_id,
-                "message_id": message_id,
-                "emoji": emoji,
-                "user_id": user_id,
-                "action": "removed",
-            }
-            # Get booking to know both participants
-            booking = self.booking_repository.get_by_id(message.booking_id)
-            if booking:
-                self.logger.info(
-                    "[MSG-DEBUG] MessageService.remove_reaction: Sending NOTIFY to both participants",
-                    extra={
-                        "instructor_id": booking.instructor_id,
-                        "student_id": booking.student_id,
-                    },
-                )
-                self.repository.notify_user_channel(booking.instructor_id, payload)
-                self.repository.notify_user_channel(booking.student_id, payload)
-            else:
-                self.logger.warning(
-                    "[MSG-DEBUG] MessageService.remove_reaction: Booking not found for NOTIFY",
-                    extra={"booking_id": message.booking_id},
-                )
+            # Note: Real-time notification is now handled via Redis Pub/Sub in the route
             return ok
 
     @BaseService.measure_operation("edit_message")
