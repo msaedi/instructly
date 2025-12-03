@@ -36,15 +36,22 @@ Endpoints (organized with static routes BEFORE dynamic routes):
     DELETE /{message_id}/reactions - Remove emoji reaction
 """
 
-import asyncio
-from asyncio import Queue
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-import json
 import logging
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Response, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
@@ -74,8 +81,9 @@ from ...schemas.message_responses import (
 from ...services.message_notification_service import MessageNotificationService
 from ...services.message_service import MessageService
 
-# Redis Pub/Sub publishers (Phase 1 - fire-and-forget, alongside existing LISTEN/NOTIFY)
+# Redis Pub/Sub (v3.1 - Redis is the ONLY notification source)
 from ...services.messaging import (
+    create_sse_stream,
     publish_message_edited,
     publish_new_message,
     publish_reaction_update,
@@ -147,21 +155,31 @@ class ConversationStateUpdate(BaseModel):
     },
 )
 async def stream_user_messages(
+    request: Request,
     current_user: User = Depends(get_current_user_sse),
     service: MessageService = Depends(get_message_service),
 ) -> EventSourceResponse:
     """
-    SSE endpoint for real-time message streaming - per-user inbox.
+    SSE endpoint for real-time message streaming - per-user inbox (v3.1).
 
     Establishes a Server-Sent Events connection for receiving
     real-time messages across ALL user's conversations.
 
-    Events include conversation_id for client-side routing.
+    Features:
+    - Redis Pub/Sub as the ONLY real-time source
+    - Last-Event-ID support for automatic catch-up on reconnect
+    - new_message events include SSE id: field
+    - Heartbeat every 10 seconds
+
+    Supports Last-Event-ID header - when reconnecting, the client
+    automatically sends the last received message ID, and the server
+    sends any missed messages from the database.
+
     Requires VIEW_MESSAGES permission.
     """
-    # [MSG-DEBUG] Log SSE connection attempt
+    # Log SSE connection attempt
     logger.info(
-        "[MSG-DEBUG] SSE: Connection attempt",
+        "[SSE] Connection attempt",
         extra={
             "user_id": current_user.id,
             "user_email": current_user.email,
@@ -175,7 +193,7 @@ async def stream_user_messages(
     permission_service = PermissionService(service.db)
     if not permission_service.user_has_permission(current_user.id, PermissionName.VIEW_MESSAGES):
         logger.warning(
-            "[MSG-DEBUG] SSE: Permission denied",
+            "[SSE] Permission denied",
             extra={"user_id": current_user.id, "permission": "VIEW_MESSAGES"},
         )
         raise HTTPException(
@@ -183,206 +201,22 @@ async def stream_user_messages(
             detail="You don't have permission to view messages",
         )
 
-    logger.info(
-        "[MSG-DEBUG] SSE: Permission granted, starting generator",
-        extra={"user_id": current_user.id},
-    )
+    # Read Last-Event-ID header (sent automatically by browser on reconnect)
+    last_event_id = request.headers.get("Last-Event-ID")
+    if last_event_id:
+        logger.info(
+            "[SSE] Client reconnecting with Last-Event-ID",
+            extra={"user_id": current_user.id, "last_event_id": last_event_id},
+        )
 
     async def event_generator() -> AsyncGenerator[dict[str, str], None]:
-        """Generate SSE events for the user's inbox."""
-        queue: Queue[dict[str, Any]] | None = None
-        notification_service: MessageNotificationService | None = None
-
-        try:
-            # [MSG-DEBUG] Log generator start
-            logger.info(
-                "[MSG-DEBUG] SSE: Generator started",
-                extra={
-                    "user_id": current_user.id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                },
-            )
-
-            # Send initial connection confirmation
-            yield {
-                "event": "connected",
-                "data": json.dumps({"user_id": current_user.id, "status": "connected"}),
-            }
-            logger.info(
-                "[MSG-DEBUG] SSE: Connected event sent",
-                extra={"user_id": current_user.id},
-            )
-
-            # Small delay to ensure connection is established
-            await asyncio.sleep(0.1)
-
-            # Try to get notification service
-            try:
-                notification_service = get_notification_service()
-                logger.info(
-                    "[MSG-DEBUG] SSE: Notification service obtained",
-                    extra={"user_id": current_user.id},
-                )
-            except RuntimeError as e:
-                logger.warning(
-                    "[MSG-DEBUG] SSE: Notification service not available",
-                    extra={"user_id": current_user.id, "error": str(e)},
-                )
-                notification_service = None
-
-            # Subscribe to user's inbox channel
-            if notification_service:
-                try:
-                    queue = await notification_service.subscribe_user(current_user.id)
-                    logger.info(
-                        "[MSG-DEBUG] SSE: Subscribed to user inbox channel",
-                        extra={
-                            "user_id": current_user.id,
-                            "channel": f"user_{current_user.id}_inbox",
-                        },
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "[MSG-DEBUG] SSE: Failed to subscribe to user inbox",
-                        extra={"user_id": current_user.id, "error": str(e)},
-                    )
-                    queue = None
-            else:
-                logger.warning(
-                    "[MSG-DEBUG] SSE: No notification service available",
-                    extra={"user_id": current_user.id},
-                )
-
-            # Main event loop
-            last_heartbeat = datetime.now(timezone.utc)
-            logger.info(
-                "[MSG-DEBUG] SSE: Entering main event loop",
-                extra={"user_id": current_user.id, "has_queue": queue is not None},
-            )
-
-            while True:
-                try:
-                    if queue:
-                        # Try to get message from queue with timeout
-                        try:
-                            message_data = await asyncio.wait_for(
-                                queue.get(), timeout=30.0
-                            )  # 30 second timeout
-
-                            # [MSG-DEBUG] Log received message from queue
-                            logger.info(
-                                "[MSG-DEBUG] SSE: Message received from queue",
-                                extra={
-                                    "user_id": current_user.id,
-                                    "event_type": message_data.get("type"),
-                                    "conversation_id": message_data.get("conversation_id"),
-                                    "message_id": message_data.get("message", {}).get("id")
-                                    if isinstance(message_data.get("message"), dict)
-                                    else None,
-                                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                                },
-                            )
-
-                            # Process the message
-                            event_type = message_data.get("type") or "message"
-
-                            if event_type == "heartbeat":
-                                yield {
-                                    "event": "heartbeat",
-                                    "data": json.dumps(
-                                        {"timestamp": message_data.get("timestamp")}
-                                    ),
-                                }
-                            else:
-                                # Add is_mine flag for chat messages
-                                if event_type == "new_message" and message_data.get("message"):
-                                    message_data["is_mine"] = (
-                                        message_data["message"].get("sender_id") == current_user.id
-                                    )
-                                    logger.info(
-                                        "[MSG-DEBUG] SSE: Yielding new_message event",
-                                        extra={
-                                            "user_id": current_user.id,
-                                            "is_mine": message_data["is_mine"],
-                                            "conversation_id": message_data.get("conversation_id"),
-                                            "sender_id": message_data["message"].get("sender_id"),
-                                        },
-                                    )
-
-                                # [MSG-DEBUG] Log event being yielded
-                                logger.info(
-                                    "[MSG-DEBUG] SSE: Yielding event",
-                                    extra={
-                                        "user_id": current_user.id,
-                                        "event_type": event_type,
-                                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                                    },
-                                )
-
-                                yield {
-                                    "event": event_type,
-                                    "data": json.dumps(message_data),
-                                }
-                        except asyncio.TimeoutError:
-                            # Timeout is normal - send keep-alive
-                            logger.debug(
-                                "[MSG-DEBUG] SSE: Sending keep-alive (timeout)",
-                                extra={"user_id": current_user.id},
-                            )
-                            yield {
-                                "event": "keep-alive",
-                                "data": json.dumps(
-                                    {
-                                        "status": "alive",
-                                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                                    }
-                                ),
-                            }
-                    else:
-                        # No queue available, send periodic heartbeats
-                        await asyncio.sleep(5)
-                        now = datetime.now(timezone.utc)
-                        if (now - last_heartbeat).total_seconds() >= 30:
-                            logger.debug(
-                                "[MSG-DEBUG] SSE: Sending heartbeat (no queue)",
-                                extra={"user_id": current_user.id},
-                            )
-                            yield {
-                                "event": "heartbeat",
-                                "data": json.dumps(
-                                    {
-                                        "timestamp": now.isoformat(),
-                                    }
-                                ),
-                            }
-                            last_heartbeat = now
-
-                except Exception as e:
-                    # Log error but continue
-                    logger.error(
-                        "[MSG-DEBUG] SSE: Error in event loop",
-                        extra={
-                            "user_id": current_user.id,
-                            "error": str(e),
-                            "error_type": type(e).__name__,
-                        },
-                    )
-                    # Small delay before continuing
-                    await asyncio.sleep(1)
-                    continue
-
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.error(f"Error in SSE generator for user {current_user.id}: {str(e)}")
-            raise
-        finally:
-            # Clean up subscription
-            if notification_service and queue:
-                try:
-                    await notification_service.unsubscribe_user(current_user.id, queue)
-                except Exception as e:
-                    logger.error(f"Error during unsubscribe: {str(e)}")
+        """Generate SSE events using Redis-only stream."""
+        async for event in create_sse_stream(
+            user_id=current_user.id,
+            db=service.db,
+            last_event_id=last_event_id,
+        ):
+            yield event
 
     # Create EventSourceResponse with appropriate headers
     return EventSourceResponse(

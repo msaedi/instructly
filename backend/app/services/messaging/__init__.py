@@ -3,7 +3,7 @@
 Messaging services package.
 
 Phase 1: Publishing to Redis Pub/Sub
-Phase 2: Subscribing and dispatching (future)
+Phase 2: Redis-only SSE streaming with Last-Event-ID support
 """
 
 from app.services.messaging.events import (
@@ -19,6 +19,7 @@ from app.services.messaging.publisher import (
     publish_typing_status,
 )
 from app.services.messaging.redis_pubsub import pubsub_manager
+from app.services.messaging.sse_stream import create_sse_stream
 
 __all__ = [
     # Manager
@@ -29,6 +30,8 @@ __all__ = [
     "publish_reaction_update",
     "publish_message_edited",
     "publish_read_receipt",
+    # SSE Stream (Phase 2)
+    "create_sse_stream",
     # Events
     "EventType",
     "SCHEMA_VERSION",
