@@ -89,9 +89,16 @@ async def create_sse_stream(
             # Step 4: Stream events with heartbeat
             async for event in stream_with_heartbeat(pubsub, HEARTBEAT_INTERVAL, user_id=user_id):
                 if event.get("_heartbeat"):
-                    # SSE comment heartbeat to keep proxies/browsers from timing out
                     logger.info(f"[SSE-HEARTBEAT] Sending heartbeat for user {user_id}")
-                    yield ": heartbeat\n\n"
+                    yield {
+                        "event": "heartbeat",
+                        "data": json.dumps(
+                            {
+                                "type": "heartbeat",
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            }
+                        ),
+                    }
                 else:
                     logger.debug(
                         "[SSE-STREAM] Yielding event",
