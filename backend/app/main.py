@@ -73,6 +73,8 @@ for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest, AuditLogView):
         pass
 
 # Use the new ASGI middleware to avoid "No response returned" errors
+# Redis Pub/Sub for messaging (Phase 1)
+from .core.redis import close_async_redis_client, get_async_redis_client
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
 from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY, prometheus_metrics
@@ -134,6 +136,7 @@ from .services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
     FinalAdversePayload,
 )
+from .services.messaging import pubsub_manager
 from .services.template_registry import TemplateRegistry
 from .services.template_service import TemplateService
 
@@ -364,6 +367,15 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         await ProductionStartup.initialize()
 
+    # Initialize Redis Pub/Sub manager for messaging (Phase 1)
+    try:
+        redis_client = await get_async_redis_client()
+        await pubsub_manager.initialize(redis_client)
+        logger.info("[REDIS-PUBSUB] Redis Pub/Sub manager initialized for messaging")
+    except Exception as e:
+        logger.error(f"[REDIS-PUBSUB] Failed to initialize Redis Pub/Sub: {e}")
+        # Don't fail startup - publishing is an optional enhancement
+
     # Initialize message notification service
     from .routes.messages import set_notification_service as set_legacy_notification_service
     from .routes.v1.messages import set_notification_service as set_v1_notification_service
@@ -425,6 +437,13 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Message notification service stopped")
     except Exception as e:
         logger.error(f"Error stopping message notification service: {str(e)}")
+
+    # Close Redis Pub/Sub client
+    try:
+        await close_async_redis_client()
+        logger.info("[REDIS-PUBSUB] Async Redis client closed")
+    except Exception as e:
+        logger.error(f"[REDIS-PUBSUB] Error closing async Redis client: {e}")
 
     # Here you can add cleanup logic like:
     # - Closing database connections
