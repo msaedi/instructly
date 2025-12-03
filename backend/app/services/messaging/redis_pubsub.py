@@ -2,24 +2,26 @@
 """
 Redis Pub/Sub Manager for messaging notifications.
 
-This module handles publishing messaging events to Redis channels.
-Subscribing is handled separately in Phase 2.
+This module handles publishing and subscribing to Redis channels for
+real-time messaging notifications (v3.1 architecture).
 
 Design decisions:
 - Async Redis client (non-blocking)
 - Fire-and-forget publishing (failures logged, not raised)
 - User channels: "user:{user_id}"
 - All events include schema_version for future evolution
+- Subscription via async context manager for clean resource management
 """
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional
 
 if TYPE_CHECKING:
-    pass
+    from redis.asyncio.client import PubSub
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +122,39 @@ class RedisPubSubManager:
         for user_id in user_ids:
             results[user_id] = await self.publish_to_user(user_id, event)
         return results
+
+    @asynccontextmanager
+    async def subscribe(self, user_id: str) -> AsyncGenerator["PubSub", None]:
+        """
+        Subscribe to a user's channel for real-time events.
+
+        Usage:
+            async with pubsub_manager.subscribe(user_id) as pubsub:
+                async for message in pubsub.listen():
+                    if message["type"] == "message":
+                        event = json.loads(message["data"])
+                        # process event
+
+        Args:
+            user_id: User's ULID to subscribe to
+
+        Yields:
+            Redis PubSub object for listening to events
+        """
+        if self._redis is None:
+            raise RuntimeError("Redis not initialized")
+
+        channel = f"user:{user_id}"
+        pubsub: PubSub = self._redis.pubsub()
+
+        try:
+            await pubsub.subscribe(channel)
+            logger.info(f"[REDIS-PUBSUB] Subscribed to channel: {channel}")
+            yield pubsub
+        finally:
+            await pubsub.unsubscribe(channel)
+            await pubsub.aclose()
+            logger.info(f"[REDIS-PUBSUB] Unsubscribed from channel: {channel}")
 
 
 # Global singleton instance

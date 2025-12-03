@@ -620,3 +620,70 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             self.logger.error(f"Failed to reset conversation_state unread count: {str(e)}")
             raise RepositoryException(f"Failed to reset conversation_state unread count: {str(e)}")
+
+    # Phase 2: SSE catch-up support
+    def get_user_booking_ids(self, user_id: str) -> List[str]:
+        """
+        Get all booking IDs where user is a participant (student or instructor).
+
+        Used for SSE Last-Event-ID catch-up to fetch missed messages.
+
+        Args:
+            user_id: The user's ULID
+
+        Returns:
+            List of booking IDs where user is student or instructor
+        """
+        try:
+            booking_rows = (
+                self.db.query(Booking.id)
+                .filter((Booking.student_id == user_id) | (Booking.instructor_id == user_id))
+                .all()
+            )
+            return [row.id for row in booking_rows]
+        except Exception as e:
+            self.logger.error(f"Error fetching user booking IDs: {str(e)}")
+            raise RepositoryException(f"Failed to fetch user booking IDs: {str(e)}")
+
+    def get_messages_after_id(
+        self, booking_ids: List[str], after_message_id: str, limit: int = 100
+    ) -> List[Message]:
+        """
+        Get messages created after a given message ID for specified bookings.
+
+        Since ULIDs are lexicographically sortable by time,
+        `id > after_message_id` returns newer messages.
+
+        Used for SSE Last-Event-ID catch-up.
+
+        Args:
+            booking_ids: List of booking IDs to search
+            after_message_id: Last-Event-ID (message ULID) to start from
+            limit: Maximum messages to return (safety limit)
+
+        Returns:
+            List of messages after the given ID, ordered by ID
+        """
+        try:
+            if not booking_ids:
+                return []
+
+            return cast(
+                List[Message],
+                (
+                    self.db.query(Message)
+                    .filter(
+                        and_(
+                            Message.booking_id.in_(booking_ids),
+                            Message.id > after_message_id,
+                            Message.is_deleted == False,
+                        )
+                    )
+                    .order_by(Message.id)
+                    .limit(limit)
+                    .all()
+                ),
+            )
+        except Exception as e:
+            self.logger.error(f"Error fetching messages after ID: {str(e)}")
+            raise RepositoryException(f"Failed to fetch messages after ID: {str(e)}")
