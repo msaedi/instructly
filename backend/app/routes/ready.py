@@ -37,29 +37,23 @@ def ready_probe(response_obj: Response) -> ReadyProbeResponse:
         response_obj.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadyProbeResponse(status="cache_not_ready")
 
-    # Check notification service health (real-time messaging)
-    # Import here to avoid circular dependency
+    # Check Redis Pub/Sub messaging health (real-time messaging)
     notifications_healthy: bool | None = None
     try:
-        from app.routes.v1.messages import get_notification_service
+        from app.services.messaging.redis_pubsub import pubsub_manager
 
-        notification_service = get_notification_service()
-        notifications_healthy = notification_service.is_healthy()
+        notifications_healthy = pubsub_manager.is_initialized
 
         if not notifications_healthy:
-            logger.warning(
-                "[MSG-DEBUG] /ready: Notification service is unhealthy",
-                extra=notification_service.get_health_details(),
-            )
+            logger.warning("[MSG-DEBUG] /ready: Redis Pub/Sub manager not initialized")
             # Return degraded status but don't fail the probe
-            # Real-time messaging is degraded but core functionality works
             return ReadyProbeResponse(
                 status="degraded",
                 notifications_healthy=False,
             )
     except Exception as e:
-        # If notification service isn't available, log but don't fail
-        logger.debug(f"[MSG-DEBUG] /ready: Could not check notification service: {e}")
+        # If messaging health can't be determined, log but don't fail
+        logger.debug(f"[MSG-DEBUG] /ready: Could not check messaging health: {e}")
         # notifications_healthy remains None (unknown)
 
     return ReadyProbeResponse(status="ok", notifications_healthy=notifications_healthy)

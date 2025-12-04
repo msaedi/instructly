@@ -27,7 +27,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
@@ -53,8 +53,20 @@ from ..schemas.message_responses import (
     TypingStatusResponse,
     UnreadCountResponse,
 )
-from ..services.message_notification_service import MessageNotificationService
 from ..services.message_service import MessageService
+
+if TYPE_CHECKING:
+    MessageNotificationService = Any
+else:
+
+    class MessageNotificationService:
+        """Deprecated placeholder for removed session pooler notification service."""
+
+        def __getattr__(self, name: str) -> Any:
+            raise RuntimeError(
+                "MessageNotificationService has been removed; migrate to /api/v1/messages SSE."
+            )
+
 
 # Ensure request schema is fully built before FastAPI inspects annotations.
 SendMessageRequest.model_rebuild()
