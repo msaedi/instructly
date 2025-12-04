@@ -34,7 +34,7 @@ import { queryKeys } from '@/src/api/queryKeys';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
-import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, type NormalizedMessage, type NormalizedReaction, type ReactionMutations } from '@/components/messaging';
+import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, useReadReceipts, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
 
 // Connection status enum (internal to Chat component)
 enum ConnectionStatus {
@@ -44,9 +44,6 @@ enum ConnectionStatus {
   ERROR = 'error',
   RECONNECTING = 'reconnecting',
 }
-
-// Type for read_by entries from message response
-type ReadByEntry = { user_id: string; read_at: string };
 
 // Extended message type with reactions
 interface MessageWithReactions extends MessageResponse {
@@ -415,24 +412,15 @@ export function Chat({
     debug: false,
   });
 
-  // Build a stable read map derived from server-provided read_by and live receipts
-  const mergedReadReceipts = React.useMemo(() => {
-    const map: Record<string, Array<{ user_id: string; read_at: string }>> = { ...readReceipts };
-    for (const m of allMessages) {
-      if (m.read_by && Array.isArray(m.read_by)) {
-        const existing = map[m.id] || [];
-        const combined = [...existing];
-        const readByEntries = m.read_by as ReadByEntry[];
-        for (const r of readByEntries) {
-          if (!combined.find(x => x.user_id === r.user_id && x.read_at === r.read_at)) {
-            if (r.user_id && r.read_at) combined.push({ user_id: r.user_id, read_at: r.read_at });
-          }
-        }
-        map[m.id] = combined;
-      }
-    }
-    return map;
-  }, [allMessages, readReceipts]);
+  // Shared read receipt management hook
+  const { mergedReadReceipts, lastReadMessageId: lastOwnReadMessageId } = useReadReceipts<MessageResponse>({
+    messages: allMessages,
+    sseReadReceipts: readReceipts,
+    currentUserId,
+    getReadBy: (m) => m.read_by as ReadReceiptEntry[] | null | undefined,
+    isOwnMessage: (m) => m.sender_id === currentUserId,
+    getCreatedAt: (m) => new Date(m.created_at),
+  });
 
   const latestUnreadMessageId = React.useMemo(() => {
     let latest: { id: string; ts: number } | null = null;
@@ -452,19 +440,6 @@ export function Chat({
       }
     }
 
-    return latest?.id ?? null;
-  }, [allMessages, mergedReadReceipts, currentUserId]);
-
-  // Determine the latest own message that has a read receipt (global, not per-day group)
-  const lastOwnReadMessageId = React.useMemo(() => {
-    let latest: { id: string; ts: number } | null = null;
-    for (const m of allMessages) {
-      if (m.sender_id !== currentUserId) continue;
-      const reads = mergedReadReceipts[m.id] || [];
-      if (reads.length === 0) continue;
-      const t = new Date(m.created_at).getTime();
-      if (!latest || t > latest.ts) latest = { id: m.id, ts: t };
-    }
     return latest?.id ?? null;
   }, [allMessages, mergedReadReceipts, currentUserId]);
 

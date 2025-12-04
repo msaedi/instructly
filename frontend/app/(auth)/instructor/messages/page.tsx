@@ -49,7 +49,7 @@ import {
   MessageInput,
   TemplateEditor,
 } from '@/components/instructor/messages/components';
-import { MessageBubble as SharedMessageBubble, normalizeInstructorMessage, useReactions, type NormalizedMessage, type NormalizedReaction, type ReactionMutations } from '@/components/messaging';
+import { MessageBubble as SharedMessageBubble, normalizeInstructorMessage, useReactions, useReadReceipts, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
 
 // Helper to convert messageDisplay to API filter parameters
 function getFiltersForDisplay(
@@ -278,6 +278,16 @@ export default function MessagesPage() {
   const [sseTypingStatus, setSseTypingStatus] = useState<{ userId: string; userName: string; until: number } | null>(null);
   const [readReceipts, setReadReceipts] = useState<Record<string, Array<{ user_id: string; read_at: string }>>>({});
 
+  // Shared read receipt management hook
+  const { mergedReadReceipts, lastReadMessageId: lastInstructorReadMessageId } = useReadReceipts({
+    messages: threadMessages,
+    sseReadReceipts: readReceipts,
+    currentUserId: currentUser?.id ?? '',
+    getReadBy: (m) => m.read_by as ReadReceiptEntry[] | null | undefined,
+    isOwnMessage: (m) => m.sender === 'instructor' || m.senderId === currentUser?.id,
+    getCreatedAt: (m) => m.createdAt ? new Date(m.createdAt) : null,
+  });
+
   // Use ref to store latest handleSSEMessage to avoid re-render loop
   const handleSSEMessageRef = useRef(handleSSEMessage);
   useEffect(() => {
@@ -484,38 +494,6 @@ export default function MessagesPage() {
       .filter((conv) => conv.id !== composeRecipient?.id && conv.name.toLowerCase().includes(query))
       .slice(0, 5);
   }, [composeRecipientQuery, composeRecipient?.id, conversations]);
-
-  // Merge read receipts from message history and SSE events
-  const mergedReadReceipts = useMemo(() => {
-    const map: Record<string, Array<{ user_id: string; read_at: string }>> = { ...readReceipts };
-    for (const m of threadMessages) {
-      if (m.read_by && Array.isArray(m.read_by)) {
-        const existing = map[m.id] || [];
-        const combined = [...existing];
-        for (const r of m.read_by as Array<{ user_id: string; read_at: string }>) {
-          if (!combined.find((x) => x.user_id === r.user_id && x.read_at === r.read_at)) {
-            if (r.user_id && r.read_at) combined.push({ user_id: r.user_id, read_at: r.read_at });
-          }
-        }
-        map[m.id] = combined;
-      }
-    }
-    return map;
-  }, [threadMessages, readReceipts]);
-
-  // Find last instructor message that has been read (for "Read at" timestamp display)
-  const lastInstructorReadMessageId = useMemo(() => {
-    if (!currentUser?.id) return null;
-    let latest: { id: string; ts: number } | null = null;
-    for (const m of threadMessages) {
-      if (m.sender !== 'instructor' && m.senderId !== currentUser.id) continue;
-      const reads = mergedReadReceipts[m.id] || [];
-      if (reads.length === 0) continue;
-      const t = new Date(m.createdAt || '').getTime();
-      if (!latest || t > latest.ts) latest = { id: m.id, ts: t };
-    }
-    return latest?.id ?? null;
-  }, [threadMessages, mergedReadReceipts, currentUser?.id]);
 
   const normalizedThreadMessages = useMemo<NormalizedMessage[]>(() => {
     return threadMessages.map((message) => {

@@ -6,3 +6,12 @@ export {
   type UseReactionsParams,
   type UseReactionsReturn,
 } from './useReactions';
+
+export {
+  useReadReceipts,
+  type ReadReceiptEntry,
+  type ReadReceiptMap,
+  type ReadReceiptMessage,
+  type UseReadReceiptsParams,
+  type UseReadReceiptsReturn,
+} from './useReadReceipts';
