@@ -12,11 +12,6 @@ export function formatRelativeTimestamp(input: string | Date | null | undefined)
 }
 
 /**
- * Alias for formatRelativeTimestamp - for backward compatibility with instructor code.
- */
-export const formatRelativeTime = formatRelativeTimestamp;
-
-/**
  * Format a date/time as time label (e.g., "2:30 PM")
  */
 export function formatTimeLabel(input: string | Date | null | undefined): string {

@@ -27,7 +27,7 @@ import type {
   SSEMessageWithOwnership,
 } from '../types';
 import { COMPOSE_THREAD_ID } from '../constants';
-import { mapMessageFromResponse, computeUnreadFromMessages, formatRelativeTime } from '../utils';
+import { mapMessageFromResponse, computeUnreadFromMessages, formatRelativeTimestamp } from '../utils';
 
 export type UseMessageThreadOptions = {
   currentUserId: string | undefined;
@@ -362,7 +362,7 @@ export function useMessageThread({
         return {
           ...conv,
           lastMessage: mappedMessage.text,
-          timestamp: formatRelativeTime(mappedMessage.createdAt),
+          timestamp: formatRelativeTimestamp(mappedMessage.createdAt),
           latestMessageAt: mappedMessage.createdAt
             ? new Date(mappedMessage.createdAt).getTime()
             : Date.now(),

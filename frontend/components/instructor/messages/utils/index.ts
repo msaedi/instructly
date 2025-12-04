@@ -4,7 +4,6 @@
 
 // Re-export formatters from shared messaging location
 export {
-  formatRelativeTime,
   formatRelativeTimestamp,
   formatTimeLabel,
   formatShortDate,

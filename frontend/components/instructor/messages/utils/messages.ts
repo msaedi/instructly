@@ -10,7 +10,7 @@ import type {
   MessageWithAttachments,
   ReadByEntry,
 } from '../types';
-import { formatRelativeTime, formatTimeLabel } from '@/components/messaging/formatters';
+import { formatRelativeTimestamp, formatTimeLabel } from '@/components/messaging/formatters';
 
 /**
  * Check if an error is an AbortError
@@ -78,7 +78,7 @@ export const mapMessageFromResponse = (
     id: message.id,
     text: isDeleted ? 'This message was deleted' : message.content ?? '',
     sender: senderType,
-    timestamp: formatRelativeTime(message.created_at),
+    timestamp: formatRelativeTimestamp(message.created_at),
     isDeleted,
     deletedAt: (message as { deleted_at?: string | null }).deleted_at || undefined,
     deletedBy: (message as { deleted_by?: string | null }).deleted_by || undefined,
