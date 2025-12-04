@@ -49,7 +49,7 @@ import {
   MessageInput,
   TemplateEditor,
 } from '@/components/instructor/messages/components';
-import { MessageBubble as SharedMessageBubble, normalizeInstructorMessage, useReactions, useReadReceipts, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
+import { MessageBubble as SharedMessageBubble, normalizeInstructorMessage, formatRelativeTimestamp, useReactions, useReadReceipts, useLiveTimestamp, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
 
 // Helper to convert messageDisplay to API filter parameters
 function getFiltersForDisplay(
@@ -288,6 +288,9 @@ export default function MessagesPage() {
     getCreatedAt: (m) => m.createdAt ? new Date(m.createdAt) : null,
   });
 
+  // Live timestamp ticker - triggers re-render every minute for relative timestamps
+  const tick = useLiveTimestamp();
+
   // Use ref to store latest handleSSEMessage to avoid re-render loop
   const handleSSEMessageRef = useRef(handleSSEMessage);
   useEffect(() => {
@@ -503,8 +506,7 @@ export default function MessagesPage() {
       const currentReaction: string | null =
         message.id in userReactions ? userReactions[message.id]! : (message.my_reactions?.[0] ?? null);
 
-      const timestamp = message.createdAt ? new Date(message.createdAt) : new Date();
-      const timestampLabel = message.timestamp || format(timestamp, 'h:mm a');
+      const timestampLabel = formatRelativeTimestamp(message.createdAt);
       const isLastRead = message.id === lastInstructorReadMessageId;
       const readTimestampLabel =
         isLastRead && readReceiptCount > 0
@@ -544,7 +546,8 @@ export default function MessagesPage() {
         attachments,
       });
     });
-  }, [threadMessages, mergedReadReceipts, lastInstructorReadMessageId, userReactions, currentUser?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- tick triggers periodic re-render for live timestamps
+  }, [threadMessages, mergedReadReceipts, lastInstructorReadMessageId, userReactions, currentUser?.id, tick]);
 
   // Get primary booking ID for a thread
   const getPrimaryBookingId = useCallback((threadId: string | null) => {

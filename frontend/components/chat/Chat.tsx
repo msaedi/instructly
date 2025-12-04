@@ -34,7 +34,7 @@ import { queryKeys } from '@/src/api/queryKeys';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
-import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, useReadReceipts, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
+import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, useReadReceipts, useLiveTimestamp, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
 
 // Connection status enum (internal to Chat component)
 enum ConnectionStatus {
@@ -422,6 +422,9 @@ export function Chat({
     getCreatedAt: (m) => new Date(m.created_at),
   });
 
+  // Live timestamp ticker - triggers re-render every minute for relative timestamps
+  const tick = useLiveTimestamp();
+
   const latestUnreadMessageId = React.useMemo(() => {
     let latest: { id: string; ts: number } | null = null;
 
@@ -680,7 +683,8 @@ export function Chat({
         readTimestampLabel,
       });
     });
-  }, [allMessages, currentUserId, mergedReadReceipts, lastOwnReadMessageId, userReactions, reactionDeltas, hasReacted]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- tick triggers periodic re-render for live timestamps
+  }, [allMessages, currentUserId, mergedReadReceipts, lastOwnReadMessageId, userReactions, reactionDeltas, hasReacted, tick]);
 
   // Group messages by date (normalized)
   const messagesByDate = React.useMemo(() => {
