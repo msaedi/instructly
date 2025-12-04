@@ -7,10 +7,9 @@
  * - Delivery status
  */
 
-import { Paperclip, Check, CheckCheck, Pencil, Trash2 } from 'lucide-react';
+import { Paperclip, Check, CheckCheck, Pencil, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import type { MessageWithAttachments } from '../types';
-import { formatShortDate } from '../utils/formatters';
 
 export type MessageBubbleProps = {
   message: MessageWithAttachments;
@@ -33,6 +32,15 @@ export type MessageBubbleProps = {
   canEdit?: boolean;
   canDelete?: boolean;
   isDeleting?: boolean;
+  isEditing?: boolean;
+  editValue?: string;
+  onEditChange?: (value: string) => void;
+  onSaveEdit?: () => void;
+  onCancelEdit?: () => void;
+  isSavingEdit?: boolean;
+  showDeleteConfirm?: boolean;
+  onConfirmDelete?: () => void;
+  onCancelDelete?: () => void;
 };
 
 export function MessageBubble({
@@ -56,12 +64,22 @@ export function MessageBubble({
   canEdit = false,
   canDelete = false,
   isDeleting = false,
+  isEditing = false,
+  editValue,
+  onEditChange,
+  onSaveEdit,
+  onCancelEdit,
+  isSavingEdit = false,
+  showDeleteConfirm = false,
+  onConfirmDelete,
+  onCancelDelete,
 }: MessageBubbleProps) {
   const [isHovered, setIsHovered] = useState(false);
   const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
   const isDeleted = Boolean(message.isDeleted);
   const attachmentList = isDeleted ? [] : message.attachments || [];
   const displayText = isDeleted ? 'This message was deleted' : message.text?.trim();
+  const isInstructorMessage = message.sender === 'instructor';
 
   const bubbleClasses =
     isDeleted
@@ -77,22 +95,26 @@ export function MessageBubble({
       ? 'bg-white/10 border border-white/20'
       : 'bg-white border border-gray-200 dark:bg-gray-600 dark:border-gray-500';
 
-  const shortDate =
-    formatShortDate(message.createdAt) ||
-    formatShortDate((message as { timestamp?: string }).timestamp ?? null) ||
-    '';
+  const formattedTime = (() => {
+    const source =
+      message.createdAt ||
+      (message as { timestamp?: string }).timestamp ||
+      null;
+    if (!source) return '';
+    const d = new Date(source);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  })();
+
+  const timeLabel = formattedTime || message.timestamp || '';
 
   return (
-    <div
-      className={`flex ${message.sender === 'instructor' ? 'justify-end' : 'justify-start'}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onClick={() => {
-        if (isOwnMessage) return;
-        setIsHovered((prev) => !prev);
-      }}
-    >
-      <div className={`flex flex-col ${message.sender === 'instructor' ? 'items-end' : 'items-start'}`}>
+    <div className={`flex ${message.sender === 'instructor' ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className={`relative flex flex-col ${message.sender === 'instructor' ? 'items-end pl-2' : 'items-start pr-2'}`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
         {/* Sender name */}
         {showSenderName && senderName && (
           <div className={`text-xs text-gray-500 mb-1 ${message.sender === 'instructor' ? 'mr-2' : 'ml-2'}`}>
@@ -101,102 +123,171 @@ export function MessageBubble({
         )}
 
         <div
-          className={`group relative max-w-xs lg:max-w-md rounded-lg px-4 pt-6 pb-3 pr-14 ${bubbleClasses}`}
+          className={`group relative max-w-xs lg:max-w-md rounded-lg px-4 py-3 pr-14 ${bubbleClasses}`}
           data-testid="message-bubble"
         >
-        {shortDate && (
-          <div
-            className={`absolute top-2 right-3 flex flex-col items-end text-[11px] ${
-              message.sender === 'instructor'
-                ? 'text-white/80'
-                : message.sender === 'platform'
-                  ? 'text-blue-700 dark:text-blue-300'
-                  : 'text-gray-500 dark:text-gray-300'
-            }`}
-          >
-            <span className="leading-none mb-2">{shortDate}</span>
-          </div>
-        )}
-
-        {displayText && (
-          <div className="flex items-start gap-2">
-            <p className="text-sm whitespace-pre-line flex-1">{displayText}</p>
-            {isOwnMessage && !isDeleted && (canEdit || canDelete) && (
-              <div className="flex items-center gap-2">
-                {canEdit && onEdit && (
-                  <button
-                    type="button"
-                    onClick={onEdit}
-                    className="text-white/80 hover:text-white dark:text-gray-200"
-                    aria-label="Edit message"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                )}
-                {canDelete && onDelete && (
-                  <button
-                    type="button"
-                    onClick={onDelete}
-                    disabled={isDeleting}
-                    className={`text-white/80 hover:text-white dark:text-gray-200 ${isDeleting ? 'opacity-60 cursor-not-allowed' : ''}`}
-                    aria-label="Delete message"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+          {isEditing ? (
+            <>
+              <div className="flex items-start gap-2">
+                <textarea
+                  value={editValue ?? ''}
+                  onChange={(e) => onEditChange?.(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      onSaveEdit?.();
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      onCancelEdit?.();
+                    }
+                  }}
+                  rows={1}
+                  autoFocus
+                  className={`w-full resize-none rounded-md border px-3 py-2 text-sm leading-5 focus:outline-none focus:ring-1 ${
+                    isInstructorMessage
+                      ? 'bg-white/10 border-white/30 text-white placeholder:text-white/70 focus:ring-white/60'
+                      : 'bg-white border-gray-300 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white placeholder:text-gray-400 focus:ring-[#7E22CE]'
+                  }`}
+                  style={
+                    isInstructorMessage
+                      ? { color: 'white', caretColor: 'white', height: 'auto', overflowY: 'hidden' }
+                      : { height: 'auto', overflowY: 'hidden' }
+                  }
+                  placeholder="Edit message"
+                />
               </div>
-            )}
-          </div>
-        )}
+            </>
+          ) : (
+            displayText && (
+              <div className="flex items-start gap-2">
+                <p className="text-sm whitespace-pre-line flex-1">{displayText}</p>
+              </div>
+            )
+          )}
 
-        {attachmentList.length > 0 && (
-          <div className="mt-2 flex flex-col gap-2">
-            {attachmentList.map((attachment, index) => {
-              const isImage = attachment.type.startsWith('image/');
-              if (isImage && attachment.dataUrl) {
+          {attachmentList.length > 0 && (
+            <div className="mt-2 flex flex-col gap-2">
+              {attachmentList.map((attachment, index) => {
+                const isImage = attachment.type.startsWith('image/');
+                if (isImage && attachment.dataUrl) {
+                  return (
+                    <div
+                      key={`${attachment.name}-${index}`}
+                      className={`overflow-hidden rounded-lg ${attachmentWrapper}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={attachment.dataUrl}
+                        alt={attachment.name}
+                        className="max-w-[240px] rounded-md object-cover"
+                      />
+                      <p className="text-xs opacity-80 mt-1 truncate px-2 pb-1">{attachment.name}</p>
+                    </div>
+                  );
+                }
                 return (
                   <div
                     key={`${attachment.name}-${index}`}
-                    className={`overflow-hidden rounded-lg ${attachmentWrapper}`}
+                    className={`flex items-center gap-2 rounded-lg px-3 py-2 ${attachmentWrapper}`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={attachment.dataUrl}
-                      alt={attachment.name}
-                      className="max-w-[240px] rounded-md object-cover"
-                    />
-                    <p className="text-xs opacity-80 mt-1 truncate px-2 pb-1">{attachment.name}</p>
+                    <Paperclip className="w-4 h-4 opacity-80" />
+                    <span className="text-xs truncate max-w-[12rem]" title={attachment.name}>
+                      {attachment.name}
+                    </span>
                   </div>
                 );
-              }
-              return (
-                <div
-                  key={`${attachment.name}-${index}`}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 ${attachmentWrapper}`}
+              })}
+            </div>
+          )}
+
+          <div className={`mt-2 flex items-center gap-2 text-xs ${message.sender === 'instructor' ? 'text-white/80' : 'text-gray-600 dark:text-gray-300'} justify-end`}>
+            {isEditing ? (
+              <div className="flex items-center gap-2">
+                <span className="opacity-80">{isSavingEdit ? 'Saving…' : 'Save?'}</span>
+                <button
+                  type="button"
+                  onClick={() => onSaveEdit?.()}
+                  disabled={isSavingEdit || !editValue?.trim()}
+                  className={`rounded-full p-1 ${message.sender === 'instructor' ? 'hover:bg-white/10 text-white' : 'hover:bg-gray-100 text-gray-700'} ${isSavingEdit || !editValue?.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Confirm edit"
                 >
-                  <Paperclip className="w-4 h-4 opacity-80" />
-                  <span className="text-xs truncate max-w-[12rem]" title={attachment.name}>
-                    {attachment.name}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {!shortDate && <p className="text-xs opacity-70 mt-1">{message.timestamp}</p>}
-
-        {showReadIndicator && message.sender === 'instructor' && (
-          <div className="flex items-center justify-end mt-1">
-            {readReceiptCount > 0 ? (
-              <CheckCheck className="w-3 h-3 text-blue-300" />
-            ) : hasDeliveredAt ? (
-              <CheckCheck className="w-3 h-3 text-white/60" />
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCancelEdit?.()}
+                  className={`rounded-full p-1 ${message.sender === 'instructor' ? 'hover:bg-white/10 text-white' : 'hover:bg-gray-100 text-gray-700'}`}
+                  aria-label="Cancel edit"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : showDeleteConfirm ? (
+              <div className="flex items-center gap-2">
+                <span className="opacity-80">Delete?</span>
+                <button
+                  type="button"
+                  onClick={() => onConfirmDelete?.()}
+                  disabled={isDeleting}
+                  className={`rounded-full p-1 ${message.sender === 'instructor' ? 'hover:bg-white/10 text-white' : 'hover:bg-gray-100 text-gray-700'} ${isDeleting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  aria-label="Confirm delete"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCancelDelete?.()}
+                  className={`rounded-full p-1 ${message.sender === 'instructor' ? 'hover:bg-white/10 text-white' : 'hover:bg-gray-100 text-gray-700'}`}
+                  aria-label="Cancel delete"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             ) : (
-              <Check className="w-3 h-3 text-white/60" />
+              <>
+                {timeLabel && <span className="leading-none">{timeLabel}</span>}
+                {(message.isEdited || message.editedAt) && (
+                  <span className="text-[10px] opacity-80">edited</span>
+                )}
+                {showReadIndicator && message.sender === 'instructor' && (
+                  <>
+                    {readReceiptCount > 0 ? (
+                      <CheckCheck className="w-3 h-3 text-blue-300" />
+                    ) : hasDeliveredAt ? (
+                      <CheckCheck className="w-3 h-3 text-white/60" />
+                    ) : (
+                      <Check className="w-3 h-3 text-white/60" />
+                    )}
+                  </>
+                )}
+                {isOwnMessage && !isDeleted && (canEdit || canDelete) && (
+                  <div className="ml-1 flex items-center gap-2">
+                    {canEdit && onEdit && (
+                      <button
+                        type="button"
+                        onClick={onEdit}
+                        className="text-white/80 hover:text-white dark:text-gray-200"
+                        aria-label="Edit message"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canDelete && onDelete && (
+                      <button
+                        type="button"
+                        onClick={onDelete}
+                        disabled={isDeleting}
+                        className={`text-white/80 hover:text-white dark:text-gray-200 ${isDeleting ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        aria-label="Delete message"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
-        )}
         </div>
 
         {/* Inline read time for latest read own message (iMessage-style) */}
@@ -260,9 +351,29 @@ export function MessageBubble({
         })()}
 
         {/* Hover/press reaction bar (other user's messages only) */}
-        {!isOwnMessage && !isDeleted && onReactionClick && (
-          <div className={`mt-2 flex ${message.sender === 'instructor' ? 'justify-end pr-1' : 'justify-start pl-1'}`}>
-            {(isHovered || showReactionPicker) && (
+        {!isDeleted && onReactionClick && (isHovered || showReactionPicker) && (
+          <div
+            className={`absolute top-1/2 -translate-y-1/2 z-20 ${message.sender === 'instructor' ? 'right-full mr-1' : 'left-full ml-1'}`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            data-reaction-area="true"
+          >
+            {isHovered && !showReactionPicker && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  onToggleReactionPicker?.();
+                }}
+                className="rounded-full bg-white px-2 py-1 text-sm text-gray-700 shadow ring-1 ring-gray-200 hover:bg-gray-50"
+                aria-label="Add reaction"
+                data-reaction-area="true"
+              >
+                😊
+              </button>
+            )}
+            {showReactionPicker && (
               <div className="flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow px-2 py-1">
                 {quickEmojis.map((e) => {
                   const isCurrentReaction = currentReaction === e;
@@ -279,30 +390,24 @@ export function MessageBubble({
                       className={`text-xl leading-none transition ${
                         processingReaction ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'hover:scale-110'
                       } ${isCurrentReaction && 'bg-purple-100 rounded-full px-1'}`}
+                      data-reaction-area="true"
                     >
                       {e}
                     </button>
                   );
                 })}
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    event.preventDefault();
-                    onToggleReactionPicker?.();
-                  }}
-                  disabled={processingReaction}
-                  className={`rounded-full px-2 py-0.5 text-xs ring-1 transition ${
-                    processingReaction
-                      ? 'bg-gray-100 text-gray-400 ring-gray-200 cursor-not-allowed'
-                      : 'bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100'
-                  }`}
-                >
-                  +
-                </button>
               </div>
             )}
           </div>
+        )}
+        {/* Hover bridge to keep reaction visible while moving cursor */}
+        {!isDeleted && (
+          <div
+            className={`absolute top-0 bottom-0 ${message.sender === 'instructor' ? 'right-full w-6' : 'left-full w-6'}`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            data-reaction-area="true"
+          />
         )}
       </div>
     </div>

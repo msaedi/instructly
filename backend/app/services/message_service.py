@@ -443,6 +443,9 @@ class MessageService(BaseService):
             return False
         if message.sender_id != user_id:
             raise ForbiddenException("You can only edit your own messages")
+        # no-op if content unchanged
+        if message.content == new_content.strip():
+            return True
         # within 5 minutes
         try:
             from datetime import datetime, timedelta, timezone

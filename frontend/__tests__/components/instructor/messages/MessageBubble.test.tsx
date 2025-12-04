@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MessageBubble } from '@/components/instructor/messages/components/MessageBubble';
 import type { MessageWithAttachments } from '@/components/instructor/messages/types';
 
@@ -127,7 +127,30 @@ describe('MessageBubble', () => {
       expect(screen.getByText(/❤️ 1/)).toBeInTheDocument();
     });
 
-    it('should show reaction picker on other user messages', () => {
+    it('should show reaction picker button on hover for other user messages', () => {
+      const studentMessage: MessageWithAttachments = {
+        ...baseMessage,
+        sender: 'student',
+      };
+
+      render(
+        <MessageBubble
+          message={studentMessage}
+          isLastInstructor={false}
+          isOwnMessage={false}
+          onReactionClick={jest.fn()}
+          onToggleReactionPicker={jest.fn()}
+          showReactionPicker={false}
+        />
+      );
+
+      // Hovering the bubble should show the reaction button
+      fireEvent.mouseEnter(screen.getByTestId('message-bubble'));
+      const addButton = screen.getByRole('button', { name: /add reaction/i });
+      expect(addButton).toBeInTheDocument();
+    });
+
+    it('should show reaction options when picker is open', () => {
       const studentMessage: MessageWithAttachments = {
         ...baseMessage,
         sender: 'student',
@@ -144,11 +167,6 @@ describe('MessageBubble', () => {
         />
       );
 
-      // Should have the reaction picker button (+)
-      const addButton = screen.getByRole('button', { name: '+' });
-      expect(addButton).toBeInTheDocument();
-
-      // When picker is open, should show reaction options
       expect(screen.getByText('👍')).toBeInTheDocument();
       expect(screen.getByText('❤️')).toBeInTheDocument();
       expect(screen.getByText('😊')).toBeInTheDocument();
@@ -168,7 +186,7 @@ describe('MessageBubble', () => {
       );
 
       // Should not have the reaction picker controls
-      const addButton = screen.queryByRole('button', { name: '+' });
+      const addButton = screen.queryByRole('button', { name: /add reaction/i });
       expect(addButton).not.toBeInTheDocument();
     });
 
