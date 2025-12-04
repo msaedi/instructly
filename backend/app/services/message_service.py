@@ -243,12 +243,11 @@ class MessageService(BaseService):
         return int(count or 0)
 
     @BaseService.measure_operation("send_typing_indicator")
-    def send_typing_indicator(self, booking_id: str, user_id: str, user_name: str) -> None:
-        """Broadcast a typing indicator to the other participant (ephemeral)."""
+    def send_typing_indicator(self, booking_id: str, user_id: str, user_name: str) -> Optional[str]:
+        """Validate typing indicator request and return the recipient user ID."""
         # Verify access
         if not self._user_has_booking_access(booking_id, user_id):
             raise ForbiddenException("You don't have access to this booking")
-        from datetime import datetime, timezone
 
         # Get booking to determine the other participant
         booking = self._get_booking(booking_id)
@@ -258,17 +257,7 @@ class MessageService(BaseService):
             booking.student_id if user_id == booking.instructor_id else booking.instructor_id
         )
 
-        payload = {
-            "type": "typing_status",
-            "conversation_id": booking_id,
-            "user_id": user_id,
-            "user_name": user_name,
-            "is_typing": True,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-
-        # Notify the recipient's user channel (not the sender)
-        self.repository.notify_user_channel(recipient_id, payload)
+        return recipient_id
 
     @BaseService.measure_operation("mark_messages_as_read")
     def mark_messages_as_read(self, message_ids: List[str], user_id: str) -> int:
@@ -444,14 +433,6 @@ class MessageService(BaseService):
         with self.transaction():
             # Save history and apply edit through repository
             ok = bool(self.repository.apply_message_edit(message_id, new_content.strip()))
-            # Notify
-            payload = {
-                "type": "message_edited",
-                "message_id": message_id,
-                "content": new_content.strip(),
-                "edited_at": None,
-            }
-            self.repository.notify_booking_channel(message.booking_id, payload)
             return ok
 
     def _user_has_booking_access(self, booking_id: str, user_id: str) -> bool:

@@ -376,42 +376,6 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error(f"[REDIS-PUBSUB] Failed to initialize Redis Pub/Sub: {e}")
         # Don't fail startup - publishing is an optional enhancement
 
-    # Initialize message notification service
-    from .routes.messages import set_notification_service as set_legacy_notification_service
-    from .routes.v1.messages import set_notification_service as set_v1_notification_service
-    from .services.message_notification_service import MessageNotificationService
-
-    # [MSG-DEBUG] Log which database connection type is being used for LISTEN/NOTIFY
-    # Session pooler (port 5432) is required for Supabase to support LISTEN/NOTIFY
-    # Transaction pooler (port 6543) releases connections after each transaction, breaking LISTEN
-    if settings.database_url_session:
-        logger.info(
-            "[MSG-DEBUG] Startup: Using SESSION POOLER for LISTEN/NOTIFY (real-time messaging should work)"
-        )
-    else:
-        logger.info(
-            "[MSG-DEBUG] Startup: Using default DATABASE_URL for LISTEN/NOTIFY (local mode or no session pooler configured)"
-        )
-
-    logger.info("[MSG-DEBUG] Startup: Initializing MessageNotificationService...")
-    notification_service = MessageNotificationService()
-    try:
-        logger.info("[MSG-DEBUG] Startup: Starting notification service (PostgreSQL LISTEN)...")
-        await notification_service.start()
-        # Set notification service for both legacy and v1 routers during migration
-        set_legacy_notification_service(notification_service)
-        set_v1_notification_service(notification_service)
-        logger.info(
-            "[MSG-DEBUG] Startup: MessageNotificationService started successfully, "
-            "SSE real-time messaging ENABLED"
-        )
-    except Exception as e:
-        logger.error(
-            "[MSG-DEBUG] Startup: MessageNotificationService FAILED - real-time messaging DISABLED",
-            extra={"error": str(e), "error_type": type(e).__name__},
-        )
-        # Continue without real-time messaging if it fails
-
     if getattr(settings, "bgc_expiry_enabled", False):
         _ensure_expiry_job_scheduled()
 
@@ -430,13 +394,6 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         job_worker_task.cancel()
         with contextlib.suppress(Exception):
             await job_worker_task
-
-    # Stop message notification service
-    try:
-        await notification_service.stop()
-        logger.info("Message notification service stopped")
-    except Exception as e:
-        logger.error(f"Error stopping message notification service: {str(e)}")
 
     # Close Redis Pub/Sub client
     try:

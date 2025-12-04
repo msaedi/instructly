@@ -78,7 +78,6 @@ from ...schemas.message_responses import (
     TypingStatusResponse,
     UnreadCountResponse,
 )
-from ...services.message_notification_service import MessageNotificationService
 from ...services.message_service import MessageService
 
 # Redis Pub/Sub (v3.1 - Redis is the ONLY notification source)
@@ -101,22 +100,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["messages-v1"])
 
 ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
-
-# Store the notification service instance (will be injected at startup)
-_notification_service: MessageNotificationService | None = None
-
-
-def set_notification_service(service: MessageNotificationService) -> None:
-    """Set the notification service instance (called at app startup)."""
-    global _notification_service
-    _notification_service = service
-
-
-def get_notification_service() -> MessageNotificationService:
-    """Get the notification service instance."""
-    if _notification_service is None:
-        raise RuntimeError("Notification service not initialized")
-    return _notification_service
 
 
 def get_message_service(db: Session = Depends(get_db)) -> MessageService:
@@ -727,12 +710,15 @@ async def send_typing_indicator(
     """
     Send a typing indicator for a booking chat (ephemeral, no DB writes).
 
-    Broadcasts a NOTIFY with type=typing_status.
+    Publishes typing status via Redis Pub/Sub (no Postgres NOTIFY).
     Rate limited to 1 per second.
     """
-    # Let service handle access and notify via existing LISTEN/NOTIFY
+    # Let service handle access validation and participant lookup
+    recipient_id: Optional[str] = None
     try:
-        service.send_typing_indicator(booking_id, current_user.id, current_user.first_name)
+        recipient_id = service.send_typing_indicator(
+            booking_id, current_user.id, current_user.first_name
+        )
     except ForbiddenException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
@@ -740,8 +726,8 @@ async def send_typing_indicator(
 
     # Redis Pub/Sub publishing (Phase 1 - fire-and-forget)
     try:
-        recipient_id = service.get_recipient_id(booking_id, str(current_user.id))
-        if recipient_id:
+        recipient_id = recipient_id or service.get_recipient_id(booking_id, str(current_user.id))
+        if recipient_id is not None:
             await publish_typing_status(
                 conversation_id=booking_id,
                 user_id=str(current_user.id),
