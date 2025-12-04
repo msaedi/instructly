@@ -366,7 +366,7 @@ async def send_typing_indicator(
 ) -> TypingStatusResponse:
     """
     Send a typing indicator for a booking chat (ephemeral, no DB writes).
-    Broadcasts a NOTIFY with type=typing_status.
+    Broadcasts via Redis Pub/Sub (typing_status event).
     """
     # Let service handle access and notify
     try:
