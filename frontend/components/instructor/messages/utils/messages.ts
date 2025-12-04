@@ -110,6 +110,16 @@ export const mapMessageFromResponse = (
     mapped.read_by = message.read_by as ReadByEntry[];
   }
 
+  // Preserve reaction fields from API response
+  const reactions = (message as { reactions?: Record<string, number> }).reactions;
+  if (reactions) {
+    mapped.reactions = reactions;
+  }
+  const myReactions = (message as { my_reactions?: string[] }).my_reactions;
+  if (myReactions) {
+    mapped.my_reactions = myReactions;
+  }
+
   return mapped;
 };
 
