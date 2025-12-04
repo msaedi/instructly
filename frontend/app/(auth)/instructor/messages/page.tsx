@@ -49,7 +49,7 @@ import {
   MessageInput,
   TemplateEditor,
 } from '@/components/instructor/messages/components';
-import { MessageBubble as SharedMessageBubble, normalizeInstructorMessage, formatRelativeTimestamp, useReactions, useReadReceipts, useLiveTimestamp, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
+import { MessageBubble as SharedMessageBubble, normalizeInstructorMessage, formatRelativeTimestamp, useReactions, useReadReceipts, useLiveTimestamp, useSSEHandlers, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
 
 // Helper to convert messageDisplay to API filter parameters
 function getFiltersForDisplay(
@@ -229,8 +229,7 @@ export default function MessagesPage() {
 
   // Typing indicator
   const sendTypingMutation = useSendTypingIndicator();
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const sseTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleTyping = useCallback(() => {
     if (!selectedBookingId) return;
@@ -275,13 +274,19 @@ export default function MessagesPage() {
 
   // SSE connection (Phase 4: per-user inbox)
   const { subscribe } = useMessageStream();
-  const [sseTypingStatus, setSseTypingStatus] = useState<{ userId: string; userName: string; until: number } | null>(null);
-  const [readReceipts, setReadReceipts] = useState<Record<string, Array<{ user_id: string; read_at: string }>>>({});
+
+  // Shared SSE handlers for typing and read receipts
+  const {
+    typingStatus: sseTypingStatus,
+    sseReadReceipts,
+    handleSSETyping,
+    handleSSEReadReceipt,
+  } = useSSEHandlers();
 
   // Shared read receipt management hook
   const { mergedReadReceipts, lastReadMessageId: lastInstructorReadMessageId } = useReadReceipts({
     messages: threadMessages,
-    sseReadReceipts: readReceipts,
+    sseReadReceipts,
     currentUserId: currentUser?.id ?? '',
     getReadBy: (m) => m.read_by as ReadReceiptEntry[] | null | undefined,
     isOwnMessage: (m) => m.sender === 'instructor' || m.senderId === currentUser?.id,
@@ -323,34 +328,6 @@ export default function MessagesPage() {
       delivered_at: message.delivered_at,
     } as SSEMessageWithOwnership;
     handleSSEMessageRef.current(sseMessage, selectedChatRef.current, activeConversationRef.current);
-  }, []);
-
-  const handleSSETyping = useCallback((userId: string, userName: string, isTyping: boolean) => {
-    if (isTyping) {
-      setSseTypingStatus({ userId, userName, until: Date.now() + 3000 });
-      // Clear typing after 3 seconds if no update
-      if (sseTypingTimeoutRef.current) clearTimeout(sseTypingTimeoutRef.current);
-      sseTypingTimeoutRef.current = setTimeout(() => setSseTypingStatus(null), 3000);
-    } else {
-      setSseTypingStatus(null);
-    }
-  }, []);
-
-  const handleReadReceipt = useCallback((messageIds: string[], readerId: string) => {
-    if (!messageIds || !Array.isArray(messageIds)) {
-      return;
-    }
-
-    setReadReceipts((prev) => {
-      const updated = { ...prev };
-      messageIds.forEach((msgId) => {
-        const existing = updated[msgId] || [];
-        if (!existing.find((r) => r.user_id === readerId)) {
-          updated[msgId] = [...existing, { user_id: readerId, read_at: new Date().toISOString() }];
-        }
-      });
-      return updated;
-    });
   }, []);
 
   const handleReaction = useCallback((messageId: string, emoji: string, action: 'added' | 'removed', userId: string) => {
@@ -441,21 +418,20 @@ export default function MessagesPage() {
   // Subscribe to active conversation's events
   useEffect(() => {
     if (!selectedBookingId || messageDisplay !== 'inbox') {
-      setSseTypingStatus(null);
       return;
     }
 
     const unsubscribe = subscribe(selectedBookingId, {
       onMessage: handleSSEMessageWrapper,
       onTyping: handleSSETyping,
-      onReadReceipt: handleReadReceipt,
+      onReadReceipt: handleSSEReadReceipt,
       onReaction: handleReaction,
       onMessageEdited: handleMessageEdited,
       onMessageDeleted: handleMessageDeleted,
     });
 
     return unsubscribe;
-  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted]);
+  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleSSEReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted]);
 
   // Filter conversations (backend now handles state/type filtering, we just filter by search text)
   const filteredConversations = useMemo(() => {
@@ -674,15 +650,15 @@ export default function MessagesPage() {
     updateDraft(selectedChat, value);
 
     // Typing indicator debounce
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => handleTyping(), 300);
+    if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+    typingDebounceRef.current = setTimeout(() => handleTyping(), 300);
   }, [selectedChat, updateDraft, handleTyping]);
 
   const handleSend = useCallback(async () => {
     // Cancel typing indicator
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
     }
 
     await sendMessage({

@@ -17,3 +17,12 @@ export {
 } from './useReadReceipts';
 
 export { useLiveTimestamp } from './useLiveTimestamp';
+
+export {
+  useSSEHandlers,
+  type TypingStatus,
+  type SSEReadReceiptEntry,
+  type SSEReadReceiptMap,
+  type UseSSEHandlersParams,
+  type UseSSEHandlersReturn,
+} from './useSSEHandlers';

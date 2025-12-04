@@ -34,7 +34,7 @@ import { queryKeys } from '@/src/api/queryKeys';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
-import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, useReadReceipts, useLiveTimestamp, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
+import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, useReadReceipts, useLiveTimestamp, useSSEHandlers, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
 
 // Connection status enum (internal to Chat component)
 enum ConnectionStatus {
@@ -98,22 +98,22 @@ export function Chat({
   const removeReactionMutation = useRemoveReaction();
   const sendTypingMutation = useSendTypingIndicator();
   const lastMarkedUnreadByBookingRef = useRef<Record<string, string | null>>({});
+  const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Real-time messages via SSE (Phase 4: per-user inbox)
   const { subscribe, isConnected, connectionError } = useMessageStream();
   const [realtimeMessages, setRealtimeMessages] = useState<MessageResponse[]>([]);
-  const [readReceipts, setReadReceipts] = useState<
-    Record<string, Array<{ user_id: string; read_at: string }>>
-  >({});
-  const [typingStatus, setTypingStatus] = useState<{
-    userId: string;
-    userName: string;
-    until: number;
-  } | null>(null);
   const [reactionDeltas, setReactionDeltas] = useState<
     Record<string, Record<string, number>>
   >({});
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Shared SSE handlers for typing and read receipts
+  const {
+    typingStatus,
+    sseReadReceipts,
+    handleSSETyping,
+    handleSSEReadReceipt,
+  } = useSSEHandlers();
 
   // Map connection state to legacy status enum
   const connectionStatus: ConnectionStatus = connectionError
@@ -185,39 +185,6 @@ export function Chat({
       markMessagesAsReadMutate({ data: { message_ids: [message.id] } });
     }
   }, [bookingId, currentUserId, markMessagesAsReadMutate]);
-
-  const handleSSETyping = useCallback((userId: string, userName: string, isTyping: boolean) => {
-    if (isTyping) {
-      setTypingStatus({ userId, userName, until: Date.now() + 3000 });
-      // Clear typing after 3 seconds if no update
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => setTypingStatus(null), 3000);
-    } else {
-      setTypingStatus(null);
-    }
-  }, []);
-
-  const handleReadReceipt = useCallback((messageIds: string[], readerId: string) => {
-    // Defensive check: SSE event might send undefined
-    if (!messageIds || !Array.isArray(messageIds)) {
-      logger.warn('[Chat] Invalid read receipt event', { messageIds, readerId });
-      return;
-    }
-
-    setReadReceipts((prev) => {
-      const updated = { ...prev };
-      messageIds.forEach((msgId) => {
-        const existing = updated[msgId] || [];
-        if (!existing.find((r) => r.user_id === readerId)) {
-          updated[msgId] = [
-            ...existing,
-            { user_id: readerId, read_at: new Date().toISOString() },
-          ];
-        }
-      });
-      return updated;
-    });
-  }, []);
 
   const handleReaction = useCallback((messageId: string, emoji: string, action: 'added' | 'removed', userId: string) => {
     // Skip SSE deltas for current user's own reactions - already handled optimistically
@@ -326,7 +293,7 @@ export function Chat({
     const unsubscribe = subscribe(bookingId, {
       onMessage: handleSSEMessage,
       onTyping: handleSSETyping,
-      onReadReceipt: handleReadReceipt,
+      onReadReceipt: handleSSEReadReceipt,
       onReaction: handleReaction,
       onMessageEdited: handleMessageEdited,
       onMessageDeleted: handleMessageDeleted,
@@ -343,9 +310,8 @@ export function Chat({
         timestamp: new Date().toISOString(),
       });
       unsubscribe();
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [bookingId, subscribe, handleSSEMessage, handleSSETyping, handleReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted, queryClient]);
+  }, [bookingId, subscribe, handleSSEMessage, handleSSETyping, handleSSEReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted, queryClient]);
 
   // Combine history and real-time messages with deduplication
   const allMessages = React.useMemo(() => {
@@ -415,7 +381,7 @@ export function Chat({
   // Shared read receipt management hook
   const { mergedReadReceipts, lastReadMessageId: lastOwnReadMessageId } = useReadReceipts<MessageResponse>({
     messages: allMessages,
-    sseReadReceipts: readReceipts,
+    sseReadReceipts,
     currentUserId,
     getReadBy: (m) => m.read_by as ReadReceiptEntry[] | null | undefined,
     isOwnMessage: (m) => m.sender_id === currentUserId,
@@ -504,9 +470,9 @@ export function Chat({
     setInputMessage('');
 
     // Cancel any pending typing indicator
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
     }
 
     try {
@@ -589,8 +555,8 @@ export function Chat({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputMessage(e.target.value);
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
+    if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+    typingDebounceRef.current = setTimeout(() => {
       void handleTyping();
     }, 300); // 300ms debounce for more responsive typing indicator
   };
