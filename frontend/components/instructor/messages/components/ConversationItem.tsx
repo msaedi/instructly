@@ -12,7 +12,7 @@ import type { MouseEvent as ReactMouseEvent } from 'react';
 import { Archive, Pencil, Trash2 } from 'lucide-react';
 import type { ConversationEntry } from '../types';
 import { COMPOSE_THREAD_ID } from '../constants';
-import { formatShortDate } from '../utils/formatters';
+import { formatShortDate } from '@/components/messaging/formatters';
 
 export type ConversationItemProps = {
   conversation: ConversationEntry;

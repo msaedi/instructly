@@ -2,6 +2,15 @@
  * Utility exports for instructor messages
  */
 
-export * from './formatters';
+// Re-export formatters from shared messaging location
+export {
+  formatRelativeTime,
+  formatRelativeTimestamp,
+  formatTimeLabel,
+  formatShortDate,
+  getInitials,
+  formatStudentName,
+} from '@/components/messaging/formatters';
+
 export * from './messages';
 export * from './templates';

@@ -10,7 +10,7 @@ import type {
   MessageWithAttachments,
   ReadByEntry,
 } from '../types';
-import { formatRelativeTime, formatTimeLabel } from './formatters';
+import { formatRelativeTime, formatTimeLabel } from '@/components/messaging/formatters';
 
 /**
  * Check if an error is an AbortError
