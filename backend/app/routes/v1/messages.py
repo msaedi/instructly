@@ -83,6 +83,7 @@ from ...services.message_service import MessageService
 # Redis Pub/Sub (v3.1 - Redis is the ONLY notification source)
 from ...services.messaging import (
     create_sse_stream,
+    publish_message_deleted,
     publish_message_edited,
     publish_new_message,
     publish_reaction_update,
@@ -896,6 +897,13 @@ async def delete_message(
     Requires SEND_MESSAGES permission.
     """
     try:
+        message = service.get_message_by_id(message_id, str(current_user.id))
+        if not message:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Message not found",
+            )
+
         deleted = service.delete_message(
             message_id=message_id,
             user_id=current_user.id,
@@ -907,6 +915,25 @@ async def delete_message(
                 detail="Message not found",
             )
 
+        # Redis Pub/Sub publishing (fire-and-forget)
+        try:
+            recipient_id = service.get_recipient_id(message.booking_id, str(current_user.id))
+            await publish_message_deleted(
+                conversation_id=str(message.booking_id),
+                message_id=message_id,
+                deleted_by=str(current_user.id),
+                recipient_ids=[recipient_id] if recipient_id else [],
+            )
+            logger.debug(
+                "[REDIS-PUBSUB] Message DELETE: Published to Redis",
+                extra={"message_id": message_id},
+            )
+        except Exception as e:
+            logger.error(
+                "[REDIS-PUBSUB] Message DELETE: Redis publish failed",
+                extra={"error": str(e), "message_id": message_id},
+            )
+
         return DeleteMessageResponse(
             success=True,
             message="Message deleted successfully",
@@ -915,6 +942,11 @@ async def delete_message(
     except ForbiddenException as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        )
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
     except HTTPException:

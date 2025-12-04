@@ -16,7 +16,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
-import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown, Pencil } from 'lucide-react';
+import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import {
@@ -28,6 +28,7 @@ import {
   useAddReaction,
   useRemoveReaction,
   useSendTypingIndicator,
+  useDeleteMessage,
 } from '@/src/api/services/messages';
 import { queryKeys } from '@/src/api/queryKeys';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
@@ -94,6 +95,10 @@ export function Chat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState<string>("");
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
 
   // Fetch message history
   const {
@@ -108,6 +113,7 @@ export function Chat({
   const sendMessageMutation = useSendMessage();
   const { mutate: markMessagesAsReadMutate } = useMarkMessagesAsRead();
   const editMessageMutation = useEditMessage();
+  const deleteMessageMutation = useDeleteMessage();
   const addReactionMutation = useAddReaction();
   const removeReactionMutation = useRemoveReaction();
   const sendTypingMutation = useSendTypingIndicator();
@@ -284,6 +290,38 @@ export function Chat({
     logger.debug('[MSG-DEBUG] handleMessageEdited DONE - updated local state + invalidated cache');
   }, [bookingId, queryClient]);
 
+  const handleMessageDeleted = useCallback((messageId: string, _deletedBy: string) => {
+    logger.debug('[MSG-DEBUG] handleMessageDeleted CALLED', {
+      messageId,
+      currentBookingId: bookingId,
+    });
+
+    if (editingMessageId === messageId) {
+        setEditingMessageId(null);
+        setEditingContent("");
+    }
+
+    setRealtimeMessages((prev) => {
+      const messageIndex = prev.findIndex((m) => m.id === messageId);
+      if (messageIndex !== -1) {
+        const updated = [...prev];
+        updated[messageIndex] = {
+          ...updated[messageIndex]!,
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+          content: 'This message was deleted',
+        } as MessageResponse;
+        return updated;
+      }
+      return prev;
+    });
+
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.messages.history(bookingId),
+      exact: false,
+    });
+  }, [bookingId, queryClient, editingMessageId]);
+
   // Subscribe to this conversation's events
   useEffect(() => {
     logger.debug('[MSG-DEBUG] Chat: subscription useEffect running', {
@@ -316,6 +354,7 @@ export function Chat({
       onReadReceipt: handleReadReceipt,
       onReaction: handleReaction,
       onMessageEdited: handleMessageEdited,
+      onMessageDeleted: handleMessageDeleted,
     });
 
     logger.debug('[MSG-DEBUG] Chat: Subscription complete', {
@@ -331,7 +370,7 @@ export function Chat({
       unsubscribe();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [bookingId, subscribe, handleSSEMessage, handleSSETyping, handleReadReceipt, handleReaction, handleMessageEdited, queryClient]);
+  }, [bookingId, subscribe, handleSSEMessage, handleSSETyping, handleReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted, queryClient]);
 
   // Combine history and real-time messages with deduplication
   const allMessages = React.useMemo(() => {
@@ -350,19 +389,13 @@ export function Chat({
     });
 
     // Add real-time messages (only if not already in history)
-    // SSE now echoes messages to sender with is_mine flag
+    // SSE now echoes messages to sender with is_mine flag; realtime always wins for freshness
     realtimeMessages.forEach(msg => {
-      if (!messageMap.has(msg.id)) {
-        messageMap.set(msg.id, msg);
-        logger.debug('[MSG-DEBUG] Chat: allMessages - added realtime message', {
-          messageId: msg.id,
-          content: msg.content?.substring(0, 30),
-        });
-      } else {
-        logger.debug('[MSG-DEBUG] Chat: allMessages - skipped duplicate', {
-          messageId: msg.id,
-        });
-      }
+      messageMap.set(msg.id, msg);
+      logger.debug('[MSG-DEBUG] Chat: allMessages - applied realtime message', {
+        messageId: msg.id,
+        content: msg.content?.substring(0, 30),
+      });
     });
 
     const result = Array.from(messageMap.values()).sort(
@@ -782,10 +815,6 @@ export function Chat({
     }
   };
 
-  // Edit mode state
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState<string>("");
-  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
   useEffect(() => {
     if (editingMessageId) {
       requestAnimationFrame(() => autosizeEditingTextarea());
@@ -819,10 +848,42 @@ export function Chat({
 
   const canEditMessage = (message: MessageResponse): boolean => {
     if (message.sender_id !== currentUserId) return false;
+    const isDeleted = Boolean((message as { is_deleted?: boolean }).is_deleted);
+    if (isDeleted) return false;
     const created = new Date(message.created_at).getTime();
     const now = Date.now();
     const diffMinutes = (now - created) / 60000;
     return diffMinutes <= editWindowMinutes;
+  };
+
+  const handleDeleteMessage = async (message: MessageResponse) => {
+    if (!canEditMessage(message)) return;
+    const confirmDelete = typeof window === 'undefined' ? true : window.confirm('Delete this message?');
+    if (!confirmDelete) return;
+
+    setDeletingMessageId(message.id);
+    try {
+      await deleteMessageMutation.mutateAsync({ messageId: message.id });
+    setRealtimeMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === message.id);
+      if (idx === -1) return prev;
+      const updated = [...prev];
+      updated[idx] = {
+        ...updated[idx]!,
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        content: 'This message was deleted',
+        } as MessageResponse;
+      return updated;
+    });
+
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.messages.history(bookingId),
+        exact: false,
+      });
+    } finally {
+      setDeletingMessageId(null);
+    }
   };
 
   // Track SINGLE reaction per message (messageId -> emoji or null)
@@ -1049,6 +1110,9 @@ export function Chat({
                   const isOwn = message.sender_id === currentUserId;
                   const showSender = index === 0 ||
                     messages[index - 1]?.sender_id !== message.sender_id;
+                  const isDeleted = Boolean(
+                    (message as MessageResponse & { is_deleted?: boolean }).is_deleted
+                  );
 
                   return (
                     <div
@@ -1111,11 +1175,13 @@ export function Chat({
                                 >
                                   Cancel
                                 </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap">{message.content}</p>
-                          )}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className={cn('whitespace-pre-wrap', isDeleted && 'italic text-gray-500')}>
+                          {isDeleted ? 'This message was deleted' : message.content}
+                        </p>
+                      )}
                           <div className={cn(
                             'flex items-center justify-end mt-1 space-x-1',
                             isOwn ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
@@ -1136,13 +1202,23 @@ export function Chat({
                             {message.edited_at && (
                               <span className={cn('text-[10px] ml-1', isOwn ? 'text-blue-100/80' : 'text-gray-400')}>edited</span>
                             )}
-                            {isOwn && editingMessageId !== message.id && canEditMessage(message) && (
-                              <button
-                                onClick={() => startEdit(message)}
-                                className={cn('ml-2 rounded-full p-1', isOwn ? 'hover:bg-white/10' : 'hover:bg-gray-100')}
-                                aria-label="Edit message"
+                          {isOwn && !isDeleted && editingMessageId !== message.id && canEditMessage(message) && (
+                            <button
+                              onClick={() => startEdit(message)}
+                              className={cn('ml-2 rounded-full p-1', isOwn ? 'hover:bg-white/10' : 'hover:bg-gray-100')}
+                              aria-label="Edit message"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {isOwn && !isDeleted && canEditMessage(message) && (
+                            <button
+                              onClick={() => void handleDeleteMessage(message)}
+                              className={cn('ml-1 rounded-full p-1', isOwn ? 'hover:bg-white/10' : 'hover:bg-gray-100')}
+                              aria-label="Delete message"
+                              disabled={deletingMessageId === message.id}
                               >
-                                <Pencil className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
                           </div>

@@ -16,6 +16,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from app.services.messaging.events import (
+    build_message_deleted_event,
     build_message_edited_event,
     build_new_message_event,
     build_reaction_update_event,
@@ -196,4 +197,26 @@ async def publish_read_receipt(
     logger.debug(
         f"[REDIS-PUBSUB] Published read_receipt for {len(message_ids)} messages "
         f"to {len(other_users)} users"
+    )
+
+
+async def publish_message_deleted(
+    conversation_id: str,
+    message_id: str,
+    deleted_by: str,
+    recipient_ids: List[str],
+) -> None:
+    """Publish message deleted event to conversation participants."""
+    event = build_message_deleted_event(
+        conversation_id=conversation_id,
+        message_id=message_id,
+        deleted_by=deleted_by,
+    )
+
+    # Send to all participants (both sides)
+    all_user_ids = list(set([deleted_by] + recipient_ids))
+    await pubsub_manager.publish_to_users(all_user_ids, event)
+
+    logger.debug(
+        f"[REDIS-PUBSUB] Published message_deleted {message_id} to {len(all_user_ids)} users"
     )

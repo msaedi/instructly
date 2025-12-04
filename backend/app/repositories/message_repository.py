@@ -94,7 +94,7 @@ class MessageRepository(BaseRepository[Message]):
                 List[Message],
                 (
                     self.db.query(Message)
-                    .filter(and_(Message.booking_id == booking_id, Message.is_deleted == False))
+                    .filter(Message.booking_id == booking_id)
                     .options(joinedload(Message.sender))
                     .order_by(Message.created_at.desc())
                     .limit(limit)
@@ -127,6 +127,7 @@ class MessageRepository(BaseRepository[Message]):
                         and_(
                             Message.booking_id == booking_id,
                             Message.is_deleted == False,
+                            Message.deleted_at.is_(None),
                             MessageNotification.user_id == user_id,
                             MessageNotification.is_read == False,
                         )
@@ -218,6 +219,7 @@ class MessageRepository(BaseRepository[Message]):
                         MessageNotification.user_id == user_id,
                         MessageNotification.is_read == False,
                         Message.is_deleted == False,
+                        Message.deleted_at.is_(None),
                     )
                 )
                 .scalar()
@@ -435,7 +437,13 @@ class MessageRepository(BaseRepository[Message]):
                 Optional[Message],
                 (
                     self.db.query(Message)
-                    .filter(and_(Message.booking_id == booking_id, Message.is_deleted == False))
+                    .filter(
+                        and_(
+                            Message.booking_id == booking_id,
+                            Message.is_deleted == False,
+                            Message.deleted_at.is_(None),
+                        )
+                    )
                     .order_by(Message.created_at.desc())
                     .first()
                 ),
@@ -444,27 +452,32 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching latest message: {str(e)}")
             raise RepositoryException(f"Failed to fetch latest message: {str(e)}")
 
-    def delete_message(self, message_id: str) -> bool:
+    def soft_delete_message(self, message_id: str, user_id: str) -> Optional[Message]:
         """
-        Soft delete a message.
+        Soft delete a message by marking deletion metadata.
 
         Args:
             message_id: ID of the message to delete
+            user_id: ULID of the user performing the deletion
 
         Returns:
-            True if deleted, False if not found
+            The updated message or None if not found
         """
         try:
             message = cast(
                 Optional[Message],
                 self.db.query(Message).filter(Message.id == message_id).first(),
             )
-            if message:
-                message.is_deleted = True
-                message.updated_at = datetime.now(timezone.utc)
-                self.logger.info(f"Soft deleted message {message_id}")
-                return True
-            return False
+            if not message:
+                return None
+
+            message.is_deleted = True
+            now = datetime.now(timezone.utc)
+            message.deleted_at = now
+            message.deleted_by = user_id
+            message.updated_at = now
+            self.logger.info(f"Soft deleted message {message_id} by user {user_id}")
+            return message
 
         except Exception as e:
             self.logger.error(f"Error deleting message: {str(e)}")
@@ -641,7 +654,6 @@ class MessageRepository(BaseRepository[Message]):
                         and_(
                             Message.booking_id.in_(booking_ids),
                             Message.id > after_message_id,
-                            Message.is_deleted == False,
                         )
                     )
                     .order_by(Message.id)

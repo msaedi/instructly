@@ -7,7 +7,7 @@
  * - Delivery status
  */
 
-import { Paperclip, Check, CheckCheck } from 'lucide-react';
+import { Paperclip, Check, CheckCheck, Pencil, Trash2 } from 'lucide-react';
 import type { MessageWithAttachments } from '../types';
 import { formatShortDate } from '../utils/formatters';
 
@@ -27,6 +27,11 @@ export type MessageBubbleProps = {
   showReactionPicker?: boolean;
   onToggleReactionPicker?: () => void;
   processingReaction?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  isDeleting?: boolean;
 };
 
 export function MessageBubble({
@@ -45,16 +50,24 @@ export function MessageBubble({
   showReactionPicker = false,
   onToggleReactionPicker,
   processingReaction = false,
+  onEdit,
+  onDelete,
+  canEdit = false,
+  canDelete = false,
+  isDeleting = false,
 }: MessageBubbleProps) {
-  const attachmentList = message.attachments || [];
-  const displayText = message.text?.trim();
+  const isDeleted = Boolean(message.isDeleted);
+  const attachmentList = isDeleted ? [] : message.attachments || [];
+  const displayText = isDeleted ? 'This message was deleted' : message.text?.trim();
 
   const bubbleClasses =
-    message.sender === 'instructor'
-      ? 'bg-[#7E22CE] text-white'
-      : message.sender === 'platform'
-        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
-        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-white';
+    isDeleted
+      ? 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300 ring-1 ring-gray-200/60'
+      : message.sender === 'instructor'
+        ? 'bg-[#7E22CE] text-white'
+        : message.sender === 'platform'
+          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
+          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-white';
 
   const attachmentWrapper =
     message.sender === 'instructor'
@@ -152,8 +165,38 @@ export function MessageBubble({
           </div>
         )}
 
+        {isOwnMessage && !isDeleted && (canEdit || canDelete) && (
+          <div className="mt-2 flex gap-2 text-xs text-gray-600 dark:text-gray-300">
+            {canEdit && onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 bg-white/70 text-gray-800 hover:bg-white transition dark:bg-gray-600 dark:text-gray-100 dark:hover:bg-gray-500"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit
+              </button>
+            )}
+            {canDelete && onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={isDeleting}
+                className={`inline-flex items-center gap-1 rounded-md px-2 py-1 border ${
+                  isDeleting
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    : 'bg-white text-red-700 border-red-200 hover:bg-red-50 transition dark:bg-gray-600 dark:text-red-200 dark:border-red-300/50'
+                }`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {isDeleting ? 'Deleting…' : 'Delete'}
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Reaction bar (counts) */}
-        {(() => {
+        {!isDeleted && (() => {
           const reactions = message.reactions || {};
           const displayReactions: Record<string, number> = { ...reactions };
 

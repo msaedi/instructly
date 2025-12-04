@@ -11,7 +11,8 @@ export type SSEEventType =
   | 'typing_status'
   | 'read_receipt'
   | 'reaction_update'
-  | 'message_edited';
+  | 'message_edited'
+  | 'message_deleted';
 
 export interface SSEMessageEvent {
   type: 'new_message';
@@ -63,12 +64,21 @@ export interface SSEMessageEditedEvent {
   };
 }
 
+export interface SSEMessageDeletedEvent {
+  type: 'message_deleted';
+  conversation_id: string;
+  message_id: string;
+  deleted_by: string;
+  deleted_at?: string;
+}
+
 export type SSEEvent =
   | SSEMessageEvent
   | SSETypingEvent
   | SSEReadReceiptEvent
   | SSEReactionEvent
-  | SSEMessageEditedEvent;
+  | SSEMessageEditedEvent
+  | SSEMessageDeletedEvent;
 
 export interface ConversationHandlers {
   onMessage?: (message: SSEMessageEvent['message'], isMine: boolean) => void;
@@ -76,4 +86,5 @@ export interface ConversationHandlers {
   onReadReceipt?: (messageIds: string[], readerId: string) => void;
   onReaction?: (messageId: string, emoji: string, action: 'added' | 'removed', userId: string) => void;
   onMessageEdited?: (messageId: string, newContent: string, editorId: string) => void;
+  onMessageDeleted?: (messageId: string, deletedBy: string) => void;
 }

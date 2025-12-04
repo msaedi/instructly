@@ -13,7 +13,14 @@ import { useRouter } from 'next/navigation';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ArrowLeft, Bell, MessageSquare, ChevronDown, Undo2 } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { useSendTypingIndicator, useAddReaction, useRemoveReaction } from '@/src/api/services/messages';
+import {
+  useSendTypingIndicator,
+  useAddReaction,
+  useRemoveReaction,
+  useEditMessage,
+  useDeleteMessage,
+  useMessageConfig,
+} from '@/src/api/services/messages';
 import { useAuthStatus } from '@/hooks/queries/useAuth';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import { logger } from '@/lib/logger';
@@ -24,6 +31,7 @@ import {
   type MessageDisplayMode,
   type MailSection,
   type SSEMessageWithOwnership,
+  type MessageWithAttachments,
   COMPOSE_THREAD_ID,
 } from '@/components/instructor/messages';
 
@@ -75,6 +83,10 @@ export default function MessagesPage() {
   const [messageDisplay, setMessageDisplay] = useState<MessageDisplayMode>('inbox');
   const [composeRecipient, setComposeRecipient] = useState<ConversationEntry | null>(null);
   const [composeRecipientQuery, setComposeRecipientQuery] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
 
   // Header dropdowns
   const msgRef = useRef<HTMLDivElement | null>(null);
@@ -142,6 +154,11 @@ export default function MessagesPage() {
     conversations,
     setConversations,
   });
+
+  const { data: messageConfig } = useMessageConfig();
+  const editWindowMinutes = messageConfig?.edit_window_minutes ?? 5;
+  const editMessageMutation = useEditMessage();
+  const deleteMessageMutation = useDeleteMessage();
 
   // Track previous conversation IDs to detect reappearances (auto-restored conversations)
   const previousConversationIds = useRef<Set<string>>(new Set());
@@ -372,6 +389,26 @@ export default function MessagesPage() {
     });
   }, [updateThreadMessage, selectedChat]);
 
+  const handleMessageDeleted = useCallback((messageId: string, deletedBy: string) => {
+    logger.debug('[MSG-DEBUG] handleMessageDeleted CALLED (instructor)', {
+      messageId,
+      deletedBy,
+    });
+
+    if (editingMessageId === messageId) {
+      setEditingMessageId(null);
+      setEditingContent('');
+    }
+
+    updateThreadMessage(messageId, (msg) => ({
+      ...msg,
+      isDeleted: true,
+      text: 'This message was deleted',
+      deletedBy,
+      deletedAt: new Date().toISOString(),
+    }));
+  }, [editingMessageId, updateThreadMessage]);
+
   const handleAddReaction = useCallback(async (messageId: string, emoji: string) => {
     // Prevent multiple simultaneous reactions
     if (processingReaction !== null) {
@@ -440,6 +477,70 @@ export default function MessagesPage() {
     }
   }, [processingReaction, threadMessages, userReactions, removeReactionMutation, addReactionMutation]);
 
+  const canModifyMessage = useCallback((message: MessageWithAttachments): boolean => {
+    if (!currentUser?.id) return false;
+    if (message.senderId !== currentUser.id) return false;
+    if (message.isDeleted) return false;
+    const created = message.createdAt ? new Date(message.createdAt).getTime() : undefined;
+    if (!created) return false;
+    const diffMinutes = (Date.now() - created) / 60000;
+    return diffMinutes <= editWindowMinutes;
+  }, [currentUser?.id, editWindowMinutes]);
+
+  const startEditMessage = (message: MessageWithAttachments) => {
+    if (!canModifyMessage(message)) return;
+    setEditingMessageId(message.id);
+    setEditingContent(message.text ?? '');
+  };
+
+  const cancelEditMessage = () => {
+    setEditingMessageId(null);
+    setEditingContent('');
+  };
+
+  const saveEditMessage = async () => {
+    if (!editingMessageId || !editingContent.trim()) return;
+    const target = threadMessages.find((m) => m.id === editingMessageId);
+    if (!target || !canModifyMessage(target)) return;
+    setIsSavingEdit(true);
+    try {
+      await editMessageMutation.mutateAsync({
+        messageId: editingMessageId,
+        data: { content: editingContent.trim() },
+      });
+
+      updateThreadMessage(editingMessageId, (msg) => ({
+        ...msg,
+        text: editingContent.trim(),
+        isEdited: true,
+        editedAt: new Date().toISOString(),
+      }));
+      setEditingMessageId(null);
+      setEditingContent('');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleDeleteMessage = async (message: MessageWithAttachments) => {
+    if (!canModifyMessage(message)) return;
+    const confirmDelete = typeof window === 'undefined' ? true : window.confirm('Delete this message?');
+    if (!confirmDelete) return;
+    setDeletingMessageId(message.id);
+    try {
+      await deleteMessageMutation.mutateAsync({ messageId: message.id });
+      updateThreadMessage(message.id, (msg) => ({
+        ...msg,
+        isDeleted: true,
+        text: 'This message was deleted',
+        deletedAt: new Date().toISOString(),
+        deletedBy: currentUser?.id ?? null,
+      }));
+    } finally {
+      setDeletingMessageId(null);
+    }
+  };
+
   // Initialize userReactions from server data when messages load
   useEffect(() => {
     setUserReactions((prev) => {
@@ -472,10 +573,11 @@ export default function MessagesPage() {
       onReadReceipt: handleReadReceipt,
       onReaction: handleReaction,
       onMessageEdited: handleMessageEdited,
+      onMessageDeleted: handleMessageDeleted,
     });
 
     return unsubscribe;
-  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleReadReceipt, handleReaction, handleMessageEdited]);
+  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted]);
 
   // Filter conversations (backend now handles state/type filtering, we just filter by search text)
   const filteredConversations = useMemo(() => {
@@ -517,6 +619,11 @@ export default function MessagesPage() {
       .filter((conv) => conv.id !== composeRecipient?.id && conv.name.toLowerCase().includes(query))
       .slice(0, 5);
   }, [composeRecipientQuery, composeRecipient?.id, conversations]);
+
+  useEffect(() => {
+    setEditingMessageId(null);
+    setEditingContent('');
+  }, [selectedChat, messageDisplay]);
 
   // Merge read receipts from message history and SSE events
   const mergedReadReceipts = useMemo(() => {
@@ -930,6 +1037,8 @@ export default function MessagesPage() {
                         const hasDeliveredAt = !!message.delivered_at;
 
                         const isOwnMessage = message.sender === 'instructor';
+                        const isDeleted = Boolean(message.isDeleted);
+                        const canModify = messageDisplay === 'inbox' && canModifyMessage(message);
                         const currentReaction: string | null =
                           message.id in userReactions
                             ? userReactions[message.id]!  // We know it exists, so assert non-null access
@@ -946,6 +1055,42 @@ export default function MessagesPage() {
                               return `Read on ${format(readAt, 'MMM d')} at ${format(readAt, 'h:mm a')}`;
                             })()
                           : undefined;
+
+                        if (editingMessageId === message.id) {
+                          return (
+                            <div
+                              key={message.id}
+                              className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div className="flex flex-col max-w-lg w-full gap-2">
+                                <textarea
+                                  value={editingContent}
+                                  onChange={(e) => setEditingContent(e.target.value)}
+                                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#7E22CE] focus:ring-[#7E22CE]"
+                                  rows={3}
+                                  placeholder="Edit message"
+                                />
+                                <div className="flex gap-2 justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={saveEditMessage}
+                                    disabled={isSavingEdit || !editingContent.trim()}
+                                    className="inline-flex items-center gap-1 rounded-md bg-[#7E22CE] px-3 py-1.5 text-sm text-white hover:bg-[#6b1db4] disabled:opacity-60"
+                                  >
+                                    {isSavingEdit ? 'Saving…' : 'Save'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelEditMessage}
+                                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
 
                         return (
                           <MessageBubble
@@ -969,6 +1114,11 @@ export default function MessagesPage() {
                               )
                             }
                             processingReaction={processingReaction !== null}
+                            canEdit={canModify && !isDeleted}
+                            canDelete={canModify && !isDeleted}
+                            onEdit={() => startEditMessage(message)}
+                            onDelete={() => void handleDeleteMessage(message)}
+                            isDeleting={deletingMessageId === message.id}
                           />
                         );
                       })}

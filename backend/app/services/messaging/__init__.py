@@ -12,6 +12,7 @@ from app.services.messaging.events import (
     build_event,
 )
 from app.services.messaging.publisher import (
+    publish_message_deleted,
     publish_message_edited,
     publish_new_message,
     publish_reaction_update,
@@ -30,6 +31,7 @@ __all__ = [
     "publish_reaction_update",
     "publish_message_edited",
     "publish_read_receipt",
+    "publish_message_deleted",
     # SSE Stream (Phase 2)
     "create_sse_stream",
     # Events

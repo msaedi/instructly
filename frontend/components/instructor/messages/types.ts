@@ -49,6 +49,11 @@ export type MessageWithAttachments = MessageItem & {
   delivery?: MessageDelivery | undefined;
   createdAt?: string | undefined;
   senderId?: string | undefined;
+  isDeleted?: boolean | undefined;
+  deletedAt?: string | null | undefined;
+  deletedBy?: string | null | undefined;
+  isEdited?: boolean | undefined;
+  editedAt?: string | null | undefined;
   isArchived?: boolean | undefined;
   isTrashed?: boolean | undefined;
   read_by?: ReadByEntry[] | undefined;

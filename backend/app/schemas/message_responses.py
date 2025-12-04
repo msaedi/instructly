@@ -32,6 +32,8 @@ class MessageResponse(StrictModel):
     created_at: datetime
     updated_at: datetime
     is_deleted: bool = False
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[str] = None
     delivered_at: Optional[datetime] = None
     edited_at: Optional[datetime] = None
     # Array of { user_id: str, read_at: datetime }

@@ -10,14 +10,17 @@ Handles business logic for the messaging system including:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import ForbiddenException, NotFoundException, ValidationException
 from ..models.booking import Booking, BookingStatus
 from ..models.message import Message
-from ..repositories.conversation_state_repository import ConversationStateRepository
+from ..repositories.conversation_state_repository import (
+    ConversationStateRepository,
+    ConversationSummaryRepository,
+)
 from ..repositories.factory import RepositoryFactory
 from ..repositories.message_repository import MessageRepository
 from .base import BaseService
@@ -46,6 +49,7 @@ class MessageService(BaseService):
         self.repository: MessageRepository = RepositoryFactory.create_message_repository(db)
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
         self.conversation_state_repository = ConversationStateRepository(db)
+        self.conversation_summary_repository = ConversationSummaryRepository(db)
         self.notification_service = notification_service
         self.logger = logging.getLogger(__name__)
 
@@ -257,7 +261,7 @@ class MessageService(BaseService):
             booking.student_id if user_id == booking.instructor_id else booking.instructor_id
         )
 
-        return recipient_id
+        return cast(Optional[str], recipient_id)
 
     @BaseService.measure_operation("mark_messages_as_read")
     def mark_messages_as_read(self, message_ids: List[str], user_id: str) -> int:
@@ -333,8 +337,30 @@ class MessageService(BaseService):
         if message.sender_id != user_id:
             raise ForbiddenException("You can only delete your own messages")
 
+        # Reuse edit window for delete operations
+        try:
+            from datetime import datetime, timedelta, timezone
+
+            from ..core.config import settings
+
+            window_minutes = getattr(settings, "message_edit_window_minutes", 5)
+            if (datetime.now(timezone.utc) - message.created_at) > timedelta(
+                minutes=window_minutes
+            ):
+                raise ValidationException("Delete window has expired")
+        except Exception:
+            pass
+
         with self.transaction():
-            return bool(self.repository.delete_message(message_id))
+            deleted = self.repository.soft_delete_message(message_id, user_id)
+
+            # Refresh conversation_state if this was the last message
+            if deleted and deleted.booking_id:
+                self._refresh_conversation_state_after_delete(
+                    booking_id=str(deleted.booking_id), deleted_message_id=message_id
+                )
+
+            return bool(deleted)
 
     # Phase 2: reactions
     @BaseService.measure_operation("add_reaction")
@@ -739,3 +765,19 @@ class MessageService(BaseService):
         except Exception as e:
             # Log but don't fail the operation
             self.logger.error(f"Failed to reset conversation_state unread count: {str(e)}")
+
+    def _refresh_conversation_state_after_delete(
+        self, booking_id: str, deleted_message_id: str
+    ) -> None:
+        """If the deleted message was the latest, update conversation_state to previous message."""
+        try:
+            conv_state = self.conversation_summary_repository.get_by_booking_id(booking_id)
+            if not conv_state or conv_state.last_message_id != deleted_message_id:
+                return
+
+            latest_message = self.repository.get_latest_message_for_booking(booking_id)
+            self.conversation_summary_repository.update_after_message_delete(
+                booking_id, latest_message
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to refresh conversation_state after delete: {e}")
