@@ -95,6 +95,7 @@ export function Chat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>("");
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
@@ -1122,6 +1123,16 @@ export function Chat({
                         isOwn ? 'justify-end' : 'justify-start',
                         !showSender && 'mt-1.5'
                       )}
+                      onMouseEnter={() => setHoveredMessageId(message.id)}
+                      onMouseLeave={() => {
+                        if (hoveredMessageId === message.id) setHoveredMessageId(null);
+                      }}
+                      onClick={() => {
+                        if (isOwn || isDeleted) return;
+                        setOpenReactionsForMessageId(
+                          openReactionsForMessageId === message.id ? null : message.id
+                        );
+                      }}
                     >
                       <div
                         className={cn(
@@ -1295,51 +1306,60 @@ export function Chat({
                           );
                         })()}
 
-                        {/* Add reaction control per message (other user's messages only) */}
-                        {!isOwn && (
-                          <div className={cn('mt-1 flex justify-end', isOwn ? 'pr-1' : 'pl-1')}>
-                            <button
-                              type="button"
-                              onClick={() => setOpenReactionsForMessageId(openReactionsForMessageId === message.id ? null : message.id)}
-                              disabled={processingReaction !== null}
-                              className={cn(
-                                'rounded-full px-2 py-0.5 text-xs ring-1 transition',
-                                processingReaction !== null
-                                  ? 'bg-gray-100 text-gray-400 ring-gray-200 cursor-not-allowed'
-                                  : 'bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700'
-                              )}
-                            >
-                              +
-                            </button>
-                            {openReactionsForMessageId === message.id && processingReaction === null && (
-                              <div className="ml-2 flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow px-2 py-1 dark:bg-gray-900 dark:ring-gray-700">
-                                {quickEmojis.map((e) => {
-                                  const currentReaction = userReactions[message.id] !== undefined
-                                    ? userReactions[message.id]
-                                    : (message as MessageWithReactions).my_reactions?.[0];
-                                  const isCurrentReaction = currentReaction === e;
-                                  return (
-                                    <button
-                                      key={e}
-                                      onClick={async (event) => {
-                                        event.stopPropagation();
-                                        event.preventDefault();
-                                        if (processingReaction !== null) return;
-                                        await handleAddReaction(message.id, e);
-                                      }}
-                                      disabled={processingReaction !== null}
-                                      className={cn(
-                                        "text-xl leading-none transition",
-                                        processingReaction !== null ? "opacity-50 cursor-not-allowed pointer-events-none" : "hover:scale-110",
-                                        isCurrentReaction && "bg-purple-100 rounded-full px-1"
-                                      )}
-                                    >
-                                      {e}
-                                    </button>
+                        {/* Hover/press reaction bar for other user's messages */}
+                        {!isOwn && !isDeleted && (hoveredMessageId === message.id || openReactionsForMessageId === message.id) && (
+                          <div className={cn('mt-2 flex justify-end', isOwn ? 'pr-1' : 'pl-1')}>
+                            <div className="flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow px-2 py-1 dark:bg-gray-900 dark:ring-gray-700">
+                              {quickEmojis.map((e) => {
+                                const currentReaction = userReactions[message.id] !== undefined
+                                  ? userReactions[message.id]
+                                  : (message as MessageWithReactions).my_reactions?.[0];
+                                const isCurrentReaction = currentReaction === e;
+                                return (
+                                  <button
+                                    key={e}
+                                    onClick={async (event) => {
+                                      event.stopPropagation();
+                                      event.preventDefault();
+                                      if (processingReaction !== null) return;
+                                      await handleAddReaction(message.id, e);
+                                      setOpenReactionsForMessageId(null);
+                                    }}
+                                    disabled={processingReaction !== null}
+                                    className={cn(
+                                      'text-xl leading-none transition',
+                                      processingReaction !== null
+                                        ? 'opacity-50 cursor-not-allowed pointer-events-none'
+                                        : 'hover:scale-110',
+                                      isCurrentReaction && 'bg-purple-100 rounded-full px-1'
+                                    )}
+                                  >
+                                    {e}
+                                  </button>
+                                );
+                              })}
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  event.preventDefault();
+                                  // Keep open to allow other picker integration later
+                                  setOpenReactionsForMessageId(
+                                    openReactionsForMessageId === message.id ? null : message.id
                                   );
-                                })}
-                              </div>
-                            )}
+                                }}
+                                disabled={processingReaction !== null}
+                                className={cn(
+                                  'rounded-full px-2 py-0.5 text-xs ring-1 transition',
+                                  processingReaction !== null
+                                    ? 'bg-gray-100 text-gray-400 ring-gray-200 cursor-not-allowed'
+                                    : 'bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700'
+                                )}
+                                aria-label="More reactions"
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
                         )}
 

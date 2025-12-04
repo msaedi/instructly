@@ -8,6 +8,7 @@
  */
 
 import { Paperclip, Check, CheckCheck, Pencil, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import type { MessageWithAttachments } from '../types';
 import { formatShortDate } from '../utils/formatters';
 
@@ -56,6 +57,8 @@ export function MessageBubble({
   canDelete = false,
   isDeleting = false,
 }: MessageBubbleProps) {
+  const [isHovered, setIsHovered] = useState(false);
+  const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
   const isDeleted = Boolean(message.isDeleted);
   const attachmentList = isDeleted ? [] : message.attachments || [];
   const displayText = isDeleted ? 'This message was deleted' : message.text?.trim();
@@ -80,7 +83,15 @@ export function MessageBubble({
     '';
 
   return (
-    <div className={`flex ${message.sender === 'instructor' ? 'justify-end' : 'justify-start'}`}>
+    <div
+      className={`flex ${message.sender === 'instructor' ? 'justify-end' : 'justify-start'}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={() => {
+        if (isOwnMessage) return;
+        setIsHovered((prev) => !prev);
+      }}
+    >
       <div className={`flex flex-col ${message.sender === 'instructor' ? 'items-end' : 'items-start'}`}>
         {/* Sender name */}
         {showSenderName && senderName && (
@@ -91,6 +102,7 @@ export function MessageBubble({
 
         <div
           className={`group relative max-w-xs lg:max-w-md rounded-lg px-4 pt-6 pb-3 pr-14 ${bubbleClasses}`}
+          data-testid="message-bubble"
         >
         {shortDate && (
           <div
@@ -106,7 +118,36 @@ export function MessageBubble({
           </div>
         )}
 
-        {displayText && <p className="text-sm whitespace-pre-line">{displayText}</p>}
+        {displayText && (
+          <div className="flex items-start gap-2">
+            <p className="text-sm whitespace-pre-line flex-1">{displayText}</p>
+            {isOwnMessage && !isDeleted && (canEdit || canDelete) && (
+              <div className="flex items-center gap-2">
+                {canEdit && onEdit && (
+                  <button
+                    type="button"
+                    onClick={onEdit}
+                    className="text-white/80 hover:text-white dark:text-gray-200"
+                    aria-label="Edit message"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+                {canDelete && onDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    disabled={isDeleting}
+                    className={`text-white/80 hover:text-white dark:text-gray-200 ${isDeleting ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    aria-label="Delete message"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {attachmentList.length > 0 && (
           <div className="mt-2 flex flex-col gap-2">
@@ -165,36 +206,6 @@ export function MessageBubble({
           </div>
         )}
 
-        {isOwnMessage && !isDeleted && (canEdit || canDelete) && (
-          <div className="mt-2 flex gap-2 text-xs text-gray-600 dark:text-gray-300">
-            {canEdit && onEdit && (
-              <button
-                type="button"
-                onClick={onEdit}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 bg-white/70 text-gray-800 hover:bg-white transition dark:bg-gray-600 dark:text-gray-100 dark:hover:bg-gray-500"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                Edit
-              </button>
-            )}
-            {canDelete && onDelete && (
-              <button
-                type="button"
-                onClick={onDelete}
-                disabled={isDeleting}
-                className={`inline-flex items-center gap-1 rounded-md px-2 py-1 border ${
-                  isDeleting
-                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                    : 'bg-white text-red-700 border-red-200 hover:bg-red-50 transition dark:bg-gray-600 dark:text-red-200 dark:border-red-300/50'
-                }`}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                {isDeleting ? 'Deleting…' : 'Delete'}
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Reaction bar (counts) */}
         {!isDeleted && (() => {
           const reactions = message.reactions || {};
@@ -248,24 +259,12 @@ export function MessageBubble({
           );
         })()}
 
-        {/* Add reaction control (other user's messages only) */}
-        {!isOwnMessage && onReactionClick && onToggleReactionPicker && (
-          <div className={`mt-1 flex ${message.sender === 'instructor' ? 'justify-end pr-1' : 'justify-start pl-1'}`}>
-            <button
-              type="button"
-              onClick={onToggleReactionPicker}
-              disabled={processingReaction}
-              className={`rounded-full px-2 py-0.5 text-xs ring-1 transition ${
-                processingReaction
-                  ? 'bg-gray-100 text-gray-400 ring-gray-200 cursor-not-allowed'
-                  : 'bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100'
-              }`}
-            >
-              +
-            </button>
-            {showReactionPicker && !processingReaction && (
-              <div className="ml-2 flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow px-2 py-1">
-                {['👍', '❤️', '😊', '😮', '🎉'].map((e) => {
+        {/* Hover/press reaction bar (other user's messages only) */}
+        {!isOwnMessage && !isDeleted && onReactionClick && (
+          <div className={`mt-2 flex ${message.sender === 'instructor' ? 'justify-end pr-1' : 'justify-start pl-1'}`}>
+            {(isHovered || showReactionPicker) && (
+              <div className="flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow px-2 py-1">
+                {quickEmojis.map((e) => {
                   const isCurrentReaction = currentReaction === e;
                   return (
                     <button
@@ -285,6 +284,22 @@ export function MessageBubble({
                     </button>
                   );
                 })}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    event.preventDefault();
+                    onToggleReactionPicker?.();
+                  }}
+                  disabled={processingReaction}
+                  className={`rounded-full px-2 py-0.5 text-xs ring-1 transition ${
+                    processingReaction
+                      ? 'bg-gray-100 text-gray-400 ring-gray-200 cursor-not-allowed'
+                      : 'bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  +
+                </button>
               </div>
             )}
           </div>
