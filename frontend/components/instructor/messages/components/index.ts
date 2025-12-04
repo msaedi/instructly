@@ -11,9 +11,6 @@ export type { ConversationItemProps } from './ConversationItem';
 export { ConversationList } from './ConversationList';
 export type { ConversationListProps } from './ConversationList';
 
-export { MessageBubble } from './MessageBubble';
-export type { MessageBubbleProps } from './MessageBubble';
-
 export { MessageInput } from './MessageInput';
 export type { MessageInputProps } from './MessageInput';
 

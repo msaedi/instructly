@@ -16,7 +16,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
-import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown, Pencil, Trash2, X } from 'lucide-react';
+import { Send, Loader2, AlertCircle, WifiOff, ChevronDown } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import {
@@ -34,6 +34,7 @@ import { queryKeys } from '@/src/api/queryKeys';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
+import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, type NormalizedMessage, type NormalizedReaction } from '@/components/messaging';
 
 // Connection status enum (internal to Chat component)
 enum ConnectionStatus {
@@ -76,32 +77,11 @@ export function Chat({
   const { data: messageConfig } = useMessageConfig();
   const editWindowMinutes = messageConfig?.edit_window_minutes ?? 5;
 
-  const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const MAX_EDIT_ROWS = 5;
-  const EDIT_LINE_HEIGHT_PX = 20; // approx for text-[15px] leading-5
-  const autosizeEditingTextarea = useCallback(() => {
-    const el = editingTextareaRef.current;
-    if (!el) return;
-    el.style.height = '0px';
-    const cap = MAX_EDIT_ROWS * EDIT_LINE_HEIGHT_PX;
-    const newHeight = Math.min(el.scrollHeight, cap);
-    el.style.height = `${newHeight}px`;
-    el.style.overflowY = el.scrollHeight > cap ? 'auto' : 'hidden';
-  }, []);
-
-  // (moved autosize effect below where edit state is declared)
   const [inputMessage, setInputMessage] = useState('');
   const [isAtBottom, setIsAtBottom] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
-  const [showReactionButtonId, setShowReactionButtonId] = useState<string | null>(null);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState<string>("");
-  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
-  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Fetch message history
   const {
@@ -299,11 +279,6 @@ export function Chat({
       currentBookingId: bookingId,
     });
 
-    if (editingMessageId === messageId) {
-        setEditingMessageId(null);
-        setEditingContent("");
-    }
-
     setRealtimeMessages((prev) => {
       const messageIndex = prev.findIndex((m) => m.id === messageId);
       if (messageIndex !== -1) {
@@ -323,7 +298,7 @@ export function Chat({
       queryKey: queryKeys.messages.history(bookingId),
       exact: false,
     });
-  }, [bookingId, queryClient, editingMessageId]);
+  }, [bookingId, queryClient]);
 
   // Subscribe to this conversation's events
   useEffect(() => {
@@ -645,9 +620,6 @@ export function Chat({
     try {
       setProcessingReaction(messageId);
 
-      // Optimistic UX: close popover immediately
-      setReactionPickerMessageId(null);
-
       // Find the message to check current user's reaction
       const message = allMessages.find(m => m.id === messageId);
       if (!message) {
@@ -817,44 +789,6 @@ export function Chat({
     }
   };
 
-  useEffect(() => {
-    if (editingMessageId) {
-      requestAnimationFrame(() => autosizeEditingTextarea());
-    }
-  }, [editingMessageId, editingContent, autosizeEditingTextarea]);
-  const startEdit = (message: MessageResponse) => {
-    if (!canEditMessage(message)) return;
-    setEditingMessageId(message.id);
-    setEditingContent(message.content);
-    setDeleteConfirmId(null);
-  };
-  const cancelEdit = () => {
-    setEditingMessageId(null);
-    setEditingContent("");
-    setDeleteConfirmId(null);
-  };
-  const saveEdit = async () => {
-    if (!editingMessageId || !editingContent.trim()) return;
-    const target = allMessages.find(m => m.id === editingMessageId);
-    if (!target || !canEditMessage(target)) return;
-    if (target.content?.trim() === editingContent.trim()) {
-      setEditingMessageId(null);
-      setEditingContent("");
-      return;
-    }
-    setIsSavingEdit(true);
-    try {
-      await editMessageMutation.mutateAsync({
-        messageId: editingMessageId,
-        data: { content: editingContent.trim() },
-      });
-      setEditingMessageId(null);
-      setEditingContent("");
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
   const canEditMessage = (message: MessageResponse): boolean => {
     if (message.sender_id !== currentUserId) return false;
     const isDeleted = Boolean((message as { is_deleted?: boolean }).is_deleted);
@@ -863,54 +797,6 @@ export function Chat({
     const now = Date.now();
     const diffMinutes = (now - created) / 60000;
     return diffMinutes <= editWindowMinutes;
-  };
-
-  const handleDeleteMessage = async (message: MessageResponse) => {
-    if (!canEditMessage(message)) return;
-    setDeleteConfirmId(message.id);
-  };
-
-  // Close reaction picker when clicking outside
-  useEffect(() => {
-    if (!reactionPickerMessageId) return;
-    const handleOutsideClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target && target.closest('[data-reaction-area="true"]')) {
-        return;
-      }
-      setReactionPickerMessageId(null);
-      setShowReactionButtonId(null);
-    };
-    document.addEventListener('click', handleOutsideClick);
-    return () => document.removeEventListener('click', handleOutsideClick);
-  }, [reactionPickerMessageId]);
-
-  const confirmDeleteMessage = async (message: MessageResponse) => {
-    if (!canEditMessage(message)) return;
-    setDeletingMessageId(message.id);
-    try {
-      await deleteMessageMutation.mutateAsync({ messageId: message.id });
-      setRealtimeMessages((prev) => {
-        const idx = prev.findIndex((m) => m.id === message.id);
-        if (idx === -1) return prev;
-        const updated = [...prev];
-        updated[idx] = {
-          ...updated[idx]!,
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-          content: 'This message was deleted',
-        } as MessageResponse;
-        return updated;
-      });
-
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.messages.history(bookingId),
-        exact: false,
-      });
-    } finally {
-      setDeletingMessageId(null);
-      setDeleteConfirmId(null);
-    }
   };
 
   // Track SINGLE reaction per message (messageId -> emoji or null)
@@ -982,7 +868,7 @@ export function Chat({
 
   // Local reaction toggle function removed - optimistic updates handled in handleAddReaction
 
-  const isEmojiMyReacted = (message: MessageResponse, emoji: string): boolean => {
+  const isEmojiMyReacted = useCallback((message: MessageResponse, emoji: string): boolean => {
     // Check our local state for the current reaction
     const localReaction = userReactions[message.id];
     if (localReaction !== undefined) {
@@ -993,20 +879,7 @@ export function Chat({
     // Fall back to server state - only consider FIRST reaction
     const myReactions = (message as MessageWithReactions).my_reactions || [];
     return myReactions.length > 0 && myReactions[0] === emoji;
-  };
-
-  // Format message date
-  const formatMessageDate = (date: string) => {
-    const messageDate = new Date(date);
-
-    if (isToday(messageDate)) {
-      return format(messageDate, 'h:mm a');
-    } else if (isYesterday(messageDate)) {
-      return `Yesterday ${format(messageDate, 'h:mm a')}`;
-    } else {
-      return format(messageDate, 'MMM d, h:mm a');
-    }
-  };
+  }, [userReactions]);
 
   // Get date separator text
   const getDateSeparator = (date: string) => {
@@ -1021,15 +894,79 @@ export function Chat({
     }
   };
 
-  // Group messages by date
-  const messagesByDate = allMessages.reduce((groups, message) => {
-    const date = new Date(message.created_at).toDateString();
-    if (!groups[date]) {
-      groups[date] = [];
-    }
-    groups[date].push(message);
-    return groups;
-  }, {} as Record<string, MessageResponse[]>);
+  // Build normalized messages for shared bubble
+  const normalizedMessages = React.useMemo<NormalizedMessage[]>(() => {
+    return allMessages.map((message) => {
+      const isOwn = message.sender_id === currentUserId;
+      const timestampLabel = formatRelativeTimestamp(message.created_at);
+      const receipts = mergedReadReceipts[message.id] || [];
+      const readStatus: 'sent' | 'delivered' | 'read' | undefined = isOwn
+        ? (receipts.length > 0 ? 'read' : message.delivered_at ? 'delivered' : 'sent')
+        : undefined;
+
+      let readTimestampLabel: string | undefined;
+      if (isOwn && message.id === lastOwnReadMessageId && receipts.length > 0) {
+        const readAt = new Date(receipts[0]?.read_at || '');
+        if (isToday(readAt)) readTimestampLabel = `Read at ${format(readAt, 'h:mm a')}`;
+        else if (isYesterday(readAt)) readTimestampLabel = `Read yesterday at ${format(readAt, 'h:mm a')}`;
+        else readTimestampLabel = `Read on ${format(readAt, 'MMM d')} at ${format(readAt, 'h:mm a')}`;
+      }
+
+      const baseReactions = (message as MessageWithReactions).reactions || {};
+      const displayReactions: Record<string, number> = { ...baseReactions };
+      const localReaction = userReactions[message.id];
+      const serverReaction = (message as MessageWithReactions).my_reactions?.[0];
+
+      if (localReaction !== undefined && localReaction !== serverReaction) {
+        if (serverReaction) {
+          displayReactions[serverReaction] = Math.max(0, (displayReactions[serverReaction] || 0) - 1);
+          if (displayReactions[serverReaction] === 0) delete displayReactions[serverReaction];
+        }
+        if (localReaction) {
+          displayReactions[localReaction] = (displayReactions[localReaction] || 0) + 1;
+        }
+      }
+
+      const delta = reactionDeltas[message.id];
+      if (delta) {
+        Object.entries(delta).forEach(([emoji, change]) => {
+          displayReactions[emoji] = Math.max(0, (displayReactions[emoji] || 0) + change);
+          if (displayReactions[emoji] === 0) delete displayReactions[emoji];
+        });
+      }
+
+      const reactions: NormalizedReaction[] = Object.entries(displayReactions)
+        .filter(([, count]) => count > 0)
+        .map(([emoji, count]) => ({
+          emoji,
+          count,
+          isMine: isEmojiMyReacted(message, emoji),
+        }));
+
+      const currentReaction =
+        localReaction !== undefined
+          ? localReaction
+          : (message as MessageWithReactions).my_reactions?.[0] ?? null;
+
+      return normalizeStudentMessage(message, currentUserId, {
+        reactions,
+        currentUserReaction: currentReaction,
+        timestampLabel,
+        readStatus,
+        readTimestampLabel,
+      });
+    });
+  }, [allMessages, currentUserId, mergedReadReceipts, lastOwnReadMessageId, userReactions, reactionDeltas, isEmojiMyReacted]);
+
+  // Group messages by date (normalized)
+  const messagesByDate = React.useMemo(() => {
+    return normalizedMessages.reduce((groups, message) => {
+      const date = message.timestamp.toDateString();
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(message);
+      return groups;
+    }, {} as Record<string, NormalizedMessage[]>);
+  }, [normalizedMessages]);
 
   // Connection status component
   const ConnectionIndicator = () => {
@@ -1127,362 +1064,75 @@ export function Chat({
                   </div>
                   <div className="relative flex justify-center">
                     <span className="bg-white px-3 py-1 text-xs text-gray-600 rounded-full shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800">
-                      {getDateSeparator(messages[0]?.created_at || '')}
+                      {getDateSeparator(messages[0]?.timestamp?.toISOString() || '')}
                     </span>
                   </div>
                 </div>
 
                 {/* Messages for this date */}
                 {messages.map((message, index) => {
-                  const isOwn = message.sender_id === currentUserId;
-                  const showSender = index === 0 ||
-                    messages[index - 1]?.sender_id !== message.sender_id;
-                  const isDeleted = Boolean(
-                    (message as MessageResponse & { is_deleted?: boolean }).is_deleted
-                  );
-
+                  const raw = message._raw as MessageResponse | undefined;
+                  const prevRaw = messages[index - 1]?._raw as MessageResponse | undefined;
+                  const showSender = index === 0 || (raw && prevRaw && raw.sender_id !== prevRaw.sender_id);
+                  const senderLabel = message.isOwn ? currentUserName : otherUserName;
                   return (
                     <div
                       key={message.id}
                       className={cn(
                         'flex',
-                        isOwn ? 'justify-end' : 'justify-start',
+                        message.isOwn ? 'justify-end' : 'justify-start',
                         !showSender && 'mt-1.5'
                       )}
                     >
-                      <div
-                        className={cn(
-                          'relative max-w-[82%] xs:max-w-[78%] sm:max-w-[60%]',
-                          isOwn ? 'items-end pl-2' : 'items-start pr-2'
-                        )}
-                        onMouseEnter={() => setShowReactionButtonId(message.id)}
-                        onMouseLeave={() => {
-                          if (reactionPickerMessageId !== message.id) {
-                            setShowReactionButtonId((prev) => (prev === message.id ? null : prev));
-                          }
-                        }}
-                      >
-                        {/* Sender name */}
+                      <div className={cn('relative max-w-[82%] xs:max-w-[78%] sm:max-w-[60%]', message.isOwn ? 'items-end' : 'items-start')}>
                         {showSender && (
-                          <div className={cn(
-                            'text-xs text-gray-500 dark:text-gray-400 mb-1',
-                            isOwn ? 'text-right mr-2' : 'ml-2'
-                          )}>
-                            {isOwn ? currentUserName : otherUserName}
+                          <div className={cn('text-xs text-gray-500 dark:text-gray-400 mb-1', message.isOwn ? 'text-right mr-2' : 'ml-2')}>
+                            {senderLabel}
                           </div>
                         )}
-
-                        {/* Message bubble */}
-                         <div
-                          className={cn(
-                            'relative rounded-2xl px-3.5 py-2 break-words shadow-sm select-text text-[15px] leading-5 sm:text-sm',
-                            isOwn
-                              ? 'bg-gradient-to-tr from-purple-700 to-purple-600 text-white ring-1 ring-[#7E22CE]/10'
-                              : 'bg-white text-gray-900 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700'
-                          )}
-                        >
-                          {editingMessageId === message.id ? (
-                            <div className={cn('flex items-end gap-2', isOwn ? 'text-white' : 'text-gray-900')}>
-                              <div className={cn('flex-1 rounded-md', isOwn ? 'bg-purple-500/15' : 'bg-gray-100')}>
-                                <textarea
-                                  ref={editingTextareaRef}
-                                  value={editingContent}
-                                  onChange={(e) => setEditingContent(e.target.value)}
-                                  onInput={autosizeEditingTextarea}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                      e.preventDefault();
-                                      void saveEdit();
-                                    } else if (e.key === 'Escape') {
-                                      e.preventDefault();
-                                      cancelEdit();
-                                    }
-                                  }}
-                                  rows={1}
-                                  autoFocus
-                                  className={cn('w-full resize-none rounded-md px-2 py-1 text-[15px] leading-5 outline-none focus:ring-[#7E22CE] focus:border-purple-500', isOwn ? 'bg-transparent text-white placeholder:text-blue-100' : 'bg-transparent text-gray-900 placeholder:text-gray-400')}
-                                  style={{ overflowY: 'hidden', height: 'auto', color: isOwn ? 'white' : undefined, caretColor: isOwn ? 'white' : undefined }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <p className={cn('whitespace-pre-wrap', isDeleted && 'italic text-gray-500')}>
-                              {isDeleted ? 'This message was deleted' : message.content}
-                            </p>
-                          )}
-                          <div
-                            className={cn(
-                              'flex items-center justify-end mt-1 space-x-2',
-                              isOwn ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
-                            )}
-                          >
-                            {editingMessageId === message.id ? (
-                              <div className="flex items-center gap-2 text-xs">
-                                <span className="opacity-80">{isSavingEdit ? 'Saving…' : 'Save?'}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => void saveEdit()}
-                                  disabled={isSavingEdit || !editingContent.trim()}
-                                  className={cn(
-                                    'rounded-full p-1',
-                                    isOwn ? 'hover:bg-white/10 text-white' : 'hover:bg-gray-100 text-gray-700',
-                                    (isSavingEdit || !editingContent.trim()) && 'opacity-50 cursor-not-allowed'
-                                  )}
-                                  aria-label="Confirm edit"
-                                >
-                                  <Check className="w-4 h-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelEdit}
-                                  className={cn('rounded-full p-1', isOwn ? 'hover:bg-white/10 text-white' : 'hover:bg-gray-100 text-gray-700')}
-                                  aria-label="Cancel edit"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ) : deleteConfirmId === message.id ? (
-                              <div className="flex items-center gap-2 text-xs">
-                                <span className="opacity-80">Delete?</span>
-                                <button
-                                  type="button"
-                                  onClick={() => void confirmDeleteMessage(message)}
-                                  disabled={deletingMessageId === message.id}
-                                  className={cn(
-                                    'rounded-full p-1',
-                                    isOwn ? 'hover:bg-white/10 text-white' : 'hover:bg-gray-100 text-gray-700',
-                                    deletingMessageId === message.id && 'opacity-50 cursor-not-allowed'
-                                  )}
-                                  aria-label="Confirm delete"
-                                >
-                                  <Check className="w-4 h-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDeleteConfirmId(null)}
-                                  className={cn('rounded-full p-1', isOwn ? 'hover:bg-white/10 text-white' : 'hover:bg-gray-100 text-gray-700')}
-                                  aria-label="Cancel delete"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <span className="text-xs">
-                                  {formatMessageDate(message.created_at)}
-                                </span>
-                                {isOwn && (
-                                  (mergedReadReceipts[message.id]?.length ?? 0) > 0 ? (
-                                    <CheckCheck className="w-3 h-3 text-blue-500" />
-                                  ) : message.delivered_at ? (
-                                    <CheckCheck className="w-3 h-3 text-gray-400" />
-                                  ) : (
-                                    <Check className="w-3 h-3 text-gray-400" />
-                                  )
-                                )}
-                                {(message.edited_at || message.edited_at !== undefined) && (
-                                  <span className={cn('text-[10px] ml-1', isOwn ? 'text-blue-100/80' : 'text-gray-400')}>edited</span>
-                                )}
-                                {isOwn && !isDeleted && canEditMessage(message) && (
-                                  <>
-                                    <button
-                                      onClick={() => startEdit(message)}
-                                      className={cn('rounded-full p-1', isOwn ? 'hover:bg-white/10' : 'hover:bg-gray-100')}
-                                      aria-label="Edit message"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => void handleDeleteMessage(message)}
-                                      className={cn('rounded-full p-1', isOwn ? 'hover:bg-white/10' : 'hover:bg-gray-100')}
-                                      aria-label="Delete message"
-                                      disabled={deletingMessageId === message.id}
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        {!isDeleted && (showReactionButtonId === message.id || reactionPickerMessageId === message.id) && (
-                          <div
-                            className={cn(
-                              'absolute top-1/2 -translate-y-1/2 z-10',
-                              isOwn ? 'right-full mr-1' : 'left-full ml-1'
-                            )}
-                            onMouseEnter={() => setShowReactionButtonId(message.id)}
-                            onMouseLeave={() => {
-                              if (reactionPickerMessageId !== message.id) {
-                                setShowReactionButtonId((prev) => (prev === message.id ? null : prev));
-                              }
-                            }}
-                            data-reaction-area="true"
-                          >
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                event.preventDefault();
-                                setReactionPickerMessageId(message.id);
-                              }}
-                              className="rounded-full bg-white text-gray-700 shadow ring-1 ring-gray-200 px-2 py-1 text-sm hover:bg-gray-50"
-                              aria-label="Add reaction"
-                              data-reaction-area="true"
-                            >
-                              😊
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Hover bridge to keep reaction button visible while moving cursor */}
-                        {!isDeleted && (
-                          <div
-                            className={cn(
-                              'absolute top-0 bottom-0 z-0',
-                              isOwn ? 'right-full w-6' : 'left-full w-6'
-                            )}
-                            onMouseEnter={() => setShowReactionButtonId(message.id)}
-                            onMouseLeave={() => {
-                              if (reactionPickerMessageId !== message.id) {
-                                setShowReactionButtonId((prev) => (prev === message.id ? null : prev));
-                              }
-                            }}
-                            data-reaction-area="true"
-                          />
-                        )}
-
-                        {/* Reaction bar (counts) */}
-                        {(() => {
-                          const reactions = (message as MessageWithReactions).reactions || {};
-
-                          // Build the display considering user's single reaction
-                          const displayReactions: Record<string, number> = { ...reactions };
-
-                          // Get user's current reaction (only one allowed)
-                          const localReaction = userReactions[message.id];
-                          const serverReaction = (message as MessageWithReactions).my_reactions?.[0];
-
-                          // Adjust counts based on local state changes
-                          if (localReaction !== undefined && localReaction !== serverReaction) {
-                            // User changed their reaction locally
-                            if (serverReaction) {
-                              // Decrement old reaction
-                              displayReactions[serverReaction] = Math.max(0, (displayReactions[serverReaction] || 0) - 1);
-                              if (displayReactions[serverReaction] === 0) {
-                                delete displayReactions[serverReaction];
-                              }
-                            }
-                            if (localReaction) {
-                              // Increment new reaction
-                              displayReactions[localReaction] = (displayReactions[localReaction] || 0) + 1;
-                            }
-                          }
-
-                          // Apply SSE reaction deltas for real-time updates from other users
-                          const messageDelta = reactionDeltas[message.id];
-                          if (messageDelta) {
-                            Object.entries(messageDelta).forEach(([emoji, delta]) => {
-                              displayReactions[emoji] = Math.max(0, (displayReactions[emoji] || 0) + delta);
-                              if (displayReactions[emoji] === 0) {
-                                delete displayReactions[emoji];
-                              }
+                        <MessageBubble
+                          message={message}
+                          canEdit={message.isOwn && raw ? canEditMessage(raw) : false}
+                          canDelete={message.isOwn && raw ? canEditMessage(raw) : false}
+                          canReact={!message.isOwn && !message.isDeleted}
+                          showReadReceipt={message.isOwn}
+                          onEdit={async (messageId, newContent) => {
+                            const target = allMessages.find((m) => m.id === messageId);
+                            if (!target || !canEditMessage(target)) return;
+                            await editMessageMutation.mutateAsync({
+                              messageId,
+                              data: { content: newContent },
                             });
-                          }
-
-                          const entries = Object.entries(displayReactions).filter(([, c]) => c > 0);
-                          if (entries.length === 0) return null;
-                          return (
-                          <div className={cn('mt-1 flex justify-end gap-1', isOwn ? 'pr-1' : 'pl-1')}>
-                            {entries.map(([emoji, count]) => {
-                              const mine = isEmojiMyReacted(message, emoji);
-                              return (
-                                <button
-                                  type="button"
-                                  key={emoji}
-                                  onClick={async () => {
-                                    // Prevent multiple simultaneous reactions
-                                    if (processingReaction !== null) return;
-                                    await handleAddReaction(message.id, emoji);
-                                  }}
-                                  disabled={processingReaction !== null}
-                                  className={cn(
-                                    'rounded-full px-2 py-0.5 text-xs ring-1 transition',
-                                    mine ? 'bg-[#7E22CE] text-white ring-[#7E22CE]' : (isOwn ? 'bg-purple-50 text-[#7E22CE] ring-purple-200' : 'bg-gray-50 text-gray-700 ring-gray-200'),
-                                    (processingReaction !== null) && 'cursor-default'
-                                  )}
-                                >
-                                  {emoji} {count}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          );
-                        })()}
-
-                        {/* Hover/press reaction bar for other user's messages */}
-                        {!isDeleted && reactionPickerMessageId === message.id && (
-                          <div
-                            className={cn(
-                              'absolute top-1/2 -translate-y-1/2 z-20',
-                              isOwn ? 'right-full mr-1' : 'left-full ml-1'
-                            )}
-                            onMouseEnter={() => setShowReactionButtonId(message.id)}
-                            onMouseLeave={() => {
-                              if (reactionPickerMessageId !== message.id) {
-                                setShowReactionButtonId((prev) => (prev === message.id ? null : prev));
-                              }
-                            }}
-                            data-reaction-area="true"
-                          >
-                            <div className="flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow px-2 py-1 dark:bg-gray-900 dark:ring-gray-700">
-                              {quickEmojis.map((e) => {
-                                const currentReaction = userReactions[message.id] !== undefined
-                                  ? userReactions[message.id]
-                                  : (message as MessageWithReactions).my_reactions?.[0];
-                                const isCurrentReaction = currentReaction === e;
-                                return (
-                                  <button
-                                    key={e}
-                                    onClick={async (event) => {
-                                      event.stopPropagation();
-                                      event.preventDefault();
-                                      if (processingReaction !== null) return;
-                                      await handleAddReaction(message.id, e);
-                                      setReactionPickerMessageId(null);
-                                    }}
-                                    disabled={processingReaction !== null}
-                                    className={cn(
-                                      'text-xl leading-none transition',
-                                      processingReaction !== null
-                                        ? 'opacity-50 cursor-not-allowed pointer-events-none'
-                                        : 'hover:scale-110',
-                                      isCurrentReaction && 'bg-purple-100 rounded-full px-1'
-                                    )}
-                                    data-reaction-area="true"
-                                  >
-                                    {e}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Inline read time for latest read own message (iMessage-style) */}
-                        {isOwn && message.id === lastOwnReadMessageId && (mergedReadReceipts[message.id]?.length ?? 0) > 0 && (
-                          <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 text-right pr-1">
-                            {(() => {
-                              const firstReceipt = mergedReadReceipts[message.id]?.[0];
-                              const readAt = new Date(firstReceipt?.read_at || '');
-                              if (isToday(readAt)) return `Read at ${format(readAt, 'h:mm a')}`;
-                              if (isYesterday(readAt)) return `Read yesterday at ${format(readAt, 'h:mm a')}`;
-                              return `Read on ${format(readAt, 'MMM d')} at ${format(readAt, 'h:mm a')}`;
-                            })()}
-                          </div>
-                        )}
+                          }}
+                          onDelete={async (messageId) => {
+                            const target = allMessages.find((m) => m.id === messageId);
+                            if (!target || !canEditMessage(target)) return;
+                            await deleteMessageMutation.mutateAsync({ messageId });
+                            setRealtimeMessages((prev) => {
+                              const idx = prev.findIndex((m) => m.id === messageId);
+                              if (idx === -1) return prev;
+                              const updated = [...prev];
+                              updated[idx] = {
+                                ...updated[idx]!,
+                                is_deleted: true,
+                                deleted_at: new Date().toISOString(),
+                                content: 'This message was deleted',
+                              } as MessageResponse;
+                              return updated;
+                            });
+                            void queryClient.invalidateQueries({
+                              queryKey: queryKeys.messages.history(bookingId),
+                              exact: false,
+                            });
+                          }}
+                          onReact={async (messageId, emoji) => {
+                            if (processingReaction !== null) return;
+                            await handleAddReaction(messageId, emoji);
+                          }}
+                          reactionBusy={processingReaction !== null}
+                          side={message.isOwn ? 'right' : 'left'}
+                          quickEmojis={quickEmojis}
+                        />
                       </div>
                     </div>
                   );
