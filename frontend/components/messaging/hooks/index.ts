@@ -15,3 +15,5 @@ export {
   type UseReadReceiptsParams,
   type UseReadReceiptsReturn,
 } from './useReadReceipts';
+
+export { useLiveTimestamp } from './useLiveTimestamp';
