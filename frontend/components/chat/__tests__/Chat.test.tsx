@@ -7,6 +7,7 @@ const mockUseMessageHistory = jest.fn();
 const mockUseSendMessage = jest.fn();
 const mockUseMarkMessagesAsRead = jest.fn();
 const mockUseEditMessage = jest.fn();
+const mockUseDeleteMessage = jest.fn();
 const mockUseAddReaction = jest.fn();
 const mockUseRemoveReaction = jest.fn();
 const mockUseSendTypingIndicator = jest.fn();
@@ -36,6 +37,7 @@ jest.mock('@/src/api/services/messages', () => ({
   useSendMessage: (...args: unknown[]) => mockUseSendMessage(...args),
   useMarkMessagesAsRead: (...args: unknown[]) => mockUseMarkMessagesAsRead(...args),
   useEditMessage: (...args: unknown[]) => mockUseEditMessage(...args),
+  useDeleteMessage: (...args: unknown[]) => mockUseDeleteMessage(...args),
   useAddReaction: (...args: unknown[]) => mockUseAddReaction(...args),
   useRemoveReaction: (...args: unknown[]) => mockUseRemoveReaction(...args),
   useSendTypingIndicator: (...args: unknown[]) => mockUseSendTypingIndicator(...args),
@@ -100,6 +102,7 @@ describe('Chat mark-as-read behavior', () => {
     markMessagesAsReadMutate = jest.fn();
     mockUseMarkMessagesAsRead.mockImplementation(() => ({ mutate: markMessagesAsReadMutate }));
     mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
+    mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseSendTypingIndicator.mockReturnValue({ mutate: jest.fn() });
