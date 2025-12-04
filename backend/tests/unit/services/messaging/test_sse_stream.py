@@ -12,7 +12,11 @@ from datetime import datetime, timezone
 import json
 from unittest.mock import Mock
 
+import pytest
+
+from app.repositories.message_repository import MessageRepository
 from app.services.messaging.sse_stream import (
+    fetch_messages_after,
     format_message_from_db,
     format_redis_event,
 )
@@ -252,3 +256,59 @@ class TestLastEventIdBehavior:
                 assert "id" in result, "new_message should have id"
             else:
                 assert "id" not in result, f"{event['type']} should NOT have id"
+
+
+def test_sse_sets_id_only_for_messages() -> None:
+    """Explicit check that only new_message events include SSE id field."""
+    user_id = "01USER"
+    events = {
+        "new_message": {"type": "new_message", "payload": {"message": {"id": "01MSG"}}},
+        "reaction_update": {"type": "reaction_update", "payload": {"message_id": "01MSG"}},
+        "typing_status": {"type": "typing_status", "payload": {"conversation_id": "01BOOK"}},
+        "read_receipt": {
+            "type": "read_receipt",
+            "payload": {"conversation_id": "01BOOK", "message_ids": ["01MSG"]},
+        },
+        "heartbeat": {"type": "heartbeat", "payload": {"ts": "now"}},
+    }
+
+    results = {name: format_redis_event(evt, user_id) for name, evt in events.items()}
+
+    assert "id" in results["new_message"]
+    assert "id" not in results["reaction_update"]
+    assert "id" not in results["typing_status"]
+    assert "id" not in results["read_receipt"]
+    assert "id" not in results["heartbeat"]
+
+
+@pytest.mark.usefixtures("db")
+def test_fetch_messages_after_returns_newer_messages(db, test_booking, test_student) -> None:
+    """DB catch-up returns only messages newer than the provided Last-Event-ID."""
+    repo = MessageRepository(db)
+
+    msg1 = repo.create_message(
+        booking_id=str(test_booking.id),
+        sender_id=str(test_student.id),
+        content="First",
+    )
+    msg2 = repo.create_message(
+        booking_id=str(test_booking.id),
+        sender_id=str(test_student.id),
+        content="Second",
+    )
+    msg3 = repo.create_message(
+        booking_id=str(test_booking.id),
+        sender_id=str(test_student.id),
+        content="Third",
+    )
+    db.commit()
+
+    results = fetch_messages_after(
+        db=db,
+        user_id=str(test_student.id),
+        after_message_id=str(msg1.id),
+    )
+
+    returned_ids = [str(m.id) for m in results]
+    assert returned_ids == [str(msg2.id), str(msg3.id)]
+    assert all(m.booking_id == test_booking.id for m in results)
