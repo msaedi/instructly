@@ -11,7 +11,7 @@ import { useInboxState } from '@/hooks/useInboxState';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import { withApiBase } from '@/lib/apiBase';
 import type { ConversationEntry } from '../types';
-import { getInitials, formatRelativeTime } from '../utils';
+import { getInitials, formatRelativeTimestamp } from '../utils';
 
 export type UseConversationsOptions = {
   currentUserId: string | undefined;
@@ -88,7 +88,7 @@ export function useConversations({
         name: summary.other_user.name,
         lastMessage: summary.last_message?.preview ?? 'No messages yet',
         timestamp: summary.last_message
-          ? formatRelativeTime(summary.last_message.at)
+          ? formatRelativeTimestamp(summary.last_message.at)
           : '',
         unread: summary.unread_count,
         avatar: getInitials(firstName, lastName),
