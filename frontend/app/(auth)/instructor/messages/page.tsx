@@ -46,10 +46,10 @@ import {
 import {
   ChatHeader,
   ConversationList,
-  MessageBubble,
   MessageInput,
   TemplateEditor,
 } from '@/components/instructor/messages/components';
+import { MessageBubble as SharedMessageBubble, normalizeInstructorMessage, type NormalizedMessage, type NormalizedReaction } from '@/components/messaging';
 
 // Helper to convert messageDisplay to API filter parameters
 function getFiltersForDisplay(
@@ -83,11 +83,6 @@ export default function MessagesPage() {
   const [messageDisplay, setMessageDisplay] = useState<MessageDisplayMode>('inbox');
   const [composeRecipient, setComposeRecipient] = useState<ConversationEntry | null>(null);
   const [composeRecipientQuery, setComposeRecipientQuery] = useState('');
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState('');
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Header dropdowns
   const msgRef = useRef<HTMLDivElement | null>(null);
@@ -248,7 +243,6 @@ export default function MessagesPage() {
   const addReactionMutation = useAddReaction();
   const removeReactionMutation = useRemoveReaction();
   const [userReactions, setUserReactions] = useState<Record<string, string | null>>({});
-  const [openReactionsForMessageId, setOpenReactionsForMessageId] = useState<string | null>(null);
   const [processingReaction, setProcessingReaction] = useState<string | null>(null);
 
   // Auto-scroll to bottom
@@ -396,11 +390,6 @@ export default function MessagesPage() {
       deletedBy,
     });
 
-    if (editingMessageId === messageId) {
-      setEditingMessageId(null);
-      setEditingContent('');
-    }
-
     updateThreadMessage(messageId, (msg) => ({
       ...msg,
       isDeleted: true,
@@ -408,7 +397,7 @@ export default function MessagesPage() {
       deletedBy,
       deletedAt: new Date().toISOString(),
     }));
-  }, [editingMessageId, updateThreadMessage]);
+  }, [updateThreadMessage]);
 
   const handleAddReaction = useCallback(async (messageId: string, emoji: string) => {
     // Prevent multiple simultaneous reactions
@@ -418,7 +407,6 @@ export default function MessagesPage() {
 
     try {
       setProcessingReaction(messageId);
-      setOpenReactionsForMessageId(null); // Close popover immediately
 
       // Find the message to check current user's reaction
       const message = threadMessages.find((m) => m.id === messageId);
@@ -487,87 +475,6 @@ export default function MessagesPage() {
     const diffMinutes = (Date.now() - created) / 60000;
     return diffMinutes <= editWindowMinutes;
   }, [currentUser?.id, editWindowMinutes]);
-
-  const startEditMessage = (message: MessageWithAttachments) => {
-    if (!canModifyMessage(message)) return;
-    setEditingMessageId(message.id);
-    setEditingContent(message.text ?? '');
-    setDeleteConfirmId(null);
-  };
-
-  const cancelEditMessage = () => {
-    setEditingMessageId(null);
-    setEditingContent('');
-    setDeleteConfirmId(null);
-  };
-
-  const saveEditMessage = async () => {
-    if (!editingMessageId || !editingContent.trim()) return;
-    const target = threadMessages.find((m) => m.id === editingMessageId);
-    if (!target || !canModifyMessage(target)) return;
-    if ((target.text ?? '').trim() === editingContent.trim()) {
-      setEditingMessageId(null);
-      setEditingContent('');
-      return;
-    }
-    setIsSavingEdit(true);
-    try {
-      await editMessageMutation.mutateAsync({
-        messageId: editingMessageId,
-        data: { content: editingContent.trim() },
-      });
-
-      updateThreadMessage(editingMessageId, (msg) => ({
-        ...msg,
-        text: editingContent.trim(),
-        isEdited: true,
-        editedAt: new Date().toISOString(),
-      }));
-      setEditingMessageId(null);
-      setEditingContent('');
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  const handleDeleteMessage = async (message: MessageWithAttachments) => {
-    if (!canModifyMessage(message)) return;
-    setDeletingMessageId(message.id);
-    try {
-      await deleteMessageMutation.mutateAsync({ messageId: message.id });
-      updateThreadMessage(message.id, (msg) => ({
-        ...msg,
-        isDeleted: true,
-        text: 'This message was deleted',
-        deletedAt: new Date().toISOString(),
-        deletedBy: currentUser?.id ?? null,
-      }));
-    } finally {
-      setDeletingMessageId(null);
-      setDeleteConfirmId((prev) => (prev === message.id ? null : prev));
-    }
-  };
-
-  // Close instructor reaction picker when clicking outside
-  useEffect(() => {
-    if (!openReactionsForMessageId) return;
-    const handleOutsideClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target && target.closest('[data-reaction-area="true"]')) {
-        return;
-      }
-      setOpenReactionsForMessageId(null);
-    };
-    document.addEventListener('click', handleOutsideClick);
-    return () => document.removeEventListener('click', handleOutsideClick);
-  }, [openReactionsForMessageId]);
-
-  const requestDeleteMessage = (message: MessageWithAttachments) => {
-    if (!canModifyMessage(message)) return;
-    setEditingMessageId(null);
-    setEditingContent('');
-    setDeleteConfirmId(message.id);
-  };
 
   // Initialize userReactions from server data when messages load
   useEffect(() => {
@@ -648,11 +555,6 @@ export default function MessagesPage() {
       .slice(0, 5);
   }, [composeRecipientQuery, composeRecipient?.id, conversations]);
 
-  useEffect(() => {
-    setEditingMessageId(null);
-    setEditingContent('');
-  }, [selectedChat, messageDisplay]);
-
   // Merge read receipts from message history and SSE events
   const mergedReadReceipts = useMemo(() => {
     const map: Record<string, Array<{ user_id: string; read_at: string }>> = { ...readReceipts };
@@ -684,6 +586,57 @@ export default function MessagesPage() {
     }
     return latest?.id ?? null;
   }, [threadMessages, mergedReadReceipts, currentUser?.id]);
+
+  const normalizedThreadMessages = useMemo<NormalizedMessage[]>(() => {
+    return threadMessages.map((message) => {
+      const readReceiptCount = mergedReadReceipts[message.id]?.length ?? 0;
+      const hasDeliveredAt = !!message.delivered_at;
+      const isOwnMessage = message.sender === 'instructor';
+      const currentReaction: string | null =
+        message.id in userReactions ? userReactions[message.id]! : (message.my_reactions?.[0] ?? null);
+
+      const timestamp = message.createdAt ? new Date(message.createdAt) : new Date();
+      const timestampLabel = message.timestamp || format(timestamp, 'h:mm a');
+      const isLastRead = message.id === lastInstructorReadMessageId;
+      const readTimestampLabel =
+        isLastRead && readReceiptCount > 0
+          ? (() => {
+              const firstReceipt = mergedReadReceipts[message.id]?.[0];
+              const readAt = new Date(firstReceipt?.read_at || '');
+              if (isToday(readAt)) return `Read at ${format(readAt, 'h:mm a')}`;
+              if (isYesterday(readAt)) return `Read yesterday at ${format(readAt, 'h:mm a')}`;
+              return `Read on ${format(readAt, 'MMM d')} at ${format(readAt, 'h:mm a')}`;
+            })()
+          : undefined;
+
+      const reactionsRaw = message.reactions || {};
+      const displayReactions: Record<string, number> = { ...reactionsRaw };
+      const reactions: NormalizedReaction[] = Object.entries(displayReactions)
+        .filter(([, c]) => c > 0)
+        .map(([emoji, count]) => ({
+          emoji,
+          count,
+          isMine: currentReaction === emoji,
+        }));
+
+      const attachments =
+        message.attachments?.map((attachment, index) => ({
+          id: `${message.id}-att-${index}`,
+          url: attachment.dataUrl || '',
+          type: attachment.type,
+          name: attachment.name,
+        })) ?? [];
+
+      return normalizeInstructorMessage(message, currentUser?.id ?? '', {
+        reactions,
+        currentUserReaction: currentReaction,
+        timestampLabel,
+        readStatus: isOwnMessage ? (readReceiptCount > 0 ? 'read' : hasDeliveredAt ? 'delivered' : 'sent') : undefined,
+        readTimestampLabel,
+        attachments,
+      });
+    });
+  }, [threadMessages, mergedReadReceipts, lastInstructorReadMessageId, userReactions, currentUser?.id]);
 
   // Get primary booking ID for a thread
   const getPrimaryBookingId = useCallback((threadId: string | null) => {
@@ -1056,71 +1009,83 @@ export default function MessagesPage() {
                           <p className="text-sm text-gray-500">Draft your message and choose who to send it to.</p>
                         </div>
                       )}
-                      {threadMessages.map((message, index) => {
-                        const showSenderName = index === 0 || threadMessages[index - 1]?.sender !== message.sender;
-                        const senderName = message.sender === 'instructor'
-                          ? (currentUser?.first_name || 'You')
-                          : (activeConversation?.name || 'Student');
-                        const readReceiptCount = mergedReadReceipts[message.id]?.length ?? 0;
-                        const hasDeliveredAt = !!message.delivered_at;
+                      {normalizedThreadMessages.map((message) => {
+                        const raw = message._raw as MessageWithAttachments | undefined;
+                        const canModify = messageDisplay === 'inbox' && raw ? canModifyMessage(raw) : false;
 
-                        const isOwnMessage = message.sender === 'instructor';
-                        const isDeleted = Boolean(message.isDeleted);
-                        const canModify = messageDisplay === 'inbox' && canModifyMessage(message);
-                        const isEditing = editingMessageId === message.id;
-                        const currentReaction: string | null =
-                          message.id in userReactions
-                            ? userReactions[message.id]!  // We know it exists, so assert non-null access
-                            : (message.my_reactions?.[0] ?? null);
-
-                        // Format read timestamp for last read message (iMessage-style)
-                        const isLastRead = message.id === lastInstructorReadMessageId;
-                        const readTimestamp = isLastRead && readReceiptCount > 0
-                          ? (() => {
-                              const firstReceipt = mergedReadReceipts[message.id]?.[0];
-                              const readAt = new Date(firstReceipt?.read_at || '');
-                              if (isToday(readAt)) return `Read at ${format(readAt, 'h:mm a')}`;
-                              if (isYesterday(readAt)) return `Read yesterday at ${format(readAt, 'h:mm a')}`;
-                              return `Read on ${format(readAt, 'MMM d')} at ${format(readAt, 'h:mm a')}`;
-                            })()
-                          : undefined;
+                        const renderAttachments = (attachments: NonNullable<NormalizedMessage['attachments']>) => (
+                          <div className="mt-2 flex flex-col gap-2">
+                            {attachments.map((attachment) => {
+                              const isImage = attachment.type.startsWith('image/') && attachment.url;
+                              if (isImage) {
+                                return (
+                                  <div key={attachment.id} className="overflow-hidden rounded-lg bg-white/10 border border-white/20">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={attachment.url}
+                                      alt={attachment.name ?? 'attachment'}
+                                      className="max-w-[240px] rounded-md object-cover"
+                                    />
+                                    {attachment.name && <p className="text-xs opacity-80 mt-1 truncate px-2 pb-1">{attachment.name}</p>}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div
+                                  key={attachment.id}
+                                  className="flex items-center gap-2 rounded-lg px-3 py-2 bg-white border border-gray-200 dark:bg-gray-600 dark:border-gray-500"
+                                >
+                                  <span className="text-xs truncate max-w-[12rem]" title={attachment.name}>
+                                    {attachment.name || 'File'}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
 
                         return (
                           <Fragment key={message.id}>
-                            <MessageBubble
+                            <SharedMessageBubble
                               message={message}
-                              isLastInstructor={message.sender === 'instructor' && index === threadMessages.length - 1}
-                              showSenderName={showSenderName}
-                              senderName={senderName}
-                              showReadIndicator={message.sender === 'instructor'}
-                              readReceiptCount={readReceiptCount}
-                              hasDeliveredAt={hasDeliveredAt}
-                              {...(readTimestamp ? { readTimestamp } : {})}
-                              // Reaction props
-                              isOwnMessage={isOwnMessage}
-                              currentReaction={currentReaction}
-                              onReactionClick={(emoji) => handleAddReaction(message.id, emoji)}
-                              showReactionPicker={openReactionsForMessageId === message.id}
-                              onToggleReactionPicker={() =>
-                                setOpenReactionsForMessageId(
-                                  openReactionsForMessageId === message.id ? null : message.id
-                                )
-                              }
-                              processingReaction={processingReaction !== null}
-                              canEdit={canModify && !isDeleted}
-                              canDelete={canModify && !isDeleted}
-                              onEdit={() => startEditMessage(message)}
-                              onDelete={() => requestDeleteMessage(message)}
-                              isDeleting={deletingMessageId === message.id}
-                              isEditing={isEditing}
-                              editValue={editingContent}
-                              onEditChange={(val) => setEditingContent(val)}
-                              onSaveEdit={() => void saveEditMessage()}
-                              onCancelEdit={cancelEditMessage}
-                              isSavingEdit={isSavingEdit}
-                              showDeleteConfirm={deleteConfirmId === message.id}
-                              onConfirmDelete={() => void handleDeleteMessage(message)}
-                              onCancelDelete={() => setDeleteConfirmId(null)}
+                              side={message.isOwn ? 'right' : 'left'}
+                              canEdit={canModify && !message.isDeleted}
+                              canDelete={canModify && !message.isDeleted}
+                              canReact={!message.isOwn && !message.isDeleted}
+                              showReadReceipt={message.isOwn}
+                              onEdit={async (messageId, newContent) => {
+                                const target = threadMessages.find((m) => m.id === messageId);
+                                if (!target || !canModifyMessage(target)) return;
+                                await editMessageMutation.mutateAsync({
+                                  messageId,
+                                  data: { content: newContent },
+                                });
+                                updateThreadMessage(messageId, (msg) => ({
+                                  ...msg,
+                                  text: newContent,
+                                  isEdited: true,
+                                  editedAt: new Date().toISOString(),
+                                }));
+                              }}
+                              onDelete={async (messageId) => {
+                                const target = threadMessages.find((m) => m.id === messageId);
+                                if (!target || !canModifyMessage(target)) return;
+                                await deleteMessageMutation.mutateAsync({ messageId });
+                                updateThreadMessage(messageId, (msg) => ({
+                                  ...msg,
+                                  isDeleted: true,
+                                  text: 'This message was deleted',
+                                  deletedAt: new Date().toISOString(),
+                                  deletedBy: currentUser?.id ?? null,
+                                }));
+                              }}
+                              onReact={async (messageId, emoji) => {
+                                if (processingReaction !== null) return;
+                                await handleAddReaction(messageId, emoji);
+                              }}
+                              reactionBusy={processingReaction !== null}
+                              quickEmojis={['👍', '❤️', '😊', '😮', '🎉']}
+                              renderAttachments={message.attachments && message.attachments.length > 0 ? renderAttachments : undefined}
                             />
                           </Fragment>
                         );
