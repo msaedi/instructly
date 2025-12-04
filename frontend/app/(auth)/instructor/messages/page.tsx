@@ -49,7 +49,7 @@ import {
   MessageInput,
   TemplateEditor,
 } from '@/components/instructor/messages/components';
-import { MessageBubble as SharedMessageBubble, normalizeInstructorMessage, type NormalizedMessage, type NormalizedReaction } from '@/components/messaging';
+import { MessageBubble as SharedMessageBubble, normalizeInstructorMessage, useReactions, type NormalizedMessage, type NormalizedReaction, type ReactionMutations } from '@/components/messaging';
 
 // Helper to convert messageDisplay to API filter parameters
 function getFiltersForDisplay(
@@ -239,11 +239,27 @@ export default function MessagesPage() {
     } catch {}
   }, [selectedBookingId, sendTypingMutation]);
 
-  // Reaction mutations and state
+  // Reaction mutations and shared hook
   const addReactionMutation = useAddReaction();
   const removeReactionMutation = useRemoveReaction();
-  const [userReactions, setUserReactions] = useState<Record<string, string | null>>({});
-  const [processingReaction, setProcessingReaction] = useState<string | null>(null);
+
+  const reactionMutations: ReactionMutations = useMemo(
+    () => ({
+      addReaction: (params) => addReactionMutation.mutateAsync(params),
+      removeReaction: (params) => removeReactionMutation.mutateAsync(params),
+    }),
+    [addReactionMutation, removeReactionMutation]
+  );
+
+  const {
+    userReactions,
+    processingReaction,
+    handleReaction: handleAddReaction,
+  } = useReactions({
+    messages: threadMessages,
+    mutations: reactionMutations,
+    debug: false,
+  });
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -399,73 +415,6 @@ export default function MessagesPage() {
     }));
   }, [updateThreadMessage]);
 
-  const handleAddReaction = useCallback(async (messageId: string, emoji: string) => {
-    // Prevent multiple simultaneous reactions
-    if (processingReaction !== null) {
-      return;
-    }
-
-    try {
-      setProcessingReaction(messageId);
-
-      // Find the message to check current user's reaction
-      const message = threadMessages.find((m) => m.id === messageId);
-      if (!message) {
-        return;
-      }
-
-      // Get current state
-      const myReactions = message.my_reactions || [];
-      const localReaction = userReactions[messageId];
-      const currentReaction = localReaction !== undefined ? localReaction : myReactions[0];
-
-      // If user is trying to add a reaction when they already have one (and it's different)
-      if (currentReaction && currentReaction !== emoji) {
-        // Update local state immediately
-        setUserReactions((prev) => ({ ...prev, [messageId]: emoji }));
-
-        // Remove old reaction
-        try {
-          await removeReactionMutation.mutateAsync({ messageId, data: { emoji: currentReaction } });
-        } catch {
-          // Revert local state
-          setUserReactions((prev) => ({ ...prev, [messageId]: currentReaction }));
-          return;
-        }
-
-        // Add new reaction
-        try {
-          await addReactionMutation.mutateAsync({ messageId, data: { emoji } });
-        } catch {
-          // Revert to no reaction
-          setUserReactions((prev) => ({ ...prev, [messageId]: null }));
-        }
-      } else if (currentReaction === emoji) {
-        // Toggle off - remove the reaction
-        setUserReactions((prev) => ({ ...prev, [messageId]: null }));
-
-        try {
-          await removeReactionMutation.mutateAsync({ messageId, data: { emoji } });
-        } catch {
-          // Revert local state
-          setUserReactions((prev) => ({ ...prev, [messageId]: emoji }));
-        }
-      } else {
-        // No current reaction, add the new one
-        setUserReactions((prev) => ({ ...prev, [messageId]: emoji }));
-
-        try {
-          await addReactionMutation.mutateAsync({ messageId, data: { emoji } });
-        } catch {
-          // Revert local state
-          setUserReactions((prev) => ({ ...prev, [messageId]: null }));
-        }
-      }
-    } finally {
-      setProcessingReaction(null);
-    }
-  }, [processingReaction, threadMessages, userReactions, removeReactionMutation, addReactionMutation]);
-
   const canModifyMessage = useCallback((message: MessageWithAttachments): boolean => {
     if (!currentUser?.id) return false;
     if (message.senderId !== currentUser.id) return false;
@@ -475,25 +424,6 @@ export default function MessagesPage() {
     const diffMinutes = (Date.now() - created) / 60000;
     return diffMinutes <= editWindowMinutes;
   }, [currentUser?.id, editWindowMinutes]);
-
-  // Initialize userReactions from server data when messages load
-  useEffect(() => {
-    setUserReactions((prev) => {
-      const updated: Record<string, string | null> = { ...prev };
-      let hasChanges = false;
-
-      threadMessages.forEach((message) => {
-        // Only initialize if not already in state
-        if (!(message.id in updated)) {
-          const myReactions = message.my_reactions || [];
-          updated[message.id] = myReactions[0] || null;
-          hasChanges = true;
-        }
-      });
-
-      return hasChanges ? updated : prev;
-    });
-  }, [threadMessages]); // Removed userReactions dependency to prevent infinite loops
 
   // Subscribe to active conversation's events
   useEffect(() => {

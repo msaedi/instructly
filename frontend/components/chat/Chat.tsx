@@ -34,7 +34,7 @@ import { queryKeys } from '@/src/api/queryKeys';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
-import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, type NormalizedMessage, type NormalizedReaction } from '@/components/messaging';
+import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, type NormalizedMessage, type NormalizedReaction, type ReactionMutations } from '@/components/messaging';
 
 // Connection status enum (internal to Chat component)
 enum ConnectionStatus {
@@ -389,6 +389,32 @@ export function Chat({
     return result;
   }, [historyData?.messages, realtimeMessages]);
 
+  // Shared reaction management hook
+  const reactionMutations: ReactionMutations = React.useMemo(
+    () => ({
+      addReaction: (params) => addReactionMutation.mutateAsync(params),
+      removeReaction: (params) => removeReactionMutation.mutateAsync(params),
+    }),
+    [addReactionMutation, removeReactionMutation]
+  );
+
+  const {
+    userReactions,
+    processingReaction,
+    handleReaction: handleAddReaction,
+    hasReacted,
+  } = useReactions({
+    messages: allMessages as MessageWithReactions[],
+    mutations: reactionMutations,
+    onReactionComplete: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.messages.history(bookingId),
+        exact: false,
+      });
+    },
+    debug: false,
+  });
+
   // Build a stable read map derived from server-provided read_by and live receipts
   const mergedReadReceipts = React.useMemo(() => {
     const map: Record<string, Array<{ user_id: string; read_at: string }>> = { ...readReceipts };
@@ -591,203 +617,8 @@ export function Chat({
     }, 300); // 300ms debounce for more responsive typing indicator
   };
 
-  // Quick reactions toggle per-message
-  const [processingReaction, setProcessingReaction] = useState<string | null>(null);
+  // Quick reaction emojis
   const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
-  const handleAddReaction = async (messageId: string, emoji: string) => {
-    logger.debug('[MSG-DEBUG] Reaction: Starting', {
-      messageId,
-      emoji,
-      bookingId,
-      timestamp: new Date().toISOString()
-    });
-
-    // For optimistic/temporary messages with negative IDs
-    if (messageId.startsWith('-')) {
-      logger.debug('[MSG-DEBUG] Reaction: Skipping temp message');
-      return;
-    }
-
-    // Prevent multiple simultaneous reactions GLOBALLY (not just per message)
-    if (processingReaction !== null) {
-      logger.warn('[MSG-DEBUG] Reaction: Already processing, ignoring', {
-        processingReaction,
-        newRequest: { messageId, emoji }
-      });
-      return;
-    }
-
-    try {
-      setProcessingReaction(messageId);
-
-      // Find the message to check current user's reaction
-      const message = allMessages.find(m => m.id === messageId);
-      if (!message) {
-        logger.error('[MSG-DEBUG] Reaction: Message not found', { messageId });
-        return;
-      }
-
-      // Get current state
-      const myReactions = (message as MessageWithReactions)?.my_reactions || [];
-      const localReaction = userReactions[messageId];
-      const currentReaction = localReaction !== undefined ? localReaction : myReactions[0];
-
-      logger.debug('[MSG-DEBUG] Reaction: Current state', {
-        messageId,
-        requestedEmoji: emoji,
-        serverReactions: myReactions,
-        localReaction,
-        currentReaction,
-        timestamp: new Date().toISOString()
-      });
-
-      // If user is trying to add a reaction when they already have one (and it's different)
-      // Force remove the old one first
-      if (currentReaction && currentReaction !== emoji) {
-        logger.debug('[MSG-DEBUG] Reaction: Replacing existing', {
-          oldEmoji: currentReaction,
-          newEmoji: emoji,
-          messageId,
-          timestamp: new Date().toISOString()
-        });
-        // Update local state immediately to show the change
-        setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
-
-        // Remove old reaction
-        try {
-          logger.debug('[MSG-DEBUG] Reaction: Calling removeReactionMutation', {
-            messageId,
-            emoji: currentReaction,
-            timestamp: new Date().toISOString()
-          });
-          await removeReactionMutation.mutateAsync({ messageId, data: { emoji: currentReaction } });
-          logger.debug('[MSG-DEBUG] Reaction: removeReactionMutation SUCCESS', { timestamp: new Date().toISOString() });
-        } catch (err) {
-          logger.error('[MSG-DEBUG] Reaction: removeReactionMutation FAILED', {
-            error: err instanceof Error ? err.message : err,
-            messageId,
-            emoji: currentReaction,
-            timestamp: new Date().toISOString()
-          });
-          // Revert local state
-          setUserReactions(prev => ({ ...prev, [messageId]: currentReaction }));
-          return;
-        }
-
-        // Add new reaction
-        try {
-          logger.debug('[MSG-DEBUG] Reaction: Calling addReactionMutation', {
-            messageId,
-            emoji,
-            timestamp: new Date().toISOString()
-          });
-          await addReactionMutation.mutateAsync({ messageId, data: { emoji } });
-          logger.debug('[MSG-DEBUG] Reaction: addReactionMutation SUCCESS', { timestamp: new Date().toISOString() });
-        } catch (err) {
-          logger.error('[MSG-DEBUG] Reaction: addReactionMutation FAILED', {
-            error: err instanceof Error ? err.message : err,
-            messageId,
-            emoji,
-            timestamp: new Date().toISOString()
-          });
-          // Revert to no reaction since we removed the old one
-          setUserReactions(prev => ({ ...prev, [messageId]: null }));
-          return;
-        }
-      } else if (currentReaction === emoji) {
-        // Toggle off - remove the reaction
-        logger.debug('[MSG-DEBUG] Reaction: Toggling off', {
-          emoji,
-          messageId,
-          timestamp: new Date().toISOString()
-        });
-        setUserReactions(prev => ({ ...prev, [messageId]: null }));
-
-        try {
-          logger.debug('[MSG-DEBUG] Reaction: Calling removeReactionMutation for toggle', {
-            messageId,
-            emoji,
-            timestamp: new Date().toISOString()
-          });
-          await removeReactionMutation.mutateAsync({ messageId, data: { emoji } });
-          logger.debug('[MSG-DEBUG] Reaction: removeReactionMutation SUCCESS (toggle)', { timestamp: new Date().toISOString() });
-        } catch (err) {
-          logger.error('[MSG-DEBUG] Reaction: removeReactionMutation FAILED (toggle)', {
-            error: err instanceof Error ? err.message : err,
-            messageId,
-            emoji,
-            timestamp: new Date().toISOString()
-          });
-          // Revert local state
-          setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
-        }
-      } else {
-        // No current reaction, add the new one
-        logger.debug('[MSG-DEBUG] Reaction: Adding new', {
-          emoji,
-          messageId,
-          timestamp: new Date().toISOString()
-        });
-        setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
-
-        try {
-          logger.debug('[MSG-DEBUG] Reaction: Calling addReactionMutation (new)', {
-            messageId,
-            emoji,
-            timestamp: new Date().toISOString()
-          });
-          await addReactionMutation.mutateAsync({ messageId, data: { emoji } });
-          logger.debug('[MSG-DEBUG] Reaction: addReactionMutation SUCCESS (new)', { timestamp: new Date().toISOString() });
-        } catch (err) {
-          logger.error('[MSG-DEBUG] Reaction: addReactionMutation FAILED (new)', {
-            error: err instanceof Error ? err.message : err,
-            messageId,
-            emoji,
-            timestamp: new Date().toISOString()
-          });
-          // Revert local state
-          setUserReactions(prev => ({ ...prev, [messageId]: null }));
-        }
-      }
-
-      // Extra safety: if server still has multiple reactions, clean them up
-      const updatedMessage = allMessages.find(m => m.id === messageId);
-      const updatedReactions = (updatedMessage as MessageWithReactions)?.my_reactions || [];
-      if (updatedReactions.length > 1) {
-        logger.warn(`Message still has ${updatedReactions.length} reactions after update, cleaning up extras`);
-        const keepEmoji = userReactions[messageId] || updatedReactions[0];
-        for (const extraEmoji of updatedReactions) {
-          if (extraEmoji !== keepEmoji) {
-            await removeReactionMutation.mutateAsync({ messageId, data: { emoji: extraEmoji } });
-          }
-        }
-      }
-
-    } catch (error) {
-      logger.error('Failed to handle reaction', error);
-      // Revert optimistic update on error
-      const message = allMessages.find(m => m.id === messageId);
-      if (message) {
-        const myReactions = (message as MessageWithReactions)?.my_reactions || [];
-        const serverReaction = myReactions[0];
-        setUserReactions(prev => ({
-          ...prev,
-          [messageId]: serverReaction || null
-        }));
-      }
-    } finally {
-      // Invalidate message history cache so reactions persist on reopen
-      // This ensures fresh data is fetched next time chat is opened
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.messages.history(bookingId),
-        exact: false,
-      });
-      // Add a small delay before allowing new reactions to prevent race conditions
-      setTimeout(() => {
-        setProcessingReaction(null);
-      }, 200);
-    }
-  };
 
   const canEditMessage = (message: MessageResponse): boolean => {
     if (message.sender_id !== currentUserId) return false;
@@ -798,88 +629,6 @@ export function Chat({
     const diffMinutes = (now - created) / 60000;
     return diffMinutes <= editWindowMinutes;
   };
-
-  // Track SINGLE reaction per message (messageId -> emoji or null)
-  // This is the source of truth for user's reactions
-  const [userReactions, setUserReactions] = useState<Record<string, string | null>>({});
-
-  // Apply reaction deltas from SSE to track real-time updates
-  useEffect(() => {
-    // Process reaction deltas to determine current user reactions
-    Object.entries(reactionDeltas).forEach(([_messageId, _reactions]) => {
-      // Find which reactions belong to current user based on delta changes
-      // This is a workaround since SSE doesn't tell us WHO added/removed reactions
-      // We'll rely on our local state as source of truth
-    });
-  }, [reactionDeltas]);
-
-  // Initialize userReactions from server data when messages load
-  // Also clean up any multiple reactions (enforce single emoji)
-  useEffect(() => {
-    const newReactions: Record<string, string | null> = {};
-    const cleanupMessages: Array<{messageId: string, keepEmoji: string, removeEmojis: string[]}> = [];
-
-    allMessages.forEach(message => {
-      // Only set if we don't already have a local state for this message
-      if (userReactions[message.id] === undefined) {
-        const myReactions = (message as MessageWithReactions).my_reactions || [];
-        // Only track the FIRST reaction (enforce single emoji)
-        newReactions[message.id] = myReactions[0] || null;
-
-        // If server has multiple reactions, schedule cleanup
-        if (myReactions.length > 1) {
-          logger.warn(`Message ${message.id} has ${myReactions.length} reactions, cleaning up to keep only: ${myReactions[0]}`);
-          cleanupMessages.push({
-            messageId: message.id,
-            keepEmoji: myReactions[0] || '',
-            removeEmojis: myReactions.slice(1)
-          });
-        }
-      }
-    });
-
-    // Only update if there are new reactions to add
-    if (Object.keys(newReactions).length > 0) {
-      setUserReactions(prev => ({
-        ...newReactions,
-        ...prev // Preserve any existing local state
-      }));
-    }
-
-    // Clean up multiple reactions on server
-    if (cleanupMessages.length > 0) {
-      (async () => {
-        for (const cleanup of cleanupMessages) {
-          for (const emojiToRemove of cleanup.removeEmojis) {
-            try {
-              await removeReactionMutation.mutateAsync({
-                messageId: cleanup.messageId,
-                data: { emoji: emojiToRemove },
-              });
-              logger.info(`Cleaned up extra reaction ${emojiToRemove} from message ${cleanup.messageId}`);
-            } catch (error) {
-              logger.error(`Failed to clean up reaction ${emojiToRemove}`, error);
-            }
-          }
-        }
-      })();
-    }
-  }, [allMessages, userReactions, removeReactionMutation]); // Only re-run when messages or reactions change
-
-  // Local reaction toggle function removed - optimistic updates handled in handleAddReaction
-
-  const isEmojiMyReacted = useCallback((message: MessageResponse, emoji: string): boolean => {
-    // Check our local state for the current reaction
-    const localReaction = userReactions[message.id];
-    if (localReaction !== undefined) {
-      // If local state is set, use it (even if null)
-      return localReaction === emoji;
-    }
-
-    // Fall back to server state - only consider FIRST reaction
-    const myReactions = (message as MessageWithReactions).my_reactions || [];
-    return myReactions.length > 0 && myReactions[0] === emoji;
-  }, [userReactions]);
 
   // Get date separator text
   const getDateSeparator = (date: string) => {
@@ -940,7 +689,7 @@ export function Chat({
         .map(([emoji, count]) => ({
           emoji,
           count,
-          isMine: isEmojiMyReacted(message, emoji),
+          isMine: hasReacted(message.id, emoji),
         }));
 
       const currentReaction =
@@ -956,7 +705,7 @@ export function Chat({
         readTimestampLabel,
       });
     });
-  }, [allMessages, currentUserId, mergedReadReceipts, lastOwnReadMessageId, userReactions, reactionDeltas, isEmojiMyReacted]);
+  }, [allMessages, currentUserId, mergedReadReceipts, lastOwnReadMessageId, userReactions, reactionDeltas, hasReacted]);
 
   // Group messages by date (normalized)
   const messagesByDate = React.useMemo(() => {

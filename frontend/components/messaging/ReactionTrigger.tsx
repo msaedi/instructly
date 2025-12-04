@@ -5,6 +5,8 @@ interface ReactionTriggerProps {
   messageId: string;
   side: 'left' | 'right';
   isOpen: boolean;
+  /** Whether the parent bubble is being hovered - controls trigger visibility */
+  isHovered: boolean;
   onOpen: () => void;
   onClose: () => void;
   onSelect: (emoji: string) => void;
@@ -19,6 +21,7 @@ export function ReactionTrigger({
   messageId,
   side,
   isOpen,
+  isHovered,
   onOpen,
   onClose,
   onSelect,
@@ -40,28 +43,19 @@ export function ReactionTrigger({
 
   if (disabled) return null;
 
+  // Show nothing if not hovered and not open
+  if (!isHovered && !isOpen) return null;
+
   return (
     <>
-      {/* Hover bridge to keep trigger visible while moving cursor */}
-      <div
-        className={cn(
-          'absolute top-0 bottom-0 z-0',
-          side === 'right' ? 'right-full w-6' : 'left-full w-6'
-        )}
-        data-reaction-area={messageId}
-        onMouseEnter={() => !isOpen && onOpen()}
-        onMouseLeave={() => !isOpen && onClose()}
-      />
-
-      {(isOpen) && (
+      {/* Emoji picker (shown when open) */}
+      {isOpen && (
         <div
           className={cn(
             'absolute top-1/2 -translate-y-1/2 z-20',
             side === 'right' ? 'right-full mr-1' : 'left-full ml-1'
           )}
           data-reaction-area={messageId}
-          onMouseEnter={onOpen}
-          onMouseLeave={onClose}
         >
           <div className="flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow px-2 py-1 dark:bg-gray-900 dark:ring-gray-700">
             {emojis.map((e) => {
@@ -91,6 +85,7 @@ export function ReactionTrigger({
         </div>
       )}
 
+      {/* Trigger button (shown on hover, hidden when picker is open) */}
       {!isOpen && (
         <div
           className={cn(
@@ -98,8 +93,6 @@ export function ReactionTrigger({
             side === 'right' ? 'right-full mr-1' : 'left-full ml-1'
           )}
           data-reaction-area={messageId}
-          onMouseEnter={onOpen}
-          onMouseLeave={onClose}
         >
           <button
             type="button"

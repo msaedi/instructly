@@ -37,6 +37,7 @@ export function MessageBubble({
   const [draft, setDraft] = useState(message.content);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReactionOpen, setIsReactionOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const bubbleSide: 'left' | 'right' = side ?? (message.isOwn ? 'right' : 'left');
 
@@ -189,7 +190,11 @@ export function MessageBubble({
 
   return (
     <div className={cn('flex', bubbleSide === 'right' ? 'justify-end' : 'justify-start')}>
-      <div className={cn('relative flex flex-col', bubbleSide === 'right' ? 'items-end pl-2' : 'items-start pr-2')}>
+      <div
+        className={cn('relative flex flex-col', bubbleSide === 'right' ? 'items-end pl-2' : 'items-start pr-2')}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
         <div
           className={cn(
             'relative max-w-xs lg:max-w-md rounded-2xl px-3.5 py-2 break-words shadow-sm select-text text-[15px] leading-5 sm:text-sm',
@@ -244,11 +249,23 @@ export function MessageBubble({
 
         {renderReactions()}
 
+        {/* Hover bridge - extends hover area to cover reaction trigger position */}
+        {canReact && !message.isDeleted && onReact && (
+          <div
+            className={cn(
+              'absolute top-0 bottom-0 w-10',
+              bubbleSide === 'right' ? 'right-full' : 'left-full'
+            )}
+            aria-hidden="true"
+          />
+        )}
+
         {canReact && !message.isDeleted && onReact && (
           <ReactionTrigger
             messageId={message.id}
             side={bubbleSide === 'right' ? 'right' : 'left'}
             isOpen={isReactionOpen}
+            isHovered={isHovered}
             onOpen={() => setIsReactionOpen(true)}
             onClose={() => setIsReactionOpen(false)}
             onSelect={(emoji) => onReact(message.id, emoji)}
