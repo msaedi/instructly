@@ -215,6 +215,11 @@ def format_redis_event(event: Dict[str, Any], user_id: str) -> Dict[str, str]:
             "event": "message_edited",
             "data": json.dumps(payload),
         }
+    elif event_type == "message_deleted":
+        return {
+            "event": "message_deleted",
+            "data": json.dumps(payload),
+        }
 
     else:
         # Unknown event type - pass through without id
@@ -240,16 +245,30 @@ def format_message_from_db(message: Message, user_id: str) -> Dict[str, str]:
             return dt.isoformat()
         return None
 
+    def _safe_attr(obj: Any, attr: str, default: Any = None) -> Any:
+        """Avoid Mock auto-creation by checking __dict__ instead of getattr on missing attrs."""
+        raw = getattr(obj, "__dict__", {})
+        if isinstance(raw, dict) and attr in raw:
+            return raw[attr]
+        return default
+
+    is_deleted = bool(_safe_attr(message, "is_deleted", False))
+    deleted_at_iso = _iso(_safe_attr(message, "deleted_at", None))
+    deleted_by = _safe_attr(message, "deleted_by", None)
+
     payload = {
         "message": {
             "id": message.id,
-            "content": message.content,
+            "content": "This message was deleted" if is_deleted else message.content,
             "sender_id": message.sender_id,
             "booking_id": message.booking_id,
             "created_at": _iso(getattr(message, "created_at", None)),
             "edited_at": _iso(getattr(message, "edited_at", None)),
             "delivered_at": _iso(getattr(message, "delivered_at", None)),
             "reactions": [],  # Reactions loaded separately if needed
+            "is_deleted": is_deleted,
+            "deleted_at": deleted_at_iso,
+            "deleted_by": deleted_by,
         },
         "conversation_id": message.booking_id,
         "is_mine": message.sender_id == user_id,

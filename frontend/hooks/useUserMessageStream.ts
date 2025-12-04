@@ -12,7 +12,13 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
-import type { SSEEvent, ConversationHandlers, SSEReadReceiptEvent, SSEMessageEditedEvent } from '@/types/messaging';
+import type {
+  SSEEvent,
+  ConversationHandlers,
+  SSEReadReceiptEvent,
+  SSEMessageEditedEvent,
+  SSEMessageDeletedEvent,
+} from '@/types/messaging';
 
 const SSE_ENDPOINT = '/api/v1/messages/stream';
 const RECONNECT_DELAY = 3000;
@@ -151,6 +157,11 @@ export function useUserMessageStream() {
             reason: !handlers.onMessageEdited ? 'no handler registered' : 'no content in payload',
           });
         }
+        break;
+      }
+      case 'message_deleted': {
+        const deleteEvent = event as SSEMessageDeletedEvent;
+        handlers.onMessageDeleted?.(deleteEvent.message_id, deleteEvent.deleted_by);
         break;
       }
     }
@@ -328,6 +339,22 @@ export function useUserMessageStream() {
         routeEvent(data);
       } catch (err) {
         logger.error('[MSG-DEBUG] SSE: Failed to parse message_edited', { err, timestamp: debugTimestamp() });
+      }
+    });
+
+    eventSource.addEventListener('message_deleted', (event) => {
+      resetHeartbeat();
+      try {
+        const parsed = JSON.parse((event as MessageEvent).data);
+        const data: SSEMessageDeletedEvent = { ...parsed, type: 'message_deleted' };
+        logger.debug('[MSG-DEBUG] SSE: message_deleted event', {
+          conversationId: data.conversation_id,
+          messageId: data.message_id,
+          timestamp: debugTimestamp(),
+        });
+        routeEvent(data);
+      } catch (err) {
+        logger.error('[MSG-DEBUG] SSE: Failed to parse message_deleted', { err, timestamp: debugTimestamp() });
       }
     });
 

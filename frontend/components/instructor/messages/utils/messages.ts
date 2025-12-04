@@ -73,11 +73,17 @@ export const mapMessageFromResponse = (
     }
   }
 
+  const isDeleted = Boolean((message as { is_deleted?: boolean }).is_deleted);
   const mapped: MessageWithAttachments = {
     id: message.id,
-    text: message.content ?? '',
+    text: isDeleted ? 'This message was deleted' : message.content ?? '',
     sender: senderType,
     timestamp: formatRelativeTime(message.created_at),
+    isDeleted,
+    deletedAt: (message as { deleted_at?: string | null }).deleted_at || undefined,
+    deletedBy: (message as { deleted_by?: string | null }).deleted_by || undefined,
+    isEdited: Boolean(message.edited_at),
+    editedAt: message.edited_at || undefined,
   };
 
   if (delivery) {
@@ -88,6 +94,9 @@ export const mapMessageFromResponse = (
   }
   if (message.sender_id) {
     mapped.senderId = message.sender_id;
+  }
+  if (message.edited_at) {
+    mapped.editedAt = message.edited_at;
   }
   if (typeof (message as { is_deleted?: unknown }).is_deleted === 'boolean') {
     mapped.isArchived = Boolean((message as { is_deleted?: boolean }).is_deleted);

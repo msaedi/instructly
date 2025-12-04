@@ -24,6 +24,7 @@ class EventType(str, Enum):
     REACTION_UPDATE = "reaction_update"
     MESSAGE_EDITED = "message_edited"
     READ_RECEIPT = "read_receipt"
+    MESSAGE_DELETED = "message_deleted"
 
 
 # Current schema version - increment when payload structure changes
@@ -150,5 +151,23 @@ def build_read_receipt_event(
             "reader_id": reader_id,
             "message_ids": message_ids,
             "read_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+def build_message_deleted_event(
+    conversation_id: str,
+    message_id: str,
+    deleted_by: str,
+    deleted_at: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Build a message_deleted event."""
+    return build_event(
+        EventType.MESSAGE_DELETED,
+        {
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+            "deleted_by": deleted_by,
+            "deleted_at": (deleted_at or datetime.now(timezone.utc)).isoformat(),
         },
     )

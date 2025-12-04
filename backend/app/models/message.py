@@ -40,6 +40,8 @@ class Message(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
     is_deleted = Column(Boolean, nullable=False, default=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    deleted_by = Column(String(26), nullable=True)
     delivered_at = Column(DateTime(timezone=True), nullable=True)
     edited_at = Column(DateTime(timezone=True), nullable=True)
     # Array of { user_id, read_at }

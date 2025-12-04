@@ -640,6 +640,8 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("deleted_by", sa.String(26), nullable=True),
         # Phase 2 additions
         sa.Column("delivered_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("edited_at", sa.DateTime(timezone=True), nullable=True),
@@ -658,6 +660,7 @@ def upgrade() -> None:
     op.create_index("ix_messages_booking_created", "messages", ["booking_id", "created_at"])
     op.create_index("ix_messages_sender_id", "messages", ["sender_id"])
     op.create_index("ix_messages_created_at", "messages", ["created_at"])
+    op.create_index("ix_messages_deleted_at", "messages", ["deleted_at"])
 
     # Add conversation_state table for O(1) inbox queries
     print("Creating conversation_state table for efficient inbox state...")
@@ -1478,6 +1481,7 @@ def downgrade() -> None:
     op.drop_index("ix_messages_created_at", "messages")
     op.drop_index("ix_messages_sender_id", "messages")
     op.drop_index("ix_messages_booking_created", "messages")
+    op.drop_index("ix_messages_deleted_at", "messages")
     op.drop_table("messages")
 
     print("Dropping bgc_webhook_log table...")
