@@ -208,7 +208,7 @@ describe('MessageBubble', () => {
         />
       );
 
-      const messageContainer = screen.getByText('Hello').closest('div');
+      const messageContainer = screen.getByTestId('message-bubble');
       expect(messageContainer).toHaveClass('bg-[#7E22CE]');
       expect(messageContainer).toHaveClass('text-white');
     });
@@ -227,7 +227,7 @@ describe('MessageBubble', () => {
         />
       );
 
-      const messageContainer = screen.getByText('Hello').closest('div');
+      const messageContainer = screen.getByTestId('message-bubble');
       expect(messageContainer).toHaveClass('bg-gray-100');
       expect(messageContainer).toHaveClass('text-gray-800');
     });
@@ -246,7 +246,7 @@ describe('MessageBubble', () => {
         />
       );
 
-      const messageContainer = screen.getByText('Hello').closest('div');
+      const messageContainer = screen.getByTestId('message-bubble');
       expect(messageContainer).toHaveClass('bg-blue-100');
       expect(messageContainer).toHaveClass('text-blue-800');
     });
