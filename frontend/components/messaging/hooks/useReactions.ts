@@ -70,6 +70,9 @@ export function useReactions<T extends ReactionMessage>({
   // Track cleanup to prevent duplicate cleanup calls
   const cleanupInProgressRef = useRef<Set<string>>(new Set());
 
+  // Track processing timeout for cleanup on unmount
+  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const log = useCallback(
     (message: string, data?: Record<string, unknown>) => {
       if (debug) {
@@ -219,13 +222,27 @@ export function useReactions<T extends ReactionMessage>({
         onReactionComplete?.();
       } finally {
         // Small delay before allowing new reactions to prevent race conditions
-        setTimeout(() => {
+        // Clear any existing timeout before setting a new one
+        if (processingTimeoutRef.current) {
+          clearTimeout(processingTimeoutRef.current);
+        }
+        processingTimeoutRef.current = setTimeout(() => {
           setProcessingReaction(null);
+          processingTimeoutRef.current = null;
         }, 200);
       }
     },
     [processingReaction, messages, userReactions, mutations, onReactionComplete, log]
   );
+
+  // Cleanup timeout on unmount to prevent setState on unmounted component
+  useEffect(() => {
+    return () => {
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const hasReacted = useCallback(
     (messageId: string, emoji: string): boolean => {

@@ -397,12 +397,11 @@ async def mark_messages_as_read(
         # Redis Pub/Sub publishing (fire-and-forget)
         if count > 0 and booking_id and marked_message_ids:
             try:
-                recipient_id = service.get_recipient_id(booking_id, str(current_user.id))
                 await publish_read_receipt(
+                    db=service.db,
                     conversation_id=booking_id,
                     reader_id=str(current_user.id),
                     message_ids=marked_message_ids,
-                    recipient_ids=[recipient_id] if recipient_id else [],
                 )
                 logger.debug(
                     "[REDIS-PUBSUB] Mark-read: Published to Redis",
@@ -495,14 +494,12 @@ async def send_message(
 
         # Redis Pub/Sub publishing (fire-and-forget)
         try:
-            recipient_id = service.get_recipient_id(request.booking_id, str(current_user.id))
-            recipient_ids = [recipient_id] if recipient_id else []
             await publish_new_message(
+                db=service.db,
                 message_id=str(message.id),
                 content=message.content,
                 sender_id=str(current_user.id),
                 booking_id=request.booking_id,
-                recipient_ids=recipient_ids,
                 created_at=message.created_at,
                 delivered_at=message.delivered_at,
             )
@@ -714,12 +711,9 @@ async def send_typing_indicator(
     Publishes typing status via Redis Pub/Sub (no Postgres NOTIFY).
     Rate limited to 1 per second.
     """
-    # Let service handle access validation and participant lookup
-    recipient_id: Optional[str] = None
+    # Let service handle access validation
     try:
-        recipient_id = service.send_typing_indicator(
-            booking_id, current_user.id, current_user.first_name
-        )
+        service.send_typing_indicator(booking_id, current_user.id, current_user.first_name)
     except ForbiddenException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
@@ -727,18 +721,16 @@ async def send_typing_indicator(
 
     # Redis Pub/Sub publishing (Phase 1 - fire-and-forget)
     try:
-        recipient_id = recipient_id or service.get_recipient_id(booking_id, str(current_user.id))
-        if recipient_id is not None:
-            await publish_typing_status(
-                conversation_id=booking_id,
-                user_id=str(current_user.id),
-                recipient_ids=[recipient_id],
-                is_typing=True,
-            )
-            logger.debug(
-                "[REDIS-PUBSUB] Typing indicator: Published to Redis",
-                extra={"booking_id": booking_id},
-            )
+        await publish_typing_status(
+            db=service.db,
+            conversation_id=booking_id,
+            user_id=str(current_user.id),
+            is_typing=True,
+        )
+        logger.debug(
+            "[REDIS-PUBSUB] Typing indicator: Published to Redis",
+            extra={"booking_id": booking_id},
+        )
     except Exception as e:
         logger.error(
             "[REDIS-PUBSUB] Typing indicator: Redis publish failed",
@@ -806,22 +798,18 @@ async def edit_message(
         try:
             message = service.get_message_by_id(message_id, str(current_user.id))
             if message:
-                recipient_id = service.get_recipient_id(
-                    str(message.booking_id), str(current_user.id)
+                await publish_message_edited(
+                    db=service.db,
+                    conversation_id=str(message.booking_id),
+                    message_id=message_id,
+                    new_content=request.content,
+                    editor_id=str(current_user.id),
+                    edited_at=message.edited_at or datetime.now(timezone.utc),
                 )
-                if recipient_id:
-                    await publish_message_edited(
-                        conversation_id=str(message.booking_id),
-                        message_id=message_id,
-                        new_content=request.content,
-                        editor_id=str(current_user.id),
-                        edited_at=message.edited_at or datetime.now(timezone.utc),
-                        recipient_ids=[recipient_id],
-                    )
-                    logger.debug(
-                        "[REDIS-PUBSUB] Message EDIT: Published to Redis",
-                        extra={"message_id": message_id},
-                    )
+                logger.debug(
+                    "[REDIS-PUBSUB] Message EDIT: Published to Redis",
+                    extra={"message_id": message_id},
+                )
         except Exception as e:
             logger.error(
                 "[REDIS-PUBSUB] Message EDIT: Redis publish failed",
@@ -917,12 +905,11 @@ async def delete_message(
 
         # Redis Pub/Sub publishing (fire-and-forget)
         try:
-            recipient_id = service.get_recipient_id(message.booking_id, str(current_user.id))
             await publish_message_deleted(
+                db=service.db,
                 conversation_id=str(message.booking_id),
                 message_id=message_id,
                 deleted_by=str(current_user.id),
-                recipient_ids=[recipient_id] if recipient_id else [],
             )
             logger.debug(
                 "[REDIS-PUBSUB] Message DELETE: Published to Redis",
@@ -1013,22 +1000,18 @@ async def add_reaction(
         # Redis Pub/Sub publishing (fire-and-forget)
         if message:
             try:
-                recipient_id = service.get_recipient_id(
-                    str(message.booking_id), str(current_user.id)
+                await publish_reaction_update(
+                    db=service.db,
+                    conversation_id=str(message.booking_id),
+                    message_id=message_id,
+                    user_id=str(current_user.id),
+                    emoji=request.emoji,
+                    action="added",
                 )
-                if recipient_id:
-                    await publish_reaction_update(
-                        conversation_id=str(message.booking_id),
-                        message_id=message_id,
-                        user_id=str(current_user.id),
-                        emoji=request.emoji,
-                        action="added",
-                        recipient_ids=[recipient_id],
-                    )
-                    logger.debug(
-                        "[REDIS-PUBSUB] Reaction ADD: Published to Redis",
-                        extra={"message_id": message_id},
-                    )
+                logger.debug(
+                    "[REDIS-PUBSUB] Reaction ADD: Published to Redis",
+                    extra={"message_id": message_id},
+                )
             except Exception as e:
                 logger.error(
                     "[REDIS-PUBSUB] Reaction ADD: Redis publish failed",
@@ -1124,22 +1107,18 @@ async def remove_reaction(
         # Redis Pub/Sub publishing (fire-and-forget)
         if message:
             try:
-                recipient_id = service.get_recipient_id(
-                    str(message.booking_id), str(current_user.id)
+                await publish_reaction_update(
+                    db=service.db,
+                    conversation_id=str(message.booking_id),
+                    message_id=message_id,
+                    user_id=str(current_user.id),
+                    emoji=request.emoji,
+                    action="removed",
                 )
-                if recipient_id:
-                    await publish_reaction_update(
-                        conversation_id=str(message.booking_id),
-                        message_id=message_id,
-                        user_id=str(current_user.id),
-                        emoji=request.emoji,
-                        action="removed",
-                        recipient_ids=[recipient_id],
-                    )
-                    logger.debug(
-                        "[REDIS-PUBSUB] Reaction REMOVE: Published to Redis",
-                        extra={"message_id": message_id},
-                    )
+                logger.debug(
+                    "[REDIS-PUBSUB] Reaction REMOVE: Published to Redis",
+                    extra={"message_id": message_id},
+                )
             except Exception as e:
                 logger.error(
                     "[REDIS-PUBSUB] Reaction REMOVE: Redis publish failed",

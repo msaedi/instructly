@@ -11,6 +11,7 @@ Design decisions:
 - User channels: "user:{user_id}"
 - All events include schema_version for future evolution
 - Subscription via async context manager for clean resource management
+- Thread-safe singleton pattern with double-check locking
 """
 
 from __future__ import annotations
@@ -18,7 +19,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 import json
 import logging
+import threading
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional
+
+from redis.asyncio import Redis as AsyncRedis
 
 if TYPE_CHECKING:
     from redis.asyncio.client import PubSub
@@ -33,27 +37,33 @@ class RedisPubSubManager:
     Uses async Redis client to avoid blocking the event loop.
     Publishing is fire-and-forget - if Redis fails, we log but don't
     raise. Messages are safe in Postgres; clients sync on reconnect.
+
+    Thread-safe singleton using double-check locking pattern.
     """
 
     _instance: Optional["RedisPubSubManager"] = None
+    _lock: threading.Lock = threading.Lock()
     _initialized: bool
 
     def __new__(cls) -> "RedisPubSubManager":
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
+            with cls._lock:
+                # Double-check after acquiring lock
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
         return cls._instance
 
     def __init__(self) -> None:
         if self._initialized:
             return
-        self._redis: Any = None  # Redis[str] at runtime
+        self._redis: Optional[AsyncRedis[str]] = None
         self._initialized = True
         self._publish_count: int = 0
         self._error_count: int = 0
         logger.debug("[REDIS-PUBSUB] RedisPubSubManager singleton created")
 
-    async def initialize(self, redis: Any) -> None:
+    async def initialize(self, redis: AsyncRedis[str]) -> None:
         """Initialize with async Redis client."""
         self._redis = redis
         logger.info("[REDIS-PUBSUB] RedisPubSubManager initialized with Redis client")

@@ -661,6 +661,8 @@ def upgrade() -> None:
     op.create_index("ix_messages_sender_id", "messages", ["sender_id"])
     op.create_index("ix_messages_created_at", "messages", ["created_at"])
     op.create_index("ix_messages_deleted_at", "messages", ["deleted_at"])
+    # Composite index for catch-up queries (booking_id.in_() with id range scan)
+    op.create_index("ix_messages_booking_id_id", "messages", ["booking_id", "id"])
 
     # Add conversation_state table for O(1) inbox queries
     print("Creating conversation_state table for efficient inbox state...")
@@ -1482,6 +1484,7 @@ def downgrade() -> None:
     op.drop_index("ix_messages_sender_id", "messages")
     op.drop_index("ix_messages_booking_created", "messages")
     op.drop_index("ix_messages_deleted_at", "messages")
+    op.drop_index("ix_messages_booking_id_id", "messages")
     op.drop_table("messages")
 
     print("Dropping bgc_webhook_log table...")

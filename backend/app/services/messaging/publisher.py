@@ -4,17 +4,21 @@ High-level publishing functions for messaging events.
 
 These functions handle:
 - Building properly structured events
-- Determining recipients from DB data
+- Fetching recipients from booking participants (defense in depth)
 - Publishing to all relevant user channels
 
-SECURITY: recipient_ids MUST come from database (booking participants),
-never from client-provided data.
+SECURITY: Recipients are always fetched from DB inside these functions.
+Callers pass booking_id, and we derive participants internally to prevent
+any possibility of leaking messages to unauthorized users.
 """
 
 from datetime import datetime
 import logging
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy.orm import Session
+
+from app.repositories.booking_repository import BookingRepository
 from app.services.messaging.events import (
     build_message_deleted_event,
     build_message_edited_event,
@@ -28,12 +32,26 @@ from app.services.messaging.redis_pubsub import pubsub_manager
 logger = logging.getLogger(__name__)
 
 
+def _get_booking_participants(db: Session, booking_id: str) -> List[str]:
+    """
+    Fetch participant IDs from booking using repository pattern.
+
+    Returns list of [student_id, instructor_id] or empty list if booking not found.
+    """
+    repository = BookingRepository(db)
+    booking = repository.get_by_id(booking_id)
+    if not booking:
+        logger.warning(f"[PUBLISHER] Booking not found: {booking_id}")
+        return []
+    return [booking.student_id, booking.instructor_id]
+
+
 async def publish_new_message(
+    db: Session,
     message_id: str,
     content: str,
     sender_id: str,
     booking_id: str,
-    recipient_ids: List[str],
     created_at: datetime,
     delivered_at: Optional[datetime] = None,
     reactions: Optional[List[Dict[str, Any]]] = None,
@@ -42,14 +60,22 @@ async def publish_new_message(
     Publish a new message event to all conversation participants.
 
     Args:
+        db: Database session for fetching booking participants
         message_id: ULID of the new message
         content: Message text content
         sender_id: ULID of sender
         booking_id: ULID of booking (conversation ID)
-        recipient_ids: List of participant ULIDs (from DB, not client!)
         created_at: Message creation timestamp
         reactions: Optional list of reactions
     """
+    # Fetch participants from DB (defense in depth - no external input)
+    participants = _get_booking_participants(db, booking_id)
+    if not participants:
+        logger.warning(f"[PUBLISHER] Cannot publish new_message: booking {booking_id} not found")
+        return
+
+    recipient_ids = [uid for uid in participants if uid != sender_id]
+
     event = build_new_message_event(
         message_id=message_id,
         content=content,
@@ -62,16 +88,16 @@ async def publish_new_message(
     )
 
     # Publish to all participants (including sender for multi-device sync)
-    all_user_ids = list(set([sender_id] + recipient_ids))
+    all_user_ids = list(set(participants))
     await pubsub_manager.publish_to_users(all_user_ids, event)
 
     logger.debug(f"[REDIS-PUBSUB] Published new_message {message_id} to {len(all_user_ids)} users")
 
 
 async def publish_typing_status(
+    db: Session,
     conversation_id: str,
     user_id: str,
-    recipient_ids: List[str],
     is_typing: bool = True,
 ) -> None:
     """
@@ -80,11 +106,16 @@ async def publish_typing_status(
     Best-effort delivery - if dropped, no big deal.
 
     Args:
+        db: Database session for fetching booking participants
         conversation_id: Booking ULID
         user_id: ULID of user who is typing
-        recipient_ids: List of other participant ULIDs
         is_typing: True if typing started, False if stopped
     """
+    # Fetch participants from DB (defense in depth)
+    participants = _get_booking_participants(db, conversation_id)
+    if not participants:
+        return  # Silent fail for ephemeral typing indicators
+
     event = build_typing_status_event(
         conversation_id=conversation_id,
         user_id=user_id,
@@ -92,31 +123,39 @@ async def publish_typing_status(
     )
 
     # Don't send to the typer themselves
-    other_users = [uid for uid in recipient_ids if uid != user_id]
+    other_users = [uid for uid in participants if uid != user_id]
     await pubsub_manager.publish_to_users(other_users, event)
 
     logger.debug(f"[REDIS-PUBSUB] Published typing_status to {len(other_users)} users")
 
 
 async def publish_reaction_update(
+    db: Session,
     conversation_id: str,
     message_id: str,
     user_id: str,
     emoji: str,
     action: str,
-    recipient_ids: List[str],
 ) -> None:
     """
     Publish reaction update to conversation participants.
 
     Args:
+        db: Database session for fetching booking participants
         conversation_id: Booking ULID
         message_id: ULID of message being reacted to
         user_id: ULID of user adding/removing reaction
         emoji: The emoji reaction
         action: "added" or "removed"
-        recipient_ids: List of participant ULIDs
     """
+    # Fetch participants from DB (defense in depth)
+    participants = _get_booking_participants(db, conversation_id)
+    if not participants:
+        logger.warning(
+            f"[PUBLISHER] Cannot publish reaction_update: booking {conversation_id} not found"
+        )
+        return
+
     event = build_reaction_update_event(
         conversation_id=conversation_id,
         message_id=message_id,
@@ -126,7 +165,7 @@ async def publish_reaction_update(
     )
 
     # Send to all participants including reactor (multi-device)
-    all_user_ids = list(set([user_id] + recipient_ids))
+    all_user_ids = list(set(participants))
     await pubsub_manager.publish_to_users(all_user_ids, event)
 
     logger.debug(
@@ -135,24 +174,32 @@ async def publish_reaction_update(
 
 
 async def publish_message_edited(
+    db: Session,
     conversation_id: str,
     message_id: str,
     new_content: str,
     editor_id: str,
     edited_at: datetime,
-    recipient_ids: List[str],
 ) -> None:
     """
     Publish message edit event to conversation participants.
 
     Args:
+        db: Database session for fetching booking participants
         conversation_id: Booking ULID
         message_id: ULID of edited message
         new_content: Updated message content
         editor_id: ULID of user who edited
         edited_at: Edit timestamp
-        recipient_ids: List of participant ULIDs
     """
+    # Fetch participants from DB (defense in depth)
+    participants = _get_booking_participants(db, conversation_id)
+    if not participants:
+        logger.warning(
+            f"[PUBLISHER] Cannot publish message_edited: booking {conversation_id} not found"
+        )
+        return
+
     event = build_message_edited_event(
         conversation_id=conversation_id,
         message_id=message_id,
@@ -161,7 +208,7 @@ async def publish_message_edited(
         edited_at=edited_at,
     )
 
-    all_user_ids = list(set([editor_id] + recipient_ids))
+    all_user_ids = list(set(participants))
     await pubsub_manager.publish_to_users(all_user_ids, event)
 
     logger.debug(
@@ -170,20 +217,25 @@ async def publish_message_edited(
 
 
 async def publish_read_receipt(
+    db: Session,
     conversation_id: str,
     reader_id: str,
     message_ids: List[str],
-    recipient_ids: List[str],
 ) -> None:
     """
     Publish read receipt to message senders.
 
     Args:
+        db: Database session for fetching booking participants
         conversation_id: Booking ULID
         reader_id: ULID of user who read messages
         message_ids: List of message ULIDs that were read
-        recipient_ids: List of participant ULIDs
     """
+    # Fetch participants from DB (defense in depth)
+    participants = _get_booking_participants(db, conversation_id)
+    if not participants:
+        return  # Silent fail for read receipts
+
     event = build_read_receipt_event(
         conversation_id=conversation_id,
         reader_id=reader_id,
@@ -191,7 +243,7 @@ async def publish_read_receipt(
     )
 
     # Send to other participants (not the reader)
-    other_users = [uid for uid in recipient_ids if uid != reader_id]
+    other_users = [uid for uid in participants if uid != reader_id]
     await pubsub_manager.publish_to_users(other_users, event)
 
     logger.debug(
@@ -201,12 +253,20 @@ async def publish_read_receipt(
 
 
 async def publish_message_deleted(
+    db: Session,
     conversation_id: str,
     message_id: str,
     deleted_by: str,
-    recipient_ids: List[str],
 ) -> None:
     """Publish message deleted event to conversation participants."""
+    # Fetch participants from DB (defense in depth)
+    participants = _get_booking_participants(db, conversation_id)
+    if not participants:
+        logger.warning(
+            f"[PUBLISHER] Cannot publish message_deleted: booking {conversation_id} not found"
+        )
+        return
+
     event = build_message_deleted_event(
         conversation_id=conversation_id,
         message_id=message_id,
@@ -214,7 +274,7 @@ async def publish_message_deleted(
     )
 
     # Send to all participants (both sides)
-    all_user_ids = list(set([deleted_by] + recipient_ids))
+    all_user_ids = list(set(participants))
     await pubsub_manager.publish_to_users(all_user_ids, event)
 
     logger.debug(
