@@ -9,7 +9,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent, Fragment } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ArrowLeft, Bell, MessageSquare, ChevronDown, Undo2 } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -71,10 +71,14 @@ function getFiltersForDisplay(
 
 export default function MessagesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user: currentUser, isLoading: isLoadingUser } = useAuthStatus();
 
+  // Read conversation ID from URL parameter (for deep linking from MessageInstructorButton)
+  const conversationFromUrl = searchParams.get('conversation');
+
   // Core UI state
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [selectedChat, setSelectedChat] = useState<string | null>(conversationFromUrl);
   const [messageText, setMessageText] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -162,6 +166,19 @@ export default function MessagesPage() {
 
   // Track if selection was intentionally cleared (archive/trash) to prevent auto-select
   const intentionallyClearedRef = useRef(false);
+
+  // Handle conversation selection from URL parameter (deep linking)
+  useEffect(() => {
+    if (conversationFromUrl && conversations.length > 0) {
+      // Check if the conversation exists in the current list
+      const conversationExists = conversations.some((c) => c.id === conversationFromUrl);
+      if (conversationExists) {
+        setSelectedChat(conversationFromUrl);
+        // Ensure we're in inbox view to see the conversation
+        setMessageDisplay('inbox');
+      }
+    }
+  }, [conversationFromUrl, conversations]);
 
   useEffect(() => {
     if (conversations) {

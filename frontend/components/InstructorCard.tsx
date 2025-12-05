@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { at } from '@/lib/ts/safe';
+import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
 let catalogCache: ServiceCatalogItem[] | null = null;
@@ -616,6 +617,16 @@ const findNextAvailableSlot = (
                   );
                 })()}
               </div>
+
+              {/* Message Button */}
+              <MessageInstructorButton
+                instructorId={instructor.user_id}
+                instructorName={`${instructor.user.first_name}${instructor.user.last_initial ? ` ${instructor.user.last_initial}.` : ''}`}
+                variant="ghost"
+                size="sm"
+                iconOnly
+                className="text-[#7E22CE] hover:bg-purple-50"
+              />
 
               {/* Favorite Button */}
               <button
