@@ -290,6 +290,7 @@ class SystemMessageService(BaseService):
                 message_id=str(message.id),
                 content=message.content,
                 sender_id=None,
+                sender_name=None,
                 conversation_id=conversation_id,
                 created_at=message.created_at,
                 booking_id=booking_id,

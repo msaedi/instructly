@@ -24,6 +24,7 @@ from ...database import get_db
 from ...models.booking import Booking
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit as new_rate_limit
+from ...schemas.base_responses import SuccessResponse
 from ...schemas.conversation import (
     BookingSummary,
     ConversationDetail,
@@ -34,11 +35,16 @@ from ...schemas.conversation import (
     LastMessage,
     MessageResponse,
     MessagesResponse,
+    ReactionInfo,
+    ReadReceiptEntry,
     SendMessageRequest,
     SendMessageResponse,
+    TypingRequest,
+    UpdateConversationStateRequest,
     UserSummary,
 )
 from ...services.conversation_service import ConversationService
+from ...services.messaging import publish_typing_status
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +52,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["conversations-v1"])
 
 ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
+WRITE_DEP = Depends(new_rate_limit("write"))
+READ_DEP = Depends(new_rate_limit("read"))
 
 
 def get_conversation_service(db: Session = Depends(get_db)) -> ConversationService:
@@ -94,7 +102,7 @@ def _build_booking_summary(booking: Booking) -> BookingSummary:
 @router.get(
     "",
     response_model=ConversationListResponse,
-    dependencies=[Depends(new_rate_limit("read"))],
+    dependencies=[READ_DEP],
 )
 def list_conversations(
     state: Optional[str] = Query(None, pattern="^(active|archived|trashed)$"),
@@ -137,16 +145,19 @@ def list_conversations(
         # Get upcoming bookings for this pair
         upcoming = service.get_upcoming_bookings_for_conversation(conv)
         next_booking = _build_booking_summary(upcoming[0]) if upcoming else None
+        # Per-user state and unread count
+        state_value = service.get_conversation_user_state(conv.id, current_user.id)
+        unread_count = service.get_unread_count(conv.id, current_user.id)
 
         items.append(
             ConversationListItem(
                 id=conv.id,
                 other_user=_build_user_summary(other_user),
                 last_message=last_message,
-                unread_count=0,  # TODO: Implement unread count in Phase 3
+                unread_count=unread_count,
                 next_booking=next_booking,
                 upcoming_booking_count=len(upcoming),
-                state="active",  # TODO: Get from conversation_user_state in Phase 3
+                state=state_value,
             )
         )
 
@@ -159,7 +170,7 @@ def list_conversations(
 @router.get(
     "/{conversation_id}",
     response_model=ConversationDetail,
-    dependencies=[Depends(new_rate_limit("read"))],
+    dependencies=[READ_DEP],
 )
 def get_conversation(
     conversation_id: str,
@@ -192,7 +203,7 @@ def get_conversation(
         other_user=_build_user_summary(other_user),
         next_booking=_build_booking_summary(upcoming[0]) if upcoming else None,
         upcoming_bookings=[_build_booking_summary(b) for b in upcoming],
-        state="active",  # TODO: Get from conversation_user_state in Phase 3
+        state=service.get_conversation_user_state(conversation.id, current_user.id),
         created_at=conversation.created_at,
     )
 
@@ -200,7 +211,7 @@ def get_conversation(
 @router.get(
     "/by-booking/{booking_id}",
     response_model=CreateConversationResponse,
-    dependencies=[Depends(new_rate_limit("read"))],
+    dependencies=[READ_DEP],
 )
 def get_conversation_for_booking(
     booking_id: str,
@@ -241,7 +252,7 @@ def get_conversation_for_booking(
 @router.post(
     "",
     response_model=CreateConversationResponse,
-    dependencies=[Depends(new_rate_limit("write"))],
+    dependencies=[WRITE_DEP],
 )
 def create_conversation(
     request: CreateConversationRequest,
@@ -278,15 +289,74 @@ def create_conversation(
     )
 
 
+@router.put(
+    "/{conversation_id}/state",
+    dependencies=[WRITE_DEP],
+    response_model=SuccessResponse,
+)
+def update_conversation_state(
+    conversation_id: str,
+    request: UpdateConversationStateRequest,
+    current_user: User = Depends(get_current_active_user),
+    service: ConversationService = Depends(get_conversation_service),
+) -> SuccessResponse:
+    """Update per-user conversation state (active/archived/trashed)."""
+    conversation = service.get_conversation_by_id(conversation_id, current_user.id)
+    if not conversation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    if current_user.id not in (conversation.student_id, conversation.instructor_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a participant")
+
+    try:
+        service.set_conversation_user_state(conversation_id, current_user.id, request.state)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    return SuccessResponse(success=True, message="Conversation state updated")
+
+
 # =============================================================================
 # Message Endpoints
 # =============================================================================
 
 
+@router.post(
+    "/{conversation_id}/typing",
+    dependencies=[WRITE_DEP],
+    response_model=SuccessResponse,
+)
+async def send_typing_indicator(
+    conversation_id: str,
+    request: TypingRequest,
+    current_user: User = Depends(get_current_active_user),
+    service: ConversationService = Depends(get_conversation_service),
+) -> SuccessResponse:
+    """Send typing indicator for a conversation."""
+    conversation = service.get_conversation_by_id(conversation_id, current_user.id)
+    if not conversation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    user_name = current_user.first_name or current_user.email or "Someone"
+
+    try:
+        await publish_typing_status(
+            db=service.db,
+            conversation_id=conversation_id,
+            user_id=str(current_user.id),
+            user_name=user_name,
+            is_typing=request.is_typing,
+        )
+    except Exception as exc:  # best effort
+        logger.error("[REDIS-PUBSUB] Failed to publish typing status", extra={"error": str(exc)})
+
+    return SuccessResponse(success=True, message="Typing status sent")
+
+
 @router.get(
     "/{conversation_id}/messages",
     response_model=MessagesResponse,
-    dependencies=[Depends(new_rate_limit("read"))],
+    dependencies=[READ_DEP],
 )
 def get_messages(
     conversation_id: str,
@@ -319,8 +389,24 @@ def get_messages(
         # For system messages, include booking details if available
         booking_details = None
         if msg.booking_id and msg.message_type != "user":
-            # TODO: Eager load booking details for system messages
-            pass
+            try:
+                booking = service.booking_repository.get_by_id(msg.booking_id)
+                if booking:
+                    booking_details = _build_booking_summary(booking)
+            except Exception:
+                booking_details = None
+
+        # Keep full read_by objects with user_id and read_at (required for frontend)
+        read_by_entries = [
+            ReadReceiptEntry(user_id=r["user_id"], read_at=r.get("read_at", ""))
+            for r in (msg.read_by or [])
+            if isinstance(r, dict) and "user_id" in r
+        ]
+
+        # Transform reactions to ReactionInfo objects
+        reaction_list = [
+            ReactionInfo(user_id=r.user_id, emoji=r.emoji) for r in (msg.reaction_list or [])
+        ]
 
         items.append(
             MessageResponse(
@@ -333,7 +419,8 @@ def get_messages(
                 booking_details=booking_details,
                 created_at=msg.created_at,
                 delivered_at=msg.delivered_at,
-                read_by=msg.read_by or [],
+                read_by=read_by_entries,
+                reactions=reaction_list,
             )
         )
 
@@ -347,7 +434,7 @@ def get_messages(
 @router.post(
     "/{conversation_id}/messages",
     response_model=SendMessageResponse,
-    dependencies=[Depends(new_rate_limit("write"))],
+    dependencies=[WRITE_DEP],
 )
 async def send_message(
     conversation_id: str,
@@ -384,6 +471,8 @@ async def send_message(
             message_id=str(message.id),
             content=message.content,
             sender_id=str(current_user.id),
+            sender_name=f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
+            or current_user.email,
             conversation_id=conversation_id,
             created_at=message.created_at,
             booking_id=message.booking_id,

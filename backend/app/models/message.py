@@ -85,6 +85,10 @@ class Message(Base):
     notifications = relationship(
         "MessageNotification", back_populates="message", cascade="all, delete-orphan"
     )
+    # Named reaction_list to avoid conflict with MessageResponse.reactions (dict of counts)
+    reaction_list = relationship(
+        "MessageReaction", backref="message", cascade="all, delete-orphan", lazy="selectin"
+    )
 
     @property
     def is_system_message(self) -> bool:

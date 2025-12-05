@@ -1356,6 +1356,42 @@ def upgrade() -> None:
         "state IN ('active', 'archived', 'trashed')",
     )
 
+    # Conversation user state: add conversation_id and migrate from booking_id
+    if not hasattr(sa, "Boolean"):  # pragma: no cover - defensive
+        pass
+    print("Adding conversation_id to conversation_user_state and migrating data...")
+    op.add_column(
+        "conversation_user_state",
+        sa.Column("conversation_id", sa.String(length=26), nullable=True),
+    )
+    op.alter_column("conversation_user_state", "booking_id", nullable=True)
+    op.create_foreign_key(
+        "fk_conversation_user_state_conversation",
+        "conversation_user_state",
+        "conversations",
+        ["conversation_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+    op.execute(
+        """
+        UPDATE conversation_user_state cus
+        SET conversation_id = conv.id
+        FROM bookings b
+        JOIN conversations conv
+          ON conv.student_id = b.student_id
+         AND conv.instructor_id = b.instructor_id
+        WHERE cus.booking_id = b.id
+          AND cus.conversation_id IS NULL
+        """
+    )
+    op.alter_column("conversation_user_state", "conversation_id", nullable=False)
+    op.create_unique_constraint(
+        "uq_conversation_user_state_user_conversation",
+        "conversation_user_state",
+        ["user_id", "conversation_id"],
+    )
+
     if is_postgres:
         print("Enabling RLS (idempotent) with permissive policies on application tables...")
         exclude_tables = [

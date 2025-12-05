@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Chat } from '../Chat';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 
@@ -13,19 +14,18 @@ const mockUseRemoveReaction = jest.fn();
 const mockUseSendTypingIndicator = jest.fn();
 const mockUseMessageStream = jest.fn();
 
-// Mock react-query hooks used by Chat component
-jest.mock('@tanstack/react-query', () => ({
-  ...jest.requireActual('@tanstack/react-query'),
-  useQueryClient: () => ({
-    invalidateQueries: jest.fn(),
-  }),
-  // Phase 7: Chat.tsx now uses useQuery to fetch conversation_id
-  useQuery: () => ({
-    data: { id: 'conversation-123', created: false },
-    isLoading: false,
-    error: null,
-  }),
-}));
+// Mock react-query useQuery to return a stable conversation_id; keep other exports real
+jest.mock('@tanstack/react-query', () => {
+  const actual = jest.requireActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useQuery: () => ({
+      data: { id: 'conversation-123', created: false },
+      isLoading: false,
+      error: null,
+    }),
+  };
+});
 
 // Mock UserMessageStreamProvider (Phase 4: per-user SSE)
 jest.mock('@/providers/UserMessageStreamProvider', () => ({
@@ -99,9 +99,11 @@ beforeAll(() => {
 describe('Chat mark-as-read behavior', () => {
   let markMessagesAsReadMutate: jest.Mock;
   let historyResponse: ReturnType<typeof defaultHistoryResponse>;
+  let queryClient: QueryClient;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    queryClient = new QueryClient();
 
     mockUseSendMessage.mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
     markMessagesAsReadMutate = jest.fn();
@@ -131,7 +133,11 @@ describe('Chat mark-as-read behavior', () => {
     });
     setHistoryMessages([readMessage]);
 
-    render(<Chat {...baseProps} />);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => expect(markMessagesAsReadMutate).not.toHaveBeenCalled());
   });
@@ -140,11 +146,19 @@ describe('Chat mark-as-read behavior', () => {
     const unreadMessage = buildMessage('msg-unread', { read_by: [] });
     setHistoryMessages([unreadMessage]);
 
-    const { rerender } = render(<Chat {...baseProps} />);
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => expect(markMessagesAsReadMutate).toHaveBeenCalledTimes(1));
 
-    rerender(<Chat {...baseProps} otherUserName="Student B" />);
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} otherUserName="Student B" />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => expect(markMessagesAsReadMutate).toHaveBeenCalledTimes(1));
   });
@@ -152,7 +166,11 @@ describe('Chat mark-as-read behavior', () => {
   it('marks messages again when a newer unread message appears', async () => {
     setHistoryMessages([buildMessage('msg-one', { read_by: [] })]);
 
-    const { rerender } = render(<Chat {...baseProps} />);
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => expect(markMessagesAsReadMutate).toHaveBeenCalledTimes(1));
 
@@ -167,7 +185,11 @@ describe('Chat mark-as-read behavior', () => {
       }),
     ]);
 
-    rerender(<Chat {...baseProps} />);
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => expect(markMessagesAsReadMutate).toHaveBeenCalledTimes(2));
   });

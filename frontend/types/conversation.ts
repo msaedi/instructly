@@ -36,6 +36,22 @@ export interface LastMessage {
 }
 
 /**
+ * Reaction on a message.
+ */
+export interface ReactionInfo {
+  user_id: string;
+  emoji: string;
+}
+
+/**
+ * Read receipt entry for messages.
+ */
+export interface ReadReceiptEntry {
+  user_id: string;
+  read_at: string;
+}
+
+/**
  * Single conversation in the inbox list.
  */
 export interface ConversationListItem {
@@ -81,7 +97,8 @@ export interface ConversationMessage {
   booking_details?: BookingSummary | null;
   created_at: string;
   delivered_at?: string | null;
-  read_by: string[];
+  read_by: ReadReceiptEntry[];
+  reactions: ReactionInfo[];
 }
 
 /**

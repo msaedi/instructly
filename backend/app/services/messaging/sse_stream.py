@@ -313,13 +313,21 @@ def fetch_messages_after(
     Returns:
         List of messages after the given ID, ordered by ID
     """
-    repository = MessageRepository(db)
+    message_repo = MessageRepository(db)
+    from app.repositories.conversation_repository import ConversationRepository
 
-    # Get user's booking IDs (bookings where user is student or instructor)
-    booking_ids = repository.get_user_booking_ids(user_id)
+    conversation_repo = ConversationRepository(db)
+    conversations = conversation_repo.find_for_user(user_id=user_id, limit=1000, offset=0)
+    conversation_ids = [c.id for c in conversations]
 
-    if not booking_ids:
-        return []
+    if conversation_ids:
+        return message_repo.get_messages_after_id_for_conversations(
+            conversation_ids, after_message_id, limit=100
+        )
 
-    # Fetch messages after the last seen ID
-    return repository.get_messages_after_id(booking_ids, after_message_id, limit=100)
+    # Fallback to booking-based catch-up for legacy records
+    booking_ids = message_repo.get_user_booking_ids(user_id)
+    if booking_ids:
+        return message_repo.get_messages_after_id(booking_ids, after_message_id, limit=100)
+
+    return []

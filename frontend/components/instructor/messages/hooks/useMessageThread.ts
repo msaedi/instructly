@@ -15,9 +15,9 @@ import { logger } from '@/lib/logger';
 import { queryKeys } from '@/src/api/queryKeys';
 import {
   useConversationMessages,
-  sendMessageImperative,
   markMessagesAsReadImperative,
 } from '@/src/api/services/messages';
+import { sendMessage as sendConversationMessage } from '@/src/api/services/conversations';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import type {
   ConversationEntry,
@@ -264,32 +264,31 @@ export function useMessageThread({
     );
 
     // Mark messages as read for this booking when needed
-    const bookingId = conversation.primaryBookingId;
-    if (bookingId) {
-      const lastCount = markedReadThreadsRef.current.get(bookingId);
+    const messageIdsToMark = mergedMessages.map((m) => m.id);
+    if (messageIdsToMark.length > 0) {
+      const lastCount = markedReadThreadsRef.current.get(conversation.id);
       const shouldMarkRead = unreadCount > 0 || lastCount === undefined;
 
       if (shouldMarkRead) {
-        markedReadThreadsRef.current.set(bookingId, unreadCount);
-        markMessagesAsReadImperative({ booking_id: bookingId })
+        markedReadThreadsRef.current.set(conversation.id, unreadCount);
+        markMessagesAsReadImperative({ message_ids: messageIdsToMark })
           .then(() => {
             setConversations((prev) =>
               prev.map((conv) =>
                 conv.id === threadId ? { ...conv, unread: 0 } : conv
               )
             );
-            markedReadThreadsRef.current.set(bookingId, 0);
+            markedReadThreadsRef.current.set(conversation.id, 0);
           })
           .catch(() => {
-            // Revert the last known count on failure
             if (lastCount !== undefined) {
-              markedReadThreadsRef.current.set(bookingId, lastCount);
+              markedReadThreadsRef.current.set(conversation.id, lastCount);
             } else {
-              markedReadThreadsRef.current.delete(bookingId);
+              markedReadThreadsRef.current.delete(conversation.id);
             }
           });
       } else {
-        markedReadThreadsRef.current.set(bookingId, 0);
+        markedReadThreadsRef.current.set(conversation.id, 0);
       }
     }
   }, [historyData, historyTarget, currentUserId, setConversations, updateLastSeenTimestamp]);
@@ -379,11 +378,11 @@ export function useMessageThread({
     void queryClient.invalidateQueries({ queryKey: queryKeys.messages.unreadCount });
 
     // If we're viewing this thread and received a message from the other user, mark as read server-side
-    if (!isOwnMessage && activeConversation.primaryBookingId) {
-      markedReadThreadsRef.current.set(activeConversation.primaryBookingId, 0);
-      void markMessagesAsReadImperative({ booking_id: activeConversation.primaryBookingId }).catch((err) => {
+    if (!isOwnMessage) {
+      markedReadThreadsRef.current.set(activeConversation.id, 0);
+      void markMessagesAsReadImperative({ message_ids: [mappedMessage.id] }).catch((err) => {
         logger.warn('[MSG-DEBUG] Failed to mark messages as read from SSE handler', {
-          bookingId: activeConversation.primaryBookingId,
+          conversationId: activeConversation.id,
           error: err instanceof Error ? err.message : err,
         });
       });
@@ -496,25 +495,24 @@ export function useMessageThread({
     });
 
     // Send to server
-    const bookingIdTarget = getPrimaryBookingId(targetThreadId);
     let resolvedServerId: string | undefined;
     let deliveredAtFromBackend: string | null = null;
     const optimisticTimestamp = new Date().getTime();
     updateLastSeenTimestamp(targetThreadId, optimisticTimestamp);
 
     try {
-      if (bookingIdTarget) {
-        const composedForServer = trimmed || (hasAttachments
-          ? pendingAttachments.map((file) => `[Attachment] ${file.name}`).join('\n')
-          : '');
-        const res = await sendMessageImperative({
-          booking_id: bookingIdTarget,
-          content: composedForServer,
-        });
-        resolvedServerId = res?.message?.id ?? undefined;
-        // Store delivered_at from backend response
-        deliveredAtFromBackend = res?.message?.delivered_at ?? null;
-      }
+      const composedForServer =
+        trimmed ||
+        (hasAttachments
+          ? pendingAttachments.map((file) => `[Attachment] ${file.name}`).join("\n")
+          : "");
+      const res = await sendConversationMessage(
+        targetThreadId,
+        composedForServer,
+        getPrimaryBookingId(targetThreadId) || undefined
+      );
+      resolvedServerId = res?.id ?? undefined;
+      deliveredAtFromBackend = null;
     } catch (error) {
       logger.warn('Failed to persist instructor message', { error });
     }

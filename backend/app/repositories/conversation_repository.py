@@ -13,6 +13,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Query, Session, joinedload
 
 from ..models.conversation import Conversation
+from ..models.message import Message
 from .base_repository import BaseRepository
 
 
@@ -123,12 +124,6 @@ class ConversationRepository(BaseRepository[Conversation]):
 
         if include_messages:
             query = query.options(joinedload(Conversation.messages))
-
-        # Apply state filter (for future per-user state support)
-        # Currently conversations don't have per-user state, but the API supports it
-        if state_filter and state_filter != "active":
-            # For now, non-active filters return empty - per-user state is Phase 3
-            return []
 
         # Apply cursor-based pagination if cursor provided
         if cursor:
@@ -269,3 +264,28 @@ class ConversationRepository(BaseRepository[Conversation]):
             .first()
         )
         return cast(Optional[Conversation], result)
+
+    def get_unread_count(self, conversation_id: str, user_id: str) -> int:
+        """
+        Count unread messages in a conversation for a specific user.
+
+        A message is unread if it was sent by the other participant and the user_id
+        is not present in the message.read_by array.
+        """
+        messages = (
+            self.db.query(Message)
+            .filter(
+                Message.conversation_id == conversation_id,
+                Message.sender_id != user_id,
+                Message.is_deleted == False,  # noqa: E712
+            )
+            .all()
+        )
+
+        count = 0
+        for msg in messages:
+            read_entries = msg.read_by or []
+            reader_ids = [r.get("user_id") for r in read_entries if isinstance(r, dict)]
+            if user_id not in reader_ids:
+                count += 1
+        return count

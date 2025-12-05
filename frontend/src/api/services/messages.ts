@@ -126,6 +126,22 @@ export function useMessageHistory(
 }
 
 /**
+ * Reaction info from API response.
+ */
+interface ReactionInfo {
+  user_id: string;
+  emoji: string;
+}
+
+/**
+ * Read receipt entry from API response.
+ */
+interface ReadReceiptEntry {
+  user_id: string;
+  read_at: string;
+}
+
+/**
  * Raw response type from conversation messages endpoint (before transformation).
  */
 interface ConversationMessagesRawResponse {
@@ -138,7 +154,8 @@ interface ConversationMessagesRawResponse {
     booking_id: string | null;
     created_at: string;
     delivered_at: string | null;
-    read_by: string[];
+    read_by: ReadReceiptEntry[];
+    reactions: ReactionInfo[];
   }>;
   has_more: boolean;
   next_cursor: string | null;
@@ -158,9 +175,10 @@ interface ConversationMessagesResponse {
     created_at: string;
     updated_at: string;
     delivered_at?: string | null;
-    read_by?: string[];
+    read_by?: ReadReceiptEntry[];
     is_deleted?: boolean;
     edited_at?: string;
+    reactions?: ReactionInfo[];
   }>;
   has_more: boolean;
   next_cursor: string | null;
@@ -231,6 +249,7 @@ export function useConversationMessages(
           delivered_at: msg.delivered_at,
           read_by: msg.read_by,
           is_deleted: false, // Default value
+          reactions: msg.reactions ?? [], // Include reactions from API response
         })),
         has_more: raw.has_more,
         next_cursor: raw.next_cursor,

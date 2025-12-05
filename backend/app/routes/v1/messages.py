@@ -399,12 +399,26 @@ async def mark_messages_as_read(
     try:
         booking_id: Optional[str] = None
         marked_message_ids: list[str] = []
+        conversation_id: Optional[str] = None
 
         if request.booking_id:
             booking_id = request.booking_id
-            # Get unread messages before marking (to get IDs for notification)
-            unread_messages = service.repository.get_unread_messages(booking_id, current_user.id)
-            marked_message_ids = [msg.id for msg in unread_messages]
+
+            # Phase 7: Look up conversation_id to get unread messages across ALL bookings
+            # This is critical because messages may span multiple bookings in the same conversation
+            conversation_id = _get_conversation_id_for_booking(service.db, booking_id)
+            if conversation_id:
+                # Get unread messages for the CONVERSATION (not just booking)
+                unread_messages = service.repository.get_unread_messages_by_conversation(
+                    conversation_id, current_user.id
+                )
+                marked_message_ids = [msg.id for msg in unread_messages]
+            else:
+                # Fallback to booking-based lookup if no conversation found
+                unread_messages = service.repository.get_unread_messages(
+                    booking_id, current_user.id
+                )
+                marked_message_ids = [msg.id for msg in unread_messages]
 
             # Mark all messages in booking as read
             count = service.mark_booking_messages_as_read(
@@ -423,20 +437,22 @@ async def mark_messages_as_read(
                 first_msg = service.repository.get_by_id(marked_message_ids[0])
                 if first_msg:
                     booking_id = first_msg.booking_id
+                    conversation_id = first_msg.conversation_id
         else:
             raise ValidationException("Either booking_id or message_ids must be provided")
 
         # Redis Pub/Sub publishing (fire-and-forget)
         # Phase 7: Use conversation_id (not booking_id) for SSE routing
         if count > 0 and marked_message_ids:
-            conversation_id: Optional[str] = None
-            # Try to get conversation_id from the first message
-            first_msg = service.repository.get_by_id(marked_message_ids[0])
-            if first_msg and first_msg.conversation_id:
-                conversation_id = first_msg.conversation_id
-            elif booking_id:
-                # Fallback: look up conversation from booking
-                conversation_id = _get_conversation_id_for_booking(service.db, booking_id)
+            # If we don't already have conversation_id, try to resolve it
+            if not conversation_id:
+                # Try to get conversation_id from the first message
+                first_msg = service.repository.get_by_id(marked_message_ids[0])
+                if first_msg and first_msg.conversation_id:
+                    conversation_id = first_msg.conversation_id
+                elif booking_id:
+                    # Fallback: look up conversation from booking
+                    conversation_id = _get_conversation_id_for_booking(service.db, booking_id)
 
             if conversation_id:
                 try:
@@ -556,6 +572,8 @@ async def send_message(
                     message_id=str(message.id),
                     content=message.content,
                     sender_id=str(current_user.id),
+                    sender_name=f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
+                    or current_user.email,
                     conversation_id=conv_id,
                     created_at=message.created_at,
                     booking_id=request.booking_id,
@@ -792,6 +810,7 @@ async def send_typing_indicator(
                 db=service.db,
                 conversation_id=conversation_id,
                 user_id=str(current_user.id),
+                user_name=current_user.first_name or current_user.email or "Someone",
                 is_typing=True,
             )
             logger.debug(

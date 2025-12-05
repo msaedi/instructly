@@ -23,14 +23,13 @@ import { withApiBase } from '@/lib/apiBase';
 import {
   useMessageConfig,
   useConversationMessages,
-  useSendMessage,
   useMarkMessagesAsRead,
   useEditMessage,
   useAddReaction,
   useRemoveReaction,
-  useSendTypingIndicator,
   useDeleteMessage,
 } from '@/src/api/services/messages';
+import { useSendConversationMessage, useSendConversationTyping } from '@/src/api/services/conversations';
 import { queryKeys } from '@/src/api/queryKeys';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import { cn } from '@/lib/utils';
@@ -46,10 +45,36 @@ enum ConnectionStatus {
   RECONNECTING = 'reconnecting',
 }
 
+// Reaction info from API
+interface ApiReactionInfo {
+  user_id: string;
+  emoji: string;
+}
+
 // Extended message type with reactions
 interface MessageWithReactions extends MessageResponse {
   my_reactions?: string[];
   reactions?: Record<string, number>;
+}
+
+// Read receipt from API (matches backend ReadReceiptEntry schema)
+interface ApiReadReceiptEntry {
+  user_id: string;
+  read_at: string;
+}
+
+// Raw message type from conversation messages API (before transformation)
+interface RawConversationMessage {
+  id: string;
+  content: string;
+  sender_id: string;
+  booking_id: string;
+  created_at: string;
+  updated_at?: string;
+  delivered_at?: string | null;
+  read_by?: ApiReadReceiptEntry[];
+  is_deleted?: boolean;
+  reactions?: ApiReactionInfo[];
 }
 
 interface ChatProps {
@@ -117,13 +142,13 @@ export function Chat({
 
   // Mutations - destructure mutate functions for stable references
   const queryClient = useQueryClient();
-  const sendMessageMutation = useSendMessage();
+  const sendMessageMutation = useSendConversationMessage();
   const { mutate: markMessagesAsReadMutate } = useMarkMessagesAsRead();
   const editMessageMutation = useEditMessage();
   const deleteMessageMutation = useDeleteMessage();
   const addReactionMutation = useAddReaction();
   const removeReactionMutation = useRemoveReaction();
-  const sendTypingMutation = useSendTypingIndicator();
+  const sendTypingMutation = useSendConversationTyping();
   const lastMarkedUnreadByBookingRef = useRef<Record<string, string | null>>({});
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -155,7 +180,7 @@ export function Chat({
   };
 
   // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
-  const handleSSEMessage = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id?: string; delivered_at?: string | null }, isMine: boolean) => {
+  const handleSSEMessage = useCallback((message: { id: string; content: string; sender_id: string | null; sender_name: string | null; created_at: string; booking_id?: string; delivered_at?: string | null }, isMine: boolean) => {
     logger.debug('[MSG-DEBUG] Chat: handleSSEMessage CALLED', {
       messageId: message?.id,
       content: message?.content?.substring(0, 50),
@@ -179,12 +204,12 @@ export function Chat({
           existingIndex,
         });
         const updated = [...prev];
-        const deliveredAt = message.delivered_at ?? updated[existingIndex]!.delivered_at;
-        updated[existingIndex] = {
-          ...updated[existingIndex]!,
-          ...(deliveredAt ? { delivered_at: deliveredAt } : {}),
-        };
-        return updated;
+          const deliveredAt = message.delivered_at ?? updated[existingIndex]!.delivered_at;
+          updated[existingIndex] = {
+            ...updated[existingIndex]!,
+            ...(deliveredAt ? { delivered_at: deliveredAt } : {}),
+          };
+          return updated;
       }
       logger.debug('[MSG-DEBUG] Chat: Adding NEW message to realtimeMessages', {
         messageId: message.id,
@@ -192,13 +217,13 @@ export function Chat({
         newLength: prev.length + 1,
         timestamp: new Date().toISOString(),
       });
-      return [
-        ...prev,
-        {
-          id: message.id,
-          content: message.content,
-          sender_id: message.sender_id,
-          booking_id: message.booking_id,
+          return [
+            ...prev,
+            {
+              id: message.id,
+              content: message.content,
+              sender_id: message.sender_id ?? '',
+              booking_id: message.booking_id,
           created_at: message.created_at,
           updated_at: message.created_at,
           is_deleted: false,
@@ -356,13 +381,41 @@ export function Chat({
       timestamp: new Date().toISOString(),
     });
 
+    // Transform raw API reactions to the format expected by the component
+    const transformReactions = (rawMsg: RawConversationMessage): MessageResponse => {
+      const apiReactions = rawMsg.reactions || [];
+
+      // Extract current user's reactions
+      const my_reactions = apiReactions
+        .filter(r => r.user_id === currentUserId)
+        .map(r => r.emoji);
+
+      // Count reactions by emoji
+      const reactions: Record<string, number> = {};
+      apiReactions.forEach(r => {
+        reactions[r.emoji] = (reactions[r.emoji] || 0) + 1;
+      });
+
+      return {
+        ...rawMsg,
+        sender_id: rawMsg.sender_id ?? '',
+        booking_id: rawMsg.booking_id ?? '',
+        updated_at: rawMsg.updated_at ?? rawMsg.created_at,
+        is_deleted: rawMsg.is_deleted ?? false,
+        read_by: rawMsg.read_by as unknown as MessageResponse['read_by'],
+        my_reactions,
+        reactions,
+      } as MessageResponse;
+    };
+
     // Use broader type since conversation messages have slightly different shape than MessageResponse
     // The actual fields used by Chat.tsx are compatible
     const messageMap = new Map<string, MessageResponse>();
 
-    // Add history messages (cast to MessageResponse for compatibility)
+    // Add history messages with reactions transformation
     (historyData?.messages || []).forEach(msg => {
-      messageMap.set(msg.id, msg as unknown as MessageResponse);
+      const transformed = transformReactions(msg as unknown as RawConversationMessage);
+      messageMap.set(msg.id, transformed);
     });
 
     // Add real-time messages (only if not already in history)
@@ -386,7 +439,7 @@ export function Chat({
     });
 
     return result;
-  }, [historyData?.messages, realtimeMessages]);
+  }, [historyData?.messages, realtimeMessages, currentUserId]);
 
   // Shared reaction management hook
   const reactionMutations: ReactionMutations = React.useMemo(
@@ -488,13 +541,13 @@ export function Chat({
     }
 
     lastMarkedUnreadByBookingRef.current[bookingId] = latestUnreadMessageId;
-    markMessagesAsReadMutate({ data: { booking_id: bookingId } });
+    markMessagesAsReadMutate({ data: { message_ids: [latestUnreadMessageId] } });
   }, [bookingId, latestUnreadMessageId, markMessagesAsReadMutate]);
 
   // Handle send message - SSE echoes message back with is_mine flag
   const handleSendMessage = async () => {
     const content = inputMessage.trim();
-    if (!content) return;
+    if (!content || !conversationId) return;
 
     logger.debug('[MSG-DEBUG] Message SEND: Starting', {
       bookingId,
@@ -517,19 +570,30 @@ export function Chat({
         timestamp: new Date().toISOString()
       });
       const result = await sendMessageMutation.mutateAsync({
-        data: {
-          booking_id: bookingId,
-          content,
-        },
+        conversationId,
+        content,
+        bookingId,
       });
       logger.debug('[MSG-DEBUG] Message SEND: Success', {
-        messageId: result?.message?.id,
-        success: result?.success,
+        messageId: (result as { id?: string })?.id,
+        success: true,
         timestamp: new Date().toISOString()
       });
 
       // Use server response to set delivered_at immediately for own messages
-      const serverMessage = result?.message;
+      const serverMessage =
+        (result as { message?: MessageResponse })?.message ??
+        (result
+          ? {
+              id: (result as { id: string }).id,
+              content,
+              sender_id: currentUserId,
+              booking_id: bookingId,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              delivered_at: null,
+            }
+          : undefined);
       if (serverMessage) {
         setRealtimeMessages((prev) => {
           const existingIndex = prev.findIndex((m) => m.id === serverMessage.id);
@@ -584,8 +648,9 @@ export function Chat({
 
   // Typing indicator: send best-effort signal with debounce (1s)
   const handleTyping = () => {
+    if (!conversationId) return;
     try {
-      sendTypingMutation.mutate({ bookingId });
+      sendTypingMutation.mutate({ conversationId });
     } catch {}
   };
 

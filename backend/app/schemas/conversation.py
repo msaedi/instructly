@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+from typing_extensions import Literal
 
 
 class UserSummary(BaseModel):
@@ -39,6 +40,24 @@ class LastMessage(BaseModel):
     content: str
     created_at: datetime
     is_from_me: bool
+
+
+class ReactionInfo(BaseModel):
+    """Reaction on a message."""
+
+    user_id: str
+    emoji: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReadReceiptEntry(BaseModel):
+    """Read receipt entry showing who read and when."""
+
+    user_id: str
+    read_at: str  # ISO format datetime string
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ConversationListItem(BaseModel):
@@ -87,7 +106,8 @@ class MessageResponse(BaseModel):
     booking_details: Optional[BookingSummary] = None  # For system messages
     created_at: datetime
     delivered_at: Optional[datetime] = None
-    read_by: List[str] = Field(default_factory=list)
+    read_by: List[ReadReceiptEntry] = Field(default_factory=list)  # Full objects with read_at
+    reactions: List[ReactionInfo] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -126,3 +146,15 @@ class SendMessageResponse(BaseModel):
 
     id: str
     created_at: datetime
+
+
+class UpdateConversationStateRequest(BaseModel):
+    """Request to update a user's state for a conversation."""
+
+    state: Literal["active", "archived", "trashed"]
+
+
+class TypingRequest(BaseModel):
+    """Typing indicator payload."""
+
+    is_typing: bool = True

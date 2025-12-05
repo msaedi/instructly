@@ -185,6 +185,21 @@ export async function sendMessage(
 }
 
 /**
+ * Send typing indicator for a conversation.
+ */
+export async function sendTypingIndicator(
+  conversationId: string,
+  isTyping: boolean = true
+): Promise<void> {
+  await fetch(withApiBase(`/api/v1/conversations/${conversationId}/typing`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ is_typing: isTyping }),
+  });
+}
+
+/**
  * Update conversation state (archive/trash/restore).
  * Note: This endpoint is at /api/v1/conversations/{id}/state
  */
@@ -293,6 +308,21 @@ export function useSendConversationMessage() {
       // Also invalidate list to update last_message preview
       void queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
     },
+  });
+}
+
+/**
+ * Hook for sending typing indicator for a conversation.
+ */
+export function useSendConversationTyping() {
+  return useMutation({
+    mutationFn: ({
+      conversationId,
+      isTyping,
+    }: {
+      conversationId: string;
+      isTyping?: boolean;
+    }) => sendTypingIndicator(conversationId, isTyping ?? true),
   });
 }
 

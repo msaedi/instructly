@@ -19,6 +19,7 @@ from ..models.conversation import Conversation
 from ..models.message import MESSAGE_TYPE_USER, Message
 from ..repositories.booking_repository import BookingRepository
 from ..repositories.conversation_repository import ConversationRepository
+from ..repositories.conversation_state_repository import ConversationStateRepository
 from ..repositories.factory import RepositoryFactory
 from ..repositories.message_repository import MessageRepository
 from .base import BaseService
@@ -60,6 +61,7 @@ class ConversationService(BaseService):
         self.booking_repository = booking_repository or RepositoryFactory.create_booking_repository(
             db
         )
+        self.conversation_state_repository = ConversationStateRepository(db)
         self.logger = logging.getLogger(__name__)
 
     @BaseService.measure_operation("get_or_create_conversation")
@@ -149,6 +151,26 @@ class ConversationService(BaseService):
         # Convert Sequence to list for manipulation
         conversations = list(conversations_seq)
 
+        # Apply per-user state filtering using conversation_user_state records
+        if state_filter:
+            target_ids = set(
+                self.conversation_state_repository.get_conversation_ids_by_state(
+                    user_id, state_filter
+                )
+            )
+            conversations = [c for c in conversations if c.id in target_ids]
+        else:
+            # Exclude archived/trashed conversations for active view
+            archived_ids = set(
+                self.conversation_state_repository.get_conversation_ids_by_state(
+                    user_id, "archived"
+                )
+            )
+            trashed_ids = set(
+                self.conversation_state_repository.get_conversation_ids_by_state(user_id, "trashed")
+            )
+            conversations = [c for c in conversations if c.id not in archived_ids | trashed_ids]
+
         next_cursor = None
         if len(conversations) > limit:
             conversations = conversations[:limit]
@@ -158,6 +180,31 @@ class ConversationService(BaseService):
                 next_cursor = last_conv.last_message_at.isoformat()
 
         return conversations, next_cursor
+
+    @BaseService.measure_operation("get_conversation_user_state")
+    def get_conversation_user_state(self, conversation_id: str, user_id: str) -> str:
+        """Return per-user state for the conversation."""
+        state_record = self.conversation_state_repository.get_state(
+            user_id, conversation_id=conversation_id
+        )
+        state_value = state_record.state if state_record else "active"
+        return cast(str, state_value)
+
+    @BaseService.measure_operation("set_conversation_user_state")
+    def set_conversation_user_state(self, conversation_id: str, user_id: str, state: str) -> None:
+        """Update per-user state for a conversation."""
+        if state not in ("active", "archived", "trashed"):
+            raise ValueError(f"Invalid state: {state}")
+        self.conversation_state_repository.set_state(
+            user_id,
+            state,
+            conversation_id=conversation_id,
+        )
+
+    @BaseService.measure_operation("get_unread_count")
+    def get_unread_count(self, conversation_id: str, user_id: str) -> int:
+        """Count unread messages for a user in a conversation."""
+        return self.conversation_repository.get_unread_count(conversation_id, user_id)
 
     @BaseService.measure_operation("get_conversation_by_id")
     def get_conversation_by_id(

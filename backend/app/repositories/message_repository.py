@@ -155,6 +155,45 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching unread messages: {str(e)}")
             raise RepositoryException(f"Failed to fetch unread messages: {str(e)}")
 
+    def get_unread_messages_by_conversation(
+        self, conversation_id: str, user_id: str
+    ) -> List[Message]:
+        """
+        Get unread messages for a user in a conversation (across all bookings).
+
+        Phase 7: Used for SSE read receipt publishing when messages span multiple bookings.
+
+        Args:
+            conversation_id: ID of the conversation
+            user_id: ID of the user
+
+        Returns:
+            List of unread messages in the conversation
+        """
+        try:
+            return cast(
+                List[Message],
+                (
+                    self.db.query(Message)
+                    .join(MessageNotification)
+                    .filter(
+                        and_(
+                            Message.conversation_id == conversation_id,
+                            Message.is_deleted == False,
+                            Message.deleted_at.is_(None),
+                            MessageNotification.user_id == user_id,
+                            MessageNotification.is_read == False,
+                        )
+                    )
+                    .options(joinedload(Message.sender))
+                    .order_by(Message.created_at)
+                    .all()
+                ),
+            )
+        except Exception as e:
+            self.logger.error(f"Error fetching unread messages by conversation: {str(e)}")
+            raise RepositoryException(f"Failed to fetch unread messages: {str(e)}")
+
     def mark_messages_as_read(self, message_ids: List[str], user_id: str) -> int:
         """
         Mark messages as read for a user.
@@ -704,6 +743,40 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching messages after ID: {str(e)}")
             raise RepositoryException(f"Failed to fetch messages after ID: {str(e)}")
 
+    def get_messages_after_id_for_conversations(
+        self, conversation_ids: List[str], after_message_id: str, limit: int = 100
+    ) -> List[Message]:
+        """
+        Get messages created after a given message ID for specified conversations.
+
+        Args:
+            conversation_ids: List of conversation IDs
+            after_message_id: Last-Event-ID (message ULID)
+            limit: Maximum messages to return
+        """
+        try:
+            if not conversation_ids:
+                return []
+
+            return cast(
+                List[Message],
+                (
+                    self.db.query(Message)
+                    .filter(
+                        and_(
+                            Message.conversation_id.in_(conversation_ids),
+                            Message.id > after_message_id,
+                        )
+                    )
+                    .order_by(Message.id)
+                    .limit(limit)
+                    .all()
+                ),
+            )
+        except Exception as e:
+            self.logger.error(f"Error fetching messages after ID (conversation): {str(e)}")
+            raise RepositoryException(f"Failed to fetch messages after ID: {str(e)}")
+
     # Per-user-pair conversation support
     def create_conversation_message(
         self,
@@ -794,7 +867,10 @@ class MessageRepository(BaseRepository[Message]):
                 if cursor_message:
                     query = query.filter(Message.created_at < cursor_message.created_at)
 
-            query = query.options(joinedload(Message.sender))
+            query = query.options(
+                joinedload(Message.sender),
+                joinedload(Message.reaction_list),  # Eager load reactions for API response
+            )
             query = query.order_by(Message.created_at.desc())
 
             return cast(List[Message], query.limit(limit).all())

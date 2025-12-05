@@ -331,12 +331,12 @@ export default function MessagesPage() {
   }, [selectedChat, activeConversation, currentUser?.id]);
 
   // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
-  const handleSSEMessageWrapper = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id?: string; delivered_at?: string | null }, _isMine: boolean) => {
+  const handleSSEMessageWrapper = useCallback((message: { id: string; content: string; sender_id: string | null; sender_name: string | null; created_at: string; booking_id?: string; delivered_at?: string | null }, _isMine: boolean) => {
     if (!selectedChatRef.current || !activeConversationRef.current || !currentUserIdRef.current) return;
     const sseMessage = {
       id: message.id,
       booking_id: message.booking_id ?? '',
-      sender_id: message.sender_id,
+      sender_id: message.sender_id ?? '',
       content: message.content,
       created_at: message.created_at,
       updated_at: message.created_at, // Use created_at as fallback

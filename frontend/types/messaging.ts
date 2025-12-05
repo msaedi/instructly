@@ -22,8 +22,8 @@ export interface SSEMessageEvent {
   message: {
     id: string;
     content: string;
-    sender_id: string;
-    sender_name: string;
+    sender_id: string | null;
+    sender_name: string | null;
     created_at: string;
     booking_id?: string;
     delivered_at?: string | null;

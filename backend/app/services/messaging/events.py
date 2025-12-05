@@ -54,6 +54,7 @@ def build_new_message_event(
     message_id: str,
     content: str,
     sender_id: Optional[str],
+    sender_name: Optional[str],
     conversation_id: str,
     recipient_ids: List[str],
     created_at: datetime,
@@ -83,6 +84,7 @@ def build_new_message_event(
                 "id": message_id,
                 "content": content,
                 "sender_id": sender_id,
+                "sender_name": sender_name,
                 "booking_id": booking_id,
                 "created_at": created_at.isoformat(),
                 "delivered_at": delivered_at.isoformat() if delivered_at else None,
@@ -102,6 +104,7 @@ def build_new_message_event(
 def build_typing_status_event(
     conversation_id: str,
     user_id: str,
+    user_name: str,
     is_typing: bool = True,
 ) -> Dict[str, Any]:
     """Build a typing_status event."""
@@ -110,6 +113,7 @@ def build_typing_status_event(
         {
             "conversation_id": conversation_id,
             "user_id": user_id,
+            "user_name": user_name,
             "is_typing": is_typing,
         },
     )

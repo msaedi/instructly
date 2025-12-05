@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.conversation_repository import ConversationRepository
+from app.repositories.factory import RepositoryFactory
 from app.services.messaging.events import (
     build_message_deleted_event,
     build_message_edited_event,
@@ -89,6 +90,7 @@ async def publish_new_message(
     delivered_at: Optional[datetime] = None,
     reactions: Optional[List[Dict[str, Any]]] = None,
     message_type: str = "user",
+    sender_name: Optional[str] = None,
 ) -> None:
     """
     Publish a new message event to all conversation participants.
@@ -120,10 +122,23 @@ async def publish_new_message(
     else:
         recipient_ids = list(participants)
 
+    if sender_id and not sender_name:
+        try:
+            user_repo = RepositoryFactory.create_user_repository(db)
+            sender = user_repo.get_by_id(sender_id)
+            sender_name = (
+                f"{sender.first_name} {sender.last_name}".strip()
+                if sender and sender.first_name
+                else getattr(sender, "first_name", None)
+            )
+        except Exception:
+            sender_name = None
+
     event = build_new_message_event(
         message_id=message_id,
         content=content,
         sender_id=sender_id,
+        sender_name=sender_name,
         conversation_id=conversation_id,
         booking_id=booking_id,
         recipient_ids=recipient_ids,
@@ -144,6 +159,7 @@ async def publish_typing_status(
     db: Session,
     conversation_id: str,
     user_id: str,
+    user_name: str,
     is_typing: bool = True,
 ) -> None:
     """
@@ -165,6 +181,7 @@ async def publish_typing_status(
     event = build_typing_status_event(
         conversation_id=conversation_id,
         user_id=user_id,
+        user_name=user_name,
         is_typing=is_typing,
     )
 

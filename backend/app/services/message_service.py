@@ -130,7 +130,9 @@ class MessageService(BaseService):
             # AUTO-RESTORE: If recipient has archived/trashed this conversation, restore it
             recipient_id = self._get_recipient_id(booking_id, sender_id)
             if recipient_id:
-                self.conversation_state_repository.restore_to_active(recipient_id, booking_id)
+                self.conversation_state_repository.restore_to_active(
+                    recipient_id, booking_id=booking_id
+                )
 
             # Send email notification if recipient is offline
             self._send_offline_notification(booking, sender_id, content)
@@ -684,7 +686,9 @@ class MessageService(BaseService):
             raise ValueError(f"Invalid state: {state}")
 
         with self.transaction():
-            result = self.conversation_state_repository.set_state(user_id, booking_id, state)
+            result = self.conversation_state_repository.set_state(
+                user_id, state, booking_id=booking_id
+            )
 
         return {
             "booking_id": booking_id,
@@ -706,8 +710,9 @@ class MessageService(BaseService):
         Returns:
             State string ('active', 'archived', or 'trashed')
         """
-        state_record = self.conversation_state_repository.get_state(user_id, booking_id)
-        return state_record.state if state_record else "active"
+        state_record = self.conversation_state_repository.get_state(user_id, booking_id=booking_id)
+        state_value = state_record.state if state_record else "active"
+        return cast(str, state_value)
 
     def _get_recipient_id(self, booking_id: str, sender_id: str) -> Optional[str]:
         """

@@ -6,6 +6,8 @@ from typing import Any, Optional, cast
 from sqlalchemy.orm import Session
 from ulid import ULID
 
+from app.models.booking import Booking
+from app.models.conversation import Conversation
 from app.models.conversation_state import ConversationState
 from app.models.conversation_user_state import ConversationUserState
 from app.repositories.base_repository import BaseRepository
@@ -17,21 +19,42 @@ class ConversationStateRepository(BaseRepository[ConversationUserState]):
     def __init__(self, db: Session):
         super().__init__(db, ConversationUserState)
 
-    def get_state(self, user_id: str, booking_id: str) -> Optional[ConversationUserState]:
+    def get_state(
+        self,
+        user_id: str,
+        *,
+        conversation_id: Optional[str] = None,
+        booking_id: Optional[str] = None,
+    ) -> Optional[ConversationUserState]:
         """Get conversation state for a user. Returns None if no custom state (defaults to active)."""
-        result = (
-            self.db.query(ConversationUserState)
-            .filter(
-                ConversationUserState.user_id == user_id,
-                ConversationUserState.booking_id == booking_id,
-            )
-            .first()
+        query = self.db.query(ConversationUserState).filter(
+            ConversationUserState.user_id == user_id
         )
+        if conversation_id:
+            query = query.filter(ConversationUserState.conversation_id == conversation_id)
+        elif booking_id:
+            query = query.filter(ConversationUserState.booking_id == booking_id)
+        else:
+            return None
+
+        result = query.first()
         return cast(Optional[ConversationUserState], result)
 
-    def set_state(self, user_id: str, booking_id: str, state: str) -> ConversationUserState:
+    def set_state(
+        self,
+        user_id: str,
+        state: str,
+        *,
+        conversation_id: Optional[str] = None,
+        booking_id: Optional[str] = None,
+    ) -> ConversationUserState:
         """Set conversation state. Creates record if doesn't exist, updates if exists."""
-        existing = self.get_state(user_id, booking_id)
+        if not conversation_id and booking_id:
+            conversation_id = self._get_conversation_id_from_booking(booking_id)
+        if not conversation_id:
+            raise ValueError("conversation_id is required to set state")
+
+        existing = self.get_state(user_id, conversation_id=conversation_id, booking_id=booking_id)
 
         if existing:
             existing.state = state
@@ -42,6 +65,7 @@ class ConversationStateRepository(BaseRepository[ConversationUserState]):
             new_state = ConversationUserState(
                 id=str(ULID()),
                 user_id=user_id,
+                conversation_id=conversation_id,
                 booking_id=booking_id,
                 state=state,
                 state_changed_at=datetime.now(timezone.utc),
@@ -62,8 +86,20 @@ class ConversationStateRepository(BaseRepository[ConversationUserState]):
         result = query.all()
         return cast(list[ConversationUserState], result)
 
+    def get_conversation_ids_by_state(self, user_id: str, state: str) -> list[str]:
+        """Get list of conversation IDs in a specific state for a user."""
+        results = (
+            self.db.query(ConversationUserState.conversation_id)
+            .filter(
+                ConversationUserState.user_id == user_id,
+                ConversationUserState.state == state,
+            )
+            .all()
+        )
+        return [r[0] for r in results if r[0]]
+
     def get_booking_ids_by_state(self, user_id: str, state: str) -> list[str]:
-        """Get list of booking IDs in a specific state for a user."""
+        """Legacy: Get list of booking IDs in a specific state for a user."""
         results = (
             self.db.query(ConversationUserState.booking_id)
             .filter(
@@ -72,17 +108,40 @@ class ConversationStateRepository(BaseRepository[ConversationUserState]):
             )
             .all()
         )
-        return [r[0] for r in results]
+        return [r[0] for r in results if r[0]]
 
-    def restore_to_active(self, user_id: str, booking_id: str) -> Optional[ConversationUserState]:
+    def restore_to_active(
+        self,
+        user_id: str,
+        *,
+        conversation_id: Optional[str] = None,
+        booking_id: Optional[str] = None,
+    ) -> Optional[ConversationUserState]:
         """Restore a conversation to active state. Used for auto-restore on new message."""
-        existing = self.get_state(user_id, booking_id)
+        if not conversation_id and booking_id:
+            conversation_id = self._get_conversation_id_from_booking(booking_id)
+        existing = self.get_state(user_id, conversation_id=conversation_id, booking_id=booking_id)
         if existing and existing.state != "active":
             existing.state = "active"
             existing.state_changed_at = datetime.now(timezone.utc)
             self.db.flush()
             return existing
         return existing
+
+    def _get_conversation_id_from_booking(self, booking_id: str) -> Optional[str]:
+        """Resolve conversation_id from a booking."""
+        booking = self.db.query(Booking).filter(Booking.id == booking_id).first()
+        if not booking:
+            return None
+        conversation = (
+            self.db.query(Conversation)
+            .filter(
+                Conversation.student_id == booking.student_id,
+                Conversation.instructor_id == booking.instructor_id,
+            )
+            .first()
+        )
+        return conversation.id if conversation else None
 
 
 class ConversationSummaryRepository(BaseRepository[ConversationState]):
