@@ -136,8 +136,10 @@ class ConversationStateUpdate(BaseModel):
         200: {"description": "SSE stream established for user's inbox"},
         401: {"description": "Not authenticated"},
         403: {"description": "Permission denied"},
+        429: {"description": "Too many connection attempts"},
     },
 )
+@rate_limit("5/minute", key_type=RateLimitKeyType.USER)
 async def stream_user_messages(
     request: Request,
     current_user: User = Depends(get_current_user_sse),
