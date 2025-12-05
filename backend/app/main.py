@@ -100,6 +100,7 @@ from .routes.v1 import (
     bookings as bookings_v1,
     codebase_metrics as codebase_metrics_v1,
     config as config_v1,
+    conversations as conversations_v1,
     database_monitor as database_monitor_v1,
     favorites as favorites_v1,
     instructor_bgc as instructor_bgc_v1,
@@ -935,6 +936,7 @@ api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ign
 api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
 api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
 api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
+api_v1.include_router(conversations_v1.router, prefix="/conversations")  # type: ignore[attr-defined]
 api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
 api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
 api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]

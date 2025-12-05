@@ -664,3 +664,100 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             self.logger.error(f"Error fetching messages after ID: {str(e)}")
             raise RepositoryException(f"Failed to fetch messages after ID: {str(e)}")
+
+    # Per-user-pair conversation support
+    def create_conversation_message(
+        self,
+        conversation_id: str,
+        sender_id: str,
+        content: str,
+        message_type: str = "user",
+        booking_id: Optional[str] = None,
+    ) -> Message:
+        """
+        Create a new message for a conversation (per-user-pair messaging).
+
+        Args:
+            conversation_id: ID of the conversation
+            sender_id: ID of the sender
+            content: Message content
+            message_type: Type of message (user, system_booking_created, etc.)
+            booking_id: Optional booking ID to associate with message
+
+        Returns:
+            Created message
+
+        Raises:
+            RepositoryException: If creation fails
+        """
+        try:
+            from ..core.ulid_helper import generate_ulid
+
+            message = Message(
+                id=generate_ulid(),
+                conversation_id=conversation_id,
+                booking_id=booking_id,
+                sender_id=sender_id,
+                content=content,
+                message_type=message_type,
+                created_at=datetime.now(timezone.utc),
+                delivered_at=datetime.now(timezone.utc),
+            )
+            self.db.add(message)
+            self.db.flush()
+
+            self.logger.info(
+                f"Created conversation message {message.id} in conversation {conversation_id}"
+            )
+            return message
+
+        except Exception as e:
+            self.logger.error(f"Error creating conversation message: {str(e)}")
+            raise RepositoryException(f"Failed to create conversation message: {str(e)}")
+
+    def find_by_conversation(
+        self,
+        conversation_id: str,
+        limit: int = 50,
+        before_cursor: Optional[str] = None,
+        booking_id_filter: Optional[str] = None,
+    ) -> List[Message]:
+        """
+        Find messages for a conversation with cursor-based pagination.
+
+        Messages are returned in descending order (newest first).
+
+        Args:
+            conversation_id: ID of the conversation
+            limit: Maximum number of messages to return
+            before_cursor: Message ID to paginate before (returns older messages)
+            booking_id_filter: Optional booking ID to filter messages
+
+        Returns:
+            List of messages ordered by created_at descending
+        """
+        try:
+            query = self.db.query(Message).filter(
+                and_(
+                    Message.conversation_id == conversation_id,
+                    Message.is_deleted == False,
+                    Message.deleted_at.is_(None),
+                )
+            )
+
+            if booking_id_filter:
+                query = query.filter(Message.booking_id == booking_id_filter)
+
+            if before_cursor:
+                cursor_message = self.db.query(Message).filter(Message.id == before_cursor).first()
+                if cursor_message:
+                    query = query.filter(Message.created_at < cursor_message.created_at)
+
+            query = query.options(joinedload(Message.sender))
+            query = query.order_by(Message.created_at.desc())
+
+            return cast(List[Message], query.limit(limit).all())
+
+        except Exception as e:
+            self.logger.error(f"Error fetching messages for conversation: {str(e)}")
+            raise RepositoryException(f"Failed to fetch messages for conversation: {str(e)}")

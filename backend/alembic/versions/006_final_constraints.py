@@ -779,14 +779,11 @@ def upgrade() -> None:
             AS $$
             DECLARE
                 v_booking RECORD;
+                v_conversation RECORD;
                 v_payload JSONB;
                 v_sender_name TEXT;
                 v_delivered_at TIMESTAMP WITH TIME ZONE;
             BEGIN
-                -- Get booking participants
-                SELECT b.instructor_id, b.student_id INTO v_booking
-                FROM bookings b WHERE b.id = NEW.booking_id;
-
                 -- Get sender name for display
                 SELECT first_name INTO v_sender_name
                 FROM users WHERE id = NEW.sender_id;
@@ -795,33 +792,84 @@ def upgrade() -> None:
                 v_delivered_at := NOW();
                 UPDATE messages SET delivered_at = v_delivered_at WHERE id = NEW.id;
 
-                -- Build payload with conversation_id for client-side routing
-                v_payload := jsonb_build_object(
-                    'type', 'new_message',
-                    'conversation_id', NEW.booking_id,
-                    'message', jsonb_build_object(
-                        'id', NEW.id,
-                        'content', NEW.content,
-                        'sender_id', NEW.sender_id,
-                        'sender_name', v_sender_name,
-                        'created_at', NEW.created_at,
-                        'booking_id', NEW.booking_id,
-                        'is_deleted', NEW.is_deleted,
-                        'delivered_at', v_delivered_at
-                    )
-                );
+                -- Handle conversation-based messages (no booking_id)
+                IF NEW.conversation_id IS NOT NULL THEN
+                    -- Get conversation participants
+                    SELECT c.student_id, c.instructor_id INTO v_conversation
+                    FROM conversations c WHERE c.id = NEW.conversation_id;
 
-                -- Notify instructor's channel
-                PERFORM pg_notify(
-                    'user_' || v_booking.instructor_id || '_inbox',
-                    v_payload::text
-                );
+                    IF v_conversation IS NOT NULL THEN
+                        -- Build payload with conversation_id for client-side routing
+                        v_payload := jsonb_build_object(
+                            'type', 'new_message',
+                            'conversation_id', NEW.conversation_id,
+                            'message', jsonb_build_object(
+                                'id', NEW.id,
+                                'content', NEW.content,
+                                'sender_id', NEW.sender_id,
+                                'sender_name', v_sender_name,
+                                'created_at', NEW.created_at,
+                                'booking_id', NEW.booking_id,
+                                'is_deleted', NEW.is_deleted,
+                                'delivered_at', v_delivered_at
+                            )
+                        );
 
-                -- Notify student's channel
-                PERFORM pg_notify(
-                    'user_' || v_booking.student_id || '_inbox',
-                    v_payload::text
-                );
+                        -- Notify instructor's channel
+                        IF v_conversation.instructor_id IS NOT NULL THEN
+                            PERFORM pg_notify(
+                                'user_' || v_conversation.instructor_id || '_inbox',
+                                v_payload::text
+                            );
+                        END IF;
+
+                        -- Notify student's channel
+                        IF v_conversation.student_id IS NOT NULL THEN
+                            PERFORM pg_notify(
+                                'user_' || v_conversation.student_id || '_inbox',
+                                v_payload::text
+                            );
+                        END IF;
+                    END IF;
+                    RETURN NEW;
+                END IF;
+
+                -- Handle legacy booking-based messages
+                IF NEW.booking_id IS NOT NULL THEN
+                    -- Get booking participants
+                    SELECT b.instructor_id, b.student_id INTO v_booking
+                    FROM bookings b WHERE b.id = NEW.booking_id;
+
+                    IF v_booking IS NOT NULL THEN
+                        -- Build payload with conversation_id for client-side routing
+                        v_payload := jsonb_build_object(
+                            'type', 'new_message',
+                            'conversation_id', NEW.booking_id,
+                            'message', jsonb_build_object(
+                                'id', NEW.id,
+                                'content', NEW.content,
+                                'sender_id', NEW.sender_id,
+                                'sender_name', v_sender_name,
+                                'created_at', NEW.created_at,
+                                'booking_id', NEW.booking_id,
+                                'is_deleted', NEW.is_deleted,
+                                'delivered_at', v_delivered_at
+                            )
+                        );
+
+                        -- Notify instructor's channel
+                        PERFORM pg_notify(
+                            'user_' || v_booking.instructor_id || '_inbox',
+                            v_payload::text
+                        );
+
+                        -- Notify student's channel
+                        PERFORM pg_notify(
+                            'user_' || v_booking.student_id || '_inbox',
+                            v_payload::text
+                        );
+                    END IF;
+                END IF;
 
                 RETURN NEW;
             END;
@@ -906,6 +954,11 @@ def upgrade() -> None:
                 v_booking RECORD;
                 v_preview TEXT;
             BEGIN
+                -- Skip messages without booking_id (conversation-based messages)
+                IF NEW.booking_id IS NULL THEN
+                    RETURN NEW;
+                END IF;
+
                 -- Get booking info
                 SELECT instructor_id, student_id INTO v_booking
                 FROM bookings WHERE id = NEW.booking_id;

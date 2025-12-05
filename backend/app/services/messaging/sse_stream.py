@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -315,6 +315,4 @@ def fetch_messages_after(
         return []
 
     # Fetch messages after the last seen ID
-    return cast(
-        List[Message], repository.get_messages_after_id(booking_ids, after_message_id, limit=100)
-    )
+    return repository.get_messages_after_id(booking_ids, after_message_id, limit=100)

@@ -94,15 +94,22 @@ class ConversationRepository(BaseRepository[Conversation]):
         limit: int = 50,
         offset: int = 0,
         include_messages: bool = False,
+        state_filter: Optional[str] = None,
+        cursor: Optional[str] = None,
     ) -> Sequence[Conversation]:
         """
         Find all conversations where a user is a participant.
 
+        Supports both offset-based and cursor-based pagination.
+        Cursor is an ISO timestamp for last_message_at.
+
         Args:
             user_id: The user ID to find conversations for
             limit: Maximum number of conversations to return
-            offset: Number of conversations to skip
+            offset: Number of conversations to skip (for offset pagination)
             include_messages: Whether to eager-load messages
+            state_filter: Optional filter by state (active/archived/trashed)
+            cursor: ISO timestamp for cursor-based pagination
 
         Returns:
             List of conversations ordered by last_message_at desc
@@ -117,13 +124,38 @@ class ConversationRepository(BaseRepository[Conversation]):
         if include_messages:
             query = query.options(joinedload(Conversation.messages))
 
+        # Apply state filter (for future per-user state support)
+        # Currently conversations don't have per-user state, but the API supports it
+        if state_filter and state_filter != "active":
+            # For now, non-active filters return empty - per-user state is Phase 3
+            return []
+
+        # Apply cursor-based pagination if cursor provided
+        if cursor:
+            from datetime import datetime
+
+            try:
+                cursor_time = datetime.fromisoformat(cursor.replace("Z", "+00:00"))
+                # Get items older than the cursor
+                query = query.filter(
+                    func.coalesce(Conversation.last_message_at, Conversation.created_at)
+                    < cursor_time
+                )
+            except (ValueError, TypeError):
+                # Invalid cursor, ignore it
+                pass
+
         # Order by most recent activity first
         # Use coalesce to handle NULL last_message_at
         query = query.order_by(
             func.coalesce(Conversation.last_message_at, Conversation.created_at).desc()
         )
 
-        return cast(Sequence[Conversation], query.offset(offset).limit(limit).all())
+        # Use offset only if cursor not provided
+        if not cursor and offset > 0:
+            query = query.offset(offset)
+
+        return cast(Sequence[Conversation], query.limit(limit).all())
 
     def count_for_user(self, user_id: str) -> int:
         """

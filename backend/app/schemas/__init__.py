@@ -52,6 +52,22 @@ from .booking import (
     UpcomingBookingResponse,
 )
 
+# Conversation schemas
+from .conversation import (
+    BookingSummary,
+    ConversationDetail,
+    ConversationListItem,
+    ConversationListResponse,
+    CreateConversationRequest,
+    CreateConversationResponse,
+    LastMessage,
+    MessageResponse as ConversationMessageResponse,
+    MessagesResponse as ConversationMessagesResponse,
+    SendMessageRequest as ConversationSendMessageRequest,
+    SendMessageResponse as ConversationSendMessageResponse,
+    UserSummary,
+)
+
 # Instructor profile schemas
 from .instructor import (
     InstructorProfileBase,
@@ -187,4 +203,17 @@ __all__ = [
     "PublicInstructorAvailability",
     "PublicAvailabilityQuery",
     "ReadyProbeResponse",
+    # Conversation schemas
+    "UserSummary",
+    "BookingSummary",
+    "LastMessage",
+    "ConversationListItem",
+    "ConversationListResponse",
+    "ConversationDetail",
+    "ConversationMessageResponse",
+    "ConversationMessagesResponse",
+    "CreateConversationRequest",
+    "CreateConversationResponse",
+    "ConversationSendMessageRequest",
+    "ConversationSendMessageResponse",
 ]

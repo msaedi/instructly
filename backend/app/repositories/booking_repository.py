@@ -1374,3 +1374,44 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error filtering owned booking ids: {e}")
             return []
+
+    # Per-user-pair conversation support
+    def find_upcoming_for_pair(
+        self,
+        student_id: str,
+        instructor_id: str,
+        limit: int = 5,
+    ) -> List[Booking]:
+        """
+        Find upcoming bookings for a student-instructor pair.
+
+        Used for conversation context to show next/upcoming bookings.
+
+        Args:
+            student_id: The student's user ID
+            instructor_id: The instructor's user ID
+            limit: Maximum number of bookings to return
+
+        Returns:
+            List of upcoming bookings ordered by date/time ascending
+        """
+        try:
+            user_today = get_user_today_by_id(student_id, self.db)
+
+            return cast(
+                List[Booking],
+                self.db.query(Booking)
+                .options(joinedload(Booking.instructor_service))
+                .filter(
+                    Booking.student_id == student_id,
+                    Booking.instructor_id == instructor_id,
+                    Booking.status == BookingStatus.CONFIRMED,
+                    Booking.booking_date >= user_today,
+                )
+                .order_by(Booking.booking_date.asc(), Booking.start_time.asc())
+                .limit(limit)
+                .all(),
+            )
+        except Exception as e:
+            self.logger.error(f"Error finding upcoming bookings for pair: {str(e)}")
+            raise RepositoryException(f"Failed to find upcoming bookings for pair: {str(e)}")
