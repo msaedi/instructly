@@ -64,6 +64,16 @@ export type MessageWithAttachments = MessageItem & {
 };
 
 /**
+ * Booking info for conversation context (Phase 4)
+ */
+export type ConversationBooking = {
+  id: string;
+  date: string;
+  start_time: string;
+  service_name: string;
+};
+
+/**
  * Conversation entry in the sidebar list
  */
 export type ConversationEntry = {
@@ -80,6 +90,10 @@ export type ConversationEntry = {
   instructorId: string | null;
   latestMessageAt: number;
   latestMessageId?: string | null;
+  // Phase 4: New fields for per-user-pair model
+  conversationId?: string | undefined;
+  nextBooking?: ConversationBooking | null | undefined;
+  upcomingBookingCount?: number | undefined;
 };
 
 /**
