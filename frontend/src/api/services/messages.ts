@@ -9,8 +9,9 @@
  * Phase 10: Messages domain migrated to /api/v1/messages
  */
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/api/queryKeys';
+import { withApiBase } from '@/lib/apiBase';
 import {
   useGetMessageConfigApiV1MessagesConfigGet,
   useGetUnreadCountApiV1MessagesUnreadCountGet,
@@ -121,6 +122,122 @@ export function useMessageHistory(
       staleTime: 1000 * 60, // 1 minute
       enabled: enabled && !!bookingId,
     },
+  });
+}
+
+/**
+ * Raw response type from conversation messages endpoint (before transformation).
+ */
+interface ConversationMessagesRawResponse {
+  messages: Array<{
+    id: string;
+    content: string;
+    sender_id: string | null;
+    is_from_me: boolean;
+    message_type: string;
+    booking_id: string | null;
+    created_at: string;
+    delivered_at: string | null;
+    read_by: string[];
+  }>;
+  has_more: boolean;
+  next_cursor: string | null;
+}
+
+/**
+ * Response type for conversation messages endpoint.
+ * Phase 7: Fetches ALL messages in a conversation (across all bookings).
+ * Messages are transformed to match MessageResponse structure for compatibility.
+ */
+interface ConversationMessagesResponse {
+  messages: Array<{
+    id: string;
+    content: string;
+    sender_id: string;
+    booking_id: string;
+    created_at: string;
+    updated_at: string;
+    delivered_at?: string | null;
+    read_by?: string[];
+    is_deleted?: boolean;
+    edited_at?: string;
+  }>;
+  has_more: boolean;
+  next_cursor: string | null;
+}
+
+/**
+ * Get message history for a conversation (Phase 7).
+ *
+ * Unlike useMessageHistory which fetches by booking_id, this hook fetches
+ * ALL messages in a conversation across all bookings between the same
+ * student-instructor pair.
+ *
+ * @param conversationId - ULID of the conversation
+ * @param limit - Number of messages per page (default: 50)
+ * @param before - Cursor for pagination (message ID)
+ * @param enabled - Whether the query should be enabled
+ * @example
+ * ```tsx
+ * function ChatMessages({ conversationId }: { conversationId: string }) {
+ *   const { data, isLoading } = useConversationMessages(conversationId);
+ *
+ *   if (isLoading) return <div>Loading messages...</div>;
+ *
+ *   return (
+ *     <div>
+ *       {data?.messages.map(msg => (
+ *         <div key={msg.id}>{msg.content}</div>
+ *       ))}
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
+export function useConversationMessages(
+  conversationId: string | undefined,
+  limit: number = 50,
+  before?: string,
+  enabled: boolean = true
+) {
+  const pagination = before ? { limit, before } : { limit };
+
+  return useQuery<ConversationMessagesResponse>({
+    queryKey: queryKeys.messages.conversationMessages(conversationId ?? '', pagination),
+    queryFn: async (): Promise<ConversationMessagesResponse> => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (before) params.append('before', before);
+      const response = await fetch(
+        withApiBase(`/api/v1/conversations/${conversationId}/messages?${params}`),
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
+      );
+      if (!response.ok) {
+        throw new Error('Failed to fetch conversation messages');
+      }
+      const raw = (await response.json()) as ConversationMessagesRawResponse;
+      // Transform messages to match MessageResponse structure for Chat.tsx compatibility
+      return {
+        messages: raw.messages.map((msg) => ({
+          id: msg.id,
+          content: msg.content,
+          sender_id: msg.sender_id ?? '', // Fallback for system messages
+          booking_id: msg.booking_id ?? '', // Fallback if null
+          created_at: msg.created_at,
+          updated_at: msg.created_at, // Use created_at as fallback for updated_at
+          delivered_at: msg.delivered_at,
+          read_by: msg.read_by,
+          is_deleted: false, // Default value
+        })),
+        has_more: raw.has_more,
+        next_cursor: raw.next_cursor,
+      };
+    },
+    staleTime: 1000 * 60, // 1 minute
+    enabled: enabled && !!conversationId,
   });
 }
 

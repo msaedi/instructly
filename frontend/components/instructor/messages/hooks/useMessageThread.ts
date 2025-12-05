@@ -14,7 +14,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { logger } from '@/lib/logger';
 import { queryKeys } from '@/src/api/queryKeys';
 import {
-  useMessageHistory,
+  useConversationMessages,
   sendMessageImperative,
   markMessagesAsReadImperative,
 } from '@/src/api/services/messages';
@@ -78,7 +78,6 @@ export function useMessageThread({
   setConversations,
 }: UseMessageThreadOptions): UseMessageThreadResult {
   const HISTORY_LIMIT = 100;
-  const HISTORY_OFFSET = 0;
   const queryClient = useQueryClient();
 
   // Thread messages state
@@ -142,11 +141,11 @@ export function useMessageThread({
     }
   }, [_conversations]);
 
-  const historyBookingId = historyTarget?.conversation.primaryBookingId ?? '';
+  const conversationId = historyTarget?.conversation.id ?? '';
   const {
     data: historyData,
     error: historyError,
-  } = useMessageHistory(historyBookingId, HISTORY_LIMIT, HISTORY_OFFSET, Boolean(historyBookingId));
+  } = useConversationMessages(conversationId, HISTORY_LIMIT, undefined, Boolean(conversationId));
 
   // Set thread messages for current display mode
   const setThreadMessagesForDisplay = useCallback((
@@ -229,7 +228,7 @@ export function useMessageThread({
     lastHistoryAppliedRef.current = dedupeKey;
 
     const mappedMessages = messages.map((msg) =>
-      mapMessageFromResponse(msg, conversation, currentUserId)
+      mapMessageFromResponse(msg as unknown as MessageResponse, conversation, currentUserId)
     );
 
     // Merge history with any SSE-only messages we already have
@@ -253,7 +252,11 @@ export function useMessageThread({
     updateLastSeenTimestamp(threadId, lastTimestamp);
 
     // Update conversation unread count
-    const unreadCount = computeUnreadFromMessages(messages, conversation, currentUserId);
+    const unreadCount = computeUnreadFromMessages(
+      messages as unknown as MessageResponse[],
+      conversation,
+      currentUserId
+    );
     setConversations((prev) =>
       prev.map((conv) =>
         conv.id === threadId ? { ...conv, unread: unreadCount } : conv
@@ -637,14 +640,10 @@ export function useMessageThread({
 
   // Invalidate conversation cache to force refetch on next view
   const invalidateConversationCache = useCallback((conversationId: string) => {
-    const conversation = conversationsRef.current.find((c) => c.id === conversationId);
-    const bookingId = conversation?.primaryBookingId;
-    if (!bookingId) return;
-
     void queryClient.invalidateQueries({
-      queryKey: queryKeys.messages.history(bookingId, { limit: HISTORY_LIMIT, offset: HISTORY_OFFSET }),
+      queryKey: queryKeys.messages.conversationMessages(conversationId, { limit: HISTORY_LIMIT }),
     });
-  }, [queryClient, HISTORY_LIMIT, HISTORY_OFFSET]);
+  }, [queryClient, HISTORY_LIMIT]);
 
   return {
     threadMessages,

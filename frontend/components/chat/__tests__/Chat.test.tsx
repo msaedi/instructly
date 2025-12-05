@@ -3,7 +3,7 @@ import { render, waitFor } from '@testing-library/react';
 import { Chat } from '../Chat';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 
-const mockUseMessageHistory = jest.fn();
+const mockUseConversationMessages = jest.fn();
 const mockUseSendMessage = jest.fn();
 const mockUseMarkMessagesAsRead = jest.fn();
 const mockUseEditMessage = jest.fn();
@@ -39,7 +39,7 @@ jest.mock('@/src/api/services/messages', () => ({
     isLoading: false,
     error: null,
   }),
-  useMessageHistory: (...args: unknown[]) => mockUseMessageHistory(...args),
+  useConversationMessages: (...args: unknown[]) => mockUseConversationMessages(...args),
   useSendMessage: (...args: unknown[]) => mockUseSendMessage(...args),
   useMarkMessagesAsRead: (...args: unknown[]) => mockUseMarkMessagesAsRead(...args),
   useEditMessage: (...args: unknown[]) => mockUseEditMessage(...args),
@@ -56,6 +56,7 @@ jest.mock('@/src/api/queryKeys', () => ({
       config: ['messages', 'config'],
       unreadCount: ['messages', 'unread-count'],
       history: (bookingId: string) => ['messages', 'history', bookingId, {}],
+      conversationMessages: (conversationId: string) => ['messages', 'conversation', conversationId, {}],
     },
   },
 }));
@@ -69,11 +70,9 @@ const baseProps = {
 
 const defaultHistoryResponse = (messages: MessageResponse[] = []) => ({
   data: {
-    booking_id: baseProps.bookingId,
     messages,
-    limit: messages.length,
-    offset: 0,
     has_more: false,
+    next_cursor: null,
   },
   isLoading: false,
   error: null,
@@ -119,7 +118,7 @@ describe('Chat mark-as-read behavior', () => {
     });
 
     historyResponse = defaultHistoryResponse();
-    mockUseMessageHistory.mockImplementation(() => historyResponse);
+    mockUseConversationMessages.mockImplementation(() => historyResponse);
   });
 
   const setHistoryMessages = (messages: MessageResponse[]) => {

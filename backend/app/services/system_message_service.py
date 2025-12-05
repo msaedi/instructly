@@ -9,6 +9,7 @@ Generates system messages in conversations when booking events occur:
 - Booking completed
 """
 
+import asyncio
 from datetime import date, time
 import logging
 from typing import Optional
@@ -26,6 +27,7 @@ from ..repositories.conversation_repository import ConversationRepository
 from ..repositories.factory import RepositoryFactory
 from ..repositories.message_repository import MessageRepository
 from .base import BaseService
+from .messaging import publish_new_message
 
 logger = logging.getLogger(__name__)
 
@@ -270,7 +272,7 @@ class SystemMessageService(BaseService):
         message_type: str,
     ) -> None:
         """Create a system message (no sender_id)."""
-        self.message_repository.create_conversation_message(
+        message = self.message_repository.create_conversation_message(
             conversation_id=conversation_id,
             sender_id=None,  # System messages have no sender
             content=content,
@@ -280,6 +282,37 @@ class SystemMessageService(BaseService):
 
         # Update conversation's last_message_at
         self.conversation_repository.update_last_message_at(conversation_id)
+
+        # Publish SSE event for real-time delivery (best effort, do not block booking flow)
+        async def _publish_system_message() -> None:
+            await publish_new_message(
+                db=self.db,
+                message_id=str(message.id),
+                content=message.content,
+                sender_id=None,
+                conversation_id=conversation_id,
+                created_at=message.created_at,
+                booking_id=booking_id,
+                delivered_at=message.delivered_at,
+                message_type=message.message_type,
+            )
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            try:
+                asyncio.run(_publish_system_message())
+            except Exception as e:  # pragma: no cover - best effort logging
+                self.logger.warning(
+                    "Failed to publish SSE for system message",
+                    extra={
+                        "error": str(e),
+                        "conversation_id": conversation_id,
+                        "booking_id": booking_id,
+                    },
+                )
+        else:
+            loop.create_task(_publish_system_message())
 
     def _format_time(self, t: time) -> str:
         """Format time as '5pm' style."""

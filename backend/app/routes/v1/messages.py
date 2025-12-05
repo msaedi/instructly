@@ -65,6 +65,7 @@ from ...database import get_db
 from ...dependencies.permissions import require_permission
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
+from ...repositories.conversation_repository import ConversationRepository
 from ...schemas.message_requests import MarkMessagesReadRequest, SendMessageRequest
 from ...schemas.message_responses import (
     ConversationStateUpdateResponse,
@@ -106,6 +107,35 @@ ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 def get_message_service(db: Session = Depends(get_db)) -> MessageService:
     """Get message service instance."""
     return MessageService(db)
+
+
+def _get_conversation_id_for_booking(db: Session, booking_id: str) -> Optional[str]:
+    """
+    Look up the conversation_id for a booking's student-instructor pair.
+
+    Phase 7: SSE events must use conversation_id (not booking_id) for routing,
+    because frontend subscribes by conversation_id.
+
+    Returns conversation_id if found, None otherwise.
+    """
+    from ...repositories.booking_repository import BookingRepository
+
+    booking_repo = BookingRepository(db)
+    booking = booking_repo.get_by_id(booking_id)
+    if not booking:
+        logger.warning(f"[SSE-ROUTING] Booking not found: {booking_id}")
+        return None
+
+    conv_repo = ConversationRepository(db)
+    conversation = conv_repo.find_by_pair(booking.student_id, booking.instructor_id)
+    if not conversation:
+        logger.warning(
+            f"[SSE-ROUTING] Conversation not found for booking {booking_id} "
+            f"(student={booking.student_id}, instructor={booking.instructor_id})"
+        )
+        return None
+
+    return str(conversation.id)
 
 
 # Phase 2 schemas (defined here to avoid import cycles)
@@ -397,22 +427,41 @@ async def mark_messages_as_read(
             raise ValidationException("Either booking_id or message_ids must be provided")
 
         # Redis Pub/Sub publishing (fire-and-forget)
-        if count > 0 and booking_id and marked_message_ids:
-            try:
-                await publish_read_receipt(
-                    db=service.db,
-                    conversation_id=booking_id,
-                    reader_id=str(current_user.id),
-                    message_ids=marked_message_ids,
-                )
-                logger.debug(
-                    "[REDIS-PUBSUB] Mark-read: Published to Redis",
-                    extra={"message_count": len(marked_message_ids)},
-                )
-            except Exception as e:
-                logger.error(
-                    "[REDIS-PUBSUB] Mark-read: Redis publish failed",
-                    extra={"error": str(e), "booking_id": booking_id},
+        # Phase 7: Use conversation_id (not booking_id) for SSE routing
+        if count > 0 and marked_message_ids:
+            conversation_id: Optional[str] = None
+            # Try to get conversation_id from the first message
+            first_msg = service.repository.get_by_id(marked_message_ids[0])
+            if first_msg and first_msg.conversation_id:
+                conversation_id = first_msg.conversation_id
+            elif booking_id:
+                # Fallback: look up conversation from booking
+                conversation_id = _get_conversation_id_for_booking(service.db, booking_id)
+
+            if conversation_id:
+                try:
+                    await publish_read_receipt(
+                        db=service.db,
+                        conversation_id=conversation_id,
+                        reader_id=str(current_user.id),
+                        message_ids=marked_message_ids,
+                    )
+                    logger.debug(
+                        "[REDIS-PUBSUB] Mark-read: Published to Redis",
+                        extra={
+                            "message_count": len(marked_message_ids),
+                            "conversation_id": conversation_id,
+                        },
+                    )
+                except Exception as e:
+                    logger.error(
+                        "[REDIS-PUBSUB] Mark-read: Redis publish failed",
+                        extra={"error": str(e), "conversation_id": conversation_id},
+                    )
+            else:
+                logger.warning(
+                    "[REDIS-PUBSUB] Mark-read: Could not resolve conversation_id for SSE routing",
+                    extra={"booking_id": booking_id, "message_ids": marked_message_ids[:3]},
                 )
 
         return MarkMessagesReadResponse(
@@ -495,29 +544,38 @@ async def send_message(
         )
 
         # Redis Pub/Sub publishing (fire-and-forget)
-        try:
-            await publish_new_message(
-                db=service.db,
-                message_id=str(message.id),
-                content=message.content,
-                sender_id=str(current_user.id),
-                conversation_id=str(message.conversation_id)
-                if message.conversation_id
-                else request.booking_id,
-                created_at=message.created_at,
-                booking_id=request.booking_id,
-                delivered_at=message.delivered_at,
-                message_type=message.message_type,
-            )
-            logger.debug(
-                "[REDIS-PUBSUB] Message SEND: Published to Redis",
-                extra={"message_id": message.id, "conversation_id": message.conversation_id},
-            )
-        except Exception as e:
-            # Fire-and-forget: log but don't fail the request
-            logger.error(
-                "[REDIS-PUBSUB] Message SEND: Redis publish failed",
-                extra={"error": str(e), "message_id": message.id},
+        # Phase 7: Use conversation_id (not booking_id) for SSE routing
+        conv_id = message.conversation_id
+        if not conv_id:
+            conv_id = _get_conversation_id_for_booking(service.db, request.booking_id)
+
+        if conv_id:
+            try:
+                await publish_new_message(
+                    db=service.db,
+                    message_id=str(message.id),
+                    content=message.content,
+                    sender_id=str(current_user.id),
+                    conversation_id=conv_id,
+                    created_at=message.created_at,
+                    booking_id=request.booking_id,
+                    delivered_at=message.delivered_at,
+                    message_type=message.message_type,
+                )
+                logger.debug(
+                    "[REDIS-PUBSUB] Message SEND: Published to Redis",
+                    extra={"message_id": message.id, "conversation_id": conv_id},
+                )
+            except Exception as e:
+                # Fire-and-forget: log but don't fail the request
+                logger.error(
+                    "[REDIS-PUBSUB] Message SEND: Redis publish failed",
+                    extra={"error": str(e), "message_id": message.id},
+                )
+        else:
+            logger.warning(
+                "[REDIS-PUBSUB] Message SEND: Could not resolve conversation_id",
+                extra={"message_id": message.id, "booking_id": request.booking_id},
             )
 
         return SendMessageResponse(
@@ -725,22 +783,30 @@ async def send_typing_indicator(
     except Exception as e:
         logger.error(f"Failed to send typing indicator: {str(e)}")
 
-    # Redis Pub/Sub publishing (Phase 1 - fire-and-forget)
-    try:
-        await publish_typing_status(
-            db=service.db,
-            conversation_id=booking_id,
-            user_id=str(current_user.id),
-            is_typing=True,
-        )
-        logger.debug(
-            "[REDIS-PUBSUB] Typing indicator: Published to Redis",
+    # Redis Pub/Sub publishing (Phase 7 - use conversation_id for SSE routing)
+    # Look up conversation_id from booking
+    conversation_id = _get_conversation_id_for_booking(service.db, booking_id)
+    if conversation_id:
+        try:
+            await publish_typing_status(
+                db=service.db,
+                conversation_id=conversation_id,
+                user_id=str(current_user.id),
+                is_typing=True,
+            )
+            logger.debug(
+                "[REDIS-PUBSUB] Typing indicator: Published to Redis",
+                extra={"booking_id": booking_id, "conversation_id": conversation_id},
+            )
+        except Exception as e:
+            logger.error(
+                "[REDIS-PUBSUB] Typing indicator: Redis publish failed",
+                extra={"error": str(e), "conversation_id": conversation_id},
+            )
+    else:
+        logger.warning(
+            "[REDIS-PUBSUB] Typing indicator: Could not resolve conversation_id",
             extra={"booking_id": booking_id},
-        )
-    except Exception as e:
-        logger.error(
-            "[REDIS-PUBSUB] Typing indicator: Redis publish failed",
-            extra={"error": str(e), "booking_id": booking_id},
         )
 
     return TypingStatusResponse(success=True)
@@ -801,21 +867,33 @@ async def edit_message(
         )
 
         # Redis Pub/Sub publishing (fire-and-forget)
+        # Phase 7: Use conversation_id (not booking_id) for SSE routing
         try:
             message = service.get_message_by_id(message_id, str(current_user.id))
             if message:
-                await publish_message_edited(
-                    db=service.db,
-                    conversation_id=str(message.booking_id),
-                    message_id=message_id,
-                    new_content=request.content,
-                    editor_id=str(current_user.id),
-                    edited_at=message.edited_at or datetime.now(timezone.utc),
-                )
-                logger.debug(
-                    "[REDIS-PUBSUB] Message EDIT: Published to Redis",
-                    extra={"message_id": message_id},
-                )
+                # Get conversation_id from message, fallback to lookup from booking
+                conv_id = message.conversation_id
+                if not conv_id and message.booking_id:
+                    conv_id = _get_conversation_id_for_booking(service.db, message.booking_id)
+
+                if conv_id:
+                    await publish_message_edited(
+                        db=service.db,
+                        conversation_id=conv_id,
+                        message_id=message_id,
+                        new_content=request.content,
+                        editor_id=str(current_user.id),
+                        edited_at=message.edited_at or datetime.now(timezone.utc),
+                    )
+                    logger.debug(
+                        "[REDIS-PUBSUB] Message EDIT: Published to Redis",
+                        extra={"message_id": message_id, "conversation_id": conv_id},
+                    )
+                else:
+                    logger.warning(
+                        "[REDIS-PUBSUB] Message EDIT: Could not resolve conversation_id",
+                        extra={"message_id": message_id, "booking_id": message.booking_id},
+                    )
         except Exception as e:
             logger.error(
                 "[REDIS-PUBSUB] Message EDIT: Redis publish failed",
@@ -910,21 +988,32 @@ async def delete_message(
             )
 
         # Redis Pub/Sub publishing (fire-and-forget)
-        try:
-            await publish_message_deleted(
-                db=service.db,
-                conversation_id=str(message.booking_id),
-                message_id=message_id,
-                deleted_by=str(current_user.id),
-            )
-            logger.debug(
-                "[REDIS-PUBSUB] Message DELETE: Published to Redis",
-                extra={"message_id": message_id},
-            )
-        except Exception as e:
-            logger.error(
-                "[REDIS-PUBSUB] Message DELETE: Redis publish failed",
-                extra={"error": str(e), "message_id": message_id},
+        # Phase 7: Use conversation_id (not booking_id) for SSE routing
+        conv_id = message.conversation_id
+        if not conv_id and message.booking_id:
+            conv_id = _get_conversation_id_for_booking(service.db, message.booking_id)
+
+        if conv_id:
+            try:
+                await publish_message_deleted(
+                    db=service.db,
+                    conversation_id=conv_id,
+                    message_id=message_id,
+                    deleted_by=str(current_user.id),
+                )
+                logger.debug(
+                    "[REDIS-PUBSUB] Message DELETE: Published to Redis",
+                    extra={"message_id": message_id, "conversation_id": conv_id},
+                )
+            except Exception as e:
+                logger.error(
+                    "[REDIS-PUBSUB] Message DELETE: Redis publish failed",
+                    extra={"error": str(e), "message_id": message_id},
+                )
+        else:
+            logger.warning(
+                "[REDIS-PUBSUB] Message DELETE: Could not resolve conversation_id",
+                extra={"message_id": message_id, "booking_id": message.booking_id},
             )
 
         return DeleteMessageResponse(
@@ -1004,24 +1093,35 @@ async def add_reaction(
         )
 
         # Redis Pub/Sub publishing (fire-and-forget)
+        # Phase 7: Use conversation_id (not booking_id) for SSE routing
         if message:
-            try:
-                await publish_reaction_update(
-                    db=service.db,
-                    conversation_id=str(message.booking_id),
-                    message_id=message_id,
-                    user_id=str(current_user.id),
-                    emoji=request.emoji,
-                    action="added",
-                )
-                logger.debug(
-                    "[REDIS-PUBSUB] Reaction ADD: Published to Redis",
-                    extra={"message_id": message_id},
-                )
-            except Exception as e:
-                logger.error(
-                    "[REDIS-PUBSUB] Reaction ADD: Redis publish failed",
-                    extra={"error": str(e), "message_id": message_id},
+            conv_id = message.conversation_id
+            if not conv_id and message.booking_id:
+                conv_id = _get_conversation_id_for_booking(service.db, message.booking_id)
+
+            if conv_id:
+                try:
+                    await publish_reaction_update(
+                        db=service.db,
+                        conversation_id=conv_id,
+                        message_id=message_id,
+                        user_id=str(current_user.id),
+                        emoji=request.emoji,
+                        action="added",
+                    )
+                    logger.debug(
+                        "[REDIS-PUBSUB] Reaction ADD: Published to Redis",
+                        extra={"message_id": message_id, "conversation_id": conv_id},
+                    )
+                except Exception as e:
+                    logger.error(
+                        "[REDIS-PUBSUB] Reaction ADD: Redis publish failed",
+                        extra={"error": str(e), "message_id": message_id},
+                    )
+            else:
+                logger.warning(
+                    "[REDIS-PUBSUB] Reaction ADD: Could not resolve conversation_id",
+                    extra={"message_id": message_id, "booking_id": message.booking_id},
                 )
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -1111,24 +1211,35 @@ async def remove_reaction(
         )
 
         # Redis Pub/Sub publishing (fire-and-forget)
+        # Phase 7: Use conversation_id (not booking_id) for SSE routing
         if message:
-            try:
-                await publish_reaction_update(
-                    db=service.db,
-                    conversation_id=str(message.booking_id),
-                    message_id=message_id,
-                    user_id=str(current_user.id),
-                    emoji=request.emoji,
-                    action="removed",
-                )
-                logger.debug(
-                    "[REDIS-PUBSUB] Reaction REMOVE: Published to Redis",
-                    extra={"message_id": message_id},
-                )
-            except Exception as e:
-                logger.error(
-                    "[REDIS-PUBSUB] Reaction REMOVE: Redis publish failed",
-                    extra={"error": str(e), "message_id": message_id},
+            conv_id = message.conversation_id
+            if not conv_id and message.booking_id:
+                conv_id = _get_conversation_id_for_booking(service.db, message.booking_id)
+
+            if conv_id:
+                try:
+                    await publish_reaction_update(
+                        db=service.db,
+                        conversation_id=conv_id,
+                        message_id=message_id,
+                        user_id=str(current_user.id),
+                        emoji=request.emoji,
+                        action="removed",
+                    )
+                    logger.debug(
+                        "[REDIS-PUBSUB] Reaction REMOVE: Published to Redis",
+                        extra={"message_id": message_id, "conversation_id": conv_id},
+                    )
+                except Exception as e:
+                    logger.error(
+                        "[REDIS-PUBSUB] Reaction REMOVE: Redis publish failed",
+                        extra={"error": str(e), "message_id": message_id},
+                    )
+            else:
+                logger.warning(
+                    "[REDIS-PUBSUB] Reaction REMOVE: Could not resolve conversation_id",
+                    extra={"message_id": message_id, "booking_id": message.booking_id},
                 )
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)

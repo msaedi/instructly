@@ -92,9 +92,13 @@ export const queryKeys = {
     /** Unread count for current user */
     unreadCount: ['messages', 'unread-count'] as const,
 
-    /** Message history for a booking */
+    /** Message history for a booking (legacy - use conversationMessages for new code) */
     history: (bookingId: string, pagination?: { limit?: number; offset?: number }) =>
       ['messages', 'history', bookingId, pagination ?? {}] as const,
+
+    /** Message history for a conversation (Phase 7: preferred over booking-based history) */
+    conversationMessages: (conversationId: string, pagination?: { limit?: number; before?: string }) =>
+      ['messages', 'conversation', conversationId, pagination ?? {}] as const,
   },
 } as const;
 

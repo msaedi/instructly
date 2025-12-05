@@ -22,7 +22,7 @@ import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import { withApiBase } from '@/lib/apiBase';
 import {
   useMessageConfig,
-  useMessageHistory,
+  useConversationMessages,
   useSendMessage,
   useMarkMessagesAsRead,
   useEditMessage,
@@ -81,16 +81,9 @@ export function Chat({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Fetch message history
-  const {
-    data: historyData,
-    isLoading: isLoadingHistory,
-    error: historyError,
-  } = useMessageHistory(bookingId);
-
-  // Phase 7: Fetch conversation_id for SSE subscription
+  // Phase 7: Fetch conversation_id for SSE subscription AND message history
   // One conversation per student-instructor pair - SSE must use conversation_id, not booking_id
-  const { data: conversationData } = useQuery({
+  const { data: conversationData, isLoading: isLoadingConversation } = useQuery({
     queryKey: ['conversation-for-booking', bookingId],
     queryFn: async () => {
       const response = await fetch(
@@ -110,6 +103,17 @@ export function Chat({
     staleTime: Infinity, // Conversation ID doesn't change
   });
   const conversationId = conversationData?.id;
+
+  // Fetch message history by conversation_id (Phase 7)
+  // This fetches ALL messages in the conversation, regardless of which booking they were sent from
+  const {
+    data: historyData,
+    isLoading: isLoadingMessages,
+    error: historyError,
+  } = useConversationMessages(conversationId);
+
+  // Combined loading state: loading conversation OR loading messages
+  const isLoadingHistory = isLoadingConversation || isLoadingMessages;
 
   // Mutations - destructure mutate functions for stable references
   const queryClient = useQueryClient();
@@ -253,12 +257,12 @@ export function Chat({
     // Invalidate React Query cache to refetch (for historical messages)
     // This ensures the edit is reflected even if message was from history
     void queryClient.invalidateQueries({
-      queryKey: queryKeys.messages.history(bookingId),
+      queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
       exact: false,
     });
 
     logger.debug('[MSG-DEBUG] handleMessageEdited DONE - updated local state + invalidated cache');
-  }, [bookingId, queryClient]);
+  }, [bookingId, conversationId, queryClient]);
 
   const handleMessageDeleted = useCallback((messageId: string, _deletedBy: string) => {
     logger.debug('[MSG-DEBUG] handleMessageDeleted CALLED', {
@@ -282,10 +286,10 @@ export function Chat({
     });
 
     void queryClient.invalidateQueries({
-      queryKey: queryKeys.messages.history(bookingId),
+      queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
       exact: false,
     });
-  }, [bookingId, queryClient]);
+  }, [bookingId, conversationId, queryClient]);
 
   // Subscribe to this conversation's events
   useEffect(() => {
@@ -306,7 +310,7 @@ export function Chat({
     // Invalidate message history cache when chat opens to fetch any missed messages
     // This ensures messages sent while chat was closed are loaded
     void queryClient.invalidateQueries({
-      queryKey: queryKeys.messages.history(bookingId),
+      queryKey: queryKeys.messages.conversationMessages(conversationId),
       exact: false,
     });
 
@@ -352,11 +356,13 @@ export function Chat({
       timestamp: new Date().toISOString(),
     });
 
+    // Use broader type since conversation messages have slightly different shape than MessageResponse
+    // The actual fields used by Chat.tsx are compatible
     const messageMap = new Map<string, MessageResponse>();
 
-    // Add history messages
+    // Add history messages (cast to MessageResponse for compatibility)
     (historyData?.messages || []).forEach(msg => {
-      messageMap.set(msg.id, msg);
+      messageMap.set(msg.id, msg as unknown as MessageResponse);
     });
 
     // Add real-time messages (only if not already in history)
@@ -401,7 +407,7 @@ export function Chat({
     mutations: reactionMutations,
     onReactionComplete: () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.messages.history(bookingId),
+        queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
         exact: false,
       });
     },
@@ -845,7 +851,7 @@ export function Chat({
                               return updated;
                             });
                             void queryClient.invalidateQueries({
-                              queryKey: queryKeys.messages.history(bookingId),
+                              queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
                               exact: false,
                             });
                           }}
