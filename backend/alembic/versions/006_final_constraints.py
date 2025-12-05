@@ -675,7 +675,8 @@ def upgrade() -> None:
         sa.Column("id", sa.String(26), nullable=False),
         # booking_id is now nullable (for pre-booking messages or conversation-only context)
         sa.Column("booking_id", sa.String(26), nullable=True),
-        sa.Column("sender_id", sa.String(26), nullable=False),
+        # sender_id is nullable for system messages (no human sender)
+        sa.Column("sender_id", sa.String(26), nullable=True),
         sa.Column("content", sa.String(1000), nullable=False),
         # conversation_id for per-user-pair messaging (nullable during migration, will be enforced later)
         sa.Column("conversation_id", sa.String(26), nullable=True),

@@ -669,7 +669,7 @@ class MessageRepository(BaseRepository[Message]):
     def create_conversation_message(
         self,
         conversation_id: str,
-        sender_id: str,
+        sender_id: Optional[str],
         content: str,
         message_type: str = "user",
         booking_id: Optional[str] = None,
@@ -677,9 +677,11 @@ class MessageRepository(BaseRepository[Message]):
         """
         Create a new message for a conversation (per-user-pair messaging).
 
+        For system messages (booking created, cancelled, etc.), sender_id should be None.
+
         Args:
             conversation_id: ID of the conversation
-            sender_id: ID of the sender
+            sender_id: ID of the sender, or None for system messages
             content: Message content
             message_type: Type of message (user, system_booking_created, etc.)
             booking_id: Optional booking ID to associate with message

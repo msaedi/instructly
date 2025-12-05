@@ -48,6 +48,7 @@ from .config_service import ConfigService
 from .notification_service import NotificationService
 from .pricing_service import PricingService
 from .student_credit_service import StudentCreditService
+from .system_message_service import SystemMessageService
 
 if TYPE_CHECKING:
     # AvailabilitySlot removed - bitmap-only storage now
@@ -91,6 +92,7 @@ class BookingService(BaseService):
         repository: Optional["BookingRepository"] = None,
         conflict_checker_repository: Optional["ConflictCheckerRepository"] = None,
         cache_service: Optional["CacheService"] = None,
+        system_message_service: Optional[SystemMessageService] = None,
     ):
         """
         Initialize booking service.
@@ -101,9 +103,11 @@ class BookingService(BaseService):
             repository: Optional BookingRepository instance
             conflict_checker_repository: Optional ConflictCheckerRepository instance
             cache_service: Optional cache service for invalidation
+            system_message_service: Optional system message service for conversation messages
         """
         super().__init__(db, cache=cache_service)
         self.notification_service = notification_service or NotificationService(db)
+        self.system_message_service = system_message_service or SystemMessageService(db)
         # Pass cache_service to BookingRepository for caching support
         if repository:
             self.repository = repository
@@ -765,6 +769,48 @@ class BookingService(BaseService):
             booking_id=booking.id,
             payment_status=booking.payment_status,
         )
+
+        # Create system message in conversation
+        try:
+            service_name = "Lesson"
+            if booking.instructor_service and booking.instructor_service.name:
+                service_name = booking.instructor_service.name
+
+            # Check if this is a rescheduled booking
+            if booking.rescheduled_from_booking_id:
+                old_booking = self.repository.get_by_id(booking.rescheduled_from_booking_id)
+                if old_booking:
+                    self.system_message_service.create_booking_rescheduled_message(
+                        student_id=booking.student_id,
+                        instructor_id=booking.instructor_id,
+                        booking_id=booking.id,
+                        old_date=old_booking.booking_date,
+                        old_time=old_booking.start_time,
+                        new_date=booking.booking_date,
+                        new_time=booking.start_time,
+                    )
+                else:
+                    # Old booking not found, create as new booking
+                    self.system_message_service.create_booking_created_message(
+                        student_id=booking.student_id,
+                        instructor_id=booking.instructor_id,
+                        booking_id=booking.id,
+                        service_name=service_name,
+                        booking_date=booking.booking_date,
+                        start_time=booking.start_time,
+                    )
+            else:
+                self.system_message_service.create_booking_created_message(
+                    student_id=booking.student_id,
+                    instructor_id=booking.instructor_id,
+                    booking_id=booking.id,
+                    service_name=service_name,
+                    booking_date=booking.booking_date,
+                    start_time=booking.start_time,
+                )
+        except Exception as e:
+            logger.error(f"Failed to create system message for booking {booking.id}: {str(e)}")
+
         # Invalidate caches so upcoming lists include the newly confirmed booking
         try:
             self._invalidate_booking_caches(booking)
@@ -1005,6 +1051,27 @@ class BookingService(BaseService):
             )
         except Exception as e:
             logger.error(f"Failed to send cancellation notification: {str(e)}")
+
+        # Create system message in conversation
+        try:
+            cancelled_by_role = None
+            if user.id == booking.student_id:
+                cancelled_by_role = "student"
+            elif user.id == booking.instructor_id:
+                cancelled_by_role = "instructor"
+
+            self.system_message_service.create_booking_cancelled_message(
+                student_id=booking.student_id,
+                instructor_id=booking.instructor_id,
+                booking_id=booking.id,
+                booking_date=booking.booking_date,
+                start_time=booking.start_time,
+                cancelled_by=cancelled_by_role,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to create cancellation system message for booking {booking.id}: {str(e)}"
+            )
 
         # Invalidate caches
         self._invalidate_booking_caches(booking)
@@ -1290,6 +1357,24 @@ class BookingService(BaseService):
                 "Failed issuing milestone credit for booking completion %s: %s",
                 booking_id,
                 exc,
+            )
+
+        # Create system message in conversation
+        try:
+            service_name = None
+            if refreshed_booking.instructor_service and refreshed_booking.instructor_service.name:
+                service_name = refreshed_booking.instructor_service.name
+
+            self.system_message_service.create_booking_completed_message(
+                student_id=refreshed_booking.student_id,
+                instructor_id=refreshed_booking.instructor_id,
+                booking_id=refreshed_booking.id,
+                booking_date=refreshed_booking.booking_date,
+                service_name=service_name,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to create completion system message for booking {booking_id}: {str(e)}"
             )
 
         return refreshed_booking
@@ -1745,18 +1830,52 @@ class BookingService(BaseService):
             return ", ".join(sorted_boroughs)
         return f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
 
-    async def _handle_post_booking_tasks(self, booking: Booking) -> None:
+    async def _handle_post_booking_tasks(
+        self, booking: Booking, is_reschedule: bool = False, old_booking: Optional[Booking] = None
+    ) -> None:
         """
-        Handle notifications and cache invalidation after booking creation.
+        Handle notifications, system messages, and cache invalidation after booking creation.
 
         Args:
             booking: The created booking
+            is_reschedule: Whether this is a rescheduled booking
+            old_booking: The original booking if this is a reschedule
         """
         # Send notifications
         try:
             await self.notification_service.send_booking_confirmation(booking)
         except Exception as e:
             logger.error(f"Failed to send booking confirmation: {str(e)}")
+
+        # Create system message in conversation
+        try:
+            service_name = "Lesson"
+            if booking.instructor_service and booking.instructor_service.name:
+                service_name = booking.instructor_service.name
+
+            if is_reschedule and old_booking:
+                # Create rescheduled message
+                self.system_message_service.create_booking_rescheduled_message(
+                    student_id=booking.student_id,
+                    instructor_id=booking.instructor_id,
+                    booking_id=booking.id,
+                    old_date=old_booking.booking_date,
+                    old_time=old_booking.start_time,
+                    new_date=booking.booking_date,
+                    new_time=booking.start_time,
+                )
+            else:
+                # Create booking created message
+                self.system_message_service.create_booking_created_message(
+                    student_id=booking.student_id,
+                    instructor_id=booking.instructor_id,
+                    booking_id=booking.id,
+                    service_name=service_name,
+                    booking_date=booking.booking_date,
+                    start_time=booking.start_time,
+                )
+        except Exception as e:
+            logger.error(f"Failed to create system message for booking {booking.id}: {str(e)}")
 
         # Invalidate relevant caches
         self._invalidate_booking_caches(booking)

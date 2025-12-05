@@ -49,7 +49,8 @@ class Message(Base):
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     # booking_id is now nullable (for pre-booking messages or conversation-only context)
     booking_id = Column(String(26), ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True)
-    sender_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    # sender_id is nullable for system messages (no human sender)
+    sender_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     content = Column(String(1000), nullable=False)
 
     # Per-user-pair conversation reference (nullable during migration, will be enforced later)
