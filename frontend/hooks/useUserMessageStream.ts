@@ -22,7 +22,7 @@ import type {
 
 const SSE_ENDPOINT = '/api/v1/messages/stream';
 const RECONNECT_DELAY = 3000;
-const HEARTBEAT_TIMEOUT = 45000; // 45 seconds (server sends every 30s)
+const HEARTBEAT_TIMEOUT = 45000; // 45 seconds (server sends every 10s, 4.5x buffer)
 
 // [MSG-DEBUG] Helper to get current timestamp
 const debugTimestamp = () => new Date().toISOString();

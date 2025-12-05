@@ -136,6 +136,7 @@ from app.models.badge import (  # noqa: F401 ensures badge tables
 )
 from app.models.beta import BetaAccess, BetaInvite  # noqa: F401 ensure beta tables are registered
 from app.models.booking import Booking, BookingStatus
+from app.models.conversation import Conversation  # noqa: F401 ensure conversation table is created
 from app.models.event_outbox import EventOutbox, NotificationDelivery  # noqa: F401
 from app.models.instructor import InstructorProfile
 from app.models.referrals import (  # noqa: F401 ensures tables are registered

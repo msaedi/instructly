@@ -2,8 +2,17 @@
 """
 Message model for the chat system.
 
-Represents messages exchanged between instructors and students
-for a specific booking.
+Represents messages exchanged between instructors and students.
+Messages are part of a conversation (per-user-pair) and may optionally
+reference a booking for context.
+
+Message types:
+- 'user': Regular user message (default)
+- 'system_booking_created': Auto-generated when lesson booked
+- 'system_booking_cancelled': Auto-generated when lesson cancelled
+- 'system_booking_rescheduled': Auto-generated when lesson rescheduled
+- 'system_booking_completed': Auto-generated when lesson completed
+- 'system_conversation_started': Auto-generated for pre-booking inquiries
 """
 
 from datetime import datetime, timezone
@@ -15,21 +24,42 @@ import ulid
 
 from ..database import Base
 
+# Constants for message types
+MESSAGE_TYPE_USER = "user"
+MESSAGE_TYPE_SYSTEM_BOOKING_CREATED = "system_booking_created"
+MESSAGE_TYPE_SYSTEM_BOOKING_CANCELLED = "system_booking_cancelled"
+MESSAGE_TYPE_SYSTEM_BOOKING_RESCHEDULED = "system_booking_rescheduled"
+MESSAGE_TYPE_SYSTEM_BOOKING_COMPLETED = "system_booking_completed"
+MESSAGE_TYPE_SYSTEM_CONVERSATION_STARTED = "system_conversation_started"
+
 
 class Message(Base):
     """
-    Message model for booking-related chat.
+    Message model for conversation-based chat.
 
-    Messages are tied to bookings and enable communication
-    between the instructor and student.
+    Messages belong to a conversation (per-user-pair) and may optionally
+    reference a booking for context. This enables:
+    - Unified message history across all bookings
+    - Pre-booking messaging (conversation without booking)
+    - System messages for booking lifecycle events
     """
 
     __tablename__ = "messages"
 
     id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
-    booking_id = Column(String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
+    # booking_id is now nullable (for pre-booking messages or conversation-only context)
+    booking_id = Column(String(26), ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True)
     sender_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content = Column(String(1000), nullable=False)
+
+    # Per-user-pair conversation reference (nullable during migration, will be enforced later)
+    conversation_id = Column(
+        String(26), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True
+    )
+
+    # Message type: 'user', 'system_booking_created', etc.
+    message_type = Column(String(50), nullable=False, default=MESSAGE_TYPE_USER)
+
     created_at = Column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
@@ -50,9 +80,15 @@ class Message(Base):
     # Relationships
     booking = relationship("Booking", back_populates="messages")
     sender = relationship("User", foreign_keys=[sender_id])
+    conversation = relationship("Conversation", back_populates="messages")
     notifications = relationship(
         "MessageNotification", back_populates="message", cascade="all, delete-orphan"
     )
+
+    @property
+    def is_system_message(self) -> bool:
+        """Check if this is a system-generated message."""
+        return bool(self.message_type != MESSAGE_TYPE_USER)
 
 
 class MessageReaction(Base):

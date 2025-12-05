@@ -20,12 +20,22 @@ from .audit_log import AuditLog
 from .availability import BlackoutDate
 from .availability_day import AvailabilityDay  # noqa: F401
 from .booking import Booking, BookingStatus
+from .conversation import Conversation
 from .conversation_state import ConversationState
 from .conversation_user_state import ConversationUserState
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
 from .favorite import UserFavorite
 from .instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
-from .message import Message, MessageNotification
+from .message import (
+    MESSAGE_TYPE_SYSTEM_BOOKING_CANCELLED,
+    MESSAGE_TYPE_SYSTEM_BOOKING_COMPLETED,
+    MESSAGE_TYPE_SYSTEM_BOOKING_CREATED,
+    MESSAGE_TYPE_SYSTEM_BOOKING_RESCHEDULED,
+    MESSAGE_TYPE_SYSTEM_CONVERSATION_STARTED,
+    MESSAGE_TYPE_USER,
+    Message,
+    MessageNotification,
+)
 from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
 from .payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
@@ -92,10 +102,18 @@ __all__ = [
     "WalletTransaction",
     "ReferralLimit",
     # Messaging models
+    "Conversation",
     "Message",
     "MessageNotification",
     "ConversationState",
     "ConversationUserState",
+    # Message type constants
+    "MESSAGE_TYPE_USER",
+    "MESSAGE_TYPE_SYSTEM_BOOKING_CREATED",
+    "MESSAGE_TYPE_SYSTEM_BOOKING_CANCELLED",
+    "MESSAGE_TYPE_SYSTEM_BOOKING_RESCHEDULED",
+    "MESSAGE_TYPE_SYSTEM_BOOKING_COMPLETED",
+    "MESSAGE_TYPE_SYSTEM_CONVERSATION_STARTED",
     # Monitoring models
     "AlertHistory",
     # Address/Spatial models

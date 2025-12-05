@@ -629,14 +629,58 @@ def upgrade() -> None:
     )
     op.create_index("ix_bgc_consent_instructor_id", "bgc_consent", ["instructor_id"])
 
+    # ======== CONVERSATIONS TABLE (Per-User-Pair Architecture) ========
+    # Create conversations table BEFORE messages so messages can reference it
+    print("Creating conversations table for per-user-pair messaging...")
+    op.create_table(
+        "conversations",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("student_id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("last_message_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["student_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        comment="One conversation per student-instructor pair",
+    )
+
+    # Add indexes for conversations
+    op.create_index("idx_conversations_student", "conversations", ["student_id"])
+    op.create_index("idx_conversations_instructor", "conversations", ["instructor_id"])
+    op.create_index("idx_conversations_last_message", "conversations", ["last_message_at"])
+
+    # Add unique index for pair uniqueness (PostgreSQL uses LEAST/GREATEST expressions)
+    if is_postgres:
+        op.execute(
+            """
+            CREATE UNIQUE INDEX idx_conversations_pair_unique
+            ON conversations (LEAST(student_id, instructor_id), GREATEST(student_id, instructor_id));
+            """
+        )
+    else:
+        # SQLite fallback: simple unique constraint on ordered pair
+        # Note: This doesn't prevent (A,B) and (B,A) but SQLite is only for testing
+        op.create_unique_constraint(
+            "conversations_pair_unique_sqlite",
+            "conversations",
+            ["student_id", "instructor_id"],
+        )
+
     # Add messages table for chat system
     print("Creating messages table for chat system...")
     op.create_table(
         "messages",
         sa.Column("id", sa.String(26), nullable=False),
-        sa.Column("booking_id", sa.String(26), nullable=False),
+        # booking_id is now nullable (for pre-booking messages or conversation-only context)
+        sa.Column("booking_id", sa.String(26), nullable=True),
         sa.Column("sender_id", sa.String(26), nullable=False),
         sa.Column("content", sa.String(1000), nullable=False),
+        # conversation_id for per-user-pair messaging (nullable during migration, will be enforced later)
+        sa.Column("conversation_id", sa.String(26), nullable=True),
+        # message_type: 'user', 'system_booking_created', 'system_booking_cancelled', etc.
+        sa.Column("message_type", sa.String(50), nullable=False, server_default="user"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default="false"),
@@ -651,8 +695,9 @@ def upgrade() -> None:
             server_default=(sa.text("'[]'::jsonb") if is_postgres else sa.text("'[]'")),
             nullable=False,
         ),
-        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["sender_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["conversation_id"], ["conversations.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
 
@@ -663,6 +708,16 @@ def upgrade() -> None:
     op.create_index("ix_messages_deleted_at", "messages", ["deleted_at"])
     # Composite index for catch-up queries (booking_id.in_() with id range scan)
     op.create_index("ix_messages_booking_id_id", "messages", ["booking_id", "id"])
+    # Index for conversation-based queries
+    op.create_index("ix_messages_conversation", "messages", ["conversation_id", "created_at"])
+    # Partial index for messages with booking_id (for backward compatibility queries)
+    if is_postgres:
+        op.create_index(
+            "ix_messages_booking_nullable",
+            "messages",
+            ["booking_id"],
+            postgresql_where=sa.text("booking_id IS NOT NULL"),
+        )
 
     # Add conversation_state table for O(1) inbox queries
     print("Creating conversation_state table for efficient inbox state...")
@@ -1494,7 +1549,21 @@ def downgrade() -> None:
     op.drop_index("ix_messages_booking_created", "messages")
     op.drop_index("ix_messages_deleted_at", "messages")
     op.drop_index("ix_messages_booking_id_id", "messages")
+    op.drop_index("ix_messages_conversation", "messages")
+    if is_postgres:
+        op.drop_index("ix_messages_booking_nullable", "messages")
     op.drop_table("messages")
+
+    # Drop conversations table
+    print("Dropping conversations table...")
+    op.drop_index("idx_conversations_last_message", "conversations")
+    op.drop_index("idx_conversations_instructor", "conversations")
+    op.drop_index("idx_conversations_student", "conversations")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS idx_conversations_pair_unique;")
+    else:
+        op.drop_constraint("conversations_pair_unique_sqlite", "conversations", type_="unique")
+    op.drop_table("conversations")
 
     print("Dropping bgc_webhook_log table...")
     op.drop_index("ix_bgc_webhook_log_http_status", table_name="bgc_webhook_log")
