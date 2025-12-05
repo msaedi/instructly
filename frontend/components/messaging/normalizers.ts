@@ -5,6 +5,14 @@ import type { NormalizedMessage, NormalizedReaction, NormalizedAttachment } from
 // Minimal normalizers to convert student/instructor message shapes into NormalizedMessage.
 // These helpers can be expanded as needed; current usage focuses on bubble rendering only.
 
+/**
+ * Check if a message type is a system message
+ */
+export function isSystemMessage(messageType: string | undefined | null): boolean {
+  if (!messageType) return false;
+  return messageType.startsWith('system_') || messageType === 'system';
+}
+
 export function normalizeStudentMessage(
   message: MessageResponse,
   currentUserId: string,
