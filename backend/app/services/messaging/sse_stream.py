@@ -262,6 +262,10 @@ def format_message_from_db(message: Message, user_id: str) -> Dict[str, str]:
     deleted_at_iso = _iso(_safe_attr(message, "deleted_at", None))
     deleted_by = _safe_attr(message, "deleted_by", None)
 
+    # Use conversation_id if available, fall back to booking_id for legacy messages
+    conv_id = getattr(message, "conversation_id", None) or message.booking_id
+    msg_type = getattr(message, "message_type", "user") or "user"
+
     payload = {
         "message": {
             "id": message.id,
@@ -275,9 +279,12 @@ def format_message_from_db(message: Message, user_id: str) -> Dict[str, str]:
             "is_deleted": is_deleted,
             "deleted_at": deleted_at_iso,
             "deleted_by": deleted_by,
+            "message_type": msg_type,
         },
-        "conversation_id": message.booking_id,
+        "conversation_id": conv_id,
+        "booking_id": message.booking_id,  # Include for backward compatibility
         "is_mine": message.sender_id == user_id,
+        "message_type": msg_type,
     }
 
     return {

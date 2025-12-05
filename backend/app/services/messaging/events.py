@@ -53,12 +53,14 @@ def build_event(event_type: EventType, payload: Dict[str, Any]) -> Dict[str, Any
 def build_new_message_event(
     message_id: str,
     content: str,
-    sender_id: str,
-    booking_id: str,
+    sender_id: Optional[str],
+    conversation_id: str,
     recipient_ids: List[str],
     created_at: datetime,
+    booking_id: Optional[str] = None,
     delivered_at: Optional[datetime] = None,
     reactions: Optional[List[Dict[str, Any]]] = None,
+    message_type: str = "user",
 ) -> Dict[str, Any]:
     """Build a new_message event."""
     return build_event(
@@ -73,10 +75,13 @@ def build_new_message_event(
                 "delivered_at": delivered_at.isoformat() if delivered_at else None,
                 "edited_at": None,
                 "reactions": reactions or [],
+                "message_type": message_type,
             },
-            "conversation_id": booking_id,
+            "conversation_id": conversation_id,
+            "booking_id": booking_id,  # Include for backward compatibility
             "sender_id": sender_id,
             "recipient_ids": recipient_ids,
+            "message_type": message_type,
         },
     )
 

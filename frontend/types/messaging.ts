@@ -17,6 +17,7 @@ export type SSEEventType =
 export interface SSEMessageEvent {
   type: 'new_message';
   conversation_id: string;
+  booking_id: string; // Included at payload level for routing fallback
   is_mine: boolean;
   message: {
     id: string;

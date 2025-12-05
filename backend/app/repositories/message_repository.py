@@ -39,6 +39,9 @@ class MessageRepository(BaseRepository[Message]):
         """
         Create a new message for a booking.
 
+        Also sets conversation_id by finding/creating the conversation
+        for the booking's student-instructor pair.
+
         Args:
             booking_id: ID of the booking
             sender_id: ID of the sender
@@ -50,15 +53,26 @@ class MessageRepository(BaseRepository[Message]):
         Raises:
             RepositoryException: If creation fails
         """
+        from ..repositories.conversation_repository import ConversationRepository
+
         try:
+            # Get conversation_id for this booking's pair
+            conversation_id = self._get_or_create_conversation_for_booking(booking_id)
+
             message = Message(
                 booking_id=booking_id,
                 sender_id=sender_id,
                 content=content,
+                conversation_id=conversation_id,  # Set conversation_id
                 delivered_at=datetime.now(timezone.utc),  # Mark as delivered immediately
             )
             self.db.add(message)
             self.db.flush()  # Get the ID without committing
+
+            # Update conversation's last_message_at
+            if conversation_id:
+                conv_repo = ConversationRepository(self.db)
+                conv_repo.update_last_message_at(conversation_id, message.created_at)
 
             # Create notification for the recipient
             recipient_id = self._get_recipient_id(booking_id, sender_id)
@@ -421,6 +435,31 @@ class MessageRepository(BaseRepository[Message]):
         student_id, instructor_id = participants
         # Return the other participant
         return instructor_id if sender_id == student_id else student_id
+
+    def _get_or_create_conversation_for_booking(self, booking_id: str) -> Optional[str]:
+        """
+        Get or create a conversation for a booking's student-instructor pair.
+
+        This ensures all messages have a conversation_id set, enabling
+        unified message history across bookings.
+
+        Args:
+            booking_id: ID of the booking
+
+        Returns:
+            Conversation ID, or None if booking not found
+        """
+        from ..repositories.conversation_repository import ConversationRepository
+
+        participants = self.get_booking_participants(booking_id)
+        if not participants:
+            self.logger.warning(f"Cannot get conversation: booking {booking_id} not found")
+            return None
+
+        student_id, instructor_id = participants
+        conv_repo = ConversationRepository(self.db)
+        conversation, _ = conv_repo.get_or_create(student_id, instructor_id)
+        return str(conversation.id)
 
     def get_latest_message_for_booking(self, booking_id: str) -> Optional[Message]:
         """

@@ -31,9 +31,9 @@ def mock_db() -> MagicMock:
 
 
 @pytest.fixture
-def mock_booking_participants():
-    """Mock the _get_booking_participants helper to return controlled participants."""
-    with patch("app.services.messaging.publisher._get_booking_participants") as mock:
+def mock_conversation_participants():
+    """Mock the _get_conversation_participants helper to return controlled participants."""
+    with patch("app.services.messaging.publisher._get_conversation_participants") as mock:
         yield mock
 
 
@@ -42,18 +42,18 @@ class TestPublishNewMessage:
 
     @pytest.mark.asyncio
     async def test_publish_new_message_sends_to_all_participants(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify message published to sender and all recipients."""
         # Mock participants from DB
-        mock_booking_participants.return_value = ["01SENDER", "01RECIPIENT"]
+        mock_conversation_participants.return_value = ["01SENDER", "01RECIPIENT"]
 
         await publish_new_message(
             db=mock_db,
             message_id="01MSG",
             content="Hello",
             sender_id="01SENDER",
-            booking_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             created_at=datetime.now(timezone.utc),
         )
 
@@ -67,10 +67,10 @@ class TestPublishNewMessage:
 
     @pytest.mark.asyncio
     async def test_publish_new_message_event_structure(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify event structure is correct."""
-        mock_booking_participants.return_value = ["01SENDER", "01RECIPIENT"]
+        mock_conversation_participants.return_value = ["01SENDER", "01RECIPIENT"]
         created_at = datetime.now(timezone.utc)
 
         await publish_new_message(
@@ -78,7 +78,7 @@ class TestPublishNewMessage:
             message_id="01MSG",
             content="Hello world",
             sender_id="01SENDER",
-            booking_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             created_at=created_at,
         )
 
@@ -89,21 +89,21 @@ class TestPublishNewMessage:
         assert event["schema_version"] == 1
         assert event["payload"]["message"]["id"] == "01MSG"
         assert event["payload"]["message"]["content"] == "Hello world"
-        assert event["payload"]["conversation_id"] == "01BOOKING"
+        assert event["payload"]["conversation_id"] == "01CONVERSATION"
 
     @pytest.mark.asyncio
-    async def test_publish_new_message_no_publish_if_booking_not_found(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+    async def test_publish_new_message_no_publish_if_conversation_not_found(
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
-        """Verify no publish happens if booking not found."""
-        mock_booking_participants.return_value = []  # Booking not found
+        """Verify no publish happens if conversation not found."""
+        mock_conversation_participants.return_value = []  # Conversation not found
 
         await publish_new_message(
             db=mock_db,
             message_id="01MSG",
             content="Hello",
             sender_id="01SENDER",
-            booking_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             created_at=datetime.now(timezone.utc),
         )
 
@@ -115,14 +115,14 @@ class TestPublishTypingStatus:
 
     @pytest.mark.asyncio
     async def test_publish_typing_excludes_typer(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify typing status not sent to the person typing."""
-        mock_booking_participants.return_value = ["01TYPER", "01OTHER"]
+        mock_conversation_participants.return_value = ["01TYPER", "01OTHER"]
 
         await publish_typing_status(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             user_id="01TYPER",
             is_typing=True,
         )
@@ -137,14 +137,14 @@ class TestPublishTypingStatus:
 
     @pytest.mark.asyncio
     async def test_publish_typing_status_event_structure(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify typing status event structure."""
-        mock_booking_participants.return_value = ["01TYPER", "01OTHER"]
+        mock_conversation_participants.return_value = ["01TYPER", "01OTHER"]
 
         await publish_typing_status(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             user_id="01TYPER",
             is_typing=True,
         )
@@ -153,20 +153,20 @@ class TestPublishTypingStatus:
         event = call_args[0][1]
 
         assert event["type"] == "typing_status"
-        assert event["payload"]["conversation_id"] == "01BOOKING"
+        assert event["payload"]["conversation_id"] == "01CONVERSATION"
         assert event["payload"]["user_id"] == "01TYPER"
         assert event["payload"]["is_typing"] is True
 
     @pytest.mark.asyncio
     async def test_publish_typing_status_is_typing_false(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify typing stopped event."""
-        mock_booking_participants.return_value = ["01TYPER", "01OTHER"]
+        mock_conversation_participants.return_value = ["01TYPER", "01OTHER"]
 
         await publish_typing_status(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             user_id="01TYPER",
             is_typing=False,
         )
@@ -177,15 +177,15 @@ class TestPublishTypingStatus:
         assert event["payload"]["is_typing"] is False
 
     @pytest.mark.asyncio
-    async def test_publish_typing_no_publish_if_booking_not_found(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+    async def test_publish_typing_no_publish_if_conversation_not_found(
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
-        """Verify no publish happens if booking not found."""
-        mock_booking_participants.return_value = []  # Booking not found
+        """Verify no publish happens if conversation not found."""
+        mock_conversation_participants.return_value = []  # Conversation not found
 
         await publish_typing_status(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             user_id="01TYPER",
             is_typing=True,
         )
@@ -198,14 +198,14 @@ class TestPublishReactionUpdate:
 
     @pytest.mark.asyncio
     async def test_publish_reaction_update_sends_to_all(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify reaction update sent to all participants including reactor."""
-        mock_booking_participants.return_value = ["01REACTOR", "01OTHER"]
+        mock_conversation_participants.return_value = ["01REACTOR", "01OTHER"]
 
         await publish_reaction_update(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             message_id="01MSG",
             user_id="01REACTOR",
             emoji="👍",
@@ -222,14 +222,14 @@ class TestPublishReactionUpdate:
 
     @pytest.mark.asyncio
     async def test_publish_reaction_update_event_structure(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify reaction update event structure."""
-        mock_booking_participants.return_value = ["01REACTOR", "01OTHER"]
+        mock_conversation_participants.return_value = ["01REACTOR", "01OTHER"]
 
         await publish_reaction_update(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             message_id="01MSG",
             user_id="01REACTOR",
             emoji="👍",
@@ -240,21 +240,21 @@ class TestPublishReactionUpdate:
         event = call_args[0][1]
 
         assert event["type"] == "reaction_update"
-        assert event["payload"]["conversation_id"] == "01BOOKING"
+        assert event["payload"]["conversation_id"] == "01CONVERSATION"
         assert event["payload"]["message_id"] == "01MSG"
         assert event["payload"]["emoji"] == "👍"
         assert event["payload"]["action"] == "added"
 
     @pytest.mark.asyncio
     async def test_publish_reaction_removed(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify reaction removed event."""
-        mock_booking_participants.return_value = ["01REACTOR", "01OTHER"]
+        mock_conversation_participants.return_value = ["01REACTOR", "01OTHER"]
 
         await publish_reaction_update(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             message_id="01MSG",
             user_id="01REACTOR",
             emoji="❤️",
@@ -267,15 +267,15 @@ class TestPublishReactionUpdate:
         assert event["payload"]["action"] == "removed"
 
     @pytest.mark.asyncio
-    async def test_publish_reaction_no_publish_if_booking_not_found(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+    async def test_publish_reaction_no_publish_if_conversation_not_found(
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
-        """Verify no publish happens if booking not found."""
-        mock_booking_participants.return_value = []  # Booking not found
+        """Verify no publish happens if conversation not found."""
+        mock_conversation_participants.return_value = []  # Conversation not found
 
         await publish_reaction_update(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             message_id="01MSG",
             user_id="01REACTOR",
             emoji="👍",
@@ -290,15 +290,15 @@ class TestPublishMessageEdited:
 
     @pytest.mark.asyncio
     async def test_publish_message_edited_sends_to_all(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify edit notification sent to all participants."""
-        mock_booking_participants.return_value = ["01EDITOR", "01OTHER"]
+        mock_conversation_participants.return_value = ["01EDITOR", "01OTHER"]
         edited_at = datetime.now(timezone.utc)
 
         await publish_message_edited(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             message_id="01MSG",
             new_content="Updated content",
             editor_id="01EDITOR",
@@ -315,15 +315,15 @@ class TestPublishMessageEdited:
 
     @pytest.mark.asyncio
     async def test_publish_message_edited_event_structure(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify edit event structure."""
-        mock_booking_participants.return_value = ["01EDITOR", "01OTHER"]
+        mock_conversation_participants.return_value = ["01EDITOR", "01OTHER"]
         edited_at = datetime.now(timezone.utc)
 
         await publish_message_edited(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             message_id="01MSG",
             new_content="Updated content",
             editor_id="01EDITOR",
@@ -334,21 +334,21 @@ class TestPublishMessageEdited:
         event = call_args[0][1]
 
         assert event["type"] == "message_edited"
-        assert event["payload"]["conversation_id"] == "01BOOKING"
+        assert event["payload"]["conversation_id"] == "01CONVERSATION"
         assert event["payload"]["message_id"] == "01MSG"
         assert event["payload"]["new_content"] == "Updated content"
         assert event["payload"]["editor_id"] == "01EDITOR"
 
     @pytest.mark.asyncio
-    async def test_publish_message_edited_no_publish_if_booking_not_found(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+    async def test_publish_message_edited_no_publish_if_conversation_not_found(
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
-        """Verify no publish happens if booking not found."""
-        mock_booking_participants.return_value = []  # Booking not found
+        """Verify no publish happens if conversation not found."""
+        mock_conversation_participants.return_value = []  # Conversation not found
 
         await publish_message_edited(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             message_id="01MSG",
             new_content="Updated content",
             editor_id="01EDITOR",
@@ -363,14 +363,14 @@ class TestPublishReadReceipt:
 
     @pytest.mark.asyncio
     async def test_publish_read_receipt_excludes_reader(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify read receipt not sent to the reader."""
-        mock_booking_participants.return_value = ["01READER", "01OTHER"]
+        mock_conversation_participants.return_value = ["01READER", "01OTHER"]
 
         await publish_read_receipt(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             reader_id="01READER",
             message_ids=["01MSG1", "01MSG2"],
         )
@@ -385,14 +385,14 @@ class TestPublishReadReceipt:
 
     @pytest.mark.asyncio
     async def test_publish_read_receipt_event_structure(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify read receipt event structure."""
-        mock_booking_participants.return_value = ["01READER", "01OTHER"]
+        mock_conversation_participants.return_value = ["01READER", "01OTHER"]
 
         await publish_read_receipt(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             reader_id="01READER",
             message_ids=["01MSG1", "01MSG2", "01MSG3"],
         )
@@ -401,21 +401,21 @@ class TestPublishReadReceipt:
         event = call_args[0][1]
 
         assert event["type"] == "read_receipt"
-        assert event["payload"]["conversation_id"] == "01BOOKING"
+        assert event["payload"]["conversation_id"] == "01CONVERSATION"
         assert event["payload"]["reader_id"] == "01READER"
         assert event["payload"]["message_ids"] == ["01MSG1", "01MSG2", "01MSG3"]
         assert "read_at" in event["payload"]
 
     @pytest.mark.asyncio
-    async def test_publish_read_receipt_no_publish_if_booking_not_found(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+    async def test_publish_read_receipt_no_publish_if_conversation_not_found(
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
-        """Verify no publish happens if booking not found."""
-        mock_booking_participants.return_value = []  # Booking not found
+        """Verify no publish happens if conversation not found."""
+        mock_conversation_participants.return_value = []  # Conversation not found
 
         await publish_read_receipt(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             reader_id="01READER",
             message_ids=["01MSG1", "01MSG2"],
         )
@@ -428,14 +428,14 @@ class TestPublishMessageDeleted:
 
     @pytest.mark.asyncio
     async def test_publish_message_deleted_sends_to_all(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
         """Verify delete notification sent to all participants."""
-        mock_booking_participants.return_value = ["01DELETER", "01OTHER"]
+        mock_conversation_participants.return_value = ["01DELETER", "01OTHER"]
 
         await publish_message_deleted(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             message_id="01MSG",
             deleted_by="01DELETER",
         )
@@ -449,15 +449,15 @@ class TestPublishMessageDeleted:
         assert "01OTHER" in user_ids
 
     @pytest.mark.asyncio
-    async def test_publish_message_deleted_no_publish_if_booking_not_found(
-        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_booking_participants
+    async def test_publish_message_deleted_no_publish_if_conversation_not_found(
+        self, mock_pubsub_manager: AsyncMock, mock_db: MagicMock, mock_conversation_participants
     ) -> None:
-        """Verify no publish happens if booking not found."""
-        mock_booking_participants.return_value = []  # Booking not found
+        """Verify no publish happens if conversation not found."""
+        mock_conversation_participants.return_value = []  # Conversation not found
 
         await publish_message_deleted(
             db=mock_db,
-            conversation_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             message_id="01MSG",
             deleted_by="01DELETER",
         )

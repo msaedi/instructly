@@ -308,7 +308,7 @@ def get_messages(
     response_model=SendMessageResponse,
     dependencies=[Depends(new_rate_limit("write"))],
 )
-def send_message(
+async def send_message(
     conversation_id: str,
     request: SendMessageRequest,
     current_user: User = Depends(get_current_active_user),
@@ -321,6 +321,8 @@ def send_message(
     Optionally specify a booking_id for explicit context.
     If not specified, auto-tags when exactly one upcoming booking exists.
     """
+    from ...services.messaging import publish_new_message
+
     message = service.send_message(
         conversation_id=conversation_id,
         sender_id=current_user.id,
@@ -333,6 +335,30 @@ def send_message(
 
     # Commit the transaction
     db.commit()
+
+    # Publish SSE event (fire-and-forget)
+    try:
+        await publish_new_message(
+            db=db,
+            message_id=str(message.id),
+            content=message.content,
+            sender_id=str(current_user.id),
+            conversation_id=conversation_id,
+            created_at=message.created_at,
+            booking_id=message.booking_id,
+            delivered_at=message.delivered_at,
+            message_type=message.message_type,
+        )
+        logger.debug(
+            "[REDIS-PUBSUB] Conversation message published",
+            extra={"message_id": message.id, "conversation_id": conversation_id},
+        )
+    except Exception as e:
+        # Fire-and-forget: log but don't fail the request
+        logger.error(
+            "[REDIS-PUBSUB] Failed to publish conversation message",
+            extra={"error": str(e), "message_id": message.id},
+        )
 
     return SendMessageResponse(
         id=message.id,

@@ -501,13 +501,17 @@ async def send_message(
                 message_id=str(message.id),
                 content=message.content,
                 sender_id=str(current_user.id),
-                booking_id=request.booking_id,
+                conversation_id=str(message.conversation_id)
+                if message.conversation_id
+                else request.booking_id,
                 created_at=message.created_at,
+                booking_id=request.booking_id,
                 delivered_at=message.delivered_at,
+                message_type=message.message_type,
             )
             logger.debug(
                 "[REDIS-PUBSUB] Message SEND: Published to Redis",
-                extra={"message_id": message.id},
+                extra={"message_id": message.id, "conversation_id": message.conversation_id},
             )
         except Exception as e:
             # Fire-and-forget: log but don't fail the request

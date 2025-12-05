@@ -166,6 +166,8 @@ class TestFormatMessageFromDb:
         message.content = "Hello"
         message.sender_id = "01SENDER123"
         message.booking_id = "01BOOKING123"
+        message.conversation_id = "01CONVERSATION123"
+        message.message_type = "user"
         message.created_at = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         message.edited_at = None
 
@@ -182,6 +184,8 @@ class TestFormatMessageFromDb:
         message.content = "Hello"
         message.sender_id = "01SENDER123"
         message.booking_id = "01BOOKING123"
+        message.conversation_id = "01CONVERSATION123"
+        message.message_type = "user"
         message.created_at = datetime.now(timezone.utc)
         message.edited_at = None
 
@@ -198,6 +202,8 @@ class TestFormatMessageFromDb:
         message.content = "Hello"
         message.sender_id = "01SENDER123"
         message.booking_id = "01BOOKING123"
+        message.conversation_id = "01CONVERSATION123"
+        message.message_type = "user"
         message.created_at = datetime.now(timezone.utc)
         message.edited_at = None
 
@@ -214,6 +220,8 @@ class TestFormatMessageFromDb:
         message.content = "Test content"
         message.sender_id = "01SENDER123"
         message.booking_id = "01BOOKING123"
+        message.conversation_id = "01CONVERSATION123"
+        message.message_type = "user"
         message.created_at = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         message.edited_at = datetime(2024, 1, 1, 13, 0, 0, tzinfo=timezone.utc)
 
@@ -226,7 +234,7 @@ class TestFormatMessageFromDb:
         assert data["message"]["booking_id"] == "01BOOKING123"
         assert data["message"]["created_at"] == "2024-01-01T12:00:00+00:00"
         assert data["message"]["edited_at"] == "2024-01-01T13:00:00+00:00"
-        assert data["conversation_id"] == "01BOOKING123"
+        assert data["conversation_id"] == "01CONVERSATION123"
 
 
 class TestLastEventIdBehavior:
