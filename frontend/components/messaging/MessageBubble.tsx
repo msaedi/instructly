@@ -74,46 +74,54 @@ export function MessageBubble({
     return <Check className="w-3 h-3 text-gray-400" />;
   };
 
-  // Footer row: reactions on left, read timestamp on right (for own messages)
+  // Footer row: reactions position based on bubble side
+  // - Own messages (right): reactions on left, read timestamp on right
+  // - Other's messages (left): reactions on right
   const renderFooter = () => {
     const hasReactions = reactions.length > 0;
     const hasReadTimestamp = message.isOwn && message.readTimestampLabel && message.readStatus === 'read';
 
     if (!hasReactions && !hasReadTimestamp) return null;
 
-    return (
-      <div className="mt-1 flex items-center gap-3 w-full px-1">
-        {/* Reactions - always on left */}
-        <div className="flex gap-1 flex-shrink-0">
-          {reactions.map((r) => (
-            <button
-              key={r.emoji}
-              type="button"
-              disabled={reactionBusy}
-              className={cn(
-                'rounded-full px-2 py-0.5 text-xs ring-1 transition',
-                r.isMine ? 'bg-[#7E22CE] text-white ring-[#7E22CE]' : 'bg-gray-50 text-gray-700 ring-gray-200',
-                reactionBusy && 'cursor-default opacity-50'
-              )}
-              onClick={async () => {
-                if (reactionBusy || !onReact) return;
-                await onReact(message.id, r.emoji);
-              }}
-            >
-              {r.emoji} {r.count}
-            </button>
-          ))}
-        </div>
-
-        {/* Spacer to push read timestamp to right */}
-        <div className="flex-1" />
-
-        {/* Read timestamp - on right (only for own messages) */}
-        {hasReadTimestamp && (
-          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-            {message.readTimestampLabel}
-          </span>
+    const reactionButtons = reactions.map((r) => (
+      <button
+        key={r.emoji}
+        type="button"
+        disabled={reactionBusy}
+        className={cn(
+          'rounded-full px-2 py-0.5 text-xs ring-1 transition',
+          r.isMine ? 'bg-[#7E22CE] text-white ring-[#7E22CE]' : 'bg-gray-50 text-gray-700 ring-gray-200',
+          reactionBusy && 'cursor-default opacity-50'
         )}
+        onClick={async () => {
+          if (reactionBusy || !onReact) return;
+          await onReact(message.id, r.emoji);
+        }}
+      >
+        {r.emoji} {r.count}
+      </button>
+    ));
+
+    // For own messages (right side): reactions left, read timestamp right
+    // For other's messages (left side): reactions right
+    if (bubbleSide === 'right') {
+      return (
+        <div className="mt-1 flex items-center gap-3 w-full px-1">
+          <div className="flex gap-1 flex-shrink-0">{reactionButtons}</div>
+          <div className="flex-1" />
+          {hasReadTimestamp && (
+            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+              {message.readTimestampLabel}
+            </span>
+          )}
+        </div>
+      );
+    }
+
+    // Left side bubbles: reactions on right
+    return (
+      <div className="mt-1 flex items-center justify-end w-full px-1">
+        <div className="flex gap-1 flex-shrink-0">{reactionButtons}</div>
       </div>
     );
   };

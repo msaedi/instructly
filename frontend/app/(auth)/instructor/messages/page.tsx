@@ -890,7 +890,7 @@ export default function MessagesPage() {
                     )}
 
                     {/* Messages */}
-                    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div ref={messagesContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
                       {isComposeView && threadMessages.length === 0 && (
                         <div className="flex items-center justify-center py-12">
                           <p className="text-sm text-gray-500">Draft your message and choose who to send it to.</p>
