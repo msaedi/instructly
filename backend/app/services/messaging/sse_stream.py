@@ -19,10 +19,11 @@ from datetime import datetime, timezone
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, cast
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.message import Message
 from app.repositories.message_repository import MessageRepository
 from app.services.messaging.redis_pubsub import pubsub_manager
@@ -32,7 +33,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-HEARTBEAT_INTERVAL = 10  # seconds
+# Configurable via settings.sse_heartbeat_interval
+HEARTBEAT_INTERVAL = settings.sse_heartbeat_interval
 
 
 async def create_sse_stream(
@@ -309,4 +311,6 @@ def fetch_messages_after(
         return []
 
     # Fetch messages after the last seen ID
-    return repository.get_messages_after_id(booking_ids, after_message_id, limit=100)
+    return cast(
+        List[Message], repository.get_messages_after_id(booking_ids, after_message_id, limit=100)
+    )
