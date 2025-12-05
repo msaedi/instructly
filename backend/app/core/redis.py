@@ -9,6 +9,7 @@ The sync Redis client in cache_service.py remains unchanged for
 caching operations.
 """
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -19,11 +20,15 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 _async_redis_client: Optional[AsyncRedis] = None
+_redis_lock: asyncio.Lock = asyncio.Lock()
 
 
 async def get_async_redis_client() -> AsyncRedis:
     """
     Get or create async Redis client for Pub/Sub operations.
+
+    Uses double-check locking pattern to prevent race conditions
+    when multiple coroutines attempt to initialize the client concurrently.
 
     Returns:
         AsyncRedis: Async Redis client instance
@@ -34,14 +39,18 @@ async def get_async_redis_client() -> AsyncRedis:
     """
     global _async_redis_client
 
+    # Fast path: client already initialized
     if _async_redis_client is None:
-        redis_url = settings.redis_url or "redis://localhost:6379"
-        _async_redis_client = AsyncRedis.from_url(
-            redis_url,
-            encoding="utf-8",
-            decode_responses=True,
-        )
-        logger.info("[REDIS-PUBSUB] Async Redis client initialized")
+        async with _redis_lock:
+            # Double-check after acquiring lock
+            if _async_redis_client is None:
+                redis_url = settings.redis_url or "redis://localhost:6379"
+                _async_redis_client = AsyncRedis.from_url(
+                    redis_url,
+                    encoding="utf-8",
+                    decode_responses=True,
+                )
+                logger.info("[REDIS-PUBSUB] Async Redis client initialized")
 
     return _async_redis_client
 

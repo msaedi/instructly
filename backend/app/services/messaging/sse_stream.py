@@ -92,6 +92,10 @@ async def create_sse_stream(
             async for event in stream_with_heartbeat(pubsub, HEARTBEAT_INTERVAL, user_id=user_id):
                 if event.get("_heartbeat"):
                     logger.info(f"[SSE-HEARTBEAT] Sending heartbeat for user {user_id}")
+                    # Heartbeats use simplified format without schema_version.
+                    # Unlike new_message/reaction events, heartbeats are purely for
+                    # connection keep-alive and never need versioned parsing.
+                    # Clients should treat heartbeats as opaque ping events.
                     yield {
                         "event": "heartbeat",
                         "data": json.dumps(

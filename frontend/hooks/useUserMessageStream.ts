@@ -46,6 +46,12 @@ export function useUserMessageStream() {
   const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Deduplication: Track recently processed message IDs to prevent duplicates
+  // during reconnect race conditions (catch-up + Redis subscription overlap)
+  const seenMessageIdsRef = useRef<Set<string>>(new Set());
+  const MAX_SEEN_MESSAGE_IDS = 200;
+  const PRUNE_TO_SIZE = 100;
+
   // Subscribe a conversation to receive events
   const subscribe = useCallback(
     (conversationId: string, handlers: ConversationHandlers) => {
@@ -84,6 +90,28 @@ export function useUserMessageStream() {
       allSubscribers: Array.from(handlersRef.current.keys()),
       timestamp: debugTimestamp(),
     });
+
+    // Deduplicate new_message events to prevent duplicates during reconnect
+    // (catch-up query + Redis subscription can both deliver the same message)
+    if (event.type === 'new_message' && event.message?.id) {
+      const messageId = event.message.id;
+      if (seenMessageIdsRef.current.has(messageId)) {
+        logger.debug('[MSG-DEBUG] SSE: Skipping duplicate message', {
+          messageId,
+          timestamp: debugTimestamp(),
+        });
+        return;
+      }
+
+      // Track this message ID
+      seenMessageIdsRef.current.add(messageId);
+
+      // Prune set to prevent unbounded growth
+      if (seenMessageIdsRef.current.size > MAX_SEEN_MESSAGE_IDS) {
+        const idsArray = Array.from(seenMessageIdsRef.current);
+        seenMessageIdsRef.current = new Set(idsArray.slice(-PRUNE_TO_SIZE));
+      }
+    }
 
     // First, notify the global handler (if subscribed)
     const globalHandlers = handlersRef.current.get('__global__');

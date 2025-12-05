@@ -1232,6 +1232,14 @@ def upgrade() -> None:
         "LENGTH(content) > 0 AND LENGTH(content) <= 1000",
     )
 
+    # Soft delete consistency constraint: is_deleted and deleted_at must be in sync
+    # If is_deleted=FALSE, deleted_at must be NULL; if is_deleted=TRUE, deleted_at must be NOT NULL
+    op.create_check_constraint(
+        "ck_messages_soft_delete_consistency",
+        "messages",
+        "(is_deleted = FALSE AND deleted_at IS NULL) OR (is_deleted = TRUE AND deleted_at IS NOT NULL)",
+    )
+
     # Add check constraint for conversation state values
     op.create_check_constraint(
         "ck_conversation_user_state_state",
@@ -1435,6 +1443,7 @@ def downgrade() -> None:
     op.drop_constraint("ck_user_addresses_label_values", "user_addresses", type_="check")
     op.drop_table("user_addresses")
 
+    op.drop_constraint("ck_messages_soft_delete_consistency", "messages", type_="check")
     op.drop_constraint("check_message_content_length", "messages", type_="check")
     op.drop_constraint("ck_conversation_user_state_state", "conversation_user_state", type_="check")
     op.drop_constraint("check_time_order", "bookings", type_="check")
