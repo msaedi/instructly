@@ -331,11 +331,11 @@ export default function MessagesPage() {
   }, [selectedChat, activeConversation, currentUser?.id]);
 
   // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
-  const handleSSEMessageWrapper = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string; delivered_at?: string | null }, _isMine: boolean) => {
+  const handleSSEMessageWrapper = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id?: string; delivered_at?: string | null }, _isMine: boolean) => {
     if (!selectedChatRef.current || !activeConversationRef.current || !currentUserIdRef.current) return;
     const sseMessage = {
       id: message.id,
-      booking_id: message.booking_id,
+      booking_id: message.booking_id ?? '',
       sender_id: message.sender_id,
       content: message.content,
       created_at: message.created_at,
@@ -432,13 +432,15 @@ export default function MessagesPage() {
     return diffMinutes <= editWindowMinutes;
   }, [currentUser?.id, editWindowMinutes]);
 
-  // Subscribe to active conversation's events
+  // Subscribe to active conversation's events using conversation_id (NOT booking_id!)
+  // Phase 7: SSE must use conversation_id because one conversation spans multiple bookings.
+  // Using booking_id would cause messages to not be delivered when viewing chat via different bookings.
   useEffect(() => {
-    if (!selectedBookingId || messageDisplay !== 'inbox') {
+    if (!selectedChat || isComposeView || messageDisplay !== 'inbox') {
       return;
     }
 
-    const unsubscribe = subscribe(selectedBookingId, {
+    const unsubscribe = subscribe(selectedChat, {
       onMessage: handleSSEMessageWrapper,
       onTyping: handleSSETyping,
       onReadReceipt: handleSSEReadReceipt,
@@ -448,7 +450,7 @@ export default function MessagesPage() {
     });
 
     return unsubscribe;
-  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleSSEReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted]);
+  }, [selectedChat, isComposeView, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleSSEReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted]);
 
   // Filter conversations (backend now handles state/type filtering, we just filter by search text)
   const filteredConversations = useMemo(() => {

@@ -197,6 +197,47 @@ def get_conversation(
     )
 
 
+@router.get(
+    "/by-booking/{booking_id}",
+    response_model=CreateConversationResponse,
+    dependencies=[Depends(new_rate_limit("read"))],
+)
+def get_conversation_for_booking(
+    booking_id: str,
+    current_user: User = Depends(get_current_active_user),
+    service: ConversationService = Depends(get_conversation_service),
+    db: Session = Depends(get_db),
+) -> CreateConversationResponse:
+    """
+    Get the conversation for a booking.
+
+    Returns the conversation_id for the student-instructor pair of this booking.
+    Creates the conversation if it doesn't exist (ensures SSE can always subscribe).
+
+    This endpoint is used by the Chat component which operates by booking_id
+    but needs the conversation_id for SSE subscription.
+    """
+    conversation, created = service.get_conversation_for_booking(
+        booking_id=booking_id,
+        user_id=current_user.id,
+    )
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found or access denied",
+        )
+
+    # Commit if a new conversation was created
+    if created:
+        db.commit()
+
+    return CreateConversationResponse(
+        id=conversation.id,
+        created=created,
+    )
+
+
 @router.post(
     "",
     response_model=CreateConversationResponse,

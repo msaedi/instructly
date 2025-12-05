@@ -132,27 +132,15 @@ export function useUserMessageStream() {
       }
     }
 
-    // Find handler: try conversation_id first, then fall back to booking_id
-    // This handles the mismatch where frontend subscribes with booking_id
-    // but some events (like new_message) have the real conversation_id
-    let handlers = handlersRef.current.get(event.conversation_id);
-
-    // Fallback: check booking_id from event payload (for new_message events)
-    if (!handlers && event.type === 'new_message' && event.booking_id) {
-      handlers = handlersRef.current.get(event.booking_id);
-      if (handlers) {
-        logger.debug('[MSG-DEBUG] SSE: Found handler via booking_id fallback', {
-          conversationId: event.conversation_id,
-          bookingId: event.booking_id,
-          timestamp: debugTimestamp(),
-        });
-      }
-    }
+    // Phase 7: Route events by conversation_id only (NOT booking_id!)
+    // Frontend now subscribes using conversation_id, so direct lookup is sufficient.
+    // No fallback needed because both Chat.tsx and instructor messages page
+    // now fetch conversation_id before subscribing.
+    const handlers = handlersRef.current.get(event.conversation_id);
 
     if (!handlers) {
       logger.debug('[MSG-DEBUG] SSE: No handler found for conversation', {
         conversationId: event.conversation_id,
-        bookingId: event.type === 'new_message' ? event.booking_id : undefined,
         availableSubscribers: Array.from(handlersRef.current.keys()),
         timestamp: debugTimestamp(),
       });

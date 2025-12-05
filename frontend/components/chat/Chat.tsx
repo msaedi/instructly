@@ -17,8 +17,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Send, Loader2, AlertCircle, WifiOff, ChevronDown } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
+import { withApiBase } from '@/lib/apiBase';
 import {
   useMessageConfig,
   useMessageHistory,
@@ -87,6 +88,28 @@ export function Chat({
     error: historyError,
   } = useMessageHistory(bookingId);
 
+  // Phase 7: Fetch conversation_id for SSE subscription
+  // One conversation per student-instructor pair - SSE must use conversation_id, not booking_id
+  const { data: conversationData } = useQuery({
+    queryKey: ['conversation-for-booking', bookingId],
+    queryFn: async () => {
+      const response = await fetch(
+        withApiBase(`/api/v1/conversations/by-booking/${bookingId}`),
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
+      );
+      if (!response.ok) {
+        throw new Error('Failed to get conversation for booking');
+      }
+      return response.json() as Promise<{ id: string; created: boolean }>;
+    },
+    enabled: !!bookingId,
+    staleTime: Infinity, // Conversation ID doesn't change
+  });
+  const conversationId = conversationData?.id;
 
   // Mutations - destructure mutate functions for stable references
   const queryClient = useQueryClient();
@@ -128,7 +151,7 @@ export function Chat({
   };
 
   // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
-  const handleSSEMessage = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string; delivered_at?: string | null }, isMine: boolean) => {
+  const handleSSEMessage = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id?: string; delivered_at?: string | null }, isMine: boolean) => {
     logger.debug('[MSG-DEBUG] Chat: handleSSEMessage CALLED', {
       messageId: message?.id,
       content: message?.content?.substring(0, 50),
@@ -273,8 +296,10 @@ export function Chat({
       timestamp: new Date().toISOString(),
     });
 
-    if (!bookingId) {
-      logger.debug('[MSG-DEBUG] Chat: subscription useEffect - no bookingId, returning');
+    // Phase 7: SSE must use conversation_id, not booking_id
+    // Wait for conversationId to be loaded from the API
+    if (!conversationId) {
+      logger.debug('[MSG-DEBUG] Chat: subscription useEffect - no conversationId yet, waiting');
       return;
     }
 
@@ -286,11 +311,14 @@ export function Chat({
     });
 
     logger.debug('[MSG-DEBUG] Chat: Subscribing to conversation', {
+      conversationId,
       bookingId,
       timestamp: new Date().toISOString(),
     });
 
-    const unsubscribe = subscribe(bookingId, {
+    // Subscribe using conversation_id (NOT booking_id!) because one conversation
+    // spans multiple bookings between the same student-instructor pair
+    const unsubscribe = subscribe(conversationId, {
       onMessage: handleSSEMessage,
       onTyping: handleSSETyping,
       onReadReceipt: handleSSEReadReceipt,
@@ -300,18 +328,20 @@ export function Chat({
     });
 
     logger.debug('[MSG-DEBUG] Chat: Subscription complete', {
+      conversationId,
       bookingId,
       timestamp: new Date().toISOString(),
     });
 
     return () => {
       logger.debug('[MSG-DEBUG] Chat: Unsubscribing from conversation', {
+        conversationId,
         bookingId,
         timestamp: new Date().toISOString(),
       });
       unsubscribe();
     };
-  }, [bookingId, subscribe, handleSSEMessage, handleSSETyping, handleSSEReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted, queryClient]);
+  }, [conversationId, bookingId, subscribe, handleSSEMessage, handleSSETyping, handleSSEReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted, queryClient]);
 
   // Combine history and real-time messages with deduplication
   const allMessages = React.useMemo(() => {

@@ -62,7 +62,20 @@ def build_new_message_event(
     reactions: Optional[List[Dict[str, Any]]] = None,
     message_type: str = "user",
 ) -> Dict[str, Any]:
-    """Build a new_message event."""
+    """Build a new_message event.
+
+    Args:
+        message_id: ULID of the message
+        content: Message content
+        sender_id: ULID of sender (None for system messages)
+        conversation_id: ULID of the conversation (PRIMARY key for SSE routing)
+        recipient_ids: List of user IDs to receive this message
+        created_at: Message creation timestamp
+        booking_id: Optional ULID of the booking this message is about
+        delivered_at: Optional delivery timestamp
+        reactions: Optional list of reactions
+        message_type: Type of message ('user', 'system_booking_created', etc.)
+    """
     return build_event(
         EventType.NEW_MESSAGE,
         {
@@ -78,7 +91,7 @@ def build_new_message_event(
                 "message_type": message_type,
             },
             "conversation_id": conversation_id,
-            "booking_id": booking_id,  # Include for backward compatibility
+            "booking_id": booking_id,  # Include for context/filtering
             "sender_id": sender_id,
             "recipient_ids": recipient_ids,
             "message_type": message_type,

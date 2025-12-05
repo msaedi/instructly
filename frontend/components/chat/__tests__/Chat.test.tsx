@@ -13,11 +13,17 @@ const mockUseRemoveReaction = jest.fn();
 const mockUseSendTypingIndicator = jest.fn();
 const mockUseMessageStream = jest.fn();
 
-// Mock useQueryClient from react-query
+// Mock react-query hooks used by Chat component
 jest.mock('@tanstack/react-query', () => ({
   ...jest.requireActual('@tanstack/react-query'),
   useQueryClient: () => ({
     invalidateQueries: jest.fn(),
+  }),
+  // Phase 7: Chat.tsx now uses useQuery to fetch conversation_id
+  useQuery: () => ({
+    data: { id: 'conversation-123', created: false },
+    isLoading: false,
+    error: null,
   }),
 }));
 

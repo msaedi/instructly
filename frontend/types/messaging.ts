@@ -16,8 +16,8 @@ export type SSEEventType =
 
 export interface SSEMessageEvent {
   type: 'new_message';
-  conversation_id: string;
-  booking_id: string; // Included at payload level for routing fallback
+  conversation_id: string; // PRIMARY key for SSE routing (Phase 7)
+  booking_id?: string; // Optional context for which booking this message is about
   is_mine: boolean;
   message: {
     id: string;
@@ -25,7 +25,7 @@ export interface SSEMessageEvent {
     sender_id: string;
     sender_name: string;
     created_at: string;
-    booking_id: string;
+    booking_id?: string;
     delivered_at?: string | null;
   };
 }

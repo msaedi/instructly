@@ -83,6 +83,41 @@ class ConversationService(BaseService):
             instructor_id=instructor_id,
         )
 
+    @BaseService.measure_operation("get_conversation_for_booking")
+    def get_conversation_for_booking(
+        self,
+        booking_id: str,
+        user_id: str,
+    ) -> Tuple[Optional[Conversation], bool]:
+        """
+        Get or create conversation for a booking's student-instructor pair.
+
+        This is used by the Chat component which operates by booking_id
+        but needs the conversation_id for SSE subscription.
+
+        Args:
+            booking_id: The booking's ID
+            user_id: The requesting user's ID (must be participant)
+
+        Returns:
+            Tuple of (conversation, created) or (None, False) if booking not found
+            or user is not a participant
+        """
+        booking = self.booking_repository.get_by_id(booking_id)
+        if not booking:
+            self.logger.warning(f"Booking not found: {booking_id}")
+            return None, False
+
+        # Verify user is a participant
+        if user_id not in (booking.student_id, booking.instructor_id):
+            self.logger.warning(f"User {user_id} is not a participant in booking {booking_id}")
+            return None, False
+
+        return self.conversation_repository.get_or_create(
+            student_id=booking.student_id,
+            instructor_id=booking.instructor_id,
+        )
+
     @BaseService.measure_operation("list_conversations_for_user")
     def list_conversations_for_user(
         self,

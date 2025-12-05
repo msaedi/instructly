@@ -546,6 +546,38 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting student bookings: {str(e)}")
             raise RepositoryException(f"Failed to get student bookings: {str(e)}")
 
+    def get_bookings_by_student_and_instructor(
+        self,
+        student_id: str,
+        instructor_id: str,
+    ) -> List[Booking]:
+        """
+        Get all bookings for a specific student-instructor pair.
+
+        Used for SSE routing - when a conversation has multiple bookings,
+        we need all booking IDs so the frontend can match any of them.
+
+        Args:
+            student_id: The student's user ID
+            instructor_id: The instructor's user ID
+
+        Returns:
+            List of bookings for this pair (may be empty)
+        """
+        try:
+            return cast(
+                List[Booking],
+                self.db.query(Booking)
+                .filter(
+                    Booking.student_id == student_id,
+                    Booking.instructor_id == instructor_id,
+                )
+                .all(),
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting bookings by pair: {str(e)}")
+            raise RepositoryException(f"Failed to get bookings by pair: {str(e)}")
+
     def get_instructor_bookings(
         self,
         instructor_id: str,
