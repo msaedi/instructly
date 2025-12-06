@@ -100,9 +100,16 @@ class TestGetConversation:
         assert "other_user" in data
         assert data["state"] == "active"
 
-    def test_get_conversation_not_found(self, client, auth_headers):
-        """Returns 404 for non-existent conversation."""
+    def test_get_conversation_invalid_id_format(self, client, auth_headers):
+        """Returns 422 for invalid conversation ID format."""
         res = client.get("/api/v1/conversations/nonexistent-id", headers=auth_headers)
+        assert res.status_code == 422  # Invalid ULID format
+
+    def test_get_conversation_not_found(self, client, auth_headers):
+        """Returns 404 for non-existent conversation with valid ULID format."""
+        # Use a valid ULID format that doesn't exist (Crockford Base32: 0-9A-HJKMNP-TV-Z)
+        valid_nonexistent_id = "01JE5000000000000000000000"
+        res = client.get(f"/api/v1/conversations/{valid_nonexistent_id}", headers=auth_headers)
         assert res.status_code == 404
 
     def test_get_conversation_not_participant(

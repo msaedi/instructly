@@ -10,7 +10,7 @@ Handles business logic for the conversation system including:
 """
 
 import logging
-from typing import List, Optional, Tuple, cast
+from typing import Dict, List, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
 
@@ -119,12 +119,11 @@ class ConversationService(BaseService):
         # Apply per-user state filtering using conversation_user_state records.
         # "active" is the default when no state row exists, so treat it the same
         # as the unfiltered view: exclude archived/trashed, include everything else.
-        archived_ids = set(
-            self.conversation_state_repository.get_conversation_ids_by_state(user_id, "archived")
-        )
-        trashed_ids = set(
-            self.conversation_state_repository.get_conversation_ids_by_state(user_id, "trashed")
-        )
+        # Single query for both archived and trashed IDs (M4 fix)
+        (
+            archived_ids,
+            trashed_ids,
+        ) = self.conversation_state_repository.get_excluded_conversation_ids(user_id)
 
         if state_filter in (None, "active"):
             excluded = archived_ids | trashed_ids
@@ -399,3 +398,79 @@ class ConversationService(BaseService):
         """
         bookings = self.get_upcoming_bookings_for_conversation(conversation)
         return bookings[0] if bookings else None
+
+    # =========================================================================
+    # Batch methods for reducing N+1 queries in conversation list
+    # =========================================================================
+
+    @BaseService.measure_operation("batch_get_upcoming_bookings")
+    def batch_get_upcoming_bookings(
+        self,
+        conversations: List[Conversation],
+        user_id: str,
+    ) -> Dict[str, List[Booking]]:
+        """
+        Get upcoming bookings for multiple conversations in a single query.
+
+        Args:
+            conversations: List of conversations
+            user_id: The requesting user's ID (for timezone)
+
+        Returns:
+            Dict mapping conversation_id to list of upcoming bookings
+        """
+        if not conversations:
+            return {}
+
+        # Build list of (student_id, instructor_id) pairs
+        pairs = [(c.student_id, c.instructor_id) for c in conversations]
+
+        # Get all bookings in one query
+        bookings_by_pair = self.booking_repository.batch_find_upcoming_for_pairs(
+            pairs=pairs,
+            user_id=user_id,
+        )
+
+        # Map back to conversation IDs
+        result: Dict[str, List[Booking]] = {}
+        for conv in conversations:
+            pair_key = (conv.student_id, conv.instructor_id)
+            result[conv.id] = bookings_by_pair.get(pair_key, [])
+
+        return result
+
+    @BaseService.measure_operation("batch_get_states")
+    def batch_get_states(
+        self,
+        conversation_ids: List[str],
+        user_id: str,
+    ) -> Dict[str, str]:
+        """
+        Get states for multiple conversations in a single query.
+
+        Args:
+            conversation_ids: List of conversation IDs
+            user_id: The user's ID
+
+        Returns:
+            Dict mapping conversation_id to state
+        """
+        return self.conversation_state_repository.batch_get_states(user_id, conversation_ids)
+
+    @BaseService.measure_operation("batch_get_unread_counts")
+    def batch_get_unread_counts(
+        self,
+        conversation_ids: List[str],
+        user_id: str,
+    ) -> Dict[str, int]:
+        """
+        Get unread counts for multiple conversations in a single query.
+
+        Args:
+            conversation_ids: List of conversation IDs
+            user_id: The user's ID
+
+        Returns:
+            Dict mapping conversation_id to unread count
+        """
+        return self.conversation_repository.batch_get_unread_counts(conversation_ids, user_id)

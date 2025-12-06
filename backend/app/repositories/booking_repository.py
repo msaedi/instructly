@@ -20,7 +20,7 @@ This repository handles:
 
 from datetime import date, datetime, time, timedelta, timezone
 import logging
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -1453,3 +1453,68 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error finding upcoming bookings for pair: {str(e)}")
             raise RepositoryException(f"Failed to find upcoming bookings for pair: {str(e)}")
+
+    def batch_find_upcoming_for_pairs(
+        self,
+        pairs: List[Tuple[str, str]],
+        user_id: str,
+        limit_per_pair: int = 5,
+    ) -> Dict[Tuple[str, str], List[Booking]]:
+        """
+        Find upcoming bookings for multiple student-instructor pairs in a single query.
+
+        Args:
+            pairs: List of (student_id, instructor_id) tuples
+            user_id: The requesting user's ID (for timezone)
+            limit_per_pair: Maximum bookings per pair
+
+        Returns:
+            Dict mapping (student_id, instructor_id) to list of bookings
+        """
+        if not pairs:
+            return {}
+
+        try:
+            # Get user's timezone for filtering
+            user_now = get_user_now_by_id(user_id, self.db)
+            today = user_now.date()
+            now_time = user_now.time()
+
+            # Build OR conditions for all pairs
+            pair_conditions = [
+                and_(Booking.student_id == s_id, Booking.instructor_id == i_id)
+                for s_id, i_id in pairs
+            ]
+
+            # Single query for all pairs
+            all_bookings = cast(
+                List[Booking],
+                self.db.query(Booking)
+                .options(joinedload(Booking.instructor_service))
+                .filter(
+                    or_(*pair_conditions),
+                    Booking.status == BookingStatus.CONFIRMED,
+                    or_(
+                        Booking.booking_date > today,
+                        and_(
+                            Booking.booking_date == today,
+                            Booking.start_time > now_time,
+                        ),
+                    ),
+                )
+                .order_by(Booking.booking_date.asc(), Booking.start_time.asc())
+                .all(),
+            )
+
+            # Group by pair and limit
+            result: Dict[Tuple[str, str], List[Booking]] = {pair: [] for pair in pairs}
+            for booking in all_bookings:
+                pair_key = (booking.student_id, booking.instructor_id)
+                if pair_key in result and len(result[pair_key]) < limit_per_pair:
+                    result[pair_key].append(booking)
+
+            return result
+        except Exception as e:
+            self.logger.error(f"Error in batch_find_upcoming_for_pairs: {str(e)}")
+            # Return empty lists on error rather than failing
+            return {pair: [] for pair in pairs}

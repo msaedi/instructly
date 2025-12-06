@@ -340,9 +340,31 @@ export function useUpdateConversationState() {
       conversationId: string;
       state: ConversationStateFilter;
     }) => updateConversationState(conversationId, state),
-    onSuccess: () => {
-      // Invalidate all conversation queries to refresh lists
-      void queryClient.invalidateQueries({ queryKey: conversationQueryKeys.all });
+    onSuccess: (_data, variables) => {
+      // Use targeted setQueryData to update just the affected conversation (M2 fix)
+      // instead of invalidating all queries
+      queryClient.setQueriesData<ConversationListResponse>(
+        { queryKey: conversationQueryKeys.lists() },
+        (oldData) => {
+          if (!oldData) return oldData;
+          return {
+            ...oldData,
+            conversations: oldData.conversations.map((conv) =>
+              conv.id === variables.conversationId
+                ? { ...conv, state: variables.state }
+                : conv
+            ),
+          };
+        }
+      );
+      // Also update detail cache if it exists
+      queryClient.setQueryData<ConversationDetail>(
+        conversationQueryKeys.detail(variables.conversationId),
+        (oldData) => {
+          if (!oldData) return oldData;
+          return { ...oldData, state: variables.state };
+        }
+      );
     },
   });
 }

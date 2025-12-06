@@ -5,6 +5,7 @@
  */
 
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
+import type { BookingSummary } from '@/types/conversation';
 
 /**
  * Message attachment metadata
@@ -65,13 +66,9 @@ export type MessageWithAttachments = MessageItem & {
 
 /**
  * Booking info for conversation context (Phase 4)
+ * Re-exported from @/types/conversation for backwards compatibility
  */
-export type ConversationBooking = {
-  id: string;
-  date: string;
-  start_time: string;
-  service_name: string;
-};
+export type ConversationBooking = BookingSummary;
 
 /**
  * Conversation entry in the sidebar list

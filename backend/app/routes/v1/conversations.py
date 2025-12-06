@@ -17,6 +17,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.params import Path
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import get_current_active_user
@@ -124,6 +125,12 @@ def list_conversations(
         cursor=cursor,
     )
 
+    # Batch load all context data to avoid N+1 queries (3 queries instead of 3*N)
+    conv_ids = [c.id for c in conversations]
+    upcoming_by_conv = service.batch_get_upcoming_bookings(conversations, current_user.id)
+    states_by_conv = service.batch_get_states(conv_ids, current_user.id)
+    unread_by_conv = service.batch_get_unread_counts(conv_ids, current_user.id)
+
     items: List[ConversationListItem] = []
     for conv in conversations:
         # Get the other participant
@@ -143,12 +150,11 @@ def list_conversations(
                 is_from_me=last_msg.sender_id == current_user.id,
             )
 
-        # Get upcoming bookings for this pair
-        upcoming = service.get_upcoming_bookings_for_conversation(conv)
+        # Get batch-loaded context
+        upcoming = upcoming_by_conv.get(conv.id, [])
         next_booking = _build_booking_summary(upcoming[0]) if upcoming else None
-        # Per-user state and unread count
-        state_value = service.get_conversation_user_state(conv.id, current_user.id)
-        unread_count = service.get_unread_count(conv.id, current_user.id)
+        state_value = states_by_conv.get(conv.id, "active")
+        unread_count = unread_by_conv.get(conv.id, 0)
 
         items.append(
             ConversationListItem(
@@ -175,7 +181,7 @@ def list_conversations(
     dependencies=[READ_DEP],
 )
 def get_conversation(
-    conversation_id: str,
+    conversation_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     current_user: User = Depends(get_current_active_user),
     service: ConversationService = Depends(get_conversation_service),
 ) -> ConversationDetail:
@@ -256,8 +262,8 @@ def create_conversation(
     response_model=UpdateConversationStateResponse,
 )
 def update_conversation_state(
-    conversation_id: str,
     request: UpdateConversationStateRequest,
+    conversation_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     current_user: User = Depends(get_current_active_user),
     service: ConversationService = Depends(get_conversation_service),
 ) -> UpdateConversationStateResponse:
@@ -266,8 +272,7 @@ def update_conversation_state(
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    if current_user.id not in (conversation.student_id, conversation.instructor_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a participant")
+    # Note: get_conversation_by_id already verifies user is a participant
 
     try:
         service.set_conversation_user_state(conversation_id, current_user.id, request.state)
@@ -288,8 +293,8 @@ def update_conversation_state(
     response_model=SuccessResponse,
 )
 async def send_typing_indicator(
-    conversation_id: str,
     request: TypingRequest,
+    conversation_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     current_user: User = Depends(get_current_active_user),
     service: ConversationService = Depends(get_conversation_service),
 ) -> SuccessResponse:
@@ -320,7 +325,7 @@ async def send_typing_indicator(
     dependencies=[READ_DEP],
 )
 def get_messages(
-    conversation_id: str,
+    conversation_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     limit: int = Query(50, ge=1, le=100),
     before: Optional[str] = Query(None, description="Cursor for pagination (message ID)"),
     booking_id: Optional[str] = Query(None, description="Filter by booking ID"),
@@ -398,8 +403,8 @@ def get_messages(
     dependencies=[WRITE_DEP],
 )
 async def send_message(
-    conversation_id: str,
     request: SendMessageRequest,
+    conversation_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     current_user: User = Depends(get_current_active_user),
     service: ConversationService = Depends(get_conversation_service),
     db: Session = Depends(get_db),

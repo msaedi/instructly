@@ -7,9 +7,11 @@ Follows the repository pattern with clean separation from business logic.
 """
 
 from datetime import datetime, timezone
+import json
 from typing import Dict, List, Optional, Sequence, cast
 
 from sqlalchemy import and_, func, or_, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query, Session, joinedload
 
 from ..models.conversation import Conversation
@@ -69,7 +71,8 @@ class ConversationRepository(BaseRepository[Conversation]):
         Get an existing conversation or create a new one.
 
         Provides idempotent conversation creation - safe to call
-        multiple times for the same pair.
+        multiple times for the same pair. Handles race conditions where
+        two transactions might try to create the same conversation.
 
         Args:
             student_id: The student's user ID
@@ -82,13 +85,21 @@ class ConversationRepository(BaseRepository[Conversation]):
         if existing:
             return existing, False
 
-        # Create new conversation using inherited create() method
-        conversation = self.create(
-            student_id=student_id,
-            instructor_id=instructor_id,
-        )
-
-        return conversation, True
+        try:
+            # Create new conversation using inherited create() method
+            conversation = self.create(
+                student_id=student_id,
+                instructor_id=instructor_id,
+            )
+            self.db.flush()  # Force the INSERT to happen now
+            return conversation, True
+        except IntegrityError:
+            # Race condition - another transaction created it first
+            self.db.rollback()
+            existing = self.find_by_pair(student_id, instructor_id)
+            if existing:
+                return existing, False
+            raise  # Re-raise if still not found (unexpected)
 
     def find_for_user(
         self,
@@ -289,7 +300,7 @@ class ConversationRepository(BaseRepository[Conversation]):
                 {
                     "conversation_id": conversation_id,
                     "user_id": user_id,
-                    "read_entry": f'[{{"user_id": "{user_id}"}}]',
+                    "read_entry": json.dumps([{"user_id": user_id}]),
                 },
             ).scalar()
             return int(result or 0)
@@ -326,3 +337,62 @@ class ConversationRepository(BaseRepository[Conversation]):
             return {uid: first_name for uid, first_name in rows}
         except Exception:
             return {uid: None for uid in user_ids}
+
+    def batch_get_unread_counts(self, conversation_ids: List[str], user_id: str) -> Dict[str, int]:
+        """
+        Get unread message counts for multiple conversations in a single query.
+
+        Args:
+            conversation_ids: List of conversation IDs
+            user_id: The user ID to count unread for
+
+        Returns:
+            Dict mapping conversation_id to unread count
+        """
+        if not conversation_ids:
+            return {}
+
+        dialect_name = self.db.bind.dialect.name if self.db.bind else "postgresql"
+
+        if dialect_name == "postgresql":
+            stmt = text(
+                """
+                SELECT conversation_id, COUNT(*) as cnt
+                FROM messages
+                WHERE conversation_id = ANY(:conv_ids)
+                  AND sender_id != :user_id
+                  AND is_deleted = false
+                  AND NOT (read_by @> :read_entry)
+                GROUP BY conversation_id
+                """
+            )
+            results = self.db.execute(
+                stmt,
+                {
+                    "conv_ids": conversation_ids,
+                    "user_id": user_id,
+                    "read_entry": json.dumps([{"user_id": user_id}]),
+                },
+            ).fetchall()
+
+            counts = {conv_id: cnt for conv_id, cnt in results}
+        else:
+            # Fallback for non-PostgreSQL (SQLite in tests)
+            results = (
+                self.db.query(
+                    Message.conversation_id,
+                    func.count(Message.id),
+                )
+                .filter(
+                    Message.conversation_id.in_(conversation_ids),
+                    Message.sender_id != user_id,
+                    Message.is_deleted == False,  # noqa: E712
+                    ~Message.read_by.contains([{"user_id": user_id}]),
+                )
+                .group_by(Message.conversation_id)
+                .all()
+            )
+            counts = {conv_id: cnt for conv_id, cnt in results}
+
+        # Return 0 for conversations with no unread messages
+        return {conv_id: counts.get(conv_id, 0) for conv_id in conversation_ids}

@@ -20,6 +20,11 @@ from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
+# Reschedule detection window in minutes.
+# When a booking is rescheduled, both a cancellation and reschedule system message are created.
+# We suppress the cancellation message if a reschedule happened within this window.
+RESCHEDULE_DETECTION_WINDOW_MINUTES = 1
+
 
 class MessageRepository(BaseRepository[Message]):
     """
@@ -521,7 +526,11 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching messages for conversation: {str(e)}")
             raise RepositoryException(f"Failed to fetch messages for conversation: {str(e)}")
 
-    def has_recent_reschedule_message(self, conversation_id: str, since_minutes: int = 1) -> bool:
+    def has_recent_reschedule_message(
+        self,
+        conversation_id: str,
+        since_minutes: int = RESCHEDULE_DETECTION_WINDOW_MINUTES,
+    ) -> bool:
         """
         Check if a reschedule system message was created recently in a conversation.
 
@@ -529,7 +538,7 @@ class MessageRepository(BaseRepository[Message]):
 
         Args:
             conversation_id: ID of the conversation
-            since_minutes: Look back window in minutes (default: 1)
+            since_minutes: Look back window in minutes (default: RESCHEDULE_DETECTION_WINDOW_MINUTES)
 
         Returns:
             True if a reschedule message was found in the time window

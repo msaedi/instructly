@@ -1297,6 +1297,14 @@ def upgrade() -> None:
           AND cus.conversation_id IS NULL
         """
     )
+    # Delete orphaned records that couldn't be migrated (no matching conversation)
+    op.execute(
+        """
+        DELETE FROM conversation_user_state
+        WHERE conversation_id IS NULL
+        """
+    )
+    # Now safe to add NOT NULL constraint
     op.alter_column("conversation_user_state", "conversation_id", nullable=False)
     op.drop_column("conversation_user_state", "booking_id")
     op.create_unique_constraint(

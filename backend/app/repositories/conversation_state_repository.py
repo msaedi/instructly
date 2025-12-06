@@ -1,7 +1,7 @@
 """Repository for conversation state management (user state and aggregates)."""
 
 from datetime import datetime, timezone
-from typing import Optional, cast
+from typing import Dict, List, Optional, cast
 
 from sqlalchemy.orm import Session
 from ulid import ULID
@@ -106,3 +106,71 @@ class ConversationStateRepository(BaseRepository[ConversationUserState]):
             self.db.flush()
             return existing
         return existing
+
+    def batch_get_states(self, user_id: str, conversation_ids: List[str]) -> Dict[str, str]:
+        """
+        Get states for multiple conversations in a single query.
+
+        Args:
+            user_id: The user ID
+            conversation_ids: List of conversation IDs to fetch states for
+
+        Returns:
+            Dict mapping conversation_id to state. Missing entries default to "active".
+        """
+        if not conversation_ids:
+            return {}
+
+        results = (
+            self.db.query(
+                ConversationUserState.conversation_id,
+                ConversationUserState.state,
+            )
+            .filter(
+                ConversationUserState.user_id == user_id,
+                ConversationUserState.conversation_id.in_(conversation_ids),
+            )
+            .all()
+        )
+
+        # Build dict with found states
+        states = {conv_id: state for conv_id, state in results}
+
+        # Default to "active" for missing entries
+        return {conv_id: states.get(conv_id, "active") for conv_id in conversation_ids}
+
+    def get_excluded_conversation_ids(self, user_id: str) -> tuple[set[str], set[str]]:
+        """
+        Get archived and trashed conversation IDs for a user in a single query.
+
+        Combines what was previously two separate queries into one.
+
+        Args:
+            user_id: The user ID
+
+        Returns:
+            Tuple of (archived_ids, trashed_ids) sets
+        """
+        results = (
+            self.db.query(
+                ConversationUserState.conversation_id,
+                ConversationUserState.state,
+            )
+            .filter(
+                ConversationUserState.user_id == user_id,
+                ConversationUserState.state.in_(["archived", "trashed"]),
+            )
+            .all()
+        )
+
+        archived_ids: set[str] = set()
+        trashed_ids: set[str] = set()
+
+        for conv_id, state in results:
+            if conv_id:
+                if state == "archived":
+                    archived_ids.add(conv_id)
+                elif state == "trashed":
+                    trashed_ids.add(conv_id)
+
+        return archived_ids, trashed_ids

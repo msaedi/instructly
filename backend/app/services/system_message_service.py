@@ -329,6 +329,20 @@ class SystemMessageService(BaseService):
                 message_type=message.message_type,
             )
 
+        async def _publish_with_error_handling() -> None:
+            """Wrapper to catch and log errors from async task."""
+            try:
+                await _publish_system_message()
+            except Exception as e:  # pragma: no cover - best effort logging
+                self.logger.warning(
+                    "Failed to publish SSE for system message",
+                    extra={
+                        "error": str(e),
+                        "conversation_id": conversation_id,
+                        "booking_id": booking_id,
+                    },
+                )
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -344,7 +358,7 @@ class SystemMessageService(BaseService):
                     },
                 )
         else:
-            loop.create_task(_publish_system_message())
+            loop.create_task(_publish_with_error_handling())
 
     def _format_time(self, t: time) -> str:
         """Format time as '5pm' style."""
