@@ -479,44 +479,6 @@ describe('useUpdateConversationState', () => {
     });
   });
 
-  it('should fall back to legacy endpoint on 404', async () => {
-    // First call returns 404 (new endpoint not found)
-    (global.fetch as jest.Mock)
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-      })
-      // Second call succeeds (legacy endpoint)
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ state: 'archived' }),
-      });
-
-    const { result } = renderHook(() => useUpdateConversationState(), {
-      wrapper: createWrapper(),
-    });
-
-    result.current.mutate({ bookingId: 'booking1', state: 'archived' });
-
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
-
-    // Should have tried new endpoint first, then legacy
-    expect(global.fetch).toHaveBeenCalledTimes(2);
-    expect(global.fetch).toHaveBeenNthCalledWith(
-      1,
-      'http://localhost:3000/api/v1/conversations/booking1/state',
-      expect.any(Object)
-    );
-    expect(global.fetch).toHaveBeenNthCalledWith(
-      2,
-      'http://localhost:3000/api/v1/messages/conversations/booking1/state',
-      expect.any(Object)
-    );
-  });
-
   it('should invalidate conversation queries on success', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
@@ -548,15 +510,10 @@ describe('useUpdateConversationState', () => {
   });
 
   it('should handle API errors', async () => {
-    (global.fetch as jest.Mock)
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-      })
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-      });
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+    });
 
     const { result } = renderHook(() => useUpdateConversationState(), {
       wrapper: createWrapper(),
@@ -568,5 +525,7 @@ describe('useUpdateConversationState', () => {
       expect(result.current.isError).toBe(true);
       expect(result.current.error).toBeTruthy();
     });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });

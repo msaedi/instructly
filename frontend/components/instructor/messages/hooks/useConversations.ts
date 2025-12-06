@@ -245,12 +245,7 @@ export function useConversations({
  * Allows archiving, trashing, or restoring conversations.
  * Automatically invalidates both conversation and inbox-state queries.
  *
- * Phase 4 Note: The API endpoint will transition from:
- *   /api/v1/messages/conversations/{bookingId}/state
- * to:
- *   /api/v1/conversations/{conversationId}/state
- *
- * Currently using the messages endpoint for backward compatibility.
+ * Phase 4 Note: State updates now use /api/v1/conversations/{conversationId}/state only.
  */
 export function useUpdateConversationState() {
   const queryClient = useQueryClient();
@@ -263,8 +258,7 @@ export function useUpdateConversationState() {
       bookingId: string;
       state: 'active' | 'archived' | 'trashed';
     }) => {
-      // First try the new conversations endpoint
-      let response = await fetch(
+      const response = await fetch(
         withApiBase(`/api/v1/conversations/${bookingId}/state`),
         {
           method: 'PUT',
@@ -273,19 +267,6 @@ export function useUpdateConversationState() {
           body: JSON.stringify({ state }),
         }
       );
-
-      // Fall back to messages endpoint if new endpoint not found
-      if (response.status === 404) {
-        response = await fetch(
-          withApiBase(`/api/v1/messages/conversations/${bookingId}/state`),
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ state }),
-          }
-        );
-      }
 
       if (!response.ok) {
         throw new Error('Failed to update conversation state');

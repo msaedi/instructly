@@ -5,24 +5,9 @@ Request schemas for the message/chat system.
 
 from typing import List, Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 
 from ._strict_base import StrictRequestModel
-
-
-class SendMessageRequest(StrictRequestModel):
-    """Request to send a message."""
-
-    booking_id: str = Field(..., description="ID of the booking")
-    content: str = Field(..., min_length=1, max_length=1000, description="Message content")
-
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, v: str) -> str:
-        """Ensure content is not just whitespace."""
-        if not v or not v.strip():
-            raise ValueError("Message content cannot be empty")
-        return v.strip()
 
 
 class MarkMessagesReadRequest(StrictRequestModel):
@@ -46,5 +31,4 @@ class MarkMessagesReadRequest(StrictRequestModel):
 
 
 # Ensure models are fully built for FastAPI dependency resolution in tests.
-SendMessageRequest.model_rebuild()
 MarkMessagesReadRequest.model_rebuild()
