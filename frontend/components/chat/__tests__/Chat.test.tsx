@@ -14,19 +14,6 @@ const mockUseSendConversationMessage = jest.fn();
 const mockUseSendConversationTyping = jest.fn();
 const mockUseMessageStream = jest.fn();
 
-// Mock react-query useQuery to return a stable conversation_id; keep other exports real
-jest.mock('@tanstack/react-query', () => {
-  const actual = jest.requireActual('@tanstack/react-query');
-  return {
-    ...actual,
-    useQuery: () => ({
-      data: { id: 'conversation-123', created: false },
-      isLoading: false,
-      error: null,
-    }),
-  };
-});
-
 // Mock UserMessageStreamProvider (Phase 4: per-user SSE)
 jest.mock('@/providers/UserMessageStreamProvider', () => ({
   useMessageStream: (...args: unknown[]) => mockUseMessageStream(...args),
@@ -64,6 +51,7 @@ jest.mock('@/src/api/queryKeys', () => ({
 }));
 
 const baseProps = {
+  conversationId: 'conversation-123',
   bookingId: 'booking-123',
   currentUserId: 'user-1',
   currentUserName: 'Instructor A',
@@ -83,6 +71,7 @@ const defaultHistoryResponse = (messages: MessageResponse[] = []) => ({
 const buildMessage = (id: string, overrides: Partial<MessageResponse> = {}): MessageResponse => ({
   id,
   booking_id: baseProps.bookingId,
+  conversation_id: baseProps.conversationId,
   sender_id: overrides.sender_id ?? 'student-1',
   content: overrides.content ?? 'Hello!',
   created_at: overrides.created_at ?? new Date('2024-01-01T00:00:00Z').toISOString(),

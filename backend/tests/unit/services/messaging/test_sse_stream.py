@@ -293,20 +293,30 @@ def test_sse_sets_id_only_for_messages() -> None:
 def test_fetch_messages_after_returns_newer_messages(db, test_booking, test_student) -> None:
     """DB catch-up returns only messages newer than the provided Last-Event-ID."""
     repo = MessageRepository(db)
+    from app.repositories.conversation_repository import ConversationRepository
 
-    msg1 = repo.create_message(
-        booking_id=str(test_booking.id),
+    conversation_repo = ConversationRepository(db)
+    conversation, _ = conversation_repo.get_or_create(
+        student_id=str(test_student.id),
+        instructor_id=str(test_booking.instructor_id),
+    )
+
+    msg1 = repo.create_conversation_message(
+        conversation_id=conversation.id,
         sender_id=str(test_student.id),
+        booking_id=str(test_booking.id),
         content="First",
     )
-    msg2 = repo.create_message(
-        booking_id=str(test_booking.id),
+    msg2 = repo.create_conversation_message(
+        conversation_id=conversation.id,
         sender_id=str(test_student.id),
+        booking_id=str(test_booking.id),
         content="Second",
     )
-    msg3 = repo.create_message(
-        booking_id=str(test_booking.id),
+    msg3 = repo.create_conversation_message(
+        conversation_id=conversation.id,
         sender_id=str(test_student.id),
+        booking_id=str(test_booking.id),
         content="Third",
     )
     db.commit()

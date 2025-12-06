@@ -2308,11 +2308,6 @@ export interface LoginResponse {
 }
 
 /**
- * Mark all messages in this booking as read
- */
-export type MarkMessagesReadRequestBookingId = string | null;
-
-/**
  * Specific message IDs to mark as read
  */
 export type MarkMessagesReadRequestMessageIds = string[] | null;
@@ -2321,8 +2316,8 @@ export type MarkMessagesReadRequestMessageIds = string[] | null;
  * Request to mark messages as read.
  */
 export interface MarkMessagesReadRequest {
-  /** Mark all messages in this booking as read */
-  booking_id?: MarkMessagesReadRequestBookingId;
+  /** Mark all messages in this conversation as read */
+  conversation_id?: string | null;
   /** Specific message IDs to mark as read */
   message_ids?: MarkMessagesReadRequestMessageIds;
 }
@@ -2369,7 +2364,8 @@ export type MessageResponseSender = MessageSenderResponse | null;
  * Response schema for a single message.
  */
 export interface MessageResponse {
-  booking_id: string;
+  conversation_id: string;
+  booking_id?: string | null;
   content: string;
   created_at: string;
   delivered_at?: MessageResponseDeliveredAt;
@@ -2380,7 +2376,7 @@ export interface MessageResponse {
   reactions?: MessageResponseReactions;
   read_by?: MessageResponseReadBy;
   sender?: MessageResponseSender;
-  sender_id: string;
+  sender_id?: string | null;
   updated_at: string;
 }
 

@@ -21,7 +21,6 @@ from .availability import BlackoutDate
 from .availability_day import AvailabilityDay  # noqa: F401
 from .booking import Booking, BookingStatus
 from .conversation import Conversation
-from .conversation_state import ConversationState
 from .conversation_user_state import ConversationUserState
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
 from .favorite import UserFavorite
@@ -105,7 +104,6 @@ __all__ = [
     "Conversation",
     "Message",
     "MessageNotification",
-    "ConversationState",
     "ConversationUserState",
     # Message type constants
     "MESSAGE_TYPE_USER",

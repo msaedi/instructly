@@ -11,11 +11,9 @@ import logging
 from typing import Any, List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func
-from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import NotFoundException, RepositoryException
-from ..models.booking import Booking
 from ..models.conversation import Conversation
 from ..models.message import Message, MessageNotification
 from .base_repository import BaseRepository
@@ -35,126 +33,6 @@ class MessageRepository(BaseRepository[Message]):
         """Initialize with Message model."""
         super().__init__(db, Message)
         self.logger = logging.getLogger(__name__)
-
-    def create_message(self, booking_id: str, sender_id: str, content: str) -> Message:
-        """
-        Create a new message for a booking.
-
-        Also sets conversation_id by finding/creating the conversation
-        for the booking's student-instructor pair.
-
-        Args:
-            booking_id: ID of the booking
-            sender_id: ID of the sender
-            content: Message content
-
-        Returns:
-            Created message
-
-        Raises:
-            RepositoryException: If creation fails
-        """
-        from ..repositories.conversation_repository import ConversationRepository
-
-        try:
-            # Get conversation_id for this booking's pair
-            conversation_id = self._get_or_create_conversation_for_booking(booking_id)
-
-            message = Message(
-                booking_id=booking_id,
-                sender_id=sender_id,
-                content=content,
-                conversation_id=conversation_id,  # Set conversation_id
-                delivered_at=datetime.now(timezone.utc),  # Mark as delivered immediately
-            )
-            self.db.add(message)
-            self.db.flush()  # Get the ID without committing
-
-            # Update conversation's last_message_at
-            if conversation_id:
-                conv_repo = ConversationRepository(self.db)
-                conv_repo.update_last_message_at(conversation_id, message.created_at)
-
-            # Create notification for the recipient
-            recipient_id = self._get_recipient_id(booking_id, sender_id)
-            if recipient_id:
-                notification = MessageNotification(
-                    message_id=message.id, user_id=recipient_id, is_read=False
-                )
-                self.db.add(notification)
-
-            self.logger.info(f"Created message {message.id} for booking {booking_id}")
-            return message
-
-        except Exception as e:
-            self.logger.error(f"Error creating message: {str(e)}")
-            raise RepositoryException(f"Failed to create message: {str(e)}")
-
-    def get_messages_for_booking(
-        self, booking_id: str, limit: int = 50, offset: int = 0
-    ) -> List[Message]:
-        """
-        Get messages for a booking with pagination.
-
-        Args:
-            booking_id: ID of the booking
-            limit: Maximum number of messages to return
-            offset: Number of messages to skip
-
-        Returns:
-            List of messages ordered by creation time
-        """
-        try:
-            return cast(
-                List[Message],
-                (
-                    self.db.query(Message)
-                    .filter(Message.booking_id == booking_id)
-                    .options(joinedload(Message.sender))
-                    .order_by(Message.created_at.desc())
-                    .limit(limit)
-                    .offset(offset)
-                    .all()
-                ),
-            )
-        except Exception as e:
-            self.logger.error(f"Error fetching messages for booking {booking_id}: {str(e)}")
-            raise RepositoryException(f"Failed to fetch messages: {str(e)}")
-
-    def get_unread_messages(self, booking_id: str, user_id: str) -> List[Message]:
-        """
-        Get unread messages for a user in a booking.
-
-        Args:
-            booking_id: ID of the booking
-            user_id: ID of the user
-
-        Returns:
-            List of unread messages
-        """
-        try:
-            return cast(
-                List[Message],
-                (
-                    self.db.query(Message)
-                    .join(MessageNotification)
-                    .filter(
-                        and_(
-                            Message.booking_id == booking_id,
-                            Message.is_deleted == False,
-                            Message.deleted_at.is_(None),
-                            MessageNotification.user_id == user_id,
-                            MessageNotification.is_read == False,
-                        )
-                    )
-                    .options(joinedload(Message.sender))
-                    .order_by(Message.created_at)
-                    .all()
-                ),
-            )
-        except Exception as e:
-            self.logger.error(f"Error fetching unread messages: {str(e)}")
-            raise RepositoryException(f"Failed to fetch unread messages: {str(e)}")
 
     def get_unread_messages_by_conversation(
         self, conversation_id: str, user_id: str
@@ -395,7 +273,6 @@ class MessageRepository(BaseRepository[Message]):
         try:
             from datetime import datetime, timezone
 
-            from ..models.conversation_state import ConversationState
             from ..models.message import MessageEdit
 
             message = self.db.query(Message).filter(Message.id == message_id).first()
@@ -406,130 +283,10 @@ class MessageRepository(BaseRepository[Message]):
             # Update message
             message.content = new_content
             message.edited_at = datetime.now(timezone.utc)
-
-            # If this message is the latest for the conversation, update preview
-            self.db.query(ConversationState).filter(
-                ConversationState.last_message_id == message_id
-            ).update(
-                {
-                    "last_message_preview": new_content[:100],
-                    "updated_at": datetime.now(timezone.utc),
-                },
-                synchronize_session=False,
-            )
             return True
         except Exception as e:
             self.logger.error(f"Error applying message edit: {str(e)}")
             raise RepositoryException(f"Failed to apply message edit: {str(e)}")
-
-    def get_booking_participants(self, booking_id: str) -> Optional[Tuple[str, str]]:
-        """
-        Get the student and instructor IDs for a booking.
-
-        Args:
-            booking_id: ID of the booking
-
-        Returns:
-            Tuple of (student_id, instructor_id) or None if booking not found
-        """
-        try:
-            booking_row = cast(
-                Optional[Row[Any]],
-                (
-                    self.db.query(Booking.student_id, Booking.instructor_id)
-                    .filter(Booking.id == booking_id)
-                    .first()
-                ),
-            )
-
-            if booking_row is None:
-                return None
-
-            mapping = booking_row._mapping
-            student_id = cast(Optional[str], mapping.get("student_id"))
-            instructor_id = cast(Optional[str], mapping.get("instructor_id"))
-
-            if student_id is None or instructor_id is None:
-                return None
-            return (student_id, instructor_id)
-
-        except Exception as e:
-            self.logger.error(f"Error fetching booking participants: {str(e)}")
-            raise RepositoryException(f"Failed to fetch booking participants: {str(e)}")
-
-    def _get_recipient_id(self, booking_id: str, sender_id: str) -> Optional[str]:
-        """
-        Get the recipient ID for a message notification.
-
-        Args:
-            booking_id: ID of the booking
-            sender_id: ID of the sender
-
-        Returns:
-            ID of the recipient, or None if not found
-        """
-        participants = self.get_booking_participants(booking_id)
-        if not participants:
-            return None
-
-        student_id, instructor_id = participants
-        # Return the other participant
-        return instructor_id if sender_id == student_id else student_id
-
-    def _get_or_create_conversation_for_booking(self, booking_id: str) -> Optional[str]:
-        """
-        Get or create a conversation for a booking's student-instructor pair.
-
-        This ensures all messages have a conversation_id set, enabling
-        unified message history across bookings.
-
-        Args:
-            booking_id: ID of the booking
-
-        Returns:
-            Conversation ID, or None if booking not found
-        """
-        from ..repositories.conversation_repository import ConversationRepository
-
-        participants = self.get_booking_participants(booking_id)
-        if not participants:
-            self.logger.warning(f"Cannot get conversation: booking {booking_id} not found")
-            return None
-
-        student_id, instructor_id = participants
-        conv_repo = ConversationRepository(self.db)
-        conversation, _ = conv_repo.get_or_create(student_id, instructor_id)
-        return str(conversation.id)
-
-    def get_latest_message_for_booking(self, booking_id: str) -> Optional[Message]:
-        """
-        Get the most recent message for a booking.
-
-        Args:
-            booking_id: ID of the booking
-
-        Returns:
-            Latest message or None
-        """
-        try:
-            return cast(
-                Optional[Message],
-                (
-                    self.db.query(Message)
-                    .filter(
-                        and_(
-                            Message.booking_id == booking_id,
-                            Message.is_deleted == False,
-                            Message.deleted_at.is_(None),
-                        )
-                    )
-                    .order_by(Message.created_at.desc())
-                    .first()
-                ),
-            )
-        except Exception as e:
-            self.logger.error(f"Error fetching latest message: {str(e)}")
-            raise RepositoryException(f"Failed to fetch latest message: {str(e)}")
 
     def soft_delete_message(self, message_id: str, user_id: str) -> Optional[Message]:
         """
@@ -608,142 +365,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error removing reaction: {str(e)}")
             raise RepositoryException(f"Failed to remove reaction: {str(e)}")
 
-    # Phase 3: Inbox state
-    def get_inbox_state(self, user_id: str, user_role: str) -> List[Any]:
-        """
-        Fetch all conversation states for a user in a single query.
-
-        Args:
-            user_id: The user's ID
-            user_role: 'instructor' or 'student' to determine which conversations to fetch
-
-        Returns:
-            List of ConversationState objects with related user data eager-loaded
-        """
-        try:
-            from ..models.conversation_state import ConversationState
-
-            query = self.db.query(ConversationState).options(
-                joinedload(ConversationState.booking),
-                joinedload(ConversationState.student),
-                joinedload(ConversationState.instructor),
-            )
-
-            if user_role == "instructor":
-                query = query.filter(ConversationState.instructor_id == user_id)
-            else:
-                query = query.filter(ConversationState.student_id == user_id)
-
-            # Order by most recent message first
-            query = query.order_by(ConversationState.last_message_at.desc().nullslast())
-
-            return cast(List[Any], query.all())
-
-        except Exception as e:
-            self.logger.error(f"Error fetching inbox state: {str(e)}")
-            raise RepositoryException(f"Failed to fetch inbox state: {str(e)}")
-
-    def reset_conversation_unread_count(
-        self, booking_id: str, user_id: str, is_instructor: bool
-    ) -> None:
-        """
-        Reset the unread count in conversation_state for a specific user.
-
-        Args:
-            booking_id: ID of the booking/conversation
-            user_id: ID of the user whose unread count should be reset
-            is_instructor: True if user is instructor, False if student
-        """
-        try:
-            from ..models.conversation_state import ConversationState
-
-            # Update the conversation_state unread count
-            self.db.query(ConversationState).filter(
-                ConversationState.booking_id == booking_id
-            ).update(
-                {
-                    ConversationState.instructor_unread_count
-                    if is_instructor
-                    else ConversationState.student_unread_count: 0,
-                    ConversationState.updated_at: func.now(),
-                },
-                synchronize_session=False,
-            )
-
-            self.logger.info(
-                f"Reset conversation_state unread count for booking {booking_id}, user {user_id}"
-            )
-
-        except Exception as e:
-            self.logger.error(f"Failed to reset conversation_state unread count: {str(e)}")
-            raise RepositoryException(f"Failed to reset conversation_state unread count: {str(e)}")
-
     # Phase 2: SSE catch-up support
-    def get_user_booking_ids(self, user_id: str) -> List[str]:
-        """
-        Get all booking IDs where user is a participant (student or instructor).
-
-        Used for SSE Last-Event-ID catch-up to fetch missed messages.
-
-        Args:
-            user_id: The user's ULID
-
-        Returns:
-            List of booking IDs where user is student or instructor
-        """
-        try:
-            booking_rows = (
-                self.db.query(Booking.id)
-                .filter((Booking.student_id == user_id) | (Booking.instructor_id == user_id))
-                .all()
-            )
-            return [row.id for row in booking_rows]
-        except Exception as e:
-            self.logger.error(f"Error fetching user booking IDs: {str(e)}")
-            raise RepositoryException(f"Failed to fetch user booking IDs: {str(e)}")
-
-    def get_messages_after_id(
-        self, booking_ids: List[str], after_message_id: str, limit: int = 100
-    ) -> List[Message]:
-        """
-        Get messages created after a given message ID for specified bookings.
-
-        Since ULIDs are lexicographically sortable by time,
-        `id > after_message_id` returns newer messages.
-
-        Used for SSE Last-Event-ID catch-up.
-
-        Args:
-            booking_ids: List of booking IDs to search
-            after_message_id: Last-Event-ID (message ULID) to start from
-            limit: Maximum messages to return (safety limit)
-
-        Returns:
-            List of messages after the given ID, ordered by ID
-        """
-        try:
-            if not booking_ids:
-                return []
-
-            return cast(
-                List[Message],
-                (
-                    self.db.query(Message)
-                    .filter(
-                        and_(
-                            Message.booking_id.in_(booking_ids),
-                            Message.id > after_message_id,
-                        )
-                    )
-                    .order_by(Message.id)
-                    .limit(limit)
-                    .all()
-                ),
-            )
-        except Exception as e:
-            self.logger.error(f"Error fetching messages after ID: {str(e)}")
-            raise RepositoryException(f"Failed to fetch messages after ID: {str(e)}")
-
     def get_messages_after_id_for_conversations(
         self, conversation_ids: List[str], after_message_id: str, limit: int = 100
     ) -> List[Message]:

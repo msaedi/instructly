@@ -19,7 +19,6 @@ Endpoints (organized with static routes BEFORE dynamic routes):
     GET /stream - SSE endpoint for per-user real-time messages
     GET /config - Get message configuration (edit window, etc.)
     GET /unread-count - Get total unread count for current user
-    GET /inbox-state - Get all conversations with unread counts
     POST /mark-read - Mark messages as read by conversation or IDs
 
     === Message-specific Routes ===
@@ -34,17 +33,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from fastapi import (
-    APIRouter,
-    Body,
-    Depends,
-    Header,
-    HTTPException,
-    Query,
-    Request,
-    Response,
-    status,
-)
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
@@ -58,11 +47,9 @@ from ...database import get_db
 from ...dependencies.permissions import require_permission
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
-from ...repositories.conversation_repository import ConversationRepository
 from ...schemas.message_requests import MarkMessagesReadRequest
 from ...schemas.message_responses import (
     DeleteMessageResponse,
-    InboxStateResponse,
     MarkMessagesReadResponse,
     MessageConfigResponse,
     UnreadCountResponse,
@@ -92,35 +79,6 @@ ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 def get_message_service(db: Session = Depends(get_db)) -> MessageService:
     """Get message service instance."""
     return MessageService(db)
-
-
-def _get_conversation_id_for_booking(db: Session, booking_id: str) -> Optional[str]:
-    """
-    Look up the conversation_id for a booking's student-instructor pair.
-
-    Phase 7: SSE events must use conversation_id (not booking_id) for routing,
-    because frontend subscribes by conversation_id.
-
-    Returns conversation_id if found, None otherwise.
-    """
-    from ...repositories.booking_repository import BookingRepository
-
-    booking_repo = BookingRepository(db)
-    booking = booking_repo.get_by_id(booking_id)
-    if not booking:
-        logger.warning(f"[SSE-ROUTING] Booking not found: {booking_id}")
-        return None
-
-    conv_repo = ConversationRepository(db)
-    conversation = conv_repo.find_by_pair(booking.student_id, booking.instructor_id)
-    if not conversation:
-        logger.warning(
-            f"[SSE-ROUTING] Conversation not found for booking {booking_id} "
-            f"(student={booking.student_id}, instructor={booking.instructor_id})"
-        )
-        return None
-
-    return str(conversation.id)
 
 
 # Phase 2 schemas (defined here to avoid import cycles)
@@ -283,76 +241,6 @@ async def get_unread_count(
         )
 
 
-@router.get(
-    "/inbox-state",
-    response_model=InboxStateResponse,
-    dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
-    responses={
-        200: {"description": "Inbox state with all conversations"},
-        304: {"description": "Not Modified - content unchanged (ETag match)"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied"},
-    },
-)
-async def get_inbox_state(
-    response: Response,
-    current_user: User = Depends(get_current_active_user),
-    service: MessageService = Depends(get_message_service),
-    if_none_match: Optional[str] = Header(None, alias="If-None-Match"),
-    state: Optional[str] = Query(None, pattern="^(archived|trashed)$"),
-    type: Optional[str] = Query(None, pattern="^(student|platform)$"),
-) -> InboxStateResponse:
-    """
-    Get all conversations with unread counts and last message previews.
-
-    Supports ETag caching - returns 304 Not Modified if content unchanged.
-    Poll this endpoint every 5-15 seconds for inbox updates.
-
-    Query Parameters:
-        - state: Filter by conversation state ('archived', 'trashed', or None for active)
-        - type: Filter by conversation type ('student', 'platform')
-
-    Returns:
-        - conversations: List of filtered conversations
-        - total_unread: Sum of all unread messages
-        - state_counts: Count of conversations by state
-
-    Requires VIEW_MESSAGES permission.
-    """
-    try:
-        # Determine user role
-        user_role = "instructor" if current_user.role == "instructor" else "student"
-
-        # Get inbox state from service with filters
-        inbox_state = service.get_inbox_state(
-            current_user.id, user_role, state_filter=state, type_filter=type
-        )
-
-        # Generate ETag
-        etag = service.generate_inbox_etag(inbox_state)
-
-        # Check if client has current version (ETag match)
-        if if_none_match and if_none_match.strip('"') == etag:
-            # FastAPI doesn't have a clean way to return 304, so we raise an exception
-            # that gets caught and returns 304
-            response.status_code = status.HTTP_304_NOT_MODIFIED
-            # Return empty response for 304 - client will use cached version
-            return InboxStateResponse(conversations=[], total_unread=0, unread_conversations=0)
-
-        # Set ETag header for successful response
-        response.headers["ETag"] = f'"{etag}"'
-
-        # Return validated response model
-        return InboxStateResponse(**inbox_state)
-
-    except Exception as e:
-        logger.error(f"Error getting inbox state: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get inbox state",
-        )
-
-
 @router.post(
     "/mark-read",
     response_model=MarkMessagesReadResponse,
@@ -373,7 +261,7 @@ async def mark_messages_as_read(
     """
     Mark messages as read.
 
-    Can mark specific messages or all messages in a booking.
+    Can mark specific messages or all messages in a conversation.
     Requires VIEW_MESSAGES permission.
     """
     try:
@@ -407,12 +295,6 @@ async def mark_messages_as_read(
 
         # Redis Pub/Sub publishing (fire-and-forget)
         if count > 0 and marked_message_ids:
-            # If we don't already have conversation_id, try to resolve it
-            if not conversation_id:
-                first_msg = service.repository.get_by_id(marked_message_ids[0])
-                if first_msg and first_msg.conversation_id:
-                    conversation_id = first_msg.conversation_id
-
             if conversation_id:
                 try:
                     await publish_read_receipt(
@@ -517,33 +399,26 @@ async def edit_message(
         )
 
         # Redis Pub/Sub publishing (fire-and-forget)
-        # Phase 7: Use conversation_id (not booking_id) for SSE routing
         try:
             message = service.get_message_by_id(message_id, str(current_user.id))
-            if message:
-                # Get conversation_id from message, fallback to lookup from booking
-                conv_id = message.conversation_id
-                if not conv_id and message.booking_id:
-                    conv_id = _get_conversation_id_for_booking(service.db, message.booking_id)
-
-                if conv_id:
-                    await publish_message_edited(
-                        db=service.db,
-                        conversation_id=conv_id,
-                        message_id=message_id,
-                        new_content=request.content,
-                        editor_id=str(current_user.id),
-                        edited_at=message.edited_at or datetime.now(timezone.utc),
-                    )
-                    logger.debug(
-                        "[REDIS-PUBSUB] Message EDIT: Published to Redis",
-                        extra={"message_id": message_id, "conversation_id": conv_id},
-                    )
-                else:
-                    logger.warning(
-                        "[REDIS-PUBSUB] Message EDIT: Could not resolve conversation_id",
-                        extra={"message_id": message_id, "booking_id": message.booking_id},
-                    )
+            if message and message.conversation_id:
+                await publish_message_edited(
+                    db=service.db,
+                    conversation_id=message.conversation_id,
+                    message_id=message_id,
+                    new_content=request.content,
+                    editor_id=str(current_user.id),
+                    edited_at=message.edited_at or datetime.now(timezone.utc),
+                )
+                logger.debug(
+                    "[REDIS-PUBSUB] Message EDIT: Published to Redis",
+                    extra={"message_id": message_id, "conversation_id": message.conversation_id},
+                )
+            elif message:
+                logger.warning(
+                    "[REDIS-PUBSUB] Message EDIT: Could not resolve conversation_id",
+                    extra={"message_id": message_id},
+                )
         except Exception as e:
             logger.error(
                 "[REDIS-PUBSUB] Message EDIT: Redis publish failed",
@@ -638,22 +513,17 @@ async def delete_message(
             )
 
         # Redis Pub/Sub publishing (fire-and-forget)
-        # Phase 7: Use conversation_id (not booking_id) for SSE routing
-        conv_id = message.conversation_id
-        if not conv_id and message.booking_id:
-            conv_id = _get_conversation_id_for_booking(service.db, message.booking_id)
-
-        if conv_id:
+        if message.conversation_id:
             try:
                 await publish_message_deleted(
                     db=service.db,
-                    conversation_id=conv_id,
+                    conversation_id=message.conversation_id,
                     message_id=message_id,
                     deleted_by=str(current_user.id),
                 )
                 logger.debug(
                     "[REDIS-PUBSUB] Message DELETE: Published to Redis",
-                    extra={"message_id": message_id, "conversation_id": conv_id},
+                    extra={"message_id": message_id, "conversation_id": message.conversation_id},
                 )
             except Exception as e:
                 logger.error(
@@ -663,7 +533,7 @@ async def delete_message(
         else:
             logger.warning(
                 "[REDIS-PUBSUB] Message DELETE: Could not resolve conversation_id",
-                extra={"message_id": message_id, "booking_id": message.booking_id},
+                extra={"message_id": message_id},
             )
 
         return DeleteMessageResponse(
@@ -743,36 +613,30 @@ async def add_reaction(
         )
 
         # Redis Pub/Sub publishing (fire-and-forget)
-        # Phase 7: Use conversation_id (not booking_id) for SSE routing
-        if message:
-            conv_id = message.conversation_id
-            if not conv_id and message.booking_id:
-                conv_id = _get_conversation_id_for_booking(service.db, message.booking_id)
-
-            if conv_id:
-                try:
-                    await publish_reaction_update(
-                        db=service.db,
-                        conversation_id=conv_id,
-                        message_id=message_id,
-                        user_id=str(current_user.id),
-                        emoji=request.emoji,
-                        action="added",
-                    )
-                    logger.debug(
-                        "[REDIS-PUBSUB] Reaction ADD: Published to Redis",
-                        extra={"message_id": message_id, "conversation_id": conv_id},
-                    )
-                except Exception as e:
-                    logger.error(
-                        "[REDIS-PUBSUB] Reaction ADD: Redis publish failed",
-                        extra={"error": str(e), "message_id": message_id},
-                    )
-            else:
-                logger.warning(
-                    "[REDIS-PUBSUB] Reaction ADD: Could not resolve conversation_id",
-                    extra={"message_id": message_id, "booking_id": message.booking_id},
+        if message and message.conversation_id:
+            try:
+                await publish_reaction_update(
+                    db=service.db,
+                    conversation_id=message.conversation_id,
+                    message_id=message_id,
+                    user_id=str(current_user.id),
+                    emoji=request.emoji,
+                    action="added",
                 )
+                logger.debug(
+                    "[REDIS-PUBSUB] Reaction ADD: Published to Redis",
+                    extra={"message_id": message_id, "conversation_id": message.conversation_id},
+                )
+            except Exception as e:
+                logger.error(
+                    "[REDIS-PUBSUB] Reaction ADD: Redis publish failed",
+                    extra={"error": str(e), "message_id": message_id},
+                )
+        elif message:
+            logger.warning(
+                "[REDIS-PUBSUB] Reaction ADD: Could not resolve conversation_id",
+                extra={"message_id": message_id},
+            )
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ForbiddenException as e:
@@ -861,36 +725,30 @@ async def remove_reaction(
         )
 
         # Redis Pub/Sub publishing (fire-and-forget)
-        # Phase 7: Use conversation_id (not booking_id) for SSE routing
-        if message:
-            conv_id = message.conversation_id
-            if not conv_id and message.booking_id:
-                conv_id = _get_conversation_id_for_booking(service.db, message.booking_id)
-
-            if conv_id:
-                try:
-                    await publish_reaction_update(
-                        db=service.db,
-                        conversation_id=conv_id,
-                        message_id=message_id,
-                        user_id=str(current_user.id),
-                        emoji=request.emoji,
-                        action="removed",
-                    )
-                    logger.debug(
-                        "[REDIS-PUBSUB] Reaction REMOVE: Published to Redis",
-                        extra={"message_id": message_id, "conversation_id": conv_id},
-                    )
-                except Exception as e:
-                    logger.error(
-                        "[REDIS-PUBSUB] Reaction REMOVE: Redis publish failed",
-                        extra={"error": str(e), "message_id": message_id},
-                    )
-            else:
-                logger.warning(
-                    "[REDIS-PUBSUB] Reaction REMOVE: Could not resolve conversation_id",
-                    extra={"message_id": message_id, "booking_id": message.booking_id},
+        if message and message.conversation_id:
+            try:
+                await publish_reaction_update(
+                    db=service.db,
+                    conversation_id=message.conversation_id,
+                    message_id=message_id,
+                    user_id=str(current_user.id),
+                    emoji=request.emoji,
+                    action="removed",
                 )
+                logger.debug(
+                    "[REDIS-PUBSUB] Reaction REMOVE: Published to Redis",
+                    extra={"message_id": message_id, "conversation_id": message.conversation_id},
+                )
+            except Exception as e:
+                logger.error(
+                    "[REDIS-PUBSUB] Reaction REMOVE: Redis publish failed",
+                    extra={"error": str(e), "message_id": message_id},
+                )
+        elif message:
+            logger.warning(
+                "[REDIS-PUBSUB] Reaction REMOVE: Could not resolve conversation_id",
+                extra={"message_id": message_id},
+            )
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ForbiddenException as e:

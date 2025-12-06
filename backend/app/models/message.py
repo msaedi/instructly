@@ -53,9 +53,9 @@ class Message(Base):
     sender_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     content = Column(String(1000), nullable=False)
 
-    # Per-user-pair conversation reference (nullable during migration, will be enforced later)
+    # Per-user-pair conversation reference (required for all messages)
     conversation_id = Column(
-        String(26), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True
+        String(26), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
     )
 
     # Message type: 'user', 'system_booking_created', etc.

@@ -9,7 +9,7 @@ Follows the repository pattern with clean separation from business logic.
 from datetime import datetime, timezone
 from typing import Optional, Sequence, cast
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Query, Session, joinedload
 
 from ..models.conversation import Conversation
@@ -272,20 +272,35 @@ class ConversationRepository(BaseRepository[Conversation]):
         A message is unread if it was sent by the other participant and the user_id
         is not present in the message.read_by array.
         """
-        messages = (
-            self.db.query(Message)
+        dialect_name = self.db.bind.dialect.name if self.db.bind else "postgresql"
+        if dialect_name == "postgresql":
+            stmt = text(
+                """
+                SELECT COUNT(*) FROM messages
+                WHERE conversation_id = :conversation_id
+                  AND sender_id != :user_id
+                  AND is_deleted = false
+                  AND NOT (read_by @> :read_entry)
+                """
+            )
+            result = self.db.execute(
+                stmt,
+                {
+                    "conversation_id": conversation_id,
+                    "user_id": user_id,
+                    "read_entry": f'[{{"user_id": "{user_id}"}}]',
+                },
+            ).scalar()
+            return int(result or 0)
+
+        result = (
+            self.db.query(func.count(Message.id))
             .filter(
                 Message.conversation_id == conversation_id,
                 Message.sender_id != user_id,
                 Message.is_deleted == False,  # noqa: E712
+                ~Message.read_by.contains([{"user_id": user_id}]),
             )
-            .all()
+            .scalar()
         )
-
-        count = 0
-        for msg in messages:
-            read_entries = msg.read_by or []
-            reader_ids = [r.get("user_id") for r in read_entries if isinstance(r, dict)]
-            if user_id not in reader_ids:
-                count += 1
-        return count
+        return int(result or 0)

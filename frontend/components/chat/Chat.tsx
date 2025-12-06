@@ -17,9 +17,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Send, Loader2, AlertCircle, WifiOff, ChevronDown } from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
-import { withApiBase } from '@/lib/apiBase';
 import {
   useMessageConfig,
   useConversationMessages,
@@ -78,7 +77,8 @@ interface RawConversationMessage {
 }
 
 interface ChatProps {
-  bookingId: string;
+  conversationId: string;
+  bookingId?: string;
   currentUserId: string;
   currentUserName: string;
   otherUserName: string;
@@ -88,6 +88,7 @@ interface ChatProps {
 }
 
 export function Chat({
+  conversationId,
   bookingId,
   currentUserId,
   currentUserName,
@@ -107,29 +108,6 @@ export function Chat({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Phase 7: Fetch conversation_id for SSE subscription AND message history
-  // One conversation per student-instructor pair - SSE must use conversation_id, not booking_id
-  const { data: conversationData, isLoading: isLoadingConversation } = useQuery({
-    queryKey: ['conversation-for-booking', bookingId],
-    queryFn: async () => {
-      const response = await fetch(
-        withApiBase(`/api/v1/conversations/by-booking/${bookingId}`),
-        {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        }
-      );
-      if (!response.ok) {
-        throw new Error('Failed to get conversation for booking');
-      }
-      return response.json() as Promise<{ id: string; created: boolean }>;
-    },
-    enabled: !!bookingId,
-    staleTime: Infinity, // Conversation ID doesn't change
-  });
-  const conversationId = conversationData?.id;
-
   // Autofocus the message box when chat opens (only when editable)
   useEffect(() => {
     if (!isReadOnly) {
@@ -146,7 +124,7 @@ export function Chat({
   } = useConversationMessages(conversationId);
 
   // Combined loading state: loading conversation OR loading messages
-  const isLoadingHistory = isLoadingConversation || isLoadingMessages;
+  const isLoadingHistory = isLoadingMessages;
 
   // Mutations - destructure mutate functions for stable references
   const queryClient = useQueryClient();
@@ -405,6 +383,7 @@ export function Chat({
 
       return {
         ...rawMsg,
+        conversation_id: conversationId,
         sender_id: rawMsg.sender_id ?? '',
         booking_id: rawMsg.booking_id ?? '',
         updated_at: rawMsg.updated_at ?? rawMsg.created_at,
@@ -446,7 +425,7 @@ export function Chat({
     });
 
     return result;
-  }, [historyData?.messages, realtimeMessages, currentUserId]);
+  }, [historyData?.messages, realtimeMessages, currentUserId, conversationId]);
 
   // Shared reaction management hook
   const reactionMutations: ReactionMutations = React.useMemo(
@@ -467,8 +446,8 @@ export function Chat({
     mutations: reactionMutations,
     onReactionComplete: () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
-        exact: false,
+      queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
+      exact: false,
       });
     },
     debug: false,
@@ -576,11 +555,14 @@ export function Chat({
         bookingId,
         timestamp: new Date().toISOString()
       });
-      const result = await sendMessageMutation.mutateAsync({
+      const payload: { conversationId: string; content: string; bookingId?: string } = {
         conversationId,
         content,
-        bookingId,
-      });
+      };
+      if (bookingId) {
+        payload.bookingId = bookingId;
+      }
+      const result = await sendMessageMutation.mutateAsync(payload);
       logger.debug('[MSG-DEBUG] Message SEND: Success', {
         messageId: (result as { id?: string })?.id,
         success: true,
@@ -588,7 +570,7 @@ export function Chat({
       });
 
       // Use server response to set delivered_at immediately for own messages
-      const serverMessage =
+      const serverMessage = (
         (result as { message?: MessageResponse })?.message ??
         (result
           ? {
@@ -596,11 +578,14 @@ export function Chat({
               content,
               sender_id: currentUserId,
               booking_id: bookingId,
+              conversation_id: conversationId,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
               delivered_at: null,
+              is_deleted: false,
             }
-          : undefined);
+          : undefined)
+      ) as MessageResponse | undefined;
       if (serverMessage) {
         setRealtimeMessages((prev) => {
           const existingIndex = prev.findIndex((m) => m.id === serverMessage.id);
@@ -923,8 +908,8 @@ export function Chat({
                               return updated;
                             });
                             void queryClient.invalidateQueries({
-                              queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
-                              exact: false,
+      queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
+      exact: false,
                             });
                           }}
                           onReact={async (messageId, emoji) => {

@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.message_repository import MessageRepository
 from app.services.messaging import sse_stream
 from app.services.messaging.sse_stream import create_sse_stream
@@ -20,26 +21,34 @@ async def test_reconnection_catches_up(
     monkeypatch,
 ) -> None:
     """Messages sent during disconnect are delivered on reconnect via Last-Event-ID."""
+    conversation_repo = ConversationRepository(db)
     repo = MessageRepository(db)
+    conversation, _created = conversation_repo.get_or_create(
+        student_id=str(test_student.id), instructor_id=str(test_instructor_with_availability.id)
+    )
 
-    msg1 = repo.create_message(
-        booking_id=str(test_booking.id),
+    msg1 = repo.create_conversation_message(
+        conversation_id=conversation.id,
         sender_id=str(test_student.id),
+        booking_id=str(test_booking.id),
         content="First",
     )
-    msg2 = repo.create_message(
-        booking_id=str(test_booking.id),
+    msg2 = repo.create_conversation_message(
+        conversation_id=conversation.id,
         sender_id=str(test_student.id),
+        booking_id=str(test_booking.id),
         content="Second",
     )
-    msg3 = repo.create_message(
-        booking_id=str(test_booking.id),
+    msg3 = repo.create_conversation_message(
+        conversation_id=conversation.id,
         sender_id=str(test_student.id),
+        booking_id=str(test_booking.id),
         content="Third",
     )
-    msg4 = repo.create_message(
-        booking_id=str(test_booking.id),
+    msg4 = repo.create_conversation_message(
+        conversation_id=conversation.id,
         sender_id=str(test_instructor_with_availability.id),
+        booking_id=str(test_booking.id),
         content="Fourth",
     )
     db.commit()

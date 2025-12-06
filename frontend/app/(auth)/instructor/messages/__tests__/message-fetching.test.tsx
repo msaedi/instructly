@@ -126,6 +126,7 @@ describe('Instructor Messages - Message Fetching', () => {
       {
         id: 'msg-1',
         booking_id: 'booking-emma-456',
+        conversation_id: 'conversation-emma',
         sender_id: 'student-emma',
         content: 'Hello!',
         created_at: new Date().toISOString(),

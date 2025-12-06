@@ -14,11 +14,9 @@ class ConversationUserState(Base):
 
     id = Column(String(26), primary_key=True)
     user_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    # New primary association is conversation_id; booking_id retained for backward compatibility
     conversation_id = Column(
-        String(26), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=True
+        String(26), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
     )
-    booking_id = Column(String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=True)
     state = Column(String(20), nullable=False, default="active")  # active, archived, trashed
     state_changed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -26,13 +24,11 @@ class ConversationUserState(Base):
 
     # Relationships
     user = relationship("User", back_populates="conversation_states")
-    booking = relationship("Booking", back_populates="conversation_states")
     conversation = relationship("Conversation")
 
     __table_args__ = (
         UniqueConstraint(
             "user_id", "conversation_id", name="uq_conversation_user_state_user_conversation"
         ),
-        UniqueConstraint("user_id", "booking_id", name="uq_conversation_user_state_user_booking"),
         Index("ix_conversation_user_state_user_state", "user_id", "state"),
     )
