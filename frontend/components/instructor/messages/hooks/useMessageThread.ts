@@ -126,7 +126,7 @@ export function useMessageThread({
     staleThreadsRef.current.delete(threadId);
   }, []);
 
-  // When inbox-state derived conversations update, mark stale threads whose latestMessageAt advanced
+  // When conversation list updates, mark stale threads whose latestMessageAt advanced
   useEffect(() => {
     if (!conversationsRef.current) return;
     for (const conv of conversationsRef.current) {
@@ -515,13 +515,14 @@ export function useMessageThread({
     }
 
     // Update with delivered status
-    const deliveredAt = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const deliveredAtIso = new Date().toISOString();
+    const deliveredAt = new Date(deliveredAtIso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     const deliveredMessage: MessageWithAttachments = {
       ...optimistic,
       id: resolvedServerId ?? optimisticId,
       delivery: { status: 'delivered', timeLabel: deliveredAt },
-      // Add delivered_at field from backend response (Bug #4 fix)
-      delivered_at: deliveredAtFromBackend,
+      // Add delivered_at field (use backend value if available, otherwise now)
+      delivered_at: deliveredAtFromBackend ?? deliveredAtIso,
     };
 
     const applyDeliveryUpdate = (collection: MessageWithAttachments[]): MessageWithAttachments[] => {

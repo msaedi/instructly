@@ -13,6 +13,35 @@ class TestConversationState:
         assert response.status_code == 200
         return response.json()["id"]
 
+    def test_active_filter_returns_default_conversation(
+        self,
+        client,
+        auth_headers_instructor,
+        auth_headers_student,
+        test_booking,
+    ):
+        """Active filter should include conversations with no explicit state rows."""
+        conversation_id = self._get_conversation_id(
+            client, test_booking.id, auth_headers_instructor
+        )
+
+        # Send a message to ensure conversation has activity
+        send_resp = client.post(
+            f"/api/v1/conversations/{conversation_id}/messages",
+            json={"content": "Hello from student"},
+            headers=auth_headers_student,
+        )
+        assert send_resp.status_code == 200
+
+        resp = client.get(
+            "/api/v1/conversations?state=active&limit=50",
+            headers=auth_headers_instructor,
+        )
+        assert resp.status_code == 200
+        payload = resp.json()
+        ids = [c["id"] for c in payload.get("conversations", [])]
+        assert conversation_id in ids
+
     def test_archive_conversation(self, client, auth_headers_instructor, test_booking):
         """Test archiving a conversation."""
         conversation_id = self._get_conversation_id(client, test_booking.id, auth_headers_instructor)

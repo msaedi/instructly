@@ -416,7 +416,7 @@ describe('useUpdateConversationState', () => {
       wrapper: createWrapper(),
     });
 
-    result.current.mutate({ bookingId: 'booking1', state: 'archived' });
+    result.current.mutate({ conversationId: 'booking1', state: 'archived' });
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -442,7 +442,7 @@ describe('useUpdateConversationState', () => {
       wrapper: createWrapper(),
     });
 
-    result.current.mutate({ bookingId: 'booking2', state: 'trashed' });
+    result.current.mutate({ conversationId: 'booking2', state: 'trashed' });
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -466,7 +466,7 @@ describe('useUpdateConversationState', () => {
       wrapper: createWrapper(),
     });
 
-    result.current.mutate({ bookingId: 'booking3', state: 'active' });
+    result.current.mutate({ conversationId: 'booking3', state: 'active' });
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -500,12 +500,10 @@ describe('useUpdateConversationState', () => {
       wrapper: Wrapper,
     });
 
-    result.current.mutate({ bookingId: 'booking1', state: 'archived' });
+    result.current.mutate({ conversationId: 'booking1', state: 'archived' });
 
     await waitFor(() => {
-      // Should invalidate both new and legacy query keys
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['conversations'] });
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['inbox-state'] });
     });
   });
 
@@ -519,7 +517,7 @@ describe('useUpdateConversationState', () => {
       wrapper: createWrapper(),
     });
 
-    result.current.mutate({ bookingId: 'booking1', state: 'archived' });
+    result.current.mutate({ conversationId: 'booking1', state: 'archived' });
 
     await waitFor(() => {
       expect(result.current.isError).toBe(true);

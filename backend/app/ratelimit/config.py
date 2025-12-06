@@ -29,7 +29,8 @@ settings: RateLimitSettings = RateLimitSettings()
 BUCKETS: Dict[str, Dict[str, Any]] = {
     "auth_bootstrap": dict(rate_per_min=100, burst=20, window_s=60),
     "read": dict(rate_per_min=60, burst=10, window_s=60),
-    "write": dict(rate_per_min=20, burst=3, window_s=60),
+    # Messaging uses the "write" bucket; relax to 30/min with a burst of 5 to prevent 429s during normal chat use
+    "write": dict(rate_per_min=30, burst=10, window_s=60),
     "financial": dict(rate_per_min=5, burst=0, window_s=60),
 }
 

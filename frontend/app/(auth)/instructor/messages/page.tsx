@@ -202,28 +202,28 @@ export default function MessagesPage() {
   }, [conversations, invalidateConversationCache]);
 
   // Backend-powered archive/trash handlers
-  const handleArchiveConversation = useCallback((bookingId: string) => {
+  const handleArchiveConversation = useCallback((conversationId: string) => {
     // If archiving the currently selected conversation, clear selection
-    if (selectedChat === bookingId) {
+    if (selectedChat === conversationId) {
       intentionallyClearedRef.current = true;
       setSelectedChat(null);
     }
-    updateStateMutation.mutate({ bookingId, state: 'archived' });
+    updateStateMutation.mutate({ conversationId, state: 'archived' });
   }, [updateStateMutation, selectedChat]);
 
-  const handleDeleteConversation = useCallback((bookingId: string) => {
+  const handleDeleteConversation = useCallback((conversationId: string) => {
     // If trashing the currently selected conversation, clear selection
-    if (selectedChat === bookingId) {
+    if (selectedChat === conversationId) {
       intentionallyClearedRef.current = true;
       setSelectedChat(null);
     }
-    updateStateMutation.mutate({ bookingId, state: 'trashed' });
+    updateStateMutation.mutate({ conversationId, state: 'trashed' });
   }, [updateStateMutation, selectedChat]);
 
-  const handleRestoreConversation = useCallback((bookingId: string) => {
+  const handleRestoreConversation = useCallback((conversationId: string) => {
     // Restore conversation to active state
     updateStateMutation.mutate(
-      { bookingId, state: 'active' },
+      { conversationId, state: 'active' },
       {
         onSuccess: () => {
           // After cache is invalidated, clear selection and switch back to inbox

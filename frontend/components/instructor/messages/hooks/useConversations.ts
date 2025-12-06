@@ -243,7 +243,7 @@ export function useConversations({
  * useUpdateConversationState - Mutation hook for updating conversation state
  *
  * Allows archiving, trashing, or restoring conversations.
- * Automatically invalidates both conversation and inbox-state queries.
+ * Automatically invalidates conversation queries.
  *
  * Phase 4 Note: State updates now use /api/v1/conversations/{conversationId}/state only.
  */
@@ -252,14 +252,14 @@ export function useUpdateConversationState() {
 
   return useMutation({
     mutationFn: async ({
-      bookingId,
+      conversationId,
       state,
     }: {
-      bookingId: string;
+      conversationId: string;
       state: 'active' | 'archived' | 'trashed';
     }) => {
       const response = await fetch(
-        withApiBase(`/api/v1/conversations/${bookingId}/state`),
+        withApiBase(`/api/v1/conversations/${conversationId}/state`),
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -277,8 +277,6 @@ export function useUpdateConversationState() {
     onSuccess: () => {
       // Invalidate all conversation-related queries
       void queryClient.invalidateQueries({ queryKey: conversationKeys.all });
-      // Also invalidate legacy inbox-state queries for backward compatibility
-      void queryClient.invalidateQueries({ queryKey: ['inbox-state'] });
     },
   });
 }

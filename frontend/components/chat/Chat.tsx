@@ -105,6 +105,7 @@ export function Chat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Phase 7: Fetch conversation_id for SSE subscription AND message history
   // One conversation per student-instructor pair - SSE must use conversation_id, not booking_id
@@ -129,6 +130,13 @@ export function Chat({
   });
   const conversationId = conversationData?.id;
 
+  // Autofocus the message box when chat opens (only when editable)
+  useEffect(() => {
+    if (!isReadOnly) {
+      inputRef.current?.focus();
+    }
+  }, [conversationId, isReadOnly]);
+
   // Fetch message history by conversation_id (Phase 7)
   // This fetches ALL messages in the conversation, regardless of which booking they were sent from
   const {
@@ -150,7 +158,6 @@ export function Chat({
   const removeReactionMutation = useRemoveReaction();
   const sendTypingMutation = useSendConversationTyping();
   const lastMarkedUnreadByBookingRef = useRef<Record<string, string | null>>({});
-  const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Real-time messages via SSE (Phase 4: per-user inbox)
   const { subscribe, isConnected, connectionError } = useMessageStream();

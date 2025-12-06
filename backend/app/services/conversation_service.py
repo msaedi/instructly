@@ -151,25 +151,23 @@ class ConversationService(BaseService):
         # Convert Sequence to list for manipulation
         conversations = list(conversations_seq)
 
-        # Apply per-user state filtering using conversation_user_state records
-        if state_filter:
-            target_ids = set(
-                self.conversation_state_repository.get_conversation_ids_by_state(
-                    user_id, state_filter
-                )
-            )
-            conversations = [c for c in conversations if c.id in target_ids]
-        else:
-            # Exclude archived/trashed conversations for active view
-            archived_ids = set(
-                self.conversation_state_repository.get_conversation_ids_by_state(
-                    user_id, "archived"
-                )
-            )
-            trashed_ids = set(
-                self.conversation_state_repository.get_conversation_ids_by_state(user_id, "trashed")
-            )
-            conversations = [c for c in conversations if c.id not in archived_ids | trashed_ids]
+        # Apply per-user state filtering using conversation_user_state records.
+        # "active" is the default when no state row exists, so treat it the same
+        # as the unfiltered view: exclude archived/trashed, include everything else.
+        archived_ids = set(
+            self.conversation_state_repository.get_conversation_ids_by_state(user_id, "archived")
+        )
+        trashed_ids = set(
+            self.conversation_state_repository.get_conversation_ids_by_state(user_id, "trashed")
+        )
+
+        if state_filter in (None, "active"):
+            excluded = archived_ids | trashed_ids
+            conversations = [c for c in conversations if c.id not in excluded]
+        elif state_filter == "archived":
+            conversations = [c for c in conversations if c.id in archived_ids]
+        elif state_filter == "trashed":
+            conversations = [c for c in conversations if c.id in trashed_ids]
 
         next_cursor = None
         if len(conversations) > limit:
