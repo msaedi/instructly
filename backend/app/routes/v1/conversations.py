@@ -157,6 +157,7 @@ def list_conversations(
                 last_message=last_message,
                 unread_count=unread_count,
                 next_booking=next_booking,
+                upcoming_bookings=[_build_booking_summary(b) for b in upcoming],
                 upcoming_booking_count=len(upcoming),
                 state=state_value,
             )

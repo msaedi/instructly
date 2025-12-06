@@ -60,6 +60,7 @@ export interface ConversationListItem {
   last_message?: LastMessage | null;
   unread_count: number;
   next_booking?: BookingSummary | null;
+  upcoming_bookings: BookingSummary[];
   upcoming_booking_count: number;
   state: ConversationStateFilter;
 }

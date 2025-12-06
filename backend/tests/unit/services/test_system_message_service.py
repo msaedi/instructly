@@ -25,11 +25,19 @@ class TestSystemMessageService:
         mock_conversation.id = "conv_01ABC123DEF456GHI789JKL"
         repo.get_or_create.return_value = (mock_conversation, False)
         repo.update_last_message_at.return_value = None
+        # Mock get_participant_first_names to return reasonable test names
+        repo.get_participant_first_names.return_value = {
+            "student_01ABC123DEF456GHI789JK": "John",
+            "instructor_01ABC123DEF456GH": "Sarah",
+        }
         return repo
 
     @pytest.fixture
     def mock_message_repo(self):
-        return Mock()
+        repo = Mock()
+        # Default: no recent reschedule message
+        repo.has_recent_reschedule_message.return_value = False
+        return repo
 
     @pytest.fixture
     def service(self, db, mock_conversation_repo, mock_message_repo):
@@ -81,7 +89,7 @@ class TestSystemMessageService:
         assert "cancelled" in call_args.kwargs["content"].lower()
 
     def test_create_booking_cancelled_message_by_student(self, service, mock_message_repo):
-        """Includes 'by student' when student cancels."""
+        """Includes student name when student cancels."""
         service.create_booking_cancelled_message(
             student_id="student_01ABC123DEF456GHI789JK",
             instructor_id="instructor_01ABC123DEF456GH",
@@ -92,10 +100,11 @@ class TestSystemMessageService:
         )
 
         call_args = mock_message_repo.create_conversation_message.call_args
-        assert "by student" in call_args.kwargs["content"].lower()
+        # Now uses the student's actual name (John) instead of role
+        assert "by john" in call_args.kwargs["content"].lower()
 
     def test_create_booking_cancelled_message_by_instructor(self, service, mock_message_repo):
-        """Includes 'by instructor' when instructor cancels."""
+        """Includes instructor name when instructor cancels."""
         service.create_booking_cancelled_message(
             student_id="student_01ABC123DEF456GHI789JK",
             instructor_id="instructor_01ABC123DEF456GH",
@@ -106,7 +115,8 @@ class TestSystemMessageService:
         )
 
         call_args = mock_message_repo.create_conversation_message.call_args
-        assert "by instructor" in call_args.kwargs["content"].lower()
+        # Now uses the instructor's actual name (Sarah) instead of role
+        assert "by sarah" in call_args.kwargs["content"].lower()
 
     def test_create_booking_rescheduled_message(self, service, mock_message_repo):
         """Creates system message when booking is rescheduled."""

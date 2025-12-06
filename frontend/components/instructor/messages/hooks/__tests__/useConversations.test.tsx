@@ -79,6 +79,7 @@ describe('useConversations', () => {
             is_from_me: false,
           },
           upcoming_booking_count: 0,
+          upcoming_bookings: [],
           state: 'active',
         },
       ]);
@@ -121,6 +122,7 @@ describe('useConversations', () => {
             is_from_me: true,
           },
           upcoming_booking_count: 0,
+          upcoming_bookings: [],
           state: 'archived',
         },
       ]);
@@ -164,6 +166,7 @@ describe('useConversations', () => {
             is_from_me: false,
           },
           upcoming_booking_count: 0,
+          upcoming_bookings: [],
           state: 'trashed',
         },
       ]);
@@ -203,6 +206,7 @@ describe('useConversations', () => {
           unread_count: 1,
           last_message: null,
           upcoming_booking_count: 0,
+          upcoming_bookings: [],
           state: 'active',
         },
       ]);
@@ -245,6 +249,7 @@ describe('useConversations', () => {
             is_from_me: false,
           },
           upcoming_booking_count: 0,
+          upcoming_bookings: [],
           state: 'active',
         },
         {
@@ -257,6 +262,7 @@ describe('useConversations', () => {
             is_from_me: false,
           },
           upcoming_booking_count: 0,
+          upcoming_bookings: [],
           state: 'active',
         },
         {
@@ -269,6 +275,7 @@ describe('useConversations', () => {
             is_from_me: true,
           },
           upcoming_booking_count: 0,
+          upcoming_bookings: [],
           state: 'active',
         },
       ]);
@@ -309,6 +316,7 @@ describe('useConversations', () => {
             is_from_me: true,
           },
           upcoming_booking_count: 0,
+          upcoming_bookings: [],
           state: 'active',
         },
       ]);

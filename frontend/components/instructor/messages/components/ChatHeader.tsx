@@ -22,13 +22,47 @@ export type ChatHeaderProps = {
 };
 
 /**
+ * Format a date string (YYYY-MM-DD) to "Dec 8" format
+ */
+function formatDateShort(dateStr: string): string {
+  try {
+    const date = parseISO(dateStr);
+    return format(date, 'MMM d');
+  } catch {
+    return dateStr;
+  }
+}
+
+/**
+ * Format a 24-hour time string (HH:MM) to 12-hour format (e.g., "9am", "5:30pm")
+ */
+function formatTime12h(timeStr: string): string {
+  try {
+    const [hoursStr, minutesStr] = timeStr.split(':');
+    const hours = parseInt(hoursStr ?? '0', 10);
+    const minutes = parseInt(minutesStr ?? '0', 10);
+
+    const period = hours < 12 ? 'am' : 'pm';
+    let hour12 = hours % 12;
+    if (hour12 === 0) hour12 = 12;
+
+    if (minutes === 0) {
+      return `${hour12}${period}`;
+    }
+    return `${hour12}:${minutesStr}${period}`;
+  } catch {
+    return timeStr;
+  }
+}
+
+/**
  * Format booking info for display
  */
 function formatBookingInfo(booking: ConversationBooking): string {
   try {
-    const date = parseISO(booking.date);
-    const formattedDate = format(date, 'MMM d');
-    return `${booking.service_name} on ${formattedDate} at ${booking.start_time}`;
+    const formattedDate = formatDateShort(booking.date);
+    const formattedTime = formatTime12h(booking.start_time);
+    return `${booking.service_name} on ${formattedDate}, ${formattedTime}`;
   } catch {
     return `${booking.service_name} - ${booking.date}`;
   }
@@ -45,6 +79,7 @@ export function ChatHeader({
   onComposeRecipientClear,
 }: ChatHeaderProps) {
   const [showThreadMenu, setShowThreadMenu] = useState(false);
+  const [showUpcomingBookings, setShowUpcomingBookings] = useState(false);
   const threadMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -117,6 +152,11 @@ export function ChatHeader({
   // Get booking context from conversation
   const nextBooking = activeConversation?.nextBooking;
   const upcomingCount = activeConversation?.upcomingBookingCount ?? 0;
+  const upcomingBookings = activeConversation?.upcomingBookings ?? [];
+  // Get all bookings except the next one for the expandable list
+  const remainingBookings = nextBooking
+    ? upcomingBookings.filter((b) => b.id !== nextBooking.id)
+    : upcomingBookings;
 
   return (
     <div className="flex-shrink-0 p-4 border-b border-gray-200">
@@ -143,7 +183,7 @@ export function ChatHeader({
           {nextBooking && (
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 border border-purple-200 rounded-full text-xs text-purple-700">
               <Calendar className="w-3 h-3" />
-              <span className="truncate max-w-[180px]">{formatBookingInfo(nextBooking)}</span>
+              <span className="truncate max-w-[220px]">{formatBookingInfo(nextBooking)}</span>
               {upcomingCount > 1 && (
                 <span className="text-purple-500">+{upcomingCount - 1} more</span>
               )}
@@ -167,36 +207,55 @@ export function ChatHeader({
                   <div className="p-3 border-b border-gray-100">
                     <p className="text-sm font-medium text-gray-900">Booking Info</p>
                   </div>
-                  <div className="p-2">
+                  <div className="p-3">
                     {nextBooking ? (
-                      <div className="px-2 py-2">
-                        <p className="text-xs font-medium text-gray-700 mb-1">Next Booking</p>
-                        <p className="text-sm text-gray-900">{nextBooking.service_name}</p>
-                        <p className="text-xs text-gray-500">{nextBooking.date} at {nextBooking.start_time}</p>
+                      <div className="space-y-3">
+                        {/* Header row with NEXT BOOKING label and Upcoming tag */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-[#7E22CE] uppercase tracking-wide">Next Booking</span>
+                          <span className="px-2 py-0.5 text-xs font-medium text-[#7E22CE] border border-[#7E22CE] rounded-full">
+                            Upcoming
+                          </span>
+                        </div>
+
+                        {/* Next booking details in purple container */}
+                        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                          <p className="text-sm font-medium text-gray-900">{nextBooking.service_name}</p>
+                          <p className="text-xs text-gray-500">{formatDateShort(nextBooking.date)}, {formatTime12h(nextBooking.start_time)}</p>
+                          <p className="text-[10px] text-gray-400 font-mono mt-1 truncate">{nextBooking.id}</p>
+                        </div>
+
+                        {/* Expand/collapse for more bookings */}
                         {upcomingCount > 1 && (
-                          <p className="text-xs text-purple-600 mt-1">
-                            +{upcomingCount - 1} upcoming {upcomingCount - 1 === 1 ? 'booking' : 'bookings'}
-                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setShowUpcomingBookings((v) => !v)}
+                            className="text-xs text-[#7E22CE] flex items-center justify-between gap-1 hover:text-purple-800 w-full text-left pt-1"
+                          >
+                            <span>
+                              +{upcomingCount - 1} more upcoming {upcomingCount - 1 === 1 ? 'booking' : 'bookings'}
+                            </span>
+                            <span aria-hidden="true" className={`transition-transform ${showUpcomingBookings ? 'rotate-180' : ''}`}>^</span>
+                          </button>
+                        )}
+
+                        {/* Expanded upcoming bookings */}
+                        {showUpcomingBookings && remainingBookings.length > 0 && (
+                          <div className="space-y-2 pt-2">
+                            {remainingBookings.map((booking) => (
+                              <div key={booking.id} className="p-2.5 bg-gray-50 rounded-lg border border-gray-200">
+                                <p className="text-sm font-medium text-gray-900">{booking.service_name}</p>
+                                <p className="text-xs text-gray-500">{formatDateShort(booking.date)}, {formatTime12h(booking.start_time)}</p>
+                                <p className="text-[10px] text-gray-400 font-mono mt-1 truncate">{booking.id}</p>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 px-2 py-1">No upcoming bookings</p>
+                      <p className="text-sm text-gray-500">No upcoming bookings</p>
                     )}
                   </div>
-                  {(activeConversation.bookingIds || []).length > 0 && (
-                    <>
-                      <div className="border-t border-gray-100 p-3">
-                        <p className="text-xs font-medium text-gray-500">Booking IDs</p>
-                      </div>
-                      <ul className="max-h-40 overflow-auto px-2 pb-2 space-y-1 text-xs">
-                        {(activeConversation.bookingIds || []).map((bid) => (
-                          <li key={bid} className="px-2 py-1 text-gray-600 font-mono truncate hover:bg-gray-50 rounded">
-                            {bid}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
                 </div>
               )}
             </div>

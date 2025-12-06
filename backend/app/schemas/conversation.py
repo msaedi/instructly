@@ -68,6 +68,7 @@ class ConversationListItem(BaseModel):
     last_message: Optional[LastMessage] = None
     unread_count: int = 0
     next_booking: Optional[BookingSummary] = None
+    upcoming_bookings: List[BookingSummary] = Field(default_factory=list)
     upcoming_booking_count: int = 0
     state: str = "active"  # active | archived | trashed
 

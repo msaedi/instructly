@@ -190,8 +190,8 @@ export function useConversations({
           avatar,
           type: 'student' as const,
           // In the new model, a conversation spans all bookings between users
-          // For now, map to single booking if next_booking exists
-          bookingIds: conv.next_booking ? [conv.next_booking.id] : [],
+          // Use upcoming_bookings array from API response
+          bookingIds: (conv.upcoming_bookings ?? []).map((b) => b.id),
           primaryBookingId: conv.next_booking?.id ?? null,
           studentId: conv.other_user.id,
           instructorId: currentUserId ?? null,
@@ -202,6 +202,7 @@ export function useConversations({
           // New fields for the per-user-pair model
           conversationId: conv.id,
           nextBooking: conv.next_booking,
+          upcomingBookings: conv.upcoming_bookings ?? [],
           upcomingBookingCount: conv.upcoming_booking_count,
         };
       });

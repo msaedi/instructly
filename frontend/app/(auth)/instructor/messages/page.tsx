@@ -1001,6 +1001,7 @@ export default function MessagesPage() {
                         isSendDisabled={isSendDisabled}
                         typingUserName={typingUserName}
                         messageDisplay={messageDisplay}
+                        hasUpcomingBookings={isComposeView || activeConversation?.type === 'platform' || (activeConversation?.upcomingBookingCount ?? 0) > 0}
                         onMessageChange={handleMessageChange}
                         onKeyPress={handleKeyPress}
                         onSend={handleSend}

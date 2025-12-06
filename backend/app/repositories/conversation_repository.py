@@ -7,13 +7,14 @@ Follows the repository pattern with clean separation from business logic.
 """
 
 from datetime import datetime, timezone
-from typing import Optional, Sequence, cast
+from typing import Dict, List, Optional, Sequence, cast
 
 from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Query, Session, joinedload
 
 from ..models.conversation import Conversation
 from ..models.message import Message
+from ..models.user import User
 from .base_repository import BaseRepository
 
 
@@ -304,3 +305,24 @@ class ConversationRepository(BaseRepository[Conversation]):
             .scalar()
         )
         return int(result or 0)
+
+    def get_participant_first_names(self, user_ids: List[str]) -> Dict[str, Optional[str]]:
+        """
+        Get first names for a list of user IDs.
+
+        Used for personalizing system messages with participant names.
+
+        Args:
+            user_ids: List of user IDs to look up
+
+        Returns:
+            Dict mapping user_id to first_name (None if not found)
+        """
+        if not user_ids:
+            return {}
+
+        try:
+            rows = self.db.query(User.id, User.first_name).filter(User.id.in_(user_ids)).all()
+            return {uid: first_name for uid, first_name in rows}
+        except Exception:
+            return {uid: None for uid in user_ids}

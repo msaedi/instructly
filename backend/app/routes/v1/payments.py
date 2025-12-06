@@ -964,6 +964,22 @@ async def create_checkout(
             except Exception as cache_err:
                 logger.warning(f"Failed to invalidate booking cache: {cache_err}")
 
+            # Create system message in conversation for booking notification
+            try:
+                service_name = "Lesson"
+                if booking.instructor_service and booking.instructor_service.name:
+                    service_name = booking.instructor_service.name
+                booking_service.system_message_service.create_booking_created_message(
+                    student_id=booking.student_id,
+                    instructor_id=booking.instructor_id,
+                    booking_id=booking.id,
+                    service_name=service_name,
+                    booking_date=booking.booking_date,
+                    start_time=booking.start_time,
+                )
+            except Exception as msg_err:
+                logger.error(f"Failed to create system message for booking {booking.id}: {msg_err}")
+
         logger.info(f"Processed payment for booking {payload.booking_id}")
 
         # If the Stripe service indicates 3DS is required, surface client_secret

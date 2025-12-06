@@ -17,6 +17,7 @@ export type MessageInputProps = {
   isSendDisabled: boolean;
   typingUserName: string | null;
   messageDisplay: 'inbox' | 'archived' | 'trash';
+  hasUpcomingBookings?: boolean;
   onMessageChange: (value: string) => void;
   onKeyPress: (e: KeyboardEvent<HTMLTextAreaElement>) => void;
   onSend: () => void;
@@ -30,6 +31,7 @@ export function MessageInput({
   isSendDisabled,
   typingUserName,
   messageDisplay,
+  hasUpcomingBookings = true,
   onMessageChange,
   onKeyPress,
   onSend,
@@ -44,6 +46,15 @@ export function MessageInput({
         {messageDisplay === 'archived'
           ? 'Archived messages are read-only.'
           : 'Trashed messages are read-only.'}
+      </div>
+    );
+  }
+
+  // Show read-only message when there are no upcoming bookings
+  if (!hasUpcomingBookings) {
+    return (
+      <div className="p-6 border-t border-gray-200 text-center text-sm text-gray-500">
+        This lesson has ended. Chat is view-only.
       </div>
     );
   }

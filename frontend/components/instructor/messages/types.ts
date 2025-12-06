@@ -93,6 +93,7 @@ export type ConversationEntry = {
   // Phase 4: New fields for per-user-pair model
   conversationId?: string | undefined;
   nextBooking?: ConversationBooking | null | undefined;
+  upcomingBookings?: ConversationBooking[] | undefined;
   upcomingBookingCount?: number | undefined;
 };
 

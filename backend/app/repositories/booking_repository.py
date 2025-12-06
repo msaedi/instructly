@@ -1428,8 +1428,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             List of upcoming bookings ordered by date/time ascending
         """
         try:
-            user_today = get_user_today_by_id(student_id, self.db)
-
+            # Use student's local time since bookings are stored in local time
+            user_now = get_user_now_by_id(student_id, self.db)
             return cast(
                 List[Booking],
                 self.db.query(Booking)
@@ -1438,7 +1438,13 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     Booking.student_id == student_id,
                     Booking.instructor_id == instructor_id,
                     Booking.status == BookingStatus.CONFIRMED,
-                    Booking.booking_date >= user_today,
+                    or_(
+                        Booking.booking_date > user_now.date(),
+                        and_(
+                            Booking.booking_date == user_now.date(),
+                            Booking.start_time > user_now.time(),
+                        ),
+                    ),
                 )
                 .order_by(Booking.booking_date.asc(), Booking.start_time.asc())
                 .limit(limit)

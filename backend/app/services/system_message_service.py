@@ -87,11 +87,14 @@ class SystemMessageService(BaseService):
             start_time: Start time of the booking
         """
         conversation = self._get_or_create_conversation(student_id, instructor_id)
+        student_first, _instructor_first = self._get_participant_names(student_id, instructor_id)
 
         # Format the message
         date_str = booking_date.strftime("%b %d")  # e.g., "Dec 10"
         time_str = self._format_time(start_time)  # e.g., "5pm"
-        content = f"🔔 Lesson booked: {service_name}, {date_str} at {time_str}"
+        # Personalized: include student first name and service name
+        booker = student_first or "student"
+        content = f"✅ {service_name} booked by {booker}: {date_str} at {time_str}"
 
         self._create_system_message(
             conversation_id=conversation.id,
@@ -131,14 +134,26 @@ class SystemMessageService(BaseService):
         """
         conversation = self._get_or_create_conversation(student_id, instructor_id)
 
+        # Skip cancellation message if this appears to be part of a recent reschedule
+        if self._recent_reschedule_exists(conversation.id):
+            self.logger.info(
+                "Skipping cancellation system message due to recent reschedule",
+                extra={"booking_id": booking_id, "conversation_id": conversation.id},
+            )
+            return
+
+        student_first, instructor_first = self._get_participant_names(student_id, instructor_id)
+
         date_str = booking_date.strftime("%b %d")
         time_str = self._format_time(start_time)
 
         # Optionally include who cancelled
         if cancelled_by == "student":
-            content = f"❌ Lesson cancelled by student: {date_str} at {time_str}"
+            actor = student_first or "student"
+            content = f"❌ Lesson cancelled by {actor}: {date_str} at {time_str}"
         elif cancelled_by == "instructor":
-            content = f"❌ Lesson cancelled by instructor: {date_str} at {time_str}"
+            actor = instructor_first or "instructor"
+            content = f"❌ Lesson cancelled by {actor}: {date_str} at {time_str}"
         else:
             content = f"❌ Lesson cancelled: {date_str} at {time_str}"
 
@@ -264,6 +279,19 @@ class SystemMessageService(BaseService):
         )
         return conversation
 
+    def _get_participant_names(
+        self, student_id: str, instructor_id: str
+    ) -> tuple[Optional[str], Optional[str]]:
+        """Fetch first names for participants (best-effort)."""
+        names = self.conversation_repository.get_participant_first_names(
+            [student_id, instructor_id]
+        )
+        return names.get(student_id), names.get(instructor_id)
+
+    def _recent_reschedule_exists(self, conversation_id: str) -> bool:
+        """Detect reschedule system message in the last minute for this conversation."""
+        return self.message_repository.has_recent_reschedule_message(conversation_id)
+
     def _create_system_message(
         self,
         conversation_id: str,
@@ -272,18 +300,21 @@ class SystemMessageService(BaseService):
         message_type: str,
     ) -> None:
         """Create a system message (no sender_id)."""
-        message = self.message_repository.create_conversation_message(
-            conversation_id=conversation_id,
-            sender_id=None,  # System messages have no sender
-            content=content,
-            message_type=message_type,
-            booking_id=booking_id,
-        )
+        # Use transaction context manager to ensure proper commit
+        with self.transaction():
+            message = self.message_repository.create_conversation_message(
+                conversation_id=conversation_id,
+                sender_id=None,  # System messages have no sender
+                content=content,
+                message_type=message_type,
+                booking_id=booking_id,
+            )
 
-        # Update conversation's last_message_at
-        self.conversation_repository.update_last_message_at(conversation_id)
+            # Update conversation's last_message_at
+            self.conversation_repository.update_last_message_at(conversation_id)
 
-        # Publish SSE event for real-time delivery (best effort, do not block booking flow)
+        # Publish SSE event AFTER transaction commits for real-time delivery
+        # (best effort, do not block booking flow)
         async def _publish_system_message() -> None:
             await publish_new_message(
                 db=self.db,

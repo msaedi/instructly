@@ -6,7 +6,7 @@ Implements all data access operations for message management
 following the TRUE 100% repository pattern.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, List, Optional, Sequence, Tuple, cast
 
@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import NotFoundException, RepositoryException
 from ..models.conversation import Conversation
-from ..models.message import Message, MessageNotification
+from ..models.message import MESSAGE_TYPE_SYSTEM_BOOKING_RESCHEDULED, Message, MessageNotification
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -520,3 +520,31 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             self.logger.error(f"Error fetching messages for conversation: {str(e)}")
             raise RepositoryException(f"Failed to fetch messages for conversation: {str(e)}")
+
+    def has_recent_reschedule_message(self, conversation_id: str, since_minutes: int = 1) -> bool:
+        """
+        Check if a reschedule system message was created recently in a conversation.
+
+        Used to suppress cancellation messages when part of a reschedule operation.
+
+        Args:
+            conversation_id: ID of the conversation
+            since_minutes: Look back window in minutes (default: 1)
+
+        Returns:
+            True if a reschedule message was found in the time window
+        """
+        try:
+            cutoff = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
+            exists = (
+                self.db.query(Message.id)
+                .filter(
+                    Message.conversation_id == conversation_id,
+                    Message.message_type == MESSAGE_TYPE_SYSTEM_BOOKING_RESCHEDULED,
+                    Message.created_at > cutoff,
+                )
+                .first()
+            )
+            return exists is not None
+        except Exception:
+            return False
