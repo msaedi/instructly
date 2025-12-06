@@ -184,10 +184,11 @@ class TestBookingSystemMessages:
 
         assert len(cancel_messages) >= 1, "Should have cancellation system message"
 
-        # Verify message content
+        # Verify message content - cancelled by the student's first name
         message = cancel_messages[-1]
         assert "cancelled" in message.content.lower()
-        assert "student" in message.content.lower()  # Cancelled by student
+        # System messages now use participant's first name, not role
+        assert test_student.first_name.lower() in message.content.lower()
 
     @pytest.mark.asyncio
     async def test_booking_completion_creates_system_message(
