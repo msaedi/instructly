@@ -262,8 +262,7 @@ def format_message_from_db(message: Message, user_id: str) -> Dict[str, str]:
     deleted_at_iso = _iso(_safe_attr(message, "deleted_at", None))
     deleted_by = _safe_attr(message, "deleted_by", None)
 
-    # Use conversation_id if available, fall back to booking_id for legacy messages
-    conv_id = getattr(message, "conversation_id", None) or message.booking_id
+    conv_id = getattr(message, "conversation_id", None)
     msg_type = getattr(message, "message_type", "user") or "user"
 
     payload = {
@@ -324,10 +323,5 @@ def fetch_messages_after(
         return message_repo.get_messages_after_id_for_conversations(
             conversation_ids, after_message_id, limit=100
         )
-
-    # Fallback to booking-based catch-up for legacy records
-    booking_ids = message_repo.get_user_booking_ids(user_id)
-    if booking_ids:
-        return message_repo.get_messages_after_id(booking_ids, after_message_id, limit=100)
 
     return []

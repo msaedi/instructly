@@ -328,6 +328,17 @@ class ConversationService(BaseService):
         # Update conversation's last_message_at
         self.conversation_repository.update_last_message_at(conversation_id, message.created_at)
 
+        # Auto-restore archived/trashed state for the other participant
+        recipient_id = (
+            conversation.instructor_id
+            if sender_id == conversation.student_id
+            else conversation.student_id
+        )
+        self.conversation_state_repository.restore_to_active(
+            user_id=recipient_id,
+            conversation_id=conversation_id,
+        )
+
         self.logger.info(
             f"Message sent in conversation {conversation_id}",
             extra={

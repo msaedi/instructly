@@ -26,8 +26,8 @@ class MessageResponse(StrictModel):
     """Response schema for a single message."""
 
     id: str
-    booking_id: str
-    sender_id: str
+    booking_id: Optional[str] = None
+    sender_id: Optional[str] = None
     content: str
     created_at: datetime
     updated_at: datetime
@@ -58,7 +58,7 @@ class MessagesHistoryResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     """Response for message history request."""
 
-    booking_id: str
+    booking_id: Optional[str] = None
     messages: List[MessageResponse]
     limit: int
     offset: int
@@ -179,6 +179,6 @@ class ConversationStateUpdateResponse(StrictModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    booking_id: str = Field(..., description="Booking/conversation ID")
+    booking_id: Optional[str] = Field(None, description="Booking/conversation ID")
     state: str = Field(..., description="New state (active, archived, or trashed)")
     state_changed_at: Optional[str] = Field(None, description="Timestamp of state change")

@@ -574,15 +574,13 @@ async def mark_messages_as_read(
     """
     Mark messages as read.
 
-    Can mark specific messages or all messages in a booking.
+    Can mark specific messages or all messages in a conversation.
     Requires VIEW_MESSAGES permission.
     """
     try:
-        if request.booking_id:
-            # Mark all messages in booking as read
-            count = service.mark_booking_messages_as_read(
-                booking_id=request.booking_id,
-                user_id=current_user.id,
+        if request.conversation_id:
+            count = service.mark_conversation_messages_as_read(
+                conversation_id=request.conversation_id, user_id=current_user.id
             )
         elif request.message_ids:
             # Mark specific messages as read
@@ -591,7 +589,7 @@ async def mark_messages_as_read(
                 user_id=current_user.id,
             )
         else:
-            raise ValidationException("Either booking_id or message_ids must be provided")
+            raise ValidationException("Either conversation_id or message_ids must be provided")
 
         return MarkMessagesReadResponse(
             success=True,

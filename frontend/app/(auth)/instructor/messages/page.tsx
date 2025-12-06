@@ -14,13 +14,13 @@ import { format, isToday, isYesterday } from 'date-fns';
 import { ArrowLeft, Bell, MessageSquare, ChevronDown, Undo2 } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import {
-  useSendTypingIndicator,
   useAddReaction,
   useRemoveReaction,
   useEditMessage,
   useDeleteMessage,
   useMessageConfig,
 } from '@/src/api/services/messages';
+import { sendTypingIndicator as sendConversationTypingIndicator } from '@/src/api/services/conversations';
 import { useAuthStatus } from '@/hooks/queries/useAuth';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import { logger } from '@/lib/logger';
@@ -242,18 +242,14 @@ export default function MessagesPage() {
       : null,
     [selectedChat, isComposeView, conversations]
   );
-  const selectedBookingId = activeConversation?.primaryBookingId ?? '';
 
   // Typing indicator
-  const sendTypingMutation = useSendTypingIndicator();
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleTyping = useCallback(() => {
-    if (!selectedBookingId) return;
-    try {
-      sendTypingMutation.mutate({ bookingId: selectedBookingId });
-    } catch {}
-  }, [selectedBookingId, sendTypingMutation]);
+    if (!selectedChat || selectedChat === COMPOSE_THREAD_ID) return;
+    void sendConversationTypingIndicator(selectedChat).catch(() => {});
+  }, [selectedChat]);
 
   // Reaction mutations and shared hook
   const addReactionMutation = useAddReaction();

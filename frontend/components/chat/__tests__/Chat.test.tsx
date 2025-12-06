@@ -5,13 +5,13 @@ import { Chat } from '../Chat';
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 
 const mockUseConversationMessages = jest.fn();
-const mockUseSendMessage = jest.fn();
 const mockUseMarkMessagesAsRead = jest.fn();
 const mockUseEditMessage = jest.fn();
 const mockUseDeleteMessage = jest.fn();
 const mockUseAddReaction = jest.fn();
 const mockUseRemoveReaction = jest.fn();
-const mockUseSendTypingIndicator = jest.fn();
+const mockUseSendConversationMessage = jest.fn();
+const mockUseSendConversationTyping = jest.fn();
 const mockUseMessageStream = jest.fn();
 
 // Mock react-query useQuery to return a stable conversation_id; keep other exports real
@@ -40,13 +40,16 @@ jest.mock('@/src/api/services/messages', () => ({
     error: null,
   }),
   useConversationMessages: (...args: unknown[]) => mockUseConversationMessages(...args),
-  useSendMessage: (...args: unknown[]) => mockUseSendMessage(...args),
   useMarkMessagesAsRead: (...args: unknown[]) => mockUseMarkMessagesAsRead(...args),
   useEditMessage: (...args: unknown[]) => mockUseEditMessage(...args),
   useDeleteMessage: (...args: unknown[]) => mockUseDeleteMessage(...args),
   useAddReaction: (...args: unknown[]) => mockUseAddReaction(...args),
   useRemoveReaction: (...args: unknown[]) => mockUseRemoveReaction(...args),
-  useSendTypingIndicator: (...args: unknown[]) => mockUseSendTypingIndicator(...args),
+}));
+
+jest.mock('@/src/api/services/conversations', () => ({
+  useSendConversationMessage: (...args: unknown[]) => mockUseSendConversationMessage(...args),
+  useSendConversationTyping: (...args: unknown[]) => mockUseSendConversationTyping(...args),
 }));
 
 // Mock queryKeys
@@ -55,7 +58,6 @@ jest.mock('@/src/api/queryKeys', () => ({
     messages: {
       config: ['messages', 'config'],
       unreadCount: ['messages', 'unread-count'],
-      history: (bookingId: string) => ['messages', 'history', bookingId, {}],
       conversationMessages: (conversationId: string) => ['messages', 'conversation', conversationId, {}],
     },
   },
@@ -105,14 +107,14 @@ describe('Chat mark-as-read behavior', () => {
     jest.clearAllMocks();
     queryClient = new QueryClient();
 
-    mockUseSendMessage.mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+    mockUseSendConversationMessage.mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+    mockUseSendConversationTyping.mockReturnValue({ mutate: jest.fn() });
     markMessagesAsReadMutate = jest.fn();
     mockUseMarkMessagesAsRead.mockImplementation(() => ({ mutate: markMessagesAsReadMutate }));
     mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
-    mockUseSendTypingIndicator.mockReturnValue({ mutate: jest.fn() });
     mockUseMessageStream.mockReturnValue({
       isConnected: true,
       connectionError: null,

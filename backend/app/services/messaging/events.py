@@ -54,7 +54,6 @@ def build_new_message_event(
     message_id: str,
     content: str,
     sender_id: Optional[str],
-    sender_name: Optional[str],
     conversation_id: str,
     recipient_ids: List[str],
     created_at: datetime,
@@ -62,6 +61,7 @@ def build_new_message_event(
     delivered_at: Optional[datetime] = None,
     reactions: Optional[List[Dict[str, Any]]] = None,
     message_type: str = "user",
+    sender_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build a new_message event.
 
@@ -104,7 +104,7 @@ def build_new_message_event(
 def build_typing_status_event(
     conversation_id: str,
     user_id: str,
-    user_name: str,
+    user_name: Optional[str] = None,
     is_typing: bool = True,
 ) -> Dict[str, Any]:
     """Build a typing_status event."""

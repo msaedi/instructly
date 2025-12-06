@@ -170,9 +170,6 @@ export function useMessageThread({
   ) => {
     if (!selectedChat || selectedChat === COMPOSE_THREAD_ID || !activeConversation || !currentUserId) return;
 
-    const bookingId = activeConversation.primaryBookingId;
-    if (!bookingId) return;
-
     const cached = messagesByThreadRef.current[selectedChat];
     const hasCache = Boolean(cached && cached.length > 0);
     const isStale = staleThreadsRef.current.has(selectedChat);
@@ -203,11 +200,11 @@ export function useMessageThread({
     }
 
     // Proactively mark as read on first view of this conversation to avoid duplicate effects
-    const lastMarked = markedReadThreadsRef.current.get(bookingId);
+    const lastMarked = markedReadThreadsRef.current.get(selectedChat);
     if (lastMarked === undefined) {
-      markedReadThreadsRef.current.set(bookingId, 0);
-      void markMessagesAsReadImperative({ booking_id: bookingId }).catch(() => {
-        markedReadThreadsRef.current.delete(bookingId);
+      markedReadThreadsRef.current.set(selectedChat, 0);
+      void markMessagesAsReadImperative({ conversation_id: selectedChat }).catch(() => {
+        markedReadThreadsRef.current.delete(selectedChat);
       });
     }
   }, [currentUserId]);

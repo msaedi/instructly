@@ -6,12 +6,10 @@ import type { ConversationEntry } from '@/components/instructor/messages/types';
 
 // Mock the API services
 const mockUseConversationMessages = jest.fn();
-const mockSendMessageImperative = jest.fn();
 const mockMarkMessagesAsReadImperative = jest.fn();
 
 jest.mock('@/src/api/services/messages', () => ({
   useConversationMessages: (...args: unknown[]) => mockUseConversationMessages(...args),
-  sendMessageImperative: (...args: unknown[]) => mockSendMessageImperative(...args),
   markMessagesAsReadImperative: (...args: unknown[]) => mockMarkMessagesAsReadImperative(...args),
 }));
 

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import NotFoundException, RepositoryException
 from ..models.booking import Booking
+from ..models.conversation import Conversation
 from ..models.message import Message, MessageNotification
 from .base_repository import BaseRepository
 
@@ -819,6 +820,25 @@ class MessageRepository(BaseRepository[Message]):
             )
             self.db.add(message)
             self.db.flush()
+
+            # Create notification for the recipient to power read receipts
+            if sender_id:
+                conversation = (
+                    self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
+                )
+                if conversation:
+                    recipient_id = (
+                        conversation.instructor_id
+                        if sender_id == conversation.student_id
+                        else conversation.student_id
+                    )
+                    notification = MessageNotification(
+                        message_id=message.id,
+                        user_id=recipient_id,
+                        is_read=False,
+                    )
+                    self.db.add(notification)
+                    self.db.flush()
 
             self.logger.info(
                 f"Created conversation message {message.id} in conversation {conversation_id}"

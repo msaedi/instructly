@@ -18,7 +18,6 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.repositories.booking_repository import BookingRepository
 from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.factory import RepositoryFactory
 from app.services.messaging.events import (
@@ -34,49 +33,19 @@ from app.services.messaging.redis_pubsub import pubsub_manager
 logger = logging.getLogger(__name__)
 
 
-def _get_booking_participants(db: Session, booking_id: str) -> List[str]:
-    """
-    Fetch participant IDs from booking using repository pattern.
-
-    Returns list of [student_id, instructor_id] or empty list if booking not found.
-    """
-    repository = BookingRepository(db)
-    booking = repository.get_by_id(booking_id)
-    if not booking:
-        logger.warning(f"[PUBLISHER] Booking not found: {booking_id}")
-        return []
-    return [booking.student_id, booking.instructor_id]
-
-
 def _get_conversation_participants(db: Session, conversation_id: str) -> List[str]:
     """
     Fetch participant IDs from conversation using repository pattern.
-
-    This function handles the ID mismatch between routes (which may pass booking_id)
-    and the new conversation-based architecture. It tries:
-    1. Direct conversation lookup by ID
-    2. Fallback: Look up booking by ID (routes often pass booking_id as conversation_id)
 
     Returns list of [student_id, instructor_id] or empty list if not found.
     """
     repository = ConversationRepository(db)
 
-    # Try direct conversation lookup first
     conversation = repository.get_by_id(conversation_id)
-    if conversation:
-        return [conversation.student_id, conversation.instructor_id]
-
-    # Fallback: The ID might be a booking_id (routes often pass booking_id as conversation_id)
-    # Use the existing booking lookup function which already handles this case
-    booking_participants = _get_booking_participants(db, conversation_id)
-    if booking_participants:
-        logger.debug(f"[PUBLISHER] Found participants via booking_id fallback: {conversation_id}")
-        return booking_participants
-
-    logger.warning(
-        f"[PUBLISHER] Conversation not found (tried both conversation_id and booking_id): {conversation_id}"
-    )
-    return []
+    if not conversation:
+        logger.error(f"[PUBLISHER] Conversation not found: {conversation_id}")
+        return []
+    return [conversation.student_id, conversation.instructor_id]
 
 
 async def publish_new_message(
@@ -159,7 +128,7 @@ async def publish_typing_status(
     db: Session,
     conversation_id: str,
     user_id: str,
-    user_name: str,
+    user_name: Optional[str] = None,
     is_typing: bool = True,
 ) -> None:
     """

@@ -16,23 +16,43 @@ import pytest
 class TestMessagingAPI:
     """Integration tests for messaging API endpoints."""
 
+    @staticmethod
+    def _get_conversation_id(client: TestClient, booking_id: str, headers: dict) -> str:
+        """Helper to fetch or create a conversation for a booking."""
+        response = client.get(
+            f"/api/v1/conversations/by-booking/{booking_id}",
+            headers=headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        return data["id"]
+
     def test_send_message_returns_delivered_at(
         self, client_type, request, auth_headers_instructor, test_booking
     ):
         """Bug #4: API response must include delivered_at."""
         client: TestClient = request.getfixturevalue(client_type)
 
-        response = client.post(
-            "/api/v1/messages/send",
-            json={"booking_id": test_booking.id, "content": "Hello"},
+        conversation_id = self._get_conversation_id(
+            client, test_booking.id, auth_headers_instructor
+        )
+
+        send_response = client.post(
+            f"/api/v1/conversations/{conversation_id}/messages",
+            json={"content": "Hello"},
             headers=auth_headers_instructor,
         )
 
-        assert response.status_code == 201
-        data = response.json()
-        assert "message" in data
-        assert "delivered_at" in data["message"]
-        assert data["message"]["delivered_at"] is not None
+        assert send_response.status_code == 200
+
+        history_response = client.get(
+            f"/api/v1/conversations/{conversation_id}/messages",
+            headers=auth_headers_instructor,
+        )
+        assert history_response.status_code == 200
+        messages = history_response.json().get("messages", [])
+        assert messages
+        assert messages[0].get("delivered_at") is not None
 
     def test_message_history_includes_delivered_at(
         self, client_type, request, auth_headers_instructor, auth_headers_student, test_booking
@@ -40,17 +60,21 @@ class TestMessagingAPI:
         """Bug #4: Message history must include delivered_at field."""
         client: TestClient = request.getfixturevalue(client_type)
 
+        conversation_id = self._get_conversation_id(
+            client, test_booking.id, auth_headers_instructor
+        )
+
         # Send a message
         client.post(
-            "/api/v1/messages/send",
-            json={"booking_id": test_booking.id, "content": "Hello student"},
+            f"/api/v1/conversations/{conversation_id}/messages",
+            json={"content": "Hello student"},
             headers=auth_headers_instructor,
         )
 
         # Get message history
         response = client.get(
-            f"/api/v1/messages/history/{test_booking.id}",
-            headers=auth_headers_instructor,
+            f"/api/v1/conversations/{conversation_id}/messages",
+            headers=auth_headers_student,
         )
 
         assert response.status_code == 200
@@ -66,23 +90,27 @@ class TestMessagingAPI:
         """Bug #5: Message history must include read_by field."""
         client: TestClient = request.getfixturevalue(client_type)
 
+        conversation_id = self._get_conversation_id(
+            client, test_booking.id, auth_headers_instructor
+        )
+
         # Send message
         client.post(
-            "/api/v1/messages/send",
-            json={"booking_id": test_booking.id, "content": "Hello"},
+            f"/api/v1/conversations/{conversation_id}/messages",
+            json={"content": "Hello"},
             headers=auth_headers_instructor,
         )
 
         # Student marks as read
         client.post(
             "/api/v1/messages/mark-read",
-            json={"booking_id": test_booking.id},
+            json={"conversation_id": conversation_id},
             headers=auth_headers_student,
         )
 
         # Get message history
         response = client.get(
-            f"/api/v1/messages/history/{test_booking.id}",
+            f"/api/v1/conversations/{conversation_id}/messages",
             headers=auth_headers_instructor,
         )
 
@@ -143,10 +171,14 @@ class TestMessagingAPI:
         """Sent messages should create notifications for recipients."""
         client: TestClient = request.getfixturevalue(client_type)
 
+        conversation_id = self._get_conversation_id(
+            client, test_booking.id, auth_headers_instructor
+        )
+
         # Send message from instructor
         client.post(
-            "/api/v1/messages/send",
-            json={"booking_id": test_booking.id, "content": "Hello student"},
+            f"/api/v1/conversations/{conversation_id}/messages",
+            json={"content": "Hello student"},
             headers=auth_headers_instructor,
         )
 
@@ -167,17 +199,21 @@ class TestMessagingAPI:
         """Marking messages as read should clear notifications."""
         client: TestClient = request.getfixturevalue(client_type)
 
+        conversation_id = self._get_conversation_id(
+            client, test_booking.id, auth_headers_instructor
+        )
+
         # Send message from instructor
         client.post(
-            "/api/v1/messages/send",
-            json={"booking_id": test_booking.id, "content": "Hello"},
+            f"/api/v1/conversations/{conversation_id}/messages",
+            json={"content": "Hello"},
             headers=auth_headers_instructor,
         )
 
         # Student marks as read
         mark_read_response = client.post(
             "/api/v1/messages/mark-read",
-            json={"booking_id": test_booking.id},
+            json={"conversation_id": conversation_id},
             headers=auth_headers_student,
         )
 
@@ -196,7 +232,7 @@ class TestMessagingAPI:
         # Check if the conversation is in the list and has 0 unread
         conversations = data.get("conversations", [])
         this_conversation = next(
-            (c for c in conversations if c["id"] == test_booking.id),
+            (c for c in conversations if c["id"] == conversation_id),
             None
         )
         if this_conversation:
@@ -208,18 +244,22 @@ class TestMessagingAPI:
         """Message history should support pagination."""
         client: TestClient = request.getfixturevalue(client_type)
 
+        conversation_id = self._get_conversation_id(
+            client, test_booking.id, auth_headers_instructor
+        )
+
         # Send multiple messages
         for i in range(5):
             client.post(
-                "/api/v1/messages/send",
-                json={"booking_id": test_booking.id, "content": f"Message {i}"},
+                f"/api/v1/conversations/{conversation_id}/messages",
+                json={"content": f"Message {i}"},
                 headers=auth_headers_instructor,
             )
 
         # Get first 2 messages
         response = client.get(
-            f"/api/v1/messages/history/{test_booking.id}",
-            params={"limit": 2, "offset": 0},
+            f"/api/v1/conversations/{conversation_id}/messages",
+            params={"limit": 2},
             headers=auth_headers_instructor,
         )
 
@@ -234,10 +274,14 @@ class TestMessagingAPI:
         """Unread count should not include user's own messages."""
         client: TestClient = request.getfixturevalue(client_type)
 
+        conversation_id = self._get_conversation_id(
+            client, test_booking.id, auth_headers_instructor
+        )
+
         # Instructor sends message
         client.post(
-            "/api/v1/messages/send",
-            json={"booking_id": test_booking.id, "content": "From instructor"},
+            f"/api/v1/conversations/{conversation_id}/messages",
+            json={"content": "From instructor"},
             headers=auth_headers_instructor,
         )
 
@@ -251,7 +295,7 @@ class TestMessagingAPI:
         data = response.json()
         conversations = data.get("conversations", [])
         this_conversation = next(
-            (c for c in conversations if c["id"] == test_booking.id),
+            (c for c in conversations if c["id"] == conversation_id),
             None
         )
         if this_conversation:
@@ -264,15 +308,19 @@ class TestMessagingAPI:
         """Test reaction endpoint."""
         client: TestClient = request.getfixturevalue(client_type)
 
+        conversation_id = self._get_conversation_id(
+            client, test_booking.id, auth_headers_student
+        )
+
         # Create a message first
         message_response = client.post(
-            "/api/v1/messages/send",
-            json={"booking_id": test_booking.id, "content": "Test message"},
+            f"/api/v1/conversations/{conversation_id}/messages",
+            json={"content": "Test message"},
             headers=auth_headers_student,
         )
 
-        assert message_response.status_code == 201
-        message_id = message_response.json()["message"]["id"]
+        assert message_response.status_code == 200
+        message_id = message_response.json()["id"]
 
         # Add reaction
         reaction_response = client.post(

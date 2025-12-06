@@ -28,18 +28,20 @@ class SendMessageRequest(StrictRequestModel):
 class MarkMessagesReadRequest(StrictRequestModel):
     """Request to mark messages as read."""
 
-    booking_id: Optional[str] = Field(None, description="Mark all messages in this booking as read")
+    conversation_id: Optional[str] = Field(
+        None, description="Mark all messages in this conversation as read"
+    )
     message_ids: Optional[List[str]] = Field(
         None, description="Specific message IDs to mark as read"
     )
 
     @model_validator(mode="after")
-    def check_either_booking_or_ids(self) -> "MarkMessagesReadRequest":
-        """Ensure either booking_id or message_ids is provided, but not both."""
-        if not self.booking_id and not self.message_ids:
-            raise ValueError("Either booking_id or message_ids must be provided")
-        if self.booking_id and self.message_ids:
-            raise ValueError("Provide either booking_id or message_ids, not both")
+    def check_either_conversation_or_ids(self) -> "MarkMessagesReadRequest":
+        """Ensure either conversation_id or message_ids is provided, but not both."""
+        if not self.conversation_id and not self.message_ids:
+            raise ValueError("Either conversation_id or message_ids must be provided")
+        if self.conversation_id and self.message_ids:
+            raise ValueError("Provide either conversation_id or message_ids, not both")
         return self
 
 

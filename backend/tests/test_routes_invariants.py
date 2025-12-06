@@ -257,8 +257,6 @@ class TestRoutingInvariants:
             ("/api/v1/messages/{message_id}", "/api/v1/messages/unread-count"),
             ("/api/v1/messages/mark-read", "/api/v1/messages/{message_id}"),
             ("/api/v1/messages/{message_id}", "/api/v1/messages/mark-read"),
-            ("/api/v1/messages/send", "/api/v1/messages/{message_id}"),
-            ("/api/v1/messages/{message_id}", "/api/v1/messages/send"),
             # Phase 2: /stream (per-user SSE) defined before /{message_id}
             ("/api/v1/messages/stream", "/api/v1/messages/{message_id}"),
             ("/api/v1/messages/{message_id}", "/api/v1/messages/stream"),
@@ -511,10 +509,8 @@ class TestRoutingInvariants:
             "/api/v1/messages/config",  # GET
             "/api/v1/messages/unread-count",  # GET
             "/api/v1/messages/mark-read",  # POST
-            "/api/v1/messages/send",  # POST
             "/api/v1/messages/stream",  # GET (SSE - per-user inbox, Phase 2)
-            "/api/v1/messages/history/{booking_id}",  # GET
-            "/api/v1/messages/typing/{booking_id}",  # POST
+            "/api/v1/messages/inbox-state",  # GET
             "/api/v1/messages/{message_id}",  # PATCH, DELETE
             "/api/v1/messages/{message_id}/reactions",  # POST, DELETE
         ]

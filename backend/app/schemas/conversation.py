@@ -154,6 +154,13 @@ class UpdateConversationStateRequest(BaseModel):
     state: Literal["active", "archived", "trashed"]
 
 
+class UpdateConversationStateResponse(BaseModel):
+    """Response for updating conversation state."""
+
+    id: str
+    state: Literal["active", "archived", "trashed"]
+
+
 class TypingRequest(BaseModel):
     """Typing indicator payload."""
 

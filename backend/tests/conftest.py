@@ -1380,7 +1380,45 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
         db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor_with_availability.id).first()
     )
 
-    service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
+    # Ensure profile exists (some tests may not create it earlier)
+    if profile is None:
+        profile = InstructorProfile(
+            user_id=test_instructor_with_availability.id,
+            **_public_profile_kwargs(
+                bio="Test instructor bio",
+                years_experience=5,
+                min_advance_booking_hours=2,
+                buffer_time_minutes=15,
+            ),
+        )
+        db.add(profile)
+        db.flush()
+
+    service = (
+        db.query(Service)
+        .filter(Service.instructor_profile_id == profile.id, Service.is_active == True)
+        .first()
+    )
+    if service is None:
+        # Create a basic active service if none exists
+        catalog_service = (
+            db.query(ServiceCatalog)
+            .filter(ServiceCatalog.slug.in_(["piano", "guitar"]))
+            .order_by(ServiceCatalog.slug)
+            .first()
+        )
+        if not catalog_service:
+            raise RuntimeError("Required catalog services (piano, guitar) not found")
+        service = Service(
+            instructor_profile_id=profile.id,
+            service_catalog_id=catalog_service.id,
+            hourly_rate=50.0,
+            description=catalog_service.description,
+            duration_options=[60],
+            is_active=True,
+        )
+        db.add(service)
+        db.flush()
 
     # Get service name from catalog
     catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.id == service.service_catalog_id).first()

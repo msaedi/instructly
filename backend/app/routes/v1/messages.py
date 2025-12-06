@@ -16,20 +16,13 @@ Key Features:
     - RBAC permission checks
 
 Endpoints (organized with static routes BEFORE dynamic routes):
-    === Static Routes (Section 1) ===
-    GET /stream - SSE endpoint for per-user real-time messages (Phase 2)
+    GET /stream - SSE endpoint for per-user real-time messages
     GET /config - Get message configuration (edit window, etc.)
     GET /unread-count - Get total unread count for current user
-    GET /inbox-state - Get all conversations with unread counts (Phase 3)
-    POST /mark-read - Mark messages as read
-    POST /send - Send a message to a booking chat
+    GET /inbox-state - Get all conversations with unread counts
+    POST /mark-read - Mark messages as read by conversation or IDs
 
-    === Booking-specific Routes (Section 2) ===
-    GET /stream/{booking_id} - (DEPRECATED) SSE endpoint for booking-specific messages
-    GET /history/{booking_id} - Get paginated message history
-    POST /typing/{booking_id} - Send typing indicator
-
-    === Message-specific Routes (Section 3) ===
+    === Message-specific Routes ===
     PATCH /{message_id} - Edit a message
     DELETE /{message_id} - Soft delete a message
     POST /{message_id}/reactions - Add emoji reaction
@@ -39,7 +32,7 @@ Endpoints (organized with static routes BEFORE dynamic routes):
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 import logging
-from typing import Literal, Optional
+from typing import Optional
 
 from fastapi import (
     APIRouter,
@@ -66,17 +59,12 @@ from ...dependencies.permissions import require_permission
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
 from ...repositories.conversation_repository import ConversationRepository
-from ...schemas.message_requests import MarkMessagesReadRequest, SendMessageRequest
+from ...schemas.message_requests import MarkMessagesReadRequest
 from ...schemas.message_responses import (
-    ConversationStateUpdateResponse,
     DeleteMessageResponse,
     InboxStateResponse,
     MarkMessagesReadResponse,
     MessageConfigResponse,
-    MessageResponse,
-    MessagesHistoryResponse,
-    SendMessageResponse,
-    TypingStatusResponse,
     UnreadCountResponse,
 )
 from ...services.message_service import MessageService
@@ -86,14 +74,11 @@ from ...services.messaging import (
     create_sse_stream,
     publish_message_deleted,
     publish_message_edited,
-    publish_new_message,
     publish_reaction_update,
     publish_read_receipt,
-    publish_typing_status,
 )
 
 # Ensure request schema is fully built before FastAPI inspects annotations.
-SendMessageRequest.model_rebuild()
 MarkMessagesReadRequest.model_rebuild()
 
 logger = logging.getLogger(__name__)
@@ -147,11 +132,6 @@ class ReactionRequest(BaseModel):
 class EditMessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
     content: str = Field(..., min_length=1, max_length=5000, description="New message content")
-
-
-class ConversationStateUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    state: Literal["active", "archived", "trashed"]
 
 
 # ============================================================================
@@ -382,7 +362,7 @@ async def get_inbox_state(
         400: {"description": "Validation error"},
         401: {"description": "Not authenticated"},
         403: {"description": "Permission denied"},
-        422: {"description": "Either booking_id or message_ids must be provided"},
+        422: {"description": "Either conversation_id or message_ids must be provided"},
     },
 )
 async def mark_messages_as_read(
@@ -397,32 +377,17 @@ async def mark_messages_as_read(
     Requires VIEW_MESSAGES permission.
     """
     try:
-        booking_id: Optional[str] = None
         marked_message_ids: list[str] = []
         conversation_id: Optional[str] = None
 
-        if request.booking_id:
-            booking_id = request.booking_id
-
-            # Phase 7: Look up conversation_id to get unread messages across ALL bookings
-            # This is critical because messages may span multiple bookings in the same conversation
-            conversation_id = _get_conversation_id_for_booking(service.db, booking_id)
-            if conversation_id:
-                # Get unread messages for the CONVERSATION (not just booking)
-                unread_messages = service.repository.get_unread_messages_by_conversation(
-                    conversation_id, current_user.id
-                )
-                marked_message_ids = [msg.id for msg in unread_messages]
-            else:
-                # Fallback to booking-based lookup if no conversation found
-                unread_messages = service.repository.get_unread_messages(
-                    booking_id, current_user.id
-                )
-                marked_message_ids = [msg.id for msg in unread_messages]
-
-            # Mark all messages in booking as read
-            count = service.mark_booking_messages_as_read(
-                booking_id=booking_id,
+        if request.conversation_id:
+            conversation_id = request.conversation_id
+            unread_messages = service.repository.get_unread_messages_by_conversation(
+                conversation_id, current_user.id
+            )
+            marked_message_ids = [msg.id for msg in unread_messages]
+            count = service.mark_conversation_messages_as_read(
+                conversation_id=conversation_id,
                 user_id=current_user.id,
             )
         elif request.message_ids:
@@ -432,27 +397,21 @@ async def mark_messages_as_read(
                 message_ids=request.message_ids,
                 user_id=current_user.id,
             )
-            # Get booking_id from first message for notification
+            # Get conversation_id from first message for notification
             if marked_message_ids:
                 first_msg = service.repository.get_by_id(marked_message_ids[0])
                 if first_msg:
-                    booking_id = first_msg.booking_id
                     conversation_id = first_msg.conversation_id
         else:
-            raise ValidationException("Either booking_id or message_ids must be provided")
+            raise ValidationException("Either conversation_id or message_ids must be provided")
 
         # Redis Pub/Sub publishing (fire-and-forget)
-        # Phase 7: Use conversation_id (not booking_id) for SSE routing
         if count > 0 and marked_message_ids:
             # If we don't already have conversation_id, try to resolve it
             if not conversation_id:
-                # Try to get conversation_id from the first message
                 first_msg = service.repository.get_by_id(marked_message_ids[0])
                 if first_msg and first_msg.conversation_id:
                     conversation_id = first_msg.conversation_id
-                elif booking_id:
-                    # Fallback: look up conversation from booking
-                    conversation_id = _get_conversation_id_for_booking(service.db, booking_id)
 
             if conversation_id:
                 try:
@@ -477,7 +436,7 @@ async def mark_messages_as_read(
             else:
                 logger.warning(
                     "[REDIS-PUBSUB] Mark-read: Could not resolve conversation_id for SSE routing",
-                    extra={"booking_id": booking_id, "message_ids": marked_message_ids[:3]},
+                    extra={"message_ids": marked_message_ids[:3]},
                 )
 
         return MarkMessagesReadResponse(
@@ -503,336 +462,8 @@ async def mark_messages_as_read(
         )
 
 
-@router.post(
-    "/send",
-    response_model=SendMessageResponse,
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[
-        Depends(require_permission(PermissionName.SEND_MESSAGES)),
-    ],
-    responses={
-        201: {"description": "Message sent successfully"},
-        400: {"description": "Validation error"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied or no access to booking"},
-        404: {"description": "Booking not found"},
-    },
-)
-@rate_limit("10/minute", key_type=RateLimitKeyType.USER)
-async def send_message(
-    request: SendMessageRequest = Body(...),
-    current_user: User = Depends(get_current_active_user),
-    service: MessageService = Depends(get_message_service),
-) -> SendMessageResponse:
-    """
-    Send a message in a booking chat.
-
-    Requires SEND_MESSAGES permission.
-    Rate limited to 10 messages per minute.
-    """
-    # [MSG-DEBUG] Log message send attempt
-    logger.info(
-        "[MSG-DEBUG] Message SEND: Request received",
-        extra={
-            "user_id": current_user.id,
-            "booking_id": request.booking_id,
-            "content_length": len(request.content) if request.content else 0,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    )
-
-    try:
-        message = service.send_message(
-            booking_id=request.booking_id,
-            sender_id=current_user.id,
-            content=request.content,
-        )
-
-        # [MSG-DEBUG] Log successful message send
-        logger.info(
-            "[MSG-DEBUG] Message SEND: Success",
-            extra={
-                "user_id": current_user.id,
-                "booking_id": request.booking_id,
-                "message_id": message.id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-
-        # Redis Pub/Sub publishing (fire-and-forget)
-        # Phase 7: Use conversation_id (not booking_id) for SSE routing
-        conv_id = message.conversation_id
-        if not conv_id:
-            conv_id = _get_conversation_id_for_booking(service.db, request.booking_id)
-
-        if conv_id:
-            try:
-                await publish_new_message(
-                    db=service.db,
-                    message_id=str(message.id),
-                    content=message.content,
-                    sender_id=str(current_user.id),
-                    sender_name=f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
-                    or current_user.email,
-                    conversation_id=conv_id,
-                    created_at=message.created_at,
-                    booking_id=request.booking_id,
-                    delivered_at=message.delivered_at,
-                    message_type=message.message_type,
-                )
-                logger.debug(
-                    "[REDIS-PUBSUB] Message SEND: Published to Redis",
-                    extra={"message_id": message.id, "conversation_id": conv_id},
-                )
-            except Exception as e:
-                # Fire-and-forget: log but don't fail the request
-                logger.error(
-                    "[REDIS-PUBSUB] Message SEND: Redis publish failed",
-                    extra={"error": str(e), "message_id": message.id},
-                )
-        else:
-            logger.warning(
-                "[REDIS-PUBSUB] Message SEND: Could not resolve conversation_id",
-                extra={"message_id": message.id, "booking_id": request.booking_id},
-            )
-
-        return SendMessageResponse(
-            success=True,
-            message=MessageResponse.model_validate(message),
-        )
-
-    except ValidationException as e:
-        logger.warning(
-            "[MSG-DEBUG] Message SEND: Validation error",
-            extra={
-                "user_id": current_user.id,
-                "booking_id": request.booking_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
-    except ForbiddenException as e:
-        logger.warning(
-            "[MSG-DEBUG] Message SEND: Forbidden",
-            extra={
-                "user_id": current_user.id,
-                "booking_id": request.booking_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        )
-    except NotFoundException as e:
-        logger.warning(
-            "[MSG-DEBUG] Message SEND: Not found",
-            extra={
-                "user_id": current_user.id,
-                "booking_id": request.booking_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        )
-    except Exception as e:
-        logger.error(
-            "[MSG-DEBUG] Message SEND: Unexpected error",
-            extra={
-                "user_id": current_user.id,
-                "booking_id": request.booking_id,
-                "error": str(e),
-                "error_type": type(e).__name__,
-            },
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send message",
-        )
-
-
-@router.put(
-    "/conversations/{booking_id}/state",
-    response_model=ConversationStateUpdateResponse,
-    dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
-    responses={
-        200: {"description": "Conversation state updated"},
-        400: {"description": "Invalid state value"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied"},
-    },
-)
-async def update_conversation_state(
-    booking_id: str,
-    body: ConversationStateUpdate,
-    current_user: User = Depends(get_current_active_user),
-    service: MessageService = Depends(get_message_service),
-) -> ConversationStateUpdateResponse:
-    """
-    Update conversation state (archive, trash, or restore).
-
-    Sets the conversation state for the current user only (doesn't affect other participant).
-
-    Request body:
-        - state: 'active', 'archived', or 'trashed'
-
-    Returns:
-        Dict with booking_id, state, and state_changed_at
-
-    Requires VIEW_MESSAGES permission.
-    """
-    try:
-        result = service.set_conversation_state(
-            user_id=current_user.id, booking_id=booking_id, state=body.state
-        )
-        return ConversationStateUpdateResponse(**result)
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
-    except Exception as e:
-        logger.error(f"Error updating conversation state: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update conversation state",
-        )
-
-
 # ============================================================================
-# SECTION 2: Booking-specific routes (with {booking_id} parameter)
-# These use /stream/, /history/, /typing/ prefixes to avoid conflicts
-# ============================================================================
-
-
-# DEPRECATED: Per-booking SSE endpoint removed in Phase 2
-# Replaced by /stream (per-user inbox) for ALL user conversations
-# Old endpoint: /stream/{booking_id}
-# New endpoint: /stream (no booking_id - receives all user's messages)
-
-
-@router.get(
-    "/history/{booking_id}",
-    response_model=MessagesHistoryResponse,
-    dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
-    responses={
-        200: {"description": "Message history"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied or no access to booking"},
-    },
-)
-async def get_message_history(
-    booking_id: str,
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_active_user),
-    service: MessageService = Depends(get_message_service),
-) -> MessagesHistoryResponse:
-    """
-    Get message history for a booking.
-
-    Returns paginated list of messages in chronological order.
-    Requires VIEW_MESSAGES permission.
-    """
-    try:
-        messages = service.get_message_history(
-            booking_id=booking_id,
-            user_id=current_user.id,
-            limit=limit,
-            offset=offset,
-        )
-
-        return MessagesHistoryResponse(
-            booking_id=booking_id,
-            messages=[MessageResponse.model_validate(msg) for msg in messages],
-            limit=limit,
-            offset=offset,
-            has_more=len(messages) == limit,
-        )
-
-    except ForbiddenException as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        )
-    except Exception as e:
-        logger.error(f"Error fetching message history: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch message history",
-        )
-
-
-@router.post(
-    "/typing/{booking_id}",
-    response_model=TypingStatusResponse,
-    status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_permission(PermissionName.SEND_MESSAGES))],
-    responses={
-        200: {"description": "Typing indicator sent"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied or no access to booking"},
-    },
-)
-@rate_limit("1/second", key_type=RateLimitKeyType.USER)
-async def send_typing_indicator(
-    booking_id: str,
-    current_user: User = Depends(get_current_active_user),
-    service: MessageService = Depends(get_message_service),
-) -> TypingStatusResponse:
-    """
-    Send a typing indicator for a booking chat (ephemeral, no DB writes).
-
-    Publishes typing status via Redis Pub/Sub (no Postgres NOTIFY).
-    Rate limited to 1 per second.
-    """
-    # Let service handle access validation
-    try:
-        service.send_typing_indicator(booking_id, current_user.id, current_user.first_name)
-    except ForbiddenException as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to send typing indicator: {str(e)}")
-
-    # Redis Pub/Sub publishing (Phase 7 - use conversation_id for SSE routing)
-    # Look up conversation_id from booking
-    conversation_id = _get_conversation_id_for_booking(service.db, booking_id)
-    if conversation_id:
-        try:
-            await publish_typing_status(
-                db=service.db,
-                conversation_id=conversation_id,
-                user_id=str(current_user.id),
-                user_name=current_user.first_name or current_user.email or "Someone",
-                is_typing=True,
-            )
-            logger.debug(
-                "[REDIS-PUBSUB] Typing indicator: Published to Redis",
-                extra={"booking_id": booking_id, "conversation_id": conversation_id},
-            )
-        except Exception as e:
-            logger.error(
-                "[REDIS-PUBSUB] Typing indicator: Redis publish failed",
-                extra={"error": str(e), "conversation_id": conversation_id},
-            )
-    else:
-        logger.warning(
-            "[REDIS-PUBSUB] Typing indicator: Could not resolve conversation_id",
-            extra={"booking_id": booking_id},
-        )
-
-    return TypingStatusResponse(success=True)
-
-
-# ============================================================================
-# SECTION 3: Message-specific routes (with {message_id} parameter)
+# SECTION 2: Message-specific routes (with {message_id} parameter)
 # These must come LAST to avoid capturing static routes
 # ============================================================================
 

@@ -9,28 +9,18 @@
  * Phase 10: Messages domain migrated to /api/v1/messages
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/api/queryKeys';
 import { withApiBase } from '@/lib/apiBase';
 import {
   useGetMessageConfigApiV1MessagesConfigGet,
   useGetUnreadCountApiV1MessagesUnreadCountGet,
-  useGetMessageHistoryApiV1MessagesHistoryBookingIdGet,
-  useSendMessageApiV1MessagesSendPost,
-  useMarkMessagesAsReadApiV1MessagesMarkReadPost,
   useDeleteMessageApiV1MessagesMessageIdDelete,
   useEditMessageApiV1MessagesMessageIdPatch,
   useAddReactionApiV1MessagesMessageIdReactionsPost,
   useRemoveReactionApiV1MessagesMessageIdReactionsDelete,
-  useSendTypingIndicatorApiV1MessagesTypingBookingIdPost,
 } from '@/src/api/generated/messages-v1/messages-v1';
-import type {
-  SendMessageRequest,
-  MarkMessagesReadRequest,
-  EditMessageRequest,
-  ReactionRequest,
-  GetMessageHistoryApiV1MessagesHistoryBookingIdGetParams,
-} from '@/src/api/generated/instructly.schemas';
+import type { EditMessageRequest, ReactionRequest } from '@/src/api/generated/instructly.schemas';
 
 /**
  * Get message configuration (edit window, etc.).
@@ -82,50 +72,6 @@ export function useUnreadCount(enabled: boolean = true) {
 }
 
 /**
- * Get message history for a booking.
- *
- * @param bookingId - ULID of the booking
- * @param limit - Number of messages per page (default: 50)
- * @param offset - Pagination offset (default: 0)
- * @param enabled - Whether the query should be enabled
- * @example
- * ```tsx
- * function ChatMessages({ bookingId }: { bookingId: string }) {
- *   const { data, isLoading } = useMessageHistory(bookingId);
- *
- *   if (isLoading) return <div>Loading messages...</div>;
- *
- *   return (
- *     <div>
- *       {data?.messages.map(msg => (
- *         <div key={msg.id}>{msg.content}</div>
- *       ))}
- *     </div>
- *   );
- * }
- * ```
- */
-export function useMessageHistory(
-  bookingId: string,
-  limit: number = 50,
-  offset: number = 0,
-  enabled: boolean = true
-) {
-  const params: GetMessageHistoryApiV1MessagesHistoryBookingIdGetParams = {
-    limit,
-    offset,
-  };
-
-  return useGetMessageHistoryApiV1MessagesHistoryBookingIdGet(bookingId, params, {
-    query: {
-      queryKey: queryKeys.messages.history(bookingId, { limit, offset }),
-      staleTime: 1000 * 60, // 1 minute
-      enabled: enabled && !!bookingId,
-    },
-  });
-}
-
-/**
  * Reaction info from API response.
  */
 interface ReactionInfo {
@@ -150,10 +96,12 @@ interface ConversationMessagesRawResponse {
     content: string;
     sender_id: string | null;
     is_from_me: boolean;
-    message_type: string;
+    message_type: string | null;
     booking_id: string | null;
+    booking_details?: unknown;
     created_at: string;
     delivered_at: string | null;
+    conversation_id?: string | null;
     read_by: ReadReceiptEntry[];
     reactions: ReactionInfo[];
   }>;
@@ -163,15 +111,16 @@ interface ConversationMessagesRawResponse {
 
 /**
  * Response type for conversation messages endpoint.
- * Phase 7: Fetches ALL messages in a conversation (across all bookings).
+ * Fetches ALL messages in a conversation (across all bookings).
  * Messages are transformed to match MessageResponse structure for compatibility.
  */
 interface ConversationMessagesResponse {
   messages: Array<{
     id: string;
     content: string;
-    sender_id: string;
-    booking_id: string;
+    sender_id: string | null;
+    booking_id: string | null;
+    conversation_id: string | null;
     created_at: string;
     updated_at: string;
     delivered_at?: string | null;
@@ -179,6 +128,9 @@ interface ConversationMessagesResponse {
     is_deleted?: boolean;
     edited_at?: string;
     reactions?: ReactionInfo[];
+    message_type: string;
+    is_from_me: boolean;
+    booking_details: unknown;
   }>;
   has_more: boolean;
   next_cursor: string | null;
@@ -187,8 +139,7 @@ interface ConversationMessagesResponse {
 /**
  * Get message history for a conversation (Phase 7).
  *
- * Unlike useMessageHistory which fetches by booking_id, this hook fetches
- * ALL messages in a conversation across all bookings between the same
+ * Fetches ALL messages in a conversation across all bookings between the same
  * student-instructor pair.
  *
  * @param conversationId - ULID of the conversation
@@ -242,14 +193,18 @@ export function useConversationMessages(
         messages: raw.messages.map((msg) => ({
           id: msg.id,
           content: msg.content,
-          sender_id: msg.sender_id ?? '', // Fallback for system messages
-          booking_id: msg.booking_id ?? '', // Fallback if null
+          sender_id: msg.sender_id ?? null,
+          booking_id: msg.booking_id ?? null,
+          conversation_id: msg.conversation_id ?? conversationId ?? null,
           created_at: msg.created_at,
-          updated_at: msg.created_at, // Use created_at as fallback for updated_at
-          delivered_at: msg.delivered_at,
-          read_by: msg.read_by,
-          is_deleted: false, // Default value
-          reactions: msg.reactions ?? [], // Include reactions from API response
+          updated_at: msg.created_at,
+          delivered_at: msg.delivered_at ?? null,
+          read_by: msg.read_by ?? [],
+          is_deleted: false,
+          reactions: msg.reactions ?? [],
+          message_type: msg.message_type ?? 'user',
+          is_from_me: msg.is_from_me ?? false,
+          booking_details: msg.booking_details ?? null,
         })),
         has_more: raw.has_more,
         next_cursor: raw.next_cursor,
@@ -258,30 +213,6 @@ export function useConversationMessages(
     staleTime: 1000 * 60, // 1 minute
     enabled: enabled && !!conversationId,
   });
-}
-
-/**
- * Send message mutation.
- *
- * @example
- * ```tsx
- * function ChatInput({ bookingId }: { bookingId: string }) {
- *   const sendMessage = useSendMessage();
- *   const [text, setText] = useState('');
- *
- *   const handleSend = async () => {
- *     await sendMessage.mutateAsync({
- *       data: { booking_id: bookingId, content: text }
- *     });
- *     setText('');
- *   };
- *
- *   return <input value={text} onChange={e => setText(e.target.value)} />;
- * }
- * ```
- */
-export function useSendMessage() {
-  return useSendMessageApiV1MessagesSendPost();
 }
 
 /**
@@ -304,14 +235,29 @@ export function useSendMessage() {
  */
 export function useMarkMessagesAsRead() {
   const queryClient = useQueryClient();
-  return useMarkMessagesAsReadApiV1MessagesMarkReadPost({
-    mutation: {
-      onSuccess: () => {
-        // Invalidate unread count so dashboard badge updates
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.messages.unreadCount,
-        });
-      },
+  return useMutation({
+    mutationFn: async (body: { conversation_id?: string; message_ids?: string[] }) => {
+      const response = await fetch(withApiBase('/api/v1/messages/mark-read'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(
+          message || `Failed to mark messages as read (status ${response.status})`
+        );
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate unread count so dashboard badge updates
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.messages.unreadCount,
+      });
     },
   });
 }
@@ -415,29 +361,6 @@ export function useRemoveReaction() {
 }
 
 /**
- * Send typing indicator mutation.
- *
- * Sends a typing indicator to other participants (ephemeral, no DB writes).
- * Rate limited to 1 per second.
- *
- * @example
- * ```tsx
- * function ChatInput({ bookingId }: { bookingId: string }) {
- *   const sendTyping = useSendTypingIndicator();
- *
- *   const handleTyping = useDebouncedCallback(() => {
- *     sendTyping.mutate({ bookingId });
- *   }, 1000);
- *
- *   return <input onChange={handleTyping} />;
- * }
- * ```
- */
-export function useSendTypingIndicator() {
-  return useSendTypingIndicatorApiV1MessagesTypingBookingIdPost();
-}
-
-/**
  * Imperative API functions for use in useEffect or other non-hook contexts.
  *
  * Use these when you need to call the API directly without React Query hooks.
@@ -465,37 +388,31 @@ export { getMessageConfigApiV1MessagesConfigGet as fetchMessageConfig } from '@/
 export { getUnreadCountApiV1MessagesUnreadCountGet as fetchUnreadCount } from '@/src/api/generated/messages-v1/messages-v1';
 
 /**
- * Fetch message history imperatively.
- *
- * @example
- * ```tsx
- * const { messages, has_more } = await fetchMessageHistory('01ABC...', { limit: 50 });
- * ```
- */
-export { getMessageHistoryApiV1MessagesHistoryBookingIdGet as fetchMessageHistory } from '@/src/api/generated/messages-v1/messages-v1';
-
-/**
- * Send a message imperatively.
- *
- * @example
- * ```tsx
- * const response = await sendMessageImperative({
- *   booking_id: '01ABC...',
- *   content: 'Hello!'
- * });
- * ```
- */
-export { sendMessageApiV1MessagesSendPost as sendMessageImperative } from '@/src/api/generated/messages-v1/messages-v1';
-
-/**
  * Mark messages as read imperatively.
  *
  * @example
  * ```tsx
- * await markMessagesAsReadImperative({ booking_id: '01ABC...' });
+ * await markMessagesAsReadImperative({ conversation_id: '01ABC...' });
  * ```
  */
-export { markMessagesAsReadApiV1MessagesMarkReadPost as markMessagesAsReadImperative } from '@/src/api/generated/messages-v1/messages-v1';
+export async function markMessagesAsReadImperative(body: {
+  conversation_id?: string;
+  message_ids?: string[];
+}) {
+  const response = await fetch(withApiBase('/api/v1/messages/mark-read'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to mark messages as read (status ${response.status})`);
+  }
+
+  return response.json();
+}
 
 /**
  * Delete a message imperatively.
@@ -510,10 +427,4 @@ export { deleteMessageApiV1MessagesMessageIdDelete as deleteMessageImperative } 
 /**
  * Type exports for convenience
  */
-export type {
-  SendMessageRequest,
-  MarkMessagesReadRequest,
-  EditMessageRequest,
-  ReactionRequest,
-  GetMessageHistoryApiV1MessagesHistoryBookingIdGetParams as MessageHistoryParams,
-};
+export type { EditMessageRequest, ReactionRequest };

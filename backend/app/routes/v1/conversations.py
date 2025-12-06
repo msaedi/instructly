@@ -41,6 +41,7 @@ from ...schemas.conversation import (
     SendMessageResponse,
     TypingRequest,
     UpdateConversationStateRequest,
+    UpdateConversationStateResponse,
     UserSummary,
 )
 from ...services.conversation_service import ConversationService
@@ -292,14 +293,14 @@ def create_conversation(
 @router.put(
     "/{conversation_id}/state",
     dependencies=[WRITE_DEP],
-    response_model=SuccessResponse,
+    response_model=UpdateConversationStateResponse,
 )
 def update_conversation_state(
     conversation_id: str,
     request: UpdateConversationStateRequest,
     current_user: User = Depends(get_current_active_user),
     service: ConversationService = Depends(get_conversation_service),
-) -> SuccessResponse:
+) -> UpdateConversationStateResponse:
     """Update per-user conversation state (active/archived/trashed)."""
     conversation = service.get_conversation_by_id(conversation_id, current_user.id)
     if not conversation:
@@ -313,7 +314,7 @@ def update_conversation_state(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    return SuccessResponse(success=True, message="Conversation state updated")
+    return UpdateConversationStateResponse(id=conversation_id, state=request.state)
 
 
 # =============================================================================

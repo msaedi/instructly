@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from ..core.exceptions import ForbiddenException, NotFoundException, ValidationException
 from ..models.booking import Booking, BookingStatus
 from ..models.message import Message
+from ..repositories.conversation_repository import ConversationRepository
 from ..repositories.conversation_state_repository import (
     ConversationStateRepository,
     ConversationSummaryRepository,
@@ -163,7 +164,7 @@ class MessageService(BaseService):
         message = self.repository.get_by_id(message_id)
         if not message:
             return None
-        if not self._user_has_booking_access(message.booking_id, user_id):
+        if not self._user_has_message_access(message, user_id):
             return None
         return message
 
@@ -285,6 +286,33 @@ class MessageService(BaseService):
             self.logger.info(f"Marked {count} messages as read for user {user_id}")
             return int(count or 0)
 
+    @BaseService.measure_operation("mark_conversation_messages_as_read")
+    def mark_conversation_messages_as_read(self, conversation_id: str, user_id: str) -> int:
+        """
+        Mark all messages in a conversation as read for a user.
+
+        Args:
+            conversation_id: ID of the conversation
+            user_id: ID of the user
+
+        Returns:
+            Number of messages marked as read
+        """
+        unread_messages = self.repository.get_unread_messages_by_conversation(
+            conversation_id, user_id
+        )
+        message_ids = [msg.id for msg in unread_messages]
+        if not message_ids:
+            return 0
+        count = self.mark_messages_as_read(message_ids, user_id)
+
+        # Reset legacy conversation_state unread counts for any associated booking_ids
+        booking_ids = {msg.booking_id for msg in unread_messages if msg.booking_id}
+        for bid in booking_ids:
+            self._reset_conversation_unread_count(bid, user_id)
+
+        return count
+
     @BaseService.measure_operation("mark_booking_messages_as_read")
     def mark_booking_messages_as_read(self, booking_id: str, user_id: str) -> int:
         """
@@ -377,7 +405,7 @@ class MessageService(BaseService):
         message = self.repository.get_by_id(message_id)
         if not message:
             raise NotFoundException("Message not found")
-        if not self._user_has_booking_access(message.booking_id, user_id):
+        if not self._user_has_message_access(message, user_id):
             raise ForbiddenException("You don't have access to this booking")
         with self.transaction():
             # Toggle behavior: if exists, remove; else add (through repository)
@@ -416,7 +444,7 @@ class MessageService(BaseService):
         message = self.repository.get_by_id(message_id)
         if not message:
             return False
-        if not self._user_has_booking_access(message.booking_id, user_id):
+        if not self._user_has_message_access(message, user_id):
             raise ForbiddenException("You don't have access to this booking")
         with self.transaction():
             ok = bool(self.repository.remove_reaction(message_id, user_id, emoji))
@@ -466,6 +494,21 @@ class MessageService(BaseService):
             ok = bool(self.repository.apply_message_edit(message_id, new_content.strip()))
             return ok
 
+    def _user_has_message_access(self, message: Message, user_id: str) -> bool:
+        """
+        Check if the user participates in the conversation or booking for a message.
+        """
+        if message.conversation_id:
+            conv_repo = ConversationRepository(self.db)
+            conversation = conv_repo.get_by_id(str(message.conversation_id))
+            if conversation and user_id in (conversation.student_id, conversation.instructor_id):
+                return True
+
+        if message.booking_id:
+            return self._user_has_booking_access(message.booking_id, user_id)
+
+        return False
+
     def _user_has_booking_access(self, booking_id: str, user_id: str) -> bool:
         """
         Check if user has access to a booking's messages.
@@ -477,6 +520,8 @@ class MessageService(BaseService):
         Returns:
             True if user is student or instructor of the booking
         """
+        if not booking_id:
+            return False
         participants = self.repository.get_booking_participants(booking_id)
         if not participants:
             return False
@@ -557,24 +602,93 @@ class MessageService(BaseService):
         Returns:
             Dict with conversations list, total_unread count, unread_conversations count, and state_counts
         """
-        # Get all booking IDs that are archived or trashed for this user
-        archived_ids = set(
-            self.conversation_state_repository.get_booking_ids_by_state(user_id, "archived")
+        # Conversation-based archive/trash state
+        archived_conv_ids = set(
+            self.conversation_state_repository.get_conversation_ids_by_state(user_id, "archived")
         )
-        trashed_ids = set(
-            self.conversation_state_repository.get_booking_ids_by_state(user_id, "trashed")
+        trashed_conv_ids = set(
+            self.conversation_state_repository.get_conversation_ids_by_state(user_id, "trashed")
         )
+
+        # When a state filter is provided, build the response from conversations directly
+        if state_filter in ("archived", "trashed"):
+            from ..repositories.conversation_repository import ConversationRepository
+
+            conversation_repo = ConversationRepository(self.db)
+            conversations = conversation_repo.find_for_user(user_id=user_id, include_messages=True)
+            target_ids = archived_conv_ids if state_filter == "archived" else trashed_conv_ids
+
+            items = []
+            for conv in conversations:
+                if conv.id not in target_ids:
+                    continue
+                other_user = conv.student if user_role == "instructor" else conv.instructor
+                if not other_user:
+                    continue
+
+                last_message = None
+                if conv.messages:
+                    last_msg = sorted(conv.messages, key=lambda m: m.created_at)[-1]
+                    last_message = {
+                        "preview": (last_msg.content or "")[:100],
+                        "at": last_msg.created_at.isoformat() if last_msg.created_at else None,
+                        "is_mine": last_msg.sender_id == user_id,
+                    }
+
+                unread_count = conversation_repo.get_unread_count(conv.id, user_id)
+
+                items.append(
+                    {
+                        "id": conv.id,
+                        "type": "student",
+                        "other_user": {
+                            "id": other_user.id,
+                            "name": f"{other_user.first_name} {other_user.last_name[0]}."
+                            if other_user.last_name
+                            else other_user.first_name,
+                            "avatar_url": getattr(other_user, "avatar_url", None),
+                        },
+                        "unread_count": unread_count,
+                        "last_message": last_message,
+                    }
+                )
+
+            return {
+                "conversations": items,
+                "total_unread": sum(c.get("unread_count", 0) for c in items),
+                "unread_conversations": len([c for c in items if c.get("unread_count", 0) > 0]),
+                "state_counts": {
+                    "active": 0,
+                    "archived": len(archived_conv_ids),
+                    "trashed": len(trashed_conv_ids),
+                },
+            }
+
+        archived_ids = archived_conv_ids
+        trashed_ids = trashed_conv_ids
 
         # Get all conversations from repository
         all_conversations = self.repository.get_inbox_state(user_id, user_role)
         is_instructor = user_role == "instructor"
 
         # Build conversation list with state information
+        from ..repositories.conversation_repository import ConversationRepository
+
+        conversation_repo = ConversationRepository(self.db)
         conversation_list = []
         for conv in all_conversations:
             # Get the OTHER user (not the current user)
             other_user = conv.student if is_instructor else conv.instructor
             unread = conv.instructor_unread_count if is_instructor else conv.student_unread_count
+
+            # Resolve conversation_id for this pair (preferred over booking_id)
+            conv_id = None
+            try:
+                resolved = conversation_repo.find_by_pair(conv.student_id, conv.instructor_id)
+                conv_id = resolved.id if resolved else None
+            except Exception:
+                conv_id = None
+            conv_id = conv_id or conv.booking_id
 
             # Determine conversation type (student vs platform)
             # Platform messages would be identified by a specific user or role
@@ -583,7 +697,7 @@ class MessageService(BaseService):
 
             conversation_list.append(
                 {
-                    "id": conv.booking_id,
+                    "id": conv_id,
                     "type": conv_type,
                     "other_user": {
                         "id": other_user.id,
@@ -625,6 +739,57 @@ class MessageService(BaseService):
             filtered_conversations = [
                 c for c in filtered_conversations if c.get("type") == "platform"
             ]
+
+        # Fallback: if no conversations were returned (e.g., conversation-based messaging
+        # without legacy conversation_state rows), build from conversations directly.
+        if not filtered_conversations:
+            from ..repositories.conversation_repository import ConversationRepository
+
+            conversation_repo = ConversationRepository(self.db)
+            conversations = conversation_repo.find_for_user(user_id=user_id, include_messages=True)
+            filtered_conversations = []
+            for conv in conversations:
+                # Skip archived/trashed when filters applied or when building active list
+                if state_filter == "archived":
+                    if conv.id not in archived_ids:
+                        continue
+                elif state_filter == "trashed":
+                    if conv.id not in trashed_ids:
+                        continue
+                else:
+                    if conv.id in archived_ids or conv.id in trashed_ids:
+                        continue
+
+                other_user = conv.student if is_instructor else conv.instructor
+                if not other_user:
+                    continue
+
+                last_message = None
+                if conv.messages:
+                    last_msg = sorted(conv.messages, key=lambda m: m.created_at)[-1]
+                    last_message = {
+                        "preview": (last_msg.content or "")[:100],
+                        "at": last_msg.created_at.isoformat() if last_msg.created_at else None,
+                        "is_mine": last_msg.sender_id == user_id,
+                    }
+
+                unread_count = conversation_repo.get_unread_count(conv.id, user_id)
+
+                filtered_conversations.append(
+                    {
+                        "id": conv.id,
+                        "type": "student",
+                        "other_user": {
+                            "id": other_user.id,
+                            "name": f"{other_user.first_name} {other_user.last_name[0]}."
+                            if other_user.last_name
+                            else other_user.first_name,
+                            "avatar_url": getattr(other_user, "avatar_url", None),
+                        },
+                        "unread_count": unread_count,
+                        "last_message": last_message,
+                    }
+                )
 
         # Calculate counts for active conversations
         active_conversations = [

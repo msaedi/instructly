@@ -287,6 +287,15 @@ class TestMessageService:
 class TestMessageAPI:
     """Test the message API endpoints."""
 
+    @staticmethod
+    def _get_conversation_id(client, booking_id, headers) -> str:
+        response = client.get(
+            f"/api/v1/conversations/by-booking/{booking_id}",
+            headers=headers,
+        )
+        assert response.status_code == 200
+        return response.json()["id"]
+
     def test_send_message_endpoint(
         self,
         client,
@@ -294,19 +303,22 @@ class TestMessageAPI:
         auth_headers_student: dict,
     ):
         """Test the send message API endpoint."""
+        conversation_id = self._get_conversation_id(client, test_booking.id, auth_headers_student)
         response = client.post(
-            "/api/v1/messages/send",
-            json={
-                "booking_id": test_booking.id,
-                "content": "Test message via API",
-            },
+            f"/api/v1/conversations/{conversation_id}/messages",
+            json={"content": "Test message via API"},
             headers=auth_headers_student,
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 200
         data = response.json()
-        assert data["success"] is True
-        assert data["message"]["content"] == "Test message via API"
+        assert "id" in data
+        history = client.get(
+            f"/api/v1/conversations/{conversation_id}/messages",
+            headers=auth_headers_student,
+        )
+        assert history.status_code == 200
+        assert any(msg["content"] == "Test message via API" for msg in history.json()["messages"])
 
     def test_get_message_history_endpoint(
         self,
@@ -318,6 +330,7 @@ class TestMessageAPI:
         db: Session,
     ):
         """Test the message history API endpoint."""
+        conversation_id = self._get_conversation_id(client, test_booking.id, auth_headers_student)
         # Send some messages first
         for i in range(3):
             message_service.send_message(
@@ -328,15 +341,13 @@ class TestMessageAPI:
         db.commit()
 
         response = client.get(
-            f"/api/v1/messages/history/{test_booking.id}",
+            f"/api/v1/conversations/{conversation_id}/messages",
             headers=auth_headers_student,
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["booking_id"] == test_booking.id
         assert len(data["messages"]) == 3
-        assert data["has_more"] is False
 
     def test_get_unread_count_endpoint(
         self,
@@ -429,44 +440,6 @@ class TestMessageAPI:
         pass
 
 
-class TestRateLimiting:
-    """Test rate limiting on message endpoints."""
-
-    def test_message_send_rate_limit(
-        self,
-        client,
-        test_booking: Booking,
-        auth_headers_student: dict,
-    ):
-        """Test that message sending is rate limited."""
-        # Send messages up to the limit (10 per minute)
-        for i in range(10):
-            response = client.post(
-                "/api/v1/messages/send",
-                json={
-                    "booking_id": test_booking.id,
-                    "content": f"Message {i + 1}",
-                },
-                headers=auth_headers_student,
-            )
-            assert response.status_code == 201
-
-        # The 11th message should be rate limited
-        response = client.post(
-            "/api/v1/messages/send",
-            json={
-                "booking_id": test_booking.id,
-                "content": "Rate limited message",
-            },
-            headers=auth_headers_student,
-        )
-
-        # Note: This will only work if rate limiting is enabled
-        # and Redis/DragonflyDB is available
-        if response.status_code == 429:
-            assert "rate limit" in response.json()["detail"].lower()
-
-
 class TestPermissions:
     """Test RBAC permissions for chat endpoints."""
 
@@ -477,11 +450,8 @@ class TestPermissions:
     ):
         """Test that sending messages requires authentication."""
         response = client.post(
-            "/api/v1/messages/send",
-            json={
-                "booking_id": test_booking.id,
-                "content": "Unauthorized message",
-            },
+            f"/api/v1/conversations/{test_booking.id}/messages",
+            json={"content": "Unauthorized message"},
         )
 
         assert response.status_code == 401
@@ -493,7 +463,7 @@ class TestPermissions:
     ):
         """Test that viewing messages requires authentication."""
         response = client.get(
-            f"/api/v1/messages/history/{test_booking.id}",
+            f"/api/v1/conversations/{test_booking.id}/messages",
         )
 
         assert response.status_code == 401

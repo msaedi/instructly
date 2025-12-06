@@ -234,7 +234,7 @@ export function Chat({
 
     // Mark message as read if it's from the other user
     if (!isMine && message.sender_id !== currentUserId) {
-      markMessagesAsReadMutate({ data: { message_ids: [message.id] } });
+      markMessagesAsReadMutate({ message_ids: [message.id] });
     }
   }, [bookingId, currentUserId, markMessagesAsReadMutate]);
 
@@ -541,7 +541,7 @@ export function Chat({
     }
 
     lastMarkedUnreadByBookingRef.current[bookingId] = latestUnreadMessageId;
-    markMessagesAsReadMutate({ data: { message_ids: [latestUnreadMessageId] } });
+    markMessagesAsReadMutate({ message_ids: [latestUnreadMessageId] });
   }, [bookingId, latestUnreadMessageId, markMessagesAsReadMutate]);
 
   // Handle send message - SSE echoes message back with is_mine flag
