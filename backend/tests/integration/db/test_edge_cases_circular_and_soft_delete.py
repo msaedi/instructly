@@ -559,8 +559,8 @@ class TestSoftDeleteEdgeCases:
 
         # Verify only active services are returned (new service should be excluded)
         services_key = "services" if "services" in profile_data else "instructor_services"
-        service_names = [s["name"] for s in profile_data[services_key]]
-        assert catalog_service.name not in service_names  # Should not include the soft-deleted service
+        service_catalog_ids = [s.get("service_catalog_id") for s in profile_data[services_key]]
+        assert catalog_service.id not in service_catalog_ids  # Should not include the soft-deleted service
 
     def test_reactivate_soft_deleted_service(
         self, db: Session, instructor_user: User, instructor_service: InstructorService
