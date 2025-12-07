@@ -233,6 +233,22 @@ def create_conversation(
     If conversation already exists, returns the existing one.
     Only students can initiate conversations with instructors.
     """
+    # Validate that the target user is actually an instructor
+    from ...repositories.factory import RepositoryFactory
+
+    user_repo = RepositoryFactory.create_user_repository(db)
+    instructor = user_repo.get_by_id(request.instructor_id)
+    if not instructor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Instructor not found",
+        )
+    if not instructor.is_instructor:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Target user is not an instructor",
+        )
+
     # The current user is the student, request contains instructor_id
     conversation, created = service.get_or_create_conversation(
         student_id=current_user.id,

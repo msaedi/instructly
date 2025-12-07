@@ -8,7 +8,10 @@ Follows the repository pattern with clean separation from business logic.
 
 from datetime import datetime, timezone
 import json
+import logging
 from typing import Dict, List, Optional, Sequence, cast
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import and_, func, or_, text
 from sqlalchemy.exc import IntegrityError
@@ -87,16 +90,19 @@ class ConversationRepository(BaseRepository[Conversation]):
             return existing, False
 
         try:
-            # Create new conversation using inherited create() method
-            conversation = self.create(
-                student_id=student_id,
-                instructor_id=instructor_id,
-            )
-            self.db.flush()  # Force the INSERT to happen now
+            # Use savepoint (nested transaction) to avoid rolling back the entire transaction
+            # This is safer when called within a larger transaction context
+            with self.db.begin_nested():
+                # Create new conversation using inherited create() method
+                conversation = self.create(
+                    student_id=student_id,
+                    instructor_id=instructor_id,
+                )
+                self.db.flush()  # Force the INSERT to happen now
             return conversation, True
         except IntegrityError:
             # Race condition - another transaction created it first
-            self.db.rollback()
+            # Savepoint is automatically rolled back, main transaction is preserved
             existing = self.find_by_pair(student_id, instructor_id)
             if existing:
                 return existing, False
@@ -140,18 +146,21 @@ class ConversationRepository(BaseRepository[Conversation]):
 
         # Apply cursor-based pagination if cursor provided
         if cursor:
-            from datetime import datetime
+            from datetime import datetime as dt_class
 
             try:
-                cursor_time = datetime.fromisoformat(cursor.replace("Z", "+00:00"))
+                cursor_time = dt_class.fromisoformat(cursor.replace("Z", "+00:00"))
                 # Get items older than the cursor
                 query = query.filter(
                     func.coalesce(Conversation.last_message_at, Conversation.created_at)
                     < cursor_time
                 )
-            except (ValueError, TypeError):
-                # Invalid cursor, ignore it
-                pass
+            except (ValueError, TypeError) as e:
+                # Invalid cursor format - log for debugging and ignore
+                logger.warning(
+                    "Invalid cursor format in conversation pagination",
+                    extra={"cursor": cursor, "error": str(e)},
+                )
 
         # Order by most recent activity first
         # Use coalesce to handle NULL last_message_at
