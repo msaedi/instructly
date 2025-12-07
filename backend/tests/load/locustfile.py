@@ -76,6 +76,10 @@ class Config:
     ]
     PASSWORD: str = os.getenv("LOADTEST_PASSWORD", "TestPassword123!")
 
+    # Rate limit bypass token (must match RATE_LIMIT_BYPASS_TOKEN on server)
+    # This allows load tests to bypass per-IP rate limits
+    RATE_LIMIT_BYPASS_TOKEN: str = os.getenv("LOADTEST_BYPASS_TOKEN", "")
+
 
 # Load conversations mapping from JSON file
 CONVERSATIONS_FILE = Path(__file__).parent / "config" / "conversations.json"
@@ -133,13 +137,15 @@ class SSEMessagingUser(HttpUser):
 
         # Set default headers for CSRF bypass (required for API requests from load test)
         # Origin must match the allowed frontend domain to pass CSRF validation
-        self.client.headers.update(
-            {
-                "Origin": Config.FRONTEND_ORIGIN,
-                "Referer": f"{Config.FRONTEND_ORIGIN}/",
-                "Content-Type": "application/json",
-            }
-        )
+        headers = {
+            "Origin": Config.FRONTEND_ORIGIN,
+            "Referer": f"{Config.FRONTEND_ORIGIN}/",
+            "Content-Type": "application/json",
+        }
+        # Add rate limit bypass token if configured (for load testing)
+        if Config.RATE_LIMIT_BYPASS_TOKEN:
+            headers["X-Rate-Limit-Bypass"] = Config.RATE_LIMIT_BYPASS_TOKEN
+        self.client.headers.update(headers)
 
     def on_start(self) -> None:
         """
@@ -250,6 +256,9 @@ class SSEMessagingUser(HttpUser):
             "Referer": f"{Config.FRONTEND_ORIGIN}/",
             "Authorization": f"Bearer {self.token}",
         }
+        # Add rate limit bypass token if configured
+        if Config.RATE_LIMIT_BYPASS_TOKEN:
+            sse_headers["X-Rate-Limit-Bypass"] = Config.RATE_LIMIT_BYPASS_TOKEN
 
         logger.debug(f"Opening SSE connection for: {self.user_email}")
 
@@ -459,6 +468,8 @@ def on_test_start(**_kwargs: Any) -> None:
     logger.info(f"  Message path template: {Config.MESSAGE_PATH_TEMPLATE}")
     logger.info(f"  E2E timeout: {Config.E2E_TIMEOUT_SECONDS}s")
     logger.info(f"  Conversations loaded: {len(CONVERSATIONS)}")
+    bypass_status = "ENABLED" if Config.RATE_LIMIT_BYPASS_TOKEN else "disabled"
+    logger.info(f"  Rate limit bypass: {bypass_status}")
     logger.info("=" * 60)
 
 

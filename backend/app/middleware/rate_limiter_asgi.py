@@ -36,6 +36,8 @@ class RateLimitMiddlewareASGI:
         self._invite_path = re.compile(r"^/api/instructors/[^/]+/bgc/(invite|recheck)$")
         self.invite_limit = 10
         self.invite_window_seconds = 3600
+        # Bypass token for load testing (configured via RATE_LIMIT_BYPASS_TOKEN env var)
+        self._bypass_token = getattr(settings, "rate_limit_bypass_token", "") or ""
 
     @staticmethod
     def _extract_client_ip(scope: Scope) -> str:
@@ -53,11 +55,26 @@ class RateLimitMiddlewareASGI:
                 return host
         return "unknown"
 
+    def _has_bypass_token(self, scope: Scope) -> bool:
+        """Check if request has valid rate limit bypass token."""
+        if not self._bypass_token:
+            return False
+        headers = scope.get("headers") or []
+        for key, value in headers:
+            if key.decode().lower() == "x-rate-limit-bypass":
+                return value.decode() == self._bypass_token
+        return False
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI application entrypoint."""
 
         # Only handle HTTP requests
         if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Check for rate limit bypass token (for load testing)
+        if self._has_bypass_token(scope):
             await self.app(scope, receive, send)
             return
 

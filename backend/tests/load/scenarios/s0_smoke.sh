@@ -11,6 +11,8 @@ LOADTEST_BASE_URL="${LOADTEST_BASE_URL:-https://preview-api.instainstru.com}"
 LOADTEST_USERS="${LOADTEST_USERS:-sarah.chen@example.com,emma.johnson@example.com}"
 LOADTEST_PASSWORD="${LOADTEST_PASSWORD:-Test1234}"
 LOADTEST_SSE_HOLD_SECONDS="${LOADTEST_SSE_HOLD_SECONDS:-25}"
+# Rate limit bypass token - must match RATE_LIMIT_BYPASS_TOKEN on server
+LOADTEST_BYPASS_TOKEN="${LOADTEST_BYPASS_TOKEN:-}"
 
 # Scenario parameters
 USERS=10
@@ -30,6 +32,11 @@ echo "=============================================="
 echo "Target:     $LOADTEST_BASE_URL"
 echo "Users:      $USERS (ramp: $SPAWN_RATE/sec)"
 echo "Duration:   $DURATION"
+if [ -n "$LOADTEST_BYPASS_TOKEN" ]; then
+    echo "Rate limit: BYPASSED"
+else
+    echo "Rate limit: enforced (set LOADTEST_BYPASS_TOKEN to bypass)"
+fi
 echo "Output:     $OUTPUT_DIR"
 echo "=============================================="
 echo ""
@@ -39,6 +46,7 @@ export LOADTEST_BASE_URL
 export LOADTEST_USERS
 export LOADTEST_PASSWORD
 export LOADTEST_SSE_HOLD_SECONDS
+export LOADTEST_BYPASS_TOKEN
 
 # Run locust
 cd "$SCRIPT_DIR/.."
