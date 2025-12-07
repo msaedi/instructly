@@ -14,6 +14,7 @@ import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Chat } from './Chat';
+import { QueryErrorBoundary } from '@/components/errors/QueryErrorBoundary';
 import { cn } from '@/lib/utils';
 import { withApiBase } from '@/lib/apiBase';
 
@@ -147,18 +148,20 @@ export function ChatModal({
           </button>
         </div>
 
-        {/* Chat component - only render when fully mounted */}
+        {/* Chat component - wrapped in error boundary for graceful error handling */}
         {isMounted && resolvedConversationId && (
-          <Chat
-            conversationId={resolvedConversationId}
-            {...(bookingId ? { bookingId } : {})}
-            currentUserId={currentUserId}
-            currentUserName={currentUserName}
-            otherUserName={otherUserName}
-            className="flex-1 min-h-0"
-            onClose={onClose}
-            isReadOnly={isReadOnly}
-          />
+          <QueryErrorBoundary>
+            <Chat
+              conversationId={resolvedConversationId}
+              {...(bookingId ? { bookingId } : {})}
+              currentUserId={currentUserId}
+              currentUserName={currentUserName}
+              otherUserName={otherUserName}
+              className="flex-1 min-h-0"
+              onClose={onClose}
+              isReadOnly={isReadOnly}
+            />
+          </QueryErrorBoundary>
         )}
         {isMounted && !resolvedConversationId && isLoadingConversation && (
           <div className="flex flex-1 items-center justify-center text-sm text-gray-500">

@@ -543,35 +543,52 @@ class DatabaseSeeder:
         with Session(self.engine) as session:
             return self._seed_tier_maintenance_sessions(session, reason=reason)
 
-    def _student_slot_conflicts(
+    def _slot_conflicts(
         self,
         session: Session,
-        student_id: str,
+        user_id: str,
         booking_date: date,
         start_time: time,
         end_time: time,
         pending_spans: set[tuple[str, date, time, time]],
+        *,
+        check_instructor: bool = False,
     ) -> bool:
-        span_key = (student_id, booking_date, start_time, end_time)
-        if span_key in pending_spans:
-            return True
+        """Check for overlapping bookings for a user (student or instructor).
 
+        Args:
+            user_id: The student or instructor ID to check
+            booking_date: Date of the proposed booking
+            start_time: Start time of the proposed booking
+            end_time: End time of the proposed booking
+            pending_spans: Set of (user_id, date, start, end) tuples already queued
+            check_instructor: If True, check instructor_id column; else student_id
+        """
+        # Check against pending (not yet flushed) bookings
+        for uid, dt, st, et in pending_spans:
+            if uid == user_id and dt == booking_date:
+                # Overlap if start < other_end AND end > other_start
+                if start_time < et and end_time > st:
+                    return True
+
+        # Check against committed bookings in the database
+        id_column = "instructor_id" if check_instructor else "student_id"
         overlap_sql = text(
-            """
+            f"""
             SELECT 1
             FROM bookings
-            WHERE student_id = :student_id
+            WHERE {id_column} = :user_id
               AND booking_date = :booking_date
               AND start_time < :end_time
               AND end_time > :start_time
             LIMIT 1
-            """
+            """  # nosec B608 - id_column is hardcoded, not user input
         )
         with session.no_autoflush:
             overlap = session.execute(
                 overlap_sql,
                 {
-                    "student_id": student_id,
+                    "user_id": user_id,
                     "booking_date": booking_date,
                     "start_time": start_time,
                     "end_time": end_time,
@@ -616,6 +633,7 @@ class DatabaseSeeder:
         rng = random.Random(42)
         total_seeded = 0
         pending_student_spans: set[tuple[str, date, time, time]] = set()
+        pending_instructor_spans: set[tuple[str, date, time, time]] = set()
         skipped_conflicts = 0
         max_attempts_per_booking = 8
 
@@ -685,13 +703,27 @@ class DatabaseSeeder:
 
                     student = rng.choice(students)
 
-                    if self._student_slot_conflicts(
+                    # Check for instructor overlap first (most common conflict)
+                    if self._slot_conflicts(
+                        session,
+                        user_id,
+                        booking_date,
+                        start_time,
+                        end_time,
+                        pending_instructor_spans,
+                        check_instructor=True,
+                    ):
+                        continue
+
+                    # Check for student overlap
+                    if self._slot_conflicts(
                         session,
                         student.id,
                         booking_date,
                         start_time,
                         end_time,
                         pending_student_spans,
+                        check_instructor=False,
                     ):
                         continue
 
@@ -726,6 +758,7 @@ class DatabaseSeeder:
                     )
                     session.add(booking)
                     pending_student_spans.add((student.id, booking_date, start_time, end_time))
+                    pending_instructor_spans.add((user_id, booking_date, start_time, end_time))
                     total_seeded += 1
                     inserted = True
                     break
@@ -739,7 +772,7 @@ class DatabaseSeeder:
             print("  ℹ️  Tier maintenance seeding skipped: existing completed sessions already satisfy targets")
         if skipped_conflicts:
             print(
-                f"  ⚠️  Tier maintenance skipped {skipped_conflicts} attempt(s) due to overlapping student bookings"
+                f"  ⚠️  Tier maintenance skipped {skipped_conflicts} attempt(s) due to slot conflicts"
             )
         return total_seeded
 
