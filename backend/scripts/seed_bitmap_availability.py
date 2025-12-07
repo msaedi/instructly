@@ -40,6 +40,8 @@ def seed_bitmap_availability(weeks_ahead: int = 3) -> Dict[str, int]:
 
     Returns:
         Mapping of ISO week_start -> instructors written count.
+
+    Optimized version: uses bulk_upsert_all for single database round-trip.
     """
 
     weeks = max(1, weeks_ahead)
@@ -56,40 +58,71 @@ def seed_bitmap_availability(weeks_ahead: int = 3) -> Dict[str, int]:
             logger.info("Bitmap availability seed: no instructors found.")
             return {}
 
+        # Pre-load all existing bitmap data in one query
+        last_week_end = week_start + timedelta(days=7 * weeks - 1)
+
+        from app.models.availability_day import AvailabilityDay
+
+        all_bitmap_rows = (
+            session.query(
+                AvailabilityDay.instructor_id,
+                AvailabilityDay.day_date,
+                AvailabilityDay.bits
+            )
+            .filter(
+                AvailabilityDay.instructor_id.in_(instructor_ids),
+                AvailabilityDay.day_date >= week_start,
+                AvailabilityDay.day_date <= last_week_end,
+            )
+            .all()
+        )
+
+        # Build lookup: {instructor_id: {date: bits}}
+        existing_by_instructor: Dict[str, Dict[date, bytes]] = {}
+        for instructor_id, day_date, bits in all_bitmap_rows:
+            if instructor_id not in existing_by_instructor:
+                existing_by_instructor[instructor_id] = {}
+            if bits is not None:
+                existing_by_instructor[instructor_id][day_date] = bits
+
+        # Collect ALL items for bulk upsert
+        all_items: List[Tuple[str, date, bytes]] = []
+        instructors_touched_per_week: Dict[date, set] = defaultdict(set)
+
         for week_offset in range(weeks):
             current_week = week_start + timedelta(days=7 * week_offset)
-            seeded_this_week = 0
 
             for instructor_id in instructor_ids:
-                existing = day_repo.get_week(instructor_id, current_week)
-                pending: List[Tuple[date, bytes]] = []
+                existing = existing_by_instructor.get(instructor_id, {})
+                instructor_has_pending = False
 
                 for day_offset in range(5):  # Monday–Friday
                     day = current_week + timedelta(days=day_offset)
                     current_bits = existing.get(day)
                     if current_bits and any(current_bits):
                         continue
-                    pending.append((day, default_bits))
+                    all_items.append((instructor_id, day, default_bits))
+                    instructor_has_pending = True
 
-                if not pending:
-                    continue
+                if instructor_has_pending:
+                    instructors_touched_per_week[current_week].add(instructor_id)
 
-                day_repo.upsert_week(instructor_id, pending)
-                seeded_this_week += 1
+        # Single native PostgreSQL UPSERT for all data (1 statement)
+        if all_items:
+            day_repo.bulk_upsert_native(all_items)
+            session.commit()
 
-            if seeded_this_week:
-                session.commit()
-                seeded_per_week[current_week] += seeded_this_week
+            # Build return value with per-week counts
+            for week_date, instructors in instructors_touched_per_week.items():
+                seeded_per_week[week_date] = len(instructors)
                 logger.info(
                     "Seeded bitmap availability",
                     extra={
-                        "week_start": current_week.isoformat(),
-                        "instructors": seeded_this_week,
+                        "week_start": week_date.isoformat(),
+                        "instructors": len(instructors),
                         "weeks_ahead": weeks,
                     },
                 )
-            else:
-                session.rollback()
 
     return {week.isoformat(): count for week, count in seeded_per_week.items()}
 

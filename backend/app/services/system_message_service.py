@@ -12,7 +12,7 @@ Generates system messages in conversations when booking events occur:
 import asyncio
 from datetime import date, time
 import logging
-from typing import Optional
+from typing import Any, Callable, Coroutine, Optional
 
 from sqlalchemy.orm import Session
 
@@ -306,7 +306,9 @@ class SystemMessageService(BaseService):
         """
         return self.message_repository.has_recent_reschedule_message(conversation_id)
 
-    def _run_async_task(self, coro_func, error_context: str) -> None:
+    def _run_async_task(
+        self, coro_func: Callable[[], Coroutine[Any, Any, None]], error_context: str
+    ) -> None:
         """
         Execute an async coroutine, handling both running and non-running event loops.
 

@@ -801,6 +801,50 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting bookings for service catalog: {str(e)}")
             raise RepositoryException(f"Failed to get service catalog bookings: {str(e)}")
 
+    def get_all_bookings_by_service_catalog(
+        self,
+        from_date: date,
+        to_date: Optional[date] = None,
+    ) -> Dict[str, List[Booking]]:
+        """
+        Get all bookings grouped by service_catalog_id in a single query.
+
+        Optimized for analytics: loads all bookings once instead of per-service queries.
+
+        Args:
+            from_date: Start date for the query
+            to_date: Optional end date (defaults to today)
+
+        Returns:
+            Dict mapping service_catalog_id -> list of bookings
+        """
+        try:
+            from collections import defaultdict
+
+            from ..models.service_catalog import InstructorService
+
+            query = (
+                self.db.query(Booking, InstructorService.service_catalog_id)
+                .join(InstructorService, Booking.instructor_service_id == InstructorService.id)
+                .filter(Booking.booking_date >= from_date)
+            )
+
+            if to_date:
+                query = query.filter(Booking.booking_date <= to_date)
+
+            results = query.all()
+
+            # Group by service_catalog_id
+            grouped: Dict[str, List[Booking]] = defaultdict(list)
+            for booking, service_catalog_id in results:
+                grouped[str(service_catalog_id)].append(booking)
+
+            return dict(grouped)
+
+        except Exception as e:
+            self.logger.error(f"Error getting all bookings by service catalog: {str(e)}")
+            raise RepositoryException(f"Failed to get bookings by service catalog: {str(e)}")
+
     # Detailed Booking Queries (unchanged)
 
     def get_booking_with_details(self, booking_id: str) -> Optional[Booking]:

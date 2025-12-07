@@ -24,6 +24,7 @@ from typing import Dict, Optional, Tuple
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+import ulid
 import yaml
 
 # Add the parent directory to the path
@@ -97,122 +98,158 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
     }
 
     with Session(engine) as session:
-        # Process categories
-        category_map = {}
+        # Use psycopg2's execute_values for true batch operations
+        from psycopg2.extras import execute_values
+        connection = session.connection().connection
 
+        # Pre-load ALL existing categories by slug in ONE query
+        existing_categories = {
+            c.slug: c for c in session.query(ServiceCategory).all()
+        }
+        existing_cat_ids = {c.slug: c.id for c in existing_categories.values()}
+
+        # Build category upsert data
+        category_values = []
         for cat_data in categories:
-            # Check if category exists
-            existing = session.query(ServiceCategory).filter_by(slug=cat_data["slug"]).first()
-
-            if existing:
-                # Update existing category
-                existing.name = cat_data["name"]
-                existing.subtitle = cat_data.get("subtitle", "")
-                existing.description = cat_data["description"]
-                existing.display_order = cat_data["display_order"]
-                existing.icon_name = cat_data.get("icon_name")
-                category_map[cat_data["slug"]] = existing
+            cat_id = existing_cat_ids.get(cat_data["slug"]) or str(ulid.ULID())
+            category_values.append((
+                cat_id,
+                cat_data["name"],
+                cat_data["slug"],
+                cat_data.get("subtitle", ""),
+                cat_data["description"],
+                cat_data["display_order"],
+                cat_data.get("icon_name"),
+            ))
+            if cat_data["slug"] in existing_cat_ids:
                 stats["categories_updated"] += 1
-                if verbose:
-                    print(f"  ✓ Updated category: {cat_data['name']}")
             else:
-                # Create new category
-                category = ServiceCategory(
-                    name=cat_data["name"],
-                    slug=cat_data["slug"],
-                    subtitle=cat_data.get("subtitle", ""),
-                    description=cat_data["description"],
-                    display_order=cat_data["display_order"],
-                    icon_name=cat_data.get("icon_name"),
-                )
-                session.add(category)
-                session.flush()
-                category_map[cat_data["slug"]] = category
                 stats["categories_created"] += 1
-                if verbose:
-                    print(f"  + Created category: {cat_data['name']}")
+            if verbose:
+                action = "✓ Updated" if cat_data["slug"] in existing_cat_ids else "+ Created"
+                print(f"  {action} category: {cat_data['name']}")
+
+        # Bulk upsert categories (1 round trip)
+        category_upsert_sql = """
+            INSERT INTO service_categories (id, name, slug, subtitle, description, display_order, icon_name, created_at, updated_at)
+            VALUES %s
+            ON CONFLICT (slug) DO UPDATE SET
+                name = EXCLUDED.name,
+                subtitle = EXCLUDED.subtitle,
+                description = EXCLUDED.description,
+                display_order = EXCLUDED.display_order,
+                icon_name = EXCLUDED.icon_name,
+                updated_at = NOW()
+        """
+        with connection.cursor() as cursor:
+            execute_values(cursor, category_upsert_sql, category_values,
+                           template="(%s, %s, %s, %s, %s, %s, %s, NOW(), NOW())",
+                           page_size=1000)
 
         stats["total_categories"] = len(categories)
 
-        # Process services
+        # Reload categories to get IDs (including newly created)
+        session.expire_all()
+        all_categories = {c.slug: c for c in session.query(ServiceCategory).all()}
+        slug_to_cat_id = {slug: cat.id for slug, cat in all_categories.items()}
+
+        # Pre-load ALL existing services by slug in ONE query
+        existing_services = {
+            s.slug: s for s in session.query(ServiceCatalog).all()
+        }
+        existing_svc_ids = {s.slug: s.id for s in existing_services.values()}
+
+        # Build service upsert data
+        service_values = []
+        slug_to_svc_id = {}  # Track IDs for related_services pass
         for svc_data in services:
-            category = category_map.get(svc_data["category_slug"])
-            if not category:
+            cat_id = slug_to_cat_id.get(svc_data["category_slug"])
+            if not cat_id:
                 if verbose:
-                    print(
-                        f"  ⚠ Warning: Category '{svc_data['category_slug']}' not found for service '{svc_data['name']}'"
-                    )
+                    print(f"  ⚠ Warning: Category '{svc_data['category_slug']}' not found for service '{svc_data['name']}'")
                 continue
 
-            # Check if service exists
-            existing = session.query(ServiceCatalog).filter_by(slug=svc_data["slug"]).first()
+            svc_id = existing_svc_ids.get(svc_data["slug"]) or str(ulid.ULID())
+            slug_to_svc_id[svc_data["slug"]] = svc_id
 
-            if existing:
-                # Update existing service
-                existing.category_id = category.id
-                existing.name = svc_data["name"]
-                existing.description = svc_data["description"]
-                existing.search_terms = svc_data["search_terms"]
-                existing.display_order = svc_data.get("display_order", 999)
-                existing.online_capable = svc_data.get("online_capable", True)
-                existing.requires_certification = svc_data.get("requires_certification", False)
-                existing.related_services = []  # Will be populated in second pass
+            service_values.append((
+                svc_id,
+                cat_id,
+                svc_data["name"],
+                svc_data["slug"],
+                svc_data["description"],
+                svc_data["search_terms"],
+                svc_data.get("display_order", 999),
+                svc_data.get("online_capable", True),
+                svc_data.get("requires_certification", False),
+                True,  # is_active
+            ))
+            if svc_data["slug"] in existing_svc_ids:
                 stats["services_updated"] += 1
-                if verbose:
-                    print(f"  ✓ Updated service: {svc_data['name']}")
             else:
-                # Create new service
-                service = ServiceCatalog(
-                    category_id=category.id,
-                    name=svc_data["name"],
-                    slug=svc_data["slug"],
-                    description=svc_data["description"],
-                    search_terms=svc_data["search_terms"],
-                    display_order=svc_data.get("display_order", 999),
-                    online_capable=svc_data.get("online_capable", True),
-                    requires_certification=svc_data.get("requires_certification", False),
-                    related_services=[],  # Will be populated in second pass
-                    is_active=True,
-                )
-                session.add(service)
                 stats["services_created"] += 1
-                if verbose:
-                    print(f"  + Created service: {svc_data['name']}")
+            if verbose:
+                action = "✓ Updated" if svc_data["slug"] in existing_svc_ids else "+ Created"
+                print(f"  {action} service: {svc_data['name']}")
+
+        # Bulk upsert services (1 round trip)
+        service_upsert_sql = """
+            INSERT INTO service_catalog (id, category_id, name, slug, description, search_terms, display_order, online_capable, requires_certification, is_active, created_at, updated_at)
+            VALUES %s
+            ON CONFLICT (slug) DO UPDATE SET
+                category_id = EXCLUDED.category_id,
+                name = EXCLUDED.name,
+                description = EXCLUDED.description,
+                search_terms = EXCLUDED.search_terms,
+                display_order = EXCLUDED.display_order,
+                online_capable = EXCLUDED.online_capable,
+                requires_certification = EXCLUDED.requires_certification,
+                updated_at = NOW()
+        """
+        with connection.cursor() as cursor:
+            execute_values(cursor, service_upsert_sql, service_values,
+                           template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())",
+                           page_size=1000)
 
         stats["total_services"] = len(services)
-
-        # Commit all changes
         session.commit()
 
-        # Second pass: Update related_services with actual IDs
+        # Second pass: Update related_services (bulk UPDATE)
+        # IMPORTANT: Update ALL services to ensure stale relations are cleared
         if verbose:
             print("\n🔗 Updating related services...")
 
-        # Build a slug-to-ID mapping
-        slug_to_id = {}
-        all_services = session.query(ServiceCatalog).all()
-        for service in all_services:
-            slug_to_id[service.slug] = service.id
-
-        # Update related_services for each service
+        # Build related_services update data for ALL services
+        related_updates = []
         for svc_data in services:
-            if svc_data.get("related_services"):
-                service = session.query(ServiceCatalog).filter_by(slug=svc_data["slug"]).first()
-                if service:
-                    # Convert slugs to IDs
-                    related_ids = []
-                    for related_slug in svc_data["related_services"]:
-                        if related_slug in slug_to_id:
-                            related_ids.append(slug_to_id[related_slug])
-                        elif verbose:
-                            print(f"  ⚠ Warning: Related service '{related_slug}' not found for '{svc_data['name']}'")
+            svc_id = slug_to_svc_id.get(svc_data["slug"])
+            if svc_id:
+                # Resolve related service slugs to IDs (may be empty list)
+                related_ids = [
+                    slug_to_svc_id[rs] for rs in svc_data.get("related_services", [])
+                    if rs in slug_to_svc_id
+                ]
+                # Always include - even empty lists to clear stale relations
+                related_updates.append((svc_id, related_ids))
+                if verbose and related_ids:
+                    print(f"  ✓ Updated related services for {svc_data['name']}: {len(related_ids)} connections")
 
-                    service.related_services = related_ids
-                    if verbose and related_ids:
-                        print(f"  ✓ Updated related services for {svc_data['name']}: {len(related_ids)} connections")
-
-        # Commit related services updates
-        session.commit()
+        # Bulk update related_services (1 round trip)
+        if related_updates:
+            # Re-acquire connection after commit
+            connection = session.connection().connection
+            related_sql = """
+                UPDATE service_catalog
+                SET related_services = data.related_services,
+                    updated_at = NOW()
+                FROM (VALUES %s) AS data(id, related_services)
+                WHERE service_catalog.id = data.id
+            """
+            with connection.cursor() as cursor:
+                execute_values(cursor, related_sql, related_updates,
+                               template="(%s, %s::text[])",
+                               page_size=1000)
+            session.commit()
 
     if verbose:
         print("\n📊 Catalog Seeding Summary:")

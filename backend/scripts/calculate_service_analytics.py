@@ -147,6 +147,8 @@ class AnalyticsCalculator:
         """
         Calculate analytics for all services.
 
+        Optimized version: uses bulk loading to reduce ~1,250 queries to ~6.
+
         Args:
             days_back: Number of days to analyze
 
@@ -155,68 +157,117 @@ class AnalyticsCalculator:
         """
         # Get all active services
         services = self.catalog_repository.find_by(is_active=True)
+        service_ids = [s.id for s in services]
         logger.info(f"Found {len(services)} active services to analyze")
 
-        updated_count = 0
-        for service in services:
+        if not service_ids:
+            return 0
+
+        # Calculate date ranges once
+        now = datetime.now(timezone.utc).date()
+        cutoff_7d = now - timedelta(days=7)
+        cutoff_30d = now - timedelta(days=30)
+        cutoff_all = now - timedelta(days=days_back)
+
+        # BULK LOAD 1: Get all bookings grouped by service_catalog_id (1 query)
+        bookings_by_service = self.booking_repository.get_all_bookings_by_service_catalog(
+            from_date=cutoff_all, to_date=now
+        )
+        logger.info(f"Loaded bookings for {len(bookings_by_service)} services in 1 query")
+
+        # BULK LOAD 2: Get all instructor counts (1 query)
+        instructor_counts = self.catalog_repository.count_active_instructors_bulk(service_ids)
+        logger.info(f"Loaded instructor counts for {len(instructor_counts)} services in 1 query")
+
+        # BULK LOAD 3: Get or create all analytics records (1-2 queries)
+        analytics_map = self.analytics_repository.get_or_create_bulk(service_ids)
+        logger.info(f"Loaded/created {len(analytics_map)} analytics records")
+
+        # Calculate all stats in memory (no DB queries)
+        all_updates = []
+        calculation_time = datetime.now(timezone.utc)
+
+        for service_id in service_ids:
             try:
-                # Get or create analytics record
-                analytics = self.analytics_repository.get_or_create(service.id)
+                all_bookings = bookings_by_service.get(service_id, [])
+                active_instructors = instructor_counts.get(service_id, 0)
 
-                # Calculate booking stats
-                booking_stats = self.calculate_booking_stats(service.id, days_back)
+                # Calculate booking stats from pre-loaded data
+                count_7d = sum(1 for b in all_bookings if b.booking_date >= cutoff_7d)
+                count_30d = sum(1 for b in all_bookings if b.booking_date >= cutoff_30d)
 
-                # Calculate instructor stats
-                instructor_stats = self.calculate_instructor_stats(service.id)
+                completed_bookings = [b for b in all_bookings if b.status == BookingStatus.COMPLETED]
+                prices = [b.total_price for b in completed_bookings if b.total_price]
+
+                # Instructor stats
+                avg_hours_per_instructor = 20
+                total_weekly_hours = active_instructors * avg_hours_per_instructor
 
                 # Prepare update data
-                update_data = {
-                    "booking_count_7d": booking_stats.get("count_7d", 0),
-                    "booking_count_30d": booking_stats.get("count_30d", 0),
-                    "avg_price_booked": booking_stats.get("avg_price"),
-                    "price_percentile_25": booking_stats.get("price_p25"),
-                    "price_percentile_50": booking_stats.get("price_p50"),
-                    "price_percentile_75": booking_stats.get("price_p75"),
-                    "most_booked_duration": booking_stats.get("most_popular_duration"),
-                    "completion_rate": booking_stats.get("completion_rate"),
-                    "active_instructors": instructor_stats["active_instructors"],
-                    "total_weekly_hours": instructor_stats["total_weekly_hours"],
-                    "last_calculated": datetime.now(timezone.utc),
+                update_data: Dict[str, object] = {
+                    "service_catalog_id": service_id,
+                    "booking_count_7d": count_7d,
+                    "booking_count_30d": count_30d,
+                    "active_instructors": active_instructors,
+                    "total_weekly_hours": total_weekly_hours,
+                    "last_calculated": calculation_time,
                 }
 
-                # Store JSON data
-                if "duration_distribution" in booking_stats:
-                    update_data["duration_distribution"] = json.dumps(booking_stats["duration_distribution"])
-                if "peak_hours" in booking_stats:
-                    update_data["peak_hours"] = json.dumps(booking_stats["peak_hours"])
-                if "peak_days" in booking_stats:
-                    update_data["peak_days"] = json.dumps(booking_stats["peak_days"])
+                # Price stats
+                if prices:
+                    prices.sort()
+                    update_data["avg_price_booked"] = sum(prices) / len(prices)
+                    update_data["price_percentile_25"] = prices[len(prices) // 4]
+                    update_data["price_percentile_50"] = prices[len(prices) // 2]
+                    update_data["price_percentile_75"] = prices[3 * len(prices) // 4]
 
-                # Calculate supply/demand ratio
-                if booking_stats.get("count_30d", 0) > 0 and instructor_stats["total_weekly_hours"] > 0:
-                    # Simplified: bookings per week / available hours per week
-                    weekly_bookings = booking_stats["count_30d"] / 4.3  # Convert to weekly
-                    update_data["supply_demand_ratio"] = instructor_stats["total_weekly_hours"] / weekly_bookings
+                # Duration stats
+                duration_counts: Dict[int, int] = defaultdict(int)
+                for booking in completed_bookings:
+                    duration_counts[booking.duration_minutes] += 1
+                if duration_counts:
+                    most_popular = max(duration_counts.items(), key=lambda x: x[1])
+                    update_data["most_booked_duration"] = most_popular[0]
+                    update_data["duration_distribution"] = json.dumps(dict(duration_counts))
 
-                # Update analytics
-                self.analytics_repository.update(analytics.service_catalog_id, **update_data)
-                updated_count += 1
+                # Completion rate
+                if all_bookings:
+                    update_data["completion_rate"] = len(completed_bookings) / len(all_bookings)
 
-                logger.info(
-                    f"Updated analytics for {service.name}: "
-                    f"{booking_stats.get('count_30d', 0)} bookings/30d, "
-                    f"{instructor_stats['active_instructors']} instructors"
-                )
+                # Peak hours
+                hour_counts: Dict[int, int] = defaultdict(int)
+                for booking in all_bookings:
+                    hour_counts[booking.start_time.hour] += 1
+                if hour_counts:
+                    update_data["peak_hours"] = json.dumps(dict(hour_counts))
+
+                # Peak days
+                day_counts: Dict[str, int] = defaultdict(int)
+                for booking in all_bookings:
+                    day_counts[booking.booking_date.strftime("%A")] += 1
+                if day_counts:
+                    update_data["peak_days"] = json.dumps(dict(day_counts))
+
+                # Supply/demand ratio
+                if count_30d > 0 and total_weekly_hours > 0:
+                    weekly_bookings = count_30d / 4.3
+                    update_data["supply_demand_ratio"] = total_weekly_hours / weekly_bookings
+
+                all_updates.append(update_data)
 
             except Exception as e:
-                logger.error(f"Error calculating analytics for service {service.id}: {str(e)}")
+                logger.error(f"Error calculating analytics for service {service_id}: {str(e)}")
 
-        # Commits are handled by repositories automatically
+        # BULK UPDATE: Update all analytics in one operation (1 round trip with native SQL)
+        updated_count = self.analytics_repository.bulk_update_all(all_updates)
+        self.db.commit()
+        logger.info(f"Bulk updated {updated_count} analytics records (native SQL)")
 
-        # Update display order based on new analytics
+        # Update display order based on new analytics (1 round trip with native SQL)
         logger.info("Updating display order based on popularity...")
         display_updates = self.catalog_repository.update_display_order_by_popularity()
-        logger.info(f"Updated display order for {display_updates} services")
+        self.db.commit()
+        logger.info(f"Updated display order for {display_updates} services (native SQL)")
 
         # Invalidate catalog caches to reflect new order
         try:
@@ -251,19 +302,24 @@ class AnalyticsCalculator:
             "Personal Training": 110,
         }
 
+        # Pre-load all services by name in ONE query
+        service_names = list(simulated_searches.keys())
+        all_services = self.catalog_repository.find_by(is_active=True)
+        name_to_service = {s.name: s for s in all_services}
+
+        # Pre-load all analytics in ONE query
+        service_ids = [name_to_service[name].id for name in service_names if name in name_to_service]
+        analytics_map = self.analytics_repository.get_or_create_bulk(service_ids)
+
+        # Update in memory
         for service_name, search_count in simulated_searches.items():
-            service = self.catalog_repository.find_one_by(name=service_name)
-            if service:
-                analytics = self.analytics_repository.get_or_create(service.id)
+            service = name_to_service.get(service_name)
+            if service and service.id in analytics_map:
+                analytics = analytics_map[service.id]
+                analytics.search_count_30d = search_count
+                analytics.search_count_7d = int(search_count * 0.25)
 
-                # Simple simulation: 7-day count is 25% of 30-day count
-                self.analytics_repository.update(
-                    analytics.service_catalog_id,
-                    search_count_30d=search_count,
-                    search_count_7d=int(search_count * 0.25),
-                )
-
-        # Commits are handled by repositories automatically
+        self.db.flush()
         logger.info("Search counts updated")
 
     def generate_report(self) -> Dict:
