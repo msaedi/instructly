@@ -8,7 +8,7 @@ sys.path.insert(0, str(backend_dir))
 from logging.config import fileConfig  # noqa: E402
 
 from alembic import context  # noqa: E402
-from sqlalchemy import engine_from_config, pool, text  # noqa: E402
+from sqlalchemy import engine_from_config, pool  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
 from app.database import Base  # noqa: E402
@@ -68,18 +68,20 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Disable statement timeout for migrations - some operations (like
+    # adding indexes on large tables) can take longer than the default
+    # timeout on cloud databases like Supabase.
+    # We set this via connect_args to avoid transaction conflicts.
+    engine_config = config.get_section(config.config_ini_section, {})
+    engine_config["connect_args"] = {"options": "-c statement_timeout=0"}
+
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        engine_config,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
     with connectable.connect() as connection:
-        # Disable statement timeout for migrations - some operations (like
-        # adding indexes on large tables) can take longer than the default
-        # timeout on cloud databases like Supabase
-        connection.execute(text("SET statement_timeout = 0"))
-
         context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
