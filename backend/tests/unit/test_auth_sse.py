@@ -3,6 +3,7 @@ import pytest
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
+from app import auth_sse
 from app.auth import create_access_token
 from app.auth_sse import get_current_user_sse
 from app.core.config import settings
@@ -52,6 +53,8 @@ def _create_user(unit_db: Session, email: str = "chat@example.com") -> User:
 async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
     monkeypatch.setattr(settings, "session_cookie_name", "sid", raising=False)
+    # Patch SessionLocal to return our test db session
+    monkeypatch.setattr(auth_sse, "SessionLocal", lambda: unit_db)
 
     user = _create_user(unit_db)
     token = create_access_token({"sub": user.email})
@@ -62,7 +65,6 @@ async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, m
         request=request,
         token_header=None,
         token_query=None,
-        db=unit_db,
     )
 
     assert resolved.id == user.id
@@ -71,6 +73,8 @@ async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, m
 @pytest.mark.asyncio
 async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
+    # Patch SessionLocal to return our test db session
+    monkeypatch.setattr(auth_sse, "SessionLocal", lambda: unit_db)
 
     user = _create_user(unit_db, email="query@example.com")
     token = create_access_token({"sub": user.email})
@@ -82,7 +86,6 @@ async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypat
         request=request,
         token_header=None,
         token_query=token,
-        db=unit_db,
     )
 
     assert resolved.email == user.email
@@ -91,6 +94,8 @@ async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypat
 @pytest.mark.asyncio
 async def test_get_current_user_sse_requires_credentials(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
+    # Patch SessionLocal to return our test db session (needed if auth reaches DB lookup)
+    monkeypatch.setattr(auth_sse, "SessionLocal", lambda: unit_db)
 
     request = _build_request()
 
@@ -99,7 +104,6 @@ async def test_get_current_user_sse_requires_credentials(unit_db, monkeypatch):
             request=request,
             token_header=None,
             token_query=None,
-            db=unit_db,
         )
 
     assert getattr(exc_info.value, "status_code", None) == 401

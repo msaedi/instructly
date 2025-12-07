@@ -27,11 +27,10 @@ from typing import Optional, cast
 
 from fastapi import Depends, HTTPException, Query, Request, status
 from jwt import InvalidIssuerError, PyJWTError
-from sqlalchemy.orm import Session
 
 from .auth import decode_access_token, oauth2_scheme_optional
 from .core.config import settings
-from .database import get_db
+from .database import SessionLocal
 from .models.user import User
 from .utils.cookies import session_cookie_candidates
 
@@ -42,10 +41,14 @@ async def get_current_user_sse(
     request: Request,
     token_header: Optional[str] = Depends(oauth2_scheme_optional),
     token_query: Optional[str] = Query(None, alias="token"),
-    db: Session = Depends(get_db),
 ) -> User:
     """
     Get current user for SSE endpoints.
+
+    CRITICAL: This function uses manual DB session management to prevent holding
+    connections in "idle in transaction" state during long-running SSE streams.
+    FastAPI's Depends(get_db) cleanup only runs AFTER the response completes,
+    which for SSE can be 30+ seconds.
 
     Checks for authentication in this order:
     1. Authorization header (for testing/non-browser clients)
@@ -55,8 +58,6 @@ async def get_current_user_sse(
     Args:
         token_header: Token from Authorization header
         token_query: Token from query parameter
-        token_cookie: Token from cookie
-        db: Database session
 
     Returns:
         User object if authenticated
@@ -105,16 +106,32 @@ async def get_current_user_sse(
         logger.error(f"JWT decode error: {str(e)}")
         raise credentials_exception
 
-    # Get user from database
-    user = cast(Optional[User], db.query(User).filter(User.email == user_email).first())
+    # =========================================================================
+    # MANUAL DB SESSION MANAGEMENT
+    # We create and close the session explicitly to prevent holding connections
+    # in "idle in transaction" state during long-running SSE streams.
+    # =========================================================================
+    db = SessionLocal()
+    try:
+        # Get user from database
+        user = cast(Optional[User], db.query(User).filter(User.email == user_email).first())
 
-    if user is None:
-        raise credentials_exception
+        if user is None:
+            raise credentials_exception
 
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user",
-        )
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Inactive user",
+            )
 
-    return user
+        # Eagerly load user attributes we need before closing session
+        # Access attributes to ensure they're loaded into the object
+        _ = user.id
+        _ = user.email
+        _ = user.is_active
+
+        return user
+    finally:
+        db.close()
+        logger.debug("[SSE-AUTH] DB session closed after user lookup")
