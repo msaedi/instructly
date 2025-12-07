@@ -12,11 +12,13 @@ import os
 from typing import Any, Dict
 
 # Database Connection Pooling (Optimized for Render + Supabase)
+# IMPORTANT: Supavisor Transaction Mode (port 6543) times out idle connections at ~60s.
+# pool_recycle MUST be < 60s to avoid "SSL connection closed unexpectedly" errors.
 DATABASE_POOL_CONFIG = {
     "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
     "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
     "pool_timeout": int(os.getenv("DATABASE_POOL_TIMEOUT", "10")),
-    "pool_recycle": int(os.getenv("DATABASE_POOL_RECYCLE", "300")),
+    "pool_recycle": int(os.getenv("DATABASE_POOL_RECYCLE", "55")),
     "pool_pre_ping": True,
     "pool_use_lifo": True,
     "future": True,

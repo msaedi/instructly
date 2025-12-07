@@ -49,7 +49,9 @@ _DEFAULT_POOL_KWARGS: dict[str, Any] = {
     "pool_size": 10,
     "max_overflow": 20,
     "pool_timeout": 10,
-    "pool_recycle": 300,
+    # Supavisor Transaction Mode (port 6543) times out idle connections at ~60s.
+    # Set pool_recycle to 55s to ensure connections are refreshed before timeout.
+    "pool_recycle": 55,
     "pool_pre_ping": True,
     "pool_use_lifo": True,
     "future": True,
