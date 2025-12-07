@@ -39,32 +39,28 @@ HEARTBEAT_INTERVAL = settings.sse_heartbeat_interval
 
 async def create_sse_stream(
     user_id: str,
-    db: Session,
-    last_event_id: Optional[str] = None,
+    missed_messages: Optional[List[Message]] = None,
 ) -> AsyncGenerator[Dict[str, str], None]:
     """
     Create an SSE stream for a user.
 
+    This function is DB-free - all DB operations must be done before calling.
+    This prevents holding DB sessions in "idle in transaction" state during
+    long-running SSE connections.
+
     Args:
         user_id: The user's ULID
-        db: Database session
-        last_event_id: Last-Event-ID header from reconnecting client
+        missed_messages: Pre-fetched missed messages (from DB lookup done before streaming)
 
     Yields:
         SSE event dicts with keys: event, data, id (optional for new_message)
     """
-    # Step 1: Catch up from DB if reconnecting
-    if last_event_id:
-        logger.info(
-            f"[SSE-STREAM] Client reconnecting with Last-Event-ID: {last_event_id}",
-            extra={"user_id": user_id, "last_event_id": last_event_id},
-        )
-        missed_messages = fetch_messages_after(db, user_id, last_event_id)
+    # Step 1: Send any missed messages (pre-fetched by caller)
+    if missed_messages:
         logger.info(
             f"[SSE-STREAM] Sending {len(missed_messages)} missed messages",
             extra={"user_id": user_id, "count": len(missed_messages)},
         )
-
         for msg in missed_messages:
             yield format_message_from_db(msg, user_id)
 

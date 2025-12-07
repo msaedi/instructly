@@ -43,7 +43,7 @@ from ...auth_sse import get_current_user_sse
 from ...core.config import settings
 from ...core.enums import PermissionName
 from ...core.exceptions import ForbiddenException, NotFoundException, ValidationException
-from ...database import get_db
+from ...database import SessionLocal, get_db
 from ...dependencies.permissions import require_permission
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
@@ -111,7 +111,6 @@ class EditMessageRequest(BaseModel):
 async def stream_user_messages(
     request: Request,
     current_user: User = Depends(get_current_user_sse),
-    service: MessageService = Depends(get_message_service),
 ) -> EventSourceResponse:
     """
     SSE endpoint for real-time message streaming - per-user inbox (v3.1).
@@ -124,6 +123,7 @@ async def stream_user_messages(
     - Last-Event-ID support for automatic catch-up on reconnect
     - new_message events include SSE id: field
     - Heartbeat every 10 seconds
+    - DB session explicitly closed before streaming (prevents idle_in_transaction)
 
     Supports Last-Event-ID header - when reconnecting, the client
     automatically sends the last received message ID, and the server
@@ -141,34 +141,75 @@ async def stream_user_messages(
         },
     )
 
-    # Check if user has VIEW_MESSAGES permission
-    from ...services.permission_service import PermissionService
+    # =========================================================================
+    # PHASE 1: DB OPERATIONS (manual session with explicit close)
+    #
+    # CRITICAL: We use manual session management here instead of Depends(get_db)
+    # because FastAPI's dependency cleanup only runs AFTER the response completes.
+    # For SSE streams that run 30+ seconds, this would hold DB connections in
+    # "idle in transaction" state, exhausting the connection pool.
+    #
+    # By manually closing the session BEFORE returning EventSourceResponse,
+    # we ensure DB connections are released immediately after the initial queries.
+    # =========================================================================
 
-    permission_service = PermissionService(service.db)
-    if not permission_service.user_has_permission(current_user.id, PermissionName.VIEW_MESSAGES):
-        logger.warning(
-            "[SSE] Permission denied",
-            extra={"user_id": current_user.id, "permission": "VIEW_MESSAGES"},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to view messages",
+    db = SessionLocal()
+    missed_messages = None
+    user_id = current_user.id
+
+    try:
+        # Check if user has VIEW_MESSAGES permission
+        from ...services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
+        if not permission_service.user_has_permission(
+            current_user.id, PermissionName.VIEW_MESSAGES
+        ):
+            logger.warning(
+                "[SSE] Permission denied",
+                extra={"user_id": current_user.id, "permission": "VIEW_MESSAGES"},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to view messages",
+            )
+
+        # Read Last-Event-ID header (sent automatically by browser on reconnect)
+        last_event_id = request.headers.get("Last-Event-ID")
+
+        if last_event_id:
+            logger.info(
+                "[SSE] Client reconnecting with Last-Event-ID",
+                extra={"user_id": current_user.id, "last_event_id": last_event_id},
+            )
+            # Fetch missed messages NOW, before entering the stream
+            from ...services.messaging.sse_stream import fetch_messages_after
+
+            missed_messages = fetch_messages_after(db, current_user.id, last_event_id)
+            logger.info(
+                "[SSE] Pre-fetched missed messages",
+                extra={"user_id": current_user.id, "count": len(missed_messages)},
+            )
+
+    finally:
+        # CRITICAL: Explicitly close DB session BEFORE starting the SSE stream.
+        # This prevents holding connections in "idle in transaction" state.
+        db.close()
+        logger.debug(
+            "[SSE] DB session closed before streaming",
+            extra={"user_id": user_id},
         )
 
-    # Read Last-Event-ID header (sent automatically by browser on reconnect)
-    last_event_id = request.headers.get("Last-Event-ID")
-    if last_event_id:
-        logger.info(
-            "[SSE] Client reconnecting with Last-Event-ID",
-            extra={"user_id": current_user.id, "last_event_id": last_event_id},
-        )
+    # =========================================================================
+    # PHASE 2: SSE STREAM (DB-free, only Redis Pub/Sub)
+    # At this point, the DB session is closed. The stream runs purely on Redis.
+    # =========================================================================
 
     async def event_generator() -> AsyncGenerator[dict[str, str], None]:
-        """Generate SSE events using Redis-only stream."""
+        """Generate SSE events using Redis-only stream (no DB access)."""
         async for event in create_sse_stream(
-            user_id=current_user.id,
-            db=service.db,
-            last_event_id=last_event_id,
+            user_id=user_id,
+            missed_messages=missed_messages,
         ):
             yield event
 

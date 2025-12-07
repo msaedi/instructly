@@ -9,7 +9,7 @@ import pytest
 from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.message_repository import MessageRepository
 from app.services.messaging import sse_stream
-from app.services.messaging.sse_stream import create_sse_stream
+from app.services.messaging.sse_stream import create_sse_stream, fetch_messages_after
 
 
 @pytest.mark.asyncio
@@ -68,11 +68,13 @@ async def test_reconnection_catches_up(
     monkeypatch.setattr(sse_stream.pubsub_manager, "subscribe", fake_subscribe)
     monkeypatch.setattr(sse_stream, "stream_with_heartbeat", fake_stream_with_heartbeat)
 
+    # Pre-fetch missed messages (as the route handler now does)
+    missed_messages = fetch_messages_after(db, str(test_student.id), str(msg1.id))
+
     events = []
     async for event in create_sse_stream(
         user_id=str(test_student.id),
-        db=db,
-        last_event_id=str(msg1.id),
+        missed_messages=missed_messages,
     ):
         events.append(event)
 
@@ -101,8 +103,7 @@ async def test_redis_failure_recovery(db, test_booking, test_student, monkeypatc
     events = []
     async for event in create_sse_stream(
         user_id=str(test_student.id),
-        db=db,
-        last_event_id=None,
+        missed_messages=None,
     ):
         events.append(event)
 
