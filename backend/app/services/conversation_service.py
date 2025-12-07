@@ -96,6 +96,9 @@ class ConversationService(BaseService):
         """
         List conversations for a user with pagination.
 
+        Uses database-level filtering for better performance at scale.
+        State filtering is done via JOIN/LEFT JOIN instead of post-fetch Python filtering.
+
         Args:
             user_id: The user's ID
             state_filter: Optional filter by state (active/archived/trashed)
@@ -106,32 +109,37 @@ class ConversationService(BaseService):
             Tuple of (conversations, next_cursor) where next_cursor is
             None if no more pages
         """
+        # Use database-level filtering for efficiency
         # Fetch one extra to determine if there's more
-        conversations_seq = self.conversation_repository.find_for_user(
-            user_id=user_id,
-            state_filter=state_filter,
-            limit=limit + 1,
-            cursor=cursor,
-        )
-        # Convert Sequence to list for manipulation
-        conversations = list(conversations_seq)
-
-        # Apply per-user state filtering using conversation_user_state records.
-        # "active" is the default when no state row exists, so treat it the same
-        # as the unfiltered view: exclude archived/trashed, include everything else.
-        # Single query for both archived and trashed IDs (M4 fix)
-        (
-            archived_ids,
-            trashed_ids,
-        ) = self.conversation_state_repository.get_excluded_conversation_ids(user_id)
-
         if state_filter in (None, "active"):
-            excluded = archived_ids | trashed_ids
-            conversations = [c for c in conversations if c.id not in excluded]
+            # Active = exclude archived and trashed at database level
+            conversations_seq = self.conversation_repository.find_for_user_excluding_states(
+                user_id=user_id,
+                excluded_states=["archived", "trashed"],
+                limit=limit + 1,
+                cursor=cursor,
+            )
         elif state_filter == "archived":
-            conversations = [c for c in conversations if c.id in archived_ids]
+            # Only archived conversations
+            conversations_seq = self.conversation_repository.find_for_user_with_state(
+                user_id=user_id,
+                state="archived",
+                limit=limit + 1,
+                cursor=cursor,
+            )
         elif state_filter == "trashed":
-            conversations = [c for c in conversations if c.id in trashed_ids]
+            # Only trashed conversations
+            conversations_seq = self.conversation_repository.find_for_user_with_state(
+                user_id=user_id,
+                state="trashed",
+                limit=limit + 1,
+                cursor=cursor,
+            )
+        else:
+            # Unknown filter, return empty
+            return [], None
+
+        conversations = list(conversations_seq)
 
         next_cursor = None
         if len(conversations) > limit:

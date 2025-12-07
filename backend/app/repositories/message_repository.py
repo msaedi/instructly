@@ -20,9 +20,10 @@ from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
-# Reschedule detection window in minutes.
-# When a booking is rescheduled, both a cancellation and reschedule system message are created.
-# We suppress the cancellation message if a reschedule happened within this window.
+# Time window (in minutes) to detect if a cancellation is part of a reschedule operation.
+# When a booking is rescheduled, the system creates a "reschedule" message first,
+# then triggers a "cancel" for the old booking. This window prevents duplicate messages.
+# 1 minute is sufficient since both operations happen in the same request cycle.
 RESCHEDULE_DETECTION_WINDOW_MINUTES = 1
 
 

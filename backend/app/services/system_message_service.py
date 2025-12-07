@@ -289,8 +289,52 @@ class SystemMessageService(BaseService):
         return names.get(student_id), names.get(instructor_id)
 
     def _recent_reschedule_exists(self, conversation_id: str) -> bool:
-        """Detect reschedule system message in the last minute for this conversation."""
+        """
+        Check if a reschedule system message was created recently for this conversation.
+
+        Why this exists:
+        When a user reschedules a booking, the system internally cancels the old booking
+        and creates a new one. Without this check, users would see BOTH:
+        - "Lesson rescheduled: Dec 12 → Dec 10"
+        - "Lesson cancelled by Emma: Dec 12"
+
+        By detecting a recent reschedule message (within RESCHEDULE_DETECTION_WINDOW_MINUTES),
+        we suppress the redundant cancellation message.
+
+        Returns:
+            True if a reschedule message exists within the detection window
+        """
         return self.message_repository.has_recent_reschedule_message(conversation_id)
+
+    def _run_async_task(self, coro_func, error_context: str) -> None:
+        """
+        Execute an async coroutine, handling both running and non-running event loops.
+
+        This helper handles the common pattern of:
+        - If we're already in an async context, create a task
+        - If not, run with asyncio.run()
+        - In both cases, log errors without raising (best effort)
+
+        Args:
+            coro_func: A callable that returns a coroutine (not the coroutine itself)
+            error_context: Description for error logging (e.g., "publishing system message")
+        """
+
+        async def _with_error_handling() -> None:
+            try:
+                await coro_func()
+            except Exception as e:  # pragma: no cover - best effort logging
+                self.logger.warning(f"Failed {error_context}: {e}")
+
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_with_error_handling())
+        except RuntimeError:
+            # No running event loop - run synchronously
+            try:
+                asyncio.run(coro_func())
+            except Exception as e:  # pragma: no cover - best effort logging
+                self.logger.warning(f"Failed {error_context}: {e}")
 
     def _create_system_message(
         self,
@@ -315,7 +359,7 @@ class SystemMessageService(BaseService):
 
         # Publish SSE event AFTER transaction commits for real-time delivery
         # (best effort, do not block booking flow)
-        async def _publish_system_message() -> None:
+        async def _publish() -> None:
             await publish_new_message(
                 db=self.db,
                 message_id=str(message.id),
@@ -329,36 +373,10 @@ class SystemMessageService(BaseService):
                 message_type=message.message_type,
             )
 
-        async def _publish_with_error_handling() -> None:
-            """Wrapper to catch and log errors from async task."""
-            try:
-                await _publish_system_message()
-            except Exception as e:  # pragma: no cover - best effort logging
-                self.logger.warning(
-                    "Failed to publish SSE for system message",
-                    extra={
-                        "error": str(e),
-                        "conversation_id": conversation_id,
-                        "booking_id": booking_id,
-                    },
-                )
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            try:
-                asyncio.run(_publish_system_message())
-            except Exception as e:  # pragma: no cover - best effort logging
-                self.logger.warning(
-                    "Failed to publish SSE for system message",
-                    extra={
-                        "error": str(e),
-                        "conversation_id": conversation_id,
-                        "booking_id": booking_id,
-                    },
-                )
-        else:
-            loop.create_task(_publish_with_error_handling())
+        self._run_async_task(
+            _publish,
+            f"publishing system message to conversation {conversation_id}",
+        )
 
     def _format_time(self, t: time) -> str:
         """Format time as '5pm' style."""

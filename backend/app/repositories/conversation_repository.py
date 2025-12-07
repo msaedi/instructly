@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Query, Session, joinedload
 
 from ..models.conversation import Conversation
+from ..models.conversation_user_state import ConversationUserState
 from ..models.message import Message
 from ..models.user import User
 from .base_repository import BaseRepository
@@ -161,6 +162,124 @@ class ConversationRepository(BaseRepository[Conversation]):
         # Use offset only if cursor not provided
         if not cursor and offset > 0:
             query = query.offset(offset)
+
+        return cast(Sequence[Conversation], query.limit(limit).all())
+
+    def find_for_user_excluding_states(
+        self,
+        user_id: str,
+        excluded_states: List[str],
+        limit: int = 20,
+        cursor: Optional[str] = None,
+    ) -> Sequence[Conversation]:
+        """
+        Find conversations for a user, excluding those with specified states.
+
+        Uses LEFT JOIN for efficient database-level filtering, avoiding
+        post-fetch filtering in Python. This is more performant at scale.
+
+        Args:
+            user_id: The user ID to find conversations for
+            excluded_states: States to exclude (e.g., ["archived", "trashed"])
+            limit: Maximum number of conversations to return
+            cursor: ISO timestamp for cursor-based pagination
+
+        Returns:
+            List of conversations ordered by last_message_at desc
+        """
+        query = (
+            self.db.query(Conversation)
+            .outerjoin(
+                ConversationUserState,
+                and_(
+                    ConversationUserState.conversation_id == Conversation.id,
+                    ConversationUserState.user_id == user_id,
+                    ConversationUserState.state.in_(excluded_states),
+                ),
+            )
+            .filter(
+                or_(
+                    Conversation.student_id == user_id,
+                    Conversation.instructor_id == user_id,
+                ),
+                ConversationUserState.id == None,  # No matching excluded state  # noqa: E711
+            )
+        )
+
+        # Apply cursor-based pagination if cursor provided
+        if cursor:
+            from datetime import datetime
+
+            try:
+                cursor_time = datetime.fromisoformat(cursor.replace("Z", "+00:00"))
+                query = query.filter(
+                    func.coalesce(Conversation.last_message_at, Conversation.created_at)
+                    < cursor_time
+                )
+            except (ValueError, TypeError):
+                pass
+
+        query = query.order_by(
+            func.coalesce(Conversation.last_message_at, Conversation.created_at).desc()
+        )
+
+        return cast(Sequence[Conversation], query.limit(limit).all())
+
+    def find_for_user_with_state(
+        self,
+        user_id: str,
+        state: str,
+        limit: int = 20,
+        cursor: Optional[str] = None,
+    ) -> Sequence[Conversation]:
+        """
+        Find conversations for a user that have a specific state.
+
+        Uses INNER JOIN for efficient database-level filtering.
+
+        Args:
+            user_id: The user ID to find conversations for
+            state: State to include (e.g., "archived" or "trashed")
+            limit: Maximum number of conversations to return
+            cursor: ISO timestamp for cursor-based pagination
+
+        Returns:
+            List of conversations ordered by last_message_at desc
+        """
+        query = (
+            self.db.query(Conversation)
+            .join(
+                ConversationUserState,
+                and_(
+                    ConversationUserState.conversation_id == Conversation.id,
+                    ConversationUserState.user_id == user_id,
+                    ConversationUserState.state == state,
+                ),
+            )
+            .filter(
+                or_(
+                    Conversation.student_id == user_id,
+                    Conversation.instructor_id == user_id,
+                ),
+            )
+        )
+
+        # Apply cursor-based pagination if cursor provided
+        if cursor:
+            from datetime import datetime
+
+            try:
+                cursor_time = datetime.fromisoformat(cursor.replace("Z", "+00:00"))
+                query = query.filter(
+                    func.coalesce(Conversation.last_message_at, Conversation.created_at)
+                    < cursor_time
+                )
+            except (ValueError, TypeError):
+                pass
+
+        query = query.order_by(
+            func.coalesce(Conversation.last_message_at, Conversation.created_at).desc()
+        )
 
         return cast(Sequence[Conversation], query.limit(limit).all())
 
