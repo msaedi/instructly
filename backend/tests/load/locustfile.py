@@ -309,7 +309,8 @@ class SSEMessagingUser(HttpUser):
                     events_received += 1
 
                     # Check for cross-user E2E correlation in new_message events
-                    if event.data:
+                    # NOTE: The event TYPE is in event.event (SSE protocol), not in the JSON data
+                    if event.data and event.event == "new_message":
                         self._check_e2e_correlation(event.data, now)
 
                     # Stop after hold duration
@@ -345,10 +346,8 @@ class SSEMessagingUser(HttpUser):
         except json.JSONDecodeError:
             return
 
-        # Only process new_message events
-        if payload.get("type") != "new_message":
-            return
-
+        # The SSE event type filtering is done before calling this method.
+        # The payload structure for new_message is: {"message": {...}, "conversation_id": ..., "is_mine": ...}
         msg = payload.get("message", {}) or {}
         content = msg.get("content", "") or ""
 
