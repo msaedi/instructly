@@ -6,3 +6,4 @@ mypy==1.18.2
 hypothesis>=6.0.0
 schemathesis>=3.34.0
 locust>=2.23.0
+sseclient-py>=1.8.0
