@@ -1,0 +1,11 @@
+{
+  "_comment": "Placeholder for load test conversation mappings. To be populated in Phase 0.",
+  "loadtest1@example.com": {
+    "booking_id": "PLACEHOLDER_BOOKING_ID_1",
+    "conversation_id": "PLACEHOLDER_CONVERSATION_ID_1"
+  },
+  "loadtest2@example.com": {
+    "booking_id": "PLACEHOLDER_BOOKING_ID_2",
+    "conversation_id": "PLACEHOLDER_CONVERSATION_ID_2"
+  }
+}
