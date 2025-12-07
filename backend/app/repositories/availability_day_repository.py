@@ -170,13 +170,13 @@ class AvailabilityDayRepository:
                 params[f"day_date_{i}"] = day_date
                 params[f"bits_{i}"] = bits
 
-            # PostgreSQL native UPSERT
+            # PostgreSQL native UPSERT (parameterized - values_clauses are placeholders only)
             sql = f"""
                 INSERT INTO availability_days (instructor_id, day_date, bits)
                 VALUES {', '.join(values_clauses)}
                 ON CONFLICT (instructor_id, day_date)
                 DO UPDATE SET bits = EXCLUDED.bits
-            """
+            """  # nosec B608 - SQL injection safe: values_clauses contains parameterized placeholders
 
             self.db.execute(text(sql), params)
             total += len(chunk)
