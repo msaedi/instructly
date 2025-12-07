@@ -124,3 +124,7 @@ backend/TEST_INVENTORY.json
 
 # Temporary logs
 docs/temp-logs/
+
+# Load test results
+backend/tests/load/results/
+!backend/tests/load/results/.gitkeep
