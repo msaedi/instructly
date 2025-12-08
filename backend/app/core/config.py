@@ -677,7 +677,7 @@ class Settings(BaseSettings):
     message_edit_window_minutes: int = Field(
         default=5, description="How many minutes a user can edit their message"
     )
-    sse_heartbeat_interval: int = Field(default=10, description="SSE heartbeat interval in seconds")
+    sse_heartbeat_interval: int = Field(default=30, description="SSE heartbeat interval in seconds")
 
     # Geocoding/Maps providers
     geocoding_provider: str = Field(

@@ -1,11 +1,16 @@
 # backend/app/services/messaging/sse_stream.py
 """
-Redis-only SSE stream with Last-Event-ID support.
+SSE Stream with fan-out multiplexer for scalable real-time messaging.
 
-This module implements v3.1 architecture:
-- Redis Pub/Sub as the ONLY real-time source
+This module implements v4.0 architecture using Broadcaster:
+- Single Redis PubSub connection shared across all SSE clients per worker
+- Enables 500+ concurrent SSE users instead of ~30 with per-connection pattern
 - Last-Event-ID for automatic catch-up on reconnect
-- No deduplication needed (single source)
+- Proper async waiting (no busy-wait polling)
+
+Architecture:
+  N SSE clients → 1 Broadcaster instance → 1 Redis connection per worker
+  (Previously: N SSE clients → N Redis connections → maxclients ceiling)
 
 Event types:
 - new_message: Includes SSE `id:` field for Last-Event-ID tracking
@@ -18,15 +23,14 @@ import asyncio
 from datetime import datetime, timezone
 import json
 import logging
-import time
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.broadcast import get_broadcast
 from app.core.config import settings
 from app.models.message import Message
 from app.repositories.message_repository import MessageRepository
-from app.services.messaging.redis_pubsub import pubsub_manager
 
 if TYPE_CHECKING:
     pass
@@ -42,11 +46,16 @@ async def create_sse_stream(
     missed_messages: Optional[List[Message]] = None,
 ) -> AsyncGenerator[Dict[str, str], None]:
     """
-    Create an SSE stream for a user.
+    Create an SSE stream for a user using shared Broadcaster connection.
 
     This function is DB-free - all DB operations must be done before calling.
     This prevents holding DB sessions in "idle in transaction" state during
     long-running SSE connections.
+
+    Architecture (v4.0 with Broadcaster):
+    - Uses shared Redis PubSub connection via Broadcaster (1 connection per worker)
+    - Supports 500+ concurrent SSE users instead of ~30 with per-connection pattern
+    - Proper async waiting (no busy-wait polling)
 
     Args:
         user_id: The user's ULID
@@ -55,6 +64,8 @@ async def create_sse_stream(
     Yields:
         SSE event dicts with keys: event, data, id (optional for new_message)
     """
+    channel = f"user:{user_id}"
+
     # Step 1: Send any missed messages (pre-fetched by caller)
     if missed_messages:
         logger.info(
@@ -76,44 +87,90 @@ async def create_sse_stream(
         ),
     }
 
-    # Step 3: Subscribe to Redis
+    # Step 3: Subscribe via shared Broadcaster (1 Redis connection per worker)
     try:
-        async with pubsub_manager.subscribe(user_id) as pubsub:
+        broadcast = get_broadcast()
+        async with broadcast.subscribe(channel=channel) as subscriber:
             logger.info(
-                f"[SSE-STREAM] Subscribed to Redis for user {user_id}",
+                f"[SSE-STREAM] Subscribed to channel {channel} via Broadcaster",
                 extra={"user_id": user_id},
             )
 
+            # Use a queue to decouple the subscriber from heartbeat timing.
+            # This avoids the issue where asyncio.wait_for() cancels __anext__()
+            # on timeout, corrupting the Broadcaster's internal state.
+            message_queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+
+            async def reader_task() -> None:
+                """Read from subscriber and forward to queue."""
+                try:
+                    async for event in subscriber:
+                        await message_queue.put(("message", event))
+                except Exception as e:
+                    await message_queue.put(("error", e))
+                finally:
+                    await message_queue.put(("done", None))
+
+            # Start the reader as a background task
+            reader = asyncio.create_task(reader_task())
+
             # Step 4: Stream events with heartbeat
-            async for event in stream_with_heartbeat(pubsub, HEARTBEAT_INTERVAL, user_id=user_id):
-                if event.get("_heartbeat"):
-                    logger.info(f"[SSE-HEARTBEAT] Sending heartbeat for user {user_id}")
-                    # Heartbeats use simplified format without schema_version.
-                    # Unlike new_message/reaction events, heartbeats are purely for
-                    # connection keep-alive and never need versioned parsing.
-                    # Clients should treat heartbeats as opaque ping events.
-                    yield {
-                        "event": "heartbeat",
-                        "data": json.dumps(
-                            {
-                                "type": "heartbeat",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            }
-                        ),
-                    }
-                else:
-                    logger.debug(
-                        "[SSE-STREAM] Yielding event",
-                        extra={"user_id": user_id, "event_type": event.get("type")},
-                    )
-                    yield format_redis_event(event, user_id)
+            try:
+                while True:
+                    try:
+                        # Wait for message with timeout for heartbeat
+                        msg_type, data = await asyncio.wait_for(
+                            message_queue.get(),
+                            timeout=HEARTBEAT_INTERVAL,
+                        )
+
+                        if msg_type == "message":
+                            # Broadcaster returns Event objects with .channel and .message
+                            try:
+                                parsed_event = json.loads(data.message)
+                                logger.debug(
+                                    "[SSE-STREAM] Yielding event",
+                                    extra={
+                                        "user_id": user_id,
+                                        "event_type": parsed_event.get("type"),
+                                    },
+                                )
+                                yield format_redis_event(parsed_event, user_id)
+                            except json.JSONDecodeError as e:
+                                logger.warning(f"[SSE-STREAM] Invalid JSON in message: {e}")
+                        elif msg_type == "error":
+                            logger.error(f"[SSE-STREAM] Reader error for user {user_id}: {data}")
+                            break
+                        elif msg_type == "done":
+                            logger.info(f"[SSE-STREAM] Subscription ended for user {user_id}")
+                            break
+
+                    except asyncio.TimeoutError:
+                        # No message within timeout - send heartbeat
+                        logger.debug(f"[SSE-HEARTBEAT] Sending heartbeat for user {user_id}")
+                        yield {
+                            "event": "heartbeat",
+                            "data": json.dumps(
+                                {
+                                    "type": "heartbeat",
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                }
+                            ),
+                        }
+            finally:
+                # Clean up the reader task
+                reader.cancel()
+                try:
+                    await reader
+                except asyncio.CancelledError:
+                    pass
 
     except asyncio.CancelledError:
         logger.info(f"[SSE-STREAM] Stream cancelled for user {user_id}")
         raise
     except RuntimeError as e:
-        # Redis not initialized
-        logger.error(f"[SSE-STREAM] Redis error for user {user_id}: {e}")
+        # Broadcast not initialized
+        logger.error(f"[SSE-STREAM] Broadcast error for user {user_id}: {e}")
         yield {
             "event": "error",
             "data": json.dumps(
@@ -130,42 +187,29 @@ async def create_sse_stream(
         )
         raise
 
+    logger.info(f"[SSE-STREAM] User {user_id} unsubscribed from channel {channel}")
 
-async def stream_with_heartbeat(
-    pubsub: Any,
-    interval: int,
-    user_id: Optional[str] = None,
-) -> AsyncGenerator[Dict[str, Any], None]:
+
+async def publish_to_user(user_id: str, message: Dict[str, Any]) -> None:
     """
-    Wrap a Redis PubSub to inject heartbeats.
+    Publish a message to a user's channel via Broadcaster.
 
-    Yields events from Redis, plus heartbeat markers every `interval` seconds.
+    Uses the shared Broadcaster connection for efficient publishing.
+
+    Args:
+        user_id: The target user's ULID
+        message: The message payload (will be JSON serialized)
     """
-    last_activity = time.monotonic()
-    while True:
-        # Poll Redis with a short timeout (non-blocking)
-        message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-
-        if message is not None and message.get("type") == "message":
-            try:
-                event = json.loads(message["data"])
-                last_activity = time.monotonic()
-                yield event
-            except json.JSONDecodeError as e:
-                logger.warning(f"[SSE-STREAM] Invalid JSON in Redis message: {e}")
-        else:
-            elapsed = time.monotonic() - last_activity
-            if elapsed >= interval:
-                logger.debug(
-                    "[SSE-HEARTBEAT] Timeout triggered, generating heartbeat",
-                    extra={
-                        "user_id": user_id,
-                        "interval": interval,
-                        "idle_seconds": round(elapsed, 1),
-                    },
-                )
-                last_activity = time.monotonic()
-                yield {"_heartbeat": True}
+    channel = f"user:{user_id}"
+    try:
+        broadcast = get_broadcast()
+        await broadcast.publish(channel=channel, message=json.dumps(message))
+        logger.debug(f"[SSE-PUBLISH] Published message to user {user_id}")
+    except RuntimeError as e:
+        # Broadcast not initialized
+        logger.warning(f"[SSE-PUBLISH] Broadcast not initialized, cannot publish: {e}")
+    except Exception as e:
+        logger.error(f"[SSE-PUBLISH] Failed to publish to {channel}: {e}")
 
 
 def format_redis_event(event: Dict[str, Any], user_id: str) -> Dict[str, str]:

@@ -5,11 +5,16 @@ High-level publishing functions for messaging events.
 These functions handle:
 - Building properly structured events
 - Fetching recipients from booking participants (defense in depth)
-- Publishing to all relevant user channels
+- Publishing to all relevant user channels via Broadcaster (v4.0)
 
 SECURITY: Recipients are always fetched from DB inside these functions.
 Callers pass booking_id, and we derive participants internally to prevent
 any possibility of leaking messages to unauthorized users.
+
+Architecture (v4.0 with Broadcaster):
+- Uses shared Broadcaster connection for publishing
+- Consistent with SSE streaming which also uses Broadcaster
+- Single Redis connection pattern across the application
 """
 
 from datetime import datetime
@@ -28,9 +33,21 @@ from app.services.messaging.events import (
     build_read_receipt_event,
     build_typing_status_event,
 )
-from app.services.messaging.redis_pubsub import pubsub_manager
+from app.services.messaging.sse_stream import publish_to_user
 
 logger = logging.getLogger(__name__)
+
+
+async def _publish_to_users(user_ids: List[str], event: Dict[str, Any]) -> None:
+    """
+    Publish an event to multiple users via Broadcaster.
+
+    Args:
+        user_ids: List of user ULIDs to publish to
+        event: Event dict to publish
+    """
+    for user_id in user_ids:
+        await publish_to_user(user_id, event)
 
 
 def _get_conversation_participants(db: Session, conversation_id: str) -> List[str]:
@@ -119,9 +136,9 @@ async def publish_new_message(
 
     # Publish to all participants (including sender for multi-device sync)
     all_user_ids = list(set(participants))
-    await pubsub_manager.publish_to_users(all_user_ids, event)
+    await _publish_to_users(all_user_ids, event)
 
-    logger.debug(f"[REDIS-PUBSUB] Published new_message {message_id} to {len(all_user_ids)} users")
+    logger.debug(f"[BROADCAST] Published new_message {message_id} to {len(all_user_ids)} users")
 
 
 async def publish_typing_status(
@@ -156,9 +173,9 @@ async def publish_typing_status(
 
     # Don't send to the typer themselves
     other_users = [uid for uid in participants if uid != user_id]
-    await pubsub_manager.publish_to_users(other_users, event)
+    await _publish_to_users(other_users, event)
 
-    logger.debug(f"[REDIS-PUBSUB] Published typing_status to {len(other_users)} users")
+    logger.debug(f"[BROADCAST] Published typing_status to {len(other_users)} users")
 
 
 async def publish_reaction_update(
@@ -198,11 +215,9 @@ async def publish_reaction_update(
 
     # Send to all participants including reactor (multi-device)
     all_user_ids = list(set(participants))
-    await pubsub_manager.publish_to_users(all_user_ids, event)
+    await _publish_to_users(all_user_ids, event)
 
-    logger.debug(
-        f"[REDIS-PUBSUB] Published reaction_update ({action}) to {len(all_user_ids)} users"
-    )
+    logger.debug(f"[BROADCAST] Published reaction_update ({action}) to {len(all_user_ids)} users")
 
 
 async def publish_message_edited(
@@ -241,11 +256,9 @@ async def publish_message_edited(
     )
 
     all_user_ids = list(set(participants))
-    await pubsub_manager.publish_to_users(all_user_ids, event)
+    await _publish_to_users(all_user_ids, event)
 
-    logger.debug(
-        f"[REDIS-PUBSUB] Published message_edited {message_id} to {len(all_user_ids)} users"
-    )
+    logger.debug(f"[BROADCAST] Published message_edited {message_id} to {len(all_user_ids)} users")
 
 
 async def publish_read_receipt(
@@ -276,10 +289,10 @@ async def publish_read_receipt(
 
     # Send to other participants (not the reader)
     other_users = [uid for uid in participants if uid != reader_id]
-    await pubsub_manager.publish_to_users(other_users, event)
+    await _publish_to_users(other_users, event)
 
     logger.debug(
-        f"[REDIS-PUBSUB] Published read_receipt for {len(message_ids)} messages "
+        f"[BROADCAST] Published read_receipt for {len(message_ids)} messages "
         f"to {len(other_users)} users"
     )
 
@@ -307,8 +320,6 @@ async def publish_message_deleted(
 
     # Send to all participants (both sides)
     all_user_ids = list(set(participants))
-    await pubsub_manager.publish_to_users(all_user_ids, event)
+    await _publish_to_users(all_user_ids, event)
 
-    logger.debug(
-        f"[REDIS-PUBSUB] Published message_deleted {message_id} to {len(all_user_ids)} users"
-    )
+    logger.debug(f"[BROADCAST] Published message_deleted {message_id} to {len(all_user_ids)} users")

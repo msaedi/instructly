@@ -37,15 +37,15 @@ def ready_probe(response_obj: Response) -> ReadyProbeResponse:
         response_obj.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadyProbeResponse(status="cache_not_ready")
 
-    # Check Redis Pub/Sub messaging health (real-time messaging)
+    # Check Broadcaster health (real-time SSE messaging via multiplexer)
     notifications_healthy: bool | None = None
     try:
-        from app.services.messaging.redis_pubsub import pubsub_manager
+        from app.core.broadcast import is_broadcast_initialized
 
-        notifications_healthy = pubsub_manager.is_initialized
+        notifications_healthy = is_broadcast_initialized()
 
         if not notifications_healthy:
-            logger.warning("[MSG-DEBUG] /ready: Redis Pub/Sub manager not initialized")
+            logger.warning("[BROADCAST] /ready: SSE multiplexer not initialized")
             # Return degraded status but don't fail the probe
             return ReadyProbeResponse(
                 status="degraded",
@@ -53,7 +53,7 @@ def ready_probe(response_obj: Response) -> ReadyProbeResponse:
             )
     except Exception as e:
         # If messaging health can't be determined, log but don't fail
-        logger.debug(f"[MSG-DEBUG] /ready: Could not check messaging health: {e}")
+        logger.debug(f"[BROADCAST] /ready: Could not check messaging health: {e}")
         # notifications_healthy remains None (unknown)
 
     return ReadyProbeResponse(status="ok", notifications_healthy=notifications_healthy)

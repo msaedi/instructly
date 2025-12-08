@@ -113,13 +113,18 @@ async def stream_user_messages(
     current_user: User = Depends(get_current_user_sse),
 ) -> EventSourceResponse:
     """
-    SSE endpoint for real-time message streaming - per-user inbox (v3.1).
+    SSE endpoint for real-time message streaming - per-user inbox (v4.0).
 
     Establishes a Server-Sent Events connection for receiving
     real-time messages across ALL user's conversations.
 
+    Architecture (v4.0 with Broadcaster):
+    - Single Redis PubSub connection shared across all SSE clients per worker
+    - Enables 500+ concurrent SSE users instead of ~30 with per-connection pattern
+    - Proper async waiting (no busy-wait polling)
+
     Features:
-    - Redis Pub/Sub as the ONLY real-time source
+    - Redis Pub/Sub via Broadcaster (fan-out multiplexer)
     - Last-Event-ID support for automatic catch-up on reconnect
     - new_message events include SSE id: field
     - Heartbeat every 10 seconds
@@ -201,16 +206,24 @@ async def stream_user_messages(
         )
 
     # =========================================================================
-    # PHASE 2: SSE STREAM (DB-free, only Redis Pub/Sub)
-    # At this point, the DB session is closed. The stream runs purely on Redis.
+    # PHASE 2: SSE STREAM (DB-free, via Broadcaster)
+    # At this point, the DB session is closed. The stream runs purely via
+    # the shared Broadcaster connection (1 Redis connection per worker).
     # =========================================================================
 
     async def event_generator() -> AsyncGenerator[dict[str, str], None]:
-        """Generate SSE events using Redis-only stream (no DB access)."""
+        """Generate SSE events using Broadcaster multiplexer (no DB access)."""
         async for event in create_sse_stream(
             user_id=user_id,
             missed_messages=missed_messages,
         ):
+            # Early exit if client disconnected
+            if await request.is_disconnected():
+                logger.info(
+                    "[SSE] Client disconnected, stopping stream",
+                    extra={"user_id": user_id},
+                )
+                break
             yield event
 
     # Create EventSourceResponse with appropriate headers

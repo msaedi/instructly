@@ -4,6 +4,7 @@ from typing import Callable
 
 from fastapi.testclient import TestClient
 
+from app.core import broadcast as broadcast_module
 from app.routes import ready as ready_module
 
 
@@ -32,23 +33,18 @@ class DummyRedis:
             raise RuntimeError("cache down")
 
 
-class DummyPubSubManager:
-    def __init__(self, initialized: bool):
-        self.is_initialized = initialized
-
-
 def _patch_dependencies(
     monkeypatch,
     *,
     session_factory: Callable[[], DummySession],
     redis_factory: Callable[[], DummyRedis],
-    pubsub_manager: DummyPubSubManager | None = None,
+    broadcast_initialized: bool | None = None,
 ) -> None:
     monkeypatch.setattr(ready_module, "SessionLocal", session_factory)
     monkeypatch.setattr(ready_module, "get_healthcheck_redis_client", redis_factory)
-    if pubsub_manager is not None:
+    if broadcast_initialized is not None:
         monkeypatch.setattr(
-            "app.services.messaging.redis_pubsub.pubsub_manager", pubsub_manager
+            broadcast_module, "is_broadcast_initialized", lambda: broadcast_initialized
         )
 
 
@@ -79,7 +75,7 @@ def test_ready_probe_success(client: TestClient, monkeypatch) -> None:
         monkeypatch,
         session_factory=lambda: DummySession(),
         redis_factory=lambda: DummyRedis(),
-        pubsub_manager=DummyPubSubManager(initialized=True),
+        broadcast_initialized=True,
     )
     resp = client.get("/ready")
     assert resp.status_code == 200
@@ -87,12 +83,12 @@ def test_ready_probe_success(client: TestClient, monkeypatch) -> None:
 
 
 def test_ready_probe_messaging_degraded(client: TestClient, monkeypatch) -> None:
-    """Test that uninitialized messaging returns degraded status."""
+    """Test that uninitialized Broadcaster returns degraded status."""
     _patch_dependencies(
         monkeypatch,
         session_factory=lambda: DummySession(),
         redis_factory=lambda: DummyRedis(),
-        pubsub_manager=DummyPubSubManager(initialized=False),
+        broadcast_initialized=False,
     )
     resp = client.get("/ready")
     assert resp.status_code == 200  # Still returns 200, just degraded

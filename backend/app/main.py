@@ -73,8 +73,9 @@ for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest, AuditLogView):
         pass
 
 # Use the new ASGI middleware to avoid "No response returned" errors
-# Redis Pub/Sub for messaging (Phase 1)
-from .core.redis import close_async_redis_client, get_async_redis_client
+# Broadcaster for SSE multiplexing (v4.0)
+from .core.broadcast import connect_broadcast, disconnect_broadcast
+from .core.redis import close_async_redis_client
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
 from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY, prometheus_metrics
@@ -137,7 +138,6 @@ from .services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
     FinalAdversePayload,
 )
-from .services.messaging import pubsub_manager
 from .services.template_registry import TemplateRegistry
 from .services.template_service import TemplateService
 
@@ -368,14 +368,14 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         await ProductionStartup.initialize()
 
-    # Initialize Redis Pub/Sub manager for messaging (Phase 1)
+    # Initialize Broadcaster for SSE multiplexing
+    # This enables 500+ concurrent SSE users instead of ~30
     try:
-        redis_client = await get_async_redis_client()
-        await pubsub_manager.initialize(redis_client)
-        logger.info("[REDIS-PUBSUB] Redis Pub/Sub manager initialized for messaging")
+        await connect_broadcast()
+        logger.info("[BROADCAST] SSE multiplexer initialized")
     except Exception as e:
-        logger.error(f"[REDIS-PUBSUB] Failed to initialize Redis Pub/Sub: {e}")
-        # Don't fail startup - publishing is an optional enhancement
+        logger.error(f"[BROADCAST] Failed to initialize broadcaster: {e}")
+        # Don't fail startup - SSE will fall back gracefully
 
     if getattr(settings, "bgc_expiry_enabled", False):
         _ensure_expiry_job_scheduled()
@@ -395,6 +395,13 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         job_worker_task.cancel()
         with contextlib.suppress(Exception):
             await job_worker_task
+
+    # Close Broadcaster for SSE multiplexing
+    try:
+        await disconnect_broadcast()
+        logger.info("[BROADCAST] SSE multiplexer disconnected")
+    except Exception as e:
+        logger.error(f"[BROADCAST] Error disconnecting broadcaster: {e}")
 
     # Close Redis Pub/Sub client
     try:
