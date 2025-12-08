@@ -13,6 +13,11 @@ from sqlalchemy.orm import Session
 from ..core.enums import PermissionName
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
+from .permission_cache import (
+    get_cached_permissions,
+    invalidate_cached_permissions,
+    set_cached_permissions,
+)
 
 if TYPE_CHECKING:
     from ..models.rbac import UserPermission
@@ -127,6 +132,58 @@ class PermissionService(BaseService):
                 permissions.discard(up.permission.name)
 
         return permissions
+
+    @BaseService.measure_operation("get_user_permissions_cached")
+    async def get_user_permissions_cached(self, user_id: str) -> Set[str]:
+        """
+        Get user permissions with Redis caching.
+
+        Checks cache first, falls back to DB query if not cached.
+        Use this in async contexts for better performance.
+
+        Args:
+            user_id: The ID of the user
+
+        Returns:
+            Set of permission names
+        """
+        # Try cache first
+        cached = await get_cached_permissions(user_id)
+        if cached is not None:
+            return cached
+
+        # Cache miss - query DB
+        permissions = self.get_user_permissions(user_id)
+
+        # Cache for next time
+        await set_cached_permissions(user_id, permissions)
+
+        return permissions
+
+    @BaseService.measure_operation("user_has_permission_cached")
+    async def user_has_permission_cached(
+        self, user_id: str, permission_name: Union[str, PermissionName]
+    ) -> bool:
+        """
+        Check if a user has a specific permission (async with Redis caching).
+
+        Use this in async contexts for better performance.
+
+        Args:
+            user_id: The ID of the user to check
+            permission_name: The name of the permission to check
+
+        Returns:
+            True if the user has the permission, False otherwise
+        """
+        permission_str = (
+            permission_name.value
+            if isinstance(permission_name, PermissionName)
+            else permission_name
+        )
+
+        permissions = await self.get_user_permissions_cached(user_id)
+        return permission_str in permissions
 
     @BaseService.measure_operation("get_user_roles")
     def get_user_roles(self, user_id: str) -> List[str]:
@@ -289,10 +346,36 @@ class PermissionService(BaseService):
         return True
 
     def _clear_user_cache(self, user_id: str) -> None:
-        """Clear all cached entries for a specific user."""
+        """Clear all cached entries for a specific user (in-memory only)."""
         keys_to_remove = [k for k in self._cache.keys() if k.startswith(f"{user_id}:")]
         for key in keys_to_remove:
             del self._cache[key]
+
+        # Also invalidate Redis cache (fire-and-forget from sync context)
+        try:
+            import asyncio
+
+            try:
+                loop = asyncio.get_running_loop()
+                # We're in an async context, schedule the coroutine
+                loop.create_task(invalidate_cached_permissions(user_id))
+            except RuntimeError:
+                # No running loop - we're in a sync context, use anyio
+                import anyio
+
+                anyio.from_thread.run(invalidate_cached_permissions, user_id)
+        except Exception:
+            # Redis invalidation is best-effort, don't fail the operation
+            pass
+
+    async def _clear_user_cache_async(self, user_id: str) -> None:
+        """Clear all cached entries for a specific user (both in-memory and Redis)."""
+        keys_to_remove = [k for k in self._cache.keys() if k.startswith(f"{user_id}:")]
+        for key in keys_to_remove:
+            del self._cache[key]
+
+        # Also invalidate Redis cache
+        await invalidate_cached_permissions(user_id)
 
     def clear_cache(self) -> None:  # no-metrics
         """Clear the entire permission cache."""
