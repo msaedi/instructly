@@ -210,7 +210,7 @@ class AuthService(BaseService):
     @BaseService.measure_operation("authenticate_user")
     def authenticate_user(self, email: str, password: str) -> Optional[User]:
         """
-        Authenticate user by email and password.
+        Authenticate user by email and password (synchronous version).
 
         Args:
             email: User's email
@@ -236,6 +236,44 @@ class AuthService(BaseService):
             return None
 
         self.logger.info(f"Successful authentication for user: {email}")
+        return user
+
+    @BaseService.measure_operation("authenticate_user_async")
+    async def authenticate_user_async(self, email: str, password: str) -> Optional[User]:
+        """
+        Authenticate user by email and password (async version - non-blocking).
+
+        Uses thread pool executor for bcrypt verification to avoid blocking
+        the event loop during password hashing. Use this in async route handlers.
+
+        Args:
+            email: User's email
+            password: Plain text password to verify
+
+        Returns:
+            User object if authentication successful, None otherwise
+        """
+        from ..auth import verify_password_async
+
+        self.logger.info(f"Authentication attempt (async) for user: {email}")
+
+        user = self.get_user_by_email(email)
+        if not user:
+            self.logger.warning(f"Authentication failed - user not found: {email}")
+            # Prevent timing attacks - still do a fake verification
+            await verify_password_async(password, "$2b$12$dummyhashfortimingattackprevention")
+            return None
+
+        if not await verify_password_async(password, user.hashed_password):
+            self.logger.warning(f"Authentication failed - incorrect password: {email}")
+            return None
+
+        # Check account status - deactivated users cannot login
+        if hasattr(user, "account_status") and user.account_status == "deactivated":
+            self.logger.warning(f"Authentication failed - account deactivated: {email}")
+            return None
+
+        self.logger.info(f"Successful authentication (async) for user: {email}")
         return user
 
     @BaseService.measure_operation("get_user_by_email")

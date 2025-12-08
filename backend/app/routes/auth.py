@@ -222,7 +222,7 @@ async def login(
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
     """
-    user = auth_service.authenticate_user(
+    user = await auth_service.authenticate_user_async(
         email=form_data.username,
         password=form_data.password,
     )
@@ -291,10 +291,10 @@ async def change_password(
     # Get user object
     user = auth_service.get_current_user(email=current_user)
 
-    # Verify current password
-    from app.auth import get_password_hash, verify_password
+    # Verify current password (async to avoid blocking)
+    from app.auth import get_password_hash_async, verify_password_async
 
-    if not verify_password(request.current_password, user.hashed_password):
+    if not await verify_password_async(request.current_password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect"
         )
@@ -306,7 +306,7 @@ async def change_password(
             status_code=status.HTTP_400_BAD_REQUEST, detail="New password is too weak"
         )
 
-    hashed = get_password_hash(new_pw)
+    hashed = await get_password_hash_async(new_pw)
 
     from app.repositories import RepositoryFactory
 
@@ -349,7 +349,7 @@ async def login_with_session(
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
     """
-    user = auth_service.authenticate_user(
+    user = await auth_service.authenticate_user_async(
         email=login_data.email,
         password=login_data.password,
     )

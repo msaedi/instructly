@@ -1,3 +1,5 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import logging
 import os
@@ -18,6 +20,10 @@ from .utils.cookies import session_cookie_candidates
 logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Dedicated thread pool for CPU-bound password operations
+# 4 workers allows 4 concurrent bcrypt operations without blocking event loop
+_password_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="bcrypt_")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
@@ -59,6 +65,53 @@ def get_password_hash(password: str) -> str:
     """
     hashed = pwd_context.hash(password)
     return str(hashed)
+
+
+async def verify_password_async(plain_password: str, hashed_password: str) -> bool:
+    """
+    Non-blocking password verification using thread pool.
+
+    Runs bcrypt in a separate thread so the event loop remains responsive
+    for other async operations (DB queries, SSE, etc.) during password hashing.
+
+    Args:
+        plain_password: The plain text password
+        hashed_password: The hashed password to compare against
+
+    Returns:
+        bool: True if password matches, False otherwise
+    """
+    loop = asyncio.get_running_loop()
+    try:
+        result = await loop.run_in_executor(
+            _password_executor,
+            pwd_context.verify,
+            plain_password,
+            hashed_password,
+        )
+        return bool(result)
+    except Exception as e:
+        logger.error(f"Error verifying password async: {str(e)}")
+        return False
+
+
+async def get_password_hash_async(password: str) -> str:
+    """
+    Non-blocking password hashing using thread pool.
+
+    Args:
+        password: The plain text password to hash
+
+    Returns:
+        str: The hashed password
+    """
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        _password_executor,
+        pwd_context.hash,
+        password,
+    )
+    return str(result)
 
 
 def _token_claim_requirements() -> tuple[bool, Optional[str], Optional[str]]:
