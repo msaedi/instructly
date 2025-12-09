@@ -79,9 +79,9 @@ async def _get_cached_user(email: str) -> Optional[Dict[str, Any]]:
         cache_key = f"{_USER_CACHE_PREFIX}{email}"
         cached = redis.get(cache_key)
         if cached:
-            logger.debug("[SSE-AUTH] Cache HIT for user %s", email)
+            logger.info("[SSE-AUTH] Cache HIT for user %s", email)
             return cast(Dict[str, Any], json.loads(cached))
-        logger.debug("[SSE-AUTH] Cache MISS for user %s", email)
+        logger.info("[SSE-AUTH] Cache MISS for user %s", email)
         return None
     except Exception as e:
         logger.warning("[SSE-AUTH] Cache lookup failed: %s", e)
@@ -97,7 +97,7 @@ async def _set_cached_user(email: str, user_data: Dict[str, Any]) -> None:
 
         cache_key = f"{_USER_CACHE_PREFIX}{email}"
         redis.setex(cache_key, _USER_CACHE_TTL_SECONDS, json.dumps(user_data))
-        logger.debug("[SSE-AUTH] Cached user %s for %ds", email, _USER_CACHE_TTL_SECONDS)
+        logger.info("[SSE-AUTH] SET user %s (TTL=%ds)", email, _USER_CACHE_TTL_SECONDS)
     except Exception as e:
         logger.warning("[SSE-AUTH] Cache write failed: %s", e)
 

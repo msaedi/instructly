@@ -35,9 +35,9 @@ async def get_cached_permissions(user_id: str) -> Optional[Set[str]]:
             return None
         cached = await redis.get(f"permissions:{user_id}")
         if cached:
-            logger.debug(f"[PERM-CACHE] HIT for user {user_id}")
+            logger.info(f"[PERM-CACHE] HIT for user {user_id}")
             return set(json.loads(cached))
-        logger.debug(f"[PERM-CACHE] MISS for user {user_id}")
+        logger.info(f"[PERM-CACHE] MISS for user {user_id}")
         return None
     except Exception as e:
         logger.warning(f"[PERM-CACHE] Error reading cache: {e}")
@@ -62,7 +62,7 @@ async def set_cached_permissions(user_id: str, permissions: Set[str]) -> None:
             PERMISSION_CACHE_TTL,
             json.dumps(list(permissions)),
         )
-        logger.debug(f"[PERM-CACHE] Cached {len(permissions)} permissions for user {user_id}")
+        logger.info(f"[PERM-CACHE] SET {len(permissions)} permissions for user {user_id}")
     except Exception as e:
         logger.warning(f"Error writing permission cache: {e}")
 
