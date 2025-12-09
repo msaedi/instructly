@@ -3,6 +3,7 @@
 Authentication and authorization dependencies.
 """
 
+import asyncio
 import hmac
 import logging
 import os
@@ -178,10 +179,14 @@ async def get_current_user(
                 detail="Database connection failed",
             )
 
+    def _sync_query_user(s: Session, email: str) -> Optional[User]:
+        """Synchronous user query - run in thread to avoid blocking event loop."""
+        return cast(Optional[User], s.query(User).filter(User.email == email).first())
+
     try:
-        user = cast(
-            Optional[User], session.query(User).filter(User.email == current_user_email).first()
-        )
+        # Run synchronous SQLAlchemy query in thread pool to avoid blocking event loop
+        # This is critical for SSE endpoints with many concurrent connections
+        user = await asyncio.to_thread(_sync_query_user, session, current_user_email)
     finally:
         if created and session is not None:
             try:
@@ -314,7 +319,11 @@ async def get_current_active_user_optional(
     if not current_user_email:
         return None
 
-    user = cast(Optional[User], db.query(User).filter(User.email == current_user_email).first())
+    def _sync_query(s: Session, email: str) -> Optional[User]:
+        return cast(Optional[User], s.query(User).filter(User.email == email).first())
+
+    # Run synchronous SQLAlchemy query in thread pool to avoid blocking event loop
+    user = await asyncio.to_thread(_sync_query, db, current_user_email)
     if user and user.is_active:
         return user
 
