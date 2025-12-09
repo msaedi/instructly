@@ -52,6 +52,10 @@ class ConversationRepository(BaseRepository[Conversation]):
         Returns:
             The conversation if found, None otherwise
         """
+        # Prevent self-conversation
+        if student_id == instructor_id:
+            return None
+
         result = (
             self.db.query(Conversation)
             .filter(

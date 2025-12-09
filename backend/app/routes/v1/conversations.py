@@ -50,6 +50,20 @@ from ...services.messaging import publish_typing_status
 
 logger = logging.getLogger(__name__)
 
+
+def _safe_truncate(text: str, max_length: int) -> str:
+    """
+    Truncate text safely without breaking multi-byte Unicode characters.
+
+    Python's str[:n] slicing is character-based (not byte-based), so it won't
+    break mid-character. However, we add ellipsis if truncated for better UX.
+    """
+    if len(text) <= max_length:
+        return text
+    # Truncate and add ellipsis
+    return text[: max_length - 1] + "…"
+
+
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["conversations-v1"])
 
@@ -145,7 +159,7 @@ def list_conversations(
             # Get most recent message (assuming messages are ordered by created_at)
             last_msg = sorted(conv.messages, key=lambda m: m.created_at)[-1]
             last_message = LastMessage(
-                content=last_msg.content[:100],  # Truncate for preview
+                content=_safe_truncate(last_msg.content, 100),  # Unicode-safe truncate
                 created_at=last_msg.created_at,
                 is_from_me=last_msg.sender_id == current_user.id,
             )

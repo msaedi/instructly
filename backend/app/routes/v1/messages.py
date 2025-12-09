@@ -163,11 +163,11 @@ async def stream_user_messages(
     user_id = current_user.id
 
     try:
-        # Check if user has VIEW_MESSAGES permission
+        # Check if user has VIEW_MESSAGES permission (using Redis-cached check)
         from ...services.permission_service import PermissionService
 
         permission_service = PermissionService(db)
-        if not permission_service.user_has_permission(
+        if not await permission_service.user_has_permission_cached(
             current_user.id, PermissionName.VIEW_MESSAGES
         ):
             logger.warning(
