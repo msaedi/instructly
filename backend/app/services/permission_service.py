@@ -6,6 +6,7 @@ This service handles permission checking for users, including both
 role-based permissions and individual permission overrides.
 """
 
+import asyncio
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union
 
 from sqlalchemy.orm import Session
@@ -152,8 +153,9 @@ class PermissionService(BaseService):
         if cached is not None:
             return cached
 
-        # Cache miss - query DB
-        permissions = self.get_user_permissions(user_id)
+        # Cache miss - query DB in thread pool to avoid blocking event loop
+        # This is critical for SSE endpoints with many concurrent connections
+        permissions = await asyncio.to_thread(self.get_user_permissions, user_id)
 
         # Cache for next time
         await set_cached_permissions(user_id, permissions)

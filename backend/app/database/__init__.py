@@ -37,27 +37,33 @@ logger = logging.getLogger(__name__)
 _DEFAULT_CONNECT_ARGS: dict[str, Any] = {
     "sslmode": "require",
     "keepalives": 1,
-    "keepalives_idle": 30,
-    "keepalives_interval": 10,
-    "keepalives_count": 5,
-    "options": "-c statement_timeout=30000",
-    "connect_timeout": 10,
-    "application_name": "instainstru_backend",
+    # Aggressive keepalive to detect dead connections faster
+    "keepalives_idle": 15,
+    "keepalives_interval": 5,
+    "keepalives_count": 3,
+    # Statement timeout: 15s (was 30s) - fail fast on slow queries
+    "options": "-c statement_timeout=15000",
+    # Connection timeout: 5s (was 10s) - fail fast when pool is exhausted
+    "connect_timeout": 5,
+    "application_name": "instainstru_render",
 }
 
 _DEFAULT_POOL_KWARGS: dict[str, Any] = {
-    # Conservative pool sizing to stay under Supabase pooler limits:
-    # - Supabase Pro tier: ~60 connections on transaction pooler (port 6543)
+    # AGGRESSIVE pool sizing for Supabase transaction pooler (port 6543):
+    # - Supabase Pro tier: ~60 connections on transaction pooler
     # - With 2 uvicorn workers: (pool_size + max_overflow) × 2 must be < 60
-    # - Safe config: 5 + 10 = 15 per worker × 2 = 30 total (50% headroom)
-    "pool_size": 5,
-    "max_overflow": 10,
-    # Fail-fast when pool exhausted (better than blocking for 10s during load)
-    "pool_timeout": 5,
+    # - CONSERVATIVE config: 3 + 5 = 8 per worker × 2 = 16 total (73% headroom)
+    # - Extra headroom needed for SSE manual sessions and Celery workers
+    "pool_size": 3,
+    "max_overflow": 5,
+    # Fail FAST when pool exhausted - return 503 instead of blocking for seconds
+    # Under load, waiting for connections causes cascade failures
+    "pool_timeout": 2,
     # Supavisor Transaction Mode (port 6543) times out idle connections at ~60s.
-    # Set pool_recycle to 55s to ensure connections are refreshed before timeout.
-    "pool_recycle": 55,
+    # Recycle at 30s to stay well ahead of Supabase's timeout and avoid stale connections.
+    "pool_recycle": 30,
     "pool_pre_ping": True,
+    # LIFO: Reuse most recently used connection (more likely to be healthy)
     "pool_use_lifo": True,
     "future": True,
 }
