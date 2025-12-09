@@ -22,6 +22,7 @@ This module is necessary because SSE requires different auth handling
 than regular REST endpoints due to browser API constraints.
 """
 
+import asyncio
 import logging
 from typing import Optional, cast
 
@@ -111,27 +112,32 @@ async def get_current_user_sse(
     # We create and close the session explicitly to prevent holding connections
     # in "idle in transaction" state during long-running SSE streams.
     # =========================================================================
-    db = SessionLocal()
-    try:
-        # Get user from database
-        user = cast(Optional[User], db.query(User).filter(User.email == user_email).first())
+    def _sync_user_lookup(email: str) -> Optional[User]:
+        """Synchronous user lookup - run in thread to avoid blocking event loop."""
+        db = SessionLocal()
+        try:
+            user = cast(Optional[User], db.query(User).filter(User.email == email).first())
+            if user:
+                # Eagerly load user attributes we need before closing session
+                _ = user.id
+                _ = user.email
+                _ = user.is_active
+            return user
+        finally:
+            db.close()
 
-        if user is None:
-            raise credentials_exception
+    # Run synchronous SQLAlchemy query in thread pool to avoid blocking event loop
+    # This is critical for SSE endpoints with many concurrent connections
+    user = await asyncio.to_thread(_sync_user_lookup, user_email)
+    logger.debug("[SSE-AUTH] DB session closed after user lookup")
 
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Inactive user",
-            )
+    if user is None:
+        raise credentials_exception
 
-        # Eagerly load user attributes we need before closing session
-        # Access attributes to ensure they're loaded into the object
-        _ = user.id
-        _ = user.email
-        _ = user.is_active
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user",
+        )
 
-        return user
-    finally:
-        db.close()
-        logger.debug("[SSE-AUTH] DB session closed after user lookup")
+    return user
