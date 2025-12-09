@@ -48,13 +48,31 @@ logger = logging.getLogger(__name__)
 _USER_CACHE_TTL_SECONDS = 300
 _USER_CACHE_PREFIX = "sse_auth_user:"
 
+# Module-level Redis client singleton (lazy init)
+_sse_redis_client = None
+
+
+def _get_sse_redis_client() -> Any:
+    """Get or create sync Redis client for SSE auth caching."""
+    global _sse_redis_client
+    if _sse_redis_client is None:
+        try:
+            from redis import from_url
+
+            redis_url = settings.redis_url or "redis://localhost:6379"
+            _sse_redis_client = from_url(redis_url, decode_responses=True)
+            _sse_redis_client.ping()  # Verify connection
+            logger.info("[SSE-AUTH] Redis client initialized for user caching")
+        except Exception as e:
+            logger.warning("[SSE-AUTH] Redis init failed, caching disabled: %s", e)
+            return None
+    return _sse_redis_client
+
 
 async def _get_cached_user(email: str) -> Optional[Dict[str, Any]]:
     """Try to get user data from Redis cache."""
     try:
-        from .core.redis_client import get_redis_client
-
-        redis = get_redis_client()
+        redis = _get_sse_redis_client()
         if redis is None:
             return None
 
@@ -73,9 +91,7 @@ async def _get_cached_user(email: str) -> Optional[Dict[str, Any]]:
 async def _set_cached_user(email: str, user_data: Dict[str, Any]) -> None:
     """Cache user data in Redis."""
     try:
-        from .core.redis_client import get_redis_client
-
-        redis = get_redis_client()
+        redis = _get_sse_redis_client()
         if redis is None:
             return
 
