@@ -4,10 +4,10 @@ from collections.abc import Awaitable, Callable
 import os
 import time
 
-from backend.app.core import config as core_config
 from fastapi import Request, Response
 from redis import Redis
 
+from ..core import config as core_config
 from .config import BUCKETS, is_shadow_mode, settings
 from .gcra import Decision
 from .headers import set_policy_headers, set_rate_headers
