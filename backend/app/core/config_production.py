@@ -23,8 +23,11 @@ DATABASE_POOL_CONFIG = {
     "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "5")),
     "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "10")),
     # Fail-fast when pool exhausted (better than blocking for 10s during load)
-    "pool_timeout": int(os.getenv("DATABASE_POOL_TIMEOUT", "5")),
-    "pool_recycle": int(os.getenv("DATABASE_POOL_RECYCLE", "55")),
+    "pool_timeout": int(os.getenv("DATABASE_POOL_TIMEOUT", "3")),
+    # CRITICAL: Supavisor Transaction Mode times out at ~60s.
+    # pool_recycle=30 gives 50% safety margin to prevent SSL disconnection errors.
+    # Previous value of 55s was too close and caused cascade failures under load.
+    "pool_recycle": int(os.getenv("DATABASE_POOL_RECYCLE", "30")),
     "pool_pre_ping": True,
     "pool_use_lifo": True,
     "future": True,
@@ -32,12 +35,14 @@ DATABASE_POOL_CONFIG = {
     "connect_args": {
         "sslmode": "require",
         "keepalives": 1,
-        "keepalives_idle": 30,
-        "keepalives_interval": 10,
-        "keepalives_count": 5,
+        # More aggressive keepalive to detect dead connections faster
+        "keepalives_idle": 15,
+        "keepalives_interval": 5,
+        "keepalives_count": 3,
         "connect_timeout": 5,
         "application_name": "instainstru_render",
-        "options": "-c statement_timeout=30000",
+        # Reduced from 30s to 15s - fail fast on slow queries
+        "options": "-c statement_timeout=15000",
     },
 }
 

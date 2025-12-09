@@ -30,14 +30,17 @@ async def get_cached_permissions(user_id: str) -> Optional[Set[str]]:
     """
     try:
         redis = await get_async_redis_client()
+        if redis is None:
+            logger.warning("[PERM-CACHE] Redis unavailable, falling back to DB")
+            return None
         cached = await redis.get(f"permissions:{user_id}")
         if cached:
-            logger.debug(f"Permission cache HIT for user {user_id}")
+            logger.debug(f"[PERM-CACHE] HIT for user {user_id}")
             return set(json.loads(cached))
-        logger.debug(f"Permission cache MISS for user {user_id}")
+        logger.debug(f"[PERM-CACHE] MISS for user {user_id}")
         return None
     except Exception as e:
-        logger.warning(f"Error reading permission cache: {e}")
+        logger.warning(f"[PERM-CACHE] Error reading cache: {e}")
         return None
 
 
@@ -51,12 +54,15 @@ async def set_cached_permissions(user_id: str, permissions: Set[str]) -> None:
     """
     try:
         redis = await get_async_redis_client()
+        if redis is None:
+            logger.warning("[PERM-CACHE] Redis unavailable, skipping cache write")
+            return
         await redis.setex(
             f"permissions:{user_id}",
             PERMISSION_CACHE_TTL,
             json.dumps(list(permissions)),
         )
-        logger.debug(f"Cached {len(permissions)} permissions for user {user_id}")
+        logger.debug(f"[PERM-CACHE] Cached {len(permissions)} permissions for user {user_id}")
     except Exception as e:
         logger.warning(f"Error writing permission cache: {e}")
 
@@ -69,7 +75,10 @@ async def invalidate_cached_permissions(user_id: str) -> None:
     """
     try:
         redis = await get_async_redis_client()
+        if redis is None:
+            logger.warning("[PERM-CACHE] Redis unavailable, skipping cache invalidation")
+            return
         await redis.delete(f"permissions:{user_id}")
-        logger.debug(f"Invalidated permission cache for user {user_id}")
+        logger.debug(f"[PERM-CACHE] Invalidated permission cache for user {user_id}")
     except Exception as e:
         logger.warning(f"Error invalidating permission cache: {e}")

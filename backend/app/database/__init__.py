@@ -135,6 +135,30 @@ def receive_checkin(dbapi_connection: Any, connection_record: Any) -> None:
     logger.debug("Connection returned to pool")
 
 
+@event.listens_for(engine, "invalidate")
+def receive_invalidate(dbapi_connection: Any, connection_record: Any, exception: Any) -> None:
+    """Handle pool connection invalidation (SSL drops, Supabase disconnects).
+
+    When Supabase/Supavisor drops a connection, SQLAlchemy invalidates it.
+    This handler logs the event and ensures metrics are tracked for observability.
+    """
+    logger.warning(
+        "Connection invalidated",
+        extra={
+            "event": "db_connection_invalidated",
+            "exception": str(exception) if exception else "unknown",
+            "pool_size": engine.pool.size(),
+            "checked_out": engine.pool.checkedout(),
+        },
+    )
+
+
+@event.listens_for(engine, "soft_invalidate")
+def receive_soft_invalidate(dbapi_connection: Any, connection_record: Any, exception: Any) -> None:
+    """Handle soft invalidation (connection recycled due to age)."""
+    logger.debug("Connection soft invalidated (recycled)")
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
 Base: DeclarativeMeta = declarative_base()
@@ -151,6 +175,81 @@ def get_db() -> Generator[Session, None, None]:
         raise
     finally:
         db.close()
+
+
+def get_db_with_retry(max_attempts: int = 2) -> Generator[Session, None, None]:
+    """Get database session with automatic retry on transient Supabase disconnects.
+
+    This is a more resilient version of get_db() that handles the case where
+    Supabase/Supavisor drops SSL connections unexpectedly. It will retry
+    once with a fresh session if the initial checkout fails.
+
+    Use this for critical endpoints where you want higher resilience against
+    infrastructure hiccups, at the cost of slightly higher latency on retries.
+
+    Args:
+        max_attempts: Maximum number of connection attempts (default 2)
+
+    Yields:
+        SQLAlchemy Session
+    """
+    attempt = 1
+    last_exception = None
+
+    while attempt <= max_attempts:
+        db = None
+        try:
+            db = SessionLocal()
+            # Force a connection checkout to detect stale connections early
+            db.connection()
+            yield db
+            db.commit()
+            return  # Success, exit the retry loop
+        except OperationalError as exc:
+            last_exception = exc
+            if db is not None:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                try:
+                    db.close()
+                except Exception:
+                    pass
+
+            # Check if this is a retryable error
+            if attempt < max_attempts and _is_retryable_db_error(exc):
+                delay = _retry_delay(attempt)
+                logger.warning(
+                    "Transient DB failure in get_db, retrying",
+                    extra={
+                        "event": "get_db_retry",
+                        "attempt": attempt,
+                        "delay": delay,
+                        "error": str(exc),
+                    },
+                )
+                time.sleep(delay)
+                attempt += 1
+                continue
+
+            # Not retryable or max attempts reached
+            raise
+        except Exception:
+            if db is not None:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                try:
+                    db.close()
+                except Exception:
+                    pass
+            raise
+
+    # Should not reach here, but just in case
+    if last_exception:
+        raise last_exception
 
 
 def get_db_pool_status() -> dict[str, int]:
@@ -246,6 +345,7 @@ __all__ = [
     "SessionLocal",
     "engine",
     "get_db",
+    "get_db_with_retry",
     "get_db_pool_status",
     "with_db_retry",
     "with_db_retry_async",

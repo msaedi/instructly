@@ -37,7 +37,7 @@ class RateLimitMiddlewareASGI:
         self.invite_limit = 10
         self.invite_window_seconds = 3600
         # Bypass token for load testing (configured via RATE_LIMIT_BYPASS_TOKEN env var)
-        self._bypass_token = getattr(settings, "rate_limit_bypass_token", "") or ""
+        self._bypass_token: str = getattr(settings, "rate_limit_bypass_token", "") or ""
 
     @staticmethod
     def _extract_client_ip(scope: Scope) -> str:
@@ -62,7 +62,7 @@ class RateLimitMiddlewareASGI:
         headers = scope.get("headers") or []
         for key, value in headers:
             if key.decode().lower() == "x-rate-limit-bypass":
-                return value.decode() == self._bypass_token
+                return bool(value.decode() == self._bypass_token)
         return False
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
