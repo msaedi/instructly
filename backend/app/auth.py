@@ -12,9 +12,6 @@ from jwt import InvalidIssuerError, PyJWTError
 from passlib.context import CryptContext
 
 from .core.config import settings
-from .database import SessionLocal
-from .models.user import User
-from .repositories.beta_repository import BetaAccessRepository
 from .utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
@@ -170,13 +167,19 @@ def decode_access_token(token: str, *, enforce_audience: bool | None = None) -> 
     return cast(Dict[str, Any], payload_raw)
 
 
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(
+    data: Dict[str, Any],
+    expires_delta: Optional[timedelta] = None,
+    beta_claims: Optional[Dict[str, Any]] = None,
+) -> str:
     """
     Create a JWT access token.
 
     Args:
         data: The data to encode in the token
         expires_delta: Optional expiration time delta
+        beta_claims: Optional pre-fetched beta claims to include in token.
+                     Pass this from fetch_user_for_auth() to avoid blocking DB lookup.
 
     Returns:
         str: The encoded JWT token
@@ -191,29 +194,10 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
 
     to_encode.update({"exp": expire})
 
-    # Enrich with beta claims when possible (email -> user -> beta access)
-    try:
-        email = data.get("sub")
-        if email:
-            db = SessionLocal()
-            try:
-                user = db.query(User).filter(User.email == email).first()
-                if user:
-                    beta_repo = BetaAccessRepository(db)
-                    beta = beta_repo.get_latest_for_user(user.id)
-                    if beta:
-                        to_encode.update(
-                            {
-                                "beta_access": True,
-                                "beta_role": beta.role,
-                                "beta_phase": beta.phase,
-                                "beta_invited_by": beta.invited_by_code,
-                            }
-                        )
-            finally:
-                db.close()
-    except Exception as e:
-        logger.warning(f"Unable to enrich JWT with beta claims: {e}")
+    # Include pre-fetched beta claims if provided (no DB lookup needed)
+    if beta_claims:
+        to_encode.update(beta_claims)
+
     # Add iss/aud per environment
     try:
         site_mode = os.getenv("SITE_MODE", "").lower().strip()

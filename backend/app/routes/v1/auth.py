@@ -252,12 +252,15 @@ async def login(
         totp_enabled = user_data.get("totp_enabled", False)
         # Keep reference to user object for 2FA check (attributes already loaded)
         user_obj = user_data.get("_user_obj")
+        # Beta claims pre-fetched in fetch_user_for_auth (no extra DB query needed)
+        beta_claims = user_data.get("_beta_claims")
     else:
         user_email = None
         hashed_password = DUMMY_HASH_FOR_TIMING_ATTACK
         account_status = None
         totp_enabled = False
         user_obj = None
+        beta_claims = None
 
     # Step 3: Release DB connection BEFORE bcrypt (critical for throughput)
     # The auth_service.db session will be released by FastAPI after response,
@@ -313,6 +316,7 @@ async def login(
     access_token = create_access_token(
         data=_claims,
         expires_delta=access_token_expires,
+        beta_claims=beta_claims,  # Pre-fetched in thread pool, no blocking DB call
     )
 
     # Step 8: Set cookie for SSE authentication (no DB needed)
@@ -422,6 +426,8 @@ async def login_with_session(
         account_status = user_data.get("account_status")
         totp_enabled = user_data.get("totp_enabled", False)
         user_obj = user_data.get("_user_obj")
+        # Beta claims pre-fetched in fetch_user_for_auth (no extra DB query needed)
+        beta_claims = user_data.get("_beta_claims")
     else:
         user_id = None
         user_email = None
@@ -429,6 +435,7 @@ async def login_with_session(
         account_status = None
         totp_enabled = False
         user_obj = None
+        beta_claims = None
 
     # Step 3: Release auth_service DB connection BEFORE bcrypt
     # Note: The `db` session (separate dependency) is kept for guest search conversion
@@ -473,6 +480,7 @@ async def login_with_session(
     access_token = create_access_token(
         data={"sub": user_email},
         expires_delta=access_token_expires,
+        beta_claims=beta_claims,  # Pre-fetched in thread pool, no blocking DB call
     )
 
     # Step 8: Set cookie for SSE authentication

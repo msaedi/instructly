@@ -233,7 +233,7 @@ class AuthService(BaseService):
             return None
 
         # Extract all needed fields to memory so ORM object can be detached
-        return {
+        result: Dict[str, Any] = {
             "id": user.id,
             "email": user.email,
             "hashed_password": user.hashed_password,
@@ -245,6 +245,25 @@ class AuthService(BaseService):
             # Include user object reference for 2FA check (will be detached)
             "_user_obj": user,
         }
+
+        # Fetch beta claims here (in the same thread-wrapped call) to avoid
+        # create_access_token doing its own blocking DB lookup later
+        try:
+            from app.repositories.beta_repository import BetaAccessRepository
+
+            beta_repo = BetaAccessRepository(self.db)
+            beta = beta_repo.get_latest_for_user(user.id)
+            if beta:
+                result["_beta_claims"] = {
+                    "beta_access": True,
+                    "beta_role": beta.role,
+                    "beta_phase": beta.phase,
+                    "beta_invited_by": beta.invited_by_code,
+                }
+        except Exception as e:
+            self.logger.debug(f"Could not fetch beta claims: {e}")
+
+        return result
 
     @BaseService.measure_operation("authenticate_user")
     def authenticate_user(self, email: str, password: str) -> Optional[User]:
