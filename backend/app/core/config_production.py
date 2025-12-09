@@ -14,10 +14,16 @@ from typing import Any, Dict
 # Database Connection Pooling (Optimized for Render + Supabase)
 # IMPORTANT: Supavisor Transaction Mode (port 6543) times out idle connections at ~60s.
 # pool_recycle MUST be < 60s to avoid "SSL connection closed unexpectedly" errors.
+#
+# Pool sizing rationale (to stay under Supabase pooler limits):
+# - Supabase Pro tier: ~60 connections on transaction pooler (port 6543)
+# - With 2 uvicorn workers: (pool_size + max_overflow) × 2 must be < 60
+# - Safe config: 5 + 10 = 15 per worker × 2 = 30 total (50% headroom for async ops)
 DATABASE_POOL_CONFIG = {
-    "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
-    "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
-    "pool_timeout": int(os.getenv("DATABASE_POOL_TIMEOUT", "10")),
+    "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "5")),
+    "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "10")),
+    # Fail-fast when pool exhausted (better than blocking for 10s during load)
+    "pool_timeout": int(os.getenv("DATABASE_POOL_TIMEOUT", "5")),
     "pool_recycle": int(os.getenv("DATABASE_POOL_RECYCLE", "55")),
     "pool_pre_ping": True,
     "pool_use_lifo": True,

@@ -46,9 +46,14 @@ _DEFAULT_CONNECT_ARGS: dict[str, Any] = {
 }
 
 _DEFAULT_POOL_KWARGS: dict[str, Any] = {
-    "pool_size": 10,
-    "max_overflow": 20,
-    "pool_timeout": 10,
+    # Conservative pool sizing to stay under Supabase pooler limits:
+    # - Supabase Pro tier: ~60 connections on transaction pooler (port 6543)
+    # - With 2 uvicorn workers: (pool_size + max_overflow) × 2 must be < 60
+    # - Safe config: 5 + 10 = 15 per worker × 2 = 30 total (50% headroom)
+    "pool_size": 5,
+    "max_overflow": 10,
+    # Fail-fast when pool exhausted (better than blocking for 10s during load)
+    "pool_timeout": 5,
     # Supavisor Transaction Mode (port 6543) times out idle connections at ~60s.
     # Set pool_recycle to 55s to ensure connections are refreshed before timeout.
     "pool_recycle": 55,
