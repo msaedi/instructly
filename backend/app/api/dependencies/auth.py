@@ -20,6 +20,7 @@ from ...core.config import settings
 from ...models.user import User
 from ...monitoring.prometheus_metrics import prometheus_metrics
 from ...repositories.beta_repository import BetaAccessRepository, BetaSettingsRepository
+from ...repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -180,8 +181,9 @@ async def get_current_user(
             )
 
     def _sync_query_user(s: Session, email: str) -> Optional[User]:
-        """Synchronous user query - run in thread to avoid blocking event loop."""
-        return cast(Optional[User], s.query(User).filter(User.email == email).first())
+        """Synchronous user query via repository - run in thread to avoid blocking event loop."""
+        user_repo = UserRepository(s)
+        return user_repo.get_by_email(email)
 
     try:
         # Run synchronous SQLAlchemy query in thread pool to avoid blocking event loop
@@ -209,10 +211,9 @@ async def get_current_user(
 
                 # Wrap in thread pool to avoid blocking (low frequency but good practice)
                 def _lookup_impersonated() -> Optional[User]:
-                    return cast(
-                        Optional[User],
-                        active_session.query(User).filter(User.id == imp_id).first(),
-                    )
+                    """Lookup impersonated user via repository pattern."""
+                    user_repo = UserRepository(active_session)
+                    return user_repo.get_by_id(imp_id)
 
                 imp = await asyncio.to_thread(_lookup_impersonated)
                 if imp:
@@ -325,7 +326,9 @@ async def get_current_active_user_optional(
         return None
 
     def _sync_query(s: Session, email: str) -> Optional[User]:
-        return cast(Optional[User], s.query(User).filter(User.email == email).first())
+        """Synchronous user query via repository - run in thread to avoid blocking event loop."""
+        user_repo = UserRepository(s)
+        return user_repo.get_by_email(email)
 
     # Run synchronous SQLAlchemy query in thread pool to avoid blocking event loop
     user = await asyncio.to_thread(_sync_query, db, current_user_email)

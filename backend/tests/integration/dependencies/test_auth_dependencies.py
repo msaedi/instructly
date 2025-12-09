@@ -232,15 +232,21 @@ class TestAuthDependencies:
 
     @pytest.mark.asyncio
     async def test_database_error_handling(self, mock_db):
-        """Test handling of database errors."""
+        """Test handling of database errors.
+
+        With repository pattern, DB errors are caught and logged internally,
+        then return None which results in 404 'User not found'. This is more
+        secure as we don't leak internal error details to clients.
+        """
         # Setup - simulate database error
         mock_db.query.side_effect = Exception("Database connection failed")
 
-        # Execute & Verify
-        with pytest.raises(Exception) as exc_info:
+        # Execute & Verify - now returns 404 instead of leaking internal error
+        with pytest.raises(HTTPException) as exc_info:
             await get_current_user("test@example.com", mock_db)
 
-        assert "Database connection failed" in str(exc_info.value)
+        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+        assert exc_info.value.detail == "User not found"
 
 
 class TestAuthDependenciesEdgeCases:
