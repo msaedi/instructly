@@ -14,6 +14,7 @@ Endpoints:
     PATCH /me                            → Update current user profile
 """
 
+import asyncio
 from datetime import timedelta
 import logging
 from typing import cast
@@ -240,7 +241,8 @@ async def login(
         HTTPException: If credentials are invalid or rate limit exceeded
     """
     # Step 1: Fetch user data from DB (brief DB hold ~5-20ms)
-    user_data = auth_service.fetch_user_for_auth(form_data.username)
+    # CRITICAL: Run in thread pool to avoid blocking event loop under load
+    user_data = await asyncio.to_thread(auth_service.fetch_user_for_auth, form_data.username)
 
     # Step 2: Extract data needed BEFORE releasing DB
     if user_data:
@@ -409,7 +411,8 @@ async def login_with_session(
         HTTPException: If credentials are invalid or rate limit exceeded
     """
     # Step 1: Fetch user data from DB (brief DB hold ~5-20ms)
-    user_data = auth_service.fetch_user_for_auth(login_data.email)
+    # CRITICAL: Run in thread pool to avoid blocking event loop under load
+    user_data = await asyncio.to_thread(auth_service.fetch_user_for_auth, login_data.email)
 
     # Step 2: Extract data needed BEFORE releasing DB
     if user_data:
