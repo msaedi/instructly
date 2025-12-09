@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 import os
 import time
 
+from backend.app.core import config as core_config
 from fastapi import Request, Response
 from redis import Redis
 
@@ -39,6 +40,11 @@ def _is_testing_env() -> bool:
 def rate_limit(bucket: str) -> Callable[[Request, Response], Awaitable[None]]:
     # FastAPI dependency to attach on routes
     async def dep(request: Request, response: Response) -> None:
+        # Allow load-testing bypass token to skip rate limiting entirely
+        bypass_token = getattr(core_config.settings, "rate_limit_bypass_token", "") or ""
+        if bypass_token and request.headers.get("X-Rate-Limit-Bypass") == bypass_token:
+            return
+
         # Disable enforcement in tests but still emit standard headers for assertions
         if _is_testing_env():
             now_s = time.time()
