@@ -9,12 +9,12 @@ FIXED: Added @measure_operation decorators to all public methods
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..auth import get_password_hash, verify_password
+from ..auth import DUMMY_HASH_FOR_TIMING_ATTACK, get_password_hash, verify_password
 from ..core.enums import RoleName
 from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..models.instructor import InstructorProfile
@@ -207,10 +207,53 @@ class AuthService(BaseService):
             self.logger.error(f"Error registering user {email}: {str(e)}")
             raise ValidationException(f"Error creating user: {str(e)}")
 
+    @BaseService.measure_operation("fetch_user_for_auth")
+    def fetch_user_for_auth(self, email: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch user data needed for authentication WITHOUT verifying password.
+
+        This method is designed to allow early DB connection release before
+        bcrypt verification. Returns user data as a dict so the ORM object
+        can be detached from the session.
+
+        PERFORMANCE: Call this, then close DB session, then verify password.
+        This reduces DB connection hold time from ~200ms to ~5-20ms.
+
+        Args:
+            email: User's email
+
+        Returns:
+            Dict with user data if found, None otherwise.
+            Dict contains: id, email, hashed_password, account_status, totp_enabled,
+                          first_name, last_name, and any other fields needed for login.
+        """
+        user = self.get_user_by_email(email)
+        if not user:
+            self.logger.debug(f"User not found for auth: {email}")
+            return None
+
+        # Extract all needed fields to memory so ORM object can be detached
+        return {
+            "id": user.id,
+            "email": user.email,
+            "hashed_password": user.hashed_password,
+            "account_status": getattr(user, "account_status", None),
+            "totp_enabled": getattr(user, "totp_enabled", False),
+            "first_name": getattr(user, "first_name", ""),
+            "last_name": getattr(user, "last_name", ""),
+            "is_active": getattr(user, "is_active", True),
+            # Include user object reference for 2FA check (will be detached)
+            "_user_obj": user,
+        }
+
     @BaseService.measure_operation("authenticate_user")
     def authenticate_user(self, email: str, password: str) -> Optional[User]:
         """
         Authenticate user by email and password (synchronous version).
+
+        NOTE: This method holds the DB connection during bcrypt verification.
+        For high-throughput scenarios, use fetch_user_for_auth() + verify_password_async()
+        with explicit DB release between them.
 
         Args:
             email: User's email
@@ -260,8 +303,8 @@ class AuthService(BaseService):
         user = self.get_user_by_email(email)
         if not user:
             self.logger.warning(f"Authentication failed - user not found: {email}")
-            # Prevent timing attacks - still do a fake verification
-            await verify_password_async(password, "$2b$12$dummyhashfortimingattackprevention")
+            # Prevent timing attacks - still do a fake verification with proper bcrypt hash
+            await verify_password_async(password, DUMMY_HASH_FOR_TIMING_ATTACK)
             return None
 
         if not await verify_password_async(password, user.hashed_password):

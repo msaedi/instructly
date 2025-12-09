@@ -21,6 +21,11 @@ logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Pre-computed bcrypt hash for timing attack prevention.
+# Used when user doesn't exist to prevent timing-based user enumeration.
+# This is a valid bcrypt hash of "timing_attack_prevention_dummy_password"
+DUMMY_HASH_FOR_TIMING_ATTACK = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.V4ferVKnNaOuJi"
+
 # Dedicated thread pool for CPU-bound password operations
 # 4 workers allows 4 concurrent bcrypt operations without blocking event loop
 _password_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="bcrypt_")
