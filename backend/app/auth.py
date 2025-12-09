@@ -27,8 +27,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 DUMMY_HASH_FOR_TIMING_ATTACK = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.V4ferVKnNaOuJi"
 
 # Dedicated thread pool for CPU-bound password operations
-# 4 workers allows 4 concurrent bcrypt operations without blocking event loop
-_password_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="bcrypt_")
+# With 1 vCPU, more threads won't speed up bcrypt - but they prevent event loop starvation.
+# 8 workers × 2 uvicorn workers = 16 concurrent bcrypt ops (health checks stay responsive)
+_password_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="bcrypt_")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
