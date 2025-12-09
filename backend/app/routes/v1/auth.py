@@ -17,7 +17,7 @@ Endpoints:
 import asyncio
 from datetime import timedelta
 import logging
-from typing import cast
+from typing import Any, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -345,13 +345,13 @@ async def change_password(
 
     Verifies the current password, enforces minimal strength, and updates the hash.
     """
-    # Get user object
-    user = auth_service.get_current_user(email=current_user)
+    # Get user object - run in thread pool to avoid blocking event loop
+    user = await asyncio.to_thread(auth_service.get_current_user, email=current_user)
 
-    # Verify current password
-    from app.auth import get_password_hash, verify_password
+    # Verify current password - use async version for bcrypt
+    from app.auth import get_password_hash
 
-    if not verify_password(request.current_password, user.hashed_password):
+    if not await verify_password_async(request.current_password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect"
         )
@@ -530,18 +530,20 @@ async def read_users_me(
         HTTPException: If user not found
     """
     try:
-        user = auth_service.get_current_user(email=current_user)
+        # Wrap all sync DB operations in thread pool to avoid blocking event loop
+        def _fetch_user_data() -> tuple[Any, ...]:
+            """Fetch user, permissions, roles, and beta info in one thread."""
+            u = auth_service.get_current_user(email=current_user)
+            perm_svc = PermissionService(db)
+            perms = perm_svc.get_user_permissions(u.id)
+            r = perm_svc.get_user_roles(u.id)
+            from app.repositories.beta_repository import BetaAccessRepository
 
-        # Get permissions for the user
-        permission_service = PermissionService(db)
-        permissions = permission_service.get_user_permissions(user.id)
-        roles = permission_service.get_user_roles(user.id)
+            beta_repo = BetaAccessRepository(db)
+            b = beta_repo.get_latest_for_user(u.id)
+            return u, perms, r, b
 
-        # Fetch beta access info
-        from app.repositories.beta_repository import BetaAccessRepository
-
-        beta_repo = BetaAccessRepository(db)
-        beta = beta_repo.get_latest_for_user(user.id)
+        user, permissions, roles, beta = await asyncio.to_thread(_fetch_user_data)
 
         # Create response with roles, permissions, and beta info (if any)
         response_data = {
@@ -602,51 +604,57 @@ async def update_current_user(
         HTTPException: If user not found or update fails
     """
     try:
-        user = auth_service.get_current_user(email=current_user)
+        # Wrap all sync DB operations in thread pool to avoid blocking event loop
+        def _update_user_profile() -> tuple[Any, ...]:
+            """Perform all DB ops in one thread."""
+            u = auth_service.get_current_user(email=current_user)
 
-        # Use repository for updates
-        from app.repositories import RepositoryFactory
+            # Use repository for updates
+            from app.repositories import RepositoryFactory
 
-        user_repository = RepositoryFactory.create_user_repository(db)
+            user_repo = RepositoryFactory.create_user_repository(db)
 
-        # Prepare update data
-        update_data = {}
-        if user_update.first_name is not None:
-            update_data["first_name"] = user_update.first_name
-        if user_update.last_name is not None:
-            update_data["last_name"] = user_update.last_name
-        if user_update.phone is not None:
-            update_data["phone"] = user_update.phone
+            # Prepare update data
+            upd_data = {}
+            if user_update.first_name is not None:
+                upd_data["first_name"] = user_update.first_name
+            if user_update.last_name is not None:
+                upd_data["last_name"] = user_update.last_name
+            if user_update.phone is not None:
+                upd_data["phone"] = user_update.phone
 
-        # Handle zip code change with automatic timezone update
-        if user_update.zip_code is not None:
-            old_zip = user.zip_code
-            update_data["zip_code"] = user_update.zip_code
+            # Handle zip code change with automatic timezone update
+            if user_update.zip_code is not None:
+                old_zip = u.zip_code
+                upd_data["zip_code"] = user_update.zip_code
 
-            # Auto-update timezone when zip code changes
-            if old_zip != user_update.zip_code:
-                from app.core.timezone_service import get_timezone_from_zip
+                # Auto-update timezone when zip code changes
+                if old_zip != user_update.zip_code:
+                    from app.core.timezone_service import get_timezone_from_zip
 
-                new_timezone = get_timezone_from_zip(user_update.zip_code)
-                logger.info(
-                    f"Updating timezone from {user.timezone} to {new_timezone} for zip change {old_zip} -> {user_update.zip_code}"
-                )
-                update_data["timezone"] = new_timezone
+                    new_tz = get_timezone_from_zip(user_update.zip_code)
+                    logger.info(
+                        f"Updating timezone from {u.timezone} to {new_tz} for zip change {old_zip} -> {user_update.zip_code}"
+                    )
+                    upd_data["timezone"] = new_tz
 
-        # Allow manual timezone override
-        if user_update.timezone is not None:
-            update_data["timezone"] = user_update.timezone
+            # Allow manual timezone override
+            if user_update.timezone is not None:
+                upd_data["timezone"] = user_update.timezone
 
-        # Update using repository
-        updated_user = user_repository.update_profile(user.id, **update_data)
+            # Update using repository
+            upd_user = user_repo.update_profile(u.id, **upd_data)
 
-        if not updated_user:
-            raise NotFoundException("Failed to update user")
+            if not upd_user:
+                raise NotFoundException("Failed to update user")
 
-        # Get permissions for the response
-        permission_service = PermissionService(db)
-        permissions = permission_service.get_user_permissions(updated_user.id)
-        roles = permission_service.get_user_roles(updated_user.id)
+            # Get permissions for the response
+            perm_svc = PermissionService(db)
+            perms = perm_svc.get_user_permissions(upd_user.id)
+            r = perm_svc.get_user_roles(upd_user.id)
+            return upd_user, perms, r
+
+        updated_user, permissions, roles = await asyncio.to_thread(_update_user_profile)
 
         response_data = {
             "id": updated_user.id,

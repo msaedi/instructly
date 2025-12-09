@@ -32,6 +32,15 @@ def test_auth_login_problem_contract(monkeypatch):
         def authenticate_user(self, *_, **__):
             return None
 
+        def fetch_user_for_auth(self, email: str):
+            return None  # Simulate user not found
+
+        class _DummySession:
+            def close(self):
+                pass
+
+        db = _DummySession()
+
     client, main = _make_client(monkeypatch, {service_deps.get_auth_service: lambda: DummyAuthService()})
     try:
         resp = client.post('/api/v1/auth/login', data={'username': 'foo@example.com', 'password': 'bad'})

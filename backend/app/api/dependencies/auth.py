@@ -206,10 +206,15 @@ async def get_current_user(
             imp_id = request.headers.get("x-impersonate-user-id", "").strip()
             if imp_id:
                 active_session: Session = session if session is not None else db
-                imp = cast(
-                    Optional[User],
-                    active_session.query(User).filter(User.id == imp_id).first(),
-                )
+
+                # Wrap in thread pool to avoid blocking (low frequency but good practice)
+                def _lookup_impersonated() -> Optional[User]:
+                    return cast(
+                        Optional[User],
+                        active_session.query(User).filter(User.id == imp_id).first(),
+                    )
+
+                imp = await asyncio.to_thread(_lookup_impersonated)
                 if imp:
                     logger.info(
                         "preview_impersonation",
