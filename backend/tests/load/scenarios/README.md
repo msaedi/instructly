@@ -281,6 +281,77 @@ Scenario-specific:
 - **Pass**: Flat memory trend, stable latency
 - **Fail**: Upward trends indicate leaks, file issue for investigation
 
+## Result Analysis Tools
+
+### Parse Load Results
+
+After running any test, analyze results with the parser:
+
+```bash
+# Basic summary
+python ../parse_load_results.py results/s0_smoke_*/results_stats.csv
+
+# Check against thresholds (CI mode)
+python ../parse_load_results.py results_stats.csv --check-thresholds --ci-mode
+
+# Save to history and compare with previous run
+python ../parse_load_results.py results_stats.csv --save-history --compare-last
+
+# JSON output for scripting
+python ../parse_load_results.py results_stats.csv --json
+```
+
+### Threshold Configuration
+
+Edit `../thresholds.py` to adjust pass/fail criteria:
+- `MAX_FAILURE_RATE`: Overall failure rate threshold (default: 1%)
+- `RESPONSE_TIME_THRESHOLDS`: Per-endpoint P95/P50 limits
+- `CI_SMOKE_THRESHOLDS`: Stricter thresholds for CI smoke tests
+
+### Historical Tracking
+
+Results are automatically saved to `../results/load_test_history.json` when using `--save-history`.
+The history file keeps the last 100 runs for trend analysis.
+
+## CI/CD Integration
+
+### GitHub Actions Workflow
+
+A load test workflow is available at `.github/workflows/load-test.yml`:
+
+```bash
+# Trigger via GitHub UI:
+# Actions → Load Test Smoke → Run workflow
+
+# Or via gh CLI:
+gh workflow run load-test.yml \
+  -f users=10 \
+  -f spawn_rate=2 \
+  -f duration=2m \
+  -f environment=preview
+```
+
+### Required Secrets
+
+Add these secrets to your GitHub repository (Settings → Secrets → Actions):
+
+| Secret | Description | Example |
+|--------|-------------|---------|
+| `LOADTEST_BYPASS_TOKEN` | Rate limit bypass token | `ptAzQOSdhmbrWkSZQA9d9maD3vKjstx8Wfo3kb9ugIQ` |
+| `LOADTEST_USERS` | Comma-separated test user emails | `sarah.chen@example.com,emma.johnson@example.com` |
+| `LOADTEST_PASSWORD` | Password for test users | `Test1234` |
+
+**Note**: If secrets are not set, the workflow uses default values from CLAUDE.md.
+
+### CI Smoke Test Configuration
+
+| Setting | CI Smoke | Full Capacity |
+|---------|----------|---------------|
+| Users | 10 | 50-400 |
+| Spawn Rate | 2/sec | 5-25/sec |
+| Duration | 2m | 5m |
+| Failure Threshold | 0% | 1% |
+
 ## Troubleshooting
 
 ### "Connection refused" errors
