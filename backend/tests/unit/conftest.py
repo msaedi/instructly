@@ -44,5 +44,8 @@ def unit_db(_unit_engine) -> Session:
     finally:
         event.remove(session, "after_transaction_end", restart_savepoint)
         session.close()
-        transaction.rollback()
+        # Check if transaction is still active before rollback
+        # (auth_cache._sync_user_lookup may have already closed/rolled back the session)
+        if transaction.is_active:
+            transaction.rollback()
         connection.close()
