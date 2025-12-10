@@ -13,6 +13,7 @@ Endpoints:
     POST /{conversation_id}/messages    -> Send a message
 """
 
+import asyncio
 import logging
 from typing import List, Optional
 
@@ -329,7 +330,9 @@ async def send_typing_indicator(
     service: ConversationService = Depends(get_conversation_service),
 ) -> SuccessResponse:
     """Send typing indicator for a conversation."""
-    conversation = service.get_conversation_by_id(conversation_id, current_user.id)
+    conversation = await asyncio.to_thread(
+        service.get_conversation_by_id, conversation_id, current_user.id
+    )
     if not conversation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
@@ -447,11 +450,12 @@ async def send_message(
     """
     from ...services.messaging import publish_new_message
 
-    message = service.send_message(
-        conversation_id=conversation_id,
-        sender_id=current_user.id,
-        content=request.content,
-        explicit_booking_id=request.booking_id,
+    message = await asyncio.to_thread(
+        service.send_message,
+        conversation_id,
+        current_user.id,
+        request.content,
+        request.booking_id,
     )
 
     if not message:

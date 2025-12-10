@@ -333,7 +333,7 @@ def format_message_from_db(message: Message, user_id: str) -> Dict[str, str]:
     }
 
 
-def fetch_messages_after(
+async def fetch_messages_after(
     db: Session,
     user_id: str,
     after_message_id: str,
@@ -356,12 +356,15 @@ def fetch_messages_after(
     from app.repositories.conversation_repository import ConversationRepository
 
     conversation_repo = ConversationRepository(db)
-    conversations = conversation_repo.find_for_user(user_id=user_id, limit=1000, offset=0)
+    conversations = await asyncio.to_thread(conversation_repo.find_for_user, user_id, 1000, 0)
     conversation_ids = [c.id for c in conversations]
 
     if conversation_ids:
-        return message_repo.get_messages_after_id_for_conversations(
-            conversation_ids, after_message_id, limit=100
+        return await asyncio.to_thread(
+            message_repo.get_messages_after_id_for_conversations,
+            conversation_ids,
+            after_message_id,
+            100,
         )
 
     return []

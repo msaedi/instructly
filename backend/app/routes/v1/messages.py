@@ -28,6 +28,7 @@ Endpoints (organized with static routes BEFORE dynamic routes):
     DELETE /{message_id}/reactions - Remove emoji reaction
 """
 
+import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 import logging
@@ -190,7 +191,7 @@ async def stream_user_messages(
             # Fetch missed messages NOW, before entering the stream
             from ...services.messaging.sse_stream import fetch_messages_after
 
-            missed_messages = fetch_messages_after(db, current_user.id, last_event_id)
+            missed_messages = await fetch_messages_after(db, current_user.id, last_event_id)
             logger.info(
                 "[SSE] Pre-fetched missed messages",
                 extra={"user_id": current_user.id, "count": len(missed_messages)},
@@ -280,7 +281,7 @@ async def get_unread_count(
     Requires VIEW_MESSAGES permission.
     """
     try:
-        count = service.get_unread_count(current_user.id)
+        count = await asyncio.to_thread(service.get_unread_count, current_user.id)
 
         return UnreadCountResponse(
             unread_count=count,
@@ -324,24 +325,30 @@ async def mark_messages_as_read(
 
         if request.conversation_id:
             conversation_id = request.conversation_id
-            unread_messages = service.repository.get_unread_messages_by_conversation(
-                conversation_id, current_user.id
+            unread_messages = await asyncio.to_thread(
+                service.repository.get_unread_messages_by_conversation,
+                conversation_id,
+                current_user.id,
             )
             marked_message_ids = [msg.id for msg in unread_messages]
-            count = service.mark_conversation_messages_as_read(
-                conversation_id=conversation_id,
-                user_id=current_user.id,
+            count = await asyncio.to_thread(
+                service.mark_conversation_messages_as_read,
+                conversation_id,
+                current_user.id,
             )
         elif request.message_ids:
             marked_message_ids = request.message_ids
             # Mark specific messages as read
-            count = service.mark_messages_as_read(
-                message_ids=request.message_ids,
-                user_id=current_user.id,
+            count = await asyncio.to_thread(
+                service.mark_messages_as_read,
+                request.message_ids,
+                current_user.id,
             )
             # Get conversation_id from first message for notification
             if marked_message_ids:
-                first_msg = service.repository.get_by_id(marked_message_ids[0])
+                first_msg = await asyncio.to_thread(
+                    service.repository.get_by_id, marked_message_ids[0]
+                )
                 if first_msg:
                     conversation_id = first_msg.conversation_id
         else:
@@ -442,7 +449,7 @@ async def edit_message(
     )
 
     try:
-        service.edit_message(message_id, current_user.id, request.content)
+        await asyncio.to_thread(service.edit_message, message_id, current_user.id, request.content)
         logger.info(
             "[MSG-DEBUG] Message EDIT: Success",
             extra={
@@ -454,7 +461,9 @@ async def edit_message(
 
         # Redis Pub/Sub publishing (fire-and-forget)
         try:
-            message = service.get_message_by_id(message_id, str(current_user.id))
+            message = await asyncio.to_thread(
+                service.get_message_by_id, message_id, str(current_user.id)
+            )
             if message and message.conversation_id:
                 await publish_message_edited(
                     db=service.db,
@@ -548,16 +557,19 @@ async def delete_message(
     Requires SEND_MESSAGES permission.
     """
     try:
-        message = service.get_message_by_id(message_id, str(current_user.id))
+        message = await asyncio.to_thread(
+            service.get_message_by_id, message_id, str(current_user.id)
+        )
         if not message:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Message not found",
             )
 
-        deleted = service.delete_message(
-            message_id=message_id,
-            user_id=current_user.id,
+        deleted = await asyncio.to_thread(
+            service.delete_message,
+            message_id,
+            current_user.id,
         )
 
         if not deleted:
@@ -653,9 +665,11 @@ async def add_reaction(
 
     try:
         # Get message info first for notification
-        message = service.get_message_by_id(message_id, str(current_user.id))
+        message = await asyncio.to_thread(
+            service.get_message_by_id, message_id, str(current_user.id)
+        )
 
-        service.add_reaction(message_id, current_user.id, request.emoji)
+        await asyncio.to_thread(service.add_reaction, message_id, current_user.id, request.emoji)
         logger.info(
             "[MSG-DEBUG] Reaction ADD: Success",
             extra={
@@ -765,9 +779,11 @@ async def remove_reaction(
 
     try:
         # Get message info first for notification
-        message = service.get_message_by_id(message_id, str(current_user.id))
+        message = await asyncio.to_thread(
+            service.get_message_by_id, message_id, str(current_user.id)
+        )
 
-        service.remove_reaction(message_id, current_user.id, request.emoji)
+        await asyncio.to_thread(service.remove_reaction, message_id, current_user.id, request.emoji)
         logger.info(
             "[MSG-DEBUG] Reaction REMOVE: Success",
             extra={
