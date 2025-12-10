@@ -393,7 +393,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if job_worker_task is not None:
         job_worker_task.cancel()
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(BaseException):  # CancelledError is a BaseException, not Exception
             await job_worker_task
 
     # Close Broadcaster for SSE multiplexing

@@ -3,9 +3,9 @@ import pytest
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
-from app import auth_sse
 from app.auth import create_access_token
 from app.auth_sse import get_current_user_sse
+from app.core import auth_cache
 from app.core.config import settings
 from app.models.user import User
 
@@ -53,10 +53,10 @@ def _create_user(unit_db: Session, email: str = "chat@example.com") -> User:
 async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
     monkeypatch.setattr(settings, "session_cookie_name", "sid", raising=False)
-    # Patch SessionLocal to return our test db session
-    monkeypatch.setattr(auth_sse, "SessionLocal", lambda: unit_db)
+    # Patch SessionLocal in the shared auth_cache module to return our test db session
+    monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
     # Disable Redis caching to avoid stale cache hits from previous test runs
-    monkeypatch.setattr(auth_sse, "_get_sse_redis_client", lambda: None)
+    monkeypatch.setattr(auth_cache, "_get_auth_redis_client", lambda: None)
 
     # Use unique email to avoid collision with seed data
     user = _create_user(unit_db, email="sse-cookie-test@example.com")
@@ -80,10 +80,10 @@ async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, m
 @pytest.mark.asyncio
 async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
-    # Patch SessionLocal to return our test db session
-    monkeypatch.setattr(auth_sse, "SessionLocal", lambda: unit_db)
+    # Patch SessionLocal in the shared auth_cache module to return our test db session
+    monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
     # Disable Redis caching to avoid stale cache hits from previous test runs
-    monkeypatch.setattr(auth_sse, "_get_sse_redis_client", lambda: None)
+    monkeypatch.setattr(auth_cache, "_get_auth_redis_client", lambda: None)
 
     user = _create_user(unit_db, email="query@example.com")
     # Capture user attributes BEFORE calling get_current_user_sse
@@ -106,8 +106,8 @@ async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypat
 @pytest.mark.asyncio
 async def test_get_current_user_sse_requires_credentials(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
-    # Patch SessionLocal to return our test db session (needed if auth reaches DB lookup)
-    monkeypatch.setattr(auth_sse, "SessionLocal", lambda: unit_db)
+    # Patch SessionLocal in the shared auth_cache module (needed if auth reaches DB lookup)
+    monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
 
     request = _build_request()
 

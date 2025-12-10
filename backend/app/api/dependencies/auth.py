@@ -1,12 +1,22 @@
 # backend/app/api/dependencies/auth.py
 """
 Authentication and authorization dependencies.
+
+PERFORMANCE OPTIMIZATION (v4.2):
+--------------------------------
+User lookups use Redis caching + asyncio.to_thread to avoid blocking the
+event loop under load. This is CRITICAL for scalability:
+
+- Previous approach: sync DB query blocked event loop for 100-600ms under load
+- New approach: Redis cache (instant) or async thread pool (non-blocking)
+
+The pattern mirrors auth_sse.py and uses the shared auth_cache module.
 """
 
 import hmac
 import logging
 import os
-from typing import Awaitable, Callable, Optional, cast
+from typing import Awaitable, Callable, Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -15,11 +25,15 @@ from ...auth import (
     get_current_user as auth_get_current_user,
     get_current_user_optional as auth_get_current_user_optional,
 )
+from ...core.auth_cache import (
+    create_transient_user,
+    lookup_user_by_id_nonblocking,
+    lookup_user_nonblocking,
+)
 from ...core.config import settings
 from ...models.user import User
 from ...monitoring.prometheus_metrics import prometheus_metrics
 from ...repositories.beta_repository import BetaAccessRepository, BetaSettingsRepository
-from ...repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -133,9 +147,13 @@ async def get_current_user(
     """
     Get the current authenticated user from the database.
 
+    PERFORMANCE: Uses Redis caching + asyncio.to_thread to avoid blocking
+    the event loop under load. This is CRITICAL for scalability.
+
     Args:
+        request: The incoming request
         current_user_email: Email from JWT token
-        db: Database session
+        db: Database session (kept for backward compatibility with tests)
 
     Returns:
         User object
@@ -143,6 +161,7 @@ async def get_current_user(
     Raises:
         HTTPException: If user not found
     """
+    # Check request.state for already-resolved user (set by middleware)
     state_obj = getattr(getattr(request, "state", None), "current_user", None)
     if isinstance(state_obj, User) and getattr(state_obj, "is_active", True):
         return state_obj
@@ -150,7 +169,9 @@ async def get_current_user(
     # Backward-compat for tests that call get_current_user(email, db) positionally
     # In that case, request is a string (email) and current_user_email is a Session/Mock
     if not isinstance(current_user_email, str) and isinstance(request, str):
-        # Swap into expected variables; ignore request in this mode
+        # This is a legacy test call pattern - use sync lookup for compatibility
+        from ...repositories.user_repository import UserRepository
+
         swap_db = current_user_email if hasattr(current_user_email, "query") else db
         if not hasattr(swap_db, "query"):
             raise HTTPException(
@@ -158,17 +179,35 @@ async def get_current_user(
                 detail="Invalid database session for current user lookup",
             )
         current_user_email = request
-        db = cast(Session, swap_db)
-        request = None
+        user_repo = UserRepository(swap_db)
+        user = user_repo.get_by_email(current_user_email)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return user
 
-    # Use the session from Depends(get_db) directly - no asyncio.to_thread needed.
-    # The blocking is minimal (1-5ms for user lookup) and the User object needs
-    # to stay attached to the session for the rest of the request.
-    # For SSE endpoints, use auth_sse.py which has thread-safe session handling.
-    user_repo = UserRepository(db)
-    user = user_repo.get_by_email(current_user_email)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    # =========================================================================
+    # USER LOOKUP
+    # =========================================================================
+    # In production: Use Redis cache + asyncio.to_thread to avoid blocking
+    # In testing: Use the provided session (tests use transaction rollback)
+    if getattr(settings, "is_testing", False):
+        # Use the provided session directly for test compatibility
+        # Tests use transaction rollback, so our separate SessionLocal() won't
+        # see the test's uncommitted data
+        from ...repositories.user_repository import UserRepository
+
+        user_repo = UserRepository(db)
+        user = user_repo.get_by_email(current_user_email)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    else:
+        # Production: Non-blocking lookup with caching
+        user_data = await lookup_user_nonblocking(current_user_email)
+        if user_data is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        # Create a TRANSIENT User object (not session-bound) from the dict
+        user = create_transient_user(user_data)
+
     # Preview-only impersonation for staff (header: X-Impersonate-User-Id)
     try:
         if (
@@ -179,9 +218,9 @@ async def get_current_user(
         ):
             imp_id = request.headers.get("x-impersonate-user-id", "").strip()
             if imp_id:
-                # Use the same session - impersonated user also needs to stay attached
-                imp = user_repo.get_by_id(imp_id)
-                if imp:
+                # Use non-blocking lookup for impersonated user too
+                imp_data = await lookup_user_by_id_nonblocking(imp_id)
+                if imp_data:
                     logger.info(
                         "preview_impersonation",
                         extra={
@@ -197,10 +236,11 @@ async def get_current_user(
                             else None,
                         },
                     )
-                    return imp
+                    return create_transient_user(imp_data)
     except Exception:
         # Non-fatal: continue with actual user
         pass
+
     return user
 
 
@@ -276,8 +316,9 @@ async def get_current_active_user_optional(
     but provide enhanced functionality for authenticated users.
 
     Args:
+        request: The incoming request
         current_user_email: Email from JWT token (if present)
-        db: Database session
+        db: Database session (kept for backward compatibility)
 
     Returns:
         User object if authenticated and found, None otherwise
@@ -290,15 +331,26 @@ async def get_current_active_user_optional(
     if not current_user_email:
         return None
 
-    # Use the session from Depends(get_db) directly - no asyncio.to_thread needed.
-    # The blocking is minimal (1-5ms for user lookup) and the User object needs
-    # to stay attached to the session for the rest of the request.
-    user_repo = UserRepository(db)
-    user = user_repo.get_by_email(current_user_email)
-    if user and user.is_active:
-        return user
+    # =========================================================================
+    # USER LOOKUP
+    # =========================================================================
+    # In production: Use Redis cache + asyncio.to_thread to avoid blocking
+    # In testing: Use the provided session (tests use transaction rollback)
+    if getattr(settings, "is_testing", False):
+        # Use the provided session directly for test compatibility
+        from ...repositories.user_repository import UserRepository
 
-    return None
+        user_repo = UserRepository(db)
+        user = user_repo.get_by_email(current_user_email)
+        if user and user.is_active:
+            return user
+        return None
+    else:
+        # Production: Non-blocking lookup with caching
+        user_data = await lookup_user_nonblocking(current_user_email)
+        if user_data and user_data.get("is_active", False):
+            return create_transient_user(user_data)
+        return None
 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:
