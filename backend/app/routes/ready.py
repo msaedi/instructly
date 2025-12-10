@@ -18,6 +18,7 @@ def ready_probe(response_obj: Response) -> ReadyProbeResponse:
     try:
         with SessionLocal() as session:
             session.execute(text("SELECT 1"))
+            session.rollback()  # Clean up transaction before returning to pool
     except Exception:
         response_obj.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadyProbeResponse(status="db_not_ready")

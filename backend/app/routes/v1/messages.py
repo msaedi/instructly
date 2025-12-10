@@ -172,8 +172,11 @@ async def stream_user_messages(
             last_event_id=last_event_id,
         )
     finally:
-        # CRITICAL: Explicitly close DB session BEFORE starting the SSE stream.
-        # This prevents holding connections in "idle in transaction" state.
+        # CRITICAL: Explicitly rollback and close DB session BEFORE starting the SSE stream.
+        # Rollback is needed because autocommit=False means a transaction was started.
+        # Without rollback, the connection returns to the pool in "idle in transaction" state,
+        # which Supabase will kill after its idle_in_transaction_session_timeout.
+        db.rollback()
         db.close()
         logger.debug(
             "[SSE] DB session closed before streaming",
