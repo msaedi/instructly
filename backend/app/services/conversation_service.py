@@ -9,8 +9,10 @@ Handles business logic for the conversation system including:
 - Managing conversation metadata
 """
 
+from dataclasses import dataclass
+from datetime import datetime, timezone
 import logging
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
 
@@ -25,6 +27,64 @@ from ..repositories.message_repository import MessageRepository
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Dataclasses for returning context from service methods
+# =============================================================================
+
+
+@dataclass
+class CreateConversationResult:
+    """Result of creating/getting a conversation."""
+
+    conversation_id: str
+    created: bool
+    success: bool = True
+    error: Optional[str] = None
+
+
+@dataclass
+class TypingContext:
+    """Context needed for publishing typing status."""
+
+    conversation_id: str
+    participant_ids: List[str]
+
+
+@dataclass
+class MessageWithPublishContext:
+    """Message with context needed for publishing."""
+
+    message: Optional[Message]
+    conversation_id: str
+    participant_ids: List[str]
+
+
+@dataclass
+class MessageData:
+    """Message data with booking details for response building."""
+
+    id: str
+    content: str
+    sender_id: Optional[str]
+    message_type: str
+    booking_id: Optional[str]
+    booking_details: Optional[Dict[str, Any]]
+    created_at: datetime
+    delivered_at: Optional[datetime]
+    read_by: List[Dict[str, Any]]
+    reactions: List[Dict[str, str]]
+
+
+@dataclass
+class MessagesWithDetailsResult:
+    """Result of getting messages with booking details."""
+
+    messages: List[MessageData]
+    has_more: bool
+    next_cursor: Optional[str]
+    conversation_found: bool = True
 
 
 class ConversationService(BaseService):
@@ -482,3 +542,307 @@ class ConversationService(BaseService):
             Dict mapping conversation_id to unread count
         """
         return self.conversation_repository.batch_get_unread_counts(conversation_ids, user_id)
+
+    # =========================================================================
+    # Methods with context for route layer (no direct DB access needed in routes)
+    # =========================================================================
+
+    def _get_conversation_participants(self, conversation: Conversation) -> List[str]:
+        """Get participant IDs from a conversation."""
+        return [conversation.student_id, conversation.instructor_id]
+
+    @BaseService.measure_operation("validate_instructor")
+    def validate_instructor(self, instructor_id: str) -> Tuple[bool, Optional[str]]:
+        """
+        Validate that a user exists and is an instructor.
+
+        Args:
+            instructor_id: The user ID to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        user_repo = RepositoryFactory.create_user_repository(self.db)
+        instructor = user_repo.get_by_id(instructor_id)
+        if not instructor:
+            return False, "Instructor not found"
+        if not instructor.is_instructor:
+            return False, "Target user is not an instructor"
+        return True, None
+
+    @BaseService.measure_operation("create_conversation_with_message")
+    def create_conversation_with_message(
+        self,
+        student_id: str,
+        instructor_id: str,
+        initial_message: Optional[str] = None,
+    ) -> CreateConversationResult:
+        """
+        Validate instructor, create/get conversation, and optionally send initial message.
+
+        All operations are wrapped in a transaction and committed.
+
+        Args:
+            student_id: The student's user ID
+            instructor_id: The instructor's user ID
+            initial_message: Optional initial message content
+
+        Returns:
+            CreateConversationResult with conversation_id and created flag
+        """
+        # Validate instructor
+        is_valid, error = self.validate_instructor(instructor_id)
+        if not is_valid:
+            return CreateConversationResult(
+                conversation_id="",
+                created=False,
+                success=False,
+                error=error,
+            )
+
+        with self.transaction():
+            conversation, created = self.conversation_repository.get_or_create(
+                student_id=student_id,
+                instructor_id=instructor_id,
+            )
+
+            # If initial message provided and conversation was created, send it
+            if initial_message and created:
+                self.message_repository.create_conversation_message(
+                    conversation_id=conversation.id,
+                    sender_id=student_id,
+                    content=initial_message,
+                    message_type=MESSAGE_TYPE_USER,
+                )
+                self.conversation_repository.update_last_message_at(
+                    conversation.id, datetime.now(timezone.utc)
+                )
+
+        return CreateConversationResult(
+            conversation_id=conversation.id,
+            created=created,
+            success=True,
+        )
+
+    @BaseService.measure_operation("get_typing_context")
+    def get_typing_context(
+        self,
+        conversation_id: str,
+        user_id: str,
+    ) -> Optional[TypingContext]:
+        """
+        Get context needed for publishing typing status.
+
+        Args:
+            conversation_id: The conversation ID
+            user_id: The user's ID (for access control)
+
+        Returns:
+            TypingContext if user is a participant, None otherwise
+        """
+        conversation = self.get_conversation_by_id(conversation_id, user_id)
+        if not conversation:
+            return None
+
+        return TypingContext(
+            conversation_id=conversation_id,
+            participant_ids=self._get_conversation_participants(conversation),
+        )
+
+    @BaseService.measure_operation("get_messages_with_details")
+    def get_messages_with_details(
+        self,
+        conversation_id: str,
+        user_id: str,
+        limit: int = 50,
+        before_cursor: Optional[str] = None,
+        booking_id_filter: Optional[str] = None,
+    ) -> MessagesWithDetailsResult:
+        """
+        Get messages with booking details pre-fetched.
+
+        Args:
+            conversation_id: The conversation ID
+            user_id: The user's ID (for access control and is_from_me)
+            limit: Maximum messages to return
+            before_cursor: Message ID to paginate before
+            booking_id_filter: Optional filter by booking ID
+
+        Returns:
+            MessagesWithDetailsResult with all data needed for response
+        """
+        # Verify user is participant
+        conversation = self.get_conversation_by_id(conversation_id, user_id)
+        if not conversation:
+            return MessagesWithDetailsResult(
+                messages=[],
+                has_more=False,
+                next_cursor=None,
+                conversation_found=False,
+            )
+
+        # Get messages
+        messages = self.message_repository.find_by_conversation(
+            conversation_id=conversation_id,
+            limit=limit + 1,
+            before_cursor=before_cursor,
+            booking_id_filter=booking_id_filter,
+        )
+
+        has_more = len(messages) > limit
+        if has_more:
+            messages = messages[:limit]
+
+        next_cursor = None
+        if has_more and messages:
+            next_cursor = messages[-1].id
+
+        # Reverse to return in chronological order
+        messages.reverse()
+
+        # Collect booking IDs to batch-fetch
+        booking_ids = [m.booking_id for m in messages if m.booking_id and m.message_type != "user"]
+        bookings_by_id: Dict[str, Booking] = {}
+        if booking_ids:
+            for booking_id in set(booking_ids):
+                booking = self.booking_repository.get_by_id(booking_id)
+                if booking:
+                    bookings_by_id[booking_id] = booking
+
+        # Build message data with booking details
+        message_data_list: List[MessageData] = []
+        for msg in messages:
+            booking_details = None
+            if msg.booking_id and msg.booking_id in bookings_by_id:
+                booking = bookings_by_id[msg.booking_id]
+                # Get service name
+                service_name = "Lesson"
+                if booking.instructor_service and booking.instructor_service.name:
+                    service_name = booking.instructor_service.name
+
+                # Format start_time
+                start_time_str = str(booking.start_time)
+                if hasattr(booking.start_time, "strftime"):
+                    start_time_str = booking.start_time.strftime("%H:%M")
+                elif isinstance(booking.start_time, str):
+                    start_time_str = booking.start_time[:5]
+
+                booking_details = {
+                    "id": booking.id,
+                    "date": booking.booking_date.isoformat(),
+                    "start_time": start_time_str,
+                    "service_name": service_name,
+                }
+
+            # Keep full read_by objects
+            read_by_entries = [
+                {"user_id": r["user_id"], "read_at": r.get("read_at", "")}
+                for r in (msg.read_by or [])
+                if isinstance(r, dict) and "user_id" in r
+            ]
+
+            # Transform reactions
+            reactions = [
+                {"user_id": r.user_id, "emoji": r.emoji} for r in (msg.reaction_list or [])
+            ]
+
+            message_data_list.append(
+                MessageData(
+                    id=msg.id,
+                    content=msg.content,
+                    sender_id=msg.sender_id,
+                    message_type=msg.message_type or "user",
+                    booking_id=msg.booking_id,
+                    booking_details=booking_details,
+                    created_at=msg.created_at,
+                    delivered_at=msg.delivered_at,
+                    read_by=read_by_entries,
+                    reactions=reactions,
+                )
+            )
+
+        return MessagesWithDetailsResult(
+            messages=message_data_list,
+            has_more=has_more,
+            next_cursor=next_cursor,
+            conversation_found=True,
+        )
+
+    @BaseService.measure_operation("send_message_with_context")
+    def send_message_with_context(
+        self,
+        conversation_id: str,
+        sender_id: str,
+        content: str,
+        explicit_booking_id: Optional[str] = None,
+    ) -> MessageWithPublishContext:
+        """
+        Send a message and return context needed for publishing.
+
+        All operations are wrapped in a transaction and committed.
+
+        Args:
+            conversation_id: The conversation ID
+            sender_id: The sender's user ID
+            content: Message content
+            explicit_booking_id: Optional explicit booking to attach
+
+        Returns:
+            MessageWithPublishContext with message and participant IDs
+        """
+        # Verify user is participant
+        conversation = self.get_conversation_by_id(conversation_id, sender_id)
+        if not conversation:
+            return MessageWithPublishContext(
+                message=None,
+                conversation_id=conversation_id,
+                participant_ids=[],
+            )
+
+        participant_ids = self._get_conversation_participants(conversation)
+
+        with self.transaction():
+            # Determine booking_id to attach
+            booking_id = self._determine_booking_id(
+                conversation=conversation,
+                explicit_booking_id=explicit_booking_id,
+            )
+
+            # Create message
+            message = self.message_repository.create_conversation_message(
+                conversation_id=conversation_id,
+                sender_id=sender_id,
+                content=content,
+                message_type=MESSAGE_TYPE_USER,
+                booking_id=booking_id,
+            )
+
+            # Update conversation's last_message_at
+            self.conversation_repository.update_last_message_at(conversation_id, message.created_at)
+
+            # Auto-restore archived/trashed state for the other participant
+            recipient_id = (
+                conversation.instructor_id
+                if sender_id == conversation.student_id
+                else conversation.student_id
+            )
+            self.conversation_state_repository.restore_to_active(
+                user_id=recipient_id,
+                conversation_id=conversation_id,
+            )
+
+        self.logger.info(
+            f"Message sent in conversation {conversation_id}",
+            extra={
+                "conversation_id": conversation_id,
+                "sender_id": sender_id,
+                "message_id": message.id,
+                "booking_id": booking_id,
+            },
+        )
+
+        return MessageWithPublishContext(
+            message=message,
+            conversation_id=conversation_id,
+            participant_ids=participant_ids,
+        )

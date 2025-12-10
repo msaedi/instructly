@@ -77,7 +77,7 @@ async def test_reconnection_catches_up(
     monkeypatch.setattr("app.services.messaging.sse_stream.get_broadcast", mock_get_broadcast)
 
     # Pre-fetch missed messages (as the route handler now does)
-    missed_messages = fetch_messages_after(db, str(test_student.id), str(msg1.id))
+    missed_messages = await fetch_messages_after(db, str(test_student.id), str(msg1.id))
 
     events = []
     async for event in create_sse_stream(

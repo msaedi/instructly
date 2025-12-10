@@ -57,6 +57,7 @@ if TYPE_CHECKING:
     from ..repositories.booking_repository import BookingRepository
     from ..repositories.conflict_checker_repository import ConflictCheckerRepository
     from ..repositories.event_outbox_repository import EventOutboxRepository
+    from ..schemas.booking import PaymentSummary
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
@@ -2177,3 +2178,192 @@ class BookingService(BaseService):
                 )
             except Exception as e:
                 logger.warning(f"Failed to invalidate BookingRepository caches: {e}")
+
+    # =========================================================================
+    # Methods for route layer (no direct DB/repo access needed in routes)
+    # =========================================================================
+
+    @BaseService.measure_operation("get_booking_pricing_preview")
+    def get_booking_pricing_preview(
+        self,
+        booking_id: str,
+        current_user_id: str,
+        applied_credit_cents: int = 0,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get pricing preview for a booking.
+
+        Args:
+            booking_id: Booking ULID
+            current_user_id: Current user's ID (for access control)
+            applied_credit_cents: Credits to apply
+
+        Returns:
+            Dict with pricing data or None if booking not found/access denied
+        """
+        from ..schemas.pricing_preview import PricingPreviewData
+        from ..services.pricing_service import PricingService
+
+        booking = self.repository.get_by_id(booking_id)
+        if not booking:
+            return None
+
+        # Access control
+        allowed_participants = {booking.student_id, booking.instructor_id}
+        if current_user_id not in allowed_participants:
+            logger.warning(
+                "pricing_preview.forbidden",
+                extra={
+                    "booking_id": booking_id,
+                    "requested_by": current_user_id,
+                },
+            )
+            return {"error": "access_denied"}
+
+        pricing_service = PricingService(self.db)
+        pricing_data: PricingPreviewData = pricing_service.compute_booking_pricing(
+            booking_id,
+            applied_credit_cents,
+            False,
+        )
+        return dict(pricing_data)
+
+    @BaseService.measure_operation("get_booking_with_payment_summary")
+    def get_booking_with_payment_summary(
+        self,
+        booking_id: str,
+        user: "User",
+    ) -> Optional[tuple["Booking", Optional["PaymentSummary"]]]:
+        """
+        Get booking with payment summary for student.
+
+        Args:
+            booking_id: Booking ULID
+            user: Current user (for access control and payment summary)
+
+        Returns:
+            Tuple of (booking, payment_summary) or None if not found
+        """
+        from ..repositories.factory import RepositoryFactory
+        from ..repositories.review_repository import ReviewTipRepository
+        from ..services.config_service import ConfigService
+        from ..services.payment_summary_service import build_student_payment_summary
+
+        booking = self.get_booking_for_user(booking_id, user)
+        if not booking:
+            return None
+
+        payment_summary: Optional[PaymentSummary] = None
+        if booking.student_id == user.id:
+            config_service = ConfigService(self.db)
+            pricing_config, _ = config_service.get_pricing_config()
+            payment_repo = RepositoryFactory.create_payment_repository(self.db)
+            tip_repo = ReviewTipRepository(self.db)
+            payment_summary = build_student_payment_summary(
+                booking=booking,
+                pricing_config=pricing_config,
+                payment_repo=payment_repo,
+                review_tip_repo=tip_repo,
+            )
+
+        return (booking, payment_summary)
+
+    @BaseService.measure_operation("check_student_time_conflict")
+    def check_student_time_conflict(
+        self,
+        student_id: str,
+        booking_date: "date",
+        start_time: "time",
+        end_time: "time",
+        exclude_booking_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Check if student has a conflicting booking at the given time.
+
+        Args:
+            student_id: Student ULID
+            booking_date: Date to check
+            start_time: Start time
+            end_time: End time
+            exclude_booking_id: Optional booking to exclude from check
+
+        Returns:
+            True if there's a conflict, False otherwise
+        """
+        try:
+            conflicting = self.repository.check_student_time_conflict(
+                student_id=student_id,
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                exclude_booking_id=exclude_booking_id,
+            )
+            return bool(conflicting)
+        except Exception:
+            return False
+
+    @BaseService.measure_operation("validate_reschedule_payment_method")
+    def validate_reschedule_payment_method(
+        self,
+        user_id: str,
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Validate that user has a valid payment method for rescheduling.
+
+        Args:
+            user_id: User ULID
+
+        Returns:
+            Tuple of (has_valid_method, stripe_payment_method_id)
+        """
+        from ..services.config_service import ConfigService as _ConfigService
+        from ..services.pricing_service import PricingService as _PricingService
+        from ..services.stripe_service import StripeService as _StripeService
+
+        config_service = _ConfigService(self.db)
+        pricing_service = _PricingService(self.db)
+        stripe_service = _StripeService(
+            self.db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
+
+        default_pm = stripe_service.payment_repository.get_default_payment_method(user_id)
+        if not default_pm or not default_pm.stripe_payment_method_id:
+            return False, None
+
+        return True, default_pm.stripe_payment_method_id
+
+    @BaseService.measure_operation("abort_pending_booking")
+    def abort_pending_booking(self, booking_id: str) -> bool:
+        """
+        Abort a pending booking (used when reschedule payment confirmation fails).
+
+        Only aborts bookings in pending_payment status.
+
+        Args:
+            booking_id: Booking ULID to abort
+
+        Returns:
+            True if aborted, False otherwise
+        """
+        try:
+            booking = self.repository.get_by_id(booking_id)
+            if not booking:
+                return False
+
+            # Only abort pending bookings
+            if booking.status != BookingStatus.PENDING:
+                logger.warning(
+                    f"Cannot abort booking {booking_id} - status is {booking.status}, not pending_payment"
+                )
+                return False
+
+            with self.transaction():
+                self.repository.delete(booking.id)
+
+            logger.info(f"Aborted pending booking {booking_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to abort pending booking {booking_id}: {e}")
+            return False

@@ -30,9 +30,8 @@ from typing import Any, NoReturn, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from fastapi.params import Path
-from sqlalchemy.orm import Session
 
-from ...api.dependencies import get_booking_service, get_current_active_user, get_db
+from ...api.dependencies import get_booking_service, get_current_active_user
 from ...api.dependencies.auth import require_beta_phase_access
 from ...core.config import settings
 from ...core.enums import PermissionName
@@ -42,8 +41,6 @@ from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.booking import BookingStatus
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit as new_rate_limit
-from ...repositories.factory import RepositoryFactory
-from ...repositories.review_repository import ReviewTipRepository
 from ...schemas.base_responses import PaginatedResponse
 from ...schemas.booking import (
     AvailabilityCheckRequest,
@@ -57,14 +54,11 @@ from ...schemas.booking import (
     BookingResponse,
     BookingStatsResponse,
     BookingUpdate,
-    PaymentSummary,
     UpcomingBookingResponse,
 )
 from ...schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
 from ...schemas.pricing_preview import PricingPreviewOut
 from ...services.booking_service import BookingService
-from ...services.config_service import ConfigService
-from ...services.payment_summary_service import build_student_payment_summary
 
 logger = logging.getLogger(__name__)
 
@@ -553,36 +547,23 @@ async def get_booking_pricing(
     booking_service: BookingService = Depends(get_booking_service),
 ) -> PricingPreviewOut:
     """Return a pricing preview for the requested booking."""
-    from ...schemas.pricing_preview import PricingPreviewData
-    from ...services.pricing_service import PricingService
-
-    booking = await asyncio.to_thread(booking_service.repository.get_by_id, booking_id, False)
-    if not booking:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
-
-    allowed_participants = {booking.student_id, booking.instructor_id}
-    if current_user.id not in allowed_participants:
-        logger.warning(
-            "pricing_preview.forbidden",
-            extra={
-                "booking_id": booking_id,
-                "requested_by": current_user.id,
-            },
-        )
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    pricing_service = PricingService(booking_service.db)
     try:
-        pricing_data: PricingPreviewData = await asyncio.to_thread(
-            pricing_service.compute_booking_pricing,
+        result = await asyncio.to_thread(
+            booking_service.get_booking_pricing_preview,
             booking_id,
+            current_user.id,
             applied_credit_cents,
-            False,
         )
+
+        if result is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+
+        if result.get("error") == "access_denied":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+        return PricingPreviewOut(**result)
     except DomainException as exc:
         raise exc.to_http_exception() from exc
-
-    return PricingPreviewOut(**pricing_data)
 
 
 @router.get(
@@ -600,29 +581,17 @@ async def get_booking_details(
     ),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-    db: Session = Depends(get_db),
 ) -> BookingResponse:
     """Get full booking details with privacy protection for students."""
     try:
-        booking = await asyncio.to_thread(
-            booking_service.get_booking_for_user, booking_id, current_user
+        # Service method returns booking + payment summary (no direct db access needed)
+        result = await asyncio.to_thread(
+            booking_service.get_booking_with_payment_summary, booking_id, current_user
         )
-        if not booking:
+        if not result:
             raise NotFoundException("Booking not found")
 
-        payment_summary_data: PaymentSummary | None = None
-        if booking.student_id == current_user.id:
-            config_service = ConfigService(db)
-            pricing_config, _ = await asyncio.to_thread(config_service.get_pricing_config)
-            payment_repo = RepositoryFactory.create_payment_repository(db)
-            tip_repo = ReviewTipRepository(db)
-            payment_summary_data = build_student_payment_summary(
-                booking=booking,
-                pricing_config=pricing_config,
-                payment_repo=payment_repo,
-                review_tip_repo=tip_repo,
-            )
-
+        booking, payment_summary_data = result
         return BookingResponse.from_booking(booking, payment_summary=payment_summary_data)
     except DomainException as e:
         handle_domain_exception(e)
@@ -711,7 +680,9 @@ async def reschedule_booking(
     """
     try:
         # Load original booking
-        original = booking_service.get_booking_for_user(booking_id, current_user)
+        original = await asyncio.to_thread(
+            booking_service.get_booking_for_user, booking_id, current_user
+        )
         if not original:
             raise NotFoundException("Booking not found")
 
@@ -744,19 +715,15 @@ async def reschedule_booking(
             reason = reason or "Requested time is unavailable"
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=reason)
 
-        # Check student self-conflict
-        try:
-            has_student_conflict = bool(
-                booking_service.repository.check_student_time_conflict(
-                    student_id=current_user.id,
-                    booking_date=payload.booking_date,
-                    start_time=payload.start_time,
-                    end_time=proposed_end_time,
-                    exclude_booking_id=original.id,
-                )
-            )
-        except Exception:
-            has_student_conflict = False
+        # Check student self-conflict (using service method, no direct repo access)
+        has_student_conflict = await asyncio.to_thread(
+            booking_service.check_student_time_conflict,
+            student_id=current_user.id,
+            booking_date=payload.booking_date,
+            start_time=payload.start_time,
+            end_time=proposed_end_time,
+            exclude_booking_id=original.id,
+        )
 
         if has_student_conflict:
             raise HTTPException(
@@ -764,22 +731,13 @@ async def reschedule_booking(
                 detail="You already have a booking scheduled at this time",
             )
 
-        # Preflight: Check payment method
-        from ...services.config_service import ConfigService as _ConfigService
-        from ...services.pricing_service import PricingService as _PricingService
-        from ...services.stripe_service import StripeService as _StripeService
-
-        config_service = _ConfigService(booking_service.db)
-        pricing_service = _PricingService(booking_service.db)
-        stripe_service = _StripeService(
-            booking_service.db,
-            config_service=config_service,
-            pricing_service=pricing_service,
+        # Preflight: Check payment method (using service method, no direct db access)
+        has_payment_method, stripe_pm_id = await asyncio.to_thread(
+            booking_service.validate_reschedule_payment_method,
+            current_user.id,
         )
 
-        default_pm = stripe_service.payment_repository.get_default_payment_method(current_user.id)
-
-        if not default_pm or not default_pm.stripe_payment_method_id:
+        if not has_payment_method or not stripe_pm_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
@@ -830,16 +788,13 @@ async def reschedule_booking(
             new_booking = await booking_service.confirm_booking_payment(
                 booking_id=new_booking.id,
                 student=current_user,
-                payment_method_id=default_pm.stripe_payment_method_id,
+                payment_method_id=stripe_pm_id,
                 save_payment_method=False,
             )
         except Exception as e:
             logger.error(f"Failed to confirm payment for rescheduled booking: {e}")
-            try:
-                booking_service.db.delete(new_booking)
-                booking_service.db.commit()
-            except Exception:
-                pass
+            # Abort the pending booking (using service method, no direct db access)
+            await asyncio.to_thread(booking_service.abort_pending_booking, new_booking.id)
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

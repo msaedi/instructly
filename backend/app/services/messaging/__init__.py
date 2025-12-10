@@ -20,11 +20,17 @@ from app.services.messaging.events import (
 )
 from app.services.messaging.publisher import (
     publish_message_deleted,
+    publish_message_deleted_direct,
     publish_message_edited,
+    publish_message_edited_direct,
     publish_new_message,
+    publish_new_message_direct,
     publish_reaction_update,
+    publish_reaction_update_direct,
     publish_read_receipt,
+    publish_read_receipt_direct,
     publish_typing_status,
+    publish_typing_status_direct,
 )
 from app.services.messaging.redis_pubsub import pubsub_manager
 from app.services.messaging.sse_stream import create_sse_stream, publish_to_user
@@ -32,14 +38,21 @@ from app.services.messaging.sse_stream import create_sse_stream, publish_to_user
 __all__ = [
     # Manager (legacy - kept for backward compatibility during transition)
     "pubsub_manager",
-    # Publishers
+    # Publishers (DB-based - fetch participants internally)
     "publish_new_message",
     "publish_typing_status",
     "publish_reaction_update",
     "publish_message_edited",
     "publish_read_receipt",
     "publish_message_deleted",
-    "publish_to_user",  # New Broadcaster-based publish
+    # Publishers (Direct - accept pre-fetched participant IDs, no DB required)
+    "publish_new_message_direct",
+    "publish_typing_status_direct",
+    "publish_read_receipt_direct",
+    "publish_message_edited_direct",
+    "publish_message_deleted_direct",
+    "publish_reaction_update_direct",
+    "publish_to_user",  # Broadcaster-based publish
     # SSE Stream (uses Broadcaster v4.0)
     "create_sse_stream",
     # Events

@@ -345,3 +345,256 @@ async def publish_message_deleted(
     await _publish_to_users(all_user_ids, event)
 
     logger.debug(f"[BROADCAST] Published message_deleted {message_id} to {len(all_user_ids)} users")
+
+
+# =============================================================================
+# DIRECT PUBLISH FUNCTIONS (No DB required)
+#
+# These functions accept pre-fetched participant IDs instead of db session.
+# Use these when the service layer has already fetched the notification context.
+# This keeps routes free of DB access while maintaining notification capability.
+# =============================================================================
+
+
+async def publish_read_receipt_direct(
+    participant_ids: List[str],
+    conversation_id: str,
+    reader_id: str,
+    message_ids: List[str],
+) -> None:
+    """
+    Publish read receipt to participants (no DB required).
+
+    Args:
+        participant_ids: Pre-fetched list of [student_id, instructor_id]
+        conversation_id: Conversation ULID
+        reader_id: ULID of user who read messages
+        message_ids: List of message ULIDs that were read
+    """
+    if not participant_ids:
+        return  # Silent fail for read receipts
+
+    event = build_read_receipt_event(
+        conversation_id=conversation_id,
+        reader_id=reader_id,
+        message_ids=message_ids,
+    )
+
+    # Send to other participants (not the reader)
+    other_users = [uid for uid in participant_ids if uid != reader_id]
+    await _publish_to_users(other_users, event)
+
+    logger.debug(
+        f"[BROADCAST] Published read_receipt for {len(message_ids)} messages "
+        f"to {len(other_users)} users"
+    )
+
+
+async def publish_message_edited_direct(
+    participant_ids: List[str],
+    conversation_id: str,
+    message_id: str,
+    new_content: str,
+    editor_id: str,
+    edited_at: datetime,
+) -> None:
+    """
+    Publish message edit event (no DB required).
+
+    Args:
+        participant_ids: Pre-fetched list of conversation participants
+        conversation_id: Conversation ULID
+        message_id: ULID of edited message
+        new_content: Updated message content
+        editor_id: ULID of user who edited
+        edited_at: Edit timestamp
+    """
+    if not participant_ids:
+        logger.warning(
+            f"[PUBLISHER] Cannot publish message_edited: no participants for {conversation_id}"
+        )
+        return
+
+    event = build_message_edited_event(
+        conversation_id=conversation_id,
+        message_id=message_id,
+        new_content=new_content,
+        editor_id=editor_id,
+        edited_at=edited_at,
+    )
+
+    all_user_ids = list(set(participant_ids))
+    await _publish_to_users(all_user_ids, event)
+
+    logger.debug(f"[BROADCAST] Published message_edited {message_id} to {len(all_user_ids)} users")
+
+
+async def publish_message_deleted_direct(
+    participant_ids: List[str],
+    conversation_id: str,
+    message_id: str,
+    deleted_by: str,
+) -> None:
+    """
+    Publish message deleted event (no DB required).
+
+    Args:
+        participant_ids: Pre-fetched list of conversation participants
+        conversation_id: Conversation ULID
+        message_id: ULID of deleted message
+        deleted_by: ULID of user who deleted
+    """
+    if not participant_ids:
+        logger.warning(
+            f"[PUBLISHER] Cannot publish message_deleted: no participants for {conversation_id}"
+        )
+        return
+
+    event = build_message_deleted_event(
+        conversation_id=conversation_id,
+        message_id=message_id,
+        deleted_by=deleted_by,
+    )
+
+    all_user_ids = list(set(participant_ids))
+    await _publish_to_users(all_user_ids, event)
+
+    logger.debug(f"[BROADCAST] Published message_deleted {message_id} to {len(all_user_ids)} users")
+
+
+async def publish_reaction_update_direct(
+    participant_ids: List[str],
+    conversation_id: str,
+    message_id: str,
+    user_id: str,
+    emoji: str,
+    action: str,
+) -> None:
+    """
+    Publish reaction update (no DB required).
+
+    Args:
+        participant_ids: Pre-fetched list of conversation participants
+        conversation_id: Conversation ULID
+        message_id: ULID of message being reacted to
+        user_id: ULID of user adding/removing reaction
+        emoji: The emoji reaction
+        action: "added" or "removed"
+    """
+    if not participant_ids:
+        logger.warning(
+            f"[PUBLISHER] Cannot publish reaction_update: no participants for {conversation_id}"
+        )
+        return
+
+    event = build_reaction_update_event(
+        conversation_id=conversation_id,
+        message_id=message_id,
+        user_id=user_id,
+        emoji=emoji,
+        action=action,
+    )
+
+    all_user_ids = list(set(participant_ids))
+    await _publish_to_users(all_user_ids, event)
+
+    logger.debug(f"[BROADCAST] Published reaction_update ({action}) to {len(all_user_ids)} users")
+
+
+async def publish_typing_status_direct(
+    participant_ids: List[str],
+    conversation_id: str,
+    user_id: str,
+    user_name: Optional[str] = None,
+    is_typing: bool = True,
+) -> None:
+    """
+    Publish typing status (no DB required).
+
+    Best-effort delivery - if dropped, no big deal.
+
+    Args:
+        participant_ids: Pre-fetched list of conversation participants
+        conversation_id: Conversation ULID
+        user_id: ULID of user who is typing
+        user_name: Optional display name
+        is_typing: True if typing started, False if stopped
+    """
+    if not participant_ids:
+        return  # Silent fail for ephemeral typing indicators
+
+    event = build_typing_status_event(
+        conversation_id=conversation_id,
+        user_id=user_id,
+        user_name=user_name,
+        is_typing=is_typing,
+    )
+
+    # Don't send to the typer themselves
+    other_users = [uid for uid in participant_ids if uid != user_id]
+    await _publish_to_users(other_users, event)
+
+    logger.debug(f"[BROADCAST] Published typing_status to {len(other_users)} users")
+
+
+async def publish_new_message_direct(
+    participant_ids: List[str],
+    message_id: str,
+    content: str,
+    sender_id: Optional[str],
+    sender_name: Optional[str],
+    conversation_id: str,
+    created_at: datetime,
+    booking_id: Optional[str] = None,
+    delivered_at: Optional[datetime] = None,
+    reactions: Optional[List[Dict[str, Any]]] = None,
+    message_type: str = "user",
+) -> None:
+    """
+    Publish a new message event (no DB required).
+
+    Args:
+        participant_ids: Pre-fetched list of conversation participants
+        message_id: ULID of the new message
+        content: Message text content
+        sender_id: ULID of sender (None for system messages)
+        sender_name: Sender display name
+        conversation_id: ULID of conversation
+        created_at: Message creation timestamp
+        booking_id: Optional ULID of related booking
+        delivered_at: Optional delivery timestamp
+        reactions: Optional list of reactions
+        message_type: Type of message ('user', 'system_booking_created', etc.)
+    """
+    if not participant_ids:
+        logger.warning(
+            f"[PUBLISHER] Cannot publish new_message: no participants for {conversation_id}"
+        )
+        return
+
+    # For user messages, exclude sender from recipients
+    # For system messages (sender_id=None), all participants receive
+    if sender_id:
+        recipient_ids = [uid for uid in participant_ids if uid != sender_id]
+    else:
+        recipient_ids = list(participant_ids)
+
+    event = build_new_message_event(
+        message_id=message_id,
+        content=content,
+        sender_id=sender_id,
+        sender_name=sender_name,
+        conversation_id=conversation_id,
+        booking_id=booking_id,
+        recipient_ids=recipient_ids,
+        created_at=created_at,
+        delivered_at=delivered_at,
+        reactions=reactions,
+        message_type=message_type,
+    )
+
+    # Publish to all participants (including sender for multi-device sync)
+    all_user_ids = list(set(participant_ids))
+    await _publish_to_users(all_user_ids, event)
+
+    logger.debug(f"[BROADCAST] Published new_message {message_id} to {len(all_user_ids)} users")

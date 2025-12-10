@@ -753,7 +753,7 @@ class TestBookingRoutes:
         )
         mock_booking.instructor_service = self._create_mock_instructor_service()
 
-        mock_booking_service.get_booking_for_user.return_value = mock_booking
+        mock_booking_service.get_booking_with_payment_summary.return_value = (mock_booking, None)
 
         response = client_with_mock_booking_service.get(f"/api/v1/bookings/{booking_id}", headers=auth_headers_student)
 
@@ -766,7 +766,7 @@ class TestBookingRoutes:
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
     ):
         """Test getting non-existent booking."""
-        mock_booking_service.get_booking_for_user.return_value = None
+        mock_booking_service.get_booking_with_payment_summary.return_value = None
 
         response = client_with_mock_booking_service.get("/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ0", headers=auth_headers_student)
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -1256,9 +1256,11 @@ class TestBookingRoutes:
         # Mock availability check to return available
         mock_booking_service.check_availability = AsyncMock(return_value={"available": True})
 
-        # Mock repository method for student conflict check
-        mock_booking_service.repository = MagicMock()
-        mock_booking_service.repository.check_student_time_conflict.return_value = None
+        # Mock service method for student conflict check (no conflict)
+        mock_booking_service.check_student_time_conflict = MagicMock(return_value=False)
+
+        # Mock service method for payment method validation
+        mock_booking_service.validate_reschedule_payment_method = MagicMock(return_value=(True, "pm_test123"))
 
         mock_booking_service.cancel_booking = AsyncMock()
         mock_booking_service.create_booking_with_payment_setup = AsyncMock(return_value=new_booking)
@@ -1359,9 +1361,11 @@ class TestBookingRoutes:
         # Mock availability check to return available
         mock_booking_service.check_availability = AsyncMock(return_value={"available": True})
 
-        # Mock repository method for student conflict check
-        mock_booking_service.repository = MagicMock()
-        mock_booking_service.repository.check_student_time_conflict.return_value = None
+        # Mock service method for student conflict check (no conflict)
+        mock_booking_service.check_student_time_conflict = MagicMock(return_value=False)
+
+        # Mock service method for payment method validation
+        mock_booking_service.validate_reschedule_payment_method = MagicMock(return_value=(True, "pm_test123"))
 
         # Mock create and confirm to succeed
         new_booking = Mock()

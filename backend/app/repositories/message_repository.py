@@ -272,24 +272,26 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error checking reaction existence: {str(e)}")
             raise RepositoryException(f"Failed to check reaction existence: {str(e)}")
 
-    def apply_message_edit(self, message_id: str, new_content: str) -> bool:
+    def apply_message_edit(self, message_id: str, new_content: str) -> Optional[datetime]:
         """
         Create a MessageEdit history row and update the Message content and edited_at.
+
+        Returns:
+            The edited_at timestamp if successful, None if message not found.
         """
         try:
-            from datetime import datetime, timezone
-
             from ..models.message import MessageEdit
 
             message = self.db.query(Message).filter(Message.id == message_id).first()
             if not message:
-                return False
+                return None
             # Save history
             self.db.add(MessageEdit(message_id=message_id, original_content=message.content))
             # Update message
             message.content = new_content
-            message.edited_at = datetime.now(timezone.utc)
-            return True
+            edited_at = datetime.now(timezone.utc)
+            message.edited_at = edited_at
+            return edited_at
         except Exception as e:
             self.logger.error(f"Error applying message edit: {str(e)}")
             raise RepositoryException(f"Failed to apply message edit: {str(e)}")

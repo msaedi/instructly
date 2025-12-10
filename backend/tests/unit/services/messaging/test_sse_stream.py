@@ -289,8 +289,9 @@ def test_sse_sets_id_only_for_messages() -> None:
     assert "id" not in results["heartbeat"]
 
 
+@pytest.mark.asyncio
 @pytest.mark.usefixtures("db")
-def test_fetch_messages_after_returns_newer_messages(db, test_booking, test_student) -> None:
+async def test_fetch_messages_after_returns_newer_messages(db, test_booking, test_student) -> None:
     """DB catch-up returns only messages newer than the provided Last-Event-ID."""
     repo = MessageRepository(db)
     from app.repositories.conversation_repository import ConversationRepository
@@ -321,7 +322,7 @@ def test_fetch_messages_after_returns_newer_messages(db, test_booking, test_stud
     )
     db.commit()
 
-    results = fetch_messages_after(
+    results = await fetch_messages_after(
         db=db,
         user_id=str(test_student.id),
         after_message_id=str(msg1.id),

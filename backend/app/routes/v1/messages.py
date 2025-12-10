@@ -32,7 +32,6 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -55,15 +54,16 @@ from ...schemas.message_responses import (
     MessageConfigResponse,
     UnreadCountResponse,
 )
-from ...services.message_service import MessageService
+from ...services.message_service import MessageService, SSEStreamContext
 
 # Redis Pub/Sub (v3.1 - Redis is the ONLY notification source)
+# NOTE: Using *_direct versions for proper architecture - routes don't need DB access
 from ...services.messaging import (
     create_sse_stream,
-    publish_message_deleted,
-    publish_message_edited,
-    publish_reaction_update,
-    publish_read_receipt,
+    publish_message_deleted_direct,
+    publish_message_edited_direct,
+    publish_reaction_update_direct,
+    publish_read_receipt_direct,
 )
 
 # Ensure request schema is fully built before FastAPI inspects annotations.
@@ -148,7 +148,7 @@ async def stream_user_messages(
     )
 
     # =========================================================================
-    # PHASE 1: DB OPERATIONS (manual session with explicit close)
+    # PHASE 1: DB OPERATIONS (via service layer with manual session)
     #
     # CRITICAL: We use manual session management here instead of Depends(get_db)
     # because FastAPI's dependency cleanup only runs AFTER the response completes.
@@ -159,44 +159,18 @@ async def stream_user_messages(
     # we ensure DB connections are released immediately after the initial queries.
     # =========================================================================
 
-    db = SessionLocal()
-    missed_messages = None
     user_id = current_user.id
+    last_event_id = request.headers.get("Last-Event-ID")
 
+    # Service layer handles all DB access (permission check + missed messages)
+    db = SessionLocal()
     try:
-        # Check if user has VIEW_MESSAGES permission (using Redis-cached check)
-        from ...services.permission_service import PermissionService
-
-        permission_service = PermissionService(db)
-        if not await permission_service.user_has_permission_cached(
-            current_user.id, PermissionName.VIEW_MESSAGES
-        ):
-            logger.warning(
-                "[SSE] Permission denied",
-                extra={"user_id": current_user.id, "permission": "VIEW_MESSAGES"},
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to view messages",
-            )
-
-        # Read Last-Event-ID header (sent automatically by browser on reconnect)
-        last_event_id = request.headers.get("Last-Event-ID")
-
-        if last_event_id:
-            logger.info(
-                "[SSE] Client reconnecting with Last-Event-ID",
-                extra={"user_id": current_user.id, "last_event_id": last_event_id},
-            )
-            # Fetch missed messages NOW, before entering the stream
-            from ...services.messaging.sse_stream import fetch_messages_after
-
-            missed_messages = await fetch_messages_after(db, current_user.id, last_event_id)
-            logger.info(
-                "[SSE] Pre-fetched missed messages",
-                extra={"user_id": current_user.id, "count": len(missed_messages)},
-            )
-
+        message_service = MessageService(db)
+        context: SSEStreamContext = await asyncio.to_thread(
+            message_service.get_stream_context,
+            user_id=current_user.id,
+            last_event_id=last_event_id,
+        )
     finally:
         # CRITICAL: Explicitly close DB session BEFORE starting the SSE stream.
         # This prevents holding connections in "idle in transaction" state.
@@ -204,6 +178,28 @@ async def stream_user_messages(
         logger.debug(
             "[SSE] DB session closed before streaming",
             extra={"user_id": user_id},
+        )
+
+    # Check permission result from service
+    if not context.has_permission:
+        logger.warning(
+            "[SSE] Permission denied",
+            extra={"user_id": current_user.id, "permission": "VIEW_MESSAGES"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to view messages",
+        )
+
+    # Log reconnection info if applicable
+    if last_event_id:
+        logger.info(
+            "[SSE] Client reconnecting with Last-Event-ID",
+            extra={
+                "user_id": current_user.id,
+                "last_event_id": last_event_id,
+                "missed_count": len(context.missed_messages),
+            },
         )
 
     # =========================================================================
@@ -216,7 +212,7 @@ async def stream_user_messages(
         """Generate SSE events using Broadcaster multiplexer (no DB access)."""
         async for event in create_sse_stream(
             user_id=user_id,
-            missed_messages=missed_messages,
+            missed_messages=context.missed_messages,
         ):
             # Early exit if client disconnected
             if await request.is_disconnected():
@@ -320,71 +316,48 @@ async def mark_messages_as_read(
     Requires VIEW_MESSAGES permission.
     """
     try:
-        marked_message_ids: list[str] = []
-        conversation_id: Optional[str] = None
-
-        if request.conversation_id:
-            conversation_id = request.conversation_id
-            unread_messages = await asyncio.to_thread(
-                service.repository.get_unread_messages_by_conversation,
-                conversation_id,
-                current_user.id,
-            )
-            marked_message_ids = [msg.id for msg in unread_messages]
-            count = await asyncio.to_thread(
-                service.mark_conversation_messages_as_read,
-                conversation_id,
-                current_user.id,
-            )
-        elif request.message_ids:
-            marked_message_ids = request.message_ids
-            # Mark specific messages as read
-            count = await asyncio.to_thread(
-                service.mark_messages_as_read,
-                request.message_ids,
-                current_user.id,
-            )
-            # Get conversation_id from first message for notification
-            if marked_message_ids:
-                first_msg = await asyncio.to_thread(
-                    service.repository.get_by_id, marked_message_ids[0]
-                )
-                if first_msg:
-                    conversation_id = first_msg.conversation_id
-        else:
+        if not request.conversation_id and not request.message_ids:
             raise ValidationException("Either conversation_id or message_ids must be provided")
 
-        # Redis Pub/Sub publishing (fire-and-forget)
-        if count > 0 and marked_message_ids:
-            if conversation_id:
+        # Single service call that returns all data needed (no direct DB access)
+        result = await asyncio.to_thread(
+            service.mark_messages_read_with_context,
+            request.conversation_id,
+            request.message_ids,
+            current_user.id,
+        )
+
+        # Redis Pub/Sub publishing (fire-and-forget) - using direct function (no DB needed)
+        if result.count > 0 and result.marked_message_ids:
+            if result.conversation_id and result.participant_ids:
                 try:
-                    await publish_read_receipt(
-                        db=service.db,
-                        conversation_id=conversation_id,
+                    await publish_read_receipt_direct(
+                        participant_ids=result.participant_ids,
+                        conversation_id=result.conversation_id,
                         reader_id=str(current_user.id),
-                        message_ids=marked_message_ids,
+                        message_ids=result.marked_message_ids,
                     )
                     logger.debug(
                         "[REDIS-PUBSUB] Mark-read: Published to Redis",
                         extra={
-                            "message_count": len(marked_message_ids),
-                            "conversation_id": conversation_id,
+                            "message_count": len(result.marked_message_ids),
+                            "conversation_id": result.conversation_id,
                         },
                     )
                 except Exception as e:
                     logger.error(
                         "[REDIS-PUBSUB] Mark-read: Redis publish failed",
-                        extra={"error": str(e), "conversation_id": conversation_id},
+                        extra={"error": str(e), "conversation_id": result.conversation_id},
                     )
             else:
                 logger.warning(
                     "[REDIS-PUBSUB] Mark-read: Could not resolve conversation_id for SSE routing",
-                    extra={"message_ids": marked_message_ids[:3]},
+                    extra={"message_ids": result.marked_message_ids[:3]},
                 )
 
         return MarkMessagesReadResponse(
             success=True,
-            messages_marked=count,
+            messages_marked=result.count,
         )
 
     except ValidationException as e:
@@ -449,7 +422,14 @@ async def edit_message(
     )
 
     try:
-        await asyncio.to_thread(service.edit_message, message_id, current_user.id, request.content)
+        # Single service call that returns all data needed (no direct DB access)
+        result = await asyncio.to_thread(
+            service.edit_message_with_context,
+            message_id,
+            current_user.id,
+            request.content,
+        )
+
         logger.info(
             "[MSG-DEBUG] Message EDIT: Success",
             extra={
@@ -459,33 +439,30 @@ async def edit_message(
             },
         )
 
-        # Redis Pub/Sub publishing (fire-and-forget)
-        try:
-            message = await asyncio.to_thread(
-                service.get_message_by_id, message_id, str(current_user.id)
-            )
-            if message and message.conversation_id:
-                await publish_message_edited(
-                    db=service.db,
-                    conversation_id=message.conversation_id,
+        # Redis Pub/Sub publishing (fire-and-forget) - using direct function (no DB needed)
+        if result.conversation_id and result.participant_ids:
+            try:
+                await publish_message_edited_direct(
+                    participant_ids=result.participant_ids,
+                    conversation_id=result.conversation_id,
                     message_id=message_id,
                     new_content=request.content,
                     editor_id=str(current_user.id),
-                    edited_at=message.edited_at or datetime.now(timezone.utc),
+                    edited_at=result.edited_at or datetime.now(timezone.utc),
                 )
                 logger.debug(
                     "[REDIS-PUBSUB] Message EDIT: Published to Redis",
-                    extra={"message_id": message_id, "conversation_id": message.conversation_id},
+                    extra={"message_id": message_id, "conversation_id": result.conversation_id},
                 )
-            elif message:
-                logger.warning(
-                    "[REDIS-PUBSUB] Message EDIT: Could not resolve conversation_id",
-                    extra={"message_id": message_id},
+            except Exception as e:
+                logger.error(
+                    "[REDIS-PUBSUB] Message EDIT: Redis publish failed",
+                    extra={"error": str(e), "message_id": message_id},
                 )
-        except Exception as e:
-            logger.error(
-                "[REDIS-PUBSUB] Message EDIT: Redis publish failed",
-                extra={"error": str(e), "message_id": message_id},
+        else:
+            logger.warning(
+                "[REDIS-PUBSUB] Message EDIT: Could not resolve conversation_id",
+                extra={"message_id": message_id},
             )
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -557,39 +534,31 @@ async def delete_message(
     Requires SEND_MESSAGES permission.
     """
     try:
-        message = await asyncio.to_thread(
-            service.get_message_by_id, message_id, str(current_user.id)
-        )
-        if not message:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Message not found",
-            )
-
-        deleted = await asyncio.to_thread(
-            service.delete_message,
+        # Single service call that returns all data needed (no direct DB access)
+        result = await asyncio.to_thread(
+            service.delete_message_with_context,
             message_id,
             current_user.id,
         )
 
-        if not deleted:
+        if not result.success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Message not found",
             )
 
-        # Redis Pub/Sub publishing (fire-and-forget)
-        if message.conversation_id:
+        # Redis Pub/Sub publishing (fire-and-forget) - using direct function (no DB needed)
+        if result.conversation_id and result.participant_ids:
             try:
-                await publish_message_deleted(
-                    db=service.db,
-                    conversation_id=message.conversation_id,
+                await publish_message_deleted_direct(
+                    participant_ids=result.participant_ids,
+                    conversation_id=result.conversation_id,
                     message_id=message_id,
                     deleted_by=str(current_user.id),
                 )
                 logger.debug(
                     "[REDIS-PUBSUB] Message DELETE: Published to Redis",
-                    extra={"message_id": message_id, "conversation_id": message.conversation_id},
+                    extra={"message_id": message_id, "conversation_id": result.conversation_id},
                 )
             except Exception as e:
                 logger.error(
@@ -615,6 +584,11 @@ async def delete_message(
     except ValidationException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except NotFoundException as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
     except HTTPException:
@@ -664,12 +638,14 @@ async def add_reaction(
     )
 
     try:
-        # Get message info first for notification
-        message = await asyncio.to_thread(
-            service.get_message_by_id, message_id, str(current_user.id)
+        # Single service call that returns all data needed (no direct DB access)
+        result = await asyncio.to_thread(
+            service.add_reaction_with_context,
+            message_id,
+            current_user.id,
+            request.emoji,
         )
 
-        await asyncio.to_thread(service.add_reaction, message_id, current_user.id, request.emoji)
         logger.info(
             "[MSG-DEBUG] Reaction ADD: Success",
             extra={
@@ -680,27 +656,27 @@ async def add_reaction(
             },
         )
 
-        # Redis Pub/Sub publishing (fire-and-forget)
-        if message and message.conversation_id:
+        # Redis Pub/Sub publishing (fire-and-forget) - using direct function (no DB needed)
+        if result.conversation_id and result.participant_ids and result.action:
             try:
-                await publish_reaction_update(
-                    db=service.db,
-                    conversation_id=message.conversation_id,
+                await publish_reaction_update_direct(
+                    participant_ids=result.participant_ids,
+                    conversation_id=result.conversation_id,
                     message_id=message_id,
                     user_id=str(current_user.id),
                     emoji=request.emoji,
-                    action="added",
+                    action=result.action,
                 )
                 logger.debug(
                     "[REDIS-PUBSUB] Reaction ADD: Published to Redis",
-                    extra={"message_id": message_id, "conversation_id": message.conversation_id},
+                    extra={"message_id": message_id, "conversation_id": result.conversation_id},
                 )
             except Exception as e:
                 logger.error(
                     "[REDIS-PUBSUB] Reaction ADD: Redis publish failed",
                     extra={"error": str(e), "message_id": message_id},
                 )
-        elif message:
+        else:
             logger.warning(
                 "[REDIS-PUBSUB] Reaction ADD: Could not resolve conversation_id",
                 extra={"message_id": message_id},
@@ -778,12 +754,14 @@ async def remove_reaction(
     )
 
     try:
-        # Get message info first for notification
-        message = await asyncio.to_thread(
-            service.get_message_by_id, message_id, str(current_user.id)
+        # Single service call that returns all data needed (no direct DB access)
+        result = await asyncio.to_thread(
+            service.remove_reaction_with_context,
+            message_id,
+            current_user.id,
+            request.emoji,
         )
 
-        await asyncio.to_thread(service.remove_reaction, message_id, current_user.id, request.emoji)
         logger.info(
             "[MSG-DEBUG] Reaction REMOVE: Success",
             extra={
@@ -794,12 +772,12 @@ async def remove_reaction(
             },
         )
 
-        # Redis Pub/Sub publishing (fire-and-forget)
-        if message and message.conversation_id:
+        # Redis Pub/Sub publishing (fire-and-forget) - using direct function (no DB needed)
+        if result.conversation_id and result.participant_ids:
             try:
-                await publish_reaction_update(
-                    db=service.db,
-                    conversation_id=message.conversation_id,
+                await publish_reaction_update_direct(
+                    participant_ids=result.participant_ids,
+                    conversation_id=result.conversation_id,
                     message_id=message_id,
                     user_id=str(current_user.id),
                     emoji=request.emoji,
@@ -807,14 +785,14 @@ async def remove_reaction(
                 )
                 logger.debug(
                     "[REDIS-PUBSUB] Reaction REMOVE: Published to Redis",
-                    extra={"message_id": message_id, "conversation_id": message.conversation_id},
+                    extra={"message_id": message_id, "conversation_id": result.conversation_id},
                 )
             except Exception as e:
                 logger.error(
                     "[REDIS-PUBSUB] Reaction REMOVE: Redis publish failed",
                     extra={"error": str(e), "message_id": message_id},
                 )
-        elif message:
+        else:
             logger.warning(
                 "[REDIS-PUBSUB] Reaction REMOVE: Could not resolve conversation_id",
                 extra={"message_id": message_id},
@@ -831,6 +809,16 @@ async def remove_reaction(
             },
         )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except NotFoundException as e:
+        logger.warning(
+            "[MSG-DEBUG] Reaction REMOVE: Not found",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         logger.error(
             "[MSG-DEBUG] Reaction REMOVE: Unexpected error",

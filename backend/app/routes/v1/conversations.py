@@ -5,6 +5,8 @@ Conversations routes - API v1
 Versioned conversation endpoints under /api/v1/conversations.
 All business logic delegated to ConversationService.
 
+Routes have ZERO direct DB access - all operations go through service layer.
+
 Endpoints:
     GET /                               -> List user's conversations
     POST /                              -> Create/get conversation (pre-booking messaging)
@@ -47,7 +49,7 @@ from ...schemas.conversation import (
     UserSummary,
 )
 from ...services.conversation_service import ConversationService
-from ...services.messaging import publish_typing_status
+from ...services.messaging import publish_new_message_direct, publish_typing_status_direct
 
 logger = logging.getLogger(__name__)
 
@@ -236,11 +238,10 @@ def get_conversation(
     response_model=CreateConversationResponse,
     dependencies=[WRITE_DEP],
 )
-def create_conversation(
+async def create_conversation(
     request: CreateConversationRequest,
     current_user: User = Depends(get_current_active_user),
     service: ConversationService = Depends(get_conversation_service),
-    db: Session = Depends(get_db),
 ) -> CreateConversationResponse:
     """
     Create a new conversation (for pre-booking messaging).
@@ -248,42 +249,28 @@ def create_conversation(
     If conversation already exists, returns the existing one.
     Only students can initiate conversations with instructors.
     """
-    # Validate that the target user is actually an instructor
-    from ...repositories.factory import RepositoryFactory
-
-    user_repo = RepositoryFactory.create_user_repository(db)
-    instructor = user_repo.get_by_id(request.instructor_id)
-    if not instructor:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Instructor not found",
-        )
-    if not instructor.is_instructor:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Target user is not an instructor",
-        )
-
-    # The current user is the student, request contains instructor_id
-    conversation, created = service.get_or_create_conversation(
+    # Service handles validation, creation, initial message, and transaction commit
+    result = await asyncio.to_thread(
+        service.create_conversation_with_message,
         student_id=current_user.id,
         instructor_id=request.instructor_id,
+        initial_message=request.initial_message,
     )
 
-    # If initial message provided, send it
-    if request.initial_message and created:
-        service.send_message(
-            conversation_id=conversation.id,
-            sender_id=current_user.id,
-            content=request.initial_message,
+    if not result.success:
+        if result.error == "Instructor not found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=result.error,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.error,
         )
 
-    # Commit the transaction
-    db.commit()
-
     return CreateConversationResponse(
-        id=conversation.id,
-        created=created,
+        id=result.conversation_id,
+        created=result.created,
     )
 
 
@@ -330,17 +317,19 @@ async def send_typing_indicator(
     service: ConversationService = Depends(get_conversation_service),
 ) -> SuccessResponse:
     """Send typing indicator for a conversation."""
-    conversation = await asyncio.to_thread(
-        service.get_conversation_by_id, conversation_id, current_user.id
+    # Get typing context (participant IDs) via service
+    typing_context = await asyncio.to_thread(
+        service.get_typing_context, conversation_id, current_user.id
     )
-    if not conversation:
+    if not typing_context:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
     user_name = current_user.first_name or current_user.email or "Someone"
 
     try:
-        await publish_typing_status(
-            db=service.db,
+        # Use direct publish function (no DB required)
+        await publish_typing_status_direct(
+            participant_ids=typing_context.participant_ids,
             conversation_id=conversation_id,
             user_id=str(current_user.id),
             user_name=user_name,
@@ -357,7 +346,7 @@ async def send_typing_indicator(
     response_model=MessagesResponse,
     dependencies=[READ_DEP],
 )
-def get_messages(
+async def get_messages(
     conversation_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     limit: int = Query(50, ge=1, le=100),
     before: Optional[str] = Query(None, description="Cursor for pagination (message ID)"),
@@ -371,7 +360,9 @@ def get_messages(
     Messages are returned in chronological order (oldest first).
     Use 'before' cursor to load older messages.
     """
-    messages, has_more, next_cursor = service.get_messages(
+    # Service returns all data including booking details (no direct repo access needed)
+    result = await asyncio.to_thread(
+        service.get_messages_with_details,
         conversation_id=conversation_id,
         user_id=current_user.id,
         limit=limit,
@@ -379,45 +370,42 @@ def get_messages(
         booking_id_filter=booking_id,
     )
 
-    # If no messages and conversation doesn't exist, return 404
-    if not messages and not service.get_conversation_by_id(conversation_id, current_user.id):
+    if not result.conversation_found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
+    # Transform service data to response schema
     items: List[MessageResponse] = []
-    for msg in messages:
-        # For system messages, include booking details if available
+    for msg_data in result.messages:
+        # Build booking summary if present
         booking_details = None
-        if msg.booking_id and msg.message_type != "user":
-            try:
-                booking = service.booking_repository.get_by_id(msg.booking_id)
-                if booking:
-                    booking_details = _build_booking_summary(booking)
-            except Exception:
-                booking_details = None
+        if msg_data.booking_details:
+            booking_details = BookingSummary(
+                id=msg_data.booking_details["id"],
+                date=msg_data.booking_details["date"],
+                start_time=msg_data.booking_details["start_time"],
+                service_name=msg_data.booking_details["service_name"],
+            )
 
-        # Keep full read_by objects with user_id and read_at (required for frontend)
+        # Transform to response schemas
         read_by_entries = [
             ReadReceiptEntry(user_id=r["user_id"], read_at=r.get("read_at", ""))
-            for r in (msg.read_by or [])
-            if isinstance(r, dict) and "user_id" in r
+            for r in msg_data.read_by
         ]
-
-        # Transform reactions to ReactionInfo objects
         reaction_list = [
-            ReactionInfo(user_id=r.user_id, emoji=r.emoji) for r in (msg.reaction_list or [])
+            ReactionInfo(user_id=r["user_id"], emoji=r["emoji"]) for r in msg_data.reactions
         ]
 
         items.append(
             MessageResponse(
-                id=msg.id,
-                content=msg.content,
-                sender_id=msg.sender_id,
-                is_from_me=msg.sender_id == current_user.id,
-                message_type=msg.message_type or "user",
-                booking_id=msg.booking_id,
+                id=msg_data.id,
+                content=msg_data.content,
+                sender_id=msg_data.sender_id,
+                is_from_me=msg_data.sender_id == current_user.id,
+                message_type=msg_data.message_type,
+                booking_id=msg_data.booking_id,
                 booking_details=booking_details,
-                created_at=msg.created_at,
-                delivered_at=msg.delivered_at,
+                created_at=msg_data.created_at,
+                delivered_at=msg_data.delivered_at,
                 read_by=read_by_entries,
                 reactions=reaction_list,
             )
@@ -425,8 +413,8 @@ def get_messages(
 
     return MessagesResponse(
         messages=items,
-        has_more=has_more,
-        next_cursor=next_cursor,
+        has_more=result.has_more,
+        next_cursor=result.next_cursor,
     )
 
 
@@ -440,7 +428,6 @@ async def send_message(
     conversation_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     current_user: User = Depends(get_current_active_user),
     service: ConversationService = Depends(get_conversation_service),
-    db: Session = Depends(get_db),
 ) -> SendMessageResponse:
     """
     Send a message in a conversation.
@@ -448,26 +435,24 @@ async def send_message(
     Optionally specify a booking_id for explicit context.
     If not specified, auto-tags when exactly one upcoming booking exists.
     """
-    from ...services.messaging import publish_new_message
-
-    message = await asyncio.to_thread(
-        service.send_message,
+    # Service handles creation, transaction commit, and returns publish context
+    result = await asyncio.to_thread(
+        service.send_message_with_context,
         conversation_id,
         current_user.id,
         request.content,
         request.booking_id,
     )
 
-    if not message:
+    if not result.message:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    # Commit the transaction
-    db.commit()
+    message = result.message
 
-    # Publish SSE event (fire-and-forget)
+    # Publish SSE event using direct function (no DB required)
     try:
-        await publish_new_message(
-            db=db,
+        await publish_new_message_direct(
+            participant_ids=result.participant_ids,
             message_id=str(message.id),
             content=message.content,
             sender_id=str(current_user.id),
