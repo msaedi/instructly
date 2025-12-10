@@ -1,5 +1,6 @@
 alembic==1.13.1
 amqp==5.3.1
+argon2-cffi>=25.1.0
 annotated-types==0.7.0
 anyio==4.9.0
 async-timeout==5.0.1

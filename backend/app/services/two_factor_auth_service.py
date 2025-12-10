@@ -145,7 +145,7 @@ class TwoFactorAuthService(BaseService):
         if not self.verify_totp_code(user, code):
             raise ValueError("Invalid TOTP code")
         backup_codes_plain = self.generate_backup_codes()
-        # Hash backup codes with bcrypt using existing password hasher
+        # Hash backup codes with Argon2id using existing password hasher
         backup_codes_hashed = [get_password_hash(c) for c in backup_codes_plain]
         with self.transaction():
             user.totp_enabled = True

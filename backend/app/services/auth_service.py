@@ -213,7 +213,7 @@ class AuthService(BaseService):
         Fetch user data needed for authentication WITHOUT verifying password.
 
         This method is designed to allow early DB connection release before
-        bcrypt verification. Returns user data as a dict so the ORM object
+        Argon2id verification. Returns user data as a dict so the ORM object
         can be detached from the session.
 
         PERFORMANCE: Call this, then close DB session, then verify password.
@@ -270,7 +270,7 @@ class AuthService(BaseService):
         """
         Authenticate user by email and password (synchronous version).
 
-        NOTE: This method holds the DB connection during bcrypt verification.
+        NOTE: This method holds the DB connection during Argon2id verification.
         For high-throughput scenarios, use fetch_user_for_auth() + verify_password_async()
         with explicit DB release between them.
 
@@ -305,7 +305,7 @@ class AuthService(BaseService):
         """
         Authenticate user by email and password (async version - non-blocking).
 
-        Uses thread pool executor for bcrypt verification to avoid blocking
+        Uses thread pool executor for Argon2id verification to avoid blocking
         the event loop during password hashing. Use this in async route handlers.
 
         Args:
@@ -322,7 +322,7 @@ class AuthService(BaseService):
         user = self.get_user_by_email(email)
         if not user:
             self.logger.warning(f"Authentication failed - user not found: {email}")
-            # Prevent timing attacks - still do a fake verification with proper bcrypt hash
+            # Prevent timing attacks - still do a fake verification with proper Argon2id hash
             await verify_password_async(password, DUMMY_HASH_FOR_TIMING_ATTACK)
             return None
 

@@ -5,28 +5,38 @@ import logging
 import os
 from typing import Any, Dict, Optional, cast
 
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt import InvalidIssuerError, PyJWTError
-from passlib.context import CryptContext
 
 from .core.config import settings
 from .utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Argon2id password hasher with OWASP recommended settings
+# https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+# Benefits over bcrypt: memory-hard (resists GPU attacks), 2-4x faster verification
+_password_hasher = PasswordHasher(
+    time_cost=2,  # Number of iterations
+    memory_cost=19456,  # 19 MB (in KB) - memory-hard for GPU resistance
+    parallelism=1,  # Number of parallel threads
+    hash_len=32,  # Length of the hash in bytes
+    salt_len=16,  # Length of random salt
+)
 
-# Pre-computed bcrypt hash for timing attack prevention.
+# Pre-computed Argon2id hash for timing attack prevention.
 # Used when user doesn't exist to prevent timing-based user enumeration.
-# This is a valid bcrypt hash of "timing_attack_prevention_dummy_password"
-DUMMY_HASH_FOR_TIMING_ATTACK = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.V4ferVKnNaOuJi"
+# This is a valid Argon2id hash of "timing_attack_prevention_dummy_password"
+DUMMY_HASH_FOR_TIMING_ATTACK = "$argon2id$v=19$m=19456,t=2,p=1$2nLJrVFbOidsu8s0BtjUog$UaJlDNrniWtZRjiLNlROqWazzB0qTUxIosxsJYQaHKs"
 
 # Dedicated thread pool for CPU-bound password operations
-# With 1 vCPU, more threads won't speed up bcrypt - but they prevent event loop starvation.
-# 8 workers × 2 uvicorn workers = 16 concurrent bcrypt ops (health checks stay responsive)
-_password_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="bcrypt_")
+# With Argon2id, more threads help parallelize the memory-hard operations.
+# 8 workers × 2 uvicorn workers = 16 concurrent password ops (health checks stay responsive)
+_password_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="argon2_")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
@@ -40,7 +50,7 @@ def _secret_value(secret_obj: Any) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    Verify a plain password against a hashed password.
+    Verify a plain password against a hashed password using Argon2id.
 
     Args:
         plain_password: The plain text password
@@ -50,7 +60,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         bool: True if password matches, False otherwise
     """
     try:
-        return bool(pwd_context.verify(plain_password, hashed_password))
+        _password_hasher.verify(hashed_password, plain_password)
+        return True
+    except VerifyMismatchError:
+        return False
+    except InvalidHashError as e:
+        logger.error(f"Invalid hash format: {str(e)}")
+        return False
     except Exception as e:
         logger.error(f"Error verifying password: {str(e)}")
         return False
@@ -58,7 +74,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     """
-    Hash a password using bcrypt.
+    Hash a password using Argon2id with OWASP recommended settings.
 
     Args:
         password: The plain text password to hash
@@ -66,16 +82,15 @@ def get_password_hash(password: str) -> str:
     Returns:
         str: The hashed password
     """
-    hashed = pwd_context.hash(password)
-    return str(hashed)
+    return cast(str, _password_hasher.hash(password))
 
 
 async def verify_password_async(plain_password: str, hashed_password: str) -> bool:
     """
     Non-blocking password verification using thread pool.
 
-    Runs bcrypt in a separate thread so the event loop remains responsive
-    for other async operations (DB queries, SSE, etc.) during password hashing.
+    Runs Argon2id verification in a separate thread so the event loop remains
+    responsive for other async operations (DB queries, SSE, etc.).
 
     Args:
         plain_password: The plain text password
@@ -86,13 +101,12 @@ async def verify_password_async(plain_password: str, hashed_password: str) -> bo
     """
     loop = asyncio.get_running_loop()
     try:
-        result = await loop.run_in_executor(
+        return await loop.run_in_executor(
             _password_executor,
-            pwd_context.verify,
+            verify_password,
             plain_password,
             hashed_password,
         )
-        return bool(result)
     except Exception as e:
         logger.error(f"Error verifying password async: {str(e)}")
         return False
@@ -109,12 +123,30 @@ async def get_password_hash_async(password: str) -> str:
         str: The hashed password
     """
     loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(
+    return await loop.run_in_executor(
         _password_executor,
-        pwd_context.hash,
+        get_password_hash,
         password,
     )
-    return str(result)
+
+
+def password_needs_rehash(hashed_password: str) -> bool:
+    """
+    Check if a password hash needs to be updated (e.g., after config change).
+
+    This can be used during login to transparently upgrade hashes when
+    the Argon2id parameters are changed.
+
+    Args:
+        hashed_password: The current hash to check
+
+    Returns:
+        bool: True if the hash should be regenerated with current settings
+    """
+    try:
+        return cast(bool, _password_hasher.check_needs_rehash(hashed_password))
+    except Exception:
+        return False
 
 
 def _token_claim_requirements() -> tuple[bool, Optional[str], Optional[str]]:

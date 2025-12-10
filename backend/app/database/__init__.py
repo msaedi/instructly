@@ -87,10 +87,17 @@ def _build_engine_kwargs(db_url: str) -> dict[str, Any]:
     connect_args = dict(_DEFAULT_CONNECT_ARGS)
 
     if DATABASE_POOL_CONFIG:
+        # Production mode: use explicit config from config_production.py
         config = dict(DATABASE_POOL_CONFIG)
         supplied_connect_args = config.pop("connect_args", {})
         kwargs.update(config)
         connect_args.update(supplied_connect_args or {})
+    elif not _should_require_ssl(db_url):
+        # Local development (non-Supabase): use larger pool since local PostgreSQL
+        # has no connection limits. The instructor dashboard makes 10+ parallel
+        # requests which exhaust the conservative Supabase-friendly pool (3+5=8).
+        kwargs["pool_size"] = 10
+        kwargs["max_overflow"] = 20
 
     if not _should_require_ssl(db_url):
         connect_args.pop("sslmode", None)
