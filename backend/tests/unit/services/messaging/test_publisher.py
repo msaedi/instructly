@@ -32,8 +32,8 @@ def mock_db() -> MagicMock:
 
 @pytest.fixture
 def mock_conversation_participants():
-    """Mock the _get_conversation_participants helper to return controlled participants."""
-    with patch("app.services.messaging.publisher._get_conversation_participants") as mock:
+    """Mock the _get_conversation_participants_sync helper to return controlled participants."""
+    with patch("app.services.messaging.publisher._get_conversation_participants_sync") as mock:
         yield mock
 
 

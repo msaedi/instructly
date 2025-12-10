@@ -17,6 +17,7 @@ Architecture (v4.0 with Broadcaster):
 - Single Redis connection pattern across the application
 """
 
+import asyncio
 from datetime import datetime
 import logging
 from typing import Any, Dict, List, Optional
@@ -50,11 +51,14 @@ async def _publish_to_users(user_ids: List[str], event: Dict[str, Any]) -> None:
         await publish_to_user(user_id, event)
 
 
-def _get_conversation_participants(db: Session, conversation_id: str) -> List[str]:
+def _get_conversation_participants_sync(db: Session, conversation_id: str) -> List[str]:
     """
     Fetch participant IDs from conversation using repository pattern.
 
     Returns list of [student_id, instructor_id] or empty list if not found.
+
+    NOTE: This is a sync function - must be called via asyncio.to_thread()
+    from async context to avoid blocking the event loop.
     """
     repository = ConversationRepository(db)
 
@@ -63,6 +67,23 @@ def _get_conversation_participants(db: Session, conversation_id: str) -> List[st
         logger.error(f"[PUBLISHER] Conversation not found: {conversation_id}")
         return []
     return [conversation.student_id, conversation.instructor_id]
+
+
+def _get_sender_name_sync(db: Session, sender_id: str) -> Optional[str]:
+    """
+    Fetch sender name from database (sync).
+
+    NOTE: This is a sync function - must be called via asyncio.to_thread()
+    from async context to avoid blocking the event loop.
+    """
+    try:
+        user_repo = RepositoryFactory.create_user_repository(db)
+        sender = user_repo.get_by_id(sender_id)
+        if sender and sender.first_name:
+            return f"{sender.first_name} {sender.last_name or ''}".strip()
+        return getattr(sender, "first_name", None) if sender else None
+    except Exception:
+        return None
 
 
 async def publish_new_message(
@@ -81,6 +102,9 @@ async def publish_new_message(
     """
     Publish a new message event to all conversation participants.
 
+    PERFORMANCE: All sync DB operations are wrapped in asyncio.to_thread()
+    to prevent blocking the event loop under high concurrent load.
+
     Args:
         db: Database session for fetching conversation participants
         message_id: ULID of the new message
@@ -94,7 +118,8 @@ async def publish_new_message(
         message_type: Type of message ('user', 'system_booking_created', etc.)
     """
     # Fetch participants from conversation (defense in depth - no external input)
-    participants = _get_conversation_participants(db, conversation_id)
+    # Wrapped in to_thread() to avoid blocking event loop under load
+    participants = await asyncio.to_thread(_get_conversation_participants_sync, db, conversation_id)
     if not participants:
         logger.warning(
             f"[PUBLISHER] Cannot publish new_message: conversation {conversation_id} not found"
@@ -108,17 +133,9 @@ async def publish_new_message(
     else:
         recipient_ids = list(participants)
 
+    # Fetch sender name if not provided (wrapped in to_thread())
     if sender_id and not sender_name:
-        try:
-            user_repo = RepositoryFactory.create_user_repository(db)
-            sender = user_repo.get_by_id(sender_id)
-            sender_name = (
-                f"{sender.first_name} {sender.last_name}".strip()
-                if sender and sender.first_name
-                else getattr(sender, "first_name", None)
-            )
-        except Exception:
-            sender_name = None
+        sender_name = await asyncio.to_thread(_get_sender_name_sync, db, sender_id)
 
     event = build_new_message_event(
         message_id=message_id,
@@ -160,7 +177,8 @@ async def publish_typing_status(
         is_typing: True if typing started, False if stopped
     """
     # Fetch participants from conversation (defense in depth)
-    participants = _get_conversation_participants(db, conversation_id)
+    # Wrapped in to_thread() to avoid blocking event loop under load
+    participants = await asyncio.to_thread(_get_conversation_participants_sync, db, conversation_id)
     if not participants:
         return  # Silent fail for ephemeral typing indicators
 
@@ -198,7 +216,8 @@ async def publish_reaction_update(
         action: "added" or "removed"
     """
     # Fetch participants from conversation (defense in depth)
-    participants = _get_conversation_participants(db, conversation_id)
+    # Wrapped in to_thread() to avoid blocking event loop under load
+    participants = await asyncio.to_thread(_get_conversation_participants_sync, db, conversation_id)
     if not participants:
         logger.warning(
             f"[PUBLISHER] Cannot publish reaction_update: conversation {conversation_id} not found"
@@ -240,7 +259,8 @@ async def publish_message_edited(
         edited_at: Edit timestamp
     """
     # Fetch participants from conversation (defense in depth)
-    participants = _get_conversation_participants(db, conversation_id)
+    # Wrapped in to_thread() to avoid blocking event loop under load
+    participants = await asyncio.to_thread(_get_conversation_participants_sync, db, conversation_id)
     if not participants:
         logger.warning(
             f"[PUBLISHER] Cannot publish message_edited: conversation {conversation_id} not found"
@@ -277,7 +297,8 @@ async def publish_read_receipt(
         message_ids: List of message ULIDs that were read
     """
     # Fetch participants from conversation (defense in depth)
-    participants = _get_conversation_participants(db, conversation_id)
+    # Wrapped in to_thread() to avoid blocking event loop under load
+    participants = await asyncio.to_thread(_get_conversation_participants_sync, db, conversation_id)
     if not participants:
         return  # Silent fail for read receipts
 
@@ -305,7 +326,8 @@ async def publish_message_deleted(
 ) -> None:
     """Publish message deleted event to conversation participants."""
     # Fetch participants from conversation (defense in depth)
-    participants = _get_conversation_participants(db, conversation_id)
+    # Wrapped in to_thread() to avoid blocking event loop under load
+    participants = await asyncio.to_thread(_get_conversation_participants_sync, db, conversation_id)
     if not participants:
         logger.warning(
             f"[PUBLISHER] Cannot publish message_deleted: conversation {conversation_id} not found"
