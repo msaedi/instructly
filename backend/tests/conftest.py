@@ -117,6 +117,7 @@ from unittest.mock import AsyncMock, Mock
 from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.api.dependencies.database import get_db as deps_get_db
 from app.auth import get_password_hash
 
 # Now we can import from app
@@ -821,6 +822,7 @@ def client(db: Session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[deps_get_db] = override_get_db
 
     # Don't use context manager - create directly
     test_client = TestClient(app)
