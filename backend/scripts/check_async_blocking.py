@@ -15,6 +15,9 @@ from pathlib import Path
 import sys
 from typing import List, Tuple
 
+# Import shared exclusion list for legacy routes
+from hook_config import is_excluded_legacy_route
+
 # Patterns that block when called synchronously
 BLOCKING_PATTERNS = [
     # SQLAlchemy session operations
@@ -197,6 +200,8 @@ def check_file(filepath: Path) -> List[Tuple[str, int, str, str, str]]:
 def main():
     """Main entry point."""
     all_violations = []
+    files_checked = 0
+    files_excluded = 0
 
     # Get files from command line (pre-commit passes changed files)
     if len(sys.argv) > 1:
@@ -206,12 +211,24 @@ def main():
         files = list(Path("backend/app").rglob("*.py"))
 
     for filepath in files:
+        # Skip excluded legacy routes (have v1 counterparts, not mounted)
+        if is_excluded_legacy_route(str(filepath)):
+            files_excluded += 1
+            continue
+
+        files_checked += 1
         violations = check_file(filepath)
         all_violations.extend(violations)
 
+    # Always show summary header
+    print("\n" + "=" * 60)
+    print("Async Blocking Check")
+    print("=" * 60)
+    print(f"Files checked:  {files_checked}")
+    print(f"Files excluded: {files_excluded} (legacy routes with v1 counterparts)")
+
     if all_violations:
-        print("\n" + "=" * 60)
-        print("ASYNC BLOCKING VIOLATIONS FOUND")
+        print(f"Violations:     {len(all_violations)}")
         print("=" * 60)
         print("\nSync DB/repo calls in async functions must be wrapped in asyncio.to_thread()\n")
 
@@ -231,7 +248,9 @@ def main():
         print("  3. Add # async-blocking-ignore comment if intentional")
         sys.exit(1)
 
-    print("No async blocking violations found")
+    print("Violations:     0")
+    print("=" * 60)
+    print("\nNo async blocking violations found")
     sys.exit(0)
 
 

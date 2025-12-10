@@ -17,6 +17,9 @@ import re
 import sys
 from typing import List, Tuple
 
+# Import shared exclusion list
+from hook_config import is_excluded_legacy_route
+
 # Patterns that should NEVER appear in routes
 FORBIDDEN_PATTERNS = [
     # Direct session operations
@@ -99,6 +102,8 @@ def check_file(filepath: Path) -> List[Tuple[int, str, str]]:
 def main():
     """Main entry point."""
     all_violations = []
+    files_checked = 0
+    files_excluded = 0
 
     # Get files from command line or scan routes directory
     if len(sys.argv) > 1:
@@ -111,13 +116,25 @@ def main():
                 files.extend(path.rglob("*.py"))
 
     for filepath in files:
+        # Skip excluded files (legacy routes with v1 counterparts)
+        if is_excluded_legacy_route(str(filepath)):
+            files_excluded += 1
+            continue
+
+        files_checked += 1
         violations = check_file(filepath)
         for line_num, source, message in violations:
             all_violations.append((str(filepath), line_num, source, message))
 
+    # Always show summary header
+    print("\n" + "=" * 60)
+    print("Route DB Access Check")
+    print("=" * 60)
+    print(f"Files checked:  {files_checked}")
+    print(f"Files excluded: {files_excluded} (legacy routes with v1 counterparts)")
+
     if all_violations:
-        print("\n" + "=" * 60)
-        print("REPOSITORY PATTERN VIOLATIONS IN ROUTES")
+        print(f"Violations:     {len(all_violations)}")
         print("=" * 60)
         print("\nRoutes should NEVER access the database directly.")
         print("All DB operations must go through the service layer.\n")
@@ -135,7 +152,9 @@ def main():
         print(f"Skip check: Add '{IGNORE_MARKER}' comment to line (use sparingly)")
         sys.exit(1)
 
-    print("No repository pattern violations in routes")
+    print("Violations:     0")
+    print("=" * 60)
+    print("\nNo repository pattern violations in routes")
     sys.exit(0)
 
 
