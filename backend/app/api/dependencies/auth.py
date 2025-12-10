@@ -3,7 +3,6 @@
 Authentication and authorization dependencies.
 """
 
-import asyncio
 import hmac
 import logging
 import os
@@ -162,40 +161,12 @@ async def get_current_user(
         db = cast(Session, swap_db)
         request = None
 
-    # Some tests might pass a Depends(...) sentinel for db; guard for real Session
-    try:
-        session: Optional[Session] = db if hasattr(db, "query") else None
-    except Exception:
-        session = None
-    created = False
-    if session is None:
-        try:
-            from ...database import SessionLocal
-
-            session = SessionLocal()
-            created = True
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Database connection failed",
-            )
-
-    def _sync_query_user(s: Session, email: str) -> Optional[User]:
-        """Synchronous user query via repository - run in thread to avoid blocking event loop."""
-        user_repo = UserRepository(s)
-        return user_repo.get_by_email(email)
-
-    try:
-        # Run synchronous SQLAlchemy query in thread pool to avoid blocking event loop
-        # This is critical for SSE endpoints with many concurrent connections
-        user = await asyncio.to_thread(_sync_query_user, session, current_user_email)
-    finally:
-        if created and session is not None:
-            try:
-                session.rollback()  # Clean up transaction before returning to pool
-                session.close()
-            except Exception:
-                pass
+    # Use the session from Depends(get_db) directly - no asyncio.to_thread needed.
+    # The blocking is minimal (1-5ms for user lookup) and the User object needs
+    # to stay attached to the session for the rest of the request.
+    # For SSE endpoints, use auth_sse.py which has thread-safe session handling.
+    user_repo = UserRepository(db)
+    user = user_repo.get_by_email(current_user_email)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     # Preview-only impersonation for staff (header: X-Impersonate-User-Id)
@@ -208,15 +179,8 @@ async def get_current_user(
         ):
             imp_id = request.headers.get("x-impersonate-user-id", "").strip()
             if imp_id:
-                active_session: Session = session if session is not None else db
-
-                # Wrap in thread pool to avoid blocking (low frequency but good practice)
-                def _lookup_impersonated() -> Optional[User]:
-                    """Lookup impersonated user via repository pattern."""
-                    user_repo = UserRepository(active_session)
-                    return user_repo.get_by_id(imp_id)
-
-                imp = await asyncio.to_thread(_lookup_impersonated)
+                # Use the same session - impersonated user also needs to stay attached
+                imp = user_repo.get_by_id(imp_id)
                 if imp:
                     logger.info(
                         "preview_impersonation",
@@ -326,13 +290,11 @@ async def get_current_active_user_optional(
     if not current_user_email:
         return None
 
-    def _sync_query(s: Session, email: str) -> Optional[User]:
-        """Synchronous user query via repository - run in thread to avoid blocking event loop."""
-        user_repo = UserRepository(s)
-        return user_repo.get_by_email(email)
-
-    # Run synchronous SQLAlchemy query in thread pool to avoid blocking event loop
-    user = await asyncio.to_thread(_sync_query, db, current_user_email)
+    # Use the session from Depends(get_db) directly - no asyncio.to_thread needed.
+    # The blocking is minimal (1-5ms for user lookup) and the User object needs
+    # to stay attached to the session for the rest of the request.
+    user_repo = UserRepository(db)
+    user = user_repo.get_by_email(current_user_email)
     if user and user.is_active:
         return user
 
