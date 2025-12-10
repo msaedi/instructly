@@ -45,6 +45,12 @@ def upgrade() -> None:
     """Create initial user authentication schema."""
     print("Creating initial schema for users and authentication...")
 
+    # Database-level connection safety settings
+    # Prevents zombie "idle in transaction" connections from blocking the pool
+    # when app crashes mid-transaction (e.g., during load test failures)
+    print("Setting database connection safety parameters...")
+    op.execute("ALTER DATABASE postgres SET idle_in_transaction_session_timeout = '60s'")
+
     # For ULID generation, we'll rely on Python defaults in the models
     # No need for a complex PostgreSQL function
     print("ULID generation will be handled by Python models...")
@@ -1084,5 +1090,10 @@ def downgrade() -> None:
 
     # Drop tables
     op.drop_table("users")
+
+    # Reset database-level connection safety settings
+    # Setting to '0' disables the timeout (default PostgreSQL behavior)
+    print("Resetting database connection safety parameters...")
+    op.execute("ALTER DATABASE postgres SET idle_in_transaction_session_timeout = '0'")
 
     print("Initial schema dropped successfully!")
