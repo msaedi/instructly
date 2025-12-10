@@ -234,8 +234,10 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
     IMPORTANT: This user object cannot lazy-load relationships. Only the
     attributes explicitly copied from user_data will be available.
 
-    The role-based properties (is_student, is_instructor, is_admin) are stored
-    as private attributes that override the property getters.
+    The transient user fully emulates an ORM user:
+    - The `roles` attribute is populated with mock Role objects
+    - The `is_student`, `is_instructor`, `is_admin` properties work normally
+    - Route handlers can check roles without knowing about transient vs ORM users
 
     Args:
         user_data: Dict containing user attributes
@@ -243,6 +245,9 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
     Returns:
         Transient User object
     """
+    from ..core.enums import RoleName
+    from ..models.rbac import Role
+
     user = User()
     user.id = user_data.get("id")
     user.email = user_data.get("email")
@@ -250,10 +255,24 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
     user.first_name = user_data.get("first_name")
     user.last_name = user_data.get("last_name")
 
-    # Store role flags as private attributes so they don't trigger lazy loading
-    # The properties on User will try to access the roles relationship,
-    # but we need to bypass that for transient users
-    # Using setattr() for dynamic attributes that aren't declared on the model
+    # Populate roles so routes can check them normally (e.g., `for role in user.roles`)
+    # This allows transient users to fully emulate ORM users
+    roles = []
+    if user_data.get("is_instructor"):
+        role = Role()
+        role.name = RoleName.INSTRUCTOR
+        roles.append(role)
+    if user_data.get("is_student"):
+        role = Role()
+        role.name = RoleName.STUDENT
+        roles.append(role)
+    if user_data.get("is_admin"):
+        role = Role()
+        role.name = RoleName.ADMIN
+        roles.append(role)
+    user.roles = roles
+
+    # Also store cached flags for the property getters (belt and suspenders)
     setattr(user, "_cached_is_student", user_data.get("is_student", False))
     setattr(user, "_cached_is_instructor", user_data.get("is_instructor", False))
     setattr(user, "_cached_is_admin", user_data.get("is_admin", False))

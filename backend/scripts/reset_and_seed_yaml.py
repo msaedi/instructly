@@ -48,6 +48,7 @@ from app.models.review import Review, ReviewStatus
 from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
+from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
 from app.utils.bitset import bits_from_windows, new_empty_bits
 
@@ -1115,6 +1116,7 @@ class DatabaseSeeder:
             }
 
             booking_count = 0
+            conversation_pairs: set[tuple[str, str]] = set()  # Track (student_id, instructor_id) pairs
 
             # Create 1-3 bookings per instructor using bulk slot finding
             for instructor_id, services in instructor_data_list:
@@ -1164,8 +1166,24 @@ class DatabaseSeeder:
                         bulk_ctx, instructor_id, student.id, booking_date, start_time, end_time
                     )
                     booking_count += 1
+                    conversation_pairs.add((student.id, instructor_id))
 
             session.commit()
+
+            # Create conversations for all booking pairs
+            if conversation_pairs:
+                conv_repo = ConversationRepository(db=session)
+                conv_count = 0
+                for student_id, instructor_id in conversation_pairs:
+                    _, created = conv_repo.get_or_create(
+                        student_id=student_id,
+                        instructor_id=instructor_id,
+                    )
+                    if created:
+                        conv_count += 1
+                session.commit()
+                if conv_count:
+                    print(f"  💬 Created {conv_count} conversations for bookings")
 
             # Create historical bookings using the same bulk context
             self._create_historical_bookings_bulk(session, bulk_ctx, booking_days_past)
