@@ -212,6 +212,7 @@ async def get_current_user_sse(
                 _ = user.last_name
             return user
         finally:
+            db.rollback()  # Clean up transaction before returning to pool
             db.close()
 
     # Run synchronous SQLAlchemy query in thread pool to avoid blocking event loop
