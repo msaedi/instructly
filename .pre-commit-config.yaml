@@ -117,6 +117,23 @@ repos:
         pass_filenames: false
         description: Fail if focused tests are committed in backend
 
+      # TODO: Re-enable after fixing existing violations
+      # - id: check-async-blocking
+      #   name: Check for sync blocking calls in async functions
+      #   entry: python backend/scripts/check_async_blocking.py
+      #   language: python
+      #   files: ^backend/app/.*\.py$
+      #   pass_filenames: true
+      #   description: Detect sync DB/repo calls in async functions without asyncio.to_thread()
+
+      # - id: check-no-db-in-routes
+      #   name: Check for direct DB access in routes
+      #   entry: python backend/scripts/check_no_db_in_routes.py
+      #   language: python
+      #   files: ^backend/app/routes/.*\.py$
+      #   pass_filenames: true
+      #   description: Routes must delegate all DB operations to service layer
+
   - repo: local
     hooks:
       - id: gitleaks-system
