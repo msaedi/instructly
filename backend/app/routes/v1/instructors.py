@@ -16,6 +16,7 @@ Endpoints:
     GET /{instructor_id}/coverage - Get instructor service area coverage
 """
 
+import asyncio
 from datetime import datetime, timezone
 import logging
 
@@ -108,7 +109,8 @@ async def list_instructors(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     # Get filtered instructors
-    result = instructor_service.get_instructors_filtered(
+    result = await asyncio.to_thread(
+        instructor_service.get_instructors_filtered,
         search=None,
         service_catalog_id=filters.service_catalog_id,
         min_price=filters.min_price,
@@ -157,8 +159,10 @@ async def create_profile(
 ) -> InstructorProfileResponse:
     """Create a new instructor profile."""
     try:
-        profile_data = instructor_service.create_instructor_profile(
-            user=current_user, profile_data=profile
+        profile_data = await asyncio.to_thread(
+            instructor_service.create_instructor_profile,
+            current_user,
+            profile,
         )
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
@@ -191,7 +195,9 @@ async def get_my_profile(
         )
 
     try:
-        profile_data = instructor_service.get_instructor_profile(current_user.id)
+        profile_data = await asyncio.to_thread(
+            instructor_service.get_instructor_profile, current_user.id
+        )
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
         return InstructorProfileResponse(**profile_data)
@@ -228,8 +234,10 @@ async def update_profile(
         if not instructor_service.cache_service and cache_service:
             instructor_service.cache_service = cache_service
 
-        profile_data = instructor_service.update_instructor_profile(
-            user_id=current_user.id, update_data=profile_update
+        profile_data = await asyncio.to_thread(
+            instructor_service.update_instructor_profile,
+            current_user.id,
+            profile_update,
         )
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
@@ -273,8 +281,10 @@ async def go_live(
         )
 
     try:
-        profile_data = instructor_service.get_instructor_profile(
-            current_user.id, include_inactive_services=False
+        profile_data = await asyncio.to_thread(
+            instructor_service.get_instructor_profile,
+            current_user.id,
+            False,
         )
     except Exception as e:
         if "not found" in str(e).lower():
@@ -407,7 +417,9 @@ async def get_instructor(
 ) -> InstructorProfileResponse:
     """Get a specific instructor's profile by ID with privacy protection and favorite status."""
     try:
-        profile_data = instructor_service.get_public_instructor_profile(instructor_id)
+        profile_data = await asyncio.to_thread(
+            instructor_service.get_public_instructor_profile, instructor_id
+        )
         if profile_data is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

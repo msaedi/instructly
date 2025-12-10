@@ -10,6 +10,7 @@ Endpoints:
     GET /instructors    → Search instructors with natural language queries
 """
 
+import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -62,7 +63,7 @@ async def search_instructors(
 
         # Perform search
         limit_value = int(limit if isinstance(limit, int) else 20)
-        results = search_service.search(q, limit=limit_value)
+        results = await asyncio.to_thread(search_service.search, q, limit_value)
 
         # Search recording is handled by frontend which has full context
         # (session ID, referrer, interaction type, etc.)

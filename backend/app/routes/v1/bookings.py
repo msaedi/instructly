@@ -23,6 +23,7 @@ Endpoints:
     PATCH /{booking_id}/payment-method - Update booking payment method
 """
 
+import asyncio
 from datetime import datetime, timedelta
 import logging
 from typing import Any, NoReturn, Optional
@@ -97,7 +98,8 @@ async def get_upcoming_bookings(
 ) -> PaginatedResponse[UpcomingBookingResponse]:
     """Get upcoming bookings for dashboard widget."""
     try:
-        bookings = booking_service.get_bookings_for_user(
+        bookings = await asyncio.to_thread(
+            booking_service.get_bookings_for_user,
             user=current_user,
             status=BookingStatus.CONFIRMED,
             upcoming_only=True,
@@ -235,7 +237,9 @@ async def get_booking_stats(
         if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
             raise ValidationException("Only instructors can view booking stats")
 
-        stats = booking_service.get_booking_stats_for_instructor(current_user.id)
+        stats = await asyncio.to_thread(
+            booking_service.get_booking_stats_for_instructor, current_user.id
+        )
         return BookingStatsResponse(**stats)
     except DomainException as e:
         handle_domain_exception(e)
@@ -356,7 +360,8 @@ async def get_bookings(
         elif upcoming_only is None:
             upcoming_only = False
 
-        bookings = booking_service.get_bookings_for_user(
+        bookings = await asyncio.to_thread(
+            booking_service.get_bookings_for_user,
             user=current_user,
             status=status,
             upcoming_only=upcoming_only,
@@ -492,7 +497,9 @@ async def get_booking_preview(
 ) -> BookingPreviewResponse:
     """Get preview information for a booking."""
     try:
-        booking = booking_service.get_booking_for_user(booking_id, current_user)
+        booking = await asyncio.to_thread(
+            booking_service.get_booking_for_user, booking_id, current_user
+        )
         if not booking:
             raise NotFoundException("Booking not found")
 
@@ -549,7 +556,7 @@ async def get_booking_pricing(
     from ...schemas.pricing_preview import PricingPreviewData
     from ...services.pricing_service import PricingService
 
-    booking = booking_service.repository.get_by_id(booking_id, load_relationships=False)
+    booking = await asyncio.to_thread(booking_service.repository.get_by_id, booking_id, False)
     if not booking:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
 
@@ -566,10 +573,11 @@ async def get_booking_pricing(
 
     pricing_service = PricingService(booking_service.db)
     try:
-        pricing_data: PricingPreviewData = pricing_service.compute_booking_pricing(
-            booking_id=booking_id,
-            applied_credit_cents=applied_credit_cents,
-            persist=False,
+        pricing_data: PricingPreviewData = await asyncio.to_thread(
+            pricing_service.compute_booking_pricing,
+            booking_id,
+            applied_credit_cents,
+            False,
         )
     except DomainException as exc:
         raise exc.to_http_exception() from exc
@@ -596,14 +604,16 @@ async def get_booking_details(
 ) -> BookingResponse:
     """Get full booking details with privacy protection for students."""
     try:
-        booking = booking_service.get_booking_for_user(booking_id, current_user)
+        booking = await asyncio.to_thread(
+            booking_service.get_booking_for_user, booking_id, current_user
+        )
         if not booking:
             raise NotFoundException("Booking not found")
 
         payment_summary_data: PaymentSummary | None = None
         if booking.student_id == current_user.id:
             config_service = ConfigService(db)
-            pricing_config, _ = config_service.get_pricing_config()
+            pricing_config, _ = await asyncio.to_thread(config_service.get_pricing_config)
             payment_repo = RepositoryFactory.create_payment_repository(db)
             tip_repo = ReviewTipRepository(db)
             payment_summary_data = build_student_payment_summary(
@@ -637,8 +647,11 @@ async def update_booking(
 ) -> BookingResponse:
     """Update booking details (instructor only)."""
     try:
-        booking = booking_service.update_booking(
-            booking_id=booking_id, user=current_user, update_data=update_data
+        booking = await asyncio.to_thread(
+            booking_service.update_booking,
+            booking_id,
+            current_user,
+            update_data,
         )
         return BookingResponse.from_booking(booking)
     except DomainException as e:
@@ -876,7 +889,9 @@ async def complete_booking(
     Requires: COMPLETE_BOOKINGS permission (instructor only)
     """
     try:
-        booking = booking_service.complete_booking(booking_id=booking_id, instructor=current_user)
+        booking = await asyncio.to_thread(
+            booking_service.complete_booking, booking_id, current_user
+        )
         return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
@@ -910,7 +925,7 @@ async def mark_booking_no_show(
     Requires: COMPLETE_BOOKINGS permission (instructor only)
     """
     try:
-        booking = booking_service.mark_no_show(booking_id=booking_id, instructor=current_user)
+        booking = await asyncio.to_thread(booking_service.mark_no_show, booking_id, current_user)
         return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
