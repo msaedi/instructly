@@ -197,48 +197,56 @@ async def get_current_user_sse(
     # MANUAL DB SESSION MANAGEMENT (cache miss path)
     # We create and close the session explicitly to prevent holding connections
     # in "idle in transaction" state during long-running SSE streams.
+    #
+    # CRITICAL: We return a DICT of user data (not the ORM object) because:
+    # - After db.close(), the ORM object is "detached" from the session
+    # - Detached objects fail with DetachedInstanceError when lazy-loaded
+    #   relationships are accessed (e.g., user.conversations)
+    # - We create a TRANSIENT User object from the dict (same as cache HIT path)
     # =========================================================================
-    def _sync_user_lookup(email: str) -> Optional[User]:
-        """Synchronous user lookup - run in thread to avoid blocking event loop."""
+    def _sync_user_lookup(email: str) -> Optional[Dict[str, Any]]:
+        """Synchronous user lookup - returns dict to avoid detached ORM issues."""
         db = SessionLocal()
         try:
-            user = cast(Optional[User], db.query(User).filter(User.email == email).first())
+            user = db.query(User).filter(User.email == email).first()
             if user:
-                # Eagerly load user attributes we need before closing session
-                _ = user.id
-                _ = user.email
-                _ = user.is_active
-                _ = user.first_name
-                _ = user.last_name
-            return user
+                # Extract attributes BEFORE closing session, return as dict
+                return {
+                    "id": user.id,
+                    "email": user.email,
+                    "is_active": user.is_active,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                }
+            return None
         finally:
             db.rollback()  # Clean up transaction before returning to pool
             db.close()
 
     # Run synchronous SQLAlchemy query in thread pool to avoid blocking event loop
     # This is critical for SSE endpoints with many concurrent connections
-    db_user = await asyncio.to_thread(_sync_user_lookup, user_email)
+    user_data = await asyncio.to_thread(_sync_user_lookup, user_email)
     logger.debug("[SSE-AUTH] DB session closed after user lookup")
 
-    if db_user is None:
+    if user_data is None:
         raise credentials_exception
 
-    if not db_user.is_active:
+    if not user_data.get("is_active", True):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user",
         )
 
     # Cache the user for subsequent requests
-    await _set_cached_user(
-        user_email,
-        {
-            "id": db_user.id,
-            "email": db_user.email,
-            "is_active": db_user.is_active,
-            "first_name": db_user.first_name,
-            "last_name": db_user.last_name,
-        },
-    )
+    await _set_cached_user(user_email, user_data)
 
-    return db_user
+    # Create a TRANSIENT User object (not session-bound) from the dict
+    # This is consistent with the cache HIT path and avoids DetachedInstanceError
+    user = User()
+    user.id = user_data.get("id")
+    user.email = user_data.get("email")
+    user.is_active = user_data.get("is_active", True)
+    user.first_name = user_data.get("first_name")
+    user.last_name = user_data.get("last_name")
+
+    return user

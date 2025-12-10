@@ -23,6 +23,10 @@ class DummySession:
             raise RuntimeError("db down")
         return None
 
+    def rollback(self):
+        """No-op rollback for test compatibility with ready probe."""
+        pass
+
 
 class DummyRedis:
     def __init__(self, fail: bool = False):

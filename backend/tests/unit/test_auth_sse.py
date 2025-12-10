@@ -55,9 +55,16 @@ async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, m
     monkeypatch.setattr(settings, "session_cookie_name", "sid", raising=False)
     # Patch SessionLocal to return our test db session
     monkeypatch.setattr(auth_sse, "SessionLocal", lambda: unit_db)
+    # Disable Redis caching to avoid stale cache hits from previous test runs
+    monkeypatch.setattr(auth_sse, "_get_sse_redis_client", lambda: None)
 
-    user = _create_user(unit_db)
-    token = create_access_token({"sub": user.email})
+    # Use unique email to avoid collision with seed data
+    user = _create_user(unit_db, email="sse-cookie-test@example.com")
+    # Capture user attributes BEFORE calling get_current_user_sse
+    # because it calls db.rollback() which expires all objects in the session
+    expected_id = user.id
+    expected_email = user.email
+    token = create_access_token({"sub": expected_email})
 
     request = _build_request(f"sid={token}")
 
@@ -67,7 +74,7 @@ async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, m
         token_query=None,
     )
 
-    assert resolved.id == user.id
+    assert resolved.id == expected_id
 
 
 @pytest.mark.asyncio
@@ -75,9 +82,14 @@ async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypat
     monkeypatch.setenv("SITE_MODE", "preview")
     # Patch SessionLocal to return our test db session
     monkeypatch.setattr(auth_sse, "SessionLocal", lambda: unit_db)
+    # Disable Redis caching to avoid stale cache hits from previous test runs
+    monkeypatch.setattr(auth_sse, "_get_sse_redis_client", lambda: None)
 
     user = _create_user(unit_db, email="query@example.com")
-    token = create_access_token({"sub": user.email})
+    # Capture user attributes BEFORE calling get_current_user_sse
+    # because it calls db.rollback() which expires all objects in the session
+    expected_email = user.email
+    token = create_access_token({"sub": expected_email})
 
     # No cookie in the request; rely on Query parameter injection
     request = _build_request()
@@ -88,7 +100,7 @@ async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypat
         token_query=token,
     )
 
-    assert resolved.email == user.email
+    assert resolved.email == expected_email
 
 
 @pytest.mark.asyncio
