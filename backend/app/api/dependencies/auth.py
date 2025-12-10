@@ -192,6 +192,7 @@ async def get_current_user(
     finally:
         if created and session is not None:
             try:
+                session.rollback()  # Clean up transaction before returning to pool
                 session.close()
             except Exception:
                 pass
