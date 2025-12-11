@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import threading
+import time
 from time import monotonic
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, Optional, Sequence, Tuple, cast
@@ -381,8 +382,12 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         _ensure_expiry_job_scheduled()
 
     job_worker_task: asyncio.Task[None] | None = None
+    job_worker_stop_event: threading.Event | None = None
     if getattr(settings, "scheduler_enabled", True) and not getattr(settings, "is_testing", False):
-        job_worker_task = asyncio.create_task(_background_jobs_worker())
+        job_worker_stop_event = threading.Event()
+        job_worker_task = asyncio.create_task(
+            asyncio.to_thread(_background_jobs_worker_sync, job_worker_stop_event)
+        )
 
     _prewarm_metrics_cache()
 
@@ -392,8 +397,9 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"{BRAND_NAME} API shutting down...")
 
     if job_worker_task is not None:
-        job_worker_task.cancel()
-        with contextlib.suppress(BaseException):  # CancelledError is a BaseException, not Exception
+        if job_worker_stop_event is not None:
+            job_worker_stop_event.set()
+        with contextlib.suppress(BaseException):
             await job_worker_task
 
     # Close Broadcaster for SSE multiplexing
@@ -466,15 +472,17 @@ def _expiry_recheck_url() -> str:
     return f"{base_url}/instructor/onboarding/verification"
 
 
-async def _background_jobs_worker() -> None:
-    """Process persisted background jobs with retry support."""
+def _background_jobs_worker_sync(shutdown_event: threading.Event) -> None:
+    """Process persisted background jobs with retry support in a dedicated thread."""
 
     poll_interval = max(1, int(getattr(settings, "jobs_poll_interval", 2)))
     batch_size = max(1, int(getattr(settings, "jobs_batch", 25)))
 
-    while True:
+    while not shutdown_event.is_set():
         try:
-            await asyncio.sleep(poll_interval)
+            time.sleep(poll_interval)
+            if shutdown_event.is_set():
+                break
 
             db = SessionLocal()
             try:
@@ -488,6 +496,8 @@ async def _background_jobs_worker() -> None:
                     continue
 
                 for job in jobs:
+                    if shutdown_event.is_set():
+                        break
                     try:
                         job_repo.mark_running(job.id)
                         db.flush()
@@ -664,9 +674,6 @@ async def _background_jobs_worker() -> None:
                         job_repo.mark_succeeded(job.id)
                         db.commit()
                         BACKGROUND_JOBS_FAILED.set(job_repo.count_failed_jobs())
-                    except asyncio.CancelledError:
-                        db.rollback()
-                        raise
                     except Exception as exc:  # pragma: no cover - safety logging
                         db.rollback()
                         job_type = job.type or "unknown"
@@ -696,8 +703,6 @@ async def _background_jobs_worker() -> None:
                         BACKGROUND_JOBS_FAILED.set(job_repo.count_failed_jobs())
             finally:
                 db.close()
-        except asyncio.CancelledError:
-            raise
         except Exception as exc:  # pragma: no cover - safety logging
             logger.exception("Background job worker loop error: %s", str(exc))
 
