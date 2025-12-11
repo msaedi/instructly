@@ -5,6 +5,7 @@ Simple metrics endpoint for performance monitoring.
 This gives us immediate visibility without Prometheus complexity.
 """
 
+import asyncio
 from datetime import datetime, timezone
 import os
 from typing import Any, Dict, List, Mapping, Optional, cast
@@ -183,7 +184,7 @@ async def get_performance_metrics(
     }
 
     # Database metrics
-    db_stats = metrics_repository.get_active_connections_count()
+    db_stats = await asyncio.to_thread(metrics_repository.get_active_connections_count)
     database_metrics: JsonDict = {
         "active_connections": db_stats,
         "pool_status": get_db_pool_status(),
@@ -384,7 +385,7 @@ async def get_slow_queries(
 ) -> SlowQueriesResponse:
     """Get recent slow queries."""
     # Get slow queries from PostgreSQL via repository
-    raw_queries = metrics_repository.get_slow_queries()
+    raw_queries = await asyncio.to_thread(metrics_repository.get_slow_queries)
 
     slow_queries: JsonList = []
     for row in raw_queries:

@@ -4,6 +4,7 @@ Monitoring endpoints for health checks and diagnostics.
 These endpoints are secured and used for internal monitoring and operations.
 """
 
+import asyncio
 from datetime import datetime, timezone
 import os
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -253,18 +254,20 @@ async def get_payment_system_health(
     now = datetime.now(timezone.utc)
 
     # Count bookings by payment status
-    payment_stats = repository.get_payment_status_counts(now)
+    payment_stats = await asyncio.to_thread(repository.get_payment_status_counts, now)
     stats_dict = {stat.payment_status: stat.count for stat in payment_stats if stat.payment_status}
 
     # Count recent events
-    recent_events = repository.get_recent_event_counts(now - timedelta(hours=24))
+    recent_events = await asyncio.to_thread(
+        repository.get_recent_event_counts, now - timedelta(hours=24)
+    )
     events_dict = {event.event_type: event.count for event in recent_events}
 
     # Find overdue authorizations
-    overdue_bookings = repository.count_overdue_authorizations(now)
+    overdue_bookings = await asyncio.to_thread(repository.count_overdue_authorizations, now)
 
     # Get last successful authorization
-    last_auth = repository.get_last_successful_authorization()
+    last_auth = await asyncio.to_thread(repository.get_last_successful_authorization)
 
     minutes_since_auth = None
     if last_auth:

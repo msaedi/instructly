@@ -14,6 +14,7 @@ Endpoints:
     POST /{booking_id}/dispute - Dispute completion status
 """
 
+import asyncio
 from datetime import datetime, timezone
 import logging
 from typing import List, Optional
@@ -108,8 +109,10 @@ async def get_pending_completion_bookings(
 
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
-    bookings = booking_repo.get_instructor_bookings(
-        instructor_id=current_user.id, status=BookingStatus.CONFIRMED
+    bookings = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings,
+        instructor_id=current_user.id,
+        status=BookingStatus.CONFIRMED,
     )
 
     now = datetime.now(timezone.utc)
@@ -137,7 +140,8 @@ async def get_upcoming_bookings(
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
-    bookings = booking_repo.get_instructor_bookings(
+    bookings = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings,
         instructor_id=current_user.id,
         status=BookingStatus.CONFIRMED,
         upcoming_only=True,
@@ -160,7 +164,8 @@ async def get_completed_bookings(
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
-    bookings = booking_repo.get_instructor_bookings(
+    bookings = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings,
         instructor_id=current_user.id,
         status=BookingStatus.COMPLETED,
         upcoming_only=False,
@@ -194,7 +199,8 @@ async def list_instructor_bookings(
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
-    bookings = booking_repo.get_instructor_bookings(
+    bookings = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings,
         instructor_id=current_user.id,
         status=status,
         upcoming_only=upcoming,

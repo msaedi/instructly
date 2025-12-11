@@ -368,7 +368,7 @@ async def change_password(
     from app.repositories import RepositoryFactory
 
     user_repository = RepositoryFactory.create_user_repository(db)
-    success = user_repository.update_password(user.id, hashed)
+    success = await asyncio.to_thread(user_repository.update_password, user.id, hashed)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password"

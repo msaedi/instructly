@@ -13,6 +13,7 @@ event loop under load. This is CRITICAL for scalability:
 The pattern mirrors auth_sse.py and uses the shared auth_cache module.
 """
 
+import asyncio
 import hmac
 import logging
 import os
@@ -180,7 +181,9 @@ async def get_current_user(
             )
         current_user_email = request
         user_repo = UserRepository(swap_db)
-        user = user_repo.get_by_email(current_user_email)
+        user = user_repo.get_by_email(
+            current_user_email
+        )  # async-blocking-ok: Test/legacy fallback path, not used in production
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return user
@@ -197,7 +200,9 @@ async def get_current_user(
         from ...repositories.user_repository import UserRepository
 
         user_repo = UserRepository(db)
-        user = user_repo.get_by_email(current_user_email)
+        user = user_repo.get_by_email(
+            current_user_email
+        )  # async-blocking-ok: Test/legacy fallback path, not used in production
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     else:
@@ -341,7 +346,9 @@ async def get_current_active_user_optional(
         from ...repositories.user_repository import UserRepository
 
         user_repo = UserRepository(db)
-        user = user_repo.get_by_email(current_user_email)
+        user = user_repo.get_by_email(
+            current_user_email
+        )  # async-blocking-ok: Test/legacy fallback path, not used in production
         if user and user.is_active:
             return user
         return None
@@ -425,7 +432,7 @@ def require_beta_phase_access(
         if getattr(settings, "beta_disabled", False):
             return None
         settings_repo = BetaSettingsRepository(db)
-        s = settings_repo.get_singleton()
+        s = await asyncio.to_thread(settings_repo.get_singleton)
         if s and bool(getattr(s, "beta_disabled", False)):
             return None
 

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
 import math
@@ -462,7 +463,8 @@ async def bgc_webhook_logs(
     status_codes = _parse_status_filters(status_param)
     search_value = (q or "").strip() or None
 
-    entries, next_cursor = log_repo.list_filtered(
+    entries, next_cursor = await asyncio.to_thread(
+        log_repo.list_filtered,
         limit=limit,
         cursor=cursor,
         events=exact_events or None,
@@ -548,8 +550,9 @@ async def bgc_webhook_logs(
         }
         items.append(BGCWebhookLogEntry(**model_filter(BGCWebhookLogEntry, item_payload)))
 
-    error_count = log_repo.count_errors_since(
-        since=datetime.now(timezone.utc) - timedelta(hours=24)
+    error_count = await asyncio.to_thread(
+        log_repo.count_errors_since,
+        since=datetime.now(timezone.utc) - timedelta(hours=24),
     )
 
     response_payload = {
@@ -568,7 +571,7 @@ async def bgc_webhook_stats(
     """Return summary stats for Checkr webhooks."""
 
     since = datetime.now(timezone.utc) - timedelta(hours=24)
-    count = log_repo.count_errors_since(since=since)
+    count = await asyncio.to_thread(log_repo.count_errors_since, since=since)
     payload = {"error_count_24h": count}
     return BGCWebhookStatsResponse(**model_filter(BGCWebhookStatsResponse, payload))
 
