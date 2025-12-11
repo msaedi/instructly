@@ -40,6 +40,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from ...api.dependencies.auth import get_current_active_user
 from ...auth_sse import get_current_user_sse
+from ...core.auth_cache import user_has_cached_permission
 from ...core.config import settings
 from ...core.enums import PermissionName
 from ...core.exceptions import ForbiddenException, NotFoundException, ValidationException
@@ -162,7 +163,11 @@ async def stream_user_messages(
     user_id = current_user.id
     last_event_id = request.headers.get("Last-Event-ID")
 
-    # Service layer handles all DB access (permission check + missed messages)
+    # Check permission using cached data (no DB query for transient users)
+    # This avoids the redundant user lookup that was happening in get_stream_context
+    cached_has_permission = user_has_cached_permission(current_user, PermissionName.VIEW_MESSAGES)
+
+    # Service layer handles missed message fetch (permission pre-checked above)
     db = SessionLocal()
     try:
         message_service = MessageService(db)
@@ -170,6 +175,7 @@ async def stream_user_messages(
             message_service.get_stream_context,
             user_id=current_user.id,
             last_event_id=last_event_id,
+            has_permission=cached_has_permission,  # Pass pre-computed permission
         )
     finally:
         # CRITICAL: Explicitly rollback and close DB session BEFORE starting the SSE stream.

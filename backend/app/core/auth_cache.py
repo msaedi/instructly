@@ -110,8 +110,14 @@ def _user_to_dict(user: User) -> Dict[str, Any]:
         user: User ORM object with active session
 
     Returns:
-        Dict with user data
+        Dict with user data including permissions
     """
+    # Collect permissions from all roles (assumes roles+permissions are loaded)
+    permissions: set[str] = set()
+    for role in user.roles:
+        for perm in role.permissions:
+            permissions.add(perm.name)
+
     return {
         "id": user.id,
         "email": user.email,
@@ -121,6 +127,7 @@ def _user_to_dict(user: User) -> Dict[str, Any]:
         "is_admin": user.is_admin,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        "permissions": list(permissions),  # Cache permissions for SSE permission checks
     }
 
 
@@ -133,6 +140,8 @@ def _sync_user_lookup(email: str) -> Optional[Dict[str, Any]]:
     3. We return a dict (not ORM object) to avoid DetachedInstanceError
 
     Uses UserRepository to follow the repository pattern.
+    Uses get_by_email_with_roles_and_permissions() to load permissions in one query,
+    avoiding a separate DB query for permission checks in SSE.
 
     Args:
         email: User's email address
@@ -145,10 +154,11 @@ def _sync_user_lookup(email: str) -> Optional[Dict[str, Any]]:
     db = SessionLocal()
     try:
         user_repo = UserRepository(db)
-        user = user_repo.get_by_email(email)
+        # Use method that eager-loads roles+permissions in one query
+        user = user_repo.get_by_email_with_roles_and_permissions(email)
         if user:
             # Extract attributes BEFORE closing session, return as dict
-            # Roles are eager-loaded via lazy="selectin" on the relationship
+            # Roles and permissions are explicitly loaded via joinedload
             return _user_to_dict(user)
         return None
     finally:
@@ -160,6 +170,7 @@ def _sync_user_lookup_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     """Synchronous user lookup by ID - returns dict to avoid detached ORM issues.
 
     Uses UserRepository to follow the repository pattern.
+    Uses get_with_roles_and_permissions() to load permissions in one query.
 
     Args:
         user_id: User's ULID
@@ -172,9 +183,10 @@ def _sync_user_lookup_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     db = SessionLocal()
     try:
         user_repo = UserRepository(db)
-        user = user_repo.get_by_id(user_id)
+        # Use method that eager-loads roles+permissions in one query
+        user = user_repo.get_with_roles_and_permissions(user_id)
         if user:
-            # Roles are eager-loaded via lazy="selectin" on the relationship
+            # Roles and permissions are explicitly loaded via joinedload
             return _user_to_dict(user)
         return None
     finally:
@@ -238,6 +250,7 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
     - The `roles` attribute is populated with mock Role objects
     - The `is_student`, `is_instructor`, `is_admin` properties work normally
     - Route handlers can check roles without knowing about transient vs ORM users
+    - Permissions are cached for SSE permission checks (no DB query needed)
 
     Args:
         user_data: Dict containing user attributes
@@ -277,7 +290,37 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
     setattr(user, "_cached_is_instructor", user_data.get("is_instructor", False))
     setattr(user, "_cached_is_admin", user_data.get("is_admin", False))
 
+    # Store cached permissions for SSE permission checks (avoids DB query)
+    setattr(user, "_cached_permissions", set(user_data.get("permissions", [])))
+
     return user
+
+
+def user_has_cached_permission(user: User, permission_name: str) -> bool:
+    """Check if user has a permission using cached data (no DB query).
+
+    For transient users (from auth cache), this uses the cached permissions set.
+    For ORM users, falls back to iterating roles.permissions.
+
+    Args:
+        user: User object (transient or ORM)
+        permission_name: Name of the permission to check
+
+    Returns:
+        True if user has the permission, False otherwise
+    """
+    # First check cached permissions (works for transient users)
+    cached_perms = getattr(user, "_cached_permissions", None)
+    if cached_perms is not None:
+        return permission_name in cached_perms
+
+    # Fallback for ORM users - iterate relationships
+    # NOTE: This may trigger lazy loading if roles/permissions aren't loaded
+    for role in user.roles:
+        for perm in role.permissions:
+            if perm.name == permission_name:
+                return True
+    return False
 
 
 # For tests - allow patching the Redis client getter

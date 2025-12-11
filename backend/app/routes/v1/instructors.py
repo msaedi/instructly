@@ -34,7 +34,6 @@ from ...api.dependencies.services import (
     get_favorites_service,
     get_instructor_service,
 )
-from ...core.enums import RoleName
 from ...core.exceptions import DomainException, ValidationException
 from ...core.ulid_helper import is_valid_ulid
 from ...database import get_db
@@ -188,7 +187,7 @@ async def get_my_profile(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> InstructorProfileResponse:
     """Get current instructor's profile."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can access profiles",
@@ -224,7 +223,7 @@ async def update_profile(
     cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> InstructorProfileResponse:
     """Update instructor profile."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can update profiles",
@@ -274,7 +273,7 @@ async def go_live(
     - At least one service configured
     - Background check passed
     """
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can perform this action",
@@ -377,7 +376,7 @@ async def delete_profile(
     cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> None:
     """Delete instructor profile and revert to student role."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can delete their profiles",

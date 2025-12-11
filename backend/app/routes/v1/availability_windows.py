@@ -52,7 +52,6 @@ from ...api.dependencies.services import (
 )
 from ...core.config import settings
 from ...core.constants import ERROR_INSTRUCTOR_ONLY
-from ...core.enums import RoleName
 from ...core.exceptions import ConflictException, DomainException
 from ...core.timezone_utils import get_user_today_by_id
 from ...middleware.perf_counters import note_cache_miss
@@ -142,7 +141,7 @@ router = APIRouter(tags=["availability"])
 
 def verify_instructor(current_user: User) -> User:
     """Verify the current user is an instructor."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         logger.warning(
             f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint"
         )

@@ -83,7 +83,10 @@ class MessageService(BaseService):
 
     @BaseService.measure_operation("get_stream_context")
     def get_stream_context(
-        self, user_id: str, last_event_id: Optional[str] = None
+        self,
+        user_id: str,
+        last_event_id: Optional[str] = None,
+        has_permission: Optional[bool] = None,
     ) -> SSEStreamContext:
         """
         Get context for SSE stream initialization.
@@ -94,17 +97,21 @@ class MessageService(BaseService):
         Args:
             user_id: ID of the user requesting the stream
             last_event_id: Optional Last-Event-ID header from reconnection
+            has_permission: Optional pre-computed permission check (from cached user).
+                           If provided, skips the DB query for permission check.
 
         Returns:
             SSEStreamContext with permission status and missed messages
         """
-        # Import here to avoid circular dependency
-        from .permission_service import PermissionService
+        # Use pre-computed permission if available (from cached user), else query DB
+        if has_permission is None:
+            # Import here to avoid circular dependency
+            from .permission_service import PermissionService
 
-        permission_service = PermissionService(self.db)
-        has_permission = permission_service.user_has_permission(
-            user_id, PermissionName.VIEW_MESSAGES
-        )
+            permission_service = PermissionService(self.db)
+            has_permission = permission_service.user_has_permission(
+                user_id, PermissionName.VIEW_MESSAGES
+            )
 
         missed_messages: List[Message] = []
 

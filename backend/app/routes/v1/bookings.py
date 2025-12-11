@@ -226,9 +226,7 @@ async def get_booking_stats(
 ) -> BookingStatsResponse:
     """Get booking statistics (requires instructor role)."""
     try:
-        from ...core.enums import RoleName
-
-        if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+        if not current_user.is_instructor:
             raise ValidationException("Only instructors can view booking stats")
 
         stats = await asyncio.to_thread(
@@ -444,7 +442,7 @@ async def create_booking(
     """
     try:
         # Check roles and scopes (inline since decorators don't work on dependencies)
-        if not any(role.name == "student" for role in current_user.roles):
+        if not current_user.is_student:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only students can create bookings",

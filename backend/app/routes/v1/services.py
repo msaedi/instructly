@@ -92,9 +92,8 @@ async def add_service_to_profile(
 
     Requires INSTRUCTOR role.
     """
-    from app.core.enums import RoleName
 
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can add services"
         )

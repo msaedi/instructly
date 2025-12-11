@@ -50,7 +50,7 @@ from app.api.dependencies.authz import (
 from ..api.dependencies import get_booking_service, get_current_active_user, get_db
 from ..api.dependencies.auth import require_beta_phase_access
 from ..core.config import settings
-from ..core.enums import PermissionName, RoleName
+from ..core.enums import PermissionName
 from ..core.exceptions import DomainException, NotFoundException, ValidationException
 from ..dependencies.permissions import require_permission
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
@@ -303,7 +303,7 @@ async def get_booking_stats(
 ) -> BookingStatsResponse:
     """Get booking statistics for instructors."""
     try:
-        if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+        if not current_user.is_instructor:
             raise ValidationException("Only instructors can view booking stats")
 
         stats = booking_service.get_booking_stats_for_instructor(current_user.id)

@@ -183,7 +183,7 @@ class User(Base):
     service_areas: Mapped[list["InstructorServiceArea"]] = relationship(
         "InstructorServiceArea",
         back_populates="instructor",
-        lazy="selectin",
+        lazy="select",  # Changed from selectin - only load when explicitly accessed
         cascade="all, delete-orphan",
     )
 

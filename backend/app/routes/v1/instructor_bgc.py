@@ -221,7 +221,7 @@ def _get_instructor_profile(
 
 def _ensure_owner_or_admin(user: User, instructor_user_id: str) -> None:
     is_owner = user.id == instructor_user_id
-    is_admin = any(getattr(role, "name", "") == "admin" for role in user.roles)
+    is_admin = user.is_admin
     if not (is_owner or is_admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 

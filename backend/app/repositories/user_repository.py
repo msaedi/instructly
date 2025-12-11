@@ -122,6 +122,29 @@ class UserRepository(BaseRepository[User]):
             self.logger.error(f"Error getting user with roles/permissions {user_id}: {str(e)}")
             return None
 
+    def get_by_email_with_roles_and_permissions(self, email: str) -> Optional[User]:
+        """
+        Get user by email with eager loaded roles and permissions.
+
+        Used by: auth_cache._sync_user_lookup() for caching permissions
+        This avoids a second DB query for permission checks.
+        """
+        try:
+            return cast(
+                Optional[User],
+                (
+                    self.db.query(User)
+                    .options(joinedload(User.roles).joinedload(Role.permissions))
+                    .filter(User.email == email)
+                    .first()
+                ),
+            )
+        except Exception as e:
+            self.logger.error(
+                f"Error getting user by email with roles/permissions {email}: {str(e)}"
+            )
+            return None
+
     def get_with_roles(self, user_id: str) -> Optional[User]:
         """
         Get user with roles only (lighter query).
