@@ -17,7 +17,6 @@ Endpoints:
 """
 
 import asyncio
-from datetime import datetime, timezone
 import logging
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
@@ -34,7 +33,7 @@ from ...api.dependencies.services import (
     get_favorites_service,
     get_instructor_service,
 )
-from ...core.exceptions import DomainException, ValidationException
+from ...core.exceptions import BusinessRuleException, DomainException, NotFoundException
 from ...core.ulid_helper import is_valid_ulid
 from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit as legacy_rate_limit
@@ -50,11 +49,8 @@ from ...schemas.instructor import (
 )
 from ...services.address_service import AddressService
 from ...services.cache_service import CacheService
-from ...services.config_service import ConfigService
 from ...services.favorites_service import FavoritesService
 from ...services.instructor_service import InstructorService
-from ...services.pricing_service import PricingService
-from ...services.stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +258,6 @@ async def update_profile(
 async def go_live(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-    db: Session = Depends(get_db),
 ) -> InstructorProfileResponse:
     """
     Mark instructor profile as live if all prerequisites are met.
@@ -280,84 +275,16 @@ async def go_live(
         )
 
     try:
-        profile_data = await asyncio.to_thread(
-            instructor_service.get_instructor_profile,
-            current_user.id,
-            False,
-        )
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-        raise
-
-    # Check prerequisites
-    config_service = ConfigService(db)
-    pricing_service = PricingService(db)
-    stripe_service = StripeService(
-        db, config_service=config_service, pricing_service=pricing_service
-    )
-    connect = (
-        stripe_service.check_account_status(profile_data["id"])
-        if profile_data.get("id")
-        else {"has_account": False, "onboarding_completed": False}
-    )
-
-    skills_ok = bool(profile_data.get("skills_configured")) or (
-        len(profile_data.get("services", [])) > 0
-    )
-    identity_ok = bool(profile_data.get("identity_verified_at"))
-    connect_ok = bool(connect.get("onboarding_completed"))
-
-    profile_record = instructor_service.profile_repository.find_one_by(user_id=current_user.id)
-    if not profile_record:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-
-    bgc_ok = (getattr(profile_record, "bgc_status", "") or "").lower() == "passed"
-
-    missing: list[str] = []
-    if not skills_ok:
-        missing.append("skills")
-    if not identity_ok:
-        missing.append("identity")
-    if not connect_ok:
-        missing.append("stripe_connect")
-    if not bgc_ok:
-        missing.append("background_check")
-
-    if missing:
-        raise ValidationException(
-            "Prerequisites not met",
-            code="GO_LIVE_PREREQUISITES",
-            details={"missing": missing},
-        ).to_http_exception()
-
-    # Set live
-    try:
-        with instructor_service.transaction():
-            profile = profile_record
-            if not getattr(profile, "onboarding_completed_at", None):
-                instructor_service.profile_repository.update(
-                    profile.id,
-                    is_live=True,
-                    onboarding_completed_at=datetime.now(timezone.utc),
-                    skills_configured=True
-                    if not getattr(profile, "skills_configured", False)
-                    else profile.skills_configured,
-                )
-            else:
-                instructor_service.profile_repository.update(profile.id, is_live=True)
-    except HTTPException:
-        raise
-    except Exception:
+        profile = await asyncio.to_thread(instructor_service.go_live, current_user.id)
+    except BusinessRuleException as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to go live"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": exc.message, "code": exc.code, "details": exc.details},
         )
+    except NotFoundException as exc:
+        raise exc.to_http_exception()
 
-    # Return updated profile
-    updated_profile = instructor_service.get_instructor_profile(current_user.id)
-    if hasattr(updated_profile, "id"):
-        return InstructorProfileResponse.from_orm(updated_profile)
-    return InstructorProfileResponse(**updated_profile)
+    return InstructorProfileResponse.from_orm(profile)
 
 
 @router.delete(

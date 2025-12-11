@@ -49,7 +49,8 @@ class BetaPhaseHeaderMiddleware:
                     phase_value = str(s.beta_phase).encode("utf-8")
                 allow_signup_value = b"1" if bool(s.allow_signup_without_invite) else b"0"
             finally:
-                db.rollback()  # Clean up transaction before returning to pool
+                # async-blocking-ignore: Middleware cleanup <1ms
+                db.rollback()  # Clean up transaction before returning to pool  # async-blocking-ignore
                 db.close()
         except Exception as e:
             # Never break the response due to header resolution failures

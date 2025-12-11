@@ -181,9 +181,8 @@ async def get_current_user(
             )
         current_user_email = request
         user_repo = UserRepository(swap_db)
-        user = user_repo.get_by_email(
-            current_user_email
-        )  # async-blocking-ok: Test/legacy fallback path, not used in production
+        # async-blocking-ignore: Test/legacy fallback path, not used in production
+        user = user_repo.get_by_email(current_user_email)  # async-blocking-ignore
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return user
@@ -200,9 +199,8 @@ async def get_current_user(
         from ...repositories.user_repository import UserRepository
 
         user_repo = UserRepository(db)
-        user = user_repo.get_by_email(
-            current_user_email
-        )  # async-blocking-ok: Test/legacy fallback path, not used in production
+        # async-blocking-ignore: Test/legacy fallback path, not used in production
+        user = user_repo.get_by_email(current_user_email)  # async-blocking-ignore
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     else:
@@ -346,9 +344,8 @@ async def get_current_active_user_optional(
         from ...repositories.user_repository import UserRepository
 
         user_repo = UserRepository(db)
-        user = user_repo.get_by_email(
-            current_user_email
-        )  # async-blocking-ok: Test/legacy fallback path, not used in production
+        # async-blocking-ignore: Test/legacy fallback path, not used in production
+        user = user_repo.get_by_email(current_user_email)  # async-blocking-ignore
         if user and user.is_active:
             return user
         return None

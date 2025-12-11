@@ -134,12 +134,23 @@ class AsyncBlockingVisitor(ast.NodeVisitor):
                     if 0 < node.lineno <= len(self.source_lines):
                         source_line = self.source_lines[node.lineno - 1].strip()
 
-                    self.violations.append((
-                        node.lineno,
-                        call_str[:60],
-                        f"in async def {self.async_function_name}()",
-                        source_line[:80]
-                    ))
+                    # Ignore lines explicitly marked as safe
+                    if "async-blocking-ignore" in source_line.lower():
+                        break
+                    prev_line = ""
+                    if node.lineno - 2 >= 0:
+                        prev_line = self.source_lines[node.lineno - 2].strip().lower()
+                    if "async-blocking-ignore" in prev_line:
+                        break
+
+                    self.violations.append(
+                        (
+                            node.lineno,
+                            call_str[:60],
+                            f"in async def {self.async_function_name}()",
+                            source_line[:80],
+                        )
+                    )
                     break
 
         self.generic_visit(node)

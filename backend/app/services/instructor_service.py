@@ -19,7 +19,7 @@ import anyio
 from sqlalchemy.orm import Session
 
 from ..core.enums import RoleName
-from ..core.exceptions import BusinessRuleException, NotFoundException
+from ..core.exceptions import BusinessRuleException, NotFoundException, ServiceException
 from ..models.instructor import InstructorPreferredPlace, InstructorProfile
 from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
@@ -36,7 +36,10 @@ from ..schemas.instructor import (
 )
 from .base import BaseService
 from .cache_service import CacheService
+from .config_service import ConfigService
 from .geocoding.factory import create_geocoding_provider
+from .pricing_service import PricingService
+from .stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
 
@@ -543,6 +546,64 @@ class InstructorService(BaseService):
                 user_id,
                 cleanup_error,
             )
+
+    @BaseService.measure_operation("instructor.go_live")
+    def go_live(self, user_id: str) -> InstructorProfile:
+        """Activate instructor profile if prerequisites are met."""
+        profile = self.profile_repository.find_one_by(user_id=user_id)
+        if not profile:
+            raise NotFoundException("Instructor profile not found")
+
+        config_service = ConfigService(self.db)
+        pricing_service = PricingService(self.db)
+        stripe_service = StripeService(
+            self.db, config_service=config_service, pricing_service=pricing_service
+        )
+        connect_status = (
+            stripe_service.check_account_status(profile.id)
+            if profile.id
+            else {"has_account": False, "onboarding_completed": False}
+        )
+
+        skills_ok = bool(getattr(profile, "skills_configured", False))
+        identity_ok = bool(getattr(profile, "identity_verified_at", None))
+        connect_ok = bool(connect_status.get("onboarding_completed"))
+        bgc_ok = (getattr(profile, "bgc_status", "") or "").lower() == "passed"
+
+        missing: list[str] = []
+        if not skills_ok:
+            missing.append("skills")
+        if not identity_ok:
+            missing.append("identity")
+        if not connect_ok:
+            missing.append("stripe_connect")
+        if not bgc_ok:
+            missing.append("background_check")
+
+        if missing:
+            raise BusinessRuleException(
+                "Prerequisites not met",
+                code="GO_LIVE_PREREQUISITES",
+                details={"missing": missing},
+            )
+
+        with self.transaction():
+            if not getattr(profile, "onboarding_completed_at", None):
+                updated_profile = self.profile_repository.update(
+                    profile.id,
+                    is_live=True,
+                    onboarding_completed_at=datetime.now(timezone.utc),
+                    skills_configured=True
+                    if not getattr(profile, "skills_configured", False)
+                    else profile.skills_configured,
+                )
+            else:
+                updated_profile = self.profile_repository.update(profile.id, is_live=True)
+
+        if updated_profile is None:
+            raise ServiceException("Failed to update instructor profile", code="update_failed")
+
+        return updated_profile
 
     # Private helper methods
 

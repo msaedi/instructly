@@ -42,6 +42,7 @@ if TYPE_CHECKING:
         ReferralRewardRepository,
         WalletTransactionRepository,
     )
+    from .review_repository import ReviewTipRepository
     from .search_event_repository import SearchEventRepository
     from .search_history_repository import SearchHistoryRepository
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
@@ -324,3 +325,10 @@ class RepositoryFactory:
         from .referral_repository import ReferralLimitRepository
 
         return ReferralLimitRepository(db)
+
+    @staticmethod
+    def create_review_tip_repository(db: Session) -> "ReviewTipRepository":
+        """Create repository for review tips."""
+        from .review_repository import ReviewTipRepository
+
+        return ReviewTipRepository(db)
