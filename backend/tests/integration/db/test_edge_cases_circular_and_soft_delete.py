@@ -18,6 +18,7 @@ UPDATED FOR WORK STREAM #9: Layer independence
 - Bookings are time-based and independent of slots
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
@@ -514,7 +515,7 @@ class TestSoftDeleteEdgeCases:
 
         # Test async method - expect NotFoundException
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 student, booking_data, selected_duration=booking_data.selected_duration
             )
 

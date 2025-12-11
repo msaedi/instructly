@@ -12,6 +12,7 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 UPDATED FOR WORK STREAM #9: Layer independence - time-based booking.
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock
@@ -105,7 +106,7 @@ class TestBookingServiceCreation:
             student_note="Looking forward to the lesson!",
         )
 
-        booking = await booking_service.create_booking(
+        booking = await asyncio.to_thread(booking_service.create_booking,
             test_student, booking_data, selected_duration=booking_data.selected_duration
         )
 
@@ -167,7 +168,7 @@ class TestBookingServiceCreation:
         )
 
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 test_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -211,7 +212,7 @@ class TestBookingServiceCreation:
         with pytest.raises(
             ConflictException, match="Instructor already has a booking that overlaps this time"
         ):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 another_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -232,7 +233,7 @@ class TestBookingServiceCreation:
         )
 
         with pytest.raises(ValidationException, match="Only students can create bookings"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 test_instructor, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -278,7 +279,7 @@ class TestBookingServiceCreation:
         )
 
         with pytest.raises(BusinessRuleException, match="at least 48 hours in advance"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 test_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -292,7 +293,7 @@ class TestBookingServiceCancellation:
     ):
         """Test student cancelling their own booking."""
         booking_service = BookingService(db, mock_notification_service)
-        cancelled_booking = await booking_service.cancel_booking(
+        cancelled_booking = await asyncio.to_thread(booking_service.cancel_booking,
             booking_id=test_booking.id, user=test_student, reason="Schedule conflict"
         )
 
@@ -314,7 +315,7 @@ class TestBookingServiceCancellation:
     ):
         """Test instructor cancelling a booking."""
         booking_service = BookingService(db, mock_notification_service)
-        cancelled_booking = await booking_service.cancel_booking(
+        cancelled_booking = await asyncio.to_thread(booking_service.cancel_booking,
             booking_id=test_booking.id, user=test_instructor_with_availability, reason="Emergency"
         )
 
@@ -341,7 +342,7 @@ class TestBookingServiceCancellation:
         booking_service = BookingService(db, mock_notification_service)
 
         with pytest.raises(ValidationException, match="You don't have permission to cancel this booking"):
-            await booking_service.cancel_booking(test_booking.id, other_user, "No reason")
+            await asyncio.to_thread(booking_service.cancel_booking, test_booking.id, other_user, "No reason")
 
     @pytest.mark.asyncio
     async def test_cancel_already_cancelled_booking(
@@ -356,7 +357,7 @@ class TestBookingServiceCancellation:
         booking_service = BookingService(db, mock_notification_service)
 
         with pytest.raises(BusinessRuleException, match="Booking cannot be cancelled"):
-            await booking_service.cancel_booking(test_booking.id, test_student, "Reason")
+            await asyncio.to_thread(booking_service.cancel_booking, test_booking.id, test_student, "Reason")
 
 
 class TestBookingServiceRetrieval:
@@ -584,7 +585,7 @@ class TestBookingServiceAvailabilityCheck:
         booking_service = BookingService(db, mock_notification_service)
 
         # check_availability now takes time-based parameters
-        result = await booking_service.check_availability(
+        result = await asyncio.to_thread(booking_service.check_availability,
             instructor_id=test_instructor_with_availability.id,
             service_id=service.id,
             booking_date=tomorrow,
@@ -602,7 +603,7 @@ class TestBookingServiceAvailabilityCheck:
         booking_service = BookingService(db, mock_notification_service)
 
         # Use time-based check
-        result = await booking_service.check_availability(
+        result = await asyncio.to_thread(booking_service.check_availability,
             instructor_id=test_booking.instructor_id,
             service_id=test_booking.instructor_service_id,
             booking_date=test_booking.booking_date,

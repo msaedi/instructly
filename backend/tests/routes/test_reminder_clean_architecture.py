@@ -14,8 +14,9 @@ Run with:
     pytest tests/routes/test_reminder_clean_architecture.py -v
 """
 
+import asyncio
 from datetime import date, time, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -43,7 +44,7 @@ class TestReminderEndpointCleanArchitecture:
         # With RBAC, the error message mentions the specific permission needed
         assert "manage_all_bookings" in response.json()["detail"].lower()
 
-    @patch("app.services.booking_service.BookingService.send_booking_reminders", new_callable=AsyncMock)
+    @patch("app.services.booking_service.BookingService.send_booking_reminders", new_callable=MagicMock)
     def test_reminder_endpoint_calls_service(self, mock_send_reminders, client, db):
         """Test reminder endpoint delegates to service layer."""
         # Mock the service to return a count - Use AsyncMock for async method
@@ -324,7 +325,7 @@ class TestReminderIntegration:
         booking_service.notification_service = notification_service
 
         # Call the booking service method (what the endpoint calls)
-        count = await booking_service.send_booking_reminders()
+        count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
         assert count == 1
 

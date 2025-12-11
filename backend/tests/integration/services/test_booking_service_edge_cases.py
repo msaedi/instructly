@@ -12,6 +12,7 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 UPDATED FOR WORK STREAM #9: Layer independence - time-based booking.
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 import logging
 from unittest.mock import AsyncMock, Mock
@@ -97,7 +98,7 @@ class TestBookingServiceErrorHandling:
         )
 
         # Should succeed despite notification failure
-        booking = await booking_service.create_booking(
+        booking = await asyncio.to_thread(booking_service.create_booking,
             test_student, booking_data, selected_duration=booking_data.selected_duration
         )
 
@@ -116,7 +117,7 @@ class TestBookingServiceErrorHandling:
         booking_service = BookingService(db, mock_notification_service)
 
         with caplog.at_level(logging.ERROR):
-            cancelled_booking = await booking_service.cancel_booking(
+            cancelled_booking = await asyncio.to_thread(booking_service.cancel_booking,
                 booking_id=test_booking.id, user=test_student, reason="Test cancellation"
             )
 
@@ -432,7 +433,7 @@ class TestBookingServiceAvailabilityEdgeCases:
         booking_service = BookingService(db, mock_notification_service)
 
         # FIXED: Use time-based check_availability method
-        result = await booking_service.check_availability(
+        result = await asyncio.to_thread(booking_service.check_availability,
             instructor_id=generate_ulid(),  # Non-existent instructor
             booking_date=date.today() + timedelta(days=1),
             start_time=time(9, 0),
@@ -464,7 +465,7 @@ class TestBookingServiceAvailabilityEdgeCases:
         booking_service = BookingService(db, mock_notification_service)
 
         # FIXED: Use time-based check_availability method
-        result = await booking_service.check_availability(
+        result = await asyncio.to_thread(booking_service.check_availability,
             instructor_id=test_instructor_with_availability.id,
             booking_date=tomorrow,
             start_time=start_time,
@@ -497,7 +498,7 @@ class TestBookingServiceReminders:
         # Mock the notification service to succeed
         mock_notification_service._send_booking_reminders = AsyncMock(return_value=1)
 
-        count = await booking_service.send_booking_reminders()
+        count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
         assert count >= 1
         mock_notification_service._send_booking_reminders.assert_called()
@@ -555,7 +556,7 @@ class TestBookingServiceReminders:
         booking_service = BookingService(db, mock_notification_service)
 
         with caplog.at_level(logging.ERROR):
-            count = await booking_service.send_booking_reminders()
+            count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
         # Should return 0 since all failed
         assert count == 0
@@ -574,7 +575,7 @@ class TestBookingServiceReminders:
         db.commit()
 
         booking_service = BookingService(db, mock_notification_service)
-        count = await booking_service.send_booking_reminders()
+        count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
         assert count == 0
 
@@ -723,7 +724,7 @@ class TestStudentDoubleBookingPrevention:
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(
+        booking1 = await asyncio.to_thread(booking_service.create_booking,
             test_student, booking1_data, selected_duration=booking1_data.selected_duration
         )
         assert booking1.id is not None
@@ -745,7 +746,7 @@ class TestStudentDoubleBookingPrevention:
         from app.core.exceptions import ConflictException
 
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 test_student, booking2_data, selected_duration=booking2_data.selected_duration
             )
 
@@ -868,7 +869,7 @@ class TestStudentDoubleBookingPrevention:
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(
+        booking1 = await asyncio.to_thread(booking_service.create_booking,
             test_student, booking1_data, selected_duration=booking1_data.selected_duration
         )
         assert booking1.id is not None
@@ -887,7 +888,7 @@ class TestStudentDoubleBookingPrevention:
         )
 
         # This should succeed - no overlap
-        booking2 = await booking_service.create_booking(
+        booking2 = await asyncio.to_thread(booking_service.create_booking,
             test_student, booking2_data, selected_duration=booking2_data.selected_duration
         )
 

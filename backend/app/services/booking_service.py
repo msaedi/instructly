@@ -15,6 +15,7 @@ All methods now under 50 lines with comprehensive observability! ⚡
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 import logging
 import os
@@ -32,6 +33,7 @@ from ..core.exceptions import (
     BookingConflictException,
     BusinessRuleException,
     NotFoundException,
+    RepositoryException,
     ValidationException,
 )
 from ..models.audit_log import AuditLog
@@ -407,8 +409,27 @@ class BookingService(BaseService):
 
         return GENERIC_CONFLICT_MESSAGE, None
 
+    def _raise_conflict_from_repo_error(
+        self,
+        exc: RepositoryException,
+        booking_data: BookingCreate,
+        student_id: Optional[str],
+    ) -> None:
+        """
+        Translate repository-level deadlocks into booking conflicts so callers
+        receive a deterministic error instead of a generic RepositoryException.
+        """
+        message = str(exc).lower()
+        if "deadlock detected" in message or "exclusion constraint" in message:
+            conflict_details = self._build_conflict_details(booking_data, student_id)
+            raise BookingConflictException(
+                message=GENERIC_CONFLICT_MESSAGE,
+                details=conflict_details,
+            ) from exc
+        raise exc
+
     @BaseService.measure_operation("create_booking")
-    async def create_booking(
+    def create_booking(
         self, student: User, booking_data: BookingCreate, selected_duration: int
     ) -> Booking:
         """
@@ -439,9 +460,7 @@ class BookingService(BaseService):
         )
 
         # 1. Validate and load required data
-        service, instructor_profile = await self._validate_booking_prerequisites(
-            student, booking_data
-        )
+        service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
 
         # 2. Validate selected duration (strict for new bookings)
         if selected_duration not in service.duration_options:
@@ -461,13 +480,13 @@ class BookingService(BaseService):
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
         # 5. Check conflicts and apply business rules
-        await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
+        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
         # 6. Create the booking with transaction
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
-                booking = await self._create_booking_record(
+                booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
                 self._enqueue_booking_outbox_event(booking, "booking.created")
@@ -489,14 +508,16 @@ class BookingService(BaseService):
                 message=message,
                 details=conflict_details,
             ) from exc
+        except RepositoryException as exc:
+            self._raise_conflict_from_repo_error(exc, booking_data, student.id)
 
         # 7. Handle post-creation tasks
-        await self._handle_post_booking_tasks(booking)
+        self._handle_post_booking_tasks(booking)
 
         return booking
 
     @BaseService.measure_operation("create_booking_with_payment_setup")
-    async def create_booking_with_payment_setup(
+    def create_booking_with_payment_setup(
         self,
         student: User,
         booking_data: BookingCreate,
@@ -529,9 +550,7 @@ class BookingService(BaseService):
         )
 
         # 1. Validate and load required data
-        service, instructor_profile = await self._validate_booking_prerequisites(
-            student, booking_data
-        )
+        service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
 
         # 2. Validate selected duration
         if selected_duration not in service.duration_options:
@@ -551,13 +570,13 @@ class BookingService(BaseService):
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
         # 5. Check conflicts and apply business rules
-        await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
+        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
         # 6. Create booking with PENDING status initially
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
-                booking = await self._create_booking_record(
+                booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
 
@@ -654,12 +673,14 @@ class BookingService(BaseService):
                 message=message,
                 details=conflict_details,
             ) from exc
+        except RepositoryException as exc:
+            self._raise_conflict_from_repo_error(exc, booking_data, student.id)
 
         self.log_operation("create_booking_with_payment_setup_completed", booking_id=booking.id)
         return booking
 
     @BaseService.measure_operation("confirm_booking_payment")
-    async def confirm_booking_payment(
+    def confirm_booking_payment(
         self,
         booking_id: str,
         student: User,
@@ -818,7 +839,7 @@ class BookingService(BaseService):
         return booking
 
     @BaseService.measure_operation("find_booking_opportunities")
-    async def find_booking_opportunities(
+    def find_booking_opportunities(
         self,
         instructor_id: str,
         target_date: date,
@@ -848,11 +869,11 @@ class BookingService(BaseService):
             latest_time = time(21, 0)
 
         # Get availability data
-        availability_windows = await self._get_instructor_availability_windows(
+        availability_windows = self._get_instructor_availability_windows(
             instructor_id, target_date, earliest_time, latest_time
         )
 
-        existing_bookings = await self._get_existing_bookings_for_date(
+        existing_bookings = self._get_existing_bookings_for_date(
             instructor_id, target_date, earliest_time, latest_time
         )
 
@@ -870,9 +891,7 @@ class BookingService(BaseService):
         return opportunities
 
     @BaseService.measure_operation("cancel_booking")
-    async def cancel_booking(
-        self, booking_id: str, user: User, reason: Optional[str] = None
-    ) -> Booking:
+    def cancel_booking(self, booking_id: str, user: User, reason: Optional[str] = None) -> Booking:
         """
         Cancel a booking.
 
@@ -1045,8 +1064,10 @@ class BookingService(BaseService):
 
         # Send notifications
         try:
-            await self.notification_service.send_cancellation_notification(
-                booking=booking, cancelled_by=user, reason=reason
+            asyncio.run(
+                self.notification_service.send_cancellation_notification(
+                    booking=booking, cancelled_by=user, reason=reason
+                )
             )
         except Exception as e:
             logger.error(f"Failed to send cancellation notification: {str(e)}")
@@ -1603,7 +1624,7 @@ class BookingService(BaseService):
         return refreshed_booking
 
     @BaseService.measure_operation("check_availability")
-    async def check_availability(
+    def check_availability(
         self,
         instructor_id: str,
         booking_date: date,
@@ -1673,7 +1694,7 @@ class BookingService(BaseService):
         }
 
     @BaseService.measure_operation("send_booking_reminders")
-    async def send_booking_reminders(self) -> int:
+    def send_booking_reminders(self) -> int:
         """
         Send 24-hour reminder emails for tomorrow's bookings.
 
@@ -1727,7 +1748,9 @@ class BookingService(BaseService):
                 continue
             try:
                 # Send reminder for this specific booking
-                reminder_count = await self.notification_service._send_booking_reminders([booking])
+                reminder_count = asyncio.run(
+                    self.notification_service._send_booking_reminders([booking])
+                )
                 sent_count += reminder_count
             except Exception as e:
                 logger.error(f"Error sending reminder for booking {booking.id}: {str(e)}")
@@ -1736,7 +1759,7 @@ class BookingService(BaseService):
 
     # Private helper methods for create_booking refactoring
 
-    async def _validate_booking_prerequisites(
+    def _validate_booking_prerequisites(
         self, student: User, booking_data: BookingCreate
     ) -> Tuple[InstructorService, InstructorProfile]:
         """
@@ -1800,7 +1823,7 @@ class BookingService(BaseService):
 
         return service, instructor_profile
 
-    async def _check_conflicts_and_rules(
+    def _check_conflicts_and_rules(
         self,
         booking_data: BookingCreate,
         service: InstructorService,
@@ -1900,7 +1923,7 @@ class BookingService(BaseService):
                     f"Bookings must be made at least {min_advance_hours} hours in advance"
                 )
 
-    async def _create_booking_record(
+    def _create_booking_record(
         self,
         student: User,
         booking_data: BookingCreate,
@@ -1984,7 +2007,7 @@ class BookingService(BaseService):
             return ", ".join(sorted_boroughs)
         return f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
 
-    async def _handle_post_booking_tasks(
+    def _handle_post_booking_tasks(
         self, booking: Booking, is_reschedule: bool = False, old_booking: Optional[Booking] = None
     ) -> None:
         """
@@ -1997,7 +2020,7 @@ class BookingService(BaseService):
         """
         # Send notifications
         try:
-            await self.notification_service.send_booking_confirmation(booking)
+            asyncio.run(self.notification_service.send_booking_confirmation(booking))
         except Exception as e:
             logger.error(f"Failed to send booking confirmation: {str(e)}")
 
@@ -2036,7 +2059,7 @@ class BookingService(BaseService):
 
     # Private helper methods for find_booking_opportunities refactoring
 
-    async def _get_instructor_availability_windows(
+    def _get_instructor_availability_windows(
         self,
         instructor_id: str,
         target_date: date,
@@ -2088,7 +2111,7 @@ class BookingService(BaseService):
             )
         return result
 
-    async def _get_existing_bookings_for_date(
+    def _get_existing_bookings_for_date(
         self,
         instructor_id: str,
         target_date: date,
@@ -2225,7 +2248,7 @@ class BookingService(BaseService):
 
     # Existing private helper methods
 
-    async def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
+    def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
         """Apply business rules for cancellation."""
         # Check cancellation deadline using user's timezone
         from app.core.timezone_utils import get_user_timezone

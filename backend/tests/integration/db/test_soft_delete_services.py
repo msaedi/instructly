@@ -15,6 +15,7 @@ UPDATED FOR WORK STREAM #9: Layer independence
 - Bookings use time-based creation
 """
 
+import asyncio
 from datetime import date, time, timedelta
 
 import pytest
@@ -416,7 +417,7 @@ class TestSoftDeleteServices:
                     instructor_service_id=inactive_service_id,
                     meeting_location="Test location",
                 )
-                await booking_service.create_booking(
+                await asyncio.to_thread(booking_service.create_booking,
                     test_student, booking_data, selected_duration=booking_data.selected_duration
                 )
 

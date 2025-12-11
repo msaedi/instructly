@@ -74,8 +74,7 @@ def _create_student(db: Session) -> User:
     return student
 
 
-@pytest.mark.asyncio
-async def test_confirm_payment_immediate_defers_and_emits_event(db: Session):
+def test_confirm_payment_immediate_defers_and_emits_event(db: Session):
     instructor, profile, svc = _bootstrap_instructor_and_service(db)
     student = _create_student(db)
 
@@ -102,7 +101,7 @@ async def test_confirm_payment_immediate_defers_and_emits_event(db: Session):
     service = BookingService(db)
 
     with patch("app.repositories.payment_repository.PaymentRepository.create_payment_event") as mock_event:
-        updated = await service.confirm_booking_payment(booking.id, student=student, payment_method_id="pm_x")
+        updated = service.confirm_booking_payment(booking.id, student=student, payment_method_id="pm_x")
 
     # Booking moves to CONFIRMED and payment_status authorizing
     assert updated.status == BookingStatus.CONFIRMED

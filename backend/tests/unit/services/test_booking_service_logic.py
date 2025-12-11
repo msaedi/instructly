@@ -9,6 +9,7 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 UPDATED FOR WORK STREAM #11: Time-based booking (no slot IDs).
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -283,7 +284,7 @@ class TestBookingServiceUnit:
         with patch.object(booking_service, "_invalidate_booking_caches"):
             with patch("app.services.booking_service.PricingService") as pricing_service_mock:
                 pricing_service_mock.return_value.compute_booking_pricing.return_value = None
-                result = await booking_service.create_booking(
+                result = await asyncio.to_thread(booking_service.create_booking,
                     mock_student, booking_data, selected_duration=booking_data.selected_duration
                 )
 
@@ -307,7 +308,7 @@ class TestBookingServiceUnit:
         )
 
         with pytest.raises(ValidationException, match="Only students can create bookings"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 mock_instructor, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -330,7 +331,7 @@ class TestBookingServiceUnit:
         booking_service.conflict_checker_repository.get_active_service.return_value = None
 
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -378,7 +379,7 @@ class TestBookingServiceUnit:
             selected_duration=30,
         )
 
-        await booking_service._check_conflicts_and_rules(
+        await asyncio.to_thread(booking_service._check_conflicts_and_rules,
             first_booking,
             mock_service,
             mock_instructor_profile,
@@ -394,7 +395,7 @@ class TestBookingServiceUnit:
             selected_duration=30,
         )
 
-        await booking_service._check_conflicts_and_rules(
+        await asyncio.to_thread(booking_service._check_conflicts_and_rules,
             second_booking,
             mock_service,
             mock_instructor_profile,
@@ -429,7 +430,7 @@ class TestBookingServiceUnit:
         with pytest.raises(
             BusinessRuleException, match="Bookings must be made at least 1 hours in advance"
         ):
-            await booking_service._check_conflicts_and_rules(
+            await asyncio.to_thread(booking_service._check_conflicts_and_rules,
                 too_close_booking,
                 mock_service,
                 mock_instructor_profile,
@@ -471,7 +472,7 @@ class TestBookingServiceUnit:
         )
 
         with pytest.raises(ConflictException, match="Instructor already has a booking that overlaps this time"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -506,7 +507,7 @@ class TestBookingServiceUnit:
         )
 
         with pytest.raises(BusinessRuleException, match="at least 24 hours in advance"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -552,7 +553,7 @@ class TestBookingServiceUnit:
         monkeypatch.setattr(booking_service, "_write_booking_audit", Mock())
         monkeypatch.setattr(booking_service, "_handle_post_booking_tasks", AsyncMock())
 
-        result = await booking_service.create_booking(
+        result = await asyncio.to_thread(booking_service.create_booking,
             mock_student, booking_data, selected_duration=booking_data.selected_duration
         )
 
@@ -607,7 +608,7 @@ class TestBookingServiceUnit:
         monkeypatch.setattr(booking_service, "_handle_post_booking_tasks", AsyncMock())
 
         with pytest.raises(BusinessRuleException, match="Requested time is not available"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -628,7 +629,7 @@ class TestBookingServiceUnit:
             stripe_instance.cancel_payment_intent.return_value = None
             stripe_instance.capture_payment_intent.return_value = {}
 
-            _result = await booking_service.cancel_booking(
+            _result = await asyncio.to_thread(booking_service.cancel_booking,
                 booking_id=generate_ulid(), user=mock_student, reason="Schedule conflict"
             )
 
@@ -643,7 +644,7 @@ class TestBookingServiceUnit:
         booking_service.repository.get_booking_with_details.return_value = None
 
         with pytest.raises(NotFoundException, match="Booking not found"):
-            await booking_service.cancel_booking(1, Mock())
+            await asyncio.to_thread(booking_service.cancel_booking, 1, Mock())
 
     @pytest.mark.asyncio
     async def test_cancel_booking_unauthorized(self, booking_service, mock_booking):
@@ -654,7 +655,7 @@ class TestBookingServiceUnit:
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
         with pytest.raises(ValidationException, match="You don't have permission to cancel this booking"):
-            await booking_service.cancel_booking(1, unauthorized_user)
+            await asyncio.to_thread(booking_service.cancel_booking, 1, unauthorized_user)
 
     @pytest.mark.asyncio
     async def test_cancel_booking_not_cancellable(self, booking_service, mock_student, mock_booking):
@@ -665,7 +666,7 @@ class TestBookingServiceUnit:
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
         with pytest.raises(BusinessRuleException, match="Booking cannot be cancelled"):
-            await booking_service.cancel_booking(1, mock_student)
+            await asyncio.to_thread(booking_service.cancel_booking, 1, mock_student)
 
     def test_get_bookings_for_student(self, booking_service, mock_student, mock_booking):
         """Test retrieving bookings for a student."""
@@ -815,7 +816,7 @@ class TestBookingServiceUnit:
         with patch("app.core.timezone_utils.get_user_today_by_id") as mock_get_today:
             mock_get_today.return_value = date.today()
 
-            count = await booking_service.send_booking_reminders()
+            count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
             assert count == 1
             # Note: The actual call is to _send_booking_reminders, not send_reminder_emails
@@ -843,7 +844,7 @@ class TestBookingServiceUnit:
         with patch("app.core.timezone_utils.get_user_today_by_id") as mock_get_today:
             mock_get_today.return_value = date.today()
 
-            count = await booking_service.send_booking_reminders()
+            count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
             assert count == 1  # Only one succeeded
 

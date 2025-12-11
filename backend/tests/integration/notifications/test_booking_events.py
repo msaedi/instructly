@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 import os
@@ -88,7 +89,7 @@ async def _create_booking(
         student_note="Integration test",
     )
 
-    booking = await booking_service.create_booking(
+    booking = await asyncio.to_thread(booking_service.create_booking,
         student, booking_data, selected_duration=duration_minutes
     )
     return booking
@@ -149,7 +150,7 @@ async def test_booking_cancel_event_retries_then_succeeds(
     with patch.object(PricingService, "compute_booking_pricing", return_value=None):
         booking = await _create_booking(db, booking_service, test_student, test_instructor_with_availability)
 
-    await booking_service.cancel_booking(booking.id, test_student, reason="schedule conflict")
+    await asyncio.to_thread(booking_service.cancel_booking, booking.id, test_student, reason="schedule conflict")
 
     outbox_row = _latest_outbox(db, "booking.cancelled")
     assert outbox_row is not None

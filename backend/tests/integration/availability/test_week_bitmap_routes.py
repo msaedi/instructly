@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, time, timedelta, timezone
 from importlib import reload
 from typing import Dict, List, Tuple
@@ -267,7 +268,7 @@ async def test_midnight_window_round_trip(
     assert body[monday.isoformat()] == [{"start_time": "23:30:00", "end_time": "00:00:00"}]
 
     booking_service = BookingService(db)
-    windows = await booking_service._get_instructor_availability_windows(
+    windows = await asyncio.to_thread(booking_service._get_instructor_availability_windows,
         test_instructor.id,
         monday,
         time(0, 0),

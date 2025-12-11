@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, time, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -58,7 +59,7 @@ async def test_booking_audit_flow(
     db.commit()
 
     with patch("app.services.booking_service.PricingService.compute_booking_pricing", return_value=None):
-        booking = await booking_service.create_booking(
+        booking = await asyncio.to_thread(booking_service.create_booking,
             student=test_student,
             booking_data=booking_payload,
             selected_duration=30,
@@ -70,7 +71,7 @@ async def test_booking_audit_flow(
         BookingUpdate(instructor_note="Bring materials"),
     )
 
-    await booking_service.cancel_booking(booking.id, test_student, reason="Scheduling conflict")
+    await asyncio.to_thread(booking_service.cancel_booking, booking.id, test_student, reason="Scheduling conflict")
 
     params = {"entity_type": "booking", "entity_id": booking.id}
     response = client.get("/api/v1/admin/audit", params=params, headers=auth_headers_admin)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, time, timezone
 from types import SimpleNamespace
 
@@ -106,7 +107,7 @@ async def test_booking_blocked_for_unverified_in_production(monkeypatch, db):
     )
 
     with pytest.raises(BusinessRuleException):
-        await booking_service._validate_booking_prerequisites(student, booking_data)
+        await asyncio.to_thread(booking_service._validate_booking_prerequisites, student, booking_data)
 
 
 @pytest.mark.asyncio
@@ -147,5 +148,5 @@ async def test_booking_allows_unverified_in_non_production(monkeypatch, db):
         selected_duration=30,
     )
 
-    service, profile = await booking_service._validate_booking_prerequisites(student, booking_data)
+    service, profile = await asyncio.to_thread(booking_service._validate_booking_prerequisites, student, booking_data)
     assert service.instructor_profile_id == profile.id

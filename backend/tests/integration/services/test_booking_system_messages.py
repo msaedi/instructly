@@ -6,6 +6,7 @@ Tests verify that system messages are automatically created in conversations
 when booking events occur: created, cancelled, rescheduled, completed.
 """
 
+import asyncio
 from datetime import date, time, timedelta
 from unittest.mock import Mock
 
@@ -77,7 +78,7 @@ class TestBookingSystemMessages:
             student_note="Test booking",
         )
 
-        booking = await booking_service.create_booking(
+        booking = await asyncio.to_thread(booking_service.create_booking,
             test_student, booking_data, selected_duration=60
         )
 
@@ -152,12 +153,12 @@ class TestBookingSystemMessages:
             student_note="Test booking for cancellation",
         )
 
-        booking = await booking_service.create_booking(
+        booking = await asyncio.to_thread(booking_service.create_booking,
             test_student, booking_data, selected_duration=60
         )
 
         # Cancel the booking
-        await booking_service.cancel_booking(
+        await asyncio.to_thread(booking_service.cancel_booking,
             booking.id, test_student, reason="Test cancellation"
         )
 
@@ -298,7 +299,7 @@ class TestBookingSystemMessages:
                 student_note=f"Booking for day {days_ahead}",
             )
 
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 test_student, booking_data, selected_duration=60
             )
 

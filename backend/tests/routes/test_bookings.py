@@ -17,7 +17,7 @@ TEST FAILURE ANALYSIS - test_bookings.py
 """
 
 from datetime import date, datetime, time, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from fastapi import status
 import pytest
@@ -73,7 +73,7 @@ class TestBookingRoutes:
 
     @pytest.fixture
     def mock_booking_service(self):
-        """Create mock booking service."""
+        """Create mock booking service (sync service methods)."""
         from app.services.booking_service import BookingService
 
         mock_service = MagicMock(spec=BookingService)
@@ -81,23 +81,16 @@ class TestBookingRoutes:
         # Mock the db attribute (needed by reschedule endpoint to instantiate payment services)
         mock_service.db = MagicMock()
 
-        # Mock common methods - Create async methods that return synchronously
-        async def async_create_booking(*args, **kwargs):
-            # This will be replaced per test
-            return None
-
-        async def async_cancel_booking(*args, **kwargs):
-            return None
-
-        mock_service.create_booking_with_payment_setup = AsyncMock()
-        mock_service.create_booking = AsyncMock()
+        # Core service methods are synchronous; configure return values per test
+        mock_service.create_booking_with_payment_setup = Mock()
+        mock_service.create_booking = Mock()
         mock_service.get_booking_for_user = Mock()
         mock_service.get_bookings_for_user = Mock()
-        mock_service.cancel_booking = AsyncMock()
+        mock_service.cancel_booking = Mock()
         mock_service.complete_booking = Mock()
-        mock_service.check_availability = AsyncMock()
+        mock_service.check_availability = Mock()
         mock_service.get_booking_stats_for_instructor = Mock()
-        mock_service.send_booking_reminders = AsyncMock()
+        mock_service.send_booking_reminders = Mock()
         mock_service.update_booking = Mock()
 
         return mock_service
@@ -918,10 +911,10 @@ class TestBookingRoutes:
         # BusinessRuleException should be handled by handle_domain_exception
         from app.core.exceptions import BusinessRuleException
 
-        async def mock_cancel(*args, **kwargs):
+        def mock_cancel(*args, **kwargs):
             raise BusinessRuleException("Booking cannot be cancelled - current status: CANCELLED")
 
-        mock_booking_service.cancel_booking = AsyncMock(side_effect=mock_cancel)
+        mock_booking_service.cancel_booking = MagicMock(side_effect=mock_cancel)
 
         response = client_with_mock_booking_service.post(
             "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/cancel", json={"reason": "Already cancelled"}, headers=auth_headers_student
@@ -984,7 +977,7 @@ class TestBookingRoutes:
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # send_booking_reminders is async
-        mock_booking_service.send_booking_reminders = AsyncMock(return_value=5)
+        mock_booking_service.send_booking_reminders = MagicMock(return_value=5)
 
         response = client_with_mock_booking_service.post("/api/v1/bookings/send-reminders", headers=admin_headers)
 
@@ -1254,7 +1247,7 @@ class TestBookingRoutes:
         new_booking.instructor_service = original.instructor_service
 
         # Mock availability check to return available
-        mock_booking_service.check_availability = AsyncMock(return_value={"available": True})
+        mock_booking_service.check_availability = MagicMock(return_value={"available": True})
 
         # Mock service method for student conflict check (no conflict)
         mock_booking_service.check_student_time_conflict = MagicMock(return_value=False)
@@ -1262,9 +1255,9 @@ class TestBookingRoutes:
         # Mock service method for payment method validation
         mock_booking_service.validate_reschedule_payment_method = MagicMock(return_value=(True, "pm_test123"))
 
-        mock_booking_service.cancel_booking = AsyncMock()
-        mock_booking_service.create_booking_with_payment_setup = AsyncMock(return_value=new_booking)
-        mock_booking_service.confirm_booking_payment = AsyncMock(return_value=new_booking)
+        mock_booking_service.cancel_booking = MagicMock()
+        mock_booking_service.create_booking_with_payment_setup = MagicMock(return_value=new_booking)
+        mock_booking_service.confirm_booking_payment = MagicMock(return_value=new_booking)
 
         # Execute
         payload = {
@@ -1283,21 +1276,25 @@ class TestBookingRoutes:
         assert data["status"] == BookingStatus.CONFIRMED.value
 
         # Cancel called with reason 'Rescheduled'
-        mock_booking_service.cancel_booking.assert_awaited_once()
+        mock_booking_service.cancel_booking.assert_called_once()
         args, kwargs = mock_booking_service.cancel_booking.call_args
-        assert kwargs.get("reason") == "Rescheduled"
+        # Called positionally via asyncio.to_thread(service.cancel_booking, booking_id, user, "Rescheduled")
+        assert args[2] == "Rescheduled"
 
         # create_booking_with_payment_setup called with carried fields and default service id
-        mock_booking_service.create_booking_with_payment_setup.assert_awaited_once()
-        _, kwargs = mock_booking_service.create_booking_with_payment_setup.call_args
-        booking_data = kwargs.get("booking_data")
+        mock_booking_service.create_booking_with_payment_setup.assert_called_once()
+        args, kwargs = mock_booking_service.create_booking_with_payment_setup.call_args
+        booking_data = args[1] if len(args) > 1 else kwargs.get("booking_data")
         assert booking_data is not None
         assert booking_data.instructor_service_id == original.instructor_service_id
         assert booking_data.meeting_location == original.meeting_location
         assert booking_data.location_type == original.location_type
         assert booking_data.student_note == original.student_note
         # And linkage is passed for persistence
-        assert kwargs.get("rescheduled_from_booking_id") == original_id
+        if len(args) > 3:
+            assert args[3] == original_id
+        else:
+            assert kwargs.get("rescheduled_from_booking_id") == original_id
 
         # Ensure call order: cancel before create
         method_names = [m[0] for m in mock_booking_service.method_calls]
@@ -1359,7 +1356,7 @@ class TestBookingRoutes:
         mock_booking_service.get_booking_for_user.return_value = original
 
         # Mock availability check to return available
-        mock_booking_service.check_availability = AsyncMock(return_value={"available": True})
+        mock_booking_service.check_availability = MagicMock(return_value={"available": True})
 
         # Mock service method for student conflict check (no conflict)
         mock_booking_service.check_student_time_conflict = MagicMock(return_value=False)
@@ -1370,14 +1367,14 @@ class TestBookingRoutes:
         # Mock create and confirm to succeed
         new_booking = Mock()
         new_booking.id = generate_ulid()
-        mock_booking_service.create_booking_with_payment_setup = AsyncMock(return_value=new_booking)
-        mock_booking_service.confirm_booking_payment = AsyncMock(return_value=new_booking)
+        mock_booking_service.create_booking_with_payment_setup = MagicMock(return_value=new_booking)
+        mock_booking_service.confirm_booking_payment = MagicMock(return_value=new_booking)
 
         # Cancel raises business rule exception
-        async def cancel_raise(*args, **kwargs):
+        def cancel_raise(*args, **kwargs):
             raise BusinessRuleException("Late reschedule not allowed")
 
-        mock_booking_service.cancel_booking = AsyncMock(side_effect=cancel_raise)
+        mock_booking_service.cancel_booking = MagicMock(side_effect=cancel_raise)
 
         payload = {
             "booking_date": (date.today() + timedelta(days=1)).isoformat(),

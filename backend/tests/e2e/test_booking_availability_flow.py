@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import time
 from typing import Dict, List, Tuple
 
@@ -130,7 +131,7 @@ async def test_booking_availability_flow(monkeypatch, db: Session, test_instruct
     booking_two.payment_status = "captured"
     db.commit()
 
-    cancelled_booking = await booking_service.cancel_booking(booking_two.id, student)
+    cancelled_booking = await asyncio.to_thread(booking_service.cancel_booking, booking_two.id, student)
     assert cancelled_booking.status == BookingStatus.CANCELLED
 
     db.expire_all()
@@ -151,7 +152,7 @@ async def test_booking_availability_flow(monkeypatch, db: Session, test_instruct
     )
 
     with pytest.raises(BookingConflictException) as conflict:
-        await booking_service.create_booking(student, overlapping_request, selected_duration=duration)
+        await asyncio.to_thread(booking_service.create_booking, student, overlapping_request, selected_duration=duration)
 
     assert conflict.value.message == INSTRUCTOR_CONFLICT_MESSAGE
 
