@@ -31,6 +31,7 @@ Router Endpoints:
     DELETE /blackout-dates/{id} - Remove a blackout date
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 from email.utils import format_datetime
 from functools import wraps
@@ -741,8 +742,10 @@ async def validate_week_changes(
     verify_instructor(current_user)
 
     try:
-        result = await bulk_operation_service.validate_week_changes(
-            instructor_id=current_user.id, validation_data=validation_data
+        result = await asyncio.to_thread(
+            bulk_operation_service.validate_week_changes,
+            instructor_id=current_user.id,
+            validation_data=validation_data,
         )
         return WeekValidationResponse(**result)
     except DomainException as e:

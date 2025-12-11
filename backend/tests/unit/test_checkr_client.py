@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from httpx import MockTransport, Response
-import pytest
 
 from app.integrations.checkr_client import CheckrClient
 
 
-@pytest.mark.asyncio
-async def test_create_candidate_includes_idempotency_header():
+def test_create_candidate_includes_idempotency_header():
     captured: dict[str, str | None] = {}
 
     def handler(request):
@@ -19,13 +17,12 @@ async def test_create_candidate_includes_idempotency_header():
         base_url="https://api.checkr.com/v1",
         transport=MockTransport(handler),
     )
-    await client.create_candidate(idempotency_key="candidate-123", first_name="Test")
+    client.create_candidate(idempotency_key="candidate-123", first_name="Test")
 
     assert captured["Idempotency-Key"] == "candidate-123"
 
 
-@pytest.mark.asyncio
-async def test_create_candidate_omits_idempotency_header_without_key():
+def test_create_candidate_omits_idempotency_header_without_key():
     captured: dict[str, str | None] = {}
 
     def handler(request):
@@ -37,6 +34,6 @@ async def test_create_candidate_omits_idempotency_header_without_key():
         base_url="https://api.checkr.com/v1",
         transport=MockTransport(handler),
     )
-    await client.create_candidate(first_name="Test")
+    client.create_candidate(first_name="Test")
 
     assert captured["Idempotency-Key"] is None

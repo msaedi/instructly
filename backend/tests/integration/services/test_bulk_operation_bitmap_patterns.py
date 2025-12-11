@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from datetime import date, time, timedelta
 
-import pytest
 from sqlalchemy.orm import Session
 
 from app.models.user import User
@@ -36,8 +35,7 @@ class TestBulkOperationBitmapPatterns:
         assert error is not None
         assert "past date" in error.lower()
 
-    @pytest.mark.asyncio
-    async def test_validate_remove_operation_detects_existing_window(
+    def test_validate_remove_operation_detects_existing_window(
         self, db: Session, test_instructor_with_availability: User
     ) -> None:
         """_validate_remove_operation confirms bitmap windows exist."""
@@ -57,7 +55,7 @@ class TestBulkOperationBitmapPatterns:
             end_time=string_to_time(end),
         )
 
-        slot, error = await service._validate_remove_operation(instructor_id, operation)
+        slot, error = service._validate_remove_operation(instructor_id, operation)
         assert error is None
         assert slot is not None
 

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, Optional, TypedDict, cast
+from urllib.parse import quote
 
+import httpx
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -14,8 +15,6 @@ from ..core.exceptions import NotFoundException, ServiceException
 from ..integrations.checkr_client import CheckrClient, CheckrError
 from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas.bgc import BackgroundCheckStatusLiteral
-from ..services.geocoding.base import GeocodingProviderError
-from ..services.geocoding.factory import create_geocoding_provider
 from .base import BaseService
 
 
@@ -107,23 +106,7 @@ class BackgroundCheckService(BaseService):
         self.config_error = config_error
 
     @BaseService.measure_operation("bgc.invite")
-    async def invite(
-        self, instructor_id: str, *, package_override: str | None = None
-    ) -> InviteResult:
-        """Create a Checkr candidate and hosted invitation for an instructor without blocking the main loop."""
-        return await asyncio.to_thread(
-            self._invite_blocking, instructor_id, package_override=package_override
-        )
-
-    def _invite_blocking(
-        self, instructor_id: str, *, package_override: str | None = None
-    ) -> InviteResult:
-        """Run the invite workflow in a worker thread."""
-        return asyncio.run(self._invite_async(instructor_id, package_override=package_override))
-
-    async def _invite_async(
-        self, instructor_id: str, *, package_override: str | None = None
-    ) -> InviteResult:
+    def invite(self, instructor_id: str, *, package_override: str | None = None) -> InviteResult:
         """Create a Checkr candidate and hosted invitation for an instructor."""
 
         profile = self.repository.get_by_id(instructor_id, load_relationships=True)
@@ -146,7 +129,7 @@ class BackgroundCheckService(BaseService):
                 details={"instructor_id": instructor_id},
             )
         normalized_zip = self._normalize_zip(zip_code_value)
-        work_location = await self._resolve_work_location(normalized_zip)
+        work_location = self._resolve_work_location(normalized_zip)
 
         candidate_payload: Dict[str, Any] = {
             "first_name": user.first_name,
@@ -176,7 +159,7 @@ class BackgroundCheckService(BaseService):
         # Deterministic key avoids duplicate candidates if we retry within 24 hours.
 
         try:
-            candidate = await self.client.create_candidate(
+            candidate = self.client.create_candidate(
                 idempotency_key=idempotency_key,
                 **candidate_payload,
             )
@@ -204,7 +187,7 @@ class BackgroundCheckService(BaseService):
                     "workflow": workflow_value,
                 },
             )
-            invitation = await self.client.create_invitation(**invite_kwargs)
+            invitation = self.client.create_invitation(**invite_kwargs)
         except CheckrError as exc:
             details = {"status_code": exc.status_code} if exc.status_code else {}
             raise ServiceException(
@@ -273,35 +256,43 @@ class BackgroundCheckService(BaseService):
             details={"zip_code": zip_code, "reason": "invalid_format"},
         )
 
-    async def _resolve_work_location(self, zip_code: str) -> dict[str, str]:
-        provider = create_geocoding_provider()
-        provider_name = getattr(provider, "provider_name", provider.__class__.__name__.lower())
-        try:
-            geocoded = await provider.geocode(zip_code)
-        except GeocodingProviderError as exc:
+    def _resolve_work_location(self, zip_code: str) -> dict[str, str]:
+        provider_name = "mapbox"
+        token = getattr(settings, "mapbox_access_token", None)
+        if not token:
             raise ServiceException(
-                "Geocoding provider unavailable",
-                code="geocoding_provider_error",
+                "Unable to resolve work location",
+                code="invalid_work_location",
                 details={
                     "zip_code": zip_code,
-                    "provider": exc.provider or provider_name,
-                    "provider_status": exc.status,
-                    "error_message": exc.error_message,
+                    "reason": "missing_mapbox_token",
+                    "provider": provider_name,
                 },
-            ) from exc
-        except Exception as exc:  # pragma: no cover - provider failures
+            )
+
+        encoded_zip = quote(zip_code, safe="")
+        try:
+            resp = httpx.get(
+                f"https://api.mapbox.com/geocoding/v5/mapbox.places/{encoded_zip}.json",
+                params={"access_token": token, "types": "address,place,postcode"},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
             raise ServiceException(
                 "Geocoding provider unavailable",
                 code="geocoding_provider_error",
                 details={
                     "zip_code": zip_code,
                     "provider": provider_name,
-                    "provider_status": None,
+                    "provider_status": getattr(getattr(exc, "response", None), "status_code", None),
                     "error_message": str(exc),
                 },
             ) from exc
 
-        if geocoded is None:
+        features = data.get("features") if isinstance(data, dict) else None
+        if not features:
             raise ServiceException(
                 "Unable to resolve work location",
                 code="invalid_work_location",
@@ -312,9 +303,26 @@ class BackgroundCheckService(BaseService):
                 },
             )
 
-        state_value = self._normalize_state(getattr(geocoded, "state", None))
-        city_value = (getattr(geocoded, "city", None) or "").strip()
-        country_value = (getattr(geocoded, "country", None) or "US").strip().upper()
+        feature = features[0] or {}
+        context = feature.get("context") or []
+
+        def _find(prefix: str) -> dict[str, Any] | None:
+            for entry in context:
+                if isinstance(entry, dict) and str(entry.get("id", "")).startswith(prefix):
+                    return entry
+            return None
+
+        city_value = (feature.get("text", "") or "").strip()
+        place_entry = _find("place")
+        if place_entry:
+            city_value = (place_entry.get("text", "") or city_value).strip()
+
+        region_entry = _find("region")
+        country_entry = _find("country")
+        state_value = self._normalize_state((region_entry or {}).get("text"))
+        country_value = (
+            (country_entry or {}).get("short_code") or (country_entry or {}).get("text") or "US"
+        ).strip()
         if len(country_value) > 3:
             country_value = "US"
 

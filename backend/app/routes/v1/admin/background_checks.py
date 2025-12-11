@@ -677,8 +677,8 @@ async def resolve_bgc_dispute(
     note = payload.get("note") if isinstance(payload, dict) else None
     workflow = BackgroundCheckWorkflowService(repo)
     try:
-        resumed, scheduled_for = await workflow.resolve_dispute_and_resume_final_adverse(
-            instructor_id, note=note
+        resumed, scheduled_for = await asyncio.to_thread(
+            workflow.resolve_dispute_and_resume_final_adverse, instructor_id, note=note
         )
         repo.commit()
     except RepositoryException as exc:

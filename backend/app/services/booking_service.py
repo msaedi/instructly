@@ -15,7 +15,6 @@ All methods now under 50 lines with comprehensive observability! ⚡
 
 from __future__ import annotations
 
-import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 import logging
 import os
@@ -36,6 +35,7 @@ from ..core.exceptions import (
     RepositoryException,
     ValidationException,
 )
+from ..events import BookingCancelled, BookingCreated, BookingReminder, EventPublisher
 from ..models.audit_log import AuditLog
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
@@ -43,6 +43,7 @@ from ..models.service_catalog import InstructorService
 from ..models.user import User
 from ..repositories.availability_day_repository import AvailabilityDayRepository
 from ..repositories.factory import RepositoryFactory
+from ..repositories.job_repository import JobRepository
 from ..schemas.booking import BookingCreate, BookingUpdate
 from .audit_redaction import redact
 from .base import BaseService
@@ -87,11 +88,13 @@ class BookingService(BaseService):
     notification_service: NotificationService
     event_outbox_repository: "EventOutboxRepository"
     audit_repository: "AuditRepository"
+    event_publisher: EventPublisher
 
     def __init__(
         self,
         db: Session,
         notification_service: Optional[NotificationService] = None,
+        event_publisher: Optional[EventPublisher] = None,
         repository: Optional["BookingRepository"] = None,
         conflict_checker_repository: Optional["ConflictCheckerRepository"] = None,
         cache_service: Optional["CacheService"] = None,
@@ -103,6 +106,7 @@ class BookingService(BaseService):
         Args:
             db: Database session
             notification_service: Optional notification service instance
+            event_publisher: Optional event publisher for async side effects
             repository: Optional BookingRepository instance
             conflict_checker_repository: Optional ConflictCheckerRepository instance
             cache_service: Optional cache service for invalidation
@@ -110,6 +114,7 @@ class BookingService(BaseService):
         """
         super().__init__(db, cache=cache_service)
         self.notification_service = notification_service or NotificationService(db)
+        self.event_publisher = event_publisher or EventPublisher(JobRepository(db))
         self.system_message_service = system_message_service or SystemMessageService(db)
         # Pass cache_service to BookingRepository for caching support
         if repository:
@@ -1062,24 +1067,23 @@ class BookingService(BaseService):
                 default_role=default_role,
             )
 
-        # Send notifications
+        cancelled_by_role = "student" if user.id == booking.student_id else "instructor"
+
+        # Publish cancellation event
         try:
-            asyncio.run(
-                self.notification_service.send_cancellation_notification(
-                    booking=booking, cancelled_by=user, reason=reason
+            self.event_publisher.publish(
+                BookingCancelled(
+                    booking_id=booking.id,
+                    cancelled_by=cancelled_by_role,
+                    cancelled_at=booking.cancelled_at or datetime.now(timezone.utc),
+                    refund_amount=None,
                 )
             )
         except Exception as e:
-            logger.error(f"Failed to send cancellation notification: {str(e)}")
+            logger.error(f"Failed to send cancellation notification event: {str(e)}")
 
         # Create system message in conversation
         try:
-            cancelled_by_role = None
-            if user.id == booking.student_id:
-                cancelled_by_role = "student"
-            elif user.id == booking.instructor_id:
-                cancelled_by_role = "instructor"
-
             self.system_message_service.create_booking_cancelled_message(
                 student_id=booking.student_id,
                 instructor_id=booking.instructor_id,
@@ -1747,13 +1751,16 @@ class BookingService(BaseService):
             ):
                 continue
             try:
-                # Send reminder for this specific booking
-                reminder_count = asyncio.run(
-                    self.notification_service._send_booking_reminders([booking])
+                # Queue reminder event for this specific booking
+                self.event_publisher.publish(
+                    BookingReminder(
+                        booking_id=booking.id,
+                        reminder_type="24h",
+                    )
                 )
-                sent_count += reminder_count
+                sent_count += 1
             except Exception as e:
-                logger.error(f"Error sending reminder for booking {booking.id}: {str(e)}")
+                logger.error(f"Error queueing reminder for booking {booking.id}: {str(e)}")
 
         return sent_count
 
@@ -2018,11 +2025,18 @@ class BookingService(BaseService):
             is_reschedule: Whether this is a rescheduled booking
             old_booking: The original booking if this is a reschedule
         """
-        # Send notifications
+        # Publish async notification event
         try:
-            asyncio.run(self.notification_service.send_booking_confirmation(booking))
+            self.event_publisher.publish(
+                BookingCreated(
+                    booking_id=booking.id,
+                    student_id=booking.student_id,
+                    instructor_id=booking.instructor_id,
+                    created_at=booking.created_at or datetime.now(timezone.utc),
+                )
+            )
         except Exception as e:
-            logger.error(f"Failed to send booking confirmation: {str(e)}")
+            logger.error(f"Failed to enqueue booking confirmation event: {str(e)}")
 
         # Create system message in conversation
         try:

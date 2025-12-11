@@ -15,13 +15,14 @@ UPDATED FOR WORK STREAM #9: Layer independence - time-based booking.
 import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 import logging
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessRuleException, NotFoundException, ValidationException
 from app.core.ulid_helper import generate_ulid
+from app.events import BookingCreated, BookingReminder
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
@@ -83,7 +84,7 @@ class TestBookingServiceErrorHandling:
         start_time = dt_time.fromisoformat(start_str)
         end_time = dt_time.fromisoformat(end_str)
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         # FIXED: Use time-based booking (Work Stream #9)
         booking_data = BookingCreate(
@@ -104,17 +105,18 @@ class TestBookingServiceErrorHandling:
 
         assert booking.id is not None
         assert booking.status == BookingStatus.CONFIRMED
-        mock_notification_service.send_booking_confirmation.assert_called_once()
+        published_event = booking_service.event_publisher.publish.call_args[0][0]
+        assert isinstance(published_event, BookingCreated)
+        assert published_event.booking_id == booking.id
 
     @pytest.mark.asyncio
     async def test_cancel_booking_notification_failure(
         self, db: Session, test_booking: Booking, test_student: User, mock_notification_service: Mock, caplog
     ):
-        """Test booking cancellation succeeds even if notification fails."""
-        # Setup notification to fail
-        mock_notification_service.send_cancellation_notification.side_effect = Exception("Email service down")
+        """Test booking cancellation succeeds even if event publishing fails."""
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
+        booking_service.event_publisher.publish.side_effect = Exception("Email service down")
 
         with caplog.at_level(logging.ERROR):
             cancelled_booking = await asyncio.to_thread(booking_service.cancel_booking,
@@ -123,8 +125,8 @@ class TestBookingServiceErrorHandling:
 
         # Booking should still be cancelled
         assert cancelled_booking.status == BookingStatus.CANCELLED
-        assert "Failed to send cancellation notification" in caplog.text
-        mock_notification_service.send_cancellation_notification.assert_called_once()
+        assert "Failed to send cancellation notification event" in caplog.text
+        booking_service.event_publisher.publish.assert_called()
 
 
 class TestBookingServiceQueryVariations:
@@ -162,7 +164,7 @@ class TestBookingServiceQueryVariations:
         db.add(cancelled_booking)
         db.commit()
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         # Get only cancelled bookings
         cancelled_bookings = booking_service.get_bookings_for_user(test_student, status=BookingStatus.CANCELLED)
@@ -203,7 +205,7 @@ class TestBookingServiceQueryVariations:
             db.add(booking)
         db.commit()
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         # Get only 3 bookings
         limited_bookings = booking_service.get_bookings_for_user(test_student, limit=3)
@@ -216,7 +218,7 @@ class TestBookingServiceStatisticsEdgeCases:
 
     def test_booking_stats_no_bookings(self, db: Session, test_instructor: User, mock_notification_service: Mock):
         """Test statistics when instructor has no bookings."""
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
         stats = booking_service.get_booking_stats_for_instructor(test_instructor.id)
 
         assert stats["total_bookings"] == 0
@@ -261,7 +263,7 @@ class TestBookingServiceStatisticsEdgeCases:
         db.add(completed_booking)
         db.commit()
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
         stats = booking_service.get_booking_stats_for_instructor(test_instructor_with_availability.id)
 
         assert stats["completed_bookings"] >= 1
@@ -275,7 +277,7 @@ class TestBookingServiceUpdateEdgeCases:
 
     def test_update_booking_not_found(self, db: Session, test_instructor: User, mock_notification_service: Mock):
         """Test updating non-existent booking."""
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
         update_data = BookingUpdate(instructor_note="Test note")
 
         with pytest.raises(NotFoundException, match="Booking not found"):
@@ -291,7 +293,7 @@ class TestBookingServiceUpdateEdgeCases:
         mock_notification_service: Mock,
     ):
         """Test updating meeting location."""
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         new_location = "123 Main St, Room 202"
         update_data = BookingUpdate(meeting_location=new_location)
@@ -307,7 +309,7 @@ class TestBookingServiceCompleteEdgeCases:
 
     def test_complete_booking_not_found(self, db: Session, test_instructor: User, mock_notification_service: Mock):
         """Test completing non-existent booking."""
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         with pytest.raises(NotFoundException, match="Booking not found"):
             booking_service.complete_booking(booking_id=generate_ulid(), instructor=test_instructor)  # Non-existent ID
@@ -329,7 +331,7 @@ class TestBookingServiceCompleteEdgeCases:
         db.add(another_instructor)
         db.commit()
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         with pytest.raises(ValidationException, match="Only instructors can mark bookings as complete"):
             booking_service.complete_booking(
@@ -348,7 +350,7 @@ class TestBookingServiceCompleteEdgeCases:
         test_booking.status = BookingStatus.CANCELLED
         db.commit()
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         with pytest.raises(BusinessRuleException, match="Only confirmed bookings can be completed"):
             booking_service.complete_booking(booking_id=test_booking.id, instructor=test_instructor_with_availability)
@@ -359,7 +361,7 @@ class TestBookingServiceNoShowEdgeCases:
 
     def test_mark_no_show_not_found(self, db: Session, test_instructor: User, mock_notification_service: Mock):
         """Test marking non-existent booking as no-show."""
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         with pytest.raises(NotFoundException, match="Booking not found"):
             booking_service.mark_no_show(booking_id=generate_ulid(), instructor=test_instructor)  # Non-existent ID
@@ -382,7 +384,7 @@ class TestBookingServiceNoShowEdgeCases:
         db.add(another_user)
         db.commit()
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         with pytest.raises(ValidationException, match="Only instructors can mark bookings as no-show"):
             booking_service.mark_no_show(
@@ -401,7 +403,7 @@ class TestBookingServiceNoShowEdgeCases:
         test_booking.status = BookingStatus.COMPLETED
         db.commit()
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         with pytest.raises(BusinessRuleException, match="Only confirmed bookings can be marked as no-show"):
             booking_service.mark_no_show(booking_id=test_booking.id, instructor=test_instructor_with_availability)
@@ -418,7 +420,7 @@ class TestBookingServiceNoShowEdgeCases:
         test_booking.status = BookingStatus.CANCELLED
         db.commit()
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         with pytest.raises(BusinessRuleException, match="Only confirmed bookings can be marked as no-show"):
             booking_service.mark_no_show(booking_id=test_booking.id, instructor=test_instructor_with_availability)
@@ -430,7 +432,7 @@ class TestBookingServiceAvailabilityEdgeCases:
     @pytest.mark.asyncio
     async def test_check_availability_slot_not_found(self, db: Session, mock_notification_service: Mock):
         """Test checking availability for non-existent time slot."""
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         # FIXED: Use time-based check_availability method
         result = await asyncio.to_thread(booking_service.check_availability,
@@ -462,7 +464,7 @@ class TestBookingServiceAvailabilityEdgeCases:
         start_time = dt_time.fromisoformat(start_str) if windows else time(9, 0)
         end_time = dt_time.fromisoformat(end_str) if windows else time(10, 0)
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         # FIXED: Use time-based check_availability method
         result = await asyncio.to_thread(booking_service.check_availability,
@@ -493,15 +495,14 @@ class TestBookingServiceReminders:
         test_booking.status = BookingStatus.CONFIRMED
         db.commit()
 
-        booking_service = BookingService(db, mock_notification_service)
-
-        # Mock the notification service to succeed
-        mock_notification_service._send_booking_reminders = AsyncMock(return_value=1)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
         assert count >= 1
-        mock_notification_service._send_booking_reminders.assert_called()
+        assert booking_service.event_publisher.publish.call_count == count
+        last_event = booking_service.event_publisher.publish.call_args[0][0]
+        assert isinstance(last_event, BookingReminder)
 
     @pytest.mark.asyncio
     async def test_send_booking_reminders_with_failures(
@@ -550,17 +551,15 @@ class TestBookingServiceReminders:
         db.add(another_booking)
         db.commit()
 
-        # Make reminder sending fail for all
-        mock_notification_service._send_booking_reminders = AsyncMock(side_effect=Exception("Email service error"))
-
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
+        booking_service.event_publisher.publish.side_effect = [Exception("Email service error"), Exception("Email service error")]
 
         with caplog.at_level(logging.ERROR):
             count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
         # Should return 0 since all failed
         assert count == 0
-        assert "Error sending reminder for booking" in caplog.text
+        assert "Error queueing reminder" in caplog.text or "Error queueing reminder for booking" in caplog.text
 
     @pytest.mark.asyncio
     async def test_send_booking_reminders_no_bookings_tomorrow(self, db: Session, mock_notification_service: Mock):
@@ -574,7 +573,7 @@ class TestBookingServiceReminders:
             booking.status = BookingStatus.CANCELLED
         db.commit()
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
         count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
         assert count == 0
@@ -705,7 +704,7 @@ class TestStudentDoubleBookingPrevention:
             test_instructor_with_availability.id, week_payload_first
         )
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         # First booking: Math lesson 10:00-11:00 AM
         # Ensure availability exists for first instructor
@@ -855,7 +854,7 @@ class TestStudentDoubleBookingPrevention:
 
         db.expire_all()
 
-        booking_service = BookingService(db, mock_notification_service)
+        booking_service = BookingService(db, mock_notification_service, event_publisher=Mock())
 
         # First booking: Math lesson 10:00-11:00 AM
         booking1_data = BookingCreate(
@@ -916,7 +915,7 @@ class TestStudentDoubleBookingPrevention:
 def mock_notification_service():
     """Create a mock notification service."""
     mock = Mock(spec=NotificationService)
-    mock.send_booking_confirmation = AsyncMock()
-    mock.send_cancellation_notification = AsyncMock()
-    mock.send_reminder_emails = AsyncMock()
+    mock.send_booking_confirmation = Mock()
+    mock.send_cancellation_notification = Mock()
+    mock.send_reminder_emails = Mock()
     return mock

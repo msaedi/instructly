@@ -7,6 +7,7 @@ Migrated from /api/instructors/{instructor_id}/bgc to /api/v1/instructors/{instr
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, cast
@@ -374,7 +375,8 @@ async def trigger_background_check_invite(
     )
 
     try:
-        invite_result = await background_check_service.invite(
+        invite_result = await asyncio.to_thread(
+            background_check_service.invite,
             instructor_id,
             package_override=payload.package_slug,
         )
@@ -664,7 +666,7 @@ async def trigger_background_check_recheck(
         )
 
     try:
-        invite_result = await background_check_service.invite(instructor_id)
+        invite_result = await asyncio.to_thread(background_check_service.invite, instructor_id)
     except ServiceException as exc:
         if exc.code == "invalid_work_location":
             details = exc.details if isinstance(exc.details, dict) else {}

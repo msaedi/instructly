@@ -14,7 +14,6 @@ Run with:
     pytest tests/routes/test_reminder_clean_architecture.py -v
 """
 
-import asyncio
 from datetime import date, time, timedelta
 from unittest.mock import MagicMock, Mock, patch
 
@@ -132,8 +131,7 @@ class TestReminderQueryLogic:
         db.commit()
         return booking
 
-    @pytest.mark.asyncio
-    async def test_send_reminder_emails_finds_tomorrow_bookings(self, db, tomorrow_booking):
+    def test_send_reminder_emails_finds_tomorrow_bookings(self, db, tomorrow_booking):
         """Test that reminder query correctly finds tomorrow's bookings."""
         from app.services.notification_service import NotificationService
 
@@ -142,7 +140,7 @@ class TestReminderQueryLogic:
         service.email_service.send_email = Mock(return_value={"id": "test"})
 
         # Call send_reminder_emails
-        count = await service.send_reminder_emails()
+        count = service.send_reminder_emails()
 
         # Should find the tomorrow booking
         assert count == 1
@@ -150,8 +148,7 @@ class TestReminderQueryLogic:
         # Should have sent 2 emails (student and instructor)
         assert service.email_service.send_email.call_count == 2
 
-    @pytest.mark.asyncio
-    async def test_reminder_query_uses_date_not_slots(self, db, monkeypatch):
+    def test_reminder_query_uses_date_not_slots(self, db, monkeypatch):
         """Verify reminder query uses booking_date, not slot references."""
         from app.services.notification_service import NotificationService
 
@@ -189,7 +186,7 @@ class TestReminderQueryLogic:
         monkeypatch.setattr(db, "query", mock_query)
 
         # Run the query
-        count = await service.send_reminder_emails()
+        count = service.send_reminder_emails()
         assert count == 0  # No bookings found
 
     def test_reminder_booking_date_calculation(self):
@@ -208,8 +205,7 @@ class TestReminderQueryLogic:
         # No slot calculations involved
         assert True  # Just confirming clean calculation
 
-    @pytest.mark.asyncio
-    async def test_reminder_handles_no_bookings_gracefully(self, db):
+    def test_reminder_handles_no_bookings_gracefully(self, db):
         """Test reminder system handles no bookings correctly."""
         from app.services.notification_service import NotificationService
 
@@ -217,14 +213,13 @@ class TestReminderQueryLogic:
         service.email_service.send_email = Mock()
 
         # With empty database, should return 0
-        count = await service.send_reminder_emails()
+        count = service.send_reminder_emails()
 
         assert count == 0
         # Should not try to send any emails
         assert service.email_service.send_email.call_count == 0
 
-    @pytest.mark.asyncio
-    async def test_reminder_only_sends_for_confirmed_bookings(self, db, test_student, test_instructor):
+    def test_reminder_only_sends_for_confirmed_bookings(self, db, test_student, test_instructor):
         """Test that only CONFIRMED bookings get reminders."""
         from app.services.notification_service import NotificationService
 
@@ -268,7 +263,7 @@ class TestReminderQueryLogic:
         service = NotificationService(db)
         service.email_service.send_email = Mock(return_value={"id": "test"})
 
-        count = await service.send_reminder_emails()
+        count = service.send_reminder_emails()
 
         # Should only send for the CONFIRMED booking
         assert count == 1
@@ -279,13 +274,12 @@ class TestReminderQueryLogic:
 class TestReminderIntegration:
     """Integration tests for reminder system."""
 
-    @pytest.mark.asyncio
-    async def test_full_reminder_flow_uses_clean_architecture(self, db, test_student, test_instructor):
+    def test_full_reminder_flow_uses_clean_architecture(self, db, test_student, test_instructor):
         """Test complete reminder flow from endpoint to email."""
         # Create tomorrow booking based on student's timezone
         from app.core.timezone_utils import get_user_today
+        from app.events import BookingReminder
         from app.services.booking_service import BookingService
-        from app.services.notification_service import NotificationService
 
         student_today = get_user_today(test_student)
         tomorrow = student_today + timedelta(days=1)
@@ -318,41 +312,15 @@ class TestReminderIntegration:
         db.commit()
 
         # Create services
-        notification_service = NotificationService(db)
-        notification_service.email_service.send_email = Mock(return_value={"id": "test"})
-
-        booking_service = BookingService(db)
-        booking_service.notification_service = notification_service
+        event_publisher = Mock()
+        booking_service = BookingService(db, event_publisher=event_publisher)
 
         # Call the booking service method (what the endpoint calls)
-        count = await asyncio.to_thread(booking_service.send_booking_reminders)
+        count = booking_service.send_booking_reminders()
 
         assert count == 1
 
-        # Verify emails were sent with clean data
-        assert notification_service.email_service.send_email.call_count == 2
-
-        # Check email content - FIXED: Now checking for actual values, not placeholders
-        for call in notification_service.email_service.send_email.call_args_list:
-            html_content = call.kwargs["html_content"]
-
-            # Should contain actual booking info (not placeholders!)
-            assert (
-                service.catalog_entry.name if service.catalog_entry else "Unknown Service"
-            ) in html_content  # The actual service name
-            assert "tomorrow" in html_content.lower()
-
-            # Check for actual formatted time (2:00 PM format)
-            assert "2:00 PM" in html_content or "14:00" in html_content
-
-            # Should contain actual names
-            assert test_student.first_name in html_content or test_instructor.first_name in html_content
-
-            # Should NOT contain slot references
-            assert "slot_id" not in html_content.lower()
-            assert "availability_slot" not in html_content.lower()
-
-            # Should NOT contain literal placeholders (the bug has been fixed!)
-            assert "{booking.service_name}" not in html_content
-            assert "{formatted_time}" not in html_content
-            assert "{booking." not in html_content  # No placeholders at all
+        event_publisher.publish.assert_called_once()
+        reminder_event = event_publisher.publish.call_args[0][0]
+        assert isinstance(reminder_event, BookingReminder)
+        assert reminder_event.booking_id == booking.id

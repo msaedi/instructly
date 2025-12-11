@@ -112,7 +112,7 @@ from app.core.config import settings
 settings.is_testing = True
 settings.rate_limit_enabled = False
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import MagicMock, Mock
 
 from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.exc import IntegrityError
@@ -1673,10 +1673,10 @@ def mock_notification_service(db: Session, template_service, email_service):
     service = NotificationService(db, None, template_service, email_service)
 
     # The email service is already mocked in the email_service fixture
-    # Also create async mocks for the main methods
-    service.send_booking_confirmation = AsyncMock(return_value=True)
-    service.send_cancellation_notification = AsyncMock(return_value=True)
-    service.send_reminder_emails = AsyncMock(return_value=0)
+    # Also create sync mocks for the main methods
+    service.send_booking_confirmation = MagicMock(return_value=True)
+    service.send_cancellation_notification = MagicMock(return_value=True)
+    service.send_reminder_emails = MagicMock(return_value=0)
 
     return service
 

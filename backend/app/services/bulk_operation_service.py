@@ -11,7 +11,6 @@ Handles bulk availability operations including:
 All operations work with bitmap storage in availability_days table.
 """
 
-import asyncio
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 import logging
@@ -80,23 +79,7 @@ class BulkOperationService(BaseService):
         self.slot_manager = slot_manager
 
     @BaseService.measure_operation("bulk_update")
-    async def process_bulk_update(
-        self, instructor_id: str, update_data: BulkUpdateRequest
-    ) -> Dict[str, Any]:
-        """
-        Public async wrapper that runs the blocking bulk update workflow in a worker thread.
-        """
-        return await asyncio.to_thread(
-            self._process_bulk_update_blocking, instructor_id, update_data
-        )
-
-    def _process_bulk_update_blocking(
-        self, instructor_id: str, update_data: BulkUpdateRequest
-    ) -> Dict[str, Any]:
-        """Execute bulk update workflow in a dedicated thread/event loop."""
-        return asyncio.run(self._process_bulk_update_async(instructor_id, update_data))
-
-    async def _process_bulk_update_async(
+    def process_bulk_update(
         self, instructor_id: str, update_data: BulkUpdateRequest
     ) -> Dict[str, Any]:
         """
@@ -119,12 +102,12 @@ class BulkOperationService(BaseService):
         )
 
         if update_data.validate_only:
-            return await self._validate_bulk_operations(instructor_id, update_data)
+            return self._validate_bulk_operations(instructor_id, update_data)
         else:
-            return await self._execute_bulk_operations(instructor_id, update_data)
+            return self._execute_bulk_operations(instructor_id, update_data)
 
     @BaseService.measure_operation("validate_bulk_operations")
-    async def _validate_bulk_operations(
+    def _validate_bulk_operations(
         self,
         instructor_id: str,
         update_data: BulkUpdateRequest,
@@ -141,7 +124,7 @@ class BulkOperationService(BaseService):
         """
         with self.transaction():
             # Process operations in validation mode
-            results, successful, failed = await self._process_operations(
+            results, successful, failed = self._process_operations(
                 instructor_id=instructor_id,
                 operations=update_data.operations,
                 validate_only=True,
@@ -159,7 +142,7 @@ class BulkOperationService(BaseService):
         return self._create_operation_summary(results, successful, failed, 0)
 
     @BaseService.measure_operation("execute_bulk_operations")
-    async def _execute_bulk_operations(
+    def _execute_bulk_operations(
         self,
         instructor_id: str,
         update_data: BulkUpdateRequest,
@@ -182,7 +165,7 @@ class BulkOperationService(BaseService):
         try:
             with self.transaction():
                 # Process operations
-                results, successful, failed = await self._process_operations(
+                results, successful, failed = self._process_operations(
                     instructor_id=instructor_id,
                     operations=update_data.operations,
                     validate_only=False,
@@ -200,12 +183,12 @@ class BulkOperationService(BaseService):
 
         # Invalidate cache after successful commit
         if successful > 0:
-            await self._invalidate_affected_cache(instructor_id, update_data.operations, results)
+            self._invalidate_affected_cache(instructor_id, update_data.operations, results)
 
         return self._create_operation_summary(results, successful, failed, 0)
 
     @BaseService.measure_operation("process_operations")
-    async def _process_operations(
+    def _process_operations(
         self,
         instructor_id: str,
         operations: List[SlotOperation],
@@ -228,7 +211,7 @@ class BulkOperationService(BaseService):
 
         for idx, operation in enumerate(operations):
             try:
-                result = await self._process_single_operation(
+                result = self._process_single_operation(
                     instructor_id=instructor_id,
                     operation=operation,
                     operation_index=idx,
@@ -259,7 +242,7 @@ class BulkOperationService(BaseService):
         return results, successful, failed
 
     @BaseService.measure_operation("invalidate_affected_cache")
-    async def _invalidate_affected_cache(
+    def _invalidate_affected_cache(
         self,
         instructor_id: str,
         operations: List[SlotOperation],
@@ -365,20 +348,7 @@ class BulkOperationService(BaseService):
         }
 
     @BaseService.measure_operation("validate_week")
-    async def validate_week_changes(
-        self, instructor_id: str, validation_data: ValidateWeekRequest
-    ) -> Dict[str, Any]:
-        """Run week validation in a worker thread to keep the event loop non-blocking."""
-        return await asyncio.to_thread(
-            self._validate_week_changes_blocking, instructor_id, validation_data
-        )
-
-    def _validate_week_changes_blocking(
-        self, instructor_id: str, validation_data: ValidateWeekRequest
-    ) -> Dict[str, Any]:
-        return asyncio.run(self._validate_week_changes_async(instructor_id, validation_data))
-
-    async def _validate_week_changes_async(
+    def validate_week_changes(
         self, instructor_id: str, validation_data: ValidateWeekRequest
     ) -> Dict[str, Any]:
         """
@@ -411,7 +381,7 @@ class BulkOperationService(BaseService):
         )
 
         # Validate each operation
-        validation_results = await self._validate_operations(
+        validation_results = self._validate_operations(
             instructor_id=instructor_id, operations=operations
         )
 
@@ -430,7 +400,7 @@ class BulkOperationService(BaseService):
 
     # Private helper methods
 
-    async def _process_single_operation(
+    def _process_single_operation(
         self,
         instructor_id: str,
         operation: SlotOperation,
@@ -439,21 +409,21 @@ class BulkOperationService(BaseService):
     ) -> OperationResult:
         """Process a single operation."""
         if operation.action == "add":
-            return await self._process_add_operation(
+            return self._process_add_operation(
                 instructor_id=instructor_id,
                 operation=operation,
                 operation_index=operation_index,
                 validate_only=validate_only,
             )
         elif operation.action == "remove":
-            return await self._process_remove_operation(
+            return self._process_remove_operation(
                 instructor_id=instructor_id,
                 operation=operation,
                 operation_index=operation_index,
                 validate_only=validate_only,
             )
         elif operation.action == "update":
-            return await self._process_update_operation(
+            return self._process_update_operation(
                 instructor_id=instructor_id,
                 operation=operation,
                 operation_index=operation_index,
@@ -516,7 +486,7 @@ class BulkOperationService(BaseService):
 
         return None
 
-    async def _check_add_operation_conflicts(
+    def _check_add_operation_conflicts(
         self, instructor_id: str, operation: SlotOperation
     ) -> Optional[str]:
         """Check for booking conflicts and blackout dates."""
@@ -545,7 +515,7 @@ class BulkOperationService(BaseService):
                 )
         return None
 
-    async def _create_slot_for_operation(
+    def _create_slot_for_operation(
         self, instructor_id: str, operation: SlotOperation, validate_only: bool
     ) -> Optional[Any]:
         """Create the actual slot if not validation only."""
@@ -581,7 +551,7 @@ class BulkOperationService(BaseService):
             )
 
     @BaseService.measure_operation("process_add_operation")
-    async def _process_add_operation(
+    def _process_add_operation(
         self,
         instructor_id: str,
         operation: SlotOperation,
@@ -612,7 +582,7 @@ class BulkOperationService(BaseService):
             )
 
         # 3. Conflict checking
-        if error := await self._check_add_operation_conflicts(instructor_id, operation):
+        if error := self._check_add_operation_conflicts(instructor_id, operation):
             return OperationResult(
                 operation_index=operation_index,
                 action="add",
@@ -630,7 +600,7 @@ class BulkOperationService(BaseService):
             )
 
         try:
-            slot = await self._create_slot_for_operation(instructor_id, operation, validate_only)
+            slot = self._create_slot_for_operation(instructor_id, operation, validate_only)
             if slot is None:
                 raise ValueError("Slot creation returned None for add operation")
             return OperationResult(
@@ -647,7 +617,7 @@ class BulkOperationService(BaseService):
                 reason=str(e),
             )
 
-    async def _validate_remove_operation(
+    def _validate_remove_operation(
         self, instructor_id: str, operation: SlotOperation
     ) -> Tuple[Optional[Any], Optional[str]]:
         """
@@ -712,12 +682,12 @@ class BulkOperationService(BaseService):
         # Return a placeholder object to indicate validation passed
         return {"date": operation_date, "start_time": start_time, "end_time": end_time}, None
 
-    async def _check_remove_operation_bookings(self, slot_id: str) -> Optional[str]:
+    def _check_remove_operation_bookings(self, slot_id: str) -> Optional[str]:
         """Check if slot has active bookings."""
         # With layer independence, we don't check bookings
         return None
 
-    async def _execute_slot_removal(self, slot: Any, slot_id: str, validate_only: bool) -> bool:
+    def _execute_slot_removal(self, slot: Any, slot_id: str, validate_only: bool) -> bool:
         """Execute the removal if not validation only."""
         if validate_only:
             return True
@@ -731,7 +701,7 @@ class BulkOperationService(BaseService):
             raise Exception(f"Failed to remove slot {slot_id}: {str(e)}")
 
     @BaseService.measure_operation("process_remove_operation")
-    async def _process_remove_operation(
+    def _process_remove_operation(
         self,
         instructor_id: str,
         operation: SlotOperation,
@@ -744,7 +714,7 @@ class BulkOperationService(BaseService):
         Allows removal regardless of bookings (layer independence).
         """
         # 1. Validate operation
-        slot, error = await self._validate_remove_operation(instructor_id, operation)
+        slot, error = self._validate_remove_operation(instructor_id, operation)
         if error:
             return OperationResult(
                 operation_index=operation_index,
@@ -761,7 +731,7 @@ class BulkOperationService(BaseService):
         )
 
         # 2. Check bookings (not needed with layer independence)
-        if error := await self._check_remove_operation_bookings(slot_id):
+        if error := self._check_remove_operation_bookings(slot_id):
             return OperationResult(
                 operation_index=operation_index,
                 action="remove",
@@ -779,7 +749,7 @@ class BulkOperationService(BaseService):
             )
 
         try:
-            await self._execute_slot_removal(slot, slot_id, validate_only)
+            self._execute_slot_removal(slot, slot_id, validate_only)
             return OperationResult(
                 operation_index=operation_index,
                 action="remove",
@@ -800,7 +770,7 @@ class BulkOperationService(BaseService):
             return "Missing slot_id for update operation - cannot identify which slot to update"
         return None
 
-    async def _find_slot_for_update(
+    def _find_slot_for_update(
         self, instructor_id: str, slot_id: str
     ) -> Tuple[Optional[Any], Optional[str]]:
         """Find the slot to update and verify ownership."""
@@ -810,7 +780,7 @@ class BulkOperationService(BaseService):
             return None, f"Slot {slot_id} not found or not owned by instructor {instructor_id}"
         return slot, None
 
-    async def _validate_update_timing_and_conflicts(
+    def _validate_update_timing_and_conflicts(
         self, instructor_id: str, operation: SlotOperation, existing_slot: Any
     ) -> Optional[str]:
         """Validate new times and check for conflicts."""
@@ -827,7 +797,7 @@ class BulkOperationService(BaseService):
 
         return None
 
-    async def _execute_slot_update(
+    def _execute_slot_update(
         self, slot: Any, operation: SlotOperation, new_start: Any, new_end: Any, validate_only: bool
     ) -> Optional[Any]:
         """Execute the update if not validation only."""
@@ -846,7 +816,7 @@ class BulkOperationService(BaseService):
             )
 
     @BaseService.measure_operation("process_update_operation")
-    async def _process_update_operation(
+    def _process_update_operation(
         self,
         instructor_id: str,
         operation: SlotOperation,
@@ -870,7 +840,7 @@ class BulkOperationService(BaseService):
         # 2. Find slot
         slot_id = cast(str, operation.slot_id)
 
-        slot, error = await self._find_slot_for_update(instructor_id, slot_id)
+        slot, error = self._find_slot_for_update(instructor_id, slot_id)
         if error:
             return OperationResult(
                 operation_index=operation_index,
@@ -890,9 +860,7 @@ class BulkOperationService(BaseService):
         new_start = operation.start_time if operation.start_time else slot.start_time
         new_end = operation.end_time if operation.end_time else slot.end_time
 
-        if error := await self._validate_update_timing_and_conflicts(
-            instructor_id, operation, slot
-        ):
+        if error := self._validate_update_timing_and_conflicts(instructor_id, operation, slot):
             return OperationResult(
                 operation_index=operation_index,
                 action="update",
@@ -910,7 +878,7 @@ class BulkOperationService(BaseService):
             )
 
         try:
-            await self._execute_slot_update(slot, operation, new_start, new_end, validate_only)
+            self._execute_slot_update(slot, operation, new_start, new_end, validate_only)
             return OperationResult(
                 operation_index=operation_index,
                 action="update",
@@ -1055,7 +1023,7 @@ class BulkOperationService(BaseService):
 
         return operations
 
-    async def _validate_operations(
+    def _validate_operations(
         self, instructor_id: str, operations: List[SlotOperation]
     ) -> List[ValidationSlotDetail]:
         """Validate a list of operations."""
@@ -1063,7 +1031,7 @@ class BulkOperationService(BaseService):
 
         for idx, operation in enumerate(operations):
             # Process operation in validation mode
-            result = await self._process_single_operation(
+            result = self._process_single_operation(
                 instructor_id=instructor_id,
                 operation=operation,
                 operation_index=idx,

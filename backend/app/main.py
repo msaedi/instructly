@@ -77,6 +77,7 @@ for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest, AuditLogView):
 # Broadcaster for SSE multiplexing (v4.0)
 from .core.broadcast import connect_broadcast, disconnect_broadcast
 from .core.redis import close_async_redis_client
+from .events.handlers import process_event
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
 from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY, prometheus_metrics
@@ -501,6 +502,13 @@ def _background_jobs_worker_sync(shutdown_event: threading.Event) -> None:
                     try:
                         job_repo.mark_running(job.id)
                         db.flush()
+
+                        # Handle event jobs (fire-and-forget notifications, etc.)
+                        if process_event(job.type, job.payload, db):
+                            job_repo.mark_succeeded(job.id)
+                            db.commit()
+                            BACKGROUND_JOBS_FAILED.set(job_repo.count_failed_jobs())
+                            continue
 
                         payload = job.payload or {}
 

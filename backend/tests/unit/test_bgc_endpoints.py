@@ -15,7 +15,6 @@ from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.background_check_service import BackgroundCheckService
-from app.services.geocoding.base import GeocodingProvider, GeocodingProviderError
 
 CSRF_COOKIE = "csrftoken"
 CSRF_HEADER = "X-CSRFToken"
@@ -83,12 +82,12 @@ def test_consent_persists_disclosure_version(client, db, owner_auth_override):
 
 
 @pytest.fixture(autouse=True)
-def override_background_check_service(db):
+def override_background_check_service(db, monkeypatch):
     def _override():
         repository = InstructorProfileRepository(db)
 
         class DummyCheckr(CheckrClient):
-            async def create_candidate(  # type: ignore[override]
+            def create_candidate(  # type: ignore[override]
                 self,
                 *,
                 idempotency_key: str | None = None,
@@ -96,7 +95,7 @@ def override_background_check_service(db):
             ):
                 return {"id": "cand_test"}
 
-            async def create_invitation(self, **payload):  # type: ignore[override]
+            def create_invitation(self, **payload):  # type: ignore[override]
                 return {
                     "id": "inv_test",
                     "report_id": "rpt_123",
@@ -104,13 +103,20 @@ def override_background_check_service(db):
                 }
 
         client = DummyCheckr(api_key="sk_test", base_url="https://api.checkr.com/v1")
-        return BackgroundCheckService(
+        service = BackgroundCheckService(
             db,
             client=client,
             repository=repository,
             package="essential",
             env="sandbox",
         )
+        return service
+
+    monkeypatch.setattr(
+        BackgroundCheckService,
+        "_resolve_work_location",
+        lambda self, _zip: {"country": "US", "state": "NY", "city": "New York"},
+    )
     app.dependency_overrides[get_background_check_service] = _override
     try:
         yield
@@ -227,7 +233,7 @@ def test_invite_returns_specific_error_on_checkr_auth_failure(client, db, owner_
         config_error = None
         package = "essential"
 
-        async def invite(self, *_args, **_kwargs):
+        def invite(self, *_args, **_kwargs):
             err = CheckrError("Unauthorized", status_code=401, error_type="auth_error")
             raise ServiceException("Checkr rejected credentials") from err
 
@@ -257,7 +263,7 @@ def test_recheck_returns_specific_error_on_checkr_auth_failure(client, db, owner
     class AuthFailureService:
         config_error = None
 
-        async def invite(self, *_args, **_kwargs):
+        def invite(self, *_args, **_kwargs):
             err = CheckrError("Unauthorized", status_code=401, error_type="auth_error")
             raise ServiceException("Checkr rejected credentials") from err
 
@@ -288,7 +294,7 @@ def test_invite_returns_specific_error_on_package_not_found(client, db, owner_au
         config_error = None
         package = "missing_package"
 
-        async def invite(self, *_args, **_kwargs):
+        def invite(self, *_args, **_kwargs):
             err = CheckrError(
                 "Package not found",
                 status_code=404,
@@ -324,7 +330,7 @@ def test_recheck_returns_specific_error_on_package_not_found(client, db, owner_a
     class PackageFailureService:
         config_error = None
 
-        async def invite(self, *_args, **_kwargs):
+        def invite(self, *_args, **_kwargs):
             err = CheckrError(
                 "Package not found",
                 status_code=404,
@@ -365,7 +371,7 @@ def test_invite_includes_work_location_payloads(client, db, owner_auth_override)
         repository = InstructorProfileRepository(db)
 
         class CaptureCheckr(CheckrClient):
-            async def create_candidate(  # type: ignore[override]
+            def create_candidate(  # type: ignore[override]
                 self,
                 *,
                 idempotency_key: str | None = None,
@@ -374,7 +380,7 @@ def test_invite_includes_work_location_payloads(client, db, owner_auth_override)
                 captured["candidate"] = payload
                 return {"id": "cand_cap"}
 
-            async def create_invitation(self, **payload):  # type: ignore[override]
+            def create_invitation(self, **payload):  # type: ignore[override]
                 captured["invitation"] = payload
                 return {
                     "id": "inv_cap",
@@ -442,7 +448,7 @@ def test_invite_returns_specific_error_on_checkr_work_location_failure(client, d
         config_error = None
         package = "essential"
 
-        async def invite(self, *_args, **_kwargs):
+        def invite(self, *_args, **_kwargs):
             err = CheckrError(
                 "work_locations is invalid",
                 status_code=400,
@@ -484,28 +490,18 @@ def test_invite_returns_provider_error_when_geocoder_unavailable(client, db, own
     headers = _csrf_headers(client)
     _record_consent(client, profile.id, headers)
 
-    class ProviderStub(GeocodingProvider):
-        async def geocode(self, address: str):
-            raise GeocodingProviderError(
-                provider="google_geocode",
-                status="REQUEST_DENIED",
-                message="API key disabled",
-                payload={"zip": address},
-            )
+    def error_resolver(self, zip_code: str):
+        raise ServiceException(
+            "Geocoding provider unavailable",
+            code="geocoding_provider_error",
+            details={
+                "zip_code": zip_code,
+                "provider": "mapbox",
+                "provider_status": "REQUEST_DENIED",
+            },
+        )
 
-        async def reverse_geocode(self, lat: float, lng: float):
-            return None
-
-        async def autocomplete(self, *args, **kwargs):
-            return []
-
-        async def get_place_details(self, place_id: str):
-            return None
-
-    monkeypatch.setattr(
-        "app.services.background_check_service.create_geocoding_provider",
-        lambda: ProviderStub(),
-    )
+    monkeypatch.setattr(BackgroundCheckService, "_resolve_work_location", error_resolver)
 
     response = client.post(
         f"/api/v1/instructors/{profile.id}/bgc/invite",
@@ -532,23 +528,18 @@ def test_invite_returns_invalid_work_location_for_unresolvable_zip(
     headers = _csrf_headers(client)
     _record_consent(client, profile.id, headers)
 
-    class ZeroResultProvider(GeocodingProvider):
-        async def geocode(self, address: str):
-            return None
+    def zero_result_resolver(self, zip_code: str):
+        raise ServiceException(
+            "Unable to resolve work location",
+            code="invalid_work_location",
+            details={
+                "zip_code": zip_code,
+                "reason": "zero_results",
+                "provider": "mapbox",
+            },
+        )
 
-        async def reverse_geocode(self, lat: float, lng: float):
-            return None
-
-        async def autocomplete(self, *args, **kwargs):
-            return []
-
-        async def get_place_details(self, place_id: str):
-            return None
-
-    monkeypatch.setattr(
-        "app.services.background_check_service.create_geocoding_provider",
-        lambda: ZeroResultProvider(),
-    )
+    monkeypatch.setattr(BackgroundCheckService, "_resolve_work_location", zero_result_resolver)
 
     response = client.post(
         f"/api/v1/instructors/{profile.id}/bgc/invite",
@@ -629,7 +620,7 @@ def test_invite_4xx_single_send_cors(client, db, owner_auth_override):
         config_error = None
         package = "essential"
 
-        async def invite(self, *_args, **_kwargs):
+        def invite(self, *_args, **_kwargs):
             raise ServiceException(
                 "Failed to initiate instructor background check"
             ) from CheckrError(
