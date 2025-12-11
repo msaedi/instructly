@@ -50,3 +50,11 @@ class ConfigService:
         now = datetime.now(timezone.utc)
         record = self.repo.upsert(key="pricing", value=validated, updated_at=now)
         return deepcopy(record.value_json), record.updated_at or now
+
+    def commit(self) -> None:
+        """Commit pending changes to the database."""
+        self.db.commit()  # repo-pattern-ignore: Service wrapper for transaction commit
+
+    def rollback(self) -> None:
+        """Rollback pending changes."""
+        self.db.rollback()  # repo-pattern-ignore: Service wrapper for transaction rollback

@@ -126,13 +126,13 @@ repos:
       #   pass_filenames: true
       #   description: Detect sync DB/repo calls in async functions without asyncio.to_thread()
 
-      # - id: check-no-db-in-routes
-      #   name: Check for direct DB access in routes
-      #   entry: python backend/scripts/check_no_db_in_routes.py
-      #   language: python
-      #   files: ^backend/app/routes/.*\.py$
-      #   pass_filenames: true
-      #   description: Routes must delegate all DB operations to service layer
+      - id: check-no-db-in-routes
+        name: Check for direct DB access in routes
+        entry: python backend/scripts/check_no_db_in_routes.py
+        language: python
+        files: ^backend/app/routes/.*\.py$
+        pass_filenames: true
+        description: Routes must delegate all DB operations to service layer
 
   - repo: local
     hooks:

@@ -123,6 +123,34 @@ class InstructorService(BaseService):
         # Everything is already loaded - no additional queries
         return self._profile_to_dict(profile, include_inactive_services)
 
+    @BaseService.measure_operation("get_instructor_user")
+    def get_instructor_user(self, user_id: str) -> "User":
+        """
+        Get the User object for an instructor, validating they have a profile.
+
+        Used for public availability endpoints that need the User object
+        for timezone calculations.
+
+        Args:
+            user_id: The user ID of the instructor
+
+        Returns:
+            User object
+
+        Raises:
+            NotFoundException: If user not found or doesn't have instructor profile
+        """
+        user: Optional[User] = self.user_repository.get_by_id(user_id)
+        if not user:
+            raise NotFoundException("Instructor not found")
+
+        # Verify they have an instructor profile
+        profile = self.profile_repository.get_by_user_id(user_id)
+        if not profile:
+            raise NotFoundException("Instructor not found")
+
+        return user
+
     @BaseService.measure_operation("get_all_instructors")
     def get_all_instructors(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """

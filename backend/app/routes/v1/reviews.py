@@ -397,10 +397,7 @@ def get_recent_reviews(
     for r in reviews:
         reviewer_name = None
         try:
-            from ...models.user import User as _User
-
-            user = service.db.query(_User).filter(_User.id == r.student_id).first()
-            reviewer_name = _display_name(user)
+            reviewer_name = service.get_reviewer_display_name(r.student_id)
         except Exception:
             reviewer_name = None
         items.append(

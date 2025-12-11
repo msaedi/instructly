@@ -1367,3 +1367,19 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             if decrypted and normalized in decrypted.lower():
                 matches.add(candidate_id)
         return matches
+
+    def get_bgc_case_base_query(self) -> Query:
+        """
+        Get base query for BGC cases with user relationship loaded.
+
+        Returns a SQLAlchemy Query object that can be further filtered.
+        """
+        return self.db.query(self.model).options(selectinload(self.model.user))
+
+    def commit(self) -> None:
+        """Commit pending changes to the database."""
+        self.db.commit()
+
+    def rollback(self) -> None:
+        """Rollback pending changes."""
+        self.db.rollback()

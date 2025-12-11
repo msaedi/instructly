@@ -1378,6 +1378,161 @@ class BookingService(BaseService):
 
         return refreshed_booking
 
+    @BaseService.measure_operation("instructor_mark_complete")
+    def instructor_mark_complete(
+        self,
+        booking_id: str,
+        instructor: User,
+        notes: Optional[str] = None,
+    ) -> Booking:
+        """
+        Mark a lesson as completed by the instructor with payment tracking.
+
+        This triggers the 24-hour payment capture timer. The payment will be
+        captured 24 hours after completion, giving the student time to dispute.
+
+        Args:
+            booking_id: ID of the booking to complete
+            instructor: The instructor marking completion
+            notes: Optional completion notes
+
+        Returns:
+            Updated booking
+
+        Raises:
+            NotFoundException: If booking not found
+            ValidationException: If not the instructor's booking
+            BusinessRuleException: If booking cannot be completed
+        """
+        from ..repositories.payment_repository import PaymentRepository
+        from ..services.badge_award_service import BadgeAwardService
+
+        payment_repo = PaymentRepository(self.db)
+
+        with self.transaction():
+            booking = self.repository.get_by_id(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if booking.instructor_id != instructor.id:
+                raise ValidationException("You can only mark your own lessons as complete")
+
+            if booking.status != BookingStatus.CONFIRMED:
+                raise BusinessRuleException(
+                    f"Cannot mark booking as complete. Current status: {booking.status}"
+                )
+
+            # Verify lesson has ended
+            now = datetime.now(timezone.utc)
+            lesson_end = datetime.combine(booking.booking_date, booking.end_time)
+            if lesson_end > now:
+                raise BusinessRuleException("Cannot mark lesson as complete before it ends")
+
+            # Mark as completed
+            booking.status = BookingStatus.COMPLETED
+            booking.completed_at = now
+            if notes:
+                booking.instructor_note = notes
+
+            # Record payment completion event
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="instructor_marked_complete",
+                event_data={
+                    "instructor_id": instructor.id,
+                    "completed_at": now.isoformat(),
+                    "notes": notes,
+                    "payment_capture_scheduled_for": (now + timedelta(hours=24)).isoformat(),
+                },
+            )
+
+            # Trigger badge checks
+            badge_service = BadgeAwardService(self.db)
+            booked_at = booking.confirmed_at or booking.created_at or now
+            category_slug = None
+            try:
+                instructor_service = booking.instructor_service
+                if instructor_service and instructor_service.catalog_entry:
+                    category = instructor_service.catalog_entry.category
+                    if category:
+                        category_slug = category.slug
+            except AttributeError:
+                category_slug = None
+
+            badge_service.check_and_award_on_lesson_completed(
+                student_id=booking.student_id,
+                lesson_id=booking.id,
+                instructor_id=booking.instructor_id,
+                category_slug=category_slug,
+                booked_at_utc=booked_at,
+                completed_at_utc=now,
+            )
+
+        # Reload for fresh state after commit
+        refreshed = self.repository.get_by_id(booking_id)
+        if refreshed is None:
+            raise NotFoundException("Booking not found after completion")
+        return refreshed
+
+    @BaseService.measure_operation("instructor_dispute_completion")
+    def instructor_dispute_completion(
+        self,
+        booking_id: str,
+        instructor: User,
+        reason: str,
+    ) -> Booking:
+        """
+        Dispute a lesson completion as an instructor.
+
+        Used when a student marks a lesson as complete but the instructor disagrees.
+        This pauses payment capture pending resolution.
+
+        Args:
+            booking_id: ID of the booking to dispute
+            instructor: The instructor disputing
+            reason: Reason for the dispute
+
+        Returns:
+            Updated booking
+
+        Raises:
+            NotFoundException: If booking not found
+            ValidationException: If not the instructor's booking
+        """
+        from ..repositories.payment_repository import PaymentRepository
+
+        payment_repo = PaymentRepository(self.db)
+
+        with self.transaction():
+            booking = self.repository.get_by_id(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if booking.instructor_id != instructor.id:
+                raise ValidationException("You can only dispute your own lessons")
+
+            # Record dispute event
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="completion_disputed",
+                event_data={
+                    "disputed_by": instructor.id,
+                    "reason": reason,
+                    "disputed_at": datetime.now(timezone.utc).isoformat(),
+                    "payment_capture_paused": True,
+                },
+            )
+
+            # Update payment status to prevent capture
+            if booking.payment_status == "authorized":
+                booking.payment_status = "disputed"
+
+        # Reload for fresh state after commit
+        refreshed = self.repository.get_by_id(booking_id)
+        if refreshed is None:
+            raise NotFoundException("Booking not found after dispute")
+        return refreshed
+
     @BaseService.measure_operation("mark_no_show")
     def mark_no_show(self, booking_id: str, instructor: User) -> Booking:
         """

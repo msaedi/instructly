@@ -12,11 +12,11 @@ from typing import Any, Dict, List, Mapping, Optional, cast
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
 import psutil
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.authz import require_roles
 from ..api.dependencies.services import (
+    get_auth_service,
     get_availability_service,
     get_booking_service,
     get_cache_service_dep,
@@ -29,6 +29,7 @@ from ..metrics import retention_metrics
 from ..middleware import rate_limiter as rate_limiter_module
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.user import User
+from ..repositories.metrics_repository import MetricsRepository
 from ..schemas.base_responses import HealthCheckResponse, SuccessResponse
 from ..schemas.monitoring_responses import (
     AvailabilityCacheMetricsResponse,
@@ -39,6 +40,7 @@ from ..schemas.monitoring_responses import (
     RateLimitTestResponse,
     SlowQueriesResponse,
 )
+from ..services.auth_service import AuthService
 from ..services.cache_service import CacheService
 
 router = APIRouter(prefix="/ops", tags=["monitoring"])
@@ -68,14 +70,18 @@ def _ops_admin_required() -> bool:
     return mode in {"preview", "prod"} or raw_mode == "beta"
 
 
+def get_metrics_repository(db: Session = Depends(get_db)) -> MetricsRepository:
+    """Get an instance of the metrics repository."""
+    return MetricsRepository(db)
+
+
 async def _get_optional_user(
     current_user_email: Optional[str] = Depends(auth_get_current_user_optional),
-    db: Session = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> Optional[User]:
     if not current_user_email:
         return None
-    user = db.query(User).filter(User.email == current_user_email).first()
-    return cast(Optional[User], user)
+    return auth_service.get_user_by_email(current_user_email)
 
 
 async def _ensure_ops_access(
@@ -158,7 +164,7 @@ async def get_performance_metrics(
     booking_service: Any = Depends(get_booking_service),
     conflict_checker: Any = Depends(get_conflict_checker),
     cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
-    db: Session = Depends(get_db),
+    metrics_repository: MetricsRepository = Depends(get_metrics_repository),
 ) -> PerformanceMetricsResponse:
     """Get performance metrics from all services."""
 
@@ -177,7 +183,7 @@ async def get_performance_metrics(
     }
 
     # Database metrics
-    db_stats = db.execute(text("SELECT count(*) FROM pg_stat_activity")).scalar()
+    db_stats = metrics_repository.get_active_connections_count()
     database_metrics: JsonDict = {
         "active_connections": db_stats,
         "pool_status": get_db_pool_status(),
@@ -373,47 +379,28 @@ async def get_availability_cache_metrics(
     response_model=SlowQueriesResponse,
     dependencies=[Depends(_ensure_ops_access)],
 )
-async def get_slow_queries(db: Session = Depends(get_db)) -> SlowQueriesResponse:
+async def get_slow_queries(
+    metrics_repository: MetricsRepository = Depends(get_metrics_repository),
+) -> SlowQueriesResponse:
     """Get recent slow queries."""
-    # Get slow queries from PostgreSQL
-    try:
-        result = db.execute(
-            text(
-                """
-            SELECT
-                query,
-                mean_exec_time,
-                calls,
-                total_exec_time
-            FROM pg_stat_statements
-            WHERE mean_exec_time > 100
-            ORDER BY mean_exec_time DESC
-            LIMIT 20
-        """
-            )
+    # Get slow queries from PostgreSQL via repository
+    raw_queries = metrics_repository.get_slow_queries()
+
+    slow_queries: JsonList = []
+    for row in raw_queries:
+        slow_queries.append(
+            {
+                "query": str(row.get("query", ""))[:200],  # First 200 chars
+                "duration_ms": float(row.get("mean_exec_time", 0)),
+                "timestamp": datetime.now(timezone.utc),  # Approximate timestamp
+                "endpoint": None,  # Not available from pg_stat_statements
+            }
         )
 
-        slow_queries: JsonList = []
-        for row in result:
-            slow_queries.append(
-                {
-                    "query": row[0][:200],  # First 200 chars
-                    "duration_ms": float(row[1]),
-                    "timestamp": datetime.now(timezone.utc),  # Approximate timestamp
-                    "endpoint": None,  # Not available from pg_stat_statements
-                }
-            )
-
-        return SlowQueriesResponse(
-            slow_queries=slow_queries,
-            total_count=len(slow_queries),
-        )
-    except Exception:
-        # Return empty list if pg_stat_statements not available
-        return SlowQueriesResponse(
-            slow_queries=[],
-            total_count=0,
-        )
+    return SlowQueriesResponse(
+        slow_queries=slow_queries,
+        total_count=len(slow_queries),
+    )
 
 
 @router.post(

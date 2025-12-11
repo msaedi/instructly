@@ -10,6 +10,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from ...api.dependencies.services import get_auth_service
 from ...auth import get_current_user as auth_get_current_user
 from ...core.enums import PermissionName
 from ...database import get_db
@@ -22,6 +23,7 @@ from ...schemas.privacy import (
     UserDataDeletionRequest,
     UserDataDeletionResponse,
 )
+from ...services.auth_service import AuthService
 from ...services.privacy_service import PrivacyService
 
 logger = logging.getLogger(__name__)
@@ -32,14 +34,14 @@ router = APIRouter(tags=["privacy"])
 
 async def get_current_user(
     current_user_email: str = Depends(auth_get_current_user),
-    db: Session = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> User:
     """
     Get the current authenticated user as a User object.
 
     Args:
         current_user_email: Email from JWT token
-        db: Database session
+        auth_service: Auth service for user lookup
 
     Returns:
         User: The authenticated user object
@@ -47,7 +49,7 @@ async def get_current_user(
     Raises:
         HTTPException: If user not found
     """
-    user: User | None = db.query(User).filter(User.email == current_user_email).first()
+    user = auth_service.get_user_by_email(current_user_email)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user

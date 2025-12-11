@@ -958,7 +958,7 @@ async def create_checkout(
         # Update booking status if payment succeeded
         if payment_result["success"] and payment_result["status"] == "succeeded":
             booking.status = "CONFIRMED"
-            stripe_service.db.flush()
+            booking_service.repository.flush()
             try:
                 booking_service.invalidate_booking_cache(booking)
             except Exception as cache_err:

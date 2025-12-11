@@ -35,11 +35,8 @@ def test_auth_login_problem_contract(monkeypatch):
         def fetch_user_for_auth(self, email: str):
             return None  # Simulate user not found
 
-        class _DummySession:
-            def close(self):
-                pass
-
-        db = _DummySession()
+        def release_connection(self):
+            pass  # Mock for DB connection release
 
     client, main = _make_client(monkeypatch, {service_deps.get_auth_service: lambda: DummyAuthService()})
     try:

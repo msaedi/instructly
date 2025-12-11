@@ -182,8 +182,8 @@ async def stream_user_messages(
         # Rollback is needed because autocommit=False means a transaction was started.
         # Without rollback, the connection returns to the pool in "idle in transaction" state,
         # which Supabase will kill after its idle_in_transaction_session_timeout.
-        db.rollback()
-        db.close()
+        db.rollback()  # db-access-ok: SSE requires explicit session cleanup to prevent idle-in-transaction
+        db.close()  # db-access-ok: SSE requires explicit session close
         logger.debug(
             "[SSE] DB session closed before streaming",
             extra={"user_id": user_id},

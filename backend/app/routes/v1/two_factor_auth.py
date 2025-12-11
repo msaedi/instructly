@@ -142,7 +142,7 @@ def regenerate_backup_codes(
     hashed = [get_password_hash(c) for c in codes]
     with tfa_service.transaction():
         user.backup_codes = hashed
-        tfa_service.db.commit()
+        # Transaction context auto-commits on exit
     return BackupCodesResponse(backup_codes=codes)
 
 

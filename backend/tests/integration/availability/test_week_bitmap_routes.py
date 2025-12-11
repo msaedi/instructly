@@ -124,7 +124,12 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
 ) -> None:
     repo = AvailabilityDayRepository(db)
     db.query(AvailabilityDay).filter(AvailabilityDay.instructor_id == test_instructor.id).delete()
-    week_start = date(2025, 11, 10)
+    # Use dynamic future date: next Monday from today
+    today = date.today()
+    days_until_monday = (7 - today.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7  # If today is Monday, use next Monday
+    week_start = today + timedelta(days=days_until_monday)
 
     body = {
         "week_start": week_start.isoformat(),

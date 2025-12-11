@@ -265,11 +265,7 @@ async def login(
     # Step 3: Release DB connection BEFORE bcrypt (critical for throughput)
     # The auth_service.db session will be released by FastAPI after response,
     # but we ensure no further DB operations happen during bcrypt.
-    # For explicit control, close the underlying session:
-    try:
-        auth_service.db.close()
-    except Exception:
-        pass  # Session may already be closed or in different state
+    auth_service.release_connection()
 
     # Step 4: Run bcrypt verification (~200ms, no DB held)
     password_valid = await verify_password_async(form_data.password, hashed_password)
@@ -439,10 +435,7 @@ async def login_with_session(
 
     # Step 3: Release auth_service DB connection BEFORE bcrypt
     # Note: The `db` session (separate dependency) is kept for guest search conversion
-    try:
-        auth_service.db.close()
-    except Exception:
-        pass
+    auth_service.release_connection()
 
     # Step 4: Run bcrypt verification (~200ms, auth_service.db released)
     password_valid = await verify_password_async(login_data.password, hashed_password)

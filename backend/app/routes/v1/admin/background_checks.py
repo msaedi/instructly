@@ -11,7 +11,7 @@ from typing import Any, Literal, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Query as SAQuery, selectinload
+from sqlalchemy.orm import Query as SAQuery
 
 from app.api.dependencies.auth import require_admin
 from app.api.dependencies.repositories import (
@@ -188,7 +188,7 @@ def _build_case_query(
     status: str,
     search: str | None,
 ) -> SAQuery:
-    query = repo.db.query(repo.model).options(selectinload(repo.model.user))
+    query = repo.get_bgc_case_base_query()
 
     if status == "pending":
         query = query.filter(repo.model.bgc_status == "pending")
@@ -603,7 +603,7 @@ async def bgc_review_override(
             env=profile.bgc_env or settings.checkr_env,
         )
         profile.bgc_completed_at = profile.bgc_completed_at or now
-        repo.db.commit()
+        repo.commit()
         response_payload = {"ok": True, "new_status": "passed"}
         return BGCOverrideResponse(**model_filter(BGCOverrideResponse, response_payload))
 
@@ -621,7 +621,7 @@ async def bgc_review_override(
         env=profile.bgc_env or settings.checkr_env,
     )
     profile.bgc_completed_at = now
-    repo.db.commit()
+    repo.commit()
     response_payload = {"ok": True, "new_status": "failed"}
     return BGCOverrideResponse(**model_filter(BGCOverrideResponse, response_payload))
 
@@ -636,9 +636,9 @@ async def open_bgc_dispute(
     note = payload.get("note") if isinstance(payload, dict) else None
     try:
         repo.set_dispute_open(instructor_id, note=note)
-        repo.db.commit()
+        repo.commit()
     except RepositoryException as exc:
-        repo.db.rollback()
+        repo.rollback()
         message = str(exc)
         status_code = (
             status.HTTP_404_NOT_FOUND
@@ -677,9 +677,9 @@ async def resolve_bgc_dispute(
         resumed, scheduled_for = await workflow.resolve_dispute_and_resume_final_adverse(
             instructor_id, note=note
         )
-        repo.db.commit()
+        repo.commit()
     except RepositoryException as exc:
-        repo.db.rollback()
+        repo.rollback()
         message = str(exc)
         status_code = (
             status.HTTP_404_NOT_FOUND

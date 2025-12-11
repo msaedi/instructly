@@ -393,3 +393,16 @@ class AuthService(BaseService):
             raise NotFoundException("User not found")
 
         return user
+
+    @BaseService.measure_operation("release_connection")
+    def release_connection(self) -> None:
+        """
+        Release the database connection to free resources.
+
+        Used to release DB connection before CPU-intensive operations like bcrypt
+        to improve throughput under load. The connection will be returned to the pool.
+        """
+        try:
+            self.db.close()
+        except Exception:
+            pass  # Session may already be closed or in different state

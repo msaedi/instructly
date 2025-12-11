@@ -456,6 +456,33 @@ class ReviewService(BaseService):
             return "established"
         return "trusted"
 
+    @BaseService.measure_operation("get_reviewer_display_name")
+    def get_reviewer_display_name(self, user_id: str) -> Optional[str]:
+        """
+        Get display name for a reviewer by user ID.
+
+        Args:
+            user_id: The ID of the user/reviewer
+
+        Returns:
+            Display name string or None if not found
+        """
+        from ..repositories.user_repository import UserRepository
+
+        user_repo = UserRepository(self.db)
+        user = user_repo.get_by_id(user_id)
+        if not user:
+            return None
+
+        # Format as "FirstName L." for privacy
+        first_name = getattr(user, "first_name", None) or ""
+        last_name = getattr(user, "last_name", None) or ""
+        if first_name and last_name:
+            return f"{first_name} {last_name[0]}."
+        elif first_name:
+            return first_name
+        return None
+
     def _invalidate_instructor_caches(self, instructor_id: str) -> None:
         if not self.cache:
             return
