@@ -695,12 +695,10 @@ class BookingService(BaseService):
             raise NotFoundException(f"Booking {booking_id} not found")
 
         if booking.student_id != student.id:
-            raise ValidationException("You can only confirm payment for your own bookings")
+            raise NotFoundException("Booking not found")
 
         if booking.status != BookingStatus.PENDING:
-            raise ValidationException(
-                f"Cannot confirm payment for booking with status {booking.status}"
-            )
+            raise NotFoundException("Booking not found")
 
         with self.transaction():
             # Save payment method

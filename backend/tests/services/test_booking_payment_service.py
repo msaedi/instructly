@@ -154,7 +154,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
-from app.core.exceptions import NotFoundException, ValidationException
+from app.core.exceptions import NotFoundException
 from app.models.payment import PaymentEvent
 from app.models.rbac import Role
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -515,7 +515,7 @@ class TestBookingPaymentService:
         db.flush()
 
         # Try to confirm as different user
-        with pytest.raises(ValidationException, match="your own bookings"):
+        with pytest.raises(NotFoundException):
             await booking_service.confirm_booking_payment(
                 booking_id=booking.id,
                 student=student_user,  # Wrong user
@@ -552,7 +552,7 @@ class TestBookingPaymentService:
         db.flush()
 
         # Try to confirm already confirmed booking
-        with pytest.raises(ValidationException, match="Cannot confirm payment"):
+        with pytest.raises(NotFoundException):
             await booking_service.confirm_booking_payment(
                 booking_id=booking.id,
                 student=student_user,

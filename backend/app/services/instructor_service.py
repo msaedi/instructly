@@ -650,6 +650,9 @@ class InstructorService(BaseService):
             raise BusinessRuleException("At most two preferred places per category are allowed")
 
         self.preferred_place_repository.delete_for_kind(instructor_id, kind)
+        # Clear identity map to avoid stale preferred_places during the same session
+        self.preferred_place_repository.flush()
+        self.db.expire_all()
 
         for position, (address, label) in enumerate(normalized):
             self.preferred_place_repository.create_for_kind(

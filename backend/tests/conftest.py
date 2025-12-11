@@ -115,6 +115,7 @@ settings.rate_limit_enabled = False
 from unittest.mock import AsyncMock, Mock
 
 from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.dependencies.database import get_db as deps_get_db
@@ -437,35 +438,50 @@ TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_eng
 def ensure_outbox_table() -> None:
     """Ensure event_outbox table exists (guard DDL to prevent conflicts)."""
     insp = inspect(test_engine)
-    if not insp.has_table("event_outbox"):
-        with test_engine.begin() as conn:
-            conn.execute(text("""
-            CREATE TABLE event_outbox (
-                id VARCHAR(26) PRIMARY KEY,
-                event_type VARCHAR(100) NOT NULL,
-                aggregate_id VARCHAR(64) NOT NULL,
-                idempotency_key VARCHAR(255) UNIQUE NOT NULL,
-                payload JSONB NOT NULL,
-                status VARCHAR(20) NOT NULL,
-                attempt_count INTEGER NOT NULL,
-                next_attempt_at TIMESTAMPTZ,
-                last_error TEXT,
-                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-                updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
-            )
-            """))
-            if conn.dialect.name != "sqlite":
-                conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS notification_delivery (
-                    id VARCHAR(26) PRIMARY KEY,
-                    outbox_id VARCHAR(26) NOT NULL,
-                    recipient_email VARCHAR(255) NOT NULL,
-                    notification_type VARCHAR(50) NOT NULL,
-                    status VARCHAR(20) NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-                    FOREIGN KEY (outbox_id) REFERENCES event_outbox(id)
+    if insp.has_table("event_outbox"):
+        return
+
+    with test_engine.begin() as conn:
+        try:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS event_outbox (
+                        id VARCHAR(26) PRIMARY KEY,
+                        event_type VARCHAR(100) NOT NULL,
+                        aggregate_id VARCHAR(64) NOT NULL,
+                        idempotency_key VARCHAR(255) UNIQUE NOT NULL,
+                        payload JSONB NOT NULL,
+                        status VARCHAR(20) NOT NULL,
+                        attempt_count INTEGER NOT NULL,
+                        next_attempt_at TIMESTAMPTZ,
+                        last_error TEXT,
+                        created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                        updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+                    )
+                    """
                 )
-                """))
+            )
+            if conn.dialect.name != "sqlite":
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE IF NOT EXISTS notification_delivery (
+                            id VARCHAR(26) PRIMARY KEY,
+                            outbox_id VARCHAR(26) NOT NULL,
+                            recipient_email VARCHAR(255) NOT NULL,
+                            notification_type VARCHAR(50) NOT NULL,
+                            status VARCHAR(20) NOT NULL,
+                            created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                            FOREIGN KEY (outbox_id) REFERENCES event_outbox(id)
+                        )
+                        """
+                    )
+                )
+        except IntegrityError as exc:
+            # Concurrent creation can surface as duplicate pg_type rows; safe to ignore
+            if "pg_type_typname_nsp_index" not in str(exc):
+                raise
 
 
 def _prepare_database() -> None:
