@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, Optional, TypedDict, cast
@@ -107,6 +108,20 @@ class BackgroundCheckService(BaseService):
 
     @BaseService.measure_operation("bgc.invite")
     async def invite(
+        self, instructor_id: str, *, package_override: str | None = None
+    ) -> InviteResult:
+        """Create a Checkr candidate and hosted invitation for an instructor without blocking the main loop."""
+        return await asyncio.to_thread(
+            self._invite_blocking, instructor_id, package_override=package_override
+        )
+
+    def _invite_blocking(
+        self, instructor_id: str, *, package_override: str | None = None
+    ) -> InviteResult:
+        """Run the invite workflow in a worker thread."""
+        return asyncio.run(self._invite_async(instructor_id, package_override=package_override))
+
+    async def _invite_async(
         self, instructor_id: str, *, package_override: str | None = None
     ) -> InviteResult:
         """Create a Checkr candidate and hosted invitation for an instructor."""

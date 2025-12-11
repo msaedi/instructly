@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timedelta, timezone
 import logging
 from typing import Final, Mapping, Optional, Tuple, TypedDict
@@ -408,6 +409,23 @@ class BackgroundCheckWorkflowService:
         self._schedule_final_adverse_action(profile_id, notice_id=notice_id, sent_at=sent_at)
 
     async def resolve_dispute_and_resume_final_adverse(
+        self, instructor_id: str, *, note: str | None = None
+    ) -> tuple[bool, datetime | None]:
+        """Run dispute resolution in a worker thread to avoid blocking the event loop."""
+        return await asyncio.to_thread(
+            self._resolve_dispute_and_resume_final_adverse_blocking,
+            instructor_id,
+            note=note,
+        )
+
+    def _resolve_dispute_and_resume_final_adverse_blocking(
+        self, instructor_id: str, *, note: str | None = None
+    ) -> tuple[bool, datetime | None]:
+        return asyncio.run(
+            self._resolve_dispute_and_resume_final_adverse_async(instructor_id, note=note)
+        )
+
+    async def _resolve_dispute_and_resume_final_adverse_async(
         self, instructor_id: str, *, note: str | None = None
     ) -> tuple[bool, datetime | None]:
         """Resume the final adverse workflow once a dispute is resolved.

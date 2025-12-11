@@ -314,7 +314,7 @@ class NotificationService(BaseService):
 
         try:
             # Get tomorrow's bookings
-            bookings = await self._get_tomorrows_bookings()
+            bookings = await asyncio.to_thread(self._get_tomorrows_bookings)
 
             if not bookings:
                 self.logger.info("No bookings found for tomorrow")
@@ -332,7 +332,7 @@ class NotificationService(BaseService):
 
     # Private helper methods
 
-    async def _get_tomorrows_bookings(self) -> List[Booking]:
+    def _get_tomorrows_bookings(self) -> List[Booking]:
         """
         Get all confirmed bookings for tomorrow.
 

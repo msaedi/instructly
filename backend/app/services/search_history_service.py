@@ -8,6 +8,7 @@ without code duplication.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import hashlib
 import logging
@@ -129,13 +130,14 @@ class SearchHistoryService(BaseService):
             # Use repository for atomic UPSERT operation
             result = cast(
                 SearchHistory,
-                self.repository.upsert_search(
-                    user_id=context.user_id,
-                    guest_session_id=context.guest_session_id,
-                    search_query=query,
-                    normalized_query=normalized_query,
-                    search_type=search_data.get("search_type", "natural_language"),
-                    results_count=search_data.get("results_count"),
+                await asyncio.to_thread(
+                    self.repository.upsert_search,
+                    context.user_id,
+                    context.guest_session_id,
+                    query,
+                    normalized_query,
+                    search_data.get("search_type", "natural_language"),
+                    search_data.get("results_count"),
                 ),
             )
 
@@ -148,7 +150,7 @@ class SearchHistoryService(BaseService):
                 )
 
             # Maintain limit per user/guest
-            self._enforce_search_limit(context)
+            await asyncio.to_thread(self._enforce_search_limit, context)
 
             # Process analytics data
             ip_hash: str | None = None
@@ -193,16 +195,20 @@ class SearchHistoryService(BaseService):
             is_returning = False
             if context.user_id:
                 # Check if user has searched before
-                previous_search = self.event_repository.get_previous_search_event(
-                    user_id=cast(Any, context.user_id),
-                    before_time=datetime.now(timezone.utc),
+                previous_search = await asyncio.to_thread(
+                    self.event_repository.get_previous_search_event,
+                    cast(Any, context.user_id),
+                    None,
+                    datetime.now(timezone.utc),
                 )
                 is_returning = previous_search is not None
             elif context.guest_session_id:
                 # Check guest session history (with 30 minute offset)
-                previous_search = self.event_repository.get_previous_search_event(
-                    guest_session_id=context.guest_session_id,
-                    before_time=datetime.now(timezone.utc) - timedelta(minutes=30),
+                previous_search = await asyncio.to_thread(
+                    self.event_repository.get_previous_search_event,
+                    None,
+                    context.guest_session_id,
+                    datetime.now(timezone.utc) - timedelta(minutes=30),
                 )
                 is_returning = previous_search is not None
 
@@ -235,7 +241,7 @@ class SearchHistoryService(BaseService):
                 "consent_given": True,  # Default for now
                 "consent_type": "analytics",  # Default for now
             }
-            event = self.event_repository.create_event(event_data)
+            event = await asyncio.to_thread(self.event_repository.create_event, event_data)
 
             # Persist observability top-N candidates if provided
             try:
@@ -253,7 +259,9 @@ class SearchHistoryService(BaseService):
                                 "source": c.get("source", "hybrid"),
                             }
                         )
-                    self.event_repository.bulk_insert_candidates(event.id, normalized)
+                    await asyncio.to_thread(
+                        self.event_repository.bulk_insert_candidates, event.id, normalized
+                    )
             except Exception as e:
                 logger.warning(
                     f"Failed to persist observability candidates for event {event.id}: {e}"
@@ -265,7 +273,7 @@ class SearchHistoryService(BaseService):
 
             # Refresh through repository
             # repo-pattern-ignore: Refresh after upsert to get updated values belongs in service layer
-            self.db.refresh(result)
+            await asyncio.to_thread(self.db.refresh, result)
 
             # Store the event ID on the result for frontend use
             setattr(result, "search_event_id", event.id)
