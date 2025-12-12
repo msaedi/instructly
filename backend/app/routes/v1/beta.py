@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from ...core.config import settings
 from ...database import get_db
 from ...dependencies.permissions import require_role
+from ...middleware.beta_phase_header import invalidate_beta_settings_cache
 from ...monitoring.prometheus_metrics import prometheus_metrics
 from ...repositories.beta_repository import BetaSettingsRepository
 from ...schemas.base_responses import EmptyResponse
@@ -402,6 +403,8 @@ def update_beta_settings(
         beta_phase=payload.beta_phase,
         allow_signup_without_invite=payload.allow_signup_without_invite,
     )
+    # Invalidate middleware cache so changes take effect immediately
+    invalidate_beta_settings_cache()
     response_payload = {
         "beta_disabled": bool(rec.beta_disabled),
         "beta_phase": str(rec.beta_phase),

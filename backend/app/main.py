@@ -331,6 +331,15 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     db_config = DatabaseConfig()
     logger.info(f"Database safety score: {db_config.get_safety_score()['score']}%")
 
+    # Eager load beta settings cache to avoid DB query on first request
+    from .middleware.beta_phase_header import refresh_beta_settings_cache
+
+    db = SessionLocal()
+    try:
+        refresh_beta_settings_cache(db)
+    finally:
+        db.close()
+
     logger.info(f"Allowed origins: {_DYN_ALLOWED_ORIGINS}")
     logger.info("GZip compression enabled for responses > 500 bytes")
     logger.info("Rate limiting enabled for DDoS and brute force protection")

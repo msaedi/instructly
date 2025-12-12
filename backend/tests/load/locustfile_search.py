@@ -20,6 +20,7 @@ Usage:
         -u 100 -r 10 -t 3m
 """
 
+from datetime import date, timedelta
 import logging
 import os
 import random
@@ -181,23 +182,6 @@ class SearchDiscoveryUser(HttpUser):
 
     @tag("profile")
     @task(3)
-    def view_instructor_services(self) -> None:
-        """View instructor's services."""
-        instructor_id = random.choice(INSTRUCTOR_IDS)
-        with self.client.get(
-            f"/api/v1/instructors/{instructor_id}/services",
-            name="instructor_services",
-            catch_response=True,
-        ) as response:
-            if response.status_code == 200:
-                response.success()
-            elif response.status_code == 404:
-                response.success()  # Instructor may not exist
-            else:
-                response.failure(f"Status {response.status_code}")
-
-    @tag("profile")
-    @task(3)
     def view_instructor_ratings(self) -> None:
         """View instructor's ratings/reviews."""
         instructor_id = random.choice(INSTRUCTOR_IDS)
@@ -218,8 +202,11 @@ class SearchDiscoveryUser(HttpUser):
     def view_availability(self) -> None:
         """View instructor's availability calendar."""
         instructor_id = random.choice(INSTRUCTOR_IDS)
+        # Availability endpoint requires date range parameters
+        start_date = date.today().isoformat()
+        end_date = (date.today() + timedelta(days=7)).isoformat()
         with self.client.get(
-            f"/api/v1/availability/instructor/{instructor_id}",
+            f"/api/v1/public/instructors/{instructor_id}/availability?start_date={start_date}&end_date={end_date}",
             name="instructor_availability",
             catch_response=True,
         ) as response:
