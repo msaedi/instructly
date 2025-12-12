@@ -135,7 +135,13 @@ async def create_sse_stream(
                                         "event_type": parsed_event.get("type"),
                                     },
                                 )
-                                yield format_redis_event(parsed_event, user_id)
+                                try:
+                                    yield format_redis_event(parsed_event, user_id)
+                                except GeneratorExit:
+                                    logger.info(
+                                        f"[SSE-STREAM] Client disconnected for user {user_id}"
+                                    )
+                                    return  # Exit cleanly
                             except json.JSONDecodeError as e:
                                 logger.warning(f"[SSE-STREAM] Invalid JSON in message: {e}")
                         elif msg_type == "error":
@@ -148,15 +154,19 @@ async def create_sse_stream(
                     except asyncio.TimeoutError:
                         # No message within timeout - send heartbeat
                         logger.debug(f"[SSE-HEARTBEAT] Sending heartbeat for user {user_id}")
-                        yield {
-                            "event": "heartbeat",
-                            "data": json.dumps(
-                                {
-                                    "type": "heartbeat",
-                                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                                }
-                            ),
-                        }
+                        try:
+                            yield {
+                                "event": "heartbeat",
+                                "data": json.dumps(
+                                    {
+                                        "type": "heartbeat",
+                                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                                    }
+                                ),
+                            }
+                        except GeneratorExit:
+                            logger.info(f"[SSE-STREAM] Client disconnected for user {user_id}")
+                            return  # Exit cleanly
             finally:
                 # Clean up the reader task
                 reader.cancel()
@@ -169,17 +179,21 @@ async def create_sse_stream(
         logger.info(f"[SSE-STREAM] Stream cancelled for user {user_id}")
         raise
     except RuntimeError as e:
-        # Broadcast not initialized
-        logger.error(f"[SSE-STREAM] Broadcast error for user {user_id}: {e}")
-        yield {
-            "event": "error",
-            "data": json.dumps(
-                {
-                    "error": "service_unavailable",
-                    "message": "Real-time service temporarily unavailable",
-                }
-            ),
-        }
+        if "generator" in str(e).lower():
+            # Normal cleanup during client disconnect - not an error
+            logger.debug(f"[SSE-STREAM] Generator cleanup for user {user_id}")
+        else:
+            # Broadcast not initialized or other runtime error
+            logger.error(f"[SSE-STREAM] Broadcast error for user {user_id}: {e}")
+            yield {
+                "event": "error",
+                "data": json.dumps(
+                    {
+                        "error": "service_unavailable",
+                        "message": "Real-time service temporarily unavailable",
+                    }
+                ),
+            }
     except Exception as e:
         logger.error(
             f"[SSE-STREAM] Unexpected error for user {user_id}: {e}",
