@@ -40,6 +40,33 @@ def test_get_instructor_ratings_route(client, db, test_booking, auth_headers):
     assert "overall" in data
 
 
+def test_get_instructor_ratings_accepts_instructor_profile_id(client, db, test_booking, auth_headers):
+    # Create a review for the instructor (reviews store instructor as users.id)
+    test_booking.status = "COMPLETED"
+    test_booking.completed_at = datetime.now(timezone.utc) - timedelta(days=1)
+    db.flush()
+    client.post(
+        "/api/v1/reviews",
+        json={"booking_id": test_booking.id, "rating": 5},
+        headers=auth_headers,
+    )
+
+    # But public pages commonly use instructor_profiles.id; ensure the endpoint works with that too.
+    from app.models.instructor import InstructorProfile
+
+    profile = (
+        db.query(InstructorProfile)
+        .filter(InstructorProfile.user_id == test_booking.instructor_id)
+        .first()
+    )
+    assert profile is not None
+
+    res = client.get(f"/api/v1/reviews/instructor/{profile.id}/ratings")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["overall"]["total_reviews"] >= 1
+
+
 def test_recent_reviews_route(client, db, test_booking, auth_headers):
     test_booking.status = "COMPLETED"
     test_booking.completed_at = datetime.now(timezone.utc) - timedelta(days=1)

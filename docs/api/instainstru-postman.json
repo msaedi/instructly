@@ -870,7 +870,7 @@
           }
         },
         {
-          "name": "Metrics Health",
+          "name": "Ops Health",
           "request": {
             "auth": {
               "type": "noauth"
@@ -878,11 +878,11 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/metrics/health",
+              "raw": "{{base_url}}/ops/health",
               "host": ["{{base_url}}"],
-              "path": ["metrics", "health"]
+              "path": ["ops", "health"]
             },
-            "description": "Health check for metrics service."
+            "description": "Health check for ops/metrics service."
           }
         }
       ]

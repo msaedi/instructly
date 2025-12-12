@@ -885,7 +885,7 @@ localStorage.setItem('log-level', 'debug'); // or 'info', 'warn', 'error'
 8. Implement UI components
 
 ### Performance Optimization
-- Use monitoring middleware data at `/metrics/performance`
+- Use monitoring middleware data at `/ops/performance`
 - Profile slow queries with SQLAlchemy logging
 - Leverage caching for read-heavy operations
 - Database indexes already configured

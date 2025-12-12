@@ -413,7 +413,8 @@ export default function InstructorDashboardNew() {
       router.push('/login?redirect=/instructor/dashboard');
     }
   }, [profileQueryError, router]);
-  const { data: ratingsData } = useInstructorRatingsQuery(profile?.user_id ?? '');
+  const instructorUserId = instructorProfile?.user_id ?? profile?.user_id ?? '';
+  const { data: ratingsData } = useInstructorRatingsQuery(instructorUserId);
   const reviewCount = ratingsData?.overall?.total_reviews ?? 0;
   const reviewAverageDisplay =
     ratingsData?.overall?.display_rating ??

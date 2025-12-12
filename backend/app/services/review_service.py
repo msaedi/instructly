@@ -93,7 +93,32 @@ class ReviewService(BaseService):
         self.response_repository: ReviewResponseRepository = ReviewResponseRepository(db)
         self.tip_repository: ReviewTipRepository = ReviewTipRepository(db)
         self.booking_repository: BookingRepository = RepositoryFactory.create_booking_repository(db)
+        self.instructor_profile_repository: InstructorProfileRepository = (
+            InstructorProfileRepository(db)
+        )
         self.config = config
+
+    def _resolve_instructor_user_id(self, instructor_id: str) -> str:
+        """
+        Resolve an instructor identifier to the `users.id` used by the reviews table.
+
+        Public endpoints historically pass instructor profile IDs (instructor_profiles.id),
+        while the reviews schema stores the instructor as `users.id`. To be tolerant and
+        avoid returning empty ratings, we treat the input as:
+        - If it matches an instructor profile id: use `profile.user_id`
+        - Otherwise: assume it is already a `users.id`
+        """
+        try:
+            profile = self.instructor_profile_repository.get_by_id(
+                instructor_id, load_relationships=False
+            )
+            user_id = getattr(profile, "user_id", None) if profile else None
+            if user_id:
+                return str(user_id)
+        except Exception:
+            # Fall back to treating the provided value as `users.id`
+            pass
+        return instructor_id
 
     @BaseService.measure_operation("submit_review")
     def submit_review(
@@ -363,15 +388,16 @@ class ReviewService(BaseService):
 
     @BaseService.measure_operation("get_instructor_ratings")
     def get_instructor_ratings(self, instructor_id: str) -> InstructorRatingsSummary:
-        cache_key = f"ratings:{self.CACHE_VERSION}:instructor:{instructor_id}"
+        resolved_instructor_id = self._resolve_instructor_user_id(instructor_id)
+        cache_key = f"ratings:{self.CACHE_VERSION}:instructor:{resolved_instructor_id}"
         if self.cache:
             cached = self.cache.get(cache_key)
             if cached:
                 return cast(InstructorRatingsSummary, cached)
 
         # Compute Dirichlet-smoothed rating with recency weighting
-        overall = self._compute_dirichlet_rating(instructor_id)
-        breakdown_rows = self.repository.get_service_breakdown(instructor_id)
+        overall = self._compute_dirichlet_rating(resolved_instructor_id)
+        breakdown_rows = self.repository.get_service_breakdown(resolved_instructor_id)
 
         by_service: list[ServiceBreakdownSummary] = []
         for s in breakdown_rows:
@@ -417,8 +443,9 @@ class ReviewService(BaseService):
         with_text: Optional[bool] = None,
     ) -> list[Review]:
         offset = max(0, (page - 1) * max(1, limit))
+        resolved_instructor_id = self._resolve_instructor_user_id(instructor_id)
         return self.repository.get_recent_reviews(
-            instructor_id,
+            resolved_instructor_id,
             instructor_service_id,
             limit,
             offset,
@@ -437,8 +464,9 @@ class ReviewService(BaseService):
         rating: Optional[int] = None,
         with_text: Optional[bool] = None,
     ) -> int:
+        resolved_instructor_id = self._resolve_instructor_user_id(instructor_id)
         count = self.repository.count_recent_reviews(
-            instructor_id,
+            resolved_instructor_id,
             instructor_service_id,
             min_rating=min_rating,
             rating=rating,
@@ -476,16 +504,17 @@ class ReviewService(BaseService):
     def get_rating_for_search_context(
         self, instructor_id: str, instructor_service_id: Optional[str] = None
     ) -> SearchRatingSummary:
-        cache_key = (
-            f"ratings:search:{self.CACHE_VERSION}:{instructor_id}:{instructor_service_id or 'all'}"
-        )
+        resolved_instructor_id = self._resolve_instructor_user_id(instructor_id)
+        cache_key = f"ratings:search:{self.CACHE_VERSION}:{resolved_instructor_id}:{instructor_service_id or 'all'}"
         if self.cache:
             cached = self.cache.get(cache_key)
             if cached:
                 return cast(SearchRatingSummary, cached)
 
         if instructor_service_id:
-            sr = self._compute_dirichlet_rating_for_service(instructor_id, instructor_service_id)
+            sr = self._compute_dirichlet_rating_for_service(
+                resolved_instructor_id, instructor_service_id
+            )
             result: SearchRatingSummary = {
                 "primary_rating": sr["rating"]
                 if sr["total_reviews"] >= self.config.min_reviews_to_display
@@ -497,7 +526,7 @@ class ReviewService(BaseService):
                 self.cache.set(cache_key, result, ttl=300)
             return result
 
-        overall = self._compute_dirichlet_rating(instructor_id)
+        overall = self._compute_dirichlet_rating(resolved_instructor_id)
         overall_result: SearchRatingSummary = {
             "primary_rating": overall["rating"]
             if overall["total_reviews"] >= self.config.min_reviews_to_display

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from time import perf_counter
+from types import TracebackType
 from typing import Any, Dict, Optional, Tuple
 
 from fastapi import HTTPException, status
@@ -126,7 +127,12 @@ class login_slot:
         await acquire_login_slot(self.timeout)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> bool:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool:
         LOGIN_SEMAPHORE.release()
         return False
 

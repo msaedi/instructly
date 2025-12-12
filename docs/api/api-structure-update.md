@@ -229,11 +229,12 @@ GET    /api/monitoring/alerts/active    - Active alerts
 GET    /api/monitoring/metrics          - System metrics
 ```
 
-#### Cache Metrics (`/api/metrics/*`)
+#### Ops Metrics (`/ops/*`)
 ```
-GET    /api/metrics/cache/availability  - Availability cache stats
-GET    /api/metrics/cache/performance   - Cache performance
-GET    /api/metrics/performance          - API performance metrics
+GET    /ops/health                      - Health check
+GET    /ops/performance                 - API performance metrics
+GET    /ops/cache                       - Cache metrics
+GET    /ops/cache/availability          - Availability cache metrics
 ```
 
 ## Migration Guide

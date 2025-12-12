@@ -396,7 +396,7 @@ Tests automatically use the INT database - **no production risk**.
 - **Database:** Supabase PostgreSQL
 
 ### Monitoring
-- **Performance:** `/metrics/performance` endpoint
+- **Performance:** `/ops/performance` endpoint
 - **Redis Stats:** `/api/redis/stats`
 - **Database Pool:** `/api/database/pool-status`
 - **Health Checks:** `/health`, `/health/lite`

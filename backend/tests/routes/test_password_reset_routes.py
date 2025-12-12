@@ -70,7 +70,7 @@ class TestPasswordResetRoutes:
         response = client.post("/api/v1/password-reset/request", json={"email": "invalid-email"})
 
         # Verify
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         error = response.json()
         assert any("email" in str(err).lower() for err in error["detail"])
 
@@ -80,7 +80,7 @@ class TestPasswordResetRoutes:
         response = client.post("/api/v1/password-reset/request", json={})
 
         # Verify
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_confirm_password_reset_success(self, client_with_mock_service, mock_password_reset_service):
         """Test successful password reset confirmation."""
@@ -123,7 +123,7 @@ class TestPasswordResetRoutes:
         )
 
         # Verify
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         error = response.json()
         assert any("at least 8 characters" in str(err).lower() for err in error["detail"])
 
@@ -133,7 +133,7 @@ class TestPasswordResetRoutes:
         )
 
         # Verify
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
         # Execute - password without uppercase
         response = client.post(
@@ -141,7 +141,7 @@ class TestPasswordResetRoutes:
         )
 
         # Verify
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_confirm_password_reset_server_error(self, client_with_mock_service, mock_password_reset_service):
         """Test password reset with unexpected server error."""
@@ -212,15 +212,15 @@ class TestPasswordResetRoutes:
         """Test confirmation with missing required fields."""
         # Missing token
         response = client.post("/api/v1/password-reset/confirm", json={"new_password": "NewSecurePassword123!"})
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
         # Missing password
         response = client.post("/api/v1/password-reset/confirm", json={"token": "valid_token"})
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
         # Empty payload
         response = client.post("/api/v1/password-reset/confirm", json={})
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def test_password_validation_edge_cases(self, client_with_mock_service, mock_password_reset_service):
         """Test edge cases in password validation."""

@@ -211,6 +211,8 @@ async def get_instructor_public_availability(
         instructor_user = instructor_service.get_instructor_user(instructor_id)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
+    # Canonicalize to instructor user_id for downstream queries/caching.
+    instructor_id = instructor_user.id
 
     # Validate dates using instructor's timezone
     instructor_today = get_user_today(instructor_user)
@@ -475,6 +477,8 @@ async def get_next_available_slot(
         instructor_user = instructor_service.get_instructor_user(instructor_id)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
+    # Canonicalize to instructor user_id for downstream queries.
+    instructor_id = instructor_user.id
 
     # Search for next configured days using instructor's timezone
     search_days = settings.public_availability_days

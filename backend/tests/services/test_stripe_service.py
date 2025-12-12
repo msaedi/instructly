@@ -343,6 +343,7 @@ class TestStripeService:
         mock_account = MagicMock()
         mock_account.charges_enabled = True
         mock_account.details_submitted = True
+        mock_account.payouts_enabled = True
         mock_retrieve.return_value = mock_account
 
         # Check status
@@ -351,8 +352,11 @@ class TestStripeService:
         # Verify result
         assert status["has_account"] is True
         assert status["onboarding_completed"] is True
+        assert status["charges_enabled"] is True
         assert status["can_accept_payments"] is True
+        assert status["payouts_enabled"] is True
         assert status["details_submitted"] is True
+        assert status["requirements"] == []
 
     def test_check_account_status_no_account(self, stripe_service: StripeService, test_instructor: tuple):
         """Test checking account status with no account."""
@@ -362,7 +366,39 @@ class TestStripeService:
 
         assert status["has_account"] is False
         assert status["onboarding_completed"] is False
+        assert status["charges_enabled"] is False
         assert status["can_accept_payments"] is False
+        assert status["payouts_enabled"] is False
+        assert status["details_submitted"] is False
+        assert status["requirements"] == []
+
+    @patch("stripe.Account.retrieve")
+    def test_get_instructor_onboarding_status_maps_charges_enabled(
+        self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+    ):
+        """Ensure /connect/status returns charges_enabled derived from Stripe account."""
+        user, profile, _ = test_instructor
+
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_test123", onboarding_completed=False
+        )
+
+        mock_account = MagicMock()
+        mock_account.charges_enabled = True
+        mock_account.payouts_enabled = True
+        mock_account.details_submitted = True
+        # Provide requirements shape to ensure parsing is safe
+        mock_account.requirements = MagicMock(currently_due=[], past_due=[], pending_verification=[])
+        mock_retrieve.return_value = mock_account
+
+        status = stripe_service.get_instructor_onboarding_status(user=user)
+
+        assert status.has_account is True
+        assert status.charges_enabled is True
+        assert status.payouts_enabled is True
+        assert status.details_submitted is True
+        assert status.onboarding_completed is True
+        assert status.requirements == []
 
     # ========== Payment Processing Tests ==========
 

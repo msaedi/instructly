@@ -333,7 +333,7 @@ async def delete_profile(
 async def get_instructor(
     instructor_id: str = Path(
         ...,
-        description="Instructor profile ULID",
+        description="Instructor user ULID (or instructor profile ULID)",
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
@@ -352,17 +352,18 @@ async def get_instructor(
                 detail="Instructor profile not found",
             )
 
+        instructor_user_id = str(profile_data.get("user_id") or instructor_id)
         response = InstructorProfileResponse(**profile_data)
 
         # Add favorite status
         if current_user:
             response.is_favorited = favorites_service.is_favorited(
-                student_id=current_user.id, instructor_id=instructor_id
+                student_id=current_user.id, instructor_id=instructor_user_id
             )
         else:
             response.is_favorited = None
 
-        stats = favorites_service.get_instructor_favorite_stats(instructor_id)
+        stats = favorites_service.get_instructor_favorite_stats(instructor_user_id)
         response.favorited_count = stats["favorite_count"]
 
         return response
@@ -385,17 +386,25 @@ async def get_instructor(
 async def get_coverage(
     instructor_id: str = Path(
         ...,
-        description="Instructor profile ULID",
+        description="Instructor user ULID (or instructor profile ULID)",
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
     address_service: AddressService = Depends(get_address_service),
+    instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> CoverageFeatureCollectionResponse:
     """Get instructor service area coverage as GeoJSON."""
     if not is_valid_ulid(instructor_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid instructor ID")
 
-    geo = address_service.get_coverage_geojson_for_instructors([instructor_id])
+    try:
+        instructor_user = await asyncio.to_thread(
+            instructor_service.get_instructor_user, instructor_id
+        )
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
+
+    geo = address_service.get_coverage_geojson_for_instructors([instructor_user.id])
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
     )

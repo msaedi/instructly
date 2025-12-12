@@ -172,7 +172,7 @@ async def test_cache_metrics_endpoint():
 
     async with httpx.AsyncClient() as client:
         # Try to access metrics endpoint (may require auth)
-        url = f"{API_URL}/metrics/health"
+        url = f"{API_URL}/ops/health"
         response = await client.get(url)
 
         if response.status_code == 200:
@@ -194,7 +194,7 @@ async def main():
         print(f"\n{BLUE}=== Test Complete ==={RESET}")
         print(f"\n{GREEN}✓ Cache testing completed successfully{RESET}")
         print("\nRecommendations:")
-        print("- Monitor cache hit rates using /metrics/cache endpoint")
+        print("- Monitor cache hit rates using /ops/cache endpoint")
         print("- Consider increasing TTL if hit rate is low")
         print("- Use cache warming for frequently accessed data")
         print("- Monitor Redis memory usage for capacity planning")

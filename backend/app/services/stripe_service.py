@@ -281,7 +281,12 @@ class StripeService(BaseService):
             )
 
         account = self.check_account_status(profile.id)
-        charges_enabled = bool(account.get("charges_enabled", False))
+        charges_enabled = bool(
+            account.get(
+                "charges_enabled",
+                account.get("can_accept_payments", False),
+            )
+        )
         payouts_enabled = bool(account.get("payouts_enabled", False))
         details_submitted = bool(account.get("details_submitted", False))
         onboarding_completed = bool(account.get("onboarding_completed", False))
@@ -1464,7 +1469,11 @@ class StripeService(BaseService):
                 return {
                     "has_account": False,
                     "onboarding_completed": False,
+                    "charges_enabled": False,
                     "can_accept_payments": False,
+                    "payouts_enabled": False,
+                    "details_submitted": False,
+                    "requirements": [],
                 }
 
             # Get account details from Stripe
@@ -1473,6 +1482,18 @@ class StripeService(BaseService):
             charges_enabled = bool(getattr(stripe_account, "charges_enabled", False))
             payouts_enabled = bool(getattr(stripe_account, "payouts_enabled", False))
             details_submitted = bool(getattr(stripe_account, "details_submitted", False))
+            requirements: list[str] = []
+            try:
+                req_obj = getattr(stripe_account, "requirements", None)
+                if req_obj:
+                    for field_name in ("currently_due", "past_due", "pending_verification"):
+                        items = getattr(req_obj, field_name, None) or []
+                        if isinstance(items, (list, tuple, set)):
+                            for item in items:
+                                if isinstance(item, str):
+                                    requirements.append(item)
+            except Exception:
+                requirements = []
 
             # Compute actual onboarding completion from live Stripe fields
             computed_completed = bool(charges_enabled and details_submitted)
@@ -1491,9 +1512,11 @@ class StripeService(BaseService):
             return {
                 "has_account": True,
                 "onboarding_completed": computed_completed,
+                "charges_enabled": charges_enabled,
                 "can_accept_payments": charges_enabled,
                 "payouts_enabled": payouts_enabled,
                 "details_submitted": details_submitted,
+                "requirements": requirements,
                 "stripe_account_id": account_record.stripe_account_id,
             }
 

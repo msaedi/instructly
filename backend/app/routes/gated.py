@@ -23,7 +23,7 @@ def _enforce_no_query_params(request: Request) -> None:
     if len(request.query_params) > 0:
         # 422 Unprocessable Entity to align with validation errors
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Unexpected query parameters are not allowed",
         )
 

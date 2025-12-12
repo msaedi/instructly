@@ -135,7 +135,7 @@ class InstructorService(BaseService):
         for timezone calculations.
 
         Args:
-            user_id: The user ID of the instructor
+            user_id: The instructor user ID or instructor profile ID
 
         Returns:
             User object
@@ -144,15 +144,20 @@ class InstructorService(BaseService):
             NotFoundException: If user not found or doesn't have instructor profile
         """
         user: Optional[User] = self.user_repository.get_by_id(user_id)
-        if not user:
-            raise NotFoundException("Instructor not found")
+        if user:
+            profile = self.profile_repository.get_by_user_id(user.id)
+            if not profile:
+                raise NotFoundException("Instructor not found")
+            return user
 
-        # Verify they have an instructor profile
-        profile = self.profile_repository.get_by_user_id(user_id)
+        profile = self.profile_repository.get_by_id(user_id)
         if not profile:
             raise NotFoundException("Instructor not found")
 
-        return user
+        resolved_user: Optional[User] = self.user_repository.get_by_id(profile.user_id)
+        if not resolved_user:
+            raise NotFoundException("Instructor not found")
+        return resolved_user
 
     @BaseService.measure_operation("get_all_instructors")
     def get_all_instructors(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:

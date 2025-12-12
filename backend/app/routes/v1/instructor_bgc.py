@@ -195,7 +195,10 @@ def _is_package_not_found_error(err: CheckrError) -> bool:
 
 
 def _is_work_location_error(err: CheckrError) -> bool:
-    if err.status_code not in {status.HTTP_400_BAD_REQUEST, status.HTTP_422_UNPROCESSABLE_ENTITY}:
+    if err.status_code not in {
+        status.HTTP_400_BAD_REQUEST,
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+    }:
         return False
     body = getattr(err, "error_body", None)
     needles = ("work_location", "work_locations")

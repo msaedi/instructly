@@ -73,7 +73,12 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             )
             return cast(
                 Optional[InstructorProfile],
-                query.filter(InstructorProfile.user_id == instructor_id).first(),
+                query.filter(
+                    or_(
+                        InstructorProfile.user_id == instructor_id,
+                        InstructorProfile.id == instructor_id,
+                    )
+                ).first(),
             )
         except SQLAlchemyError as exc:
             self.logger.error(
