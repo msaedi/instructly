@@ -308,20 +308,14 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     _validate_startup_config()
 
-    # Enforce is_testing discipline without changing preview/prod behavior otherwise
+    # Log if running under pytest (for debugging)
     try:
-        site_mode = site_mode_raw.strip().lower()
-        if site_mode in {"preview", "prod", "production", "live"} and bool(
-            getattr(settings, "is_testing", False)
-        ):
-            logger.error("Refusing to start: is_testing=true is not allowed in preview/prod")
-            raise SystemExit(2)
-        if site_mode == "local" and bool(getattr(settings, "is_testing", False)):
-            logger.warning("Local testing mode enabled (is_testing=true)")
-    except SystemExit:
-        raise
+        from app.core.config import is_running_tests
+
+        if is_running_tests():
+            logger.info("Running under pytest (test mode active)")
     except Exception as e:
-        logger.error(f"Startup guard evaluation failed: {e}")
+        logger.debug(f"Test detection check failed: {e}")
 
     # Pre-warm lightweight health endpoint to avoid first request cold start spikes
     if httpx is not None:

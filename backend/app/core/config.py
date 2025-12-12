@@ -29,6 +29,8 @@ except Exception:  # pragma: no cover - optional on CI
         return False
 
 
+import sys
+
 from pydantic import (
     AliasChoices,
     Field,
@@ -41,6 +43,17 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .constants import BRAND_NAME
+
+
+def is_running_tests() -> bool:
+    """
+    Detect if code is running under pytest.
+
+    This is safer than using an env var because it cannot be accidentally
+    left enabled in .env files. Only returns True when pytest is actually loaded.
+    """
+    return "pytest" in sys.modules
+
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SENDER_PROFILES_FILE = _BACKEND_ROOT / "config" / "email_senders.json"

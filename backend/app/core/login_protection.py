@@ -12,7 +12,7 @@ import httpx
 from prometheus_client import Counter, Histogram
 from redis.asyncio import Redis
 
-from app.core.config import settings
+from app.core.config import is_running_tests, settings
 from app.core.redis import get_async_redis_client
 from app.monitoring.prometheus_metrics import REGISTRY
 
@@ -355,7 +355,7 @@ class CaptchaVerifier:
 
     async def is_captcha_required(self, email: str) -> bool:
         """Check if CAPTCHA is required for this email based on failure count."""
-        if settings.is_testing and not self._explicit_secret:
+        if is_running_tests() and not self._explicit_secret:
             return False
 
         if not self.secret_key:
@@ -381,7 +381,7 @@ class CaptchaVerifier:
 
     async def verify(self, token: Optional[str], remote_ip: Optional[str] = None) -> bool:
         """Verify a Turnstile CAPTCHA token."""
-        if settings.is_testing and not self._explicit_secret:
+        if is_running_tests() and not self._explicit_secret:
             return True
 
         if not self.secret_key:
