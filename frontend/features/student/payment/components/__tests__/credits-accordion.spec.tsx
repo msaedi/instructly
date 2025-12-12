@@ -36,11 +36,29 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => {
   type MockProps = React.ComponentPropsWithoutRef<'input'> & {
     value?: string;
     onValueChange?: (value: string) => void;
+    onSelectSuggestion?: (suggestion: unknown) => void;
     inputClassName?: string;
+    containerClassName?: string;
+    suggestionScope?: 'default' | 'us' | 'global';
+    inputProps?: unknown;
   };
 
   const MockPlacesAutocompleteInput = React.forwardRef<HTMLInputElement, MockProps>(
-    ({ onValueChange, value, inputClassName, className, onChange, ...rest }, ref) => (
+    (
+      {
+        onValueChange,
+        value,
+        inputClassName,
+        className,
+        onChange,
+        onSelectSuggestion: _ignored,
+        containerClassName: _containerClassName,
+        suggestionScope: _suggestionScope,
+        inputProps: _inputProps,
+        ...rest
+      },
+      ref,
+    ) => (
       <input
         ref={ref}
         {...rest}
