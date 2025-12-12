@@ -129,6 +129,7 @@ from .routes.v1 import (
 )
 from .routes.v1.admin import (
     audit as admin_audit_v1,
+    auth_blocks as admin_auth_blocks_v1,
     background_checks as admin_background_checks_v1,
     badges as admin_badges_v1,
     config as admin_config_v1,
@@ -986,6 +987,7 @@ api_v1.include_router(admin_audit_v1.router, prefix="/admin/audit")  # type: ign
 api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
 api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
 api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
+api_v1.include_router(admin_auth_blocks_v1.router, prefix="/admin/auth-blocks")  # type: ignore[attr-defined]
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
 # Phase 24.5 v1 admin operations routers
