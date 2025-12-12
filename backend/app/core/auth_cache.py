@@ -30,8 +30,9 @@ from ..models.user import User  # Used in _user_to_dict type hint and create_tra
 
 logger = logging.getLogger(__name__)
 
-# Cache TTL for user lookups (5 minutes - balance freshness vs DB pressure)
-USER_CACHE_TTL_SECONDS = 300
+# Cache TTL for user lookups (30 minutes - roles/permissions rarely change)
+# Increased from 5 min to reduce DB pressure under load (users can re-login if role changes)
+USER_CACHE_TTL_SECONDS = 1800
 USER_CACHE_PREFIX = "auth_user:"
 
 # Module-level Redis client singleton (lazy init)
@@ -110,11 +111,13 @@ def _user_to_dict(user: User) -> Dict[str, Any]:
         user: User ORM object with active session
 
     Returns:
-        Dict with user data including permissions
+        Dict with user data including permissions and all fields needed by /auth/me
     """
     # Collect permissions from all roles (assumes roles+permissions are loaded)
     permissions: set[str] = set()
+    role_names: list[str] = []
     for role in user.roles:
+        role_names.append(role.name)
         for perm in role.permissions:
             permissions.add(perm.name)
 
@@ -127,6 +130,14 @@ def _user_to_dict(user: User) -> Dict[str, Any]:
         "is_admin": user.is_admin,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        # Additional fields for /auth/me endpoint (avoids re-querying)
+        "phone": getattr(user, "phone", None),
+        "zip_code": getattr(user, "zip_code", None),
+        "timezone": getattr(user, "timezone", None),
+        "profile_picture_version": getattr(user, "profile_picture_version", 0),
+        "has_profile_picture": getattr(user, "has_profile_picture", False),
+        # Role names for direct use in /auth/me response
+        "roles": role_names,
         "permissions": list(permissions),  # Cache permissions for SSE permission checks
     }
 
@@ -251,6 +262,7 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
     - The `is_student`, `is_instructor`, `is_admin` properties work normally
     - Route handlers can check roles without knowing about transient vs ORM users
     - Permissions are cached for SSE permission checks (no DB query needed)
+    - All fields needed by /auth/me are populated (phone, timezone, etc.)
 
     Args:
         user_data: Dict containing user attributes
@@ -267,6 +279,14 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
     user.is_active = user_data.get("is_active", True)
     user.first_name = user_data.get("first_name")
     user.last_name = user_data.get("last_name")
+
+    # Additional fields for /auth/me endpoint (no re-querying needed)
+    user.phone = user_data.get("phone")
+    user.zip_code = user_data.get("zip_code")
+    user.timezone = user_data.get("timezone")
+    user.profile_picture_version = user_data.get("profile_picture_version", 0)
+    # has_profile_picture is a property, store the underlying value
+    setattr(user, "_cached_has_profile_picture", user_data.get("has_profile_picture", False))
 
     # Populate roles so routes can check them normally (e.g., `for role in user.roles`)
     # This allows transient users to fully emulate ORM users
@@ -292,6 +312,9 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
 
     # Store cached permissions for SSE permission checks (avoids DB query)
     setattr(user, "_cached_permissions", set(user_data.get("permissions", [])))
+
+    # Store cached role names for /auth/me response (avoids re-extracting)
+    setattr(user, "_cached_role_names", list(user_data.get("roles", [])))
 
     return user
 
