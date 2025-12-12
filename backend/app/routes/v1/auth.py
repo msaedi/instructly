@@ -17,7 +17,7 @@ Endpoints:
 import asyncio
 from datetime import timedelta
 import logging
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -34,6 +34,14 @@ from ...auth import (
 )
 from ...core.config import settings
 from ...core.exceptions import ConflictException, NotFoundException, ValidationException
+from ...core.login_protection import (
+    account_lockout,
+    account_rate_limiter,
+    captcha_verifier,
+    login_slot,
+    record_captcha_event,
+    record_login_result,
+)
 from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
@@ -63,6 +71,16 @@ logger = logging.getLogger(__name__)
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["auth-v1"])
+
+
+async def _extract_captcha_token(request: Request) -> Optional[str]:
+    """Return captcha_token from request form if present (OAuth2 form)."""
+    try:
+        form = await request.form()
+        raw_value = form.get("captcha_token")
+        return cast(Optional[str], raw_value)
+    except Exception:
+        return None
 
 
 def _should_trust_device(request: Request) -> bool:
@@ -241,9 +259,55 @@ async def login(
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
     """
+    email_input = (form_data.username or "").strip()
+    captcha_token = await _extract_captcha_token(request)
+    client_ip = request.client.host if request.client else None
+
+    # Check lockout first (cheapest)
+    locked, lockout_info = await account_lockout.check_lockout(email_input)
+    if locked:
+        record_login_result("locked_out")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=lockout_info.get("message", "Account temporarily locked. Try again later."),
+            headers={"Retry-After": str(lockout_info.get("retry_after", 1))},
+        )
+
+    # CAPTCHA requirement based on prior failures
+    captcha_required = await captcha_verifier.is_captcha_required(email_input)
+    if captcha_required:
+        record_captcha_event("required")
+        if not captcha_token:
+            record_login_result("captcha_required")
+            record_captcha_event("missing")
+            raise HTTPException(
+                status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+                detail="CAPTCHA verification required",
+                headers={"X-Captcha-Required": "true"},
+            )
+
+        captcha_valid = await captcha_verifier.verify(captcha_token, client_ip)
+        if not captcha_valid:
+            record_captcha_event("failed")
+            record_login_result("captcha_failed")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="CAPTCHA verification failed"
+            )
+        record_captcha_event("passed")
+
+    # Per-account rate limiting
+    allowed, rate_info = await account_rate_limiter.check_and_increment(email_input)
+    if not allowed:
+        record_login_result("rate_limited")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=rate_info["message"],
+            headers={"Retry-After": str(rate_info.get("retry_after", 1))},
+        )
+
     # Step 1: Fetch user data from DB (brief DB hold ~5-20ms)
     # CRITICAL: Run in thread pool to avoid blocking event loop under load
-    user_data = await asyncio.to_thread(auth_service.fetch_user_for_auth, form_data.username)
+    user_data = await asyncio.to_thread(auth_service.fetch_user_for_auth, email_input)
 
     # Step 2: Extract data needed BEFORE releasing DB
     if user_data:
@@ -263,16 +327,17 @@ async def login(
         user_obj = None
         beta_claims = None
 
-    # Step 3: Release DB connection BEFORE bcrypt (critical for throughput)
-    # The auth_service.db session will be released by FastAPI after response,
-    # but we ensure no further DB operations happen during bcrypt.
+    # Step 3: Release DB connection BEFORE Argon2id verification (critical for throughput)
     auth_service.release_connection()
 
-    # Step 4: Run bcrypt verification (~200ms, no DB held)
-    password_valid = await verify_password_async(form_data.password, hashed_password)
+    # Step 4: ONLY password verification is concurrency-capped
+    async with login_slot():
+        password_valid = await verify_password_async(form_data.password, hashed_password)
 
     # Step 5: Validate authentication result
     if not user_data or not password_valid:
+        await account_lockout.record_failure(email_input)
+        record_login_result("invalid_credentials")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -284,6 +349,7 @@ async def login(
 
     # Check account status - deactivated users cannot login
     if account_status == "deactivated":
+        record_login_result("deactivated")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -297,6 +363,9 @@ async def login(
     if user_obj and totp_enabled:
         two_factor_response = _issue_two_factor_challenge_if_needed(user_obj, request)
         if two_factor_response:
+            await account_lockout.reset(email_input)
+            await account_rate_limiter.reset(email_input)
+            record_login_result("two_factor_challenge")
             return two_factor_response
 
     # Step 7: Create access token (no DB needed)
@@ -315,6 +384,11 @@ async def login(
         expires_delta=access_token_expires,
         beta_claims=beta_claims,  # Pre-fetched in thread pool, no blocking DB call
     )
+
+    # Success - reset counters
+    await account_lockout.reset(email_input)
+    await account_rate_limiter.reset(email_input)
+    record_login_result("success")
 
     # Step 8: Set cookie for SSE authentication (no DB needed)
     site_mode = settings.site_mode
@@ -411,9 +485,51 @@ async def login_with_session(
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
     """
+    email_input = (login_data.email or "").strip()
+    client_ip = request.client.host if request.client else None
+
+    locked, lockout_info = await account_lockout.check_lockout(email_input)
+    if locked:
+        record_login_result("locked_out")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=lockout_info.get("message", "Account temporarily locked. Try again later."),
+            headers={"Retry-After": str(lockout_info.get("retry_after", 1))},
+        )
+
+    captcha_required = await captcha_verifier.is_captcha_required(email_input)
+    if captcha_required:
+        record_captcha_event("required")
+        if not login_data.captcha_token:
+            record_login_result("captcha_required")
+            record_captcha_event("missing")
+            raise HTTPException(
+                status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+                detail="CAPTCHA verification required",
+                headers={"X-Captcha-Required": "true"},
+            )
+
+        captcha_valid = await captcha_verifier.verify(login_data.captcha_token, client_ip)
+        if not captcha_valid:
+            record_captcha_event("failed")
+            record_login_result("captcha_failed")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="CAPTCHA verification failed"
+            )
+        record_captcha_event("passed")
+
+    allowed, rate_info = await account_rate_limiter.check_and_increment(email_input)
+    if not allowed:
+        record_login_result("rate_limited")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=rate_info["message"],
+            headers={"Retry-After": str(rate_info.get("retry_after", 1))},
+        )
+
     # Step 1: Fetch user data from DB (brief DB hold ~5-20ms)
     # CRITICAL: Run in thread pool to avoid blocking event loop under load
-    user_data = await asyncio.to_thread(auth_service.fetch_user_for_auth, login_data.email)
+    user_data = await asyncio.to_thread(auth_service.fetch_user_for_auth, email_input)
 
     # Step 2: Extract data needed BEFORE releasing DB
     if user_data:
@@ -434,15 +550,17 @@ async def login_with_session(
         user_obj = None
         beta_claims = None
 
-    # Step 3: Release auth_service DB connection BEFORE bcrypt
-    # Note: The `db` session (separate dependency) is kept for guest search conversion
+    # Step 3: Release auth_service DB connection BEFORE Argon2id verification
     auth_service.release_connection()
 
-    # Step 4: Run bcrypt verification (~200ms, auth_service.db released)
-    password_valid = await verify_password_async(login_data.password, hashed_password)
+    # Step 4: ONLY password verification is concurrency-capped
+    async with login_slot():
+        password_valid = await verify_password_async(login_data.password, hashed_password)
 
     # Step 5: Validate authentication result
     if not user_data or not password_valid:
+        await account_lockout.record_failure(email_input)
+        record_login_result("invalid_credentials")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -451,6 +569,7 @@ async def login_with_session(
 
     # Check account status
     if account_status == "deactivated":
+        record_login_result("deactivated")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Account has been deactivated",
@@ -467,6 +586,9 @@ async def login_with_session(
             user_obj, request, extra_claims=extra_claims
         )
         if two_factor_response:
+            await account_lockout.reset(email_input)
+            await account_rate_limiter.reset(email_input)
+            record_login_result("two_factor_challenge")
             return two_factor_response
 
     # Step 7: Create access token (no DB needed)
@@ -476,6 +598,11 @@ async def login_with_session(
         expires_delta=access_token_expires,
         beta_claims=beta_claims,  # Pre-fetched in thread pool, no blocking DB call
     )
+
+    # Success - reset counters
+    await account_lockout.reset(email_input)
+    await account_rate_limiter.reset(email_input)
+    record_login_result("success")
 
     # Step 8: Set cookie for SSE authentication
     site_mode = settings.site_mode

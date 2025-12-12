@@ -634,6 +634,42 @@ class Settings(BaseSettings):
         default=True, description="Enable rate limiting (disable for testing)"
     )
 
+    login_concurrency_limit: int = Field(
+        default=10,
+        alias="LOGIN_CONCURRENCY_LIMIT",
+        description="Max concurrent login verifications allowed (controls Argon2 load)",
+    )
+    login_concurrency_timeout_seconds: float = Field(
+        default=5.0,
+        alias="LOGIN_CONCURRENCY_TIMEOUT",
+        description="Seconds to wait for a login slot before returning 429",
+    )
+    login_attempts_per_minute: int = Field(
+        default=5,
+        alias="LOGIN_ATTEMPTS_PER_MINUTE",
+        description="Per-account login attempts allowed per minute",
+    )
+    login_attempts_per_hour: int = Field(
+        default=20,
+        alias="LOGIN_ATTEMPTS_PER_HOUR",
+        description="Per-account login attempts allowed per hour",
+    )
+    captcha_failure_threshold: int = Field(
+        default=3,
+        alias="CAPTCHA_FAILURE_THRESHOLD",
+        description="Number of failed logins before CAPTCHA is required",
+    )
+    turnstile_secret_key: str = Field(
+        default="",
+        alias="TURNSTILE_SECRET_KEY",
+        description="Cloudflare Turnstile secret key (empty disables CAPTCHA)",
+    )
+    turnstile_site_key: str = Field(
+        default="",
+        alias="TURNSTILE_SITE_KEY",
+        description="Cloudflare Turnstile site key (for frontend)",
+    )
+
     rate_limit_general_per_minute: int = Field(
         default=100, description="General API rate limit per minute per IP"
     )
