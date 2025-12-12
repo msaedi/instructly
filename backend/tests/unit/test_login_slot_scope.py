@@ -153,9 +153,16 @@ async def test_login_slot_wraps_only_password_verification(monkeypatch: pytest.M
             events.append("lockout_reset")
 
     class _FakeLimiter:
+        async def check(self, email: str):
+            events.append("check_rate")
+            return True, {}
+
         async def check_and_increment(self, email: str):
             events.append("check_rate")
             return True, {}
+
+        async def record_attempt(self, email: str):
+            events.append("rate_record_attempt")
 
         async def reset(self, email: str):
             events.append("rate_reset")
@@ -247,9 +254,16 @@ async def test_login_with_session_slot_scope(monkeypatch: pytest.MonkeyPatch) ->
             events.append("lockout_reset")
 
     class _FakeLimiter:
+        async def check(self, email: str):
+            events.append("check_rate")
+            return True, {}
+
         async def check_and_increment(self, email: str):
             events.append("check_rate")
             return True, {}
+
+        async def record_attempt(self, email: str):
+            events.append("rate_record_attempt")
 
         async def reset(self, email: str):
             events.append("rate_reset")

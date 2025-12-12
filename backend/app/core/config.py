@@ -688,7 +688,8 @@ class Settings(BaseSettings):
     )
 
     rate_limit_auth_per_minute: int = Field(
-        default=5, description="Authentication attempts per minute per IP"
+        default=20,
+        description="Authentication attempts per minute per IP (generous - DDoS protection only; email-based limiting handles brute force)",
     )
 
     rate_limit_password_reset_per_hour: int = Field(

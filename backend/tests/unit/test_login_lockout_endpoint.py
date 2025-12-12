@@ -193,8 +193,14 @@ async def test_login_with_session_lockout_after_five_failures(
     lockout = lp.AccountLockout(redis=fake_redis)  # type: ignore[arg-type]
 
     class _AllowAllLimiter:
+        async def check(self, email: str):
+            return True, {}
+
         async def check_and_increment(self, email: str):
             return True, {}
+
+        async def record_attempt(self, email: str):
+            pass
 
         async def reset(self, email: str):
             return None

@@ -150,9 +150,9 @@ class AccountRateLimiter:
         self.attempts_per_minute = max(1, settings.login_attempts_per_minute or 5)
         self.attempts_per_hour = max(1, settings.login_attempts_per_hour or 20)
 
-    async def check_and_increment(self, email: str) -> Tuple[bool, Dict[str, Any]]:
+    async def check(self, email: str) -> Tuple[bool, Dict[str, Any]]:
         """
-        Check if login attempt is allowed and increment counters.
+        Check if login attempt is allowed (without incrementing counters).
 
         Returns:
             (allowed: bool, info: dict with remaining attempts and reset time)
@@ -198,20 +198,57 @@ class AccountRateLimiter:
                     "message": f"Too many attempts. Try again in {max(retry_after // 60, 1)} minutes.",
                 }
 
+            return True, {
+                "remaining_minute": self.attempts_per_minute - minute_count,
+                "remaining_hour": self.attempts_per_hour - hour_count,
+            }
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Rate limiter check failed; allowing login attempt: %s", exc)
+            return True, {"remaining_minute": None, "remaining_hour": None}
+
+    async def record_attempt(self, email: str) -> None:
+        """Increment rate limit counters after a failed login attempt."""
+        try:
+            redis = await _get_redis_client(self.redis)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Rate limiter redis unavailable: %s", exc)
+            return
+        if redis is None:
+            return
+
+        email_lower = email.lower()
+        minute_key = f"login:minute:{email_lower}"
+        hour_key = f"login:hour:{email_lower}"
+
+        try:
             pipe = redis.pipeline()
             pipe.incr(minute_key)
             pipe.expire(minute_key, 60)
             pipe.incr(hour_key)
             pipe.expire(hour_key, 3600)
             await pipe.execute()
-
-            return True, {
-                "remaining_minute": self.attempts_per_minute - minute_count - 1,
-                "remaining_hour": self.attempts_per_hour - hour_count - 1,
-            }
         except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Rate limiter failed; allowing login attempt: %s", exc)
-            return True, {"remaining_minute": None, "remaining_hour": None}
+            logger.warning("Rate limiter increment failed: %s", exc)
+
+    async def check_and_increment(self, email: str) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Check if login attempt is allowed and increment counters.
+
+        DEPRECATED: Use check() + record_attempt() for better UX.
+        This method is kept for backward compatibility.
+
+        Returns:
+            (allowed: bool, info: dict with remaining attempts and reset time)
+        """
+        allowed, info = await self.check(email)
+        if allowed:
+            await self.record_attempt(email)
+            # Adjust remaining counts since we just incremented
+            if info.get("remaining_minute") is not None:
+                info["remaining_minute"] = max(0, info["remaining_minute"] - 1)
+            if info.get("remaining_hour") is not None:
+                info["remaining_hour"] = max(0, info["remaining_hour"] - 1)
+        return allowed, info
 
     async def reset(self, email: str) -> None:
         """Reset counters on successful login."""

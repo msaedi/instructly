@@ -296,7 +296,8 @@ async def login(
         record_captcha_event("passed")
 
     # Per-account rate limiting
-    allowed, rate_info = await account_rate_limiter.check_and_increment(email_input)
+    # Check rate limit (don't increment yet - only count failed attempts)
+    allowed, rate_info = await account_rate_limiter.check(email_input)
     if not allowed:
         record_login_result("rate_limited")
         raise HTTPException(
@@ -336,6 +337,8 @@ async def login(
 
     # Step 5: Validate authentication result
     if not user_data or not password_valid:
+        # Only count failed attempts toward rate limiting (better UX)
+        await account_rate_limiter.record_attempt(email_input)
         await account_lockout.record_failure(email_input)
         record_login_result("invalid_credentials")
         raise HTTPException(
@@ -518,7 +521,8 @@ async def login_with_session(
             )
         record_captcha_event("passed")
 
-    allowed, rate_info = await account_rate_limiter.check_and_increment(email_input)
+    # Check rate limit (don't increment yet - only count failed attempts)
+    allowed, rate_info = await account_rate_limiter.check(email_input)
     if not allowed:
         record_login_result("rate_limited")
         raise HTTPException(
@@ -559,6 +563,8 @@ async def login_with_session(
 
     # Step 5: Validate authentication result
     if not user_data or not password_valid:
+        # Only count failed attempts toward rate limiting (better UX)
+        await account_rate_limiter.record_attempt(email_input)
         await account_lockout.record_failure(email_input)
         record_login_result("invalid_credentials")
         raise HTTPException(
