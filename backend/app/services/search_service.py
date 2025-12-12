@@ -364,7 +364,12 @@ class SearchService(BaseService):
     @BaseService.measure_operation("natural_language_search")
     def search(self, query: str, limit: int = 20, include_availability: bool = False) -> JsonDict:
         """
-        Perform natural language search with caching.
+        Perform natural language search with caching and stampede protection.
+
+        Uses a lock-based approach to prevent cache stampede (thundering herd):
+        - Only ONE request computes the expensive query while others wait
+        - Waiting requests check cache after short delay
+        - Fallback to compute if lock holder takes too long
 
         Args:
             query: Natural language search query
@@ -385,6 +390,59 @@ class SearchService(BaseService):
                     cached["search_metadata"]["cache_hit"] = True
                 return cast(JsonDict, cached)
 
+            # Cache miss - apply stampede protection
+            lock_key = f"lock:{cache_key}"
+            lock_acquired = self.cache_service.acquire_lock(lock_key, ttl=10)
+
+            if not lock_acquired:
+                # Another request is computing - wait and retry cache
+                import time
+
+                for retry in range(3):
+                    time.sleep(0.1)  # 100ms wait
+                    cached = self.cache_service.get(cache_key)
+                    if cached and isinstance(cached, dict):
+                        logger.debug(f"Search cache hit after wait (retry {retry+1})")
+                        if "search_metadata" in cached:
+                            cached["search_metadata"]["cache_hit"] = True
+                            cached["search_metadata"]["waited_for_lock"] = True
+                        return cast(JsonDict, cached)
+                # Still no cache after retries - compute anyway (fallback)
+                logger.warning(f"Search computing after lock timeout for: {query[:30]}...")
+
+            try:
+                # We have the lock (or fallback) - compute the result
+                return self._compute_search(query, limit, include_availability, cache_key)
+            finally:
+                # Release lock if we acquired it
+                if lock_acquired:
+                    self.cache_service.release_lock(lock_key)
+
+        # No cache service - compute directly without caching
+        return self._compute_search(query, limit, include_availability, cache_key=None)
+
+    def _compute_search(
+        self,
+        query: str,
+        limit: int,
+        include_availability: bool,
+        cache_key: Optional[str],
+    ) -> JsonDict:
+        """
+        Execute the actual search computation (expensive operation).
+
+        This is separated from search() to enable stampede protection -
+        only one request computes while others wait for cached result.
+
+        Args:
+            query: Natural language search query
+            limit: Maximum number of results
+            include_availability: Whether to check instructor availability
+            cache_key: Cache key to store result (None to skip caching)
+
+        Returns:
+            Search results with services, instructors, and metadata
+        """
         # Parse the query
         parsed = self.parser.parse(query)
         logger.info(f"Parsed query: {parsed}")
@@ -471,7 +529,7 @@ class SearchService(BaseService):
                 },
             }
             # Cache empty results too (prevents repeated expensive queries)
-            if self.cache_service and not include_availability:
+            if cache_key and self.cache_service and not include_availability:
                 self.cache_service.set(cache_key, empty_response, ttl=SEARCH_CACHE_TTL)
             return empty_response
 
@@ -493,7 +551,7 @@ class SearchService(BaseService):
         }
 
         # Cache the results (60-second TTL)
-        if self.cache_service and not include_availability:
+        if cache_key and self.cache_service and not include_availability:
             self.cache_service.set(cache_key, response, ttl=SEARCH_CACHE_TTL)
             logger.debug(f"Cached search results for query: {query[:30]}...")
 
