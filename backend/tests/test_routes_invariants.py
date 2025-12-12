@@ -288,6 +288,9 @@ class TestRoutingInvariants:
             ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/bulk-update"),
             ("/api/v1/instructors/availability/blackout-dates", "/api/v1/instructors/availability/{window_id}"),
             ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/blackout-dates"),
+            # Admin auth-blocks: /summary static route defined before /{email} dynamic route
+            ("/api/v1/admin/auth-blocks/summary", "/api/v1/admin/auth-blocks/{email}"),
+            ("/api/v1/admin/auth-blocks/{email}", "/api/v1/admin/auth-blocks/summary"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):
