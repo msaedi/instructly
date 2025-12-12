@@ -476,7 +476,9 @@ def _expiry_recheck_url() -> str:
 def _background_jobs_worker_sync(shutdown_event: threading.Event) -> None:
     """Process persisted background jobs with retry support in a dedicated thread."""
 
-    poll_interval = max(1, int(getattr(settings, "jobs_poll_interval", 2)))
+    # Poll every 60s (was 2s) to reduce DB pressure during load spikes.
+    # Background jobs (BGC webhooks, expiry sweeps) are not time-critical.
+    poll_interval = max(1, int(getattr(settings, "jobs_poll_interval", 60)))
     batch_size = max(1, int(getattr(settings, "jobs_batch", 25)))
 
     while not shutdown_event.is_set():
