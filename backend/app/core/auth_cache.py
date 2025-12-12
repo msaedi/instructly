@@ -273,9 +273,10 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
     from ..core.enums import RoleName
     from ..models.rbac import Role
 
-    user = User()
+    # Pass email to constructor to avoid "unknown user" log noise
+    # Note: 'role' is a read-only property, so we only pass email
+    user = User(email=user_data.get("email", "transient"))
     user.id = user_data.get("id")
-    user.email = user_data.get("email")
     user.is_active = user_data.get("is_active", True)
     user.first_name = user_data.get("first_name")
     user.last_name = user_data.get("last_name")
