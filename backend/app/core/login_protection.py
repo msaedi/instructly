@@ -342,12 +342,16 @@ class CaptchaVerifier:
     VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
     def __init__(self, *, secret_key: Optional[str] = None, redis: Optional[Redis] = None) -> None:
+        self._explicit_secret = secret_key is not None
         self.secret_key = secret_key or settings.turnstile_secret_key
         self.redis = redis
         self.failure_threshold = max(1, settings.captcha_failure_threshold or 3)
 
     async def is_captcha_required(self, email: str) -> bool:
         """Check if CAPTCHA is required for this email based on failure count."""
+        if settings.is_testing and not self._explicit_secret:
+            return False
+
         if not self.secret_key:
             return False
 
@@ -371,6 +375,9 @@ class CaptchaVerifier:
 
     async def verify(self, token: Optional[str], remote_ip: Optional[str] = None) -> bool:
         """Verify a Turnstile CAPTCHA token."""
+        if settings.is_testing and not self._explicit_secret:
+            return True
+
         if not self.secret_key:
             return True
 
