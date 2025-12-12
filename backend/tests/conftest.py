@@ -37,6 +37,10 @@ from ulid import ULID
 # CRITICAL: Set testing mode BEFORE any app imports!
 os.environ.setdefault("is_testing", "true")
 os.environ.setdefault("rate_limit_enabled", "false")
+# Ensure tests never inherit a prod-like SITE_MODE at import time (DatabaseConfig + CORS/CSRF).
+# We intentionally clear SITE_MODE later for legacy DB-safety behavior, but we must pin it
+# here to prevent dotenv/user shell from affecting module import side effects.
+os.environ["SITE_MODE"] = "int"
 os.environ.setdefault("AVAILABILITY_PERF_DEBUG", "1")
 os.environ.setdefault("AVAILABILITY_TEST_MEMORY_CACHE", "1")
 os.environ.setdefault("SEED_AVAILABILITY", "0")

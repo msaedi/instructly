@@ -802,7 +802,7 @@ def _compute_allowed_origins() -> list[str]:
                 if origin:
                     origins_set.add(origin)
         return list(origins_set)
-    if site_mode in {"prod", "production", "live"}:
+    if site_mode in {"prod", "production", "beta"}:
         csv = (settings.prod_frontend_origins_csv or "").strip()
         origins_list = [o.strip() for o in csv.split(",") if o.strip()]
         return origins_list or ["https://app.instainstru.com"]
@@ -895,10 +895,17 @@ assert (
 ), "CORS allow_origins cannot include * when allow_credentials=True"
 _log_bgc_config_summary(_DYN_ALLOWED_ORIGINS)
 
+# Normalize once for middleware config.
+_SITE_MODE = (os.getenv("SITE_MODE", "") or "").strip().lower()
+# Modes that should not accept broad preview-origin matching.
+_PROD_SITE_MODES = {"prod", "production", "beta", "preview"}
+# Only allow broad origin regex matching (e.g., Vercel preview domains) in non-prod modes.
+_CORS_ORIGIN_REGEX = None if _SITE_MODE in _PROD_SITE_MODES else CORS_ORIGIN_REGEX
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_DYN_ALLOWED_ORIGINS,
-    allow_origin_regex=CORS_ORIGIN_REGEX,  # Support Vercel preview deployments
+    allow_origin_regex=_CORS_ORIGIN_REGEX,  # Support Vercel preview deployments in non-prod
     allow_credentials=True,
     allow_methods=["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["*"],
@@ -908,7 +915,7 @@ logger.info("CORS allow_origins=%s allow_credentials=%s", _DYN_ALLOWED_ORIGINS, 
 app.add_middleware(
     EnsureCorsOnErrorMiddleware,
     allowed_origins=_DYN_ALLOWED_ORIGINS,
-    origin_regex=CORS_ORIGIN_REGEX,
+    origin_regex=_CORS_ORIGIN_REGEX,
 )
 
 # Keep MonitoringMiddleware (pure ASGI-style) below CORS

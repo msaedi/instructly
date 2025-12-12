@@ -72,6 +72,7 @@
     "api:lint": "spectral lint ../backend/openapi/openapi.json -r ../backend/openapi/spectral.yaml"
   },
   "dependencies": {
+    "@marsidev/react-turnstile": "^1.4.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-popover": "^1.1.15",
@@ -93,11 +94,10 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^0.542.0",
     "motion": "^12.23.12",
-    "next": "15.5.7",
+    "next": "15.5.9",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-leaflet": "^5.0.0",
-    "@marsidev/react-turnstile": "^1.4.0",
     "recharts": "^3.1.2",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1"
@@ -107,7 +107,7 @@
     "@eslint/eslintrc": "^3",
     "@jest/globals": "^30.1.2",
     "@lhci/cli": "^0.15.1",
-    "@playwright/test": "1.55.0",
+    "@playwright/test": "1.57.0",
     "@size-limit/file": "^11.2.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.8.0",
@@ -122,7 +122,7 @@
     "cross-env": "^10.0.0",
     "dependency-cruiser": "^17.0.1",
     "eslint": "^9",
-    "eslint-config-next": "15.5.7",
+    "eslint-config-next": "15.5.9",
     "eslint-plugin-no-only-tests": "^3.3.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "husky": "^9.1.7",
@@ -140,7 +140,6 @@
     "tsd": "^0.31.2",
     "type-coverage": "^2.29.7",
     "typescript": "^5",
-    "vercel": "47.1.4",
     "zod": "^3.25.76"
   },
   "size-limit": [
@@ -189,6 +188,8 @@
   },
   "overrides": {
     "path-to-regexp": "6.3.0",
-    "tar-fs": "3.1.1"
+    "tar-fs": "3.1.1",
+    "esbuild": "0.27.1",
+    "tmp": "0.2.5"
   }
 }
