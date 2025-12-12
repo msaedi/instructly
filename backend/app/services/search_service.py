@@ -14,9 +14,11 @@ with repositories to find the best matches.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
+import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
 
 from sentence_transformers import SentenceTransformer
 from sqlalchemy.orm import Session
@@ -25,7 +27,13 @@ from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 from .review_service import ReviewService
 
+if TYPE_CHECKING:
+    from .cache_service import CacheService
+
 logger = logging.getLogger(__name__)
+
+# Search result cache TTL (60 seconds as specified)
+SEARCH_CACHE_TTL = 60
 
 # Module-level model cache to avoid reloading on every request
 _model_cache: Dict[str, SentenceTransformer] = {}
@@ -312,13 +320,19 @@ class SearchService(BaseService):
     to provide intelligent search results.
     """
 
-    def __init__(self, db: Session, model_name: str = "all-MiniLM-L6-v2") -> None:
+    def __init__(
+        self,
+        db: Session,
+        model_name: str = "all-MiniLM-L6-v2",
+        cache_service: Optional["CacheService"] = None,
+    ) -> None:
         """
         Initialize search service.
 
         Args:
             db: Database session
             model_name: Sentence transformer model to use
+            cache_service: Optional cache service for result caching
         """
         super().__init__(db)
 
@@ -327,6 +341,7 @@ class SearchService(BaseService):
         self._model_name = model_name
         # Get cached model - loads once, reuses across requests
         self.model: SentenceTransformer = get_cached_model(model_name)
+        self.cache_service = cache_service
 
         # Initialize repositories
         self.catalog_repository = RepositoryFactory.create_service_catalog_repository(db)
@@ -337,10 +352,19 @@ class SearchService(BaseService):
         )
         self.review_service = ReviewService(db)
 
+    def _generate_search_cache_key(self, query: str, limit: int) -> str:
+        """Generate a deterministic cache key for search parameters."""
+        normalized = {
+            "q": query.lower().strip(),
+            "limit": limit,
+        }
+        hash_input = json.dumps(normalized, sort_keys=True)
+        return f"search:{hashlib.md5(hash_input.encode()).hexdigest()}"
+
     @BaseService.measure_operation("natural_language_search")
     def search(self, query: str, limit: int = 20, include_availability: bool = False) -> JsonDict:
         """
-        Perform natural language search.
+        Perform natural language search with caching.
 
         Args:
             query: Natural language search query
@@ -350,6 +374,17 @@ class SearchService(BaseService):
         Returns:
             Search results with services, instructors, and metadata
         """
+        # Try cache first (60-second TTL)
+        cache_key = self._generate_search_cache_key(query, limit)
+        if self.cache_service and not include_availability:
+            cached = self.cache_service.get(cache_key)
+            if cached and isinstance(cached, dict):
+                logger.debug(f"Search cache hit for query: {query[:30]}...")
+                # Add cache hit indicator to metadata
+                if "search_metadata" in cached:
+                    cached["search_metadata"]["cache_hit"] = True
+                return cast(JsonDict, cached)
+
         # Parse the query
         parsed = self.parser.parse(query)
         logger.info(f"Parsed query: {parsed}")
@@ -420,7 +455,7 @@ class SearchService(BaseService):
                 extra={"cleaned_query": parsed.get("cleaned_query")},
             )
             # Return an empty service set gracefully
-            return {
+            empty_response: JsonDict = {
                 "query": query,
                 "parsed": parsed,
                 "results": [],
@@ -432,13 +467,18 @@ class SearchService(BaseService):
                     # Always include any top-N candidates surfaced by the service layer,
                     # even if the final results are empty (zero-result analytics).
                     "observability_candidates": observability_candidates,
+                    "cache_hit": False,
                 },
             }
+            # Cache empty results too (prevents repeated expensive queries)
+            if self.cache_service and not include_availability:
+                self.cache_service.set(cache_key, empty_response, ttl=SEARCH_CACHE_TTL)
+            return empty_response
 
         self._track_search_analytics(services[:limit])
 
         # Build response
-        return {
+        response: JsonDict = {
             "query": query,
             "parsed": parsed,
             "results": results[:limit],
@@ -448,8 +488,16 @@ class SearchService(BaseService):
                 "applied_filters": self._get_applied_filters(parsed),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "observability_candidates": observability_candidates,
+                "cache_hit": False,
             },
         }
+
+        # Cache the results (60-second TTL)
+        if self.cache_service and not include_availability:
+            self.cache_service.set(cache_key, response, ttl=SEARCH_CACHE_TTL)
+            logger.debug(f"Cached search results for query: {query[:30]}...")
+
+        return response
 
     def _search_services(
         self, query_embedding: List[float], parsed: ParsedQuery, limit: int

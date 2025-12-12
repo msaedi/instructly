@@ -19,7 +19,7 @@ Endpoints:
 import asyncio
 import logging
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 from fastapi.params import Path
 from sqlalchemy.orm import Session
 
@@ -337,6 +337,7 @@ async def get_instructor(
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
+    response: Response = None,
     instructor_service: InstructorService = Depends(get_instructor_service),
     favorites_service: FavoritesService = Depends(get_favorites_service),
     current_user: User = Depends(get_current_active_user_optional),
@@ -353,20 +354,24 @@ async def get_instructor(
             )
 
         instructor_user_id = str(profile_data.get("user_id") or instructor_id)
-        response = InstructorProfileResponse(**profile_data)
+        result = InstructorProfileResponse(**profile_data)
 
         # Add favorite status
         if current_user:
-            response.is_favorited = favorites_service.is_favorited(
+            result.is_favorited = favorites_service.is_favorited(
                 student_id=current_user.id, instructor_id=instructor_user_id
             )
         else:
-            response.is_favorited = None
+            result.is_favorited = None
 
         stats = favorites_service.get_instructor_favorite_stats(instructor_user_id)
-        response.favorited_count = stats["favorite_count"]
+        result.favorited_count = stats["favorite_count"]
 
-        return response
+        # Set Cache-Control header (5 minutes to match backend cache TTL)
+        if response:
+            response.headers["Cache-Control"] = "public, max-age=300"
+
+        return result
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(

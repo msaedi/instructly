@@ -13,13 +13,15 @@ Endpoints:
 import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import require_beta_phase_access
+from ...api.dependencies.services import get_cache_service_dep
 from ...database import get_db
 from ...ratelimit.dependency import rate_limit
 from ...schemas.search_responses import InstructorSearchResponse
+from ...services.cache_service import CacheService
 from ...services.search_service import SearchService
 
 # V1 router - no prefix here, will be added when mounting in main.py
@@ -34,7 +36,9 @@ router = APIRouter(tags=["search-v1"])
 async def search_instructors(
     q: str = Query(..., description="Search query", min_length=1),
     limit: Optional[int] = Query(20, ge=1, le=100, description="Maximum results to return"),
+    response: Response = None,
     db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> InstructorSearchResponse:
     """
     Search for instructors using natural language queries.
@@ -48,7 +52,9 @@ async def search_instructors(
     Args:
         q: The search query string
         limit: Maximum number of results to return (1-100, default 20)
+        response: FastAPI response object for setting headers
         db: Database session
+        cache_service: Cache service for result caching
 
     Returns:
         Search results with instructors, services, and metadata
@@ -58,12 +64,16 @@ async def search_instructors(
         raise HTTPException(status_code=400, detail="Search query cannot be empty")
 
     try:
-        # Create search service instance
-        search_service = SearchService(db)
+        # Create search service instance with cache
+        search_service = SearchService(db, cache_service=cache_service)
 
         # Perform search
         limit_value = int(limit if isinstance(limit, int) else 20)
         results = await asyncio.to_thread(search_service.search, q, limit_value)
+
+        # Set Cache-Control header (60 seconds to match backend cache TTL)
+        if response:
+            response.headers["Cache-Control"] = "public, max-age=60"
 
         # Search recording is handled by frontend which has full context
         # (session ID, referrer, interaction type, etc.)

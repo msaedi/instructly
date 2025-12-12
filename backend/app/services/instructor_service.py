@@ -371,12 +371,27 @@ class InstructorService(BaseService):
 
     @BaseService.measure_operation("get_public_instructor_profile")
     def get_public_instructor_profile(self, instructor_id: str) -> Optional[Dict[str, Any]]:
-        """Return a public-facing instructor profile when visible."""
+        """Return a public-facing instructor profile when visible (cached for 5 minutes)."""
+        # Try cache first (5-minute TTL for instructor profiles)
+        cache_key = f"instructor:public:{instructor_id}"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                logger.debug(f"Cache hit for instructor profile: {instructor_id}")
+                return cast(JsonDict, cached)
 
         profile = self.profile_repository.get_public_by_id(instructor_id)
         if not profile:
             return None
-        return self._profile_to_dict(profile)
+
+        result = self._profile_to_dict(profile)
+
+        # Cache for 5 minutes (300 seconds)
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=300)
+            logger.debug(f"Cached instructor profile: {instructor_id}")
+
+        return result
 
     @BaseService.measure_operation("update_instructor_profile")
     def update_instructor_profile(
@@ -923,8 +938,9 @@ class InstructorService(BaseService):
         if not self.cache_service:
             return
 
-        # Clear profile cache
+        # Clear profile caches (both internal and public)
         self.cache_service.delete(f"instructor:profile:{user_id}")
+        self.cache_service.delete(f"instructor:public:{user_id}")
 
         # Clear availability caches
         self.cache_service.invalidate_instructor_availability(user_id)
@@ -997,9 +1013,17 @@ class InstructorService(BaseService):
 
     @BaseService.measure_operation("get_service_categories")
     def get_service_categories(self) -> List[Dict[str, Any]]:
-        """Get all service categories."""
+        """Get all service categories (cached for 1 hour)."""
+        # Try cache first (1-hour TTL for categories - they rarely change)
+        cache_key = "categories:all"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                logger.debug("Cache hit for service categories")
+                return cast(JsonList, cached)
+
         categories = self.category_repository.get_all()
-        return [
+        result = [
             {
                 "id": cat.id,
                 "name": cat.name,
@@ -1011,6 +1035,13 @@ class InstructorService(BaseService):
             }
             for cat in sorted(categories, key=lambda x: x.display_order)
         ]
+
+        # Cache for 1 hour (3600 seconds)
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=3600)
+            logger.debug("Cached service categories for 1 hour")
+
+        return result
 
     @BaseService.measure_operation("create_instructor_service_from_catalog")
     def create_instructor_service_from_catalog(
