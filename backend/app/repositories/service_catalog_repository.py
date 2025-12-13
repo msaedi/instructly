@@ -419,6 +419,109 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         results = query.all()
         return {str(row.service_catalog_id): row.count for row in results}
 
+    def get_services_needing_embedding(
+        self, current_model: str, limit: int = 100
+    ) -> List[ServiceCatalog]:
+        """
+        Find services that need embedding generation or update.
+
+        Queries for:
+        - Services with NULL embedding_v2
+        - Services with different embedding_model than current
+        - Services with stale embeddings (>30 days old)
+
+        Args:
+            current_model: The current embedding model name
+            limit: Maximum number of services to return
+
+        Returns:
+            List of ServiceCatalog objects needing embedding
+        """
+        stale_threshold = datetime.now(timezone.utc) - timedelta(days=30)
+
+        query = (
+            self.db.query(ServiceCatalog)
+            .filter(ServiceCatalog.is_active == True)  # noqa: E712
+            .filter(
+                or_(
+                    ServiceCatalog.embedding_v2 == None,  # noqa: E711
+                    ServiceCatalog.embedding_model != current_model,
+                    ServiceCatalog.embedding_updated_at < stale_threshold,
+                )
+            )
+            .limit(limit)
+        )
+
+        return cast(List[ServiceCatalog], query.all())
+
+    def count_active_services(self) -> int:
+        """Count all active services."""
+        count = (
+            self.db.query(ServiceCatalog)
+            .filter(ServiceCatalog.is_active == True)  # noqa: E712
+            .count()
+        )
+        return count or 0
+
+    def count_services_missing_embedding(self) -> int:
+        """Count active services that don't have embedding_v2."""
+        count = (
+            self.db.query(ServiceCatalog)
+            .filter(
+                ServiceCatalog.is_active == True,  # noqa: E712
+                ServiceCatalog.embedding_v2 == None,  # noqa: E711
+            )
+            .count()
+        )
+        return count or 0
+
+    def get_all_services_missing_embedding(self) -> List[ServiceCatalog]:
+        """Get all active services without embeddings (no limit)."""
+        query = self.db.query(ServiceCatalog).filter(
+            ServiceCatalog.is_active == True,  # noqa: E712
+            ServiceCatalog.embedding_v2 == None,  # noqa: E711
+        )
+        return cast(List[ServiceCatalog], query.all())
+
+    def update_service_embedding(
+        self,
+        service_id: str,
+        embedding: List[float],
+        model_name: str,
+        text_hash: str,
+    ) -> bool:
+        """
+        Update a service's embedding in the database.
+
+        Args:
+            service_id: The service ID
+            embedding: The embedding vector
+            model_name: The model used for embedding
+            text_hash: Hash of the text used for embedding
+
+        Returns:
+            True if update was successful
+        """
+        try:
+            service = self.db.query(ServiceCatalog).filter(ServiceCatalog.id == service_id).first()
+
+            if not service:
+                return False
+
+            service.embedding_v2 = embedding
+            service.embedding_model = model_name
+            service.embedding_model_version = model_name
+            service.embedding_updated_at = datetime.now(timezone.utc)
+            service.embedding_text_hash = text_hash
+
+            self.db.commit()
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to update embedding for {service_id}: {e}")
+            self.db.rollback()
+            return False
+
     def get_services_available_for_kids_minimal(self) -> List[MinimalServiceInfo]:
         """
         Return minimal info for catalog services that have at least one active instructor

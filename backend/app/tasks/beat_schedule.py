@@ -213,6 +213,17 @@ CELERYBEAT_SCHEDULE = {
         },
         # Note: Generate weekly search behavior insights
     },
+    # ==================== EMBEDDING MAINTENANCE ====================
+    # Maintain service embeddings - runs every hour
+    "maintain-service-embeddings": {
+        "task": "maintain_service_embeddings",
+        "schedule": crontab(minute=30),  # Every hour at :30
+        "options": {
+            "queue": "analytics",
+            "priority": 3,
+        },
+        # Note: Update embeddings for new/changed services
+    },
     # Finalize pending badges daily (after quality holds expire)
     "badges-finalize-pending": {
         "task": "badges.finalize_pending",

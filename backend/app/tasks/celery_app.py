@@ -141,6 +141,8 @@ def create_celery_app() -> Celery:
             # Include legacy cleanup module for completeness
             "app.tasks.search_history_cleanup",
             "app.tasks.notification_tasks",
+            # NL Search embedding maintenance
+            "app.tasks.embedding_migration",
         }
     )
 

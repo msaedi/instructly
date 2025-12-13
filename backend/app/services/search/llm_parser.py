@@ -10,7 +10,7 @@ import datetime
 import logging
 import os
 import time
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, cast
 
 from openai import AsyncOpenAI, OpenAIError
 
@@ -199,7 +199,9 @@ class LLMParser:
         # Return typed result
         if message.parsed is None:
             raise ValueError("LLM returned no parsed content")
-        return message.parsed
+        # OpenAI's parse() method with response_format returns the schema type
+        # The type is guaranteed by the response_format parameter
+        return cast(LLMParsedQuery, message.parsed)
 
     def _merge_results(
         self,
