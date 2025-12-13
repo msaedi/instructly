@@ -21,6 +21,12 @@ from app.services.search.embedding_provider import (
 from app.services.search.embedding_service import EmbeddingService
 from app.services.search.llm_parser import LLMParser, hybrid_parse
 from app.services.search.query_parser import ParsedQuery, QueryParser
+from app.services.search.retriever import (
+    PostgresRetriever,
+    RetrievalResult,
+    Retriever,
+    ServiceCandidate,
+)
 
 __all__ = [
     # Parsing
@@ -39,4 +45,9 @@ __all__ = [
     "MockEmbeddingProvider",
     "create_embedding_provider",
     "EmbeddingService",
+    # Retrieval
+    "PostgresRetriever",
+    "Retriever",
+    "RetrievalResult",
+    "ServiceCandidate",
 ]
