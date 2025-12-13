@@ -1,0 +1,323 @@
+# backend/app/services/search/llm_parser.py
+"""
+LLM parser for complex NL search queries using GPT-4o-mini.
+Falls back to regex parser on any failure.
+"""
+from __future__ import annotations
+
+import asyncio
+import datetime
+import logging
+import os
+import time
+from typing import TYPE_CHECKING, Optional
+
+from openai import AsyncOpenAI, OpenAIError
+
+from app.services.search.circuit_breaker import (
+    PARSING_CIRCUIT,
+    CircuitOpenError,
+)
+from app.services.search.llm_schema import LLMParsedQuery
+from app.services.search.query_parser import ParsedQuery, QueryParser
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
+
+# Configuration
+LLM_TIMEOUT_SECONDS = 2.0
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+# For production, pin to snapshot: "gpt-4o-mini-2024-07-18"
+
+SYSTEM_PROMPT = """You are a search query parser for InstaInstru, a marketplace for lesson instructors in NYC.
+
+Extract structured parameters from the user's search query.
+
+Available fields:
+- service_query: The type of lesson/service (e.g., "piano lessons", "math tutoring"). Correct obvious typos.
+- max_price: Maximum price per hour in dollars (integer)
+- min_price: Minimum price per hour in dollars (integer)
+- date: Specific date in YYYY-MM-DD format
+- date_range_start/end: Date range in YYYY-MM-DD format
+- time_after: Earliest time in HH:MM format (24-hour)
+- time_before: Latest time in HH:MM format (24-hour)
+- location: NYC borough or neighborhood name
+- audience_hint: "kids" if children/teens/age under 18 mentioned, "adults" if explicitly for adults
+- skill_level: "beginner", "intermediate", or "advanced"
+- urgency: "high" (urgent/asap), "medium" (soon), "low" (flexible)
+- category_hint: "music", "tutoring", "sports", "language", or null
+
+Today's date is {current_date}.
+
+Rules:
+- Only include fields explicitly or clearly implied in the query
+- Correct obvious typos in service_query (e.g., "paino" → "piano")
+- Convert relative dates to absolute (e.g., "tomorrow" → actual date)
+- Convert times appropriately (e.g., "evening" → time_after: "17:00")
+- "cheap"/"budget" → max_price based on category (music: 60, tutoring: 50, general: 50)
+- audience_hint is for ranking boost only, NOT filtering
+"""
+
+
+class LLMParser:
+    """
+    LLM parser for complex natural language queries.
+
+    Usage:
+        parser = LLMParser(db_session, user_id="user123")
+        result = await parser.parse("piano or guitar lessons tomorrow")
+    """
+
+    def __init__(self, db: "Session", user_id: Optional[str] = None) -> None:
+        self.db = db
+        self._user_id = user_id
+        self._client: Optional[AsyncOpenAI] = None
+        self._regex_parser = QueryParser(db, user_id=user_id)
+
+    @property
+    def client(self) -> AsyncOpenAI:
+        """Lazy initialization of OpenAI client."""
+        if self._client is None:
+            self._client = AsyncOpenAI()
+        return self._client
+
+    def _get_current_date(self) -> datetime.date:
+        """
+        Get current date in user's timezone for LLM context.
+
+        Falls back to America/New_York if no user_id is provided.
+        """
+        if self._user_id:
+            from app.core.timezone_utils import get_user_today_by_id
+
+            return get_user_today_by_id(self._user_id, self.db)
+        else:
+            # Default to NYC timezone for anonymous searches
+            import pytz
+
+            nyc_tz = pytz.timezone("America/New_York")
+            return datetime.datetime.now(nyc_tz).date()
+
+    async def parse(self, query: str, regex_result: Optional[ParsedQuery] = None) -> ParsedQuery:
+        """
+        Parse a query using GPT-4o-mini with structured outputs.
+
+        Args:
+            query: The natural language query to parse
+            regex_result: Optional pre-computed regex result (for hybrid mode)
+
+        Returns:
+            ParsedQuery with LLM-enhanced extraction
+
+        Note:
+            Falls back to regex_result on any failure (timeout, API error, circuit open)
+        """
+        start_time = time.perf_counter()
+
+        # Get regex result as fallback
+        if regex_result is None:
+            regex_result = self._regex_parser.parse(query)
+
+        # Check circuit breaker
+        if PARSING_CIRCUIT.is_open:
+            logger.info("LLM parsing circuit is OPEN, using regex fallback")
+            regex_result.parsing_mode = "regex"
+            return regex_result
+
+        try:
+            # Call LLM with timeout
+            llm_response = await asyncio.wait_for(
+                self._call_llm(query), timeout=LLM_TIMEOUT_SECONDS
+            )
+
+            # Merge LLM result with regex result
+            result = self._merge_results(regex_result, llm_response, query)
+            result.parsing_mode = "llm"
+            result.parsing_latency_ms = int((time.perf_counter() - start_time) * 1000)
+            result.confidence = 0.95
+
+            return result
+
+        except asyncio.TimeoutError:
+            logger.warning(f"LLM parsing timed out after {LLM_TIMEOUT_SECONDS}s")
+            PARSING_CIRCUIT._record_failure()
+            regex_result.parsing_mode = "regex"
+            regex_result.parsing_latency_ms = int((time.perf_counter() - start_time) * 1000)
+            return regex_result
+
+        except CircuitOpenError:
+            logger.info("LLM parsing circuit opened during call")
+            regex_result.parsing_mode = "regex"
+            return regex_result
+
+        except OpenAIError as e:
+            logger.warning(f"OpenAI API error: {e}")
+            PARSING_CIRCUIT._record_failure()
+            regex_result.parsing_mode = "regex"
+            return regex_result
+
+        except Exception as e:
+            logger.error(f"Unexpected LLM parsing error: {e}")
+            regex_result.parsing_mode = "regex"
+            return regex_result
+
+    async def _call_llm(self, query: str) -> LLMParsedQuery:
+        """
+        Call GPT-4o-mini with structured output parsing.
+
+        Uses OpenAI's beta.chat.completions.parse() for reliable JSON extraction.
+        """
+        current_date = self._get_current_date().isoformat()
+        system_prompt = SYSTEM_PROMPT.format(current_date=current_date)
+
+        response = await PARSING_CIRCUIT.call(self._make_api_call, query, system_prompt)
+
+        return response
+
+    async def _make_api_call(self, query: str, system_prompt: str) -> LLMParsedQuery:
+        """Make the actual API call to OpenAI."""
+        response = await self.client.beta.chat.completions.parse(
+            model=LLM_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": query},
+            ],
+            response_format=LLMParsedQuery,
+            temperature=0,  # Deterministic output
+            max_tokens=500,
+        )
+
+        message = response.choices[0].message
+
+        # Check for refusal
+        if message.refusal:
+            logger.warning(f"LLM refused to parse: {message.refusal}")
+            raise ValueError(f"LLM refusal: {message.refusal}")
+
+        # Return typed result
+        if message.parsed is None:
+            raise ValueError("LLM returned no parsed content")
+        return message.parsed
+
+    def _merge_results(
+        self,
+        regex_result: ParsedQuery,
+        llm_response: LLMParsedQuery,
+        original_query: str,
+    ) -> ParsedQuery:
+        """
+        Merge LLM result with regex result.
+
+        Strategy:
+        - LLM service_query takes priority (has typo correction)
+        - For other fields, prefer LLM if present, else keep regex
+        - Validate LLM values before using
+        """
+        result = ParsedQuery(
+            original_query=original_query,
+            service_query=llm_response.service_query or regex_result.service_query,
+            parsing_mode="llm",
+        )
+
+        # Price - prefer LLM (may have resolved intent)
+        result.max_price = llm_response.max_price or regex_result.max_price
+        result.min_price = llm_response.min_price or regex_result.min_price
+        result.price_intent = regex_result.price_intent  # Keep regex intent for debugging
+
+        # Date - validate LLM date format
+        if llm_response.date:
+            try:
+                parsed_date = datetime.datetime.strptime(llm_response.date, "%Y-%m-%d").date()
+                result.date = parsed_date
+                result.date_type = "single"
+            except ValueError:
+                result.date = regex_result.date
+                result.date_type = regex_result.date_type
+        else:
+            result.date = regex_result.date
+            result.date_type = regex_result.date_type
+
+        # Date range
+        if llm_response.date_range_start and llm_response.date_range_end:
+            try:
+                result.date_range_start = datetime.datetime.strptime(
+                    llm_response.date_range_start, "%Y-%m-%d"
+                ).date()
+                result.date_range_end = datetime.datetime.strptime(
+                    llm_response.date_range_end, "%Y-%m-%d"
+                ).date()
+                result.date_type = "range"
+            except ValueError:
+                result.date_range_start = regex_result.date_range_start
+                result.date_range_end = regex_result.date_range_end
+        else:
+            result.date_range_start = regex_result.date_range_start
+            result.date_range_end = regex_result.date_range_end
+
+        # Time - validate format
+        result.time_after = self._validate_time(llm_response.time_after) or regex_result.time_after
+        result.time_before = (
+            self._validate_time(llm_response.time_before) or regex_result.time_before
+        )
+        result.time_window = regex_result.time_window  # Keep regex time window
+
+        # Location - prefer LLM (may normalize)
+        result.location_text = llm_response.location or regex_result.location_text
+        result.location_type = regex_result.location_type  # Keep regex type detection
+
+        # Audience and skill - prefer LLM
+        result.audience_hint = llm_response.audience_hint or regex_result.audience_hint
+        result.skill_level = llm_response.skill_level or regex_result.skill_level
+
+        # Urgency
+        result.urgency = llm_response.urgency or regex_result.urgency
+
+        # Complexity flag (LLM handled it, so not needed)
+        result.needs_llm = False
+
+        return result
+
+    def _validate_time(self, time_str: Optional[str]) -> Optional[str]:
+        """Validate time string is in HH:MM format."""
+        if not time_str:
+            return None
+
+        try:
+            parts = time_str.split(":")
+            if len(parts) != 2:
+                return None
+            hour, minute = int(parts[0]), int(parts[1])
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                return f"{hour:02d}:{minute:02d}"
+        except (ValueError, AttributeError):
+            pass
+
+        return None
+
+
+async def hybrid_parse(query: str, db: "Session", user_id: Optional[str] = None) -> ParsedQuery:
+    """
+    Parse a query using regex first, then LLM if needed.
+
+    This is the main entry point for the parsing pipeline.
+
+    Args:
+        query: The natural language query to parse
+        db: Database session
+        user_id: Optional user ID for timezone-aware date handling
+
+    Returns:
+        ParsedQuery with extracted constraints
+    """
+    regex_parser = QueryParser(db, user_id=user_id)
+    regex_result = regex_parser.parse(query)
+
+    # If regex handled it well, return immediately
+    if not regex_result.needs_llm:
+        return regex_result
+
+    # Otherwise, enhance with LLM
+    llm_parser = LLMParser(db, user_id=user_id)
+    return await llm_parser.parse(query, regex_result)
