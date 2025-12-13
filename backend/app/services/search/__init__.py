@@ -19,6 +19,11 @@ from app.services.search.embedding_provider import (
     create_embedding_provider,
 )
 from app.services.search.embedding_service import EmbeddingService
+from app.services.search.filter_service import (
+    FilteredCandidate,
+    FilterResult,
+    FilterService,
+)
 from app.services.search.llm_parser import LLMParser, hybrid_parse
 from app.services.search.query_parser import ParsedQuery, QueryParser
 from app.services.search.retriever import (
@@ -50,4 +55,8 @@ __all__ = [
     "Retriever",
     "RetrievalResult",
     "ServiceCandidate",
+    # Filtering
+    "FilterService",
+    "FilterResult",
+    "FilteredCandidate",
 ]
