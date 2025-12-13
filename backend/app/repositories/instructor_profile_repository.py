@@ -1281,6 +1281,97 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.logger.error(f"Error finding profiles by filters: {str(e)}")
             raise RepositoryException(f"Failed to find profiles by filters: {str(e)}")
 
+    def find_by_service_ids(
+        self,
+        service_catalog_ids: Sequence[str],
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
+        limit_per_service: int = 10,
+    ) -> dict[str, List[InstructorProfile]]:
+        """
+        Find instructor profiles for multiple services in a single query.
+
+        This is an N+1 optimization method that fetches instructors for all
+        requested services at once, instead of querying per service.
+
+        Args:
+            service_catalog_ids: List of service catalog IDs to search
+            min_price: Optional minimum hourly rate filter
+            max_price: Optional maximum hourly rate filter
+            limit_per_service: Max instructors to return per service (default 10)
+
+        Returns:
+            Dict mapping service_catalog_id -> List[InstructorProfile]
+        """
+        import time
+
+        start_time = time.time()
+
+        if not service_catalog_ids:
+            return {}
+
+        try:
+            # Build base query with all joins and eager loading
+            query = (
+                self.db.query(InstructorProfile, Service.service_catalog_id)
+                .join(InstructorProfile.user)
+                .join(User.service_areas, isouter=True)
+                .join(InstructorServiceArea.neighborhood, isouter=True)
+                .join(Service, InstructorProfile.id == Service.instructor_profile_id)
+                .options(
+                    selectinload(InstructorProfile.user),
+                    selectinload(InstructorProfile.user)
+                    .selectinload(User.service_areas)
+                    .selectinload(InstructorServiceArea.neighborhood),
+                    selectinload(InstructorProfile.instructor_services).selectinload(
+                        Service.catalog_entry
+                    ),
+                )
+            )
+
+            # Filter by service catalog IDs
+            query = query.filter(Service.service_catalog_id.in_(service_catalog_ids))
+
+            # Apply price filters
+            if min_price is not None:
+                query = query.filter(Service.hourly_rate >= min_price)
+            if max_price is not None:
+                query = query.filter(Service.hourly_rate <= max_price)
+
+            # Active services and users only
+            query = query.filter(Service.is_active == True)
+            query = query.filter(User.account_status == "active")
+            query = self._apply_public_visibility(query)
+
+            # Order and execute
+            query = query.order_by(Service.service_catalog_id, InstructorProfile.id.asc())
+            results = query.distinct().all()
+
+            # Group results by service_catalog_id with limit enforcement
+            grouped: dict[str, List[InstructorProfile]] = {sid: [] for sid in service_catalog_ids}
+            for profile, service_catalog_id in results:
+                if service_catalog_id in grouped:
+                    if len(grouped[service_catalog_id]) < limit_per_service:
+                        grouped[service_catalog_id].append(profile)
+
+            query_time = time.time() - start_time
+            total_profiles = sum(len(v) for v in grouped.values())
+            self.logger.info(
+                f"Batch service query completed in {query_time:.3f}s - "
+                f"Services: {len(service_catalog_ids)}, Results: {total_profiles} profiles"
+            )
+
+            if query_time > 0.5:
+                self.logger.warning(
+                    f"Slow batch query detected ({query_time:.3f}s) for {len(service_catalog_ids)} services"
+                )
+
+            return grouped
+
+        except Exception as e:
+            self.logger.error(f"Error in batch service query: {str(e)}")
+            raise RepositoryException(f"Failed to find profiles by service IDs: {str(e)}")
+
     # Override the base eager loading method
     def _apply_eager_loading(self, query: Any) -> Any:
         """

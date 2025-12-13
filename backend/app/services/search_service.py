@@ -874,7 +874,16 @@ class SearchService(BaseService):
     def _find_instructors_for_services(
         self, services: JsonList, parsed: ParsedQuery, limit: int
     ) -> JsonList:
-        """Find instructors offering the matched services."""
+        """Find instructors offering the matched services.
+
+        Optimized to use batch queries:
+        1. Single query for all instructors across all services
+        2. Single query for all service areas across all instructors
+        This reduces N+1 queries from 26-40 to 2 per search.
+        """
+        if not services:
+            return []
+
         results: JsonList = []
         price_value = parsed.get("price")
         price_constraints = price_value if isinstance(price_value, dict) else {}
@@ -883,14 +892,36 @@ class SearchService(BaseService):
         level_value = parsed.get("level")
         level_constraints = level_value if isinstance(level_value, dict) else {}
 
-        for service in services:
-            # Get instructors for this service with filters
-            instructors = self.instructor_repository.find_by_filters(
-                service_catalog_id=service["id"],
-                min_price=price_constraints.get("min"),
-                max_price=price_constraints.get("max"),
-                limit=limit,
-            )
+        # Step 1: Collect all service IDs
+        service_ids = [service["id"] for service in services]
+        service_map = {service["id"]: service for service in services}
+
+        # Step 2: Batch query - get all instructors for all services
+        instructors_by_service = self.instructor_repository.find_by_service_ids(
+            service_catalog_ids=service_ids,
+            min_price=price_constraints.get("min"),
+            max_price=price_constraints.get("max"),
+            limit_per_service=limit,
+        )
+
+        # Step 3: Collect all unique instructor user IDs
+        all_instructor_ids: set[str] = set()
+        for profiles in instructors_by_service.values():
+            for profile in profiles:
+                all_instructor_ids.add(profile.user_id)
+
+        # Step 4: Batch query - get all service areas at once
+        service_areas_by_instructor = self.service_area_repository.list_for_instructors(
+            list(all_instructor_ids)
+        )
+
+        # Step 5: Build results using pre-fetched data
+        from ..schemas.search_responses import InstructorInfo
+
+        for service_id, instructors in instructors_by_service.items():
+            service = service_map.get(service_id)
+            if not service:
+                continue
 
             for instructor_profile in instructors:
                 # Get the specific service offered by this instructor
@@ -898,7 +929,7 @@ class SearchService(BaseService):
                     (
                         s
                         for s in instructor_profile.instructor_services
-                        if s.service_catalog_id == service["id"] and s.is_active
+                        if s.service_catalog_id == service_id and s.is_active
                     ),
                     None,
                 )
@@ -906,8 +937,10 @@ class SearchService(BaseService):
                 if not instructor_service:
                     continue
 
-                service_area_context, boroughs_lower = self._build_service_area_context(
-                    instructor_profile.user_id
+                # Build service area context from pre-fetched data (no DB query)
+                instructor_areas = service_areas_by_instructor.get(instructor_profile.user_id, [])
+                service_area_context, boroughs_lower = self._build_service_area_context_from_areas(
+                    instructor_areas
                 )
 
                 # Check location constraints
@@ -926,8 +959,6 @@ class SearchService(BaseService):
                         continue
 
                 # Build result with privacy protection
-                from ..schemas.search_responses import InstructorInfo
-
                 result = {
                     "service": service,
                     "instructor": InstructorInfo.from_user(
@@ -972,6 +1003,75 @@ class SearchService(BaseService):
     def _build_service_area_context(self, instructor_id: str) -> tuple[JsonDict, set[str]]:
         """Construct service area payload used by search consumers."""
         service_areas = self.service_area_repository.list_for_instructor(instructor_id)
+        neighborhoods: list[dict[str, Any]] = []
+        boroughs: set[str] = set()
+        coverage_regions: list[dict[str, Any]] = []
+        coverage_region_ids: list[str] = []
+
+        for area in service_areas:
+            region = getattr(area, "neighborhood", None)
+            region_code: str | None = getattr(region, "region_code", None)
+            region_name: str | None = getattr(region, "region_name", None)
+            borough: str | None = getattr(region, "parent_region", None)
+            region_meta = getattr(region, "region_metadata", None)
+
+            if isinstance(region_meta, dict):
+                region_code = (
+                    region_code or region_meta.get("nta_code") or region_meta.get("ntacode")
+                )
+                region_name = region_name or region_meta.get("nta_name") or region_meta.get("name")
+                meta_borough = region_meta.get("borough")
+                if isinstance(meta_borough, str) and meta_borough:
+                    borough = meta_borough
+
+            if borough:
+                boroughs.add(borough)
+
+            neighborhoods.append(
+                {
+                    "neighborhood_id": area.neighborhood_id,
+                    "ntacode": region_code,
+                    "name": region_name,
+                    "borough": borough,
+                }
+            )
+
+            coverage_regions.append(
+                {
+                    "region_id": area.neighborhood_id,
+                    "name": region_name,
+                    "borough": borough,
+                    "coverage_type": getattr(area, "coverage_type", None),
+                }
+            )
+            if area.is_active:
+                coverage_region_ids.append(area.neighborhood_id)
+
+        sorted_boroughs = sorted(boroughs)
+        if sorted_boroughs:
+            if len(sorted_boroughs) <= 2:
+                summary = ", ".join(sorted_boroughs)
+            else:
+                summary = f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
+        else:
+            summary = ""
+
+        context: JsonDict = {
+            "service_area_neighborhoods": neighborhoods,
+            "service_area_boroughs": sorted_boroughs,
+            "service_area_summary": summary,
+        }
+        if coverage_regions:
+            context["coverage_regions"] = coverage_regions
+        if coverage_region_ids:
+            context["coverage_region_ids"] = coverage_region_ids
+
+        return context, {borough.lower() for borough in sorted_boroughs}
+
+    def _build_service_area_context_from_areas(
+        self, service_areas: list[Any]
+    ) -> tuple[JsonDict, set[str]]:
+        """Build service area context from pre-fetched areas (no DB query)."""
         neighborhoods: list[dict[str, Any]] = []
         boroughs: set[str] = set()
         coverage_regions: list[dict[str, Any]] = []
