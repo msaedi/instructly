@@ -48,7 +48,7 @@ def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
     """
     # Check database connectivity
     try:
-        db.execute(text("SELECT 1"))
+        db.execute(text("SELECT 1"))  # db-access-ok: Health check requires direct DB probe
         db_status = True
         status = "healthy"
     except Exception as e:
@@ -79,7 +79,7 @@ def detailed_health_check(db: Session = Depends(get_db)) -> DetailedHealthCheckR
 
     # Database check
     try:
-        result = db.execute(text("SELECT COUNT(*) FROM users"))
+        result = db.execute(text("SELECT COUNT(*) FROM users"))  # db-access-ok: Health probe
         user_count = result.scalar()
         components["database"] = ComponentHealth(
             status="healthy",

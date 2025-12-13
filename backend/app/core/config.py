@@ -29,6 +29,8 @@ except Exception:  # pragma: no cover - optional on CI
         return False
 
 
+import sys
+
 from pydantic import (
     AliasChoices,
     Field,
@@ -41,6 +43,17 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .constants import BRAND_NAME
+
+
+def is_running_tests() -> bool:
+    """
+    Detect if code is running under pytest.
+
+    This is safer than using an env var because it cannot be accidentally
+    left enabled in .env files. Only returns True when pytest is actually loaded.
+    """
+    return "pytest" in sys.modules
+
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SENDER_PROFILES_FILE = _BACKEND_ROOT / "config" / "email_senders.json"
@@ -634,12 +647,49 @@ class Settings(BaseSettings):
         default=True, description="Enable rate limiting (disable for testing)"
     )
 
+    login_concurrency_limit: int = Field(
+        default=10,
+        alias="LOGIN_CONCURRENCY_LIMIT",
+        description="Max concurrent login verifications allowed (controls Argon2 load)",
+    )
+    login_concurrency_timeout_seconds: float = Field(
+        default=5.0,
+        alias="LOGIN_CONCURRENCY_TIMEOUT",
+        description="Seconds to wait for a login slot before returning 429",
+    )
+    login_attempts_per_minute: int = Field(
+        default=5,
+        alias="LOGIN_ATTEMPTS_PER_MINUTE",
+        description="Per-account login attempts allowed per minute",
+    )
+    login_attempts_per_hour: int = Field(
+        default=20,
+        alias="LOGIN_ATTEMPTS_PER_HOUR",
+        description="Per-account login attempts allowed per hour",
+    )
+    captcha_failure_threshold: int = Field(
+        default=3,
+        alias="CAPTCHA_FAILURE_THRESHOLD",
+        description="Number of failed logins before CAPTCHA is required",
+    )
+    turnstile_secret_key: str = Field(
+        default="",
+        alias="TURNSTILE_SECRET_KEY",
+        description="Cloudflare Turnstile secret key (empty disables CAPTCHA)",
+    )
+    turnstile_site_key: str = Field(
+        default="",
+        alias="TURNSTILE_SITE_KEY",
+        description="Cloudflare Turnstile site key (for frontend)",
+    )
+
     rate_limit_general_per_minute: int = Field(
         default=100, description="General API rate limit per minute per IP"
     )
 
     rate_limit_auth_per_minute: int = Field(
-        default=5, description="Authentication attempts per minute per IP"
+        default=20,
+        description="Authentication attempts per minute per IP (generous - DDoS protection only; email-based limiting handles brute force)",
     )
 
     rate_limit_password_reset_per_hour: int = Field(
@@ -677,7 +727,7 @@ class Settings(BaseSettings):
     message_edit_window_minutes: int = Field(
         default=5, description="How many minutes a user can edit their message"
     )
-    sse_heartbeat_interval: int = Field(default=10, description="SSE heartbeat interval in seconds")
+    sse_heartbeat_interval: int = Field(default=30, description="SSE heartbeat interval in seconds")
 
     # Geocoding/Maps providers
     geocoding_provider: str = Field(

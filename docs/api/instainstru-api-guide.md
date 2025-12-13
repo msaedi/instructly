@@ -1249,7 +1249,7 @@ Find the next available booking slot.
 
 ### Metrics Endpoints (Limited Access)
 
-#### GET /metrics/health
+#### GET /ops/health
 Basic health check endpoint.
 
 **Response (200)**:
@@ -1262,7 +1262,7 @@ Basic health check endpoint.
 
 ---
 
-#### GET /metrics/performance
+#### GET /ops/performance
 Get performance metrics (admin only).
 
 **Authentication**: Required (admin users only)
@@ -1271,7 +1271,7 @@ Get performance metrics (admin only).
 
 ---
 
-#### GET /metrics/rate-limits
+#### GET /ops/rate-limits
 Get rate limit statistics.
 
 **Authentication**: Required

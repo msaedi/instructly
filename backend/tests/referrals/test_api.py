@@ -12,13 +12,16 @@ try:  # pragma: no cover - pytest may run from backend/ directory
 except ModuleNotFoundError:  # pragma: no cover
     from tests.helpers.assertions import sort_by_dict_key
 from fastapi import status
+from fastapi.testclient import TestClient
 import pytest
 
+from app.api.dependencies.database import get_db as deps_get_db
 from app.api.dependencies.services import get_referral_checkout_service
 from app.auth import create_access_token
 from app.core.config import settings
 from app.core.exceptions import ServiceException
-from app.main import app as fastapi_app
+from app.database import get_db
+from app.main import fastapi_app
 from app.models.referrals import RewardStatus
 from app.models.user import User
 from app.repositories.referral_repository import (
@@ -32,6 +35,11 @@ from app.schemas.referrals import AdminReferralsHealthOut, CheckoutApplyRequest
 from app.services.referral_checkout_service import ReferralCheckoutError
 from app.services.referral_service import ReferralService
 from app.services.wallet_service import WalletService
+
+try:  # pragma: no cover - pytest may run from backend/ directory
+    from backend.tests.conftest import TestSessionLocal
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.conftest import TestSessionLocal
 
 
 @pytest.fixture
@@ -292,34 +300,50 @@ def test_referral_ledger_reports_db_timeout_reason(db, client, monkeypatch):
     )
 
 
-def test_referral_ledger_concurrent_requests(db, client, monkeypatch):
+def test_referral_ledger_concurrent_requests(db, monkeypatch):
     monkeypatch.setenv("REFERRALS_UNSAFE_STEP", "4")
 
     user = _create_user(db, "concurrent_user@example.com")
     token = create_access_token(data={"sub": user.email})
     headers = {"Authorization": f"Bearer {token}"}
 
-    def _fetch():
-        return client.get("/api/v1/referrals/me", headers=headers)
+    previous_overrides = dict(fastapi_app.dependency_overrides)
 
-    start = time.perf_counter()
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        first = executor.submit(_fetch)
-        second = executor.submit(_fetch)
-        response_one = first.result(timeout=2)
-        response_two = second.result(timeout=2)
+    def _override_get_db():
+        session = TestSessionLocal()
+        try:
+            yield session
+            session.commit()
+        finally:
+            session.close()
 
-    elapsed = time.perf_counter() - start
+    fastapi_app.dependency_overrides[get_db] = _override_get_db
+    fastapi_app.dependency_overrides[deps_get_db] = _override_get_db
 
-    assert elapsed < 2.0, f"requests took too long ({elapsed:.3f}s)"
-    assert response_one.status_code == status.HTTP_200_OK
-    assert response_two.status_code == status.HTTP_200_OK
+    with TestClient(fastapi_app) as thread_safe_client:
+        def _fetch():
+            return thread_safe_client.get("/api/v1/referrals/me", headers=headers)
 
-    payload_one = response_one.json()
-    payload_two = response_two.json()
+        start = time.perf_counter()
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first = executor.submit(_fetch)
+            second = executor.submit(_fetch)
+            response_one = first.result(timeout=2)
+            response_two = second.result(timeout=2)
 
-    assert payload_one["code"]
-    assert payload_one["code"] == payload_two["code"]
+        elapsed = time.perf_counter() - start
+
+        assert elapsed < 2.0, f"requests took too long ({elapsed:.3f}s)"
+        assert response_one.status_code == status.HTTP_200_OK
+        assert response_two.status_code == status.HTTP_200_OK
+
+        payload_one = response_one.json()
+        payload_two = response_two.json()
+
+        assert payload_one["code"]
+        assert payload_one["code"] == payload_two["code"]
+
+    fastapi_app.dependency_overrides = previous_overrides
 
 
 def _stub_checkout_service(

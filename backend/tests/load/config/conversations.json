@@ -1,0 +1,11 @@
+{
+  "_comment": "Conversation mappings for load test E2E messaging. Both users share this conversation for testing message flow.",
+  "sarah.chen@example.com": {
+    "conversation_id": "01KC57HRW8G32MRYE9Q4RBQK84",
+    "booking_id": "01KC57HRS82NZXFBF5155A2863"
+  },
+  "emma.johnson@example.com": {
+    "conversation_id": "01KC57HRW8G32MRYE9Q4RBQK84",
+    "booking_id": "01KC57HRS82NZXFBF5155A2863"
+  }
+}

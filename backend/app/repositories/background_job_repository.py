@@ -36,7 +36,7 @@ class BackgroundJobRepository:
         self,
         *,
         type: str,
-        payload: dict[str, Any],
+        payload: dict[str, Any] | str,
         available_at: datetime | None = None,
     ) -> str:
         """Persist a new job ready for processing."""

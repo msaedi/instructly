@@ -19,6 +19,11 @@ try:  # pragma: no cover - helper only available in repo environments
 except ModuleNotFoundError:  # pragma: no cover
     ensure_instructor_service_for_tests = None  # type: ignore[assignment]
 
+try:  # pragma: no cover - repository may not be importable in all environments
+    from app.repositories.conversation_repository import ConversationRepository
+except ModuleNotFoundError:  # pragma: no cover
+    ConversationRepository = None  # type: ignore[assignment,misc]
+
 
 CHAT_TIMEZONE = pytz.timezone("America/New_York")
 
@@ -205,6 +210,28 @@ def _candidate_times(day: date, *, base_hour: int, duration_minutes: int) -> Ite
         yield candidate_start.time(), candidate_end.time(), candidate_start
 
 
+def _ensure_conversation(session: Session, *, student_id: str, instructor_id: str) -> Optional[object]:
+    """Ensure a conversation exists between student and instructor.
+
+    Returns the conversation if created/found, None if ConversationRepository unavailable.
+    """
+    if ConversationRepository is None:
+        return None
+
+    try:
+        repo = ConversationRepository(db=session)
+        conversation, created = repo.get_or_create(
+            student_id=student_id,
+            instructor_id=instructor_id,
+        )
+        if created:
+            print(f"  created conversation for student={student_id} instructor={instructor_id}")
+        return conversation
+    except Exception as exc:
+        print(f"  warning: conversation creation failed: {exc}")
+        return None
+
+
 def seed_chat_fixture_booking(
     *,
     instructor_email: str,
@@ -334,6 +361,15 @@ def seed_chat_fixture_booking(
                     )
                     session.add(booking)
                     session.commit()
+
+                    # Create conversation for this student-instructor pair
+                    _ensure_conversation(
+                        session,
+                        student_id=student.id,
+                        instructor_id=instructor.id,
+                    )
+                    session.commit()
+
                     print(
                         f"created chat fixture booking: {localized_start.isoformat()} "
                         f"(CONFIRMED) instructor={instructor.id} student={student.id}"

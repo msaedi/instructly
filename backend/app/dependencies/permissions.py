@@ -8,6 +8,7 @@ before allowing access to protected endpoints.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 
 from fastapi import Depends, HTTPException, status
@@ -58,7 +59,11 @@ def require_permission(permission_name: str | PermissionName) -> PermissionDepen
         current_user: User = Depends(get_current_user),
         permission_service: PermissionService = Depends(get_permission_service),
     ) -> User:
-        if not permission_service.user_has_permission(current_user.id, permission_name):
+        # Use async cached method to avoid blocking event loop
+        has_permission = await permission_service.user_has_permission_cached(
+            current_user.id, permission_name
+        )
+        if not has_permission:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"User does not have required permission: {permission_name}",
@@ -83,8 +88,12 @@ def require_any_permission(*permission_names: str) -> PermissionDependency:
         current_user: User = Depends(get_current_user),
         permission_service: PermissionService = Depends(get_permission_service),
     ) -> User:
+        # Use async cached method to avoid blocking event loop
         for permission_name in permission_names:
-            if permission_service.user_has_permission(current_user.id, permission_name):
+            has_permission = await permission_service.user_has_permission_cached(
+                current_user.id, permission_name
+            )
+            if has_permission:
                 return current_user
 
         raise HTTPException(
@@ -112,8 +121,12 @@ def require_all_permissions(*permission_names: str) -> PermissionDependency:
     ) -> User:
         missing_permissions = []
 
+        # Use async cached method to avoid blocking event loop
         for permission_name in permission_names:
-            if not permission_service.user_has_permission(current_user.id, permission_name):
+            has_permission = await permission_service.user_has_permission_cached(
+                current_user.id, permission_name
+            )
+            if not has_permission:
                 missing_permissions.append(permission_name)
 
         if missing_permissions:
@@ -145,7 +158,8 @@ def require_role(role_name: str) -> PermissionDependency:
         current_user: User = Depends(get_current_user),
         permission_service: PermissionService = Depends(get_permission_service),
     ) -> User:
-        user_roles = permission_service.get_user_roles(current_user.id)
+        # Wrap sync method in thread to avoid blocking event loop
+        user_roles = await asyncio.to_thread(permission_service.get_user_roles, current_user.id)
 
         if role_name not in user_roles:
             raise HTTPException(

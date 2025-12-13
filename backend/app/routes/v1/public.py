@@ -25,8 +25,6 @@ import ulid
 from ...core.config import settings
 from ...core.timezone_utils import get_user_today
 from ...database import get_db
-from ...models.instructor import InstructorProfile
-from ...models.user import User
 from ...schemas.public_availability import (
     NextAvailableSlotResponse,
     PublicDayAvailability,
@@ -208,17 +206,13 @@ async def get_instructor_public_availability(
         404: If instructor not found
         400: If date range is invalid
     """
-    # Validate instructor exists and is active
-    instructor_user = db.query(User).filter(User.id == instructor_id).first()
-    if not instructor_user:
+    # Validate instructor exists and has profile using service layer
+    try:
+        instructor_user = instructor_service.get_instructor_user(instructor_id)
+    except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
-
-    # Verify they have an instructor profile
-    instructor_profile = (
-        db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
-    )
-    if not instructor_profile:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
+    # Canonicalize to instructor user_id for downstream queries/caching.
+    instructor_id = instructor_user.id
 
     # Validate dates using instructor's timezone
     instructor_today = get_user_today(instructor_user)
@@ -478,16 +472,13 @@ async def get_next_available_slot(
 
     This is a convenience endpoint for "Book Now" functionality.
     """
-    # Validate instructor
-    instructor_user = db.query(User).filter(User.id == instructor_id).first()
-    if not instructor_user:
+    # Validate instructor using service layer
+    try:
+        instructor_user = instructor_service.get_instructor_user(instructor_id)
+    except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
-
-    instructor_profile = (
-        db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
-    )
-    if not instructor_profile:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
+    # Canonicalize to instructor user_id for downstream queries.
+    instructor_id = instructor_user.id
 
     # Search for next configured days using instructor's timezone
     search_days = settings.public_availability_days

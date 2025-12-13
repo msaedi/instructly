@@ -35,7 +35,8 @@ import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useInstructorServiceAreas } from '@/hooks/queries/useInstructorServiceAreas';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useStripeConnectStatus } from '@/hooks/queries/useStripeConnectStatus';
-import { useInboxState } from '@/hooks/useInboxState';
+import { useQuery } from '@tanstack/react-query';
+import { withApiBase } from '@/lib/apiBase';
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
@@ -195,10 +196,42 @@ export default function InstructorDashboardNew() {
   const [showMessages, setShowMessages] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showMoreMobile, setShowMoreMobile] = useState(false);
-  // Use React Query for inbox state (deduplicates API calls)
-  const { data: inboxState } = useInboxState();
-  const unreadConversationsCount = inboxState?.unread_conversations ?? 0;
-  const unreadConversations = (inboxState?.conversations ?? []).filter(conv => conv.unread_count > 0);
+  // Conversations for badge/dropdown
+  const { data: conversationList } = useQuery({
+    queryKey: ['conversations', 'dashboard', 'active'],
+    queryFn: async () => {
+      const response = await fetch(
+        withApiBase('/api/v1/conversations?state=active&limit=50'),
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to load conversations: ${response.status}`);
+      }
+      return response.json() as Promise<{
+        conversations: Array<{
+          id: string;
+          unread_count: number;
+          last_message?: { content: string | null } | null;
+          other_user: { first_name: string; last_initial: string };
+        }>;
+      }>;
+    },
+    // Poll so the badge updates when new messages arrive while the user sits on the dashboard
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+  });
+  const unreadConversations = (conversationList?.conversations ?? []).filter(
+    (conv) => (conv.unread_count ?? 0) > 0
+  );
+  // Badge should reflect number of conversations with unread messages, not total unread messages
+  const unreadConversationsCount = unreadConversations.length;
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node;
@@ -380,7 +413,8 @@ export default function InstructorDashboardNew() {
       router.push('/login?redirect=/instructor/dashboard');
     }
   }, [profileQueryError, router]);
-  const { data: ratingsData } = useInstructorRatingsQuery(profile?.user_id ?? '');
+  const instructorUserId = instructorProfile?.user_id ?? profile?.user_id ?? '';
+  const { data: ratingsData } = useInstructorRatingsQuery(instructorUserId);
   const reviewCount = ratingsData?.overall?.total_reviews ?? 0;
   const reviewAverageDisplay =
     ratingsData?.overall?.display_rating ??
@@ -737,21 +771,25 @@ export default function InstructorDashboardNew() {
                     </li>
                   </>
                 ) : (
-                  unreadConversations.map((conv) => (
-                    <li key={conv.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowMessages(false);
-                          router.push('/instructor/messages');
-                        }}
-                        className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50"
-                      >
-                        <p className="text-sm font-medium text-gray-900 truncate">{conv.other_user.name}</p>
-                        <p className="text-xs text-gray-500 truncate">{conv.last_message?.preview || 'New message'}</p>
-                      </button>
-                    </li>
-                  ))
+                  unreadConversations.map((conv) => {
+                    const otherName = `${conv.other_user.first_name} ${conv.other_user.last_initial}.`;
+                    const preview = conv.last_message?.content || 'New message';
+                    return (
+                      <li key={conv.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowMessages(false);
+                            router.push(`/instructor/messages?conversation=${conv.id}`);
+                          }}
+                          className="w-full rounded-lg px-3 py-2 text-left hover:bg-gray-50"
+                        >
+                          <p className="text-sm font-medium text-gray-900 truncate">{otherName}</p>
+                          <p className="text-xs text-gray-500 truncate">{preview}</p>
+                        </button>
+                      </li>
+                    );
+                  })
                 )}
               </ul>
             </DashboardPopover>

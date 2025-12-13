@@ -2,15 +2,18 @@
 """
 Redis Pub/Sub Manager for messaging notifications.
 
-This module handles publishing and subscribing to Redis channels for
-real-time messaging notifications (v3.1 architecture).
+DEPRECATED (v4.0): This module is being replaced by the Broadcaster pattern.
+- SSE streaming now uses app.core.broadcast (1 Redis connection per worker)
+- Publishing now uses app.services.messaging.sse_stream.publish_to_user
 
-Design decisions:
+This module is kept for backward compatibility during transition.
+The subscribe() method is deprecated - use Broadcaster instead.
+
+Legacy architecture (v3.1):
 - Async Redis client (non-blocking)
 - Fire-and-forget publishing (failures logged, not raised)
 - User channels: "user:{user_id}"
 - All events include schema_version for future evolution
-- Subscription via async context manager for clean resource management
 - Thread-safe singleton pattern with double-check locking
 """
 
@@ -136,9 +139,15 @@ class RedisPubSubManager:
     @asynccontextmanager
     async def subscribe(self, user_id: str) -> AsyncGenerator["PubSub", None]:
         """
+        DEPRECATED: Use app.core.broadcast.get_broadcast().subscribe() instead.
+
+        This method creates a NEW Redis connection per subscription, which
+        limits scalability to ~30 concurrent SSE users. The Broadcaster
+        pattern shares a single connection across all subscribers in a worker.
+
         Subscribe to a user's channel for real-time events.
 
-        Usage:
+        Usage (DEPRECATED - use Broadcaster instead):
             async with pubsub_manager.subscribe(user_id) as pubsub:
                 async for message in pubsub.listen():
                     if message["type"] == "message":
@@ -151,6 +160,13 @@ class RedisPubSubManager:
         Yields:
             Redis PubSub object for listening to events
         """
+        import warnings
+
+        warnings.warn(
+            "pubsub_manager.subscribe() is deprecated. Use Broadcaster pattern instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._redis is None:
             raise RuntimeError("Redis not initialized")
 

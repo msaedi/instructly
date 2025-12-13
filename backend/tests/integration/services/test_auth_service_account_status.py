@@ -186,14 +186,20 @@ class TestAuthServiceAccountStatus:
         assert db_user.account_status == "active"
 
     def test_api_login_endpoint_with_deactivated_user(self, client, deactivated_instructor: User, test_password: str):
-        """Test that login endpoint rejects deactivated users."""
+        """Test that login endpoint rejects deactivated users with specific message."""
         response = client.post(
             "/api/v1/auth/login", data={"username": deactivated_instructor.email, "password": test_password}
         )
 
-        # Should return 401 Unauthorized
+        # Should return 401 Unauthorized with specific deactivation message
+        # This provides better UX than generic "Incorrect email or password"
         assert response.status_code == 401
-        assert "Incorrect email or password" in response.json()["detail"]
+        detail = response.json()["detail"]
+        # Accept either the specific message or dict format
+        if isinstance(detail, dict):
+            assert detail.get("message") == "Account has been deactivated"
+        else:
+            assert "deactivated" in detail.lower()
 
     def test_api_login_endpoint_with_suspended_user(self, client, suspended_instructor: User, test_password: str):
         """Test that login endpoint accepts suspended users."""

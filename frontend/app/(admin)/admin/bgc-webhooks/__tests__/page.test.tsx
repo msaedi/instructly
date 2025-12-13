@@ -20,6 +20,12 @@ jest.mock('@/hooks/useAdminAuth', () => ({
   useAdminAuth: () => ({ isAdmin: true, isLoading: false }),
 }));
 
+// Mock AdminSidebar to prevent it from calling real APIs (it uses useBGCWebhookStats internally)
+jest.mock('@/app/(admin)/admin/AdminSidebar', () => ({
+  __esModule: true,
+  default: () => <div data-testid="mock-admin-sidebar">Admin Sidebar</div>,
+}));
+
 const mockLogout = jest.fn();
 
 jest.mock('@/features/shared/hooks/useAuth', () => ({

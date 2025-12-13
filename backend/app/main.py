@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import threading
+import time
 from time import monotonic
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, Optional, Sequence, Tuple, cast
@@ -73,8 +74,10 @@ for _model in (WeekSpecificScheduleCreate, ValidateWeekRequest, AuditLogView):
         pass
 
 # Use the new ASGI middleware to avoid "No response returned" errors
-# Redis Pub/Sub for messaging (Phase 1)
-from .core.redis import close_async_redis_client, get_async_redis_client
+# Broadcaster for SSE multiplexing (v4.0)
+from .core.broadcast import connect_broadcast, disconnect_broadcast
+from .core.redis import close_async_redis_client
+from .events.handlers import process_event
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
 from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY, prometheus_metrics
@@ -100,6 +103,7 @@ from .routes.v1 import (
     bookings as bookings_v1,
     codebase_metrics as codebase_metrics_v1,
     config as config_v1,
+    conversations as conversations_v1,
     database_monitor as database_monitor_v1,
     favorites as favorites_v1,
     instructor_bgc as instructor_bgc_v1,
@@ -125,6 +129,7 @@ from .routes.v1 import (
 )
 from .routes.v1.admin import (
     audit as admin_audit_v1,
+    auth_blocks as admin_auth_blocks_v1,
     background_checks as admin_background_checks_v1,
     badges as admin_badges_v1,
     config as admin_config_v1,
@@ -136,7 +141,6 @@ from .services.background_check_workflow_service import (
     BackgroundCheckWorkflowService,
     FinalAdversePayload,
 )
-from .services.messaging import pubsub_manager
 from .services.template_registry import TemplateRegistry
 from .services.template_service import TemplateService
 
@@ -305,20 +309,14 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     _validate_startup_config()
 
-    # Enforce is_testing discipline without changing preview/prod behavior otherwise
+    # Log if running under pytest (for debugging)
     try:
-        site_mode = site_mode_raw.strip().lower()
-        if site_mode in {"preview", "prod", "production", "live"} and bool(
-            getattr(settings, "is_testing", False)
-        ):
-            logger.error("Refusing to start: is_testing=true is not allowed in preview/prod")
-            raise SystemExit(2)
-        if site_mode == "local" and bool(getattr(settings, "is_testing", False)):
-            logger.warning("Local testing mode enabled (is_testing=true)")
-    except SystemExit:
-        raise
+        from app.core.config import is_running_tests
+
+        if is_running_tests():
+            logger.info("Running under pytest (test mode active)")
     except Exception as e:
-        logger.error(f"Startup guard evaluation failed: {e}")
+        logger.debug(f"Test detection check failed: {e}")
 
     # Pre-warm lightweight health endpoint to avoid first request cold start spikes
     if httpx is not None:
@@ -332,6 +330,15 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     db_config = DatabaseConfig()
     logger.info(f"Database safety score: {db_config.get_safety_score()['score']}%")
+
+    # Eager load beta settings cache to avoid DB query on first request
+    from .middleware.beta_phase_header import refresh_beta_settings_cache
+
+    db = SessionLocal()
+    try:
+        refresh_beta_settings_cache(db)
+    finally:
+        db.close()
 
     logger.info(f"Allowed origins: {_DYN_ALLOWED_ORIGINS}")
     logger.info("GZip compression enabled for responses > 500 bytes")
@@ -367,21 +374,25 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         await ProductionStartup.initialize()
 
-    # Initialize Redis Pub/Sub manager for messaging (Phase 1)
+    # Initialize Broadcaster for SSE multiplexing
+    # This enables 500+ concurrent SSE users instead of ~30
     try:
-        redis_client = await get_async_redis_client()
-        await pubsub_manager.initialize(redis_client)
-        logger.info("[REDIS-PUBSUB] Redis Pub/Sub manager initialized for messaging")
+        await connect_broadcast()
+        logger.info("[BROADCAST] SSE multiplexer initialized")
     except Exception as e:
-        logger.error(f"[REDIS-PUBSUB] Failed to initialize Redis Pub/Sub: {e}")
-        # Don't fail startup - publishing is an optional enhancement
+        logger.error(f"[BROADCAST] Failed to initialize broadcaster: {e}")
+        # Don't fail startup - SSE will fall back gracefully
 
     if getattr(settings, "bgc_expiry_enabled", False):
         _ensure_expiry_job_scheduled()
 
     job_worker_task: asyncio.Task[None] | None = None
+    job_worker_stop_event: threading.Event | None = None
     if getattr(settings, "scheduler_enabled", True) and not getattr(settings, "is_testing", False):
-        job_worker_task = asyncio.create_task(_background_jobs_worker())
+        job_worker_stop_event = threading.Event()
+        job_worker_task = asyncio.create_task(
+            asyncio.to_thread(_background_jobs_worker_sync, job_worker_stop_event)
+        )
 
     _prewarm_metrics_cache()
 
@@ -391,9 +402,17 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"{BRAND_NAME} API shutting down...")
 
     if job_worker_task is not None:
-        job_worker_task.cancel()
-        with contextlib.suppress(Exception):
+        if job_worker_stop_event is not None:
+            job_worker_stop_event.set()
+        with contextlib.suppress(BaseException):
             await job_worker_task
+
+    # Close Broadcaster for SSE multiplexing
+    try:
+        await disconnect_broadcast()
+        logger.info("[BROADCAST] SSE multiplexer disconnected")
+    except Exception as e:
+        logger.error(f"[BROADCAST] Error disconnecting broadcaster: {e}")
 
     # Close Redis Pub/Sub client
     try:
@@ -458,15 +477,19 @@ def _expiry_recheck_url() -> str:
     return f"{base_url}/instructor/onboarding/verification"
 
 
-async def _background_jobs_worker() -> None:
-    """Process persisted background jobs with retry support."""
+def _background_jobs_worker_sync(shutdown_event: threading.Event) -> None:
+    """Process persisted background jobs with retry support in a dedicated thread."""
 
-    poll_interval = max(1, int(getattr(settings, "jobs_poll_interval", 2)))
+    # Poll every 60s (was 2s) to reduce DB pressure during load spikes.
+    # Background jobs (BGC webhooks, expiry sweeps) are not time-critical.
+    poll_interval = max(1, int(getattr(settings, "jobs_poll_interval", 60)))
     batch_size = max(1, int(getattr(settings, "jobs_batch", 25)))
 
-    while True:
+    while not shutdown_event.is_set():
         try:
-            await asyncio.sleep(poll_interval)
+            time.sleep(poll_interval)
+            if shutdown_event.is_set():
+                break
 
             db = SessionLocal()
             try:
@@ -480,9 +503,18 @@ async def _background_jobs_worker() -> None:
                     continue
 
                 for job in jobs:
+                    if shutdown_event.is_set():
+                        break
                     try:
                         job_repo.mark_running(job.id)
                         db.flush()
+
+                        # Handle event jobs (fire-and-forget notifications, etc.)
+                        if process_event(job.type, job.payload, db):
+                            job_repo.mark_succeeded(job.id)
+                            db.commit()
+                            BACKGROUND_JOBS_FAILED.set(job_repo.count_failed_jobs())
+                            continue
 
                         payload = job.payload or {}
 
@@ -656,9 +688,6 @@ async def _background_jobs_worker() -> None:
                         job_repo.mark_succeeded(job.id)
                         db.commit()
                         BACKGROUND_JOBS_FAILED.set(job_repo.count_failed_jobs())
-                    except asyncio.CancelledError:
-                        db.rollback()
-                        raise
                     except Exception as exc:  # pragma: no cover - safety logging
                         db.rollback()
                         job_type = job.type or "unknown"
@@ -688,8 +717,6 @@ async def _background_jobs_worker() -> None:
                         BACKGROUND_JOBS_FAILED.set(job_repo.count_failed_jobs())
             finally:
                 db.close()
-        except asyncio.CancelledError:
-            raise
         except Exception as exc:  # pragma: no cover - safety logging
             logger.exception("Background job worker loop error: %s", str(exc))
 
@@ -779,7 +806,7 @@ def _compute_allowed_origins() -> list[str]:
                 if origin:
                     origins_set.add(origin)
         return list(origins_set)
-    if site_mode in {"prod", "production", "live"}:
+    if site_mode in {"prod", "production", "beta"}:
         csv = (settings.prod_frontend_origins_csv or "").strip()
         origins_list = [o.strip() for o in csv.split(",") if o.strip()]
         return origins_list or ["https://app.instainstru.com"]
@@ -872,10 +899,17 @@ assert (
 ), "CORS allow_origins cannot include * when allow_credentials=True"
 _log_bgc_config_summary(_DYN_ALLOWED_ORIGINS)
 
+# Normalize once for middleware config.
+_SITE_MODE = (os.getenv("SITE_MODE", "") or "").strip().lower()
+# Modes that should not accept broad preview-origin matching.
+_PROD_SITE_MODES = {"prod", "production", "beta", "preview"}
+# Only allow broad origin regex matching (e.g., Vercel preview domains) in non-prod modes.
+_CORS_ORIGIN_REGEX = None if _SITE_MODE in _PROD_SITE_MODES else CORS_ORIGIN_REGEX
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_DYN_ALLOWED_ORIGINS,
-    allow_origin_regex=CORS_ORIGIN_REGEX,  # Support Vercel preview deployments
+    allow_origin_regex=_CORS_ORIGIN_REGEX,  # Support Vercel preview deployments in non-prod
     allow_credentials=True,
     allow_methods=["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["*"],
@@ -885,7 +919,7 @@ logger.info("CORS allow_origins=%s allow_credentials=%s", _DYN_ALLOWED_ORIGINS, 
 app.add_middleware(
     EnsureCorsOnErrorMiddleware,
     allowed_origins=_DYN_ALLOWED_ORIGINS,
-    origin_regex=CORS_ORIGIN_REGEX,
+    origin_regex=_CORS_ORIGIN_REGEX,
 )
 
 # Keep MonitoringMiddleware (pure ASGI-style) below CORS
@@ -935,6 +969,7 @@ api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ign
 api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
 api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
 api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
+api_v1.include_router(conversations_v1.router, prefix="/conversations")  # type: ignore[attr-defined]
 api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
 api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
 api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
@@ -961,6 +996,7 @@ api_v1.include_router(admin_audit_v1.router, prefix="/admin/audit")  # type: ign
 api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
 api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
 api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
+api_v1.include_router(admin_auth_blocks_v1.router, prefix="/admin/auth-blocks")  # type: ignore[attr-defined]
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
 # Phase 24.5 v1 admin operations routers

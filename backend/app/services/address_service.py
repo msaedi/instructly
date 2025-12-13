@@ -324,6 +324,12 @@ class AddressService(BaseService):
     def replace_service_areas(self, instructor_id: str, neighborhood_ids: list[str]) -> int:
         with self.transaction():
             count = self.service_area_repo.replace_areas(instructor_id, neighborhood_ids)
+
+            # Invalidate cached service area context for this instructor
+            if self.cache:
+                cache_key = f"instructor:service_area_context:{instructor_id}"
+                self.cache.delete(cache_key)
+
             return count
 
     # Map support utilities

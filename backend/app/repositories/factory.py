@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from .booking_repository import BookingRepository
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
+    from .conversation_repository import ConversationRepository
     from .event_outbox_repository import EventOutboxRepository
     from .instructor_preferred_place_repository import InstructorPreferredPlaceRepository
     from .instructor_profile_repository import InstructorProfileRepository
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
         ReferralRewardRepository,
         WalletTransactionRepository,
     )
+    from .review_repository import ReviewTipRepository
     from .search_event_repository import SearchEventRepository
     from .search_history_repository import SearchHistoryRepository
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
@@ -261,6 +263,17 @@ class RepositoryFactory:
         return SearchEventRepository(db)
 
     @staticmethod
+    def create_conversation_repository(db: Session) -> "ConversationRepository":
+        """
+        Create repository for conversation operations.
+
+        Handles per-user-pair conversations for messaging.
+        """
+        from .conversation_repository import ConversationRepository
+
+        return ConversationRepository(db)
+
+    @staticmethod
     def create_message_repository(db: Session) -> "MessageRepository":
         """
         Create repository for message operations.
@@ -312,3 +325,10 @@ class RepositoryFactory:
         from .referral_repository import ReferralLimitRepository
 
         return ReferralLimitRepository(db)
+
+    @staticmethod
+    def create_review_tip_repository(db: Session) -> "ReviewTipRepository":
+        """Create repository for review tips."""
+        from .review_repository import ReviewTipRepository
+
+        return ReviewTipRepository(db)

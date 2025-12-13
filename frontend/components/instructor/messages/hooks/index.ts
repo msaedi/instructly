@@ -5,6 +5,9 @@
 export { useConversations, useUpdateConversationState } from './useConversations';
 export type { UseConversationsOptions, UseConversationsResult } from './useConversations';
 
+export { useConversationMessages } from './useConversationMessages';
+export type { UseConversationMessagesOptions, UseConversationMessagesResult } from './useConversationMessages';
+
 export { useMessageDrafts } from './useMessageDrafts';
 export type { UseMessageDraftsResult } from './useMessageDrafts';
 

@@ -32,7 +32,8 @@ def _new_seeder():
     return DatabaseSeeder.__new__(DatabaseSeeder)
 
 
-def test_student_slot_conflicts_shortcircuits_pending():
+def test_slot_conflicts_shortcircuits_pending():
+    """Test that _slot_conflicts returns True when slot is in pending set."""
     seeder = _new_seeder()
     session = DummySession([])
     pending = {
@@ -44,7 +45,8 @@ def test_student_slot_conflicts_shortcircuits_pending():
         )
     }
 
-    assert seeder._student_slot_conflicts(
+    # check_instructor=False (default) checks student_id column
+    assert seeder._slot_conflicts(
         session,
         "student-1",
         dt.date(2024, 11, 1),
@@ -55,7 +57,8 @@ def test_student_slot_conflicts_shortcircuits_pending():
     assert session.calls == []
 
 
-def test_student_slot_conflicts_queries_session_when_needed():
+def test_slot_conflicts_queries_session_when_needed():
+    """Test that _slot_conflicts queries DB when slot not in pending set."""
     seeder = _new_seeder()
     date_value = dt.date(2024, 12, 5)
     start = dt.time(9, 0)
@@ -63,18 +66,19 @@ def test_student_slot_conflicts_queries_session_when_needed():
     session = DummySession([None, 1])
     pending = set()
 
+    # check_instructor=False (default) checks student_id column
     assert (
-        seeder._student_slot_conflicts(session, "student-2", date_value, start, end, pending)
+        seeder._slot_conflicts(session, "student-2", date_value, start, end, pending)
         is False
     )
     assert session.calls[0] == {
-        "student_id": "student-2",
+        "user_id": "student-2",
         "booking_date": date_value,
         "start_time": start,
         "end_time": end,
     }
 
     assert (
-        seeder._student_slot_conflicts(session, "student-2", date_value, start, end, pending)
+        seeder._slot_conflicts(session, "student-2", date_value, start, end, pending)
         is True
     )

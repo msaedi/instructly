@@ -116,6 +116,29 @@ if dry_run:
 
 engine = create_engine(db_url)
 with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+    # Disable statement timeout for this session - DROP CASCADE can take a while
+    log_info(env, "Disabling statement timeout for this session...")
+    conn.execute(text("SET statement_timeout = 0"))
+
+    # Terminate other connections to the database (except ourselves)
+    # This helps avoid lock contention during DROP
+    log_info(env, "Terminating other connections to avoid locks...")
+    conn.execute(
+        text("""
+        SELECT pg_terminate_backend(pid)
+        FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND pid <> pg_backend_pid()
+          AND state != 'idle'
+    """)
+    )
+
+    log_info(env, "Dropping schema (this may take a moment)...")
     conn.execute(text("DROP SCHEMA public CASCADE"))
     conn.execute(text("CREATE SCHEMA public"))
+
+    # Grant default permissions on the new schema
+    conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
+    conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
+
 log_info(env, "Schema reset complete!")

@@ -334,6 +334,11 @@ def rate_limit(
                 # Can't rate limit without request, just call function
                 return await _call_wrapped(*args, **kwargs)
 
+            # Check for rate limit bypass token (for load testing)
+            bypass_token = getattr(settings, "rate_limit_bypass_token", "") or ""
+            if bypass_token and request.headers.get("X-Rate-Limit-Bypass") == bypass_token:
+                return await _call_wrapped(*args, **kwargs)
+
             # Parse rate string (e.g., "5/minute" -> (5, 60))
             parts = rate_string.split("/")
             if len(parts) != 2:

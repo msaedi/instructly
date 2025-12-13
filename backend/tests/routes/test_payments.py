@@ -342,13 +342,21 @@ class TestPaymentRoutes:
     ):
         """Test onboarding status endpoint returns correct format."""
         user, profile = instructor_user
+        # Ensure a connected account exists so the handler exercises the live status path.
+        from app.repositories.payment_repository import PaymentRepository
+
+        PaymentRepository(db).create_connected_account_record(
+            profile.id, "acct_test123", onboarding_completed=False
+        )
         db.commit()
 
         mock_check_status.return_value = {
             "has_account": True,
             "onboarding_completed": True,
-            "can_accept_payments": True,
+            # Prefer the canonical Stripe field name (regression guard)
+            "charges_enabled": True,
             "details_submitted": True,
+            "requirements": [],
         }
 
         response = client.get("/api/v1/payments/connect/status", headers=instructor_headers)
@@ -362,6 +370,7 @@ class TestPaymentRoutes:
         assert "charges_enabled" in data
         assert "requirements" in data
         assert isinstance(data["requirements"], list)
+        assert data["charges_enabled"] is True
 
     @patch("app.services.stripe_service.StripeService.get_user_payment_methods")
     def test_payment_methods_list_format(

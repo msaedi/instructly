@@ -23,7 +23,7 @@ _async_redis_client: Optional[AsyncRedis] = None
 _redis_lock: asyncio.Lock = asyncio.Lock()
 
 
-async def get_async_redis_client() -> AsyncRedis:
+async def get_async_redis_client() -> Optional[AsyncRedis]:
     """
     Get or create async Redis client for Pub/Sub operations.
 
@@ -45,12 +45,18 @@ async def get_async_redis_client() -> AsyncRedis:
             # Double-check after acquiring lock
             if _async_redis_client is None:
                 redis_url = settings.redis_url or "redis://localhost:6379"
-                _async_redis_client = AsyncRedis.from_url(
+                client = AsyncRedis.from_url(
                     redis_url,
                     encoding="utf-8",
                     decode_responses=True,
                 )
-                logger.info("[REDIS-PUBSUB] Async Redis client initialized")
+                try:
+                    await client.ping()
+                    _async_redis_client = client
+                    logger.info("[REDIS-PUBSUB] Async Redis client initialized and connected")
+                except Exception as exc:
+                    logger.error("[REDIS-PUBSUB] Async Redis client FAILED to connect: %s", exc)
+                    _async_redis_client = None
 
     return _async_redis_client
 

@@ -5,6 +5,7 @@
  */
 
 import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
+import type { BookingSummary } from '@/types/conversation';
 
 /**
  * Message attachment metadata
@@ -64,6 +65,12 @@ export type MessageWithAttachments = MessageItem & {
 };
 
 /**
+ * Booking info for conversation context (Phase 4)
+ * Re-exported from @/types/conversation for backwards compatibility
+ */
+export type ConversationBooking = BookingSummary;
+
+/**
  * Conversation entry in the sidebar list
  */
 export type ConversationEntry = {
@@ -80,6 +87,11 @@ export type ConversationEntry = {
   instructorId: string | null;
   latestMessageAt: number;
   latestMessageId?: string | null;
+  // Phase 4: New fields for per-user-pair model
+  conversationId?: string | undefined;
+  nextBooking?: ConversationBooking | null | undefined;
+  upcomingBookings?: ConversationBooking[] | undefined;
+  upcomingBookingCount?: number | undefined;
 };
 
 /**

@@ -12,6 +12,16 @@ import { env } from './lib/env';
 const isCI = env.isCI();
 const skipWebServer = Boolean(process.env['SKIP_WEB_SERVER']);
 
+const getCleanProcessEnv = (): Record<string, string> => {
+  const cleaned: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string') {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+};
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -97,7 +107,7 @@ export default defineConfig({
       timeout: 120 * 1000,
       // IMPORTANT: Pass environment variables to the Next.js process
       env: {
-        ...process.env,
+        ...getCleanProcessEnv(),
         NEXT_PUBLIC_API_BASE: 'http://localhost:8000',
         NEXT_PUBLIC_USE_PROXY: 'false',
         NEXT_PUBLIC_APP_ENV: 'e2e',

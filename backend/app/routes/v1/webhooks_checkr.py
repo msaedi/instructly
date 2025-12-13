@@ -7,6 +7,7 @@ Migrated from /webhooks/checkr to /api/v1/webhooks/checkr
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -429,7 +430,8 @@ async def handle_checkr_webhook(
             _mark_delivery(delivery_key)
         except RepositoryException as exc:
             CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="queued").inc()
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_eta",
                 payload={
                     "report_id": report_id,
@@ -445,7 +447,8 @@ async def handle_checkr_webhook(
             )
         except Exception:  # pragma: no cover
             CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="error").inc()
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_eta",
                 payload={
                     "report_id": report_id,
@@ -534,7 +537,8 @@ async def handle_checkr_webhook(
                     "outcome": "queued",
                 },
             )
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_completed",
                 payload={
                     "report_id": report_id,
@@ -561,7 +565,8 @@ async def handle_checkr_webhook(
                     "outcome": "error",
                 },
             )
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_completed",
                 payload={
                     "report_id": report_id,
@@ -625,7 +630,8 @@ async def handle_checkr_webhook(
                 str(exc),
                 extra={"evt": "checkr_webhook", "type": event_type, "report_id": report_id},
             )
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_canceled",
                 payload={
                     "report_id": report_id,
@@ -646,7 +652,8 @@ async def handle_checkr_webhook(
                     "outcome": "error",
                 },
             )
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_canceled",
                 payload={
                     "report_id": report_id,

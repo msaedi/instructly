@@ -166,6 +166,8 @@ class TestFormatMessageFromDb:
         message.content = "Hello"
         message.sender_id = "01SENDER123"
         message.booking_id = "01BOOKING123"
+        message.conversation_id = "01CONVERSATION123"
+        message.message_type = "user"
         message.created_at = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         message.edited_at = None
 
@@ -182,6 +184,8 @@ class TestFormatMessageFromDb:
         message.content = "Hello"
         message.sender_id = "01SENDER123"
         message.booking_id = "01BOOKING123"
+        message.conversation_id = "01CONVERSATION123"
+        message.message_type = "user"
         message.created_at = datetime.now(timezone.utc)
         message.edited_at = None
 
@@ -198,6 +202,8 @@ class TestFormatMessageFromDb:
         message.content = "Hello"
         message.sender_id = "01SENDER123"
         message.booking_id = "01BOOKING123"
+        message.conversation_id = "01CONVERSATION123"
+        message.message_type = "user"
         message.created_at = datetime.now(timezone.utc)
         message.edited_at = None
 
@@ -214,6 +220,8 @@ class TestFormatMessageFromDb:
         message.content = "Test content"
         message.sender_id = "01SENDER123"
         message.booking_id = "01BOOKING123"
+        message.conversation_id = "01CONVERSATION123"
+        message.message_type = "user"
         message.created_at = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         message.edited_at = datetime(2024, 1, 1, 13, 0, 0, tzinfo=timezone.utc)
 
@@ -226,7 +234,7 @@ class TestFormatMessageFromDb:
         assert data["message"]["booking_id"] == "01BOOKING123"
         assert data["message"]["created_at"] == "2024-01-01T12:00:00+00:00"
         assert data["message"]["edited_at"] == "2024-01-01T13:00:00+00:00"
-        assert data["conversation_id"] == "01BOOKING123"
+        assert data["conversation_id"] == "01CONVERSATION123"
 
 
 class TestLastEventIdBehavior:
@@ -281,29 +289,40 @@ def test_sse_sets_id_only_for_messages() -> None:
     assert "id" not in results["heartbeat"]
 
 
+@pytest.mark.asyncio
 @pytest.mark.usefixtures("db")
-def test_fetch_messages_after_returns_newer_messages(db, test_booking, test_student) -> None:
+async def test_fetch_messages_after_returns_newer_messages(db, test_booking, test_student) -> None:
     """DB catch-up returns only messages newer than the provided Last-Event-ID."""
     repo = MessageRepository(db)
+    from app.repositories.conversation_repository import ConversationRepository
 
-    msg1 = repo.create_message(
-        booking_id=str(test_booking.id),
+    conversation_repo = ConversationRepository(db)
+    conversation, _ = conversation_repo.get_or_create(
+        student_id=str(test_student.id),
+        instructor_id=str(test_booking.instructor_id),
+    )
+
+    msg1 = repo.create_conversation_message(
+        conversation_id=conversation.id,
         sender_id=str(test_student.id),
+        booking_id=str(test_booking.id),
         content="First",
     )
-    msg2 = repo.create_message(
-        booking_id=str(test_booking.id),
+    msg2 = repo.create_conversation_message(
+        conversation_id=conversation.id,
         sender_id=str(test_student.id),
+        booking_id=str(test_booking.id),
         content="Second",
     )
-    msg3 = repo.create_message(
-        booking_id=str(test_booking.id),
+    msg3 = repo.create_conversation_message(
+        conversation_id=conversation.id,
         sender_id=str(test_student.id),
+        booking_id=str(test_booking.id),
         content="Third",
     )
     db.commit()
 
-    results = fetch_messages_after(
+    results = await fetch_messages_after(
         db=db,
         user_id=str(test_student.id),
         after_message_id=str(msg1.id),

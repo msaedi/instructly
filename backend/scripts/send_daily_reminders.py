@@ -11,7 +11,6 @@ For production, set up a cron job:
 Or use a task scheduler like Celery for more sophisticated scheduling.
 """
 
-import asyncio
 from datetime import datetime
 import logging
 from pathlib import Path
@@ -33,7 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def send_daily_reminders():
+def send_daily_reminders() -> int:
     """Send reminder emails for tomorrow's bookings."""
     logger.info("Starting daily reminder email job")
 
@@ -41,13 +40,11 @@ async def send_daily_reminders():
 
     try:
         notification_service = NotificationService(db)
-        count = await notification_service.send_reminder_emails()
+        count = notification_service.send_reminder_emails()
 
         logger.info(f"Successfully sent {count} reminder emails")
 
         # You could also send a summary email to admin here
-        # await send_admin_summary(count)
-
         return count
 
     except Exception as e:
@@ -58,13 +55,13 @@ async def send_daily_reminders():
         db.close()
 
 
-async def main():
+def main() -> None:
     """Main entry point."""
     start_time = datetime.now()
     logger.info(f"Daily reminder job started at {start_time}")
 
     try:
-        count = await send_daily_reminders()
+        count = send_daily_reminders()
 
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
@@ -79,4 +76,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

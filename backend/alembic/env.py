@@ -68,8 +68,15 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Disable statement timeout for migrations - some operations (like
+    # adding indexes on large tables) can take longer than the default
+    # timeout on cloud databases like Supabase.
+    # We set this via connect_args to avoid transaction conflicts.
+    engine_config = config.get_section(config.config_ini_section, {})
+    engine_config["connect_args"] = {"options": "-c statement_timeout=0"}
+
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        engine_config,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

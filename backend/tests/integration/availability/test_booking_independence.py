@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 import app.main
 from app.models import Booking, BookingStatus, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
@@ -28,6 +29,8 @@ except ModuleNotFoundError:
 def bitmap_app(monkeypatch: pytest.MonkeyPatch):
     """Reload the application with bitmap availability enabled."""
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
+    # Allow editing any past dates (uses setattr to avoid polluting other tests)
+    monkeypatch.setattr(settings, "past_edit_window_days", 0)
 
     reload(availability_service_module)
     reload(availability_routes)

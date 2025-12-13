@@ -30,6 +30,9 @@ def bitmap_app(monkeypatch: pytest.MonkeyPatch):
     """Reload the application with bitmap availability enabled."""
     # Bitmap availability is always enabled, no flag needed
     monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
+    # Disable past-edit guardrail so fixed historical dates remain writable as time passes.
+    monkeypatch.setenv("PAST_EDIT_WINDOW_DAYS", "0")
+    monkeypatch.setattr(settings, "past_edit_window_days", 0)
 
     reload(availability_service_module)
     reload(availability_routes)

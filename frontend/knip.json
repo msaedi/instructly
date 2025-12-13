@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip/schema.json",
-  "project": ["tsconfig.json"],
+  "project": ["**/*.{js,jsx,ts,tsx}"],
   "paths": {
     "@/*": ["./*"],
     "@/components/*": ["./components/*"]
@@ -26,5 +26,6 @@
     "tailwindcss",
     "ts-prune",
     "vercel"
-  ]
+  ],
+  "include": ["dependencies", "unlisted", "binaries", "unresolved"]
 }

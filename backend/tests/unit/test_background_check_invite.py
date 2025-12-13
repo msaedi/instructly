@@ -65,17 +65,22 @@ def _service_factory(db, transport: MockTransport) -> BackgroundCheckService:
         transport=transport,
     )
     repository = InstructorProfileRepository(db)
-    return BackgroundCheckService(
+    service = BackgroundCheckService(
         db,
         client=client,
         repository=repository,
         package=settings.checkr_package,
         env=settings.checkr_env,
     )
+    service._resolve_work_location = lambda _zip: {  # type: ignore[attr-defined]
+        "country": "US",
+        "state": "NY",
+        "city": "New York",
+    }
+    return service
 
 
-@pytest.mark.asyncio
-async def test_invite_returns_candidate_and_invitation_ids(db):
+def test_invite_returns_candidate_and_invitation_ids(db):
     captured_requests: dict[str, dict] = {}
 
     def handler(request):
@@ -91,7 +96,7 @@ async def test_invite_returns_candidate_and_invitation_ids(db):
     service = _service_factory(db, MockTransport(handler))
     profile = _create_instructor(db)
 
-    result = await service.invite(profile.id)
+    result = service.invite(profile.id)
 
     assert result["report_id"] == "rpt_123"
     assert result["status"] == "pending"
@@ -114,8 +119,7 @@ async def test_invite_returns_candidate_and_invitation_ids(db):
     assert profile.checkr_invitation_id == "inv_123"
 
 
-@pytest.mark.asyncio
-async def test_invite_propagates_checkr_errors_without_updates(db):
+def test_invite_propagates_checkr_errors_without_updates(db):
     def handler(request):
         if request.url.path.endswith("/candidates"):
             return Response(422, json={"error": "invalid"})
@@ -127,7 +131,7 @@ async def test_invite_propagates_checkr_errors_without_updates(db):
     db.flush()
 
     with pytest.raises(ServiceException):
-        await service.invite(profile.id)
+        service.invite(profile.id)
 
     db.refresh(profile)
     assert profile.bgc_status == "review"
@@ -135,8 +139,7 @@ async def test_invite_propagates_checkr_errors_without_updates(db):
     assert profile.bgc_env == "sandbox"
 
 
-@pytest.mark.asyncio
-async def test_invite_uses_service_package_from_settings(db):
+def test_invite_uses_service_package_from_settings(db):
     """Verify that the service uses the package configured in settings.checkr_package."""
     captured_requests: dict[str, dict] = {}
 
@@ -154,7 +157,7 @@ async def test_invite_uses_service_package_from_settings(db):
     service = _service_factory(db, MockTransport(handler))
     profile = _create_instructor(db)
 
-    await service.invite(profile.id)
+    service.invite(profile.id)
 
     # Verify the package from settings was used
     invitation_payload = captured_requests["invitation"]
@@ -162,8 +165,7 @@ async def test_invite_uses_service_package_from_settings(db):
     assert invitation_payload["package"] == settings.checkr_package
 
 
-@pytest.mark.asyncio
-async def test_invite_package_override_takes_precedence(db):
+def test_invite_package_override_takes_precedence(db):
     """Verify that package_override parameter takes precedence over settings."""
     captured_requests: dict[str, dict] = {}
 
@@ -181,7 +183,7 @@ async def test_invite_package_override_takes_precedence(db):
     profile = _create_instructor(db)
 
     # Override with a different package
-    await service.invite(profile.id, package_override="complete_criminal")
+    service.invite(profile.id, package_override="complete_criminal")
 
     # Verify the override was used instead of settings
     invitation_payload = captured_requests["invitation"]

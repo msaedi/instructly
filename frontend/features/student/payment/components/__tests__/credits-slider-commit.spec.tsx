@@ -66,6 +66,7 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => {
     inputClassName?: string;
     onSelectSuggestion?: (value: string) => void;
     containerClassName?: string;
+    suggestionScope?: 'default' | 'us' | 'global';
     inputProps?: unknown;
   };
 
@@ -79,6 +80,7 @@ jest.mock('@/components/forms/PlacesAutocompleteInput', () => {
         onChange,
         onSelectSuggestion: _ignored,
         containerClassName: _containerClassName,
+        suggestionScope: _suggestionScope,
         inputProps: _inputProps,
         ...rest
       },

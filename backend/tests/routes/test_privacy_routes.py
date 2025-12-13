@@ -316,4 +316,4 @@ class TestPrivacyEndpoints:
 
         # The endpoint should handle this gracefully
         # Pydantic validation will handle invalid fields
-        assert response.status_code in [status.HTTP_422_UNPROCESSABLE_ENTITY, status.HTTP_200_OK]
+        assert response.status_code in [status.HTTP_422_UNPROCESSABLE_CONTENT, status.HTTP_200_OK]

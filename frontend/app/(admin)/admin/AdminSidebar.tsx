@@ -88,6 +88,7 @@ function AdminSidebar() {
       items: [
         { name: 'Redis', href: '/admin/ops/redis' },
         { name: 'Database', href: '/admin/ops/database' },
+        { name: 'Auth Blocks', href: '/admin/ops/auth-blocks' },
       ],
     },
     {

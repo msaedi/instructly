@@ -84,7 +84,7 @@ class BusinessRuleException(DomainException):
 
     def to_http_exception(self) -> HTTPException:
         return HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "message": self.message,
                 "code": self.code,

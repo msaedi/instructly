@@ -57,6 +57,42 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
             query = query.filter(InstructorServiceArea.is_active.is_(True))
         return self._execute_query(query)
 
+    def list_for_instructors(
+        self, instructor_ids: List[str], active_only: bool = True
+    ) -> dict[str, List[InstructorServiceArea]]:
+        """
+        Fetch service areas for multiple instructors in a single query.
+
+        This is an N+1 optimization method that batches service area lookups.
+
+        Args:
+            instructor_ids: List of instructor user IDs
+            active_only: If True, only return active service areas
+
+        Returns:
+            Dict mapping instructor_id -> List[InstructorServiceArea]
+        """
+        if not instructor_ids:
+            return {}
+
+        query = (
+            self._build_query()
+            .options(selectinload(InstructorServiceArea.neighborhood))
+            .filter(InstructorServiceArea.instructor_id.in_(instructor_ids))
+        )
+        if active_only:
+            query = query.filter(InstructorServiceArea.is_active.is_(True))
+
+        results = self._execute_query(query)
+
+        # Group by instructor_id
+        grouped: dict[str, List[InstructorServiceArea]] = {iid: [] for iid in instructor_ids}
+        for area in results:
+            if area.instructor_id in grouped:
+                grouped[area.instructor_id].append(area)
+
+        return grouped
+
     def replace_areas(self, instructor_id: str, neighborhood_ids: List[str]) -> int:
         # Soft-clear existing
         (

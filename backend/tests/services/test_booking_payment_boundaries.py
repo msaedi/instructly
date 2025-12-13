@@ -34,8 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover
     from tests.factories.booking_builders import create_booking_pg_safe
 
 
-@pytest.mark.asyncio
-async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
+def test_immediate_vs_scheduled_boundary(db: Session) -> None:
     # Ensure roles
     student_role = db.query(Role).filter_by(name=RoleName.STUDENT).first()
     if not student_role:
@@ -118,7 +117,7 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         payment_status="pending_payment_method",
         offset_index=0,
     )
-    c1 = await svc.confirm_booking_payment(b1.id, student, "pm_x", False)
+    c1 = svc.confirm_booking_payment(b1.id, student, "pm_x", False)
     assert c1.payment_status == "authorizing"
 
     # 24h01m ⇒ scheduled
@@ -154,5 +153,5 @@ async def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         payment_status="pending_payment_method",
         offset_index=2,
     )
-    c2 = await svc.confirm_booking_payment(b2.id, student, "pm_x", False)
+    c2 = svc.confirm_booking_payment(b2.id, student, "pm_x", False)
     assert c2.payment_status == "scheduled"

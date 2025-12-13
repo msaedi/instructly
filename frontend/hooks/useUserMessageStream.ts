@@ -22,7 +22,7 @@ import type {
 
 const SSE_ENDPOINT = '/api/v1/messages/stream';
 const RECONNECT_DELAY = 3000;
-const HEARTBEAT_TIMEOUT = 45000; // 45 seconds (server sends every 30s)
+const HEARTBEAT_TIMEOUT = 45000; // 45 seconds (server sends every 10s, 4.5x buffer)
 
 // [MSG-DEBUG] Helper to get current timestamp
 const debugTimestamp = () => new Date().toISOString();
@@ -132,8 +132,12 @@ export function useUserMessageStream() {
       }
     }
 
-    // Then, notify the conversation-specific handler
+    // Phase 7: Route events by conversation_id only (NOT booking_id!)
+    // Frontend now subscribes using conversation_id, so direct lookup is sufficient.
+    // No fallback needed because both Chat.tsx and instructor messages page
+    // now fetch conversation_id before subscribing.
     const handlers = handlersRef.current.get(event.conversation_id);
+
     if (!handlers) {
       logger.debug('[MSG-DEBUG] SSE: No handler found for conversation', {
         conversationId: event.conversation_id,

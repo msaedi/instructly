@@ -15,11 +15,11 @@ Changes from original:
 - Uses dependency injection for TemplateService (no singleton)
 """
 
-import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Optional, ParamSpec, Sequence, TypeVar
+import time
+from typing import Any, Callable, Dict, List, Optional, ParamSpec, Sequence, TypeVar
 
 from jinja2.exceptions import TemplateNotFound
 from sqlalchemy.orm import Session
@@ -41,7 +41,7 @@ R = TypeVar("R")
 
 def retry(
     max_attempts: int = 3, backoff_seconds: float = 1.0
-) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """
     Decorator for retrying failed operations with exponential backoff.
 
@@ -53,14 +53,14 @@ def retry(
         Decorated function with retry logic
     """
 
-    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
-        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             last_exception: Exception | None = None
 
             for attempt in range(max_attempts):
                 try:
-                    return await func(*args, **kwargs)
+                    return func(*args, **kwargs)
                 except Exception as e:
                     last_exception = e
                     if attempt < max_attempts - 1:
@@ -69,7 +69,7 @@ def retry(
                             f"Attempt {attempt + 1}/{max_attempts} failed for {func.__name__}: {str(e)}. "
                             f"Retrying in {wait_time}s..."
                         )
-                        await asyncio.sleep(wait_time)
+                        time.sleep(wait_time)
                     else:
                         logger.error(
                             f"All {max_attempts} attempts failed for {func.__name__}: {str(e)}"
@@ -146,7 +146,7 @@ class NotificationService(BaseService):
             self.db.close()
 
     @BaseService.measure_operation("send_booking_confirmation")
-    async def send_booking_confirmation(self, booking: Booking) -> bool:
+    def send_booking_confirmation(self, booking: Booking) -> bool:
         """
         Send booking confirmation emails to both student and instructor.
 
@@ -168,7 +168,7 @@ class NotificationService(BaseService):
 
             # Send to student - catch exceptions after retries
             try:
-                student_success = await self._send_student_booking_confirmation(booking)
+                student_success = self._send_student_booking_confirmation(booking)
             except TemplateNotFound as e:
                 self.logger.error(f"Template error in booking confirmation: {str(e)}")
                 raise ServiceException(f"Email template error: {str(e)}")
@@ -178,7 +178,7 @@ class NotificationService(BaseService):
 
             # Send to instructor - catch exceptions after retries
             try:
-                instructor_success = await self._send_instructor_booking_notification(booking)
+                instructor_success = self._send_instructor_booking_notification(booking)
             except TemplateNotFound as e:
                 self.logger.error(f"Template error in booking confirmation: {str(e)}")
                 raise ServiceException(f"Email template error: {str(e)}")
@@ -202,8 +202,8 @@ class NotificationService(BaseService):
             raise
 
     @BaseService.measure_operation("send_cancellation_notification")
-    async def send_cancellation_notification(
-        self, booking: Booking, cancelled_by: User, reason: Optional[str] = None
+    def send_cancellation_notification(
+        self, booking: Booking, cancelled_by: User | str | None, reason: Optional[str] = None
     ) -> bool:
         """
         Send cancellation notification emails.
@@ -223,7 +223,7 @@ class NotificationService(BaseService):
             self.logger.error("Cannot send cancellation notification: booking is None")
             return False
 
-        if not cancelled_by:
+        if cancelled_by is None:
             self.logger.error("Cannot send cancellation notification: cancelled_by is None")
             return False
 
@@ -231,14 +231,24 @@ class NotificationService(BaseService):
             self.logger.info(f"Sending cancellation emails for booking {booking.id}")
 
             # Determine who cancelled
-            is_student_cancellation = cancelled_by.id == booking.student_id
+            cancelled_by_role = None
+            is_student_cancellation = False
+            if isinstance(cancelled_by, User):
+                is_student_cancellation = cancelled_by.id == booking.student_id
+                cancelled_by_role = "student" if is_student_cancellation else "instructor"
+            elif isinstance(cancelled_by, str):
+                cancelled_by_role = cancelled_by
+                is_student_cancellation = cancelled_by_role == "student"
+            else:
+                cancelled_by_role = "student"
+                is_student_cancellation = True
 
             # Send appropriate emails
             if is_student_cancellation:
                 # Student cancelled - notify instructor
                 try:
-                    success = await self._send_instructor_cancellation_notification(
-                        booking, reason, "student"
+                    success = self._send_instructor_cancellation_notification(
+                        booking, reason, cancelled_by_role
                     )
                 except TemplateNotFound as e:
                     raise ServiceException(f"Email template error: {str(e)}")
@@ -250,7 +260,7 @@ class NotificationService(BaseService):
 
                 # Also send confirmation to student
                 try:
-                    student_success = await self._send_student_cancellation_confirmation(booking)
+                    student_success = self._send_student_cancellation_confirmation(booking)
                 except TemplateNotFound as e:
                     raise ServiceException(f"Email template error: {str(e)}")
                 except Exception as e:
@@ -263,8 +273,8 @@ class NotificationService(BaseService):
             else:
                 # Instructor cancelled - notify student
                 try:
-                    success = await self._send_student_cancellation_notification(
-                        booking, reason, "instructor"
+                    success = self._send_student_cancellation_notification(
+                        booking, reason, cancelled_by_role
                     )
                 except TemplateNotFound as e:
                     raise ServiceException(f"Email template error: {str(e)}")
@@ -276,9 +286,7 @@ class NotificationService(BaseService):
 
                 # Also send confirmation to instructor
                 try:
-                    instructor_success = await self._send_instructor_cancellation_confirmation(
-                        booking
-                    )
+                    instructor_success = self._send_instructor_cancellation_confirmation(booking)
                 except TemplateNotFound as e:
                     raise ServiceException(f"Email template error: {str(e)}")
                 except Exception as e:
@@ -296,7 +304,7 @@ class NotificationService(BaseService):
             raise
 
     @BaseService.measure_operation("send_reminder_emails")
-    async def send_reminder_emails(self) -> int:
+    def send_reminder_emails(self) -> int:
         """
         Send 24-hour reminder emails for upcoming bookings.
 
@@ -314,14 +322,14 @@ class NotificationService(BaseService):
 
         try:
             # Get tomorrow's bookings
-            bookings = await self._get_tomorrows_bookings()
+            bookings = self._get_tomorrows_bookings()
 
             if not bookings:
                 self.logger.info("No bookings found for tomorrow")
                 return 0
 
             # Send reminders
-            sent_count = await self._send_booking_reminders(bookings)
+            sent_count = self._send_booking_reminders(bookings)
 
             self.logger.info(f"Sent {sent_count} reminder emails for {len(bookings)} bookings")
             return sent_count
@@ -332,7 +340,7 @@ class NotificationService(BaseService):
 
     # Private helper methods
 
-    async def _get_tomorrows_bookings(self) -> List[Booking]:
+    def _get_tomorrows_bookings(self) -> List[Booking]:
         """
         Get all confirmed bookings for tomorrow.
 
@@ -364,7 +372,7 @@ class NotificationService(BaseService):
         self.logger.info(f"Found {len(all_bookings)} bookings for tomorrow")
         return all_bookings
 
-    async def _send_booking_reminders(self, bookings: List[Booking]) -> int:
+    def _send_booking_reminders(self, bookings: List[Booking]) -> int:
         """
         Send reminder emails for a list of bookings.
 
@@ -382,7 +390,7 @@ class NotificationService(BaseService):
 
             # Try to send student reminder
             try:
-                student_sent = await self._send_student_reminder(booking)
+                student_sent = self._send_student_reminder(booking)
             except Exception as e:
                 self.logger.error(
                     f"Failed to send student reminder for booking {booking.id} after retries: {str(e)}"
@@ -390,7 +398,7 @@ class NotificationService(BaseService):
 
             # Try to send instructor reminder
             try:
-                instructor_sent = await self._send_instructor_reminder(booking)
+                instructor_sent = self._send_instructor_reminder(booking)
             except Exception as e:
                 self.logger.error(
                     f"Failed to send instructor reminder for booking {booking.id} after retries: {str(e)}"
@@ -401,10 +409,36 @@ class NotificationService(BaseService):
 
         return sent_count
 
+    @BaseService.measure_operation("send_booking_reminder")
+    def send_booking_reminder(self, booking: Booking, reminder_type: str = "24h") -> bool:
+        """
+        Send reminder emails for a single booking.
+
+        Args:
+            booking: Booking to remind
+            reminder_type: Reminder type label (e.g., '24h', '1h')
+        """
+        try:
+            student_sent = self._send_student_reminder(booking)
+            instructor_sent = self._send_instructor_reminder(booking)
+            if student_sent and instructor_sent:
+                self.logger.info(
+                    "Sent %s reminders for booking %s", reminder_type, getattr(booking, "id", None)
+                )
+            return student_sent and instructor_sent
+        except Exception as exc:
+            self.logger.error(
+                "Failed to send %s reminder for booking %s: %s",
+                reminder_type,
+                getattr(booking, "id", None),
+                exc,
+            )
+            return False
+
     # Email sending methods with retry logic
 
     @retry(max_attempts=3, backoff_seconds=1.0)
-    async def _send_student_booking_confirmation(self, booking: Booking) -> bool:
+    def _send_student_booking_confirmation(self, booking: Booking) -> bool:
         """Send booking confirmation email to student using template."""
         subject = f"Booking Confirmed: {booking.service_name} with {booking.instructor.first_name}"
 
@@ -565,7 +599,7 @@ class NotificationService(BaseService):
             return False
 
     @retry(max_attempts=3, backoff_seconds=1.0)
-    async def _send_instructor_booking_notification(self, booking: Booking) -> bool:
+    def _send_instructor_booking_notification(self, booking: Booking) -> bool:
         """Send new booking notification to instructor using template."""
         subject = f"New Booking: {booking.service_name} with {booking.student.first_name}"
 
@@ -601,7 +635,7 @@ class NotificationService(BaseService):
         return True
 
     @retry(max_attempts=3, backoff_seconds=1.0)
-    async def _send_student_cancellation_notification(
+    def _send_student_cancellation_notification(
         self, booking: Booking, reason: Optional[str], cancelled_by: str
     ) -> bool:
         """Send cancellation notification to student when instructor cancels."""
@@ -638,7 +672,7 @@ class NotificationService(BaseService):
         return True
 
     @retry(max_attempts=3, backoff_seconds=1.0)
-    async def _send_instructor_cancellation_notification(
+    def _send_instructor_cancellation_notification(
         self, booking: Booking, reason: Optional[str], cancelled_by: str
     ) -> bool:
         """Send cancellation notification to instructor when student cancels."""
@@ -673,7 +707,7 @@ class NotificationService(BaseService):
         return True
 
     @retry(max_attempts=3, backoff_seconds=1.0)
-    async def _send_student_cancellation_confirmation(self, booking: Booking) -> bool:
+    def _send_student_cancellation_confirmation(self, booking: Booking) -> bool:
         """Send cancellation confirmation to student after they cancel."""
         subject = f"Cancellation Confirmed: {booking.service_name}"
 
@@ -705,7 +739,7 @@ class NotificationService(BaseService):
         return True
 
     @retry(max_attempts=3, backoff_seconds=1.0)
-    async def _send_instructor_cancellation_confirmation(self, booking: Booking) -> bool:
+    def _send_instructor_cancellation_confirmation(self, booking: Booking) -> bool:
         """Send cancellation confirmation to instructor after they cancel."""
         subject = f"Cancellation Confirmed: {booking.service_name}"
 
@@ -737,7 +771,7 @@ class NotificationService(BaseService):
         return True
 
     @retry(max_attempts=3, backoff_seconds=1.0)
-    async def _send_student_reminder(self, booking: Booking) -> bool:
+    def _send_student_reminder(self, booking: Booking) -> bool:
         """Send 24-hour reminder to student."""
         subject = f"Reminder: {booking.service_name} Tomorrow"
 
@@ -767,7 +801,7 @@ class NotificationService(BaseService):
         return True
 
     @retry(max_attempts=3, backoff_seconds=1.0)
-    async def _send_instructor_reminder(self, booking: Booking) -> bool:
+    def _send_instructor_reminder(self, booking: Booking) -> bool:
         """Send 24-hour reminder to instructor."""
         subject = f"Reminder: {booking.service_name} Tomorrow"
 

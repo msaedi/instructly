@@ -34,6 +34,8 @@ def test_cors_preflight_allows_allowed_origin():
 def test_csrf_blocks_cross_origin_on_state_change(monkeypatch):
     # Put API in preview to enforce CSRF origin/referrer check
     monkeypatch.setenv("SITE_MODE", "preview")
+    # Ensure CSRF origin checks are not disabled by the default test harness.
+    monkeypatch.delenv("DISABLE_CSRF_FOR_TESTS", raising=False)
     client = TestClient(app)
     # Cross-site origin should be blocked before hitting route
     r = client.post(

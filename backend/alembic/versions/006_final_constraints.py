@@ -629,14 +629,59 @@ def upgrade() -> None:
     )
     op.create_index("ix_bgc_consent_instructor_id", "bgc_consent", ["instructor_id"])
 
+    # ======== CONVERSATIONS TABLE (Per-User-Pair Architecture) ========
+    # Create conversations table BEFORE messages so messages can reference it
+    print("Creating conversations table for per-user-pair messaging...")
+    op.create_table(
+        "conversations",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("student_id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("last_message_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["student_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        comment="One conversation per student-instructor pair",
+    )
+
+    # Add indexes for conversations
+    op.create_index("idx_conversations_student", "conversations", ["student_id"])
+    op.create_index("idx_conversations_instructor", "conversations", ["instructor_id"])
+    op.create_index("idx_conversations_last_message", "conversations", ["last_message_at"])
+
+    # Add unique index for pair uniqueness (PostgreSQL uses LEAST/GREATEST expressions)
+    if is_postgres:
+        op.execute(
+            """
+            CREATE UNIQUE INDEX idx_conversations_pair_unique
+            ON conversations (LEAST(student_id, instructor_id), GREATEST(student_id, instructor_id));
+            """
+        )
+    else:
+        # SQLite fallback: simple unique constraint on ordered pair
+        # Note: This doesn't prevent (A,B) and (B,A) but SQLite is only for testing
+        op.create_unique_constraint(
+            "conversations_pair_unique_sqlite",
+            "conversations",
+            ["student_id", "instructor_id"],
+        )
+
     # Add messages table for chat system
     print("Creating messages table for chat system...")
     op.create_table(
         "messages",
         sa.Column("id", sa.String(26), nullable=False),
-        sa.Column("booking_id", sa.String(26), nullable=False),
-        sa.Column("sender_id", sa.String(26), nullable=False),
+        # booking_id is now nullable (for pre-booking messages or conversation-only context)
+        sa.Column("booking_id", sa.String(26), nullable=True),
+        # sender_id is nullable for system messages (no human sender)
+        sa.Column("sender_id", sa.String(26), nullable=True),
         sa.Column("content", sa.String(1000), nullable=False),
+        # conversation_id for per-user-pair messaging
+        sa.Column("conversation_id", sa.String(26), nullable=False),
+        # message_type: 'user', 'system_booking_created', 'system_booking_cancelled', etc.
+        sa.Column("message_type", sa.String(50), nullable=False, server_default="user"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default="false"),
@@ -651,8 +696,9 @@ def upgrade() -> None:
             server_default=(sa.text("'[]'::jsonb") if is_postgres else sa.text("'[]'")),
             nullable=False,
         ),
-        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["sender_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["conversation_id"], ["conversations.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
 
@@ -663,35 +709,23 @@ def upgrade() -> None:
     op.create_index("ix_messages_deleted_at", "messages", ["deleted_at"])
     # Composite index for catch-up queries (booking_id.in_() with id range scan)
     op.create_index("ix_messages_booking_id_id", "messages", ["booking_id", "id"])
-
-    # Add conversation_state table for O(1) inbox queries
-    print("Creating conversation_state table for efficient inbox state...")
-    op.create_table(
-        "conversation_state",
-        sa.Column("id", sa.String(26), nullable=False),
-        sa.Column("booking_id", sa.String(26), nullable=False),
-        sa.Column("instructor_id", sa.String(26), nullable=False),
-        sa.Column("student_id", sa.String(26), nullable=False),
-        sa.Column("instructor_unread_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("student_unread_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("last_message_id", sa.String(26), nullable=True),
-        sa.Column("last_message_preview", sa.String(100), nullable=True),
-        sa.Column("last_message_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("last_message_sender_id", sa.String(26), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["student_id"], ["users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["last_message_id"], ["messages.id"], ondelete="SET NULL"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("booking_id", name="uq_conversation_state_booking"),
-    )
-
-    # Add indexes for conversation_state
-    op.create_index("ix_conversation_state_instructor_id", "conversation_state", ["instructor_id"])
-    op.create_index("ix_conversation_state_student_id", "conversation_state", ["student_id"])
-    op.create_index("ix_conversation_state_last_message_at", "conversation_state", ["last_message_at"])
+    # Index for conversation-based queries
+    op.create_index("ix_messages_conversation", "messages", ["conversation_id", "created_at"])
+    if is_postgres:
+        op.create_index(
+            "idx_messages_unread_lookup",
+            "messages",
+            ["conversation_id", "sender_id", "is_deleted"],
+            postgresql_where=sa.text("is_deleted = false"),
+        )
+    # Partial index for messages with booking_id (for backward compatibility queries)
+    if is_postgres:
+        op.create_index(
+            "ix_messages_booking_nullable",
+            "messages",
+            ["booking_id"],
+            postgresql_where=sa.text("booking_id IS NOT NULL"),
+        )
 
     # Add message_notifications table for tracking unread messages
     print("Creating message_notifications table...")
@@ -724,14 +758,11 @@ def upgrade() -> None:
             AS $$
             DECLARE
                 v_booking RECORD;
+                v_conversation RECORD;
                 v_payload JSONB;
                 v_sender_name TEXT;
                 v_delivered_at TIMESTAMP WITH TIME ZONE;
             BEGIN
-                -- Get booking participants
-                SELECT b.instructor_id, b.student_id INTO v_booking
-                FROM bookings b WHERE b.id = NEW.booking_id;
-
                 -- Get sender name for display
                 SELECT first_name INTO v_sender_name
                 FROM users WHERE id = NEW.sender_id;
@@ -740,33 +771,84 @@ def upgrade() -> None:
                 v_delivered_at := NOW();
                 UPDATE messages SET delivered_at = v_delivered_at WHERE id = NEW.id;
 
-                -- Build payload with conversation_id for client-side routing
-                v_payload := jsonb_build_object(
-                    'type', 'new_message',
-                    'conversation_id', NEW.booking_id,
-                    'message', jsonb_build_object(
-                        'id', NEW.id,
-                        'content', NEW.content,
-                        'sender_id', NEW.sender_id,
-                        'sender_name', v_sender_name,
-                        'created_at', NEW.created_at,
-                        'booking_id', NEW.booking_id,
-                        'is_deleted', NEW.is_deleted,
-                        'delivered_at', v_delivered_at
-                    )
-                );
+                -- Handle conversation-based messages (no booking_id)
+                IF NEW.conversation_id IS NOT NULL THEN
+                    -- Get conversation participants
+                    SELECT c.student_id, c.instructor_id INTO v_conversation
+                    FROM conversations c WHERE c.id = NEW.conversation_id;
 
-                -- Notify instructor's channel
-                PERFORM pg_notify(
-                    'user_' || v_booking.instructor_id || '_inbox',
-                    v_payload::text
-                );
+                    IF v_conversation IS NOT NULL THEN
+                        -- Build payload with conversation_id for client-side routing
+                        v_payload := jsonb_build_object(
+                            'type', 'new_message',
+                            'conversation_id', NEW.conversation_id,
+                            'message', jsonb_build_object(
+                                'id', NEW.id,
+                                'content', NEW.content,
+                                'sender_id', NEW.sender_id,
+                                'sender_name', v_sender_name,
+                                'created_at', NEW.created_at,
+                                'booking_id', NEW.booking_id,
+                                'is_deleted', NEW.is_deleted,
+                                'delivered_at', v_delivered_at
+                            )
+                        );
 
-                -- Notify student's channel
-                PERFORM pg_notify(
-                    'user_' || v_booking.student_id || '_inbox',
-                    v_payload::text
-                );
+                        -- Notify instructor's channel
+                        IF v_conversation.instructor_id IS NOT NULL THEN
+                            PERFORM pg_notify(
+                                'user_' || v_conversation.instructor_id || '_inbox',
+                                v_payload::text
+                            );
+                        END IF;
+
+                        -- Notify student's channel
+                        IF v_conversation.student_id IS NOT NULL THEN
+                            PERFORM pg_notify(
+                                'user_' || v_conversation.student_id || '_inbox',
+                                v_payload::text
+                            );
+                        END IF;
+                    END IF;
+                    RETURN NEW;
+                END IF;
+
+                -- Handle legacy booking-based messages
+                IF NEW.booking_id IS NOT NULL THEN
+                    -- Get booking participants
+                    SELECT b.instructor_id, b.student_id INTO v_booking
+                    FROM bookings b WHERE b.id = NEW.booking_id;
+
+                    IF v_booking IS NOT NULL THEN
+                        -- Build payload with conversation_id for client-side routing
+                        v_payload := jsonb_build_object(
+                            'type', 'new_message',
+                            'conversation_id', NEW.booking_id,
+                            'message', jsonb_build_object(
+                                'id', NEW.id,
+                                'content', NEW.content,
+                                'sender_id', NEW.sender_id,
+                                'sender_name', v_sender_name,
+                                'created_at', NEW.created_at,
+                                'booking_id', NEW.booking_id,
+                                'is_deleted', NEW.is_deleted,
+                                'delivered_at', v_delivered_at
+                            )
+                        );
+
+                        -- Notify instructor's channel
+                        PERFORM pg_notify(
+                            'user_' || v_booking.instructor_id || '_inbox',
+                            v_payload::text
+                        );
+
+                        -- Notify student's channel
+                        PERFORM pg_notify(
+                            'user_' || v_booking.student_id || '_inbox',
+                            v_payload::text
+                        );
+                    END IF;
+                END IF;
 
                 RETURN NEW;
             END;
@@ -836,71 +918,6 @@ def upgrade() -> None:
             AFTER UPDATE ON message_notifications
             FOR EACH ROW
             EXECUTE FUNCTION public.handle_message_read_receipt();
-            """
-        )
-
-        # Conversation state auto-update trigger
-        print("Creating conversation_state auto-update trigger (PostgreSQL only)...")
-        op.execute(
-            """
-            CREATE OR REPLACE FUNCTION public.update_conversation_state()
-            RETURNS TRIGGER
-            SET search_path = public
-            AS $$
-            DECLARE
-                v_booking RECORD;
-                v_preview TEXT;
-            BEGIN
-                -- Get booking info
-                SELECT instructor_id, student_id INTO v_booking
-                FROM bookings WHERE id = NEW.booking_id;
-
-                -- Truncate message for preview
-                v_preview := LEFT(NEW.content, 100);
-
-                -- Upsert conversation state
-                INSERT INTO conversation_state (
-                    id, booking_id, instructor_id, student_id,
-                    instructor_unread_count, student_unread_count,
-                    last_message_id, last_message_preview, last_message_at, last_message_sender_id,
-                    created_at, updated_at
-                )
-                SELECT
-                    substring(md5(random()::text || clock_timestamp()::text) from 1 for 26),
-                    NEW.booking_id, v_booking.instructor_id, v_booking.student_id,
-                    CASE WHEN NEW.sender_id = v_booking.student_id THEN 1 ELSE 0 END,
-                    CASE WHEN NEW.sender_id = v_booking.instructor_id THEN 1 ELSE 0 END,
-                    NEW.id, v_preview, NEW.created_at, NEW.sender_id,
-                    NOW(), NOW()
-                ON CONFLICT (booking_id) DO UPDATE SET
-                    instructor_unread_count = CASE
-                        WHEN NEW.sender_id = conversation_state.student_id
-                        THEN conversation_state.instructor_unread_count + 1
-                        ELSE conversation_state.instructor_unread_count
-                    END,
-                    student_unread_count = CASE
-                        WHEN NEW.sender_id = conversation_state.instructor_id
-                        THEN conversation_state.student_unread_count + 1
-                        ELSE conversation_state.student_unread_count
-                    END,
-                    last_message_id = NEW.id,
-                    last_message_preview = v_preview,
-                    last_message_at = NEW.created_at,
-                    last_message_sender_id = NEW.sender_id,
-                    updated_at = NOW();
-
-                RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql;
-            """
-        )
-
-        op.execute(
-            """
-            CREATE TRIGGER conversation_state_update
-            AFTER INSERT ON messages
-            FOR EACH ROW
-            EXECUTE FUNCTION public.update_conversation_state();
             """
         )
 
@@ -1247,6 +1264,55 @@ def upgrade() -> None:
         "state IN ('active', 'archived', 'trashed')",
     )
 
+    # Conversation user state: add conversation_id and migrate from booking_id
+    if not hasattr(sa, "Boolean"):  # pragma: no cover - defensive
+        pass
+    print("Adding conversation_id to conversation_user_state and migrating data...")
+    op.add_column(
+        "conversation_user_state",
+        sa.Column("conversation_id", sa.String(length=26), nullable=True),
+    )
+    op.drop_constraint(
+        "uq_conversation_user_state_user_booking",
+        "conversation_user_state",
+        type_="unique",
+    )
+    op.create_foreign_key(
+        "fk_conversation_user_state_conversation",
+        "conversation_user_state",
+        "conversations",
+        ["conversation_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+    op.execute(
+        """
+        UPDATE conversation_user_state cus
+        SET conversation_id = conv.id
+        FROM bookings b
+        JOIN conversations conv
+          ON conv.student_id = b.student_id
+         AND conv.instructor_id = b.instructor_id
+        WHERE cus.booking_id = b.id
+          AND cus.conversation_id IS NULL
+        """
+    )
+    # Delete orphaned records that couldn't be migrated (no matching conversation)
+    op.execute(
+        """
+        DELETE FROM conversation_user_state
+        WHERE conversation_id IS NULL
+        """
+    )
+    # Now safe to add NOT NULL constraint
+    op.alter_column("conversation_user_state", "conversation_id", nullable=False)
+    op.drop_column("conversation_user_state", "booking_id")
+    op.create_unique_constraint(
+        "uq_conversation_user_state_user_conversation",
+        "conversation_user_state",
+        ["user_id", "conversation_id"],
+    )
+
     if is_postgres:
         print("Enabling RLS (idempotent) with permissive policies on application tables...")
         exclude_tables = [
@@ -1451,6 +1517,28 @@ def downgrade() -> None:
     op.drop_constraint("check_price_non_negative", "bookings", type_="check")
     op.drop_constraint("check_duration_positive", "bookings", type_="check")
 
+    # Revert conversation_user_state back to booking-based linkage
+    op.drop_constraint(
+        "uq_conversation_user_state_user_conversation",
+        "conversation_user_state",
+        type_="unique",
+    )
+    op.drop_constraint(
+        "fk_conversation_user_state_conversation",
+        "conversation_user_state",
+        type_="foreignkey",
+    )
+    op.add_column(
+        "conversation_user_state",
+        sa.Column("booking_id", sa.String(length=26), nullable=True),
+    )
+    op.create_unique_constraint(
+        "uq_conversation_user_state_user_booking",
+        "conversation_user_state",
+        ["user_id", "booking_id"],
+    )
+    op.drop_column("conversation_user_state", "conversation_id")
+
     # Drop message notification trigger and function
     if is_postgres:
         print("Dropping message notification trigger and function (PostgreSQL only)...")
@@ -1462,19 +1550,6 @@ def downgrade() -> None:
         print("Dropping read receipt trigger and function (PostgreSQL only)...")
         op.execute("DROP TRIGGER IF EXISTS message_read_receipt_notify ON message_notifications;")
         op.execute("DROP FUNCTION IF EXISTS public.handle_message_read_receipt();")
-
-    # Drop conversation_state trigger and function
-    if is_postgres:
-        print("Dropping conversation_state trigger and function (PostgreSQL only)...")
-        op.execute("DROP TRIGGER IF EXISTS conversation_state_update ON messages;")
-        op.execute("DROP FUNCTION IF EXISTS public.update_conversation_state();")
-
-    # Drop conversation_state table (before messages since it has FK to messages)
-    print("Dropping conversation_state table...")
-    op.drop_index("ix_conversation_state_last_message_at", "conversation_state")
-    op.drop_index("ix_conversation_state_student_id", "conversation_state")
-    op.drop_index("ix_conversation_state_instructor_id", "conversation_state")
-    op.drop_table("conversation_state")
 
     # Drop Phase 2 tables that depend on messages first
     print("Dropping message_reactions and message_edits tables...")
@@ -1494,7 +1569,23 @@ def downgrade() -> None:
     op.drop_index("ix_messages_booking_created", "messages")
     op.drop_index("ix_messages_deleted_at", "messages")
     op.drop_index("ix_messages_booking_id_id", "messages")
+    op.drop_index("ix_messages_conversation", "messages")
+    if is_postgres:
+        op.drop_index("idx_messages_unread_lookup", "messages")
+    if is_postgres:
+        op.drop_index("ix_messages_booking_nullable", "messages")
     op.drop_table("messages")
+
+    # Drop conversations table
+    print("Dropping conversations table...")
+    op.drop_index("idx_conversations_last_message", "conversations")
+    op.drop_index("idx_conversations_instructor", "conversations")
+    op.drop_index("idx_conversations_student", "conversations")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS idx_conversations_pair_unique;")
+    else:
+        op.drop_constraint("conversations_pair_unique_sqlite", "conversations", type_="unique")
+    op.drop_table("conversations")
 
     print("Dropping bgc_webhook_log table...")
     op.drop_index("ix_bgc_webhook_log_http_status", table_name="bgc_webhook_log")

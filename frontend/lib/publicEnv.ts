@@ -29,6 +29,7 @@ export const R2_URL = process.env.NEXT_PUBLIC_R2_URL ?? 'https://assets.instains
 export const IMAGE_OPTIMIZATION = process.env.NEXT_PUBLIC_IMAGE_OPTIMIZATION === 'true';
 export const JAWG_TOKEN = process.env.NEXT_PUBLIC_JAWG_TOKEN;
 export const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+export const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 // Feature flags
 export const IS_STAFF_PREVIEW = process.env.NEXT_PUBLIC_IS_STAFF_PREVIEW === 'true';
@@ -45,4 +46,5 @@ export const publicEnv = {
   NEXT_PUBLIC_APP_ENV: RAW_APP_ENV ?? '',
   NEXT_PUBLIC_USE_PROXY: RAW_USE_PROXY,
   NEXT_PUBLIC_APP_URL: RAW_APP_URL,
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: TURNSTILE_SITE_KEY ?? '',
 } as const;

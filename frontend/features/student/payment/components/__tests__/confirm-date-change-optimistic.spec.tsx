@@ -120,12 +120,39 @@ jest.mock('@/lib/api/pricing', () => {
 });
 
 jest.mock('@/components/forms/PlacesAutocompleteInput', () => {
-  const MockPlacesAutocompleteInput = React.forwardRef<HTMLInputElement, React.ComponentPropsWithoutRef<'input'>>(
-    ({ onChange, ...rest }, ref) => (
+  type MockProps = React.ComponentPropsWithoutRef<'input'> & {
+    value?: string;
+    onValueChange?: (value: string) => void;
+    onSelectSuggestion?: (suggestion: unknown) => void;
+    inputClassName?: string;
+    containerClassName?: string;
+    suggestionScope?: 'default' | 'us' | 'global';
+    inputProps?: unknown;
+  };
+
+  const MockPlacesAutocompleteInput = React.forwardRef<HTMLInputElement, MockProps>(
+    (
+      {
+        onValueChange,
+        value,
+        inputClassName,
+        className,
+        onChange,
+        onSelectSuggestion: _ignored,
+        containerClassName: _containerClassName,
+        suggestionScope: _suggestionScope,
+        inputProps: _inputProps,
+        ...rest
+      },
+      ref,
+    ) => (
       <input
         ref={ref}
         {...rest}
+        className={inputClassName ?? className}
+        value={value ?? ''}
         onChange={(event) => {
+          onValueChange?.(event.target.value);
           onChange?.(event);
         }}
       />

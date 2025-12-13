@@ -4,3 +4,4 @@ export * from './formatters';
 export * from './hooks';
 export * from './MessageBubble';
 export * from './ReactionTrigger';
+export * from './SystemMessage';

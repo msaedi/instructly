@@ -14,9 +14,11 @@ with repositories to find the best matches.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import hashlib
+import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
 
 from sentence_transformers import SentenceTransformer
 from sqlalchemy.orm import Session
@@ -25,7 +27,16 @@ from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 from .review_service import ReviewService
 
+if TYPE_CHECKING:
+    from .cache_service import CacheService
+
 logger = logging.getLogger(__name__)
+
+# Search result cache TTL (60 seconds as specified)
+SEARCH_CACHE_TTL = 60
+
+# Service area cache TTL (1 hour - areas rarely change)
+SERVICE_AREA_CACHE_TTL = 3600
 
 # Module-level model cache to avoid reloading on every request
 _model_cache: Dict[str, SentenceTransformer] = {}
@@ -312,13 +323,19 @@ class SearchService(BaseService):
     to provide intelligent search results.
     """
 
-    def __init__(self, db: Session, model_name: str = "all-MiniLM-L6-v2") -> None:
+    def __init__(
+        self,
+        db: Session,
+        model_name: str = "all-MiniLM-L6-v2",
+        cache_service: Optional["CacheService"] = None,
+    ) -> None:
         """
         Initialize search service.
 
         Args:
             db: Database session
             model_name: Sentence transformer model to use
+            cache_service: Optional cache service for result caching
         """
         super().__init__(db)
 
@@ -327,6 +344,7 @@ class SearchService(BaseService):
         self._model_name = model_name
         # Get cached model - loads once, reuses across requests
         self.model: SentenceTransformer = get_cached_model(model_name)
+        self.cache_service = cache_service
 
         # Initialize repositories
         self.catalog_repository = RepositoryFactory.create_service_catalog_repository(db)
@@ -337,15 +355,93 @@ class SearchService(BaseService):
         )
         self.review_service = ReviewService(db)
 
+    def _generate_search_cache_key(self, query: str, limit: int) -> str:
+        """Generate a deterministic cache key for search parameters."""
+        normalized = {
+            "q": query.lower().strip(),
+            "limit": limit,
+        }
+        hash_input = json.dumps(normalized, sort_keys=True)
+        return f"search:{hashlib.md5(hash_input.encode()).hexdigest()}"
+
     @BaseService.measure_operation("natural_language_search")
     def search(self, query: str, limit: int = 20, include_availability: bool = False) -> JsonDict:
         """
-        Perform natural language search.
+        Perform natural language search with caching and stampede protection.
+
+        Uses a lock-based approach to prevent cache stampede (thundering herd):
+        - Only ONE request computes the expensive query while others wait
+        - Waiting requests check cache after short delay
+        - Fallback to compute if lock holder takes too long
 
         Args:
             query: Natural language search query
             limit: Maximum number of results
             include_availability: Whether to check instructor availability
+
+        Returns:
+            Search results with services, instructors, and metadata
+        """
+        # Try cache first (60-second TTL)
+        cache_key = self._generate_search_cache_key(query, limit)
+        if self.cache_service and not include_availability:
+            cached = self.cache_service.get(cache_key)
+            if cached and isinstance(cached, dict):
+                logger.debug(f"Search cache hit for query: {query[:30]}...")
+                # Add cache hit indicator to metadata
+                if "search_metadata" in cached:
+                    cached["search_metadata"]["cache_hit"] = True
+                return cast(JsonDict, cached)
+
+            # Cache miss - apply stampede protection
+            lock_key = f"lock:{cache_key}"
+            lock_acquired = self.cache_service.acquire_lock(lock_key, ttl=10)
+
+            if not lock_acquired:
+                # Another request is computing - wait and retry cache
+                import time
+
+                for retry in range(3):
+                    time.sleep(0.1)  # 100ms wait
+                    cached = self.cache_service.get(cache_key)
+                    if cached and isinstance(cached, dict):
+                        logger.debug(f"Search cache hit after wait (retry {retry+1})")
+                        if "search_metadata" in cached:
+                            cached["search_metadata"]["cache_hit"] = True
+                            cached["search_metadata"]["waited_for_lock"] = True
+                        return cast(JsonDict, cached)
+                # Still no cache after retries - compute anyway (fallback)
+                logger.warning(f"Search computing after lock timeout for: {query[:30]}...")
+
+            try:
+                # We have the lock (or fallback) - compute the result
+                return self._compute_search(query, limit, include_availability, cache_key)
+            finally:
+                # Release lock if we acquired it
+                if lock_acquired:
+                    self.cache_service.release_lock(lock_key)
+
+        # No cache service - compute directly without caching
+        return self._compute_search(query, limit, include_availability, cache_key=None)
+
+    def _compute_search(
+        self,
+        query: str,
+        limit: int,
+        include_availability: bool,
+        cache_key: Optional[str],
+    ) -> JsonDict:
+        """
+        Execute the actual search computation (expensive operation).
+
+        This is separated from search() to enable stampede protection -
+        only one request computes while others wait for cached result.
+
+        Args:
+            query: Natural language search query
+            limit: Maximum number of results
+            include_availability: Whether to check instructor availability
+            cache_key: Cache key to store result (None to skip caching)
 
         Returns:
             Search results with services, instructors, and metadata
@@ -420,7 +516,7 @@ class SearchService(BaseService):
                 extra={"cleaned_query": parsed.get("cleaned_query")},
             )
             # Return an empty service set gracefully
-            return {
+            empty_response: JsonDict = {
                 "query": query,
                 "parsed": parsed,
                 "results": [],
@@ -432,13 +528,18 @@ class SearchService(BaseService):
                     # Always include any top-N candidates surfaced by the service layer,
                     # even if the final results are empty (zero-result analytics).
                     "observability_candidates": observability_candidates,
+                    "cache_hit": False,
                 },
             }
+            # Cache empty results too (prevents repeated expensive queries)
+            if cache_key and self.cache_service and not include_availability:
+                self.cache_service.set(cache_key, empty_response, ttl=SEARCH_CACHE_TTL)
+            return empty_response
 
         self._track_search_analytics(services[:limit])
 
         # Build response
-        return {
+        response: JsonDict = {
             "query": query,
             "parsed": parsed,
             "results": results[:limit],
@@ -448,8 +549,16 @@ class SearchService(BaseService):
                 "applied_filters": self._get_applied_filters(parsed),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "observability_candidates": observability_candidates,
+                "cache_hit": False,
             },
         }
+
+        # Cache the results (60-second TTL)
+        if cache_key and self.cache_service and not include_availability:
+            self.cache_service.set(cache_key, response, ttl=SEARCH_CACHE_TTL)
+            logger.debug(f"Cached search results for query: {query[:30]}...")
+
+        return response
 
     def _search_services(
         self, query_embedding: List[float], parsed: ParsedQuery, limit: int
@@ -768,7 +877,16 @@ class SearchService(BaseService):
     def _find_instructors_for_services(
         self, services: JsonList, parsed: ParsedQuery, limit: int
     ) -> JsonList:
-        """Find instructors offering the matched services."""
+        """Find instructors offering the matched services.
+
+        Optimized to use batch queries:
+        1. Single query for all instructors across all services
+        2. Single query for all service areas across all instructors
+        This reduces N+1 queries from 26-40 to 2 per search.
+        """
+        if not services:
+            return []
+
         results: JsonList = []
         price_value = parsed.get("price")
         price_constraints = price_value if isinstance(price_value, dict) else {}
@@ -777,14 +895,34 @@ class SearchService(BaseService):
         level_value = parsed.get("level")
         level_constraints = level_value if isinstance(level_value, dict) else {}
 
-        for service in services:
-            # Get instructors for this service with filters
-            instructors = self.instructor_repository.find_by_filters(
-                service_catalog_id=service["id"],
-                min_price=price_constraints.get("min"),
-                max_price=price_constraints.get("max"),
-                limit=limit,
-            )
+        # Step 1: Collect all service IDs
+        service_ids = [service["id"] for service in services]
+        service_map = {service["id"]: service for service in services}
+
+        # Step 2: Batch query - get all instructors for all services
+        instructors_by_service = self.instructor_repository.find_by_service_ids(
+            service_catalog_ids=service_ids,
+            min_price=price_constraints.get("min"),
+            max_price=price_constraints.get("max"),
+            limit_per_service=limit,
+        )
+
+        # Step 3: Collect all unique instructor user IDs
+        all_instructor_ids: set[str] = set()
+        for profiles in instructors_by_service.values():
+            for profile in profiles:
+                all_instructor_ids.add(profile.user_id)
+
+        # Step 4: Get service area contexts with caching (1-hour TTL)
+        service_area_contexts = self._get_service_area_contexts_cached(list(all_instructor_ids))
+
+        # Step 5: Build results using pre-fetched/cached data
+        from ..schemas.search_responses import InstructorInfo
+
+        for service_id, instructors in instructors_by_service.items():
+            service = service_map.get(service_id)
+            if not service:
+                continue
 
             for instructor_profile in instructors:
                 # Get the specific service offered by this instructor
@@ -792,7 +930,7 @@ class SearchService(BaseService):
                     (
                         s
                         for s in instructor_profile.instructor_services
-                        if s.service_catalog_id == service["id"] and s.is_active
+                        if s.service_catalog_id == service_id and s.is_active
                     ),
                     None,
                 )
@@ -800,8 +938,9 @@ class SearchService(BaseService):
                 if not instructor_service:
                     continue
 
-                service_area_context, boroughs_lower = self._build_service_area_context(
-                    instructor_profile.user_id
+                # Get service area context from cache/pre-fetched data
+                service_area_context, boroughs_lower = service_area_contexts.get(
+                    instructor_profile.user_id, ({}, set())
                 )
 
                 # Check location constraints
@@ -820,8 +959,6 @@ class SearchService(BaseService):
                         continue
 
                 # Build result with privacy protection
-                from ..schemas.search_responses import InstructorInfo
-
                 result = {
                     "service": service,
                     "instructor": InstructorInfo.from_user(
@@ -930,6 +1067,139 @@ class SearchService(BaseService):
             context["coverage_region_ids"] = coverage_region_ids
 
         return context, {borough.lower() for borough in sorted_boroughs}
+
+    def _build_service_area_context_from_areas(
+        self, service_areas: list[Any]
+    ) -> tuple[JsonDict, set[str]]:
+        """Build service area context from pre-fetched areas (no DB query)."""
+        neighborhoods: list[dict[str, Any]] = []
+        boroughs: set[str] = set()
+        coverage_regions: list[dict[str, Any]] = []
+        coverage_region_ids: list[str] = []
+
+        for area in service_areas:
+            region = getattr(area, "neighborhood", None)
+            region_code: str | None = getattr(region, "region_code", None)
+            region_name: str | None = getattr(region, "region_name", None)
+            borough: str | None = getattr(region, "parent_region", None)
+            region_meta = getattr(region, "region_metadata", None)
+
+            if isinstance(region_meta, dict):
+                region_code = (
+                    region_code or region_meta.get("nta_code") or region_meta.get("ntacode")
+                )
+                region_name = region_name or region_meta.get("nta_name") or region_meta.get("name")
+                meta_borough = region_meta.get("borough")
+                if isinstance(meta_borough, str) and meta_borough:
+                    borough = meta_borough
+
+            if borough:
+                boroughs.add(borough)
+
+            neighborhoods.append(
+                {
+                    "neighborhood_id": area.neighborhood_id,
+                    "ntacode": region_code,
+                    "name": region_name,
+                    "borough": borough,
+                }
+            )
+
+            coverage_regions.append(
+                {
+                    "region_id": area.neighborhood_id,
+                    "name": region_name,
+                    "borough": borough,
+                    "coverage_type": getattr(area, "coverage_type", None),
+                }
+            )
+            if area.is_active:
+                coverage_region_ids.append(area.neighborhood_id)
+
+        sorted_boroughs = sorted(boroughs)
+        if sorted_boroughs:
+            if len(sorted_boroughs) <= 2:
+                summary = ", ".join(sorted_boroughs)
+            else:
+                summary = f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
+        else:
+            summary = ""
+
+        context: JsonDict = {
+            "service_area_neighborhoods": neighborhoods,
+            "service_area_boroughs": sorted_boroughs,
+            "service_area_summary": summary,
+        }
+        if coverage_regions:
+            context["coverage_regions"] = coverage_regions
+        if coverage_region_ids:
+            context["coverage_region_ids"] = coverage_region_ids
+
+        return context, {borough.lower() for borough in sorted_boroughs}
+
+    def _get_service_area_contexts_cached(
+        self, instructor_ids: list[str]
+    ) -> dict[str, tuple[JsonDict, set[str]]]:
+        """
+        Get service area contexts for multiple instructors with caching.
+
+        Uses per-instructor caching (1 hour TTL) since service areas rarely change.
+        For cache misses, fetches from DB and caches the processed results.
+
+        Args:
+            instructor_ids: List of instructor user IDs
+
+        Returns:
+            Dict mapping instructor_id -> (context_dict, boroughs_lower_set)
+        """
+        if not instructor_ids:
+            return {}
+
+        results: dict[str, tuple[JsonDict, set[str]]] = {}
+        cache_misses: list[str] = []
+
+        # Step 1: Check cache for each instructor
+        if self.cache_service:
+            for instructor_id in instructor_ids:
+                cache_key = f"instructor:service_area_context:{instructor_id}"
+                cached = self.cache_service.get(cache_key)
+                if cached and isinstance(cached, dict):
+                    # Reconstruct the tuple from cached data
+                    context = cached.get("context", {})
+                    boroughs_lower = set(cached.get("boroughs_lower", []))
+                    results[instructor_id] = (context, boroughs_lower)
+                else:
+                    cache_misses.append(instructor_id)
+        else:
+            cache_misses = list(instructor_ids)
+
+        # Step 2: Fetch cache misses from DB
+        if cache_misses:
+            service_areas_by_instructor = self.service_area_repository.list_for_instructors(
+                cache_misses
+            )
+
+            for instructor_id in cache_misses:
+                areas = service_areas_by_instructor.get(instructor_id, [])
+                context, boroughs_lower = self._build_service_area_context_from_areas(areas)
+                results[instructor_id] = (context, boroughs_lower)
+
+                # Cache the processed result
+                if self.cache_service:
+                    cache_key = f"instructor:service_area_context:{instructor_id}"
+                    cache_data = {
+                        "context": context,
+                        "boroughs_lower": list(boroughs_lower),  # Convert set to list for JSON
+                    }
+                    self.cache_service.set(cache_key, cache_data, ttl=SERVICE_AREA_CACHE_TTL)
+
+            if cache_misses:
+                logger.debug(
+                    f"Service area cache: {len(instructor_ids) - len(cache_misses)} hits, "
+                    f"{len(cache_misses)} misses"
+                )
+
+        return results
 
     def _matches_location_constraints(
         self,

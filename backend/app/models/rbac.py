@@ -57,7 +57,7 @@ class Role(Base):
     permissions: Mapped[List["Permission"]] = relationship(
         secondary="role_permissions",
         back_populates="roles",
-        lazy="selectin",  # Eager load permissions
+        lazy="select",  # Changed from selectin - explicit joinedload used where needed
     )
     users: Mapped[List["User"]] = relationship(
         "User", secondary="user_roles", back_populates="roles"

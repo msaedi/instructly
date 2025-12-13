@@ -12,7 +12,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import get_account_lifecycle_service
-from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, ValidationException
 from ..models.user import User
 from ..schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
@@ -35,7 +34,7 @@ async def suspend_account(
     - Cannot have any future bookings
     - Suspended instructors can still login but cannot receive new bookings
     """
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can suspend their accounts",
@@ -67,7 +66,7 @@ async def deactivate_account(
     - Cannot have any future bookings
     - Deactivated instructors cannot login or be reactivated through the API
     """
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can deactivate their accounts",
@@ -99,7 +98,7 @@ async def reactivate_account(
     - Account must be suspended (not deactivated)
     - Once reactivated, instructor can receive bookings again
     """
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can reactivate their accounts",

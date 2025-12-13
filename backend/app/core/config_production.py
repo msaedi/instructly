@@ -12,11 +12,22 @@ import os
 from typing import Any, Dict
 
 # Database Connection Pooling (Optimized for Render + Supabase)
+# IMPORTANT: Supavisor Transaction Mode (port 6543) times out idle connections at ~60s.
+# pool_recycle MUST be < 60s to avoid "SSL connection closed unexpectedly" errors.
+#
+# Pool sizing rationale (to stay under Supabase pooler limits):
+# - Supabase Pro tier: ~60 connections on transaction pooler (port 6543)
+# - With 2 uvicorn workers: (pool_size + max_overflow) × 2 must be < 60
+# - Safe config: 5 + 10 = 15 per worker × 2 = 30 total (50% headroom for async ops)
 DATABASE_POOL_CONFIG = {
-    "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
-    "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
-    "pool_timeout": int(os.getenv("DATABASE_POOL_TIMEOUT", "10")),
-    "pool_recycle": int(os.getenv("DATABASE_POOL_RECYCLE", "300")),
+    "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "5")),
+    "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "10")),
+    # Fail-fast when pool exhausted (better than blocking for 10s during load)
+    "pool_timeout": int(os.getenv("DATABASE_POOL_TIMEOUT", "3")),
+    # CRITICAL: Supavisor Transaction Mode times out at ~60s.
+    # pool_recycle=45 gives 15s safety margin to prevent SSL disconnection errors.
+    # Note: idle_in_transaction_session_timeout=60s at DB level provides additional protection.
+    "pool_recycle": int(os.getenv("DATABASE_POOL_RECYCLE", "45")),
     "pool_pre_ping": True,
     "pool_use_lifo": True,
     "future": True,
@@ -24,12 +35,14 @@ DATABASE_POOL_CONFIG = {
     "connect_args": {
         "sslmode": "require",
         "keepalives": 1,
+        # Keepalive settings - 30s idle allows SSE connections to remain stable
         "keepalives_idle": 30,
-        "keepalives_interval": 10,
-        "keepalives_count": 5,
+        "keepalives_interval": 5,
+        "keepalives_count": 3,
         "connect_timeout": 5,
         "application_name": "instainstru_render",
-        "options": "-c statement_timeout=30000",
+        # Reduced from 30s to 15s - fail fast on slow queries
+        "options": "-c statement_timeout=15000",
     },
 }
 

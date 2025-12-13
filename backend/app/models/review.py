@@ -73,7 +73,13 @@ class Review(Base):
 
     # Moderation & verification
     status = Column(
-        SAEnum(ReviewStatus, name="review_status"), nullable=False, default=ReviewStatus.PUBLISHED
+        SAEnum(
+            ReviewStatus,
+            name="review_status",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=ReviewStatus.PUBLISHED,
     )
     is_verified = Column(
         Boolean, nullable=False, default=False, comment="Student attended the session"

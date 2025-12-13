@@ -278,6 +278,7 @@ function MyLessonsContent() {
             setSelectedBooking(null);
           }}
           bookingId={selectedBooking.id}
+          instructorId={selectedBooking.instructor_id}
           currentUserId={user.id}
           currentUserName={user.first_name}
           otherUserName={selectedBooking.instructor.first_name || 'Instructor'}

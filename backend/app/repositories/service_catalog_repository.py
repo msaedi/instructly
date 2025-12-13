@@ -288,9 +288,13 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         """
         Update display_order based on popularity metrics.
 
+        Uses native PostgreSQL bulk UPDATE for maximum performance.
+
         Returns:
             Number of services updated
         """
+        from psycopg2.extras import execute_values
+
         # Get services with analytics ordered by demand
         query = (
             self.db.query(
@@ -302,20 +306,33 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
             .filter(ServiceCatalog.is_active == True)
         )
         query = _apply_active_catalog_predicate(query)
-        query = query.order_by(
+        results = query.order_by(
             (ServiceAnalytics.booking_count_30d * 2 + ServiceAnalytics.search_count_30d).desc()
         ).all()
 
-        # Update display orders
-        updates = []
-        for idx, (service_id, _, _) in enumerate(query):
-            updates.append({"id": service_id, "display_order": idx + 1})  # 1-based ordering
+        if not results:
+            return 0
 
-        # Bulk update
-        if updates:
-            return self.bulk_update(updates)
+        # Build values for bulk update: (id, display_order)
+        values = [(service_id, idx + 1) for idx, (service_id, _, _) in enumerate(results)]
 
-        return 0
+        # Native PostgreSQL UPDATE using VALUES pattern (1 round trip)
+        connection = self.db.connection().connection
+        update_sql = """
+            UPDATE service_catalog AS t
+            SET display_order = v.display_order,
+                updated_at = NOW()
+            FROM (VALUES %s) AS v(id, display_order)
+            WHERE t.id = v.id
+        """
+
+        with connection.cursor() as cursor:
+            execute_values(cursor, update_sql, values, template="(%s, %s::integer)", page_size=1000)
+
+        # Expire all ORM objects to prevent stale reads after raw SQL update
+        self.db.expire_all()
+
+        return len(values)
 
     def _apply_eager_loading(self, query: Any) -> Any:
         """Apply eager loading for category relationship."""
@@ -376,6 +393,31 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         count = query.scalar()
 
         return count or 0
+
+    def count_active_instructors_bulk(self, service_catalog_ids: List[str]) -> Dict[str, int]:
+        """
+        Count active instructors for multiple services in a single query.
+
+        Args:
+            service_catalog_ids: List of service catalog IDs
+
+        Returns:
+            Dict mapping service_catalog_id -> instructor count
+        """
+        from sqlalchemy import func
+
+        if not service_catalog_ids:
+            return {}
+
+        query = self.db.query(
+            InstructorService.service_catalog_id,
+            func.count(InstructorService.id).label("count"),
+        ).filter(InstructorService.service_catalog_id.in_(service_catalog_ids))
+        query = _apply_instructor_service_active_filter(query)
+        query = query.group_by(InstructorService.service_catalog_id)
+
+        results = query.all()
+        return {str(row.service_catalog_id): row.count for row in results}
 
     def get_services_available_for_kids_minimal(self) -> List[MinimalServiceInfo]:
         """
@@ -577,3 +619,158 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         )
 
         return [row[0] for row in missing_rows]
+
+    def get_all(self, skip: int = 0, limit: int = 10000) -> List[ServiceAnalytics]:
+        """
+        Get all analytics records.
+
+        Args:
+            skip: Number of records to skip (default 0)
+            limit: Maximum number of records to return (default 10000)
+
+        Returns:
+            List of all ServiceAnalytics records
+        """
+        return cast(
+            List[ServiceAnalytics],
+            self.db.query(ServiceAnalytics).offset(skip).limit(limit).all(),
+        )
+
+    def get_or_create_bulk(self, service_catalog_ids: List[str]) -> Dict[str, ServiceAnalytics]:
+        """
+        Get or create analytics records for multiple services in bulk.
+
+        Uses a single query to load existing, then batch-creates missing ones.
+
+        Args:
+            service_catalog_ids: List of service catalog IDs
+
+        Returns:
+            Dict mapping service_catalog_id -> ServiceAnalytics
+        """
+        if not service_catalog_ids:
+            return {}
+
+        # Load all existing in one query
+        existing = cast(
+            List[ServiceAnalytics],
+            self.db.query(ServiceAnalytics)
+            .filter(ServiceAnalytics.service_catalog_id.in_(service_catalog_ids))
+            .all(),
+        )
+
+        result: Dict[str, ServiceAnalytics] = {a.service_catalog_id: a for a in existing}
+
+        # Create missing ones
+        now = datetime.now(timezone.utc)
+        for service_id in service_catalog_ids:
+            if service_id not in result:
+                analytics = ServiceAnalytics(
+                    service_catalog_id=service_id,
+                    search_count_7d=0,
+                    search_count_30d=0,
+                    booking_count_7d=0,
+                    booking_count_30d=0,
+                    active_instructors=0,
+                    last_calculated=now,
+                )
+                self.db.add(analytics)
+                result[service_id] = analytics
+
+        self.db.flush()
+        return result
+
+    def bulk_update_all(self, updates: List[Dict[str, Any]]) -> int:
+        """
+        Bulk update multiple analytics records using native PostgreSQL.
+
+        Uses psycopg2's execute_values for maximum performance:
+        - 1 round trip for 250 updates vs 250 round trips
+        - ~250x faster for remote databases like Supabase
+
+        Each dict in updates must have 'service_catalog_id' key plus update fields.
+
+        Args:
+            updates: List of dicts with service_catalog_id and fields to update
+
+        Returns:
+            Number of records updated
+        """
+        if not updates:
+            return 0
+
+        from psycopg2.extras import execute_values
+
+        # Get raw psycopg2 connection
+        connection = self.db.connection().connection
+
+        # Build values list with all supported columns
+        # Order: service_catalog_id, booking_count_7d, booking_count_30d, active_instructors,
+        #        total_weekly_hours, avg_price_booked, price_p25, price_p50, price_p75,
+        #        most_booked_duration, duration_distribution, completion_rate,
+        #        peak_hours, peak_days, supply_demand_ratio, last_calculated
+        values = []
+        for u in updates:
+            values.append(
+                (
+                    u.get("service_catalog_id"),
+                    u.get("booking_count_7d", 0),
+                    u.get("booking_count_30d", 0),
+                    u.get("active_instructors", 0),
+                    u.get("total_weekly_hours"),
+                    u.get("avg_price_booked"),
+                    u.get("price_percentile_25"),
+                    u.get("price_percentile_50"),
+                    u.get("price_percentile_75"),
+                    u.get("most_booked_duration"),
+                    u.get("duration_distribution"),
+                    u.get("completion_rate"),
+                    u.get("peak_hours"),
+                    u.get("peak_days"),
+                    u.get("supply_demand_ratio"),
+                    u.get("last_calculated"),
+                )
+            )
+
+        # Native PostgreSQL UPDATE using VALUES pattern (1 round trip)
+        update_sql = """
+            UPDATE service_analytics AS t
+            SET booking_count_7d = v.booking_count_7d,
+                booking_count_30d = v.booking_count_30d,
+                active_instructors = v.active_instructors,
+                total_weekly_hours = v.total_weekly_hours,
+                avg_price_booked = v.avg_price_booked,
+                price_percentile_25 = v.price_percentile_25,
+                price_percentile_50 = v.price_percentile_50,
+                price_percentile_75 = v.price_percentile_75,
+                most_booked_duration = v.most_booked_duration,
+                duration_distribution = v.duration_distribution,
+                completion_rate = v.completion_rate,
+                peak_hours = v.peak_hours,
+                peak_days = v.peak_days,
+                supply_demand_ratio = v.supply_demand_ratio,
+                last_calculated = v.last_calculated
+            FROM (VALUES %s) AS v(
+                service_catalog_id, booking_count_7d, booking_count_30d,
+                active_instructors, total_weekly_hours, avg_price_booked,
+                price_percentile_25, price_percentile_50, price_percentile_75,
+                most_booked_duration, duration_distribution, completion_rate,
+                peak_hours, peak_days, supply_demand_ratio, last_calculated
+            )
+            WHERE t.service_catalog_id = v.service_catalog_id
+        """
+
+        template = """(
+            %s, %s::integer, %s::integer, %s::integer, %s::float,
+            %s::float, %s::float, %s::float, %s::float,
+            %s::integer, %s::json, %s::float, %s::json, %s::json, %s::float,
+            %s::timestamptz
+        )"""
+
+        with connection.cursor() as cursor:
+            execute_values(cursor, update_sql, values, template=template, page_size=1000)
+
+        # Expire all ORM objects to prevent stale reads after raw SQL update
+        self.db.expire_all()
+
+        return len(updates)

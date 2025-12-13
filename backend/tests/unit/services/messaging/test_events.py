@@ -60,9 +60,10 @@ class TestBuildNewMessageEvent:
             message_id="01ABC123",
             content="Hello",
             sender_id="01SENDER",
-            booking_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             recipient_ids=["01SENDER", "01RECIPIENT"],
             created_at=created_at,
+            booking_id="01BOOKING",
         )
 
         assert event["type"] == "new_message"
@@ -71,7 +72,7 @@ class TestBuildNewMessageEvent:
         assert event["payload"]["message"]["content"] == "Hello"
         assert event["payload"]["message"]["sender_id"] == "01SENDER"
         assert event["payload"]["message"]["booking_id"] == "01BOOKING"
-        assert event["payload"]["conversation_id"] == "01BOOKING"
+        assert event["payload"]["conversation_id"] == "01CONVERSATION"
         assert event["payload"]["sender_id"] == "01SENDER"
         assert event["payload"]["recipient_ids"] == ["01SENDER", "01RECIPIENT"]
 
@@ -83,9 +84,10 @@ class TestBuildNewMessageEvent:
             message_id="01ABC123",
             content="Hello",
             sender_id="01SENDER",
-            booking_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             recipient_ids=["01RECIPIENT"],
             created_at=created_at,
+            booking_id="01BOOKING",
             reactions=reactions,
         )
 
@@ -98,7 +100,7 @@ class TestBuildNewMessageEvent:
             message_id="01ABC123",
             content="Hello",
             sender_id="01SENDER",
-            booking_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             recipient_ids=["01RECIPIENT"],
             created_at=created_at,
         )
@@ -112,7 +114,7 @@ class TestBuildNewMessageEvent:
             message_id="01ABC123",
             content="Hello",
             sender_id="01SENDER",
-            booking_id="01BOOKING",
+            conversation_id="01CONVERSATION",
             recipient_ids=[],
             created_at=created_at,
         )

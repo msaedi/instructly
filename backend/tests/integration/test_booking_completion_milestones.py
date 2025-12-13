@@ -1,5 +1,6 @@
 """Integration tests for student milestone credits during booking lifecycle."""
 
+import asyncio
 from datetime import datetime, time, timedelta, timezone
 from types import SimpleNamespace
 
@@ -129,7 +130,7 @@ async def test_booking_completion_milestones_flow(db, milestone_setup):
     # Simulate cancellation of the 11th session after issuance
     booking_repo.update(eleventh_booking.id, status=BookingStatus.CONFIRMED, completed_at=None)
     db.commit()
-    await booking_service.cancel_booking(eleventh_booking.id, instructor_actor)
+    await asyncio.to_thread(booking_service.cancel_booking, eleventh_booking.id, instructor_actor)
     db.commit()
 
     revoked_credits = payment_repo.get_credits_issued_for_source(eleventh_booking.id)
@@ -147,7 +148,7 @@ async def test_booking_completion_milestones_flow(db, milestone_setup):
     )
     db.commit()
 
-    await booking_service.cancel_booking(refund_booking.id, student)
+    await asyncio.to_thread(booking_service.cancel_booking, refund_booking.id, student)
     db.commit()
 
     reinstated = [

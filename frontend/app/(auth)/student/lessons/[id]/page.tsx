@@ -490,6 +490,7 @@ export default function LessonDetailsPage() {
                 isOpen={showChatModal}
                 onClose={() => setShowChatModal(false)}
                 bookingId={lesson.id}
+                instructorId={lesson.instructor_id}
                 currentUserId={user.id}
                 currentUserName={user.first_name}
                 otherUserName={lesson.instructor.first_name || 'Instructor'}

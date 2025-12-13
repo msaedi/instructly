@@ -6,6 +6,7 @@ Tests that suspended/deactivated instructors cannot receive new bookings
 and that past bookings remain visible regardless of instructor status.
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
@@ -112,7 +113,7 @@ class TestBookingServiceAccountStatus:
         )
 
         with pytest.raises(BusinessRuleException) as exc_info:
-            await booking_service.create_booking(test_student, booking_data, 60)
+            await asyncio.to_thread(booking_service.create_booking, test_student, booking_data, 60)
 
         assert "temporarily suspended" in str(exc_info.value)
         assert "cannot receive new bookings" in str(exc_info.value)
@@ -150,7 +151,7 @@ class TestBookingServiceAccountStatus:
         )
 
         with pytest.raises(BusinessRuleException) as exc_info:
-            await booking_service.create_booking(test_student, booking_data, 60)
+            await asyncio.to_thread(booking_service.create_booking, test_student, booking_data, 60)
 
         assert "deactivated" in str(exc_info.value)
         assert "cannot receive bookings" in str(exc_info.value)
@@ -192,7 +193,7 @@ class TestBookingServiceAccountStatus:
         )
 
         # Should succeed without exception
-        booking = await booking_service.create_booking(test_student, booking_data, 60)
+        booking = await asyncio.to_thread(booking_service.create_booking, test_student, booking_data, 60)
 
         assert booking.id is not None
         assert booking.status == BookingStatus.CONFIRMED
@@ -289,7 +290,7 @@ class TestBookingServiceAccountStatus:
         booking_service = BookingService(db, mock_notification_service)
 
         # Student should still be able to cancel the booking
-        cancelled_booking = await booking_service.cancel_booking(
+        cancelled_booking = await asyncio.to_thread(booking_service.cancel_booking,
             future_booking.id, test_student, "Instructor suspended"
         )
 

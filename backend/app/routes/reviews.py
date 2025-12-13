@@ -1,15 +1,14 @@
 # backend/app/routes/reviews.py
-from datetime import datetime, timezone
+import asyncio
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user, get_current_student
+from ..core.exceptions import DomainException
 from ..database import get_db
 from ..models.user import User
-from ..repositories.instructor_profile_repository import InstructorProfileRepository
-from ..repositories.review_repository import ReviewTipRepository
 from ..schemas.review import (
     ExistingReviewIdsResponse,
     InstructorRatingsResponse,
@@ -22,10 +21,7 @@ from ..schemas.review import (
     ReviewSubmitResponse,
     SearchRatingResponse,
 )
-from ..services.config_service import ConfigService
-from ..services.pricing_service import PricingService
 from ..services.review_service import ReviewService
-from ..services.stripe_service import StripeService
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
@@ -46,135 +42,18 @@ def _display_name(user: Optional[User]) -> Optional[str]:
 async def submit_review(
     payload: ReviewSubmitRequest = Body(...),
     current_user: User = Depends(get_current_student),
-    db: Session = Depends(get_db),
     service: ReviewService = Depends(get_review_service),
 ) -> ReviewSubmitResponse:
     try:
-        review = service.submit_review(
+        result = await asyncio.to_thread(
+            service.submit_review_with_tip,
             student_id=current_user.id,
             booking_id=payload.booking_id,
             rating=payload.rating,
             review_text=payload.review_text,
             tip_amount_cents=payload.tip_amount_cents,
         )
-
-        tip_client_secret: Optional[str] = None
-        tip_status: Optional[str] = None
-
-        tip_repo = ReviewTipRepository(db)
-        tip_record = None
-        try:
-            tip_record = tip_repo.get_by_review_id(review.id)
-        except Exception:
-            tip_record = None
-
-        # If tip provided, create a standalone PaymentIntent for the tip
-        if payload.tip_amount_cents and payload.tip_amount_cents > 0:
-            try:
-                config_service = ConfigService(db)
-                pricing_service = PricingService(db)
-                stripe_service = StripeService(
-                    db,
-                    config_service=config_service,
-                    pricing_service=pricing_service,
-                )
-                customer = stripe_service.get_or_create_customer(current_user.id)
-                instr_repo = InstructorProfileRepository(db)
-                instructor_profile = instr_repo.get_by_user_id(review.instructor_id)
-                if not instructor_profile:
-                    raise HTTPException(
-                        status_code=400, detail="Instructor profile not found for tip"
-                    )
-                connected = (
-                    stripe_service.payment_repository.get_connected_account_by_instructor_id(
-                        instructor_profile.id
-                    )
-                )
-                if not connected or not connected.stripe_account_id:
-                    raise HTTPException(
-                        status_code=400, detail="Instructor is not set up to receive tips"
-                    )
-
-                # Create PaymentIntent for the tip as a destination charge
-                pi_record = stripe_service.create_payment_intent(
-                    booking_id=review.booking_id,
-                    customer_id=customer.stripe_customer_id,
-                    destination_account_id=connected.stripe_account_id,
-                    amount_cents=int(payload.tip_amount_cents),
-                    charge_context=None,
-                )
-
-                if tip_record:
-                    tip_repo.set_payment_intent_details(
-                        tip_record.id,
-                        stripe_payment_intent_id=pi_record.stripe_payment_intent_id,
-                        status=pi_record.status,
-                    )
-
-                # Try auto-confirm with student's default payment method
-                default_pm = stripe_service.payment_repository.get_default_payment_method(
-                    current_user.id
-                )
-                if default_pm and default_pm.stripe_payment_method_id:
-                    try:
-                        pi_after_confirm = stripe_service.confirm_payment_intent(
-                            pi_record.stripe_payment_intent_id, default_pm.stripe_payment_method_id
-                        )
-                        tip_status = pi_after_confirm.status
-                        if tip_record:
-                            tip_repo.set_payment_intent_details(
-                                tip_record.id,
-                                stripe_payment_intent_id=pi_after_confirm.id,
-                                status=pi_after_confirm.status,
-                                processed_at=datetime.now(timezone.utc)
-                                if pi_after_confirm.status == "succeeded"
-                                else None,
-                            )
-                        # If further action required (SCA), provide client_secret for client-side confirmation
-                        if tip_status in ("requires_action", "requires_confirmation"):
-                            try:
-                                import stripe as _stripe
-
-                                if getattr(stripe_service, "stripe_configured", False):
-                                    pi = _stripe.PaymentIntent.retrieve(
-                                        pi_record.stripe_payment_intent_id
-                                    )
-                                    tip_client_secret = getattr(pi, "client_secret", None)
-                            except Exception:
-                                tip_client_secret = None
-                    except Exception:
-                        # If confirm failed, allow client to attempt confirmation if possible
-                        tip_status = "requires_payment_method"
-                        tip_client_secret = None
-                        if tip_record:
-                            tip_repo.set_payment_intent_details(
-                                tip_record.id,
-                                stripe_payment_intent_id=pi_record.stripe_payment_intent_id,
-                                status=tip_status,
-                            )
-                else:
-                    # No default payment method; client would need to add one to complete tip
-                    tip_status = "requires_payment_method"
-                    tip_client_secret = None
-                    if tip_record:
-                        tip_repo.set_payment_intent_details(
-                            tip_record.id,
-                            stripe_payment_intent_id=pi_record.stripe_payment_intent_id,
-                            status=tip_status,
-                        )
-            except HTTPException:
-                raise
-            except Exception:
-                # Non-blocking; allow review submission even if tip intent fails
-                tip_status = "failed"
-                tip_client_secret = None
-                if tip_record:
-                    tip_repo.set_payment_intent_details(
-                        tip_record.id,
-                        stripe_payment_intent_id=tip_record.stripe_payment_intent_id,
-                        status=tip_status,
-                    )
-
+        review = result["review"]
         return ReviewSubmitResponse(
             id=review.id,
             rating=review.rating,
@@ -182,9 +61,11 @@ async def submit_review(
             created_at=review.created_at,
             instructor_service_id=review.instructor_service_id,
             reviewer_display_name=_display_name(current_user),
-            tip_status=tip_status,
-            tip_client_secret=tip_client_secret,
+            tip_status=result.get("tip_status"),
+            tip_client_secret=result.get("tip_client_secret"),
         )
+    except DomainException as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except HTTPException:
         raise
     except Exception as e:

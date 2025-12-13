@@ -31,6 +31,7 @@ Router Endpoints:
     DELETE /blackout-dates/{id} - Remove a blackout date
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 from email.utils import format_datetime
 from functools import wraps
@@ -52,7 +53,6 @@ from ...api.dependencies.services import (
 )
 from ...core.config import settings
 from ...core.constants import ERROR_INSTRUCTOR_ONLY
-from ...core.enums import RoleName
 from ...core.exceptions import ConflictException, DomainException
 from ...core.timezone_utils import get_user_today_by_id
 from ...middleware.perf_counters import note_cache_miss
@@ -142,7 +142,7 @@ router = APIRouter(tags=["availability"])
 
 def verify_instructor(current_user: User) -> User:
     """Verify the current user is an instructor."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         logger.warning(
             f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint"
         )
@@ -742,8 +742,10 @@ async def validate_week_changes(
     verify_instructor(current_user)
 
     try:
-        result = await bulk_operation_service.validate_week_changes(
-            instructor_id=current_user.id, validation_data=validation_data
+        result = await asyncio.to_thread(
+            bulk_operation_service.validate_week_changes,
+            instructor_id=current_user.id,
+            validation_data=validation_data,
         )
         return WeekValidationResponse(**result)
     except DomainException as e:

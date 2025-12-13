@@ -550,6 +550,74 @@ class CacheService(BaseService):
             count += 1
         return count
 
+    # Lock Operations (for stampede protection)
+
+    @BaseService.measure_operation("cache_acquire_lock")
+    def acquire_lock(self, key: str, ttl: int = 10) -> bool:
+        """
+        Acquire a distributed lock using Redis SETNX.
+
+        Used for cache stampede protection - ensures only one request
+        computes an expensive operation while others wait.
+
+        Args:
+            key: Lock key (typically "lock:{cache_key}")
+            ttl: Lock expiry in seconds (default 10s safety)
+
+        Returns:
+            True if lock acquired, False if already held
+        """
+        redis_client = self.redis
+
+        try:
+            if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
+                # SET key value NX EX ttl - atomic set-if-not-exists with expiry
+                result = redis_client.set(key, "1", nx=True, ex=ttl)
+                return bool(result)
+            else:
+                # In-memory fallback: use simple dict check with expiry
+                now = datetime.now()
+                expires_at = self._memory_expiry.get(key)
+                if expires_at is None or now >= expires_at:
+                    # Lock is free or expired - acquire it
+                    self._memory_cache[key] = "1"
+                    self._memory_expiry[key] = now + timedelta(seconds=ttl)
+                    return True
+                return False
+
+        except Exception as e:
+            logger.error(f"Lock acquire error for key {key}: {e}")
+            self._stats["errors"] += 1
+            # On error, allow the request to proceed (fail-open)
+            return True
+
+    @BaseService.measure_operation("cache_release_lock")
+    def release_lock(self, key: str) -> bool:
+        """
+        Release a distributed lock.
+
+        Args:
+            key: Lock key to release
+
+        Returns:
+            True if lock was released, False otherwise
+        """
+        redis_client = self.redis
+
+        try:
+            if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
+                return bool(redis_client.delete(key))
+            else:
+                # In-memory fallback
+                self._memory_cache.pop(key, None)
+                self._memory_expiry.pop(key, None)
+                return True
+
+        except Exception as e:
+            logger.error(f"Lock release error for key {key}: {e}")
+            self._stats["errors"] += 1
+            return False
+
     # Batch Operations
 
     @BaseService.measure_operation("cache_mget")

@@ -49,7 +49,7 @@ def override_background_check_service(db):
         repository = InstructorProfileRepository(db)
 
         class DummyCheckr(CheckrClient):
-            async def create_candidate(  # type: ignore[override]
+            def create_candidate(  # type: ignore[override]
                 self,
                 *,
                 idempotency_key: str | None = None,
@@ -57,7 +57,7 @@ def override_background_check_service(db):
             ):
                 return {"id": "cand_test"}
 
-            async def create_invitation(  # type: ignore[override]
+            def create_invitation(  # type: ignore[override]
                 self,
                 *,
                 candidate_id: str,
@@ -74,13 +74,19 @@ def override_background_check_service(db):
                 }
 
         client = DummyCheckr(api_key="sk_test", base_url="https://api.checkr.com/v1")
-        return BackgroundCheckService(
+        service = BackgroundCheckService(
             db,
             client=client,
             repository=repository,
             package="essential",
             env="sandbox",
         )
+        service._resolve_work_location = lambda _zip: {  # type: ignore[attr-defined]
+            "country": "US",
+            "state": "NY",
+            "city": "New York",
+        }
+        return service
 
     app.dependency_overrides[get_background_check_service] = _override
     try:

@@ -270,7 +270,7 @@ class TestAPIContracts:
         """Test that response fields follow consistent naming conventions."""
         # Test a sample of endpoints
         test_endpoints = [
-            "/api/metrics/health",
+            "/ops/health",
             "/api/health",
             "/api/health/detailed",
         ]
@@ -517,8 +517,8 @@ class TestEndpointResponseValidation:
         # This test makes actual API calls and validates responses
         test_cases = [
             ("/api/health", None),  # Public endpoint
-            ("/api/metrics/health", admin_headers),
-            ("/api/metrics/performance", admin_headers),
+            ("/ops/health", admin_headers),
+            ("/ops/performance", admin_headers),
         ]
 
         for endpoint, headers in test_cases:
@@ -534,9 +534,9 @@ class TestEndpointResponseValidation:
                 if endpoint == "/api/health":
                     assert "status" in data
                     assert "timestamp" in data
-                elif endpoint == "/api/metrics/performance":
-                    assert "endpoint_metrics" in data
-                    assert "database_metrics" in data
+                elif endpoint == "/ops/performance":
+                    assert "availability_service" in data
+                    assert "database" in data
 
 
 if __name__ == "__main__":

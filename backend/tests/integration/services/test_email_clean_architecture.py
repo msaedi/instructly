@@ -18,7 +18,6 @@ from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.services.notification_service import NotificationService
 
-pytestmark = pytest.mark.anyio
 
 class TestEmailCleanArchitecture:
     """Test email templates follow clean architecture principles."""
@@ -86,10 +85,10 @@ class TestEmailCleanArchitecture:
         service.email_service.send_email = Mock(return_value={"id": "test-email-id"})
         return service
 
-    async def test_student_booking_confirmation_uses_clean_data(self, notification_service, mock_booking):
+    def test_student_booking_confirmation_uses_clean_data(self, notification_service, mock_booking):
         """Test student booking confirmation email uses booking's direct fields."""
         # Send the email
-        result = await notification_service._send_student_booking_confirmation(mock_booking)
+        result = notification_service._send_student_booking_confirmation(mock_booking)
 
         assert result is True
 
@@ -117,9 +116,9 @@ class TestEmailCleanArchitecture:
         assert "is_available" not in html_content.lower()
         assert "is_recurring" not in html_content.lower()
 
-    async def test_instructor_notification_uses_clean_data(self, notification_service, mock_booking):
+    def test_instructor_notification_uses_clean_data(self, notification_service, mock_booking):
         """Test instructor notification email uses booking's direct fields."""
-        result = await notification_service._send_instructor_booking_notification(mock_booking)
+        result = notification_service._send_instructor_booking_notification(mock_booking)
 
         assert result is True
 
@@ -135,13 +134,13 @@ class TestEmailCleanArchitecture:
         # Should NOT include removed concepts
         assert "availability_slot" not in html_content.lower()
 
-    async def test_cancellation_email_uses_clean_data(self, notification_service, mock_booking):
+    def test_cancellation_email_uses_clean_data(self, notification_service, mock_booking):
         """Test cancellation emails use booking's direct fields."""
         # Mock cancelled_by user
         cancelled_by = Mock(spec=User)
         cancelled_by.id = mock_booking.student_id
 
-        _result = await notification_service.send_cancellation_notification(
+        _result = notification_service.send_cancellation_notification(
             mock_booking, cancelled_by, reason="Schedule conflict"
         )
 
@@ -158,14 +157,14 @@ class TestEmailCleanArchitecture:
             # Should NOT include slot references
             assert "slot_id" not in html_content.lower()
 
-    async def test_reminder_email_uses_clean_data(self, notification_service, mock_booking):
+    def test_reminder_email_uses_clean_data(self, notification_service, mock_booking):
         """Test reminder emails use booking's direct fields."""
         # Test student reminder
-        result = await notification_service._send_student_reminder(mock_booking)
+        result = notification_service._send_student_reminder(mock_booking)
         assert result is True
 
         # Test instructor reminder
-        result = await notification_service._send_instructor_reminder(mock_booking)
+        result = notification_service._send_instructor_reminder(mock_booking)
         assert result is True
 
         # Both emails should have been sent
@@ -211,10 +210,8 @@ class TestEmailCleanArchitecture:
             # Reset mock
             notification_service.email_service.send_email.reset_mock()
 
-            # Send email (use asyncio.run for async methods)
-            import asyncio
-
-            asyncio.run(method(mock_booking))
+            # Send email directly
+            method(mock_booking)
 
             # Verify email was sent
             assert notification_service.email_service.send_email.called
@@ -270,8 +267,7 @@ class TestEmailDataStructures:
         # Should not reference slots
         assert "slot" not in test_booking.location_type_display.lower()
 
-    @pytest.mark.asyncio
-    async def test_send_reminder_emails_queries_correctly(self, db):
+    def test_send_reminder_emails_queries_correctly(self, db):
         """Test that send_reminder_emails uses clean date-based query."""
         service = NotificationService(db)
 
@@ -282,7 +278,7 @@ class TestEmailDataStructures:
             mock_query.return_value.filter.return_value = mock_filter
 
             # Call the method
-            count = await service.send_reminder_emails()
+            count = service.send_reminder_emails()
 
             # Verify it queried correctly
             mock_query.assert_called_with(Booking)

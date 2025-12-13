@@ -45,9 +45,9 @@ async def update_pricing_config(
             config_dict, updated_at = await update_result
         else:
             config_dict, updated_at = update_result
-        db.commit()
+        service.commit()
     except Exception:
-        db.rollback()
+        service.rollback()
         raise
     config = PricingConfig(**config_dict)
     return PricingConfigResponse(config=config, updated_at=updated_at)

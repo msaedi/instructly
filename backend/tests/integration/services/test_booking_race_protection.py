@@ -18,6 +18,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BookingConflictException
+from app.database import SessionLocal
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service, ServiceCatalog
@@ -121,7 +122,6 @@ class TestBookingRaceProtection:
         test_instructor: User,
         mock_notification_service,
     ):
-        booking_service = BookingService(db, mock_notification_service)
         availability_service = AvailabilityService(db)
 
         service = _get_service_with_duration(db, test_instructor, duration_minutes=60)
@@ -136,6 +136,7 @@ class TestBookingRaceProtection:
             target_date,
             windows=[(time(12, 0), time(18, 0))],
         )
+        db.commit()
 
         base_payload = _build_booking_payload(
             instructor_id=test_instructor.id,
@@ -145,17 +146,20 @@ class TestBookingRaceProtection:
             duration_minutes=60,
         )
 
-        async def attempt_booking() -> Booking:
+        def attempt_booking() -> Booking:
             payload = base_payload.model_copy()
-            return await booking_service.create_booking_with_payment_setup(
-                student=test_student,
-                booking_data=payload,
-                selected_duration=payload.selected_duration,
-            )
+            with SessionLocal() as session:
+                local_student = session.get(User, test_student.id)
+                local_service = BookingService(session, mock_notification_service)
+                return local_service.create_booking_with_payment_setup(
+                    student=local_student,
+                    booking_data=payload,
+                    selected_duration=payload.selected_duration,
+                )
 
         results = await asyncio.gather(
-            asyncio.create_task(attempt_booking()),
-            asyncio.create_task(attempt_booking()),
+            asyncio.to_thread(attempt_booking),
+            asyncio.to_thread(attempt_booking),
             return_exceptions=True,
         )
 
@@ -185,7 +189,6 @@ class TestBookingRaceProtection:
         test_instructor_2: User,
         mock_notification_service,
     ):
-        booking_service = BookingService(db, mock_notification_service)
         availability_service = AvailabilityService(db)
 
         target_date = date.today() + timedelta(days=12)
@@ -209,6 +212,7 @@ class TestBookingRaceProtection:
             target_date,
             windows=[(time(9, 0), time(12, 0))],
         )
+        db.commit()
 
         payload_one = _build_booking_payload(
             instructor_id=test_instructor.id,
@@ -225,17 +229,20 @@ class TestBookingRaceProtection:
             duration_minutes=60,
         )
 
-        async def attempt(payload: BookingCreate) -> Booking:
+        def attempt(payload: BookingCreate) -> Booking:
             request = payload.model_copy()
-            return await booking_service.create_booking_with_payment_setup(
-                student=test_student,
-                booking_data=request,
-                selected_duration=request.selected_duration,
-            )
+            with SessionLocal() as session:
+                local_student = session.get(User, test_student.id)
+                local_service = BookingService(session, mock_notification_service)
+                return local_service.create_booking_with_payment_setup(
+                    student=local_student,
+                    booking_data=request,
+                    selected_duration=request.selected_duration,
+                )
 
         results = await asyncio.gather(
-            asyncio.create_task(attempt(payload_one)),
-            asyncio.create_task(attempt(payload_two)),
+            asyncio.to_thread(attempt, payload_one),
+            asyncio.to_thread(attempt, payload_two),
             return_exceptions=True,
         )
 
@@ -280,7 +287,7 @@ class TestBookingRaceProtection:
             duration_minutes=60,
         )
 
-        original_booking = await booking_service.create_booking_with_payment_setup(
+        original_booking = await asyncio.to_thread(booking_service.create_booking_with_payment_setup,
             student=test_student,
             booking_data=initial_payload.model_copy(),
             selected_duration=initial_payload.selected_duration,
@@ -292,7 +299,7 @@ class TestBookingRaceProtection:
         original_booking.cancelled_at = datetime.now(timezone.utc)
         db.commit()
 
-        replacement = await booking_service.create_booking_with_payment_setup(
+        replacement = await asyncio.to_thread(booking_service.create_booking_with_payment_setup,
             student=test_student,
             booking_data=initial_payload.model_copy(),
             selected_duration=initial_payload.selected_duration,

@@ -8,17 +8,12 @@ Usage:
     python backend/tests/integration/services/test_email_notifications.py
 """
 
-import asyncio
 from datetime import date, time, timedelta
 from pathlib import Path
 import sys
 
-import pytest
-
 # Add the parent directory to the path
 sys.path.append(str(Path(__file__).parent.parent))
-
-pytestmark = pytest.mark.anyio
 
 from app.core.ulid_helper import generate_ulid
 from app.database import SessionLocal
@@ -75,7 +70,7 @@ def create_test_booking():
     return booking
 
 
-async def test_booking_confirmation():
+def test_booking_confirmation():
     """Test booking confirmation emails."""
     print("\n=== Testing Booking Confirmation Emails ===")
 
@@ -87,7 +82,7 @@ async def test_booking_confirmation():
         template_service = TemplateService(db, None)
         notification_service = NotificationService(db, None, template_service)
 
-        success = await notification_service.send_booking_confirmation(booking)
+        success = notification_service.send_booking_confirmation(booking)
         if success:
             print("✅ Booking confirmation emails sent successfully!")
         else:
@@ -98,7 +93,7 @@ async def test_booking_confirmation():
         db.close()
 
 
-async def test_cancellation_notification():
+def test_cancellation_notification():
     """Test cancellation notification emails."""
     print("\n=== Testing Cancellation Notification Emails ===")
 
@@ -113,7 +108,7 @@ async def test_cancellation_notification():
         # Test student cancellation
         print("\n1. Testing student cancellation...")
         try:
-            success = await notification_service.send_cancellation_notification(
+            success = notification_service.send_cancellation_notification(
                 booking=booking, cancelled_by=booking.student, reason="Schedule conflict"
             )
             if success:
@@ -126,7 +121,7 @@ async def test_cancellation_notification():
         # Test instructor cancellation
         print("\n2. Testing instructor cancellation...")
         try:
-            success = await notification_service.send_cancellation_notification(
+            success = notification_service.send_cancellation_notification(
                 booking=booking, cancelled_by=booking.instructor, reason="Emergency came up"
             )
             if success:
@@ -139,7 +134,7 @@ async def test_cancellation_notification():
         db.close()
 
 
-async def test_reminder_emails():
+def test_reminder_emails():
     """Test reminder emails."""
     print("\n=== Testing Reminder Emails ===")
 
@@ -156,7 +151,7 @@ async def test_reminder_emails():
 
         print("\n1. Testing student reminder...")
         try:
-            success = await notification_service._send_student_reminder(booking)
+            success = notification_service._send_student_reminder(booking)
             if success:
                 print("✅ Student reminder email sent successfully!")
             else:
@@ -166,7 +161,7 @@ async def test_reminder_emails():
 
         print("\n2. Testing instructor reminder...")
         try:
-            success = await notification_service._send_instructor_reminder(booking)
+            success = notification_service._send_instructor_reminder(booking)
             if success:
                 print("✅ Instructor reminder email sent successfully!")
             else:
@@ -178,7 +173,7 @@ async def test_reminder_emails():
         db.close()
 
 
-async def main():
+def main():
     """Run all email notification tests."""
     print("\n🚀 Starting Email Notification Tests")
     print("=" * 50)
@@ -194,13 +189,9 @@ async def main():
     input()
 
     # Run all tests
-    await test_booking_confirmation()
-    await asyncio.sleep(3)  # Increased delay to respect rate limits (2 req/sec)
-
-    await test_cancellation_notification()
-    await asyncio.sleep(3)  # Increased delay
-
-    await test_reminder_emails()
+    test_booking_confirmation()
+    test_cancellation_notification()
+    test_reminder_emails()
 
     print("\n✅ All tests completed!")
     print("\nCheck the email inboxes for the test addresses.")
@@ -208,4 +199,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

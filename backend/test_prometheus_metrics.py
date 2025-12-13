@@ -36,7 +36,7 @@ def test_prometheus_metrics():
 
     # Performance metrics (to trigger service operations)
     try:
-        response = requests.get(f"{base_url}/metrics/performance")
+        response = requests.get(f"{base_url}/ops/performance")
         print(f"   - Performance metrics: {response.status_code}")
     except Exception as e:
         print(f"   - Performance metrics failed: {e}")

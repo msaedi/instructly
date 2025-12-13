@@ -1,5 +1,13 @@
 """Event primitives for server-side analytics streams."""
 
+from app.events.booking_events import (
+    BookingCancelled,
+    BookingCompleted,
+    BookingCreated,
+    BookingReminder,
+)
+from app.events.publisher import EventPublisher
+
 from .referral_events import (
     FirstBookingCompleted,
     ReferralCodeIssued,
@@ -25,6 +33,13 @@ from .referral_events import (
 )
 
 __all__ = [
+    # Booking domain events
+    "BookingCreated",
+    "BookingCancelled",
+    "BookingReminder",
+    "BookingCompleted",
+    "EventPublisher",
+    # Referral events (existing)
     "ReferralEvents",
     "ReferralEvent",
     "ReferralCodeIssued",

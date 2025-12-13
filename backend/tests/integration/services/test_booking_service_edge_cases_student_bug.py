@@ -4,6 +4,7 @@ Test that verifies student double-booking prevention is working correctly.
 This test ensures students cannot book overlapping sessions with different instructors.
 """
 
+import asyncio
 from datetime import date, time, timedelta
 
 import pytest
@@ -171,7 +172,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
         meeting_location="Online",
     )
 
-    booking1 = await booking_service.create_booking(
+    booking1 = await asyncio.to_thread(booking_service.create_booking,
         student, booking1_data, selected_duration=booking1_data.selected_duration
     )
     assert booking1.id is not None
@@ -193,7 +194,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
     from app.core.exceptions import ConflictException
 
     with pytest.raises(ConflictException) as exc_info:
-        await booking_service.create_booking(student, booking2_data, selected_duration=booking2_data.selected_duration)
+        await asyncio.to_thread(booking_service.create_booking, student, booking2_data, selected_duration=booking2_data.selected_duration)
 
     # Verify the error message
     assert "Student already has a booking that overlaps this time" in str(exc_info.value)

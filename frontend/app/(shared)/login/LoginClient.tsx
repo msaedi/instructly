@@ -1,15 +1,17 @@
 'use client';
 
 import { BRAND } from '@/app/config/brand';
-import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { API_ENDPOINTS } from '@/lib/api';
 import { ApiError, http, httpGet } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { getGuestSessionId, transferGuestSearchesToAccount } from '@/lib/searchTracking';
+import { TURNSTILE_SITE_KEY } from '@/lib/publicEnv';
 
 function LoginForm({ redirect }: { redirect: string }) {
   const router = useRouter();
@@ -21,6 +23,12 @@ function LoginForm({ redirect }: { redirect: string }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [captchaRequired, setCaptchaRequired] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
+  const [rateLimitSecondsRemaining, setRateLimitSecondsRemaining] = useState(0);
 
   const [requires2FA, setRequires2FA] = useState(false);
   const [tempToken, setTempToken] = useState<string | null>(null);
@@ -54,6 +62,33 @@ function LoginForm({ redirect }: { redirect: string }) {
     return Object.keys(newErrors).length === 0;
   };
 
+  const getButtonWaitLabel = (seconds: number): string => {
+    if (seconds >= 120) {
+      const minutes = Math.ceil(seconds / 60);
+      return `Locked for ${minutes}m`;
+    }
+    return `Try again in ${seconds}s`;
+  };
+
+  useEffect(() => {
+    if (!rateLimitedUntil) {
+      setRateLimitSecondsRemaining(0);
+      return;
+    }
+
+    const updateRemaining = () => {
+      const remaining = Math.max(0, Math.ceil((rateLimitedUntil - Date.now()) / 1000));
+      setRateLimitSecondsRemaining(remaining);
+      if (remaining <= 0) {
+        setRateLimitedUntil(null);
+      }
+    };
+
+    updateRemaining();
+    const interval = window.setInterval(updateRemaining, 1000);
+    return () => window.clearInterval(interval);
+  }, [rateLimitedUntil]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -75,13 +110,23 @@ function LoginForm({ redirect }: { redirect: string }) {
         ? { 'Content-Type': 'application/json' }
         : { 'Content-Type': 'application/x-www-form-urlencoded' };
 
+      const tokenForAttempt = captchaToken;
+
       const loginPayload = guestSessionId
         ? {
             email: formData['email'],
             password: formData['password'],
             guest_session_id: guestSessionId,
+            ...(tokenForAttempt ? { captcha_token: tokenForAttempt } : {}),
           }
-        : new URLSearchParams({ username: formData['email'], password: formData['password'] }).toString();
+        : (() => {
+            const params = new URLSearchParams({
+              username: formData['email'],
+              password: formData['password'],
+            });
+            if (tokenForAttempt) params.set('captcha_token', tokenForAttempt);
+            return params.toString();
+          })();
 
       logger.info('Sending login request:', {
         path: loginPath,
@@ -95,11 +140,20 @@ function LoginForm({ redirect }: { redirect: string }) {
       });
 
       if (data?.requires_2fa) {
+        setRateLimitedUntil(null);
+        setCaptchaRequired(false);
+        setCaptchaToken(null);
+        setCaptchaError(null);
         setRequires2FA(true);
         setTempToken(data?.temp_token ?? null);
         setIsSubmitting(false);
         return;
       }
+
+      setRateLimitedUntil(null);
+      setCaptchaRequired(false);
+      setCaptchaToken(null);
+      setCaptchaError(null);
 
       const transferGuestSession = getGuestSessionId();
       if (transferGuestSession) {
@@ -150,7 +204,42 @@ function LoginForm({ redirect }: { redirect: string }) {
       }
     } catch (error) {
       if (error instanceof ApiError) {
+        if (error.status === 429) {
+          const retryAfterRaw = error.headers?.get('Retry-After') || '60';
+          const parsedRetryAfter = Number.parseInt(retryAfterRaw, 10);
+          const retryAfterSeconds =
+            Number.isFinite(parsedRetryAfter) && parsedRetryAfter > 0 ? parsedRetryAfter : 60;
+          const until = Date.now() + retryAfterSeconds * 1000;
+          setRateLimitedUntil((prev) => (prev && prev > until ? prev : until));
+          setErrors({});
+          setCaptchaError(null);
+          return;
+        }
+
+        if (error.status === 428) {
+          setCaptchaRequired(true);
+          setCaptchaToken(null);
+          setCaptchaError('Please verify you\'re human to continue.');
+          setErrors({});
+          return;
+        }
+
         const detail = (error.data as { detail?: string } | undefined)?.detail;
+        if (error.status === 400 && detail?.toLowerCase().includes('captcha')) {
+          setCaptchaRequired(true);
+          setCaptchaToken(null);
+          setCaptchaError(detail || 'CAPTCHA verification failed. Please try again.');
+          setErrors({});
+          return;
+        }
+
+        if (captchaRequired && captchaToken) {
+          // Tokens are single-use; prompt for a fresh challenge on failure.
+          setCaptchaToken(null);
+          setCaptchaError('CAPTCHA required for further attempts. Please retry.');
+          turnstileRef.current?.reset();
+        }
+
         setErrors({ password: detail || 'Invalid email or password' });
       } else {
         logger.error('Login network error', error);
@@ -279,6 +368,32 @@ function LoginForm({ redirect }: { redirect: string }) {
                 {errors['password'] && (<p className="mt-1 text-sm text-red-600" role="alert">{errors['password']}</p>)}
               </div>
             </div>
+            {captchaRequired && (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-700 dark:text-gray-200">Please verify you&apos;re human to continue.</p>
+                {captchaError && (<p className="text-sm text-red-600" role="alert">{captchaError}</p>)}
+                {TURNSTILE_SITE_KEY ? (
+                  <Turnstile
+                    siteKey={TURNSTILE_SITE_KEY}
+                    ref={turnstileRef}
+                    onSuccess={(token) => {
+                      setCaptchaToken(token);
+                      setCaptchaError(null);
+                    }}
+                    onError={() => {
+                      setCaptchaToken(null);
+                      setCaptchaError('CAPTCHA error. Please try again.');
+                    }}
+                    onExpire={() => {
+                      setCaptchaToken(null);
+                      setCaptchaError('CAPTCHA expired. Please retry.');
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-red-600" role="alert">CAPTCHA is required but not configured.</p>
+                )}
+              </div>
+            )}
             {/* Forgot Password */}
             <div className="flex items-center justify-between">
               <div className="text-sm">
@@ -289,9 +404,23 @@ function LoginForm({ redirect }: { redirect: string }) {
             </div>
             {/* Submit */}
             <div>
-              <button type="submit" disabled={isSubmitting} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                {isSubmitting ? (<><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Signing in...</>) : ('Sign in')}
+              <button
+                type="submit"
+                disabled={isSubmitting || (captchaRequired && !captchaToken) || !!rateLimitedUntil}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#7E22CE] hover:bg-[#7E22CE] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7E22CE] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {rateLimitedUntil
+                  ? getButtonWaitLabel(rateLimitSecondsRemaining)
+                  : isSubmitting ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      Signing in...
+                    </>
+                  ) : (
+                    'Sign in'
+                  )}
               </button>
+              {/* Single timer is shown on the button; no extra message needed */}
             </div>
           </form>
         ) : (

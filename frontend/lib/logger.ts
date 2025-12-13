@@ -30,7 +30,9 @@ const getDefaultLogLevel = (): LogLevel => {
 
 class Logger {
   private isDevelopment = env.isDevelopment();
-  private isEnabled = env.get('NEXT_PUBLIC_ENABLE_LOGGING') !== 'false'; // Default to true if not explicitly disabled
+  private isEnabled = env.isTest()
+    ? env.get('NEXT_PUBLIC_ENABLE_LOGGING') === 'true'
+    : env.get('NEXT_PUBLIC_ENABLE_LOGGING') !== 'false'; // Default to true if not explicitly disabled
 
   private logLevels: Record<LogLevel, number> = {
     debug: 0,
@@ -165,13 +167,15 @@ class Logger {
       }
     }
 
-    // Log initial status (always show this)
-    console.log('[LOGGER] Initialized', {
-      enabled: this.isEnabled,
-      level: this.currentLevel,
-      isDevelopment: this.isDevelopment,
-      envVar: env.get('NEXT_PUBLIC_ENABLE_LOGGING'),
-    });
+    // Log initial status (skip noisy output during unit tests)
+    if (!env.isTest()) {
+      console.log('[LOGGER] Initialized', {
+        enabled: this.isEnabled,
+        level: this.currentLevel,
+        isDevelopment: this.isDevelopment,
+        envVar: env.get('NEXT_PUBLIC_ENABLE_LOGGING'),
+      });
+    }
   }
 }
 

@@ -18,7 +18,7 @@ Endpoints:
 import logging
 from typing import Any, Dict, List, Optional, cast
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 
 from ...api.dependencies.auth import get_current_active_user
 from ...api.dependencies.services import get_instructor_service
@@ -53,10 +53,13 @@ router = APIRouter(tags=["services-v1"])
 
 @router.get("/categories", response_model=List[CategoryResponse])
 async def get_service_categories(
+    response: Response,
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[CategoryResponse]:
-    """Get all service categories."""
+    """Get all service categories (cached for 1 hour)."""
     categories = instructor_service.get_service_categories()
+    # Set Cache-Control header (1 hour to match backend cache TTL)
+    response.headers["Cache-Control"] = "public, max-age=3600"
     return cast(List[CategoryResponse], categories)
 
 
@@ -92,9 +95,8 @@ async def add_service_to_profile(
 
     Requires INSTRUCTOR role.
     """
-    from app.core.enums import RoleName
 
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can add services"
         )
