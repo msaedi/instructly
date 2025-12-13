@@ -6,6 +6,14 @@ This module provides query parsing, embedding, and search functionality
 for natural language searches.
 """
 
+from app.services.search.cache_invalidation import (
+    invalidate_all_search_cache,
+    invalidate_on_availability_change,
+    invalidate_on_instructor_profile_change,
+    invalidate_on_price_change,
+    invalidate_on_review_change,
+    invalidate_on_service_change,
+)
 from app.services.search.circuit_breaker import (
     EMBEDDING_CIRCUIT,
     PARSING_CIRCUIT,
@@ -36,6 +44,10 @@ from app.services.search.retriever import (
     RetrievalResult,
     Retriever,
     ServiceCandidate,
+)
+from app.services.search.search_cache import (
+    CachedLocation,
+    SearchCacheService,
 )
 
 __all__ = [
@@ -68,4 +80,13 @@ __all__ = [
     "RankingService",
     "RankedResult",
     "RankingResult",
+    # Caching
+    "SearchCacheService",
+    "CachedLocation",
+    "invalidate_on_service_change",
+    "invalidate_on_availability_change",
+    "invalidate_on_price_change",
+    "invalidate_on_instructor_profile_change",
+    "invalidate_on_review_change",
+    "invalidate_all_search_cache",
 ]
