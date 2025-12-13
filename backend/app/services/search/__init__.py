@@ -26,6 +26,11 @@ from app.services.search.filter_service import (
 )
 from app.services.search.llm_parser import LLMParser, hybrid_parse
 from app.services.search.query_parser import ParsedQuery, QueryParser
+from app.services.search.ranking_service import (
+    RankedResult,
+    RankingResult,
+    RankingService,
+)
 from app.services.search.retriever import (
     PostgresRetriever,
     RetrievalResult,
@@ -59,4 +64,8 @@ __all__ = [
     "FilterService",
     "FilterResult",
     "FilteredCandidate",
+    # Ranking
+    "RankingService",
+    "RankedResult",
+    "RankingResult",
 ]
