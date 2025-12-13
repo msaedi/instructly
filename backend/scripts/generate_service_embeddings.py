@@ -1,24 +1,49 @@
 #!/usr/bin/env python3
 """
-Generate embeddings for service catalog entries.
+DEPRECATED: Use generate_openai_embeddings.py instead.
 
-This script uses sentence-transformers to create semantic embeddings
-for all services in the catalog. The embeddings enable natural language
-search capabilities.
+This script used sentence-transformers which has been removed in favor
+of OpenAI embeddings for better semantic understanding.
 
-Usage:
-    python scripts/generate_service_embeddings.py
+To generate embeddings, run:
+    python scripts/generate_openai_embeddings.py
+
+For more information, see the migration notes in:
+    docs/temp-logs/nl-search-audit-fixes-and-migration.md
 """
+
+import sys
+
+print("=" * 70)
+print("ERROR: This script is deprecated.")
+print()
+print("The sentence-transformers package has been removed.")
+print("Use OpenAI embeddings instead:")
+print()
+print("    python scripts/generate_openai_embeddings.py")
+print()
+print("Make sure OPENAI_API_KEY is set in your environment.")
+print("=" * 70)
+sys.exit(1)
+
+# Original code preserved below for reference (will not execute)
+# ----------------------------------------------------------------
 
 import logging
 import os
 from pathlib import Path
-import sys
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sentence_transformers import SentenceTransformer
+# Note: sentence-transformers import will fail as package was removed
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    print("ERROR: sentence-transformers is no longer installed.")
+    print("Use: python scripts/generate_openai_embeddings.py")
+    sys.exit(1)
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 

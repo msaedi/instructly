@@ -1,0 +1,682 @@
+// frontend/app/(admin)/admin/nl-search/page.tsx
+'use client';
+
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Search,
+  Settings,
+  Clock,
+  RefreshCw,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Lock,
+} from 'lucide-react';
+import Link from 'next/link';
+import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { useAuth } from '@/features/shared/hooks/useAuth';
+import { logger } from '@/lib/logger';
+import { fetchWithAuth } from '@/lib/api';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+
+// Types
+interface ModelOption {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface SearchConfig {
+  parsing_model: string;
+  parsing_timeout_ms: number;
+  embedding_model: string;
+  embedding_timeout_ms: number;
+  available_parsing_models: ModelOption[];
+  available_embedding_models: ModelOption[];
+}
+
+interface SearchScores {
+  relevance: number;
+  quality: number;
+  distance: number;
+  price: number;
+  freshness: number;
+  completeness: number;
+}
+
+interface SearchMatchInfo {
+  audience_boost: number;
+  skill_boost: number;
+  soft_filtered: boolean;
+  soft_filter_reasons: string[];
+}
+
+interface SearchResult {
+  service_id: string;
+  instructor_id: string;
+  name: string;
+  description: string | null;
+  price_per_hour: number;
+  rank: number;
+  score: number;
+  scores: SearchScores;
+  availability: {
+    dates: string[];
+    earliest: string | null;
+  };
+  match_info: SearchMatchInfo;
+}
+
+interface ParsedQuery {
+  service_query: string;
+  location: string | null;
+  max_price: number | null;
+  date: string | null;
+  time_after: string | null;
+  audience_hint: string | null;
+  skill_level: string | null;
+  urgency: string | null;
+}
+
+interface SearchMeta {
+  query: string;
+  parsed: ParsedQuery;
+  total_results: number;
+  limit: number;
+  latency_ms: number;
+  cache_hit: boolean;
+  degraded: boolean;
+  degradation_reasons: string[];
+  parsing_mode: string;
+}
+
+interface SearchResponse {
+  results: SearchResult[];
+  meta: SearchMeta;
+}
+
+// API functions
+async function fetchConfig(): Promise<SearchConfig> {
+  const res = await fetchWithAuth('/api/v1/search/config');
+  if (!res.ok) throw new Error('Failed to fetch config');
+  return res.json() as Promise<SearchConfig>;
+}
+
+async function updateConfig(config: Partial<SearchConfig>): Promise<SearchConfig> {
+  const res = await fetchWithAuth('/api/v1/search/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error('Failed to update config');
+  return res.json() as Promise<SearchConfig>;
+}
+
+async function resetConfig(): Promise<SearchConfig> {
+  const res = await fetchWithAuth('/api/v1/search/config/reset', {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to reset config');
+  const data = (await res.json()) as { config: SearchConfig };
+  return data.config;
+}
+
+async function executeSearch(query: string): Promise<SearchResponse> {
+  const res = await fetchWithAuth(`/api/v1/search?q=${encodeURIComponent(query)}`);
+  if (!res.ok) throw new Error('Search failed');
+  return res.json() as Promise<SearchResponse>;
+}
+
+// Example queries for quick testing
+const EXAMPLE_QUERIES = [
+  'piano lessons',
+  'cheap guitar lessons tomorrow',
+  'yoga classes morning',
+  'math tutoring for kids',
+  'urgent swimming lessons',
+  'violin lessons under $50',
+  'SAT prep in brooklyn',
+] as const;
+
+export default function NLSearchAdminPage() {
+  const { isAdmin, isLoading: authLoading } = useAdminAuth();
+  const { logout } = useAuth();
+  const queryClient = useQueryClient();
+
+  // State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
+
+  // Fetch config
+  const { data: config, isLoading: configLoading, error: configError } = useQuery({
+    queryKey: ['search-config'],
+    queryFn: fetchConfig,
+  });
+
+  // Update config mutation
+  const configMutation = useMutation({
+    mutationFn: updateConfig,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['search-config'] });
+    },
+    onError: (error) => {
+      logger.error('Failed to update config', error);
+    },
+  });
+
+  // Reset config mutation
+  const resetMutation = useMutation({
+    mutationFn: resetConfig,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['search-config'] });
+    },
+  });
+
+  // Handle search
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+
+    setIsSearching(true);
+    setSearchError(null);
+    try {
+      const results = await executeSearch(searchQuery);
+      setSearchResults(results);
+    } catch (error) {
+      logger.error('Search failed', error);
+      setSearchError(error instanceof Error ? error.message : 'Search failed');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Handle config change
+  const handleConfigChange = (field: string, value: string | number) => {
+    configMutation.mutate({ [field]: value });
+  };
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Header */}
+      <header className="border-b border-gray-200/70 dark:border-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <Link href="/" className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400 mr-8">
+                iNSTAiNSTRU
+              </Link>
+              <h1 className="text-xl font-semibold">NL Search Testing</h1>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowConfig(!showConfig)}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-colors ${
+                  showConfig
+                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                    : 'text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60'
+                }`}
+              >
+                <Settings className="h-4 w-4" />
+                {showConfig ? 'Hide Config' : 'Show Config'}
+              </button>
+              <button
+                onClick={() => void logout()}
+                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60 cursor-pointer"
+              >
+                Log out
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-12 gap-6">
+          <aside className="col-span-12 md:col-span-3 lg:col-span-3">
+            <AdminSidebar />
+          </aside>
+          <div className="col-span-12 md:col-span-9 lg:col-span-9 space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <StatsCard
+                title="Parsing Model"
+                value={config?.parsing_model ?? 'Loading...'}
+                icon={<Settings className="w-5 h-5 text-purple-600" />}
+                loading={configLoading}
+              />
+              <StatsCard
+                title="Embedding Model"
+                value={config?.embedding_model?.split('-').slice(-1)[0] ?? 'Loading...'}
+                icon={<Search className="w-5 h-5 text-blue-600" />}
+                loading={configLoading}
+              />
+              <StatsCard
+                title="Parse Timeout"
+                value={`${config?.parsing_timeout_ms ?? 0}ms`}
+                icon={<Clock className="w-5 h-5 text-amber-600" />}
+                loading={configLoading}
+              />
+              <StatsCard
+                title="Embed Timeout"
+                value={`${config?.embedding_timeout_ms ?? 0}ms`}
+                icon={<Clock className="w-5 h-5 text-green-600" />}
+                loading={configLoading}
+              />
+            </div>
+
+            {/* Config Error */}
+            {configError && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <div className="flex items-center">
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mr-2" />
+                  <p className="text-red-700 dark:text-red-300">
+                    Failed to load config: {configError instanceof Error ? configError.message : 'Unknown error'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Configuration Panel */}
+            {showConfig && config && (
+              <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Configuration</h2>
+                  <button
+                    onClick={() => resetMutation.mutate()}
+                    disabled={resetMutation.isPending}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${resetMutation.isPending ? 'animate-spin' : ''}`} />
+                    Reset to defaults
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  {/* Parsing Model */}
+                  <div className="space-y-2">
+                    <Label>Parsing Model</Label>
+                    <Select
+                      value={config.parsing_model}
+                      onValueChange={(value) => handleConfigChange('parsing_model', value)}
+                      disabled={configMutation.isPending}
+                    >
+                      <SelectTrigger className="w-full min-w-[280px] px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                        {/* Show only model name when collapsed, not description */}
+                        <SelectValue>
+                          {config.available_parsing_models.find((m) => m.id === config.parsing_model)?.name ??
+                            config.parsing_model}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="min-w-[400px]">
+                        {config.available_parsing_models.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{model.name}</span>
+                              <span className="text-xs text-gray-500">{model.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Parsing Timeout */}
+                  <div className="space-y-2">
+                    <Label htmlFor="parsing-timeout">Parsing Timeout (ms)</Label>
+                    <input
+                      id="parsing-timeout"
+                      type="number"
+                      value={config.parsing_timeout_ms}
+                      onChange={(e) => handleConfigChange('parsing_timeout_ms', parseInt(e.target.value, 10))}
+                      disabled={configMutation.isPending}
+                      min={500}
+                      max={10000}
+                      step={100}
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    />
+                  </div>
+
+                  {/* Embedding Model (Read-only) */}
+                  <div className="space-y-2">
+                    <Label>Embedding Model</Label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                        <Lock className="h-4 w-4 text-gray-400" />
+                        <span>{config.embedding_model}</span>
+                      </div>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Requires re-seeding to change. Run <code className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">python scripts/generate_openai_embeddings.py</code>
+                    </p>
+                  </div>
+
+                  {/* Embedding Timeout */}
+                  <div className="space-y-2">
+                    <Label htmlFor="embedding-timeout">Embedding Timeout (ms)</Label>
+                    <input
+                      id="embedding-timeout"
+                      type="number"
+                      value={config.embedding_timeout_ms}
+                      onChange={(e) => handleConfigChange('embedding_timeout_ms', parseInt(e.target.value, 10))}
+                      disabled={configMutation.isPending}
+                      min={500}
+                      max={10000}
+                      step={100}
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    />
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                  Changes are temporary and will reset on server restart. To persist changes, update environment
+                  variables.
+                </p>
+              </div>
+            )}
+
+            {/* Search Input */}
+            <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Test Search</h2>
+
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void handleSearch();
+                    }}
+                    placeholder="Try: piano lessons in brooklyn under $50 for kids"
+                    className="w-full px-4 py-3 text-lg ring-1 ring-gray-300/70 dark:ring-gray-700/60 rounded-xl bg-white/60 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                  />
+                </div>
+                <button
+                  onClick={() => void handleSearch()}
+                  disabled={isSearching || !searchQuery.trim()}
+                  className="px-6 py-3 text-white bg-purple-600 rounded-full hover:bg-purple-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors shadow-sm"
+                >
+                  {isSearching ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Search className="w-5 h-5" />
+                  )}
+                  Search
+                </button>
+              </div>
+
+              {/* Example Queries */}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Try:</span>
+                {EXAMPLE_QUERIES.map((example) => (
+                  <button
+                    key={example}
+                    onClick={() => setSearchQuery(example)}
+                    className="px-2 py-1 text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Search Error */}
+            {searchError && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <div className="flex items-center">
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mr-2" />
+                  <p className="text-red-700 dark:text-red-300">{searchError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Search Results */}
+            {searchResults && (
+              <>
+                {/* Diagnostics */}
+                <DiagnosticsPanel meta={searchResults.meta} />
+
+                {/* Results List */}
+                <ResultsPanel results={searchResults.results} totalResults={searchResults.meta.total_results} />
+              </>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// Stats Card Component
+function StatsCard({
+  title,
+  value,
+  icon,
+  loading,
+}: {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  loading: boolean;
+}) {
+  return (
+    <div className="rounded-xl p-4 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+          {loading ? (
+            <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mt-1" />
+          ) : (
+            <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{value}</p>
+          )}
+        </div>
+        {icon}
+      </div>
+    </div>
+  );
+}
+
+// Diagnostics Panel Component
+function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
+  const latencyStatus = meta.latency_ms < 200 ? 'good' : meta.latency_ms < 500 ? 'warning' : 'error';
+
+  return (
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Search Diagnostics</h2>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <DiagnosticItem label="Latency" value={`${meta.latency_ms}ms`} status={latencyStatus} />
+        <DiagnosticItem
+          label="Cache Hit"
+          value={meta.cache_hit ? 'Yes' : 'No'}
+          status={meta.cache_hit ? 'good' : 'neutral'}
+        />
+        <DiagnosticItem label="Parsing Mode" value={meta.parsing_mode} status="neutral" />
+        <DiagnosticItem
+          label="Results"
+          value={meta.total_results.toString()}
+          status={meta.total_results > 0 ? 'good' : 'error'}
+        />
+      </div>
+
+      {meta.degraded && (
+        <div className="p-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+          <span className="text-sm text-amber-800 dark:text-amber-200">
+            Degraded mode: {meta.degradation_reasons.join(', ')}
+          </span>
+        </div>
+      )}
+
+      {/* Parsed Query */}
+      <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Parsed Query</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <ParsedField label="Service" value={meta.parsed.service_query} />
+          <ParsedField label="Location" value={meta.parsed.location} />
+          <ParsedField label="Max Price" value={meta.parsed.max_price ? `$${meta.parsed.max_price}` : null} />
+          <ParsedField label="Date" value={meta.parsed.date} />
+          <ParsedField label="Time After" value={meta.parsed.time_after} />
+          <ParsedField label="Audience" value={meta.parsed.audience_hint} />
+          <ParsedField label="Skill Level" value={meta.parsed.skill_level} />
+          <ParsedField label="Urgency" value={meta.parsed.urgency} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Diagnostic Item Component
+function DiagnosticItem({
+  label,
+  value,
+  status,
+}: {
+  label: string;
+  value: string;
+  status: 'good' | 'warning' | 'error' | 'neutral';
+}) {
+  const statusColors = {
+    good: 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-900/20',
+    warning: 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20',
+    error: 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20',
+    neutral: 'text-gray-600 bg-gray-50 dark:text-gray-400 dark:bg-gray-800/50',
+  };
+
+  return (
+    <div className={`p-3 rounded-lg ${statusColors[status]}`}>
+      <p className="text-xs opacity-75">{label}</p>
+      <p className="text-sm font-medium">{value}</p>
+    </div>
+  );
+}
+
+// Parsed Field Component
+function ParsedField({ label, value }: { label: string; value: string | number | null }) {
+  if (value === null || value === undefined) {
+    return (
+      <div>
+        <span className="text-gray-400">{label}:</span>
+        <span className="ml-1 text-gray-300">-</span>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <span className="text-gray-500 dark:text-gray-400">{label}:</span>
+      <span className="ml-1 font-medium text-gray-900 dark:text-gray-100">{value}</span>
+    </div>
+  );
+}
+
+// Results Panel Component
+function ResultsPanel({ results, totalResults }: { results: SearchResult[]; totalResults: number }) {
+  return (
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Results ({totalResults})</h2>
+
+      {results.length === 0 ? (
+        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          No results found. Try a different query.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {results.map((result) => (
+            <ResultCard key={result.service_id} result={result} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Result Card Component
+function ResultCard({ result }: { result: SearchResult }) {
+  const [showDetails, setShowDetails] = useState(false);
+
+  return (
+    <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 rounded">
+              #{result.rank}
+            </span>
+            <h3 className="font-medium text-gray-900 dark:text-gray-100">{result.name}</h3>
+          </div>
+          {result.description && (
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{result.description}</p>
+          )}
+          <div className="mt-2 flex items-center gap-4 text-sm">
+            <span className="font-medium text-green-600 dark:text-green-400">${result.price_per_hour}/hr</span>
+            <span className="text-gray-500 dark:text-gray-400">Score: {result.score.toFixed(3)}</span>
+            {result.availability.earliest && (
+              <span className="text-gray-500 dark:text-gray-400">Available: {result.availability.earliest}</span>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1"
+        >
+          {showDetails ? (
+            <>
+              Hide <ChevronUp className="w-4 h-4" />
+            </>
+          ) : (
+            <>
+              Details <ChevronDown className="w-4 h-4" />
+            </>
+          )}
+        </button>
+      </div>
+
+      {showDetails && (
+        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Score Breakdown</h4>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            {Object.entries(result.scores).map(([key, value]) => (
+              <div key={key} className="text-center">
+                <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{key}</div>
+                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {(value * 100).toFixed(0)}%
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {(result.match_info.audience_boost > 0 || result.match_info.skill_boost > 0) && (
+            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              Boosts:
+              {result.match_info.audience_boost > 0 && ` Audience +${result.match_info.audience_boost}`}
+              {result.match_info.skill_boost > 0 && ` Skill +${result.match_info.skill_boost}`}
+            </div>
+          )}
+
+          <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+            Service ID: {result.service_id} | Instructor ID: {result.instructor_id}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

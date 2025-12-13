@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from app.repositories.service_catalog_repository import ServiceCatalogRepository
 from app.services.search.circuit_breaker import EMBEDDING_CIRCUIT, CircuitOpenError
+from app.services.search.config import get_search_config
 from app.services.search.embedding_provider import (
     EmbeddingProvider,
     create_embedding_provider,
@@ -26,7 +26,11 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 EMBEDDING_CACHE_TTL = 60 * 60 * 24  # 24 hours
-CURRENT_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+
+
+def _get_current_model() -> str:
+    """Get the current embedding model from config."""
+    return get_search_config().embedding_model
 
 
 class EmbeddingService:
@@ -166,7 +170,7 @@ class EmbeddingService:
             return True
 
         # 2. Model has changed
-        if service.embedding_model != CURRENT_MODEL:
+        if service.embedding_model != _get_current_model():
             return True
 
         # 3. Content has changed
@@ -246,7 +250,7 @@ class EmbeddingService:
         - Services with different embedding_model than current
         - Services with stale embeddings (>30 days old)
         """
-        return self._repository.get_services_needing_embedding(CURRENT_MODEL, limit)
+        return self._repository.get_services_needing_embedding(_get_current_model(), limit)
 
     def update_service_embedding(
         self, service_id: str, embedding: List[float], text_hash: str
@@ -257,5 +261,5 @@ class EmbeddingService:
         Updates embedding_v2 and metadata columns.
         """
         return self._repository.update_service_embedding(
-            service_id, embedding, CURRENT_MODEL, text_hash
+            service_id, embedding, _get_current_model(), text_hash
         )

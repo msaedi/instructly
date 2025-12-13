@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
-import os
 import time
 from typing import TYPE_CHECKING, Optional, cast
 
@@ -18,6 +17,7 @@ from app.services.search.circuit_breaker import (
     PARSING_CIRCUIT,
     CircuitOpenError,
 )
+from app.services.search.config import get_search_config
 from app.services.search.llm_schema import LLMParsedQuery
 from app.services.search.query_parser import ParsedQuery, QueryParser
 
@@ -26,10 +26,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Configuration
-LLM_TIMEOUT_SECONDS = 2.0
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
-# For production, pin to snapshot: "gpt-4o-mini-2024-07-18"
+# Legacy environment variable support (deprecated - use OPENAI_PARSING_MODEL)
+# Configuration is now managed via app.services.search.config module
 
 SYSTEM_PROMPT = """You are a search query parser for InstaInstru, a marketplace for lesson instructors in NYC.
 
@@ -127,10 +125,10 @@ class LLMParser:
             return regex_result
 
         try:
-            # Call LLM with timeout
-            llm_response = await asyncio.wait_for(
-                self._call_llm(query), timeout=LLM_TIMEOUT_SECONDS
-            )
+            # Call LLM with configurable timeout
+            config = get_search_config()
+            timeout_seconds = config.parsing_timeout_ms / 1000.0
+            llm_response = await asyncio.wait_for(self._call_llm(query), timeout=timeout_seconds)
 
             # Merge LLM result with regex result
             result = self._merge_results(regex_result, llm_response, query)
@@ -141,7 +139,7 @@ class LLMParser:
             return result
 
         except asyncio.TimeoutError:
-            logger.warning(f"LLM parsing timed out after {LLM_TIMEOUT_SECONDS}s")
+            logger.warning(f"LLM parsing timed out after {timeout_seconds:.1f}s")
             PARSING_CIRCUIT._record_failure()
             regex_result.parsing_mode = "regex"
             regex_result.parsing_latency_ms = int((time.perf_counter() - start_time) * 1000)
@@ -178,8 +176,9 @@ class LLMParser:
 
     async def _make_api_call(self, query: str, system_prompt: str) -> LLMParsedQuery:
         """Make the actual API call to OpenAI."""
+        config = get_search_config()
         response = await self.client.beta.chat.completions.parse(
-            model=LLM_MODEL,
+            model=config.parsing_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": query},
@@ -299,7 +298,12 @@ class LLMParser:
         return None
 
 
-async def hybrid_parse(query: str, db: "Session", user_id: Optional[str] = None) -> ParsedQuery:
+async def hybrid_parse(
+    query: str,
+    db: "Session",
+    user_id: Optional[str] = None,
+    region_code: str = "nyc",
+) -> ParsedQuery:
     """
     Parse a query using regex first, then LLM if needed.
 
@@ -309,11 +313,12 @@ async def hybrid_parse(query: str, db: "Session", user_id: Optional[str] = None)
         query: The natural language query to parse
         db: Database session
         user_id: Optional user ID for timezone-aware date handling
+        region_code: Region for location/price lookups (default: nyc)
 
     Returns:
         ParsedQuery with extracted constraints
     """
-    regex_parser = QueryParser(db, user_id=user_id)
+    regex_parser = QueryParser(db, user_id=user_id, region_code=region_code)
     regex_result = regex_parser.parse(query)
 
     # If regex handled it well, return immediately

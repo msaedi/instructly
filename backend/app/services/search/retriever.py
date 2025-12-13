@@ -10,6 +10,7 @@ Score fusion combines both approaches with configurable weights.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, Tuple
@@ -111,10 +112,11 @@ class PostgresRetriever:
         """
         Retrieve candidate services using hybrid search.
 
-        1. Generate query embedding
-        2. Run vector search (if embedding available)
-        3. Run trigram text search
-        4. Fuse scores and return top candidates
+        1. Check if embeddings exist in database
+        2. Generate query embedding (if embeddings exist)
+        3. Run vector search (if embedding available)
+        4. Run trigram text search
+        5. Fuse scores and return top candidates
 
         Args:
             parsed_query: Parsed query with service_query and original_query
@@ -131,12 +133,28 @@ class PostgresRetriever:
         degradation_reason: Optional[str] = None
         vector_search_used = False
 
+        # Initialize result containers
+        vector_results: Dict[str, Tuple[float, ServiceData]] = {}
+        text_results: Dict[str, Tuple[float, ServiceData]] = {}
+
+        # Step 0: Check if any embeddings exist in the database
+        embedding_count = await asyncio.to_thread(self.repository.count_embeddings)
+        if embedding_count == 0:
+            logger.warning("No embeddings in database - falling back to text-only search")
+            text_results = self._text_search(service_query, original_query, top_k)
+            candidates = self._fuse_scores({}, text_results, top_k)
+            return RetrievalResult(
+                candidates=candidates,
+                total_candidates=len(candidates),
+                vector_search_used=False,
+                degraded=True,
+                degradation_reason="no_embeddings_in_database",
+            )
+
         # Step 1: Try to get query embedding
         query_embedding = await self.embedding_service.embed_query(service_query)
 
         # Step 2: Run searches
-        vector_results: Dict[str, Tuple[float, ServiceData]] = {}
-        text_results: Dict[str, Tuple[float, ServiceData]] = {}
 
         if query_embedding:
             # Run both searches

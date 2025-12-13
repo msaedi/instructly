@@ -55,13 +55,14 @@ class RetrieverRepository:
                 ins.instructor_profile_id as instructor_id,
                 -- Normalize cosine distance to similarity score (0-1)
                 -- pgvector <=> returns distance [0, 2], convert to similarity
-                GREATEST(0, 1 - ((sc.embedding_v2 <=> :embedding::vector) / 2)) as vector_score
+                -- Use CAST() instead of :: to avoid SQLAlchemy parameter binding conflict
+                GREATEST(0, 1 - ((sc.embedding_v2 <=> CAST(:embedding AS vector)) / 2)) as vector_score
             FROM service_catalog sc
             JOIN instructor_services ins ON ins.service_catalog_id = sc.id
             WHERE sc.is_active = true
                 AND ins.is_active = true
                 AND sc.embedding_v2 IS NOT NULL
-            ORDER BY sc.embedding_v2 <=> :embedding::vector
+            ORDER BY sc.embedding_v2 <=> CAST(:embedding AS vector)
             LIMIT :limit
         """
         )
@@ -211,3 +212,24 @@ class RetrieverRepository:
             }
             for row in result
         ]
+
+    def count_embeddings(self) -> int:
+        """
+        Count services with embeddings populated.
+
+        Used to check if vector search will work before attempting it.
+        Returns 0 if no embeddings exist, indicating text-only fallback needed.
+
+        Returns:
+            Number of active services with embedding_v2 populated
+        """
+        result = self.db.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM service_catalog
+                WHERE embedding_v2 IS NOT NULL AND is_active = true
+            """
+            )
+        )
+        return result.scalar() or 0

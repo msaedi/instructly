@@ -11,12 +11,13 @@ from unittest.mock import Mock, patch
 import pytest
 
 from app.services.search.circuit_breaker import EMBEDDING_CIRCUIT
+from app.services.search.config import get_search_config
 from app.services.search.embedding_provider import (
     MockEmbeddingProvider,
     OpenAIEmbeddingProvider,
     create_embedding_provider,
 )
-from app.services.search.embedding_service import CURRENT_MODEL, EmbeddingService
+from app.services.search.embedding_service import EmbeddingService
 
 
 @pytest.fixture
@@ -268,7 +269,7 @@ class TestNeedsReembedding:
         """Should return True when service content changed."""
         service = Mock()
         service.embedding_v2 = [0.1] * 1536
-        service.embedding_model = CURRENT_MODEL
+        service.embedding_model = get_search_config().embedding_model
         service.embedding_text_hash = "old_hash"
         service.name = "Updated Name"
         service.description = "New description"
@@ -286,7 +287,7 @@ class TestNeedsReembedding:
         """Should return False when embedding is current."""
         service = Mock()
         service.embedding_v2 = [0.1] * 1536
-        service.embedding_model = CURRENT_MODEL
+        service.embedding_model = get_search_config().embedding_model
         service.name = "Piano Lessons"
         service.description = "Learn piano"
         service.category = None

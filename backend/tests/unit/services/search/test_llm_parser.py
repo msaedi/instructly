@@ -14,7 +14,8 @@ from app.services.search.circuit_breaker import (
     PARSING_CIRCUIT,
     CircuitState,
 )
-from app.services.search.llm_parser import LLM_MODEL, LLMParser, hybrid_parse
+from app.services.search.config import get_search_config
+from app.services.search.llm_parser import LLMParser, hybrid_parse
 from app.services.search.llm_schema import LLMParsedQuery
 from app.services.search.query_parser import ParsedQuery
 
@@ -349,8 +350,29 @@ class TestModelConfiguration:
     """Tests for model configuration."""
 
     def test_default_model(self) -> None:
-        """Default model should be gpt-4o-mini."""
-        assert "gpt-4o-mini" in LLM_MODEL
+        """Default model should be gpt-4o-mini when env var not set."""
+        from app.services.search import config as config_module
+
+        # Reset the singleton to test defaults
+        with config_module._config_lock:
+            original_config = config_module._config
+            config_module._config = None
+
+        try:
+            # Clear relevant env vars for this test
+            import os
+
+            orig_env = os.environ.pop("OPENAI_PARSING_MODEL", None)
+            try:
+                config = get_search_config()
+                assert "gpt-4o-mini" in config.parsing_model
+            finally:
+                if orig_env is not None:
+                    os.environ["OPENAI_PARSING_MODEL"] = orig_env
+        finally:
+            # Restore original config
+            with config_module._config_lock:
+                config_module._config = original_config
 
     def test_schema_fields(self) -> None:
         """LLM schema should have all required fields."""

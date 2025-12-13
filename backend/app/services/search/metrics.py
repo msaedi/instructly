@@ -101,6 +101,33 @@ SEARCH_REQUESTS = Counter(
 )
 
 
+def _bootstrap_metrics() -> None:
+    """
+    Bootstrap histograms with initial observations.
+
+    prometheus_client histograms only output bucket data after at least one
+    observation. This ensures metrics are visible in /metrics/prometheus
+    even before any actual searches occur. We observe 0 which goes into
+    the first bucket and has minimal impact on actual metrics.
+    """
+    # Bootstrap SEARCH_LATENCY - just need one observation per histogram
+    # to make buckets visible. Using minimal label set.
+    SEARCH_LATENCY.labels(stage="total", cache_hit="false", parsing_mode="regex").observe(0)
+
+    # Bootstrap OPENAI_LATENCY
+    OPENAI_LATENCY.labels(endpoint="embeddings").observe(0)
+
+    # Bootstrap QUERY_COMPLEXITY
+    QUERY_COMPLEXITY.labels(parsing_mode="regex").observe(0)
+
+    # Bootstrap SEARCH_RESULT_COUNT (no labels)
+    SEARCH_RESULT_COUNT.observe(0)
+
+
+# Bootstrap on module load
+_bootstrap_metrics()
+
+
 def record_search_metrics(
     total_latency_ms: int,
     stage_latencies: Dict[str, int],

@@ -142,15 +142,20 @@ class MockEmbeddingProvider:
         return self.dimensions
 
 
-def create_embedding_provider() -> EmbeddingProvider:
+def create_embedding_provider(model: Optional[str] = None) -> EmbeddingProvider:
     """
     Factory function to create the appropriate embedding provider.
 
+    Args:
+        model: Optional model override. If None, uses config or environment.
+
     Environment Variables:
     - EMBEDDING_PROVIDER: "openai" (default) or "mock"
-    - EMBEDDING_MODEL: Model name (default: "text-embedding-3-small")
+    - OPENAI_EMBEDDING_MODEL: Model name (default: "text-embedding-3-small")
     - EMBEDDING_DIMENSIONS: Vector dimensions (default: 1536)
     """
+    from app.services.search.config import get_search_config
+
     provider = os.getenv("EMBEDDING_PROVIDER", "openai")
     dimensions = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
 
@@ -158,6 +163,9 @@ def create_embedding_provider() -> EmbeddingProvider:
         logger.info("Using mock embedding provider")
         return MockEmbeddingProvider(dimensions=dimensions)
     else:
-        model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+        # Use provided model, config, or fall back to env
+        if model is None:
+            config = get_search_config()
+            model = config.embedding_model
         logger.info(f"Using OpenAI embedding provider: {model}")
         return OpenAIEmbeddingProvider(model=model, dimensions=dimensions)

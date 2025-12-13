@@ -24,10 +24,14 @@ from ...api.dependencies.services import get_cache_service_dep
 from ...database import get_db
 from ...ratelimit.dependency import rate_limit
 from ...schemas.nl_search import (
+    ModelOption,
     NLSearchResponse,
     PopularQueriesResponse,
     PopularQueryItem,
     SearchClickResponse,
+    SearchConfigResetResponse,
+    SearchConfigResponse,
+    SearchConfigUpdate,
     SearchHealthCache,
     SearchHealthComponents,
     SearchHealthResponse,
@@ -117,6 +121,7 @@ async def nl_search(
     q: str = Query(..., min_length=1, max_length=500, description="Natural language search query"),
     lat: Optional[float] = Query(None, ge=-90, le=90, description="User latitude"),
     lng: Optional[float] = Query(None, ge=-180, le=180, description="User longitude"),
+    region: str = Query("nyc", description="Region code for location/price lookups"),
     limit: int = Query(20, ge=1, le=50, description="Maximum results to return"),
     response: Response = None,
     db: Session = Depends(get_db),
@@ -141,6 +146,7 @@ async def nl_search(
         q: Natural language search query
         lat: User latitude (optional, must provide with lng)
         lng: User longitude (optional, must provide with lat)
+        region: Region code for location and price threshold lookups (default: nyc)
         limit: Maximum results to return (1-50, default 20)
         response: FastAPI response object for headers
         db: Database session
@@ -149,6 +155,8 @@ async def nl_search(
     Returns:
         Search results with ranked instructors and full metadata
     """
+    from ...repositories.search_analytics_repository import SearchAnalyticsRepository
+
     # Validate location (both or neither)
     user_location: Optional[tuple[float, float]] = None
     if lat is not None and lng is not None:
@@ -160,7 +168,7 @@ async def nl_search(
         )
 
     try:
-        service = NLSearchService(db, cache_service=cache_service)
+        service = NLSearchService(db, cache_service=cache_service, region_code=region)
         result = await service.search(
             query=q,
             user_location=user_location,
@@ -171,6 +179,42 @@ async def nl_search(
         if response:
             cache_ttl = 60 if not result.meta.cache_hit else 300
             response.headers["Cache-Control"] = f"public, max-age={cache_ttl}"
+
+        # Log search for analytics (non-blocking, don't fail search on logging error)
+        try:
+            if not result.meta.cache_hit:
+                analytics_repo = SearchAnalyticsRepository(db)
+                # Build normalized query from parsed info
+                parsed = result.meta.parsed
+                normalized_query = {
+                    "service_query": parsed.service_query,
+                    "location": parsed.location,
+                    "max_price": parsed.max_price,
+                    "date": parsed.date,
+                    "time_after": parsed.time_after,
+                    "audience_hint": parsed.audience_hint,
+                    "skill_level": parsed.skill_level,
+                    "urgency": parsed.urgency,
+                }
+                top_result_ids = [r.service_id for r in result.results[:10]]
+
+                search_query_id = await asyncio.to_thread(
+                    lambda: analytics_repo.nl_log_search_query(
+                        original_query=q,
+                        normalized_query=normalized_query,
+                        parsing_mode=result.meta.parsing_mode,
+                        parsing_latency_ms=0,  # Not tracked separately in response
+                        result_count=result.meta.total_results,
+                        top_result_ids=top_result_ids,
+                        total_latency_ms=result.meta.latency_ms,
+                        cache_hit=result.meta.cache_hit,
+                        degraded=result.meta.degraded,
+                    )
+                )
+                # Update result with search_query_id for click tracking
+                result.meta.search_query_id = search_query_id
+        except Exception as log_err:
+            logger.warning(f"Failed to log search analytics: {log_err}")
 
         return result
 
@@ -297,3 +341,101 @@ async def log_search_click(
         action=action,
     )
     return SearchClickResponse(click_id=click_id)
+
+
+# ===== Configuration Endpoints =====
+
+
+@router.get("/config", response_model=SearchConfigResponse)
+async def get_config() -> SearchConfigResponse:
+    """
+    Get current NL search configuration.
+
+    Returns the currently active models and timeouts along with
+    available options for the admin UI.
+    """
+    from ...services.search.config import (
+        AVAILABLE_EMBEDDING_MODELS,
+        AVAILABLE_PARSING_MODELS,
+        get_search_config,
+    )
+
+    config = get_search_config()
+    return SearchConfigResponse(
+        parsing_model=config.parsing_model,
+        parsing_timeout_ms=config.parsing_timeout_ms,
+        embedding_model=config.embedding_model,
+        embedding_timeout_ms=config.embedding_timeout_ms,
+        available_parsing_models=[ModelOption(**m) for m in AVAILABLE_PARSING_MODELS],
+        available_embedding_models=[ModelOption(**m) for m in AVAILABLE_EMBEDDING_MODELS],
+    )
+
+
+@router.put("/config", response_model=SearchConfigResponse)
+async def update_config(update: SearchConfigUpdate) -> SearchConfigResponse:
+    """
+    Update NL search configuration at runtime.
+
+    Changes are temporary (not persisted to environment).
+    Useful for testing different models without redeployment.
+    Server restart will revert to environment defaults.
+
+    Note: Embedding model cannot be changed at runtime as it requires
+    re-generating all embeddings in the database.
+    """
+    from ...services.search.config import (
+        AVAILABLE_EMBEDDING_MODELS,
+        AVAILABLE_PARSING_MODELS,
+        update_search_config,
+    )
+
+    # Prevent embedding model changes at runtime
+    # Changing requires re-running embedding generation for all services
+    if update.embedding_model is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Embedding model cannot be changed at runtime. "
+            "Change OPENAI_EMBEDDING_MODEL in .env and re-run "
+            "python scripts/generate_openai_embeddings.py",
+        )
+
+    config = update_search_config(
+        parsing_model=update.parsing_model,
+        parsing_timeout_ms=update.parsing_timeout_ms,
+        embedding_timeout_ms=update.embedding_timeout_ms,
+    )
+    return SearchConfigResponse(
+        parsing_model=config.parsing_model,
+        parsing_timeout_ms=config.parsing_timeout_ms,
+        embedding_model=config.embedding_model,
+        embedding_timeout_ms=config.embedding_timeout_ms,
+        available_parsing_models=[ModelOption(**m) for m in AVAILABLE_PARSING_MODELS],
+        available_embedding_models=[ModelOption(**m) for m in AVAILABLE_EMBEDDING_MODELS],
+    )
+
+
+@router.post("/config/reset", response_model=SearchConfigResetResponse)
+async def reset_config() -> SearchConfigResetResponse:
+    """
+    Reset NL search configuration to environment defaults.
+
+    Use this to revert any runtime changes made via PUT /config.
+    """
+    from ...services.search.config import (
+        AVAILABLE_EMBEDDING_MODELS,
+        AVAILABLE_PARSING_MODELS,
+        reset_search_config,
+    )
+
+    config = reset_search_config()
+    return SearchConfigResetResponse(
+        status="reset",
+        config=SearchConfigResponse(
+            parsing_model=config.parsing_model,
+            parsing_timeout_ms=config.parsing_timeout_ms,
+            embedding_model=config.embedding_model,
+            embedding_timeout_ms=config.embedding_timeout_ms,
+            available_parsing_models=[ModelOption(**m) for m in AVAILABLE_PARSING_MODELS],
+            available_embedding_models=[ModelOption(**m) for m in AVAILABLE_EMBEDDING_MODELS],
+        ),
+    )

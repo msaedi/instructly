@@ -83,6 +83,7 @@ class NLSearchMeta(BaseModel):
         default_factory=list, description="Reasons for degradation"
     )
     parsing_mode: str = Field("regex", description="Parsing mode used (regex/llm)")
+    search_query_id: Optional[str] = Field(None, description="Search query ID for click tracking")
 
 
 class NLSearchResponse(BaseModel):
@@ -135,7 +136,7 @@ class PopularQueryItem(BaseModel):
     query: str = Field(..., description="Search query text")
     count: int = Field(..., ge=1, description="Number of times searched")
     avg_results: float = Field(..., ge=0, description="Average results for this query")
-    last_searched: str = Field(..., description="Last search timestamp")
+    avg_latency_ms: Optional[float] = Field(None, ge=0, description="Average latency in ms")
 
 
 class PopularQueriesResponse(BaseModel):
@@ -162,3 +163,49 @@ class SearchClickResponse(BaseModel):
     """Response for logging a search click."""
 
     click_id: str = Field(..., description="ID of the logged click")
+
+
+# =============================================================================
+# Search Config Schemas
+# =============================================================================
+
+
+class ModelOption(BaseModel):
+    """A selectable model option."""
+
+    id: str = Field(..., description="Model identifier")
+    name: str = Field(..., description="Display name")
+    description: str = Field(..., description="Model description")
+
+
+class SearchConfigResponse(BaseModel):
+    """Current search configuration."""
+
+    parsing_model: str = Field(..., description="Current parsing model")
+    parsing_timeout_ms: int = Field(..., ge=500, le=10000, description="Parsing timeout in ms")
+    embedding_model: str = Field(..., description="Current embedding model")
+    embedding_timeout_ms: int = Field(..., ge=500, le=10000, description="Embedding timeout in ms")
+    available_parsing_models: List[ModelOption] = Field(..., description="Available parsing models")
+    available_embedding_models: List[ModelOption] = Field(
+        ..., description="Available embedding models"
+    )
+
+
+class SearchConfigUpdate(BaseModel):
+    """Request to update search configuration."""
+
+    parsing_model: Optional[str] = Field(None, description="New parsing model")
+    parsing_timeout_ms: Optional[int] = Field(
+        None, ge=500, le=10000, description="New parsing timeout in ms"
+    )
+    embedding_model: Optional[str] = Field(None, description="New embedding model")
+    embedding_timeout_ms: Optional[int] = Field(
+        None, ge=500, le=10000, description="New embedding timeout in ms"
+    )
+
+
+class SearchConfigResetResponse(BaseModel):
+    """Response after resetting configuration."""
+
+    status: str = Field(..., description="Reset status")
+    config: SearchConfigResponse = Field(..., description="Current config after reset")

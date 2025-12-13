@@ -74,6 +74,7 @@ class NLSearchService:
     7. Response caching
 
     All stages support graceful degradation.
+    Supports multi-region architecture via region_code parameter.
     """
 
     def __init__(
@@ -82,9 +83,11 @@ class NLSearchService:
         cache_service: Optional["CacheService"] = None,
         search_cache: Optional[SearchCacheService] = None,
         embedding_service: Optional[EmbeddingService] = None,
+        region_code: str = "nyc",
     ) -> None:
         self.db = db
         self._cache_service = cache_service
+        self._region_code = region_code
 
         # Initialize search cache
         self.search_cache = search_cache or SearchCacheService(cache_service=cache_service)
@@ -95,7 +98,7 @@ class NLSearchService:
         )
 
         # Initialize pipeline components
-        self.parser = QueryParser(db)
+        self.parser = QueryParser(db, region_code=region_code)
         self.retriever = PostgresRetriever(db, self.embedding_service)
         self.filter_service = FilterService(db)
         self.ranking_service = RankingService(db)
@@ -200,7 +203,7 @@ class NLSearchService:
                 return cached_parsed
 
             # Parse with hybrid approach
-            parsed = await hybrid_parse(query, self.db, user_id)
+            parsed = await hybrid_parse(query, self.db, user_id, region_code=self._region_code)
 
             # Cache the parsed query
             self.search_cache.cache_parsed_query(query, parsed)

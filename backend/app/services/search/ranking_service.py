@@ -448,7 +448,9 @@ class RankingService:
             score += 0.2
         if metrics.get("has_identity_verified"):
             score += 0.2
-        if metrics.get("response_rate", 0) > 0.8:
+        # response_rate is stored as 0-100 in DB, normalize to 0-1
+        response_rate = (metrics.get("response_rate") or 0) / 100
+        if response_rate > 0.8:
             score += 0.2
 
         return score

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { Search, Server, Code, FlaskConical, Gift, ShieldCheck, SlidersHorizontal, Award } from 'lucide-react';
+import { Search, Server, Code, FlaskConical, Gift, ShieldCheck, SlidersHorizontal, Award, Sparkles } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useBGCCounts } from './bgc-review/hooks';
@@ -98,6 +98,15 @@ function AdminSidebar() {
       icon: Code,
       items: [
         { name: 'Codebase', href: '/admin/engineering/codebase' },
+      ],
+    },
+    {
+      key: 'nl-search',
+      label: 'NL Search',
+      href: '/admin/nl-search',
+      icon: Sparkles,
+      items: [
+        { name: 'Testing', href: '/admin/nl-search' },
       ],
     },
     {

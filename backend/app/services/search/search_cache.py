@@ -35,6 +35,25 @@ PARSED_PREFIX = "parsed"
 LOCATION_PREFIX = "geo"
 VERSION_KEY = "search:current_version"
 
+# Relative date indicators - queries with these shouldn't be cached
+# because the resolved date will be stale the next day
+RELATIVE_DATE_INDICATORS = [
+    "today",
+    "tomorrow",
+    "tonight",
+    "this week",
+    "this weekend",
+    "next week",
+    "next weekend",
+    "next monday",
+    "next tuesday",
+    "next wednesday",
+    "next thursday",
+    "next friday",
+    "next saturday",
+    "next sunday",
+]
+
 
 @dataclass
 class CachedLocation:
@@ -108,9 +127,18 @@ class SearchCacheService:
         """
         Cache a search response.
 
+        Skips caching for queries with relative date references (e.g., "tomorrow")
+        because the resolved date will be stale the next day.
+
         Returns True if cached successfully.
         """
         if not self.cache:
+            return False
+
+        # Don't cache queries with relative date references
+        query_lower = query.lower()
+        if any(indicator in query_lower for indicator in RELATIVE_DATE_INDICATORS):
+            logger.debug(f"Skipping response cache for relative date query: {query[:30]}")
             return False
 
         key = self._response_cache_key(query, user_location, filters)
@@ -134,9 +162,11 @@ class SearchCacheService:
         version = self._get_cache_version()
 
         # Build normalized key data
+        # Normalize query: lowercase, strip whitespace, collapse multiple spaces
+        normalized_query = " ".join(query.lower().split())
         key_data = {
-            "q": query.lower().strip(),
-            "loc": f"{user_location[0]:.4f},{user_location[1]:.4f}" if user_location else None,
+            "q": normalized_query,
+            "loc": f"{user_location[0]:.3f},{user_location[1]:.3f}" if user_location else None,
             "f": json.dumps(filters, sort_keys=True) if filters else None,
         }
 
@@ -169,8 +199,17 @@ class SearchCacheService:
 
         try:
             # Use Redis INCR if available, otherwise get/set
-            if self.cache.redis:
-                new_version = self.cache.redis.incr(VERSION_KEY)
+            redis_client = getattr(self.cache, "redis", None)
+            if redis_client is not None:
+                # Redis INCR is atomic and returns new value
+                incr_fn = getattr(redis_client, "incr", None)
+                if incr_fn is not None:
+                    new_version = incr_fn(VERSION_KEY)
+                else:
+                    # Fallback if incr not available
+                    current = self._get_cache_version()
+                    new_version = current + 1
+                    self.cache.set(VERSION_KEY, new_version, ttl=60 * 60 * 24 * 30)
             else:
                 # Memory fallback: get, increment, set
                 current = self._get_cache_version()
@@ -243,9 +282,18 @@ class SearchCacheService:
         """
         Cache a parsed query.
 
+        Skips caching for queries with relative date references (e.g., "tomorrow")
+        because the resolved date will be stale the next day.
+
         Returns True if cached successfully.
         """
         if not self.cache:
+            return False
+
+        # Don't cache queries with relative date references
+        query_lower = query.lower()
+        if any(indicator in query_lower for indicator in RELATIVE_DATE_INDICATORS):
+            logger.debug(f"Skipping cache for relative date query: {query[:30]}")
             return False
 
         key = self._parsed_cache_key(query)
@@ -261,7 +309,8 @@ class SearchCacheService:
 
     def _parsed_cache_key(self, query: str) -> str:
         """Generate parsed query cache key."""
-        normalized = query.lower().strip()
+        # Normalize: lowercase, collapse multiple spaces
+        normalized = " ".join(query.lower().split())
         key_hash = hashlib.sha256(normalized.encode()).hexdigest()[:16]
         return f"{PARSED_PREFIX}:{key_hash}"
 

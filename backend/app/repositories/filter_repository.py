@@ -210,7 +210,7 @@ class FilterRepository:
         duration_minutes: int = 60,
     ) -> Dict[str, List[date]]:
         """
-        Filter instructors by availability.
+        Filter instructors by availability using a single batched query.
 
         If target_date specified: Check that date only
         If no date: Check next 7 days, return dates with availability
@@ -228,8 +228,6 @@ class FilterRepository:
         if not instructor_ids:
             return {}
 
-        results: Dict[str, List[date]] = {}
-
         if target_date:
             dates_to_check = [target_date]
         else:
@@ -237,20 +235,44 @@ class FilterRepository:
             today = _get_today_nyc()
             dates_to_check = [today + timedelta(days=i) for i in range(7)]
 
-        for instructor_id in instructor_ids:
-            available_dates = []
-            for check_date in dates_to_check:
-                if self.check_availability_single_date(
-                    instructor_id,
-                    check_date,
-                    time_after,
-                    time_before,
-                    duration_minutes,
-                ):
-                    available_dates.append(check_date)
+        # Single batched query for all instructors and all dates
+        query = text(
+            """
+            SELECT ad.instructor_id, ad.day_date
+            FROM availability_days ad
+            WHERE ad.instructor_id = ANY(:instructor_ids)
+              AND ad.day_date = ANY(:dates)
+              AND ad.bits IS NOT NULL
+              AND check_availability(
+                  ad.instructor_id,
+                  ad.day_date,
+                  :time_after,
+                  :time_before,
+                  :duration
+              )
+            ORDER BY ad.instructor_id, ad.day_date
+        """
+        )
 
-            if available_dates:
-                results[instructor_id] = available_dates
+        result = self.db.execute(
+            query,
+            {
+                "instructor_ids": instructor_ids,
+                "dates": dates_to_check,
+                "time_after": time_after,
+                "time_before": time_before,
+                "duration": duration_minutes,
+            },
+        )
+
+        # Group results by instructor
+        results: Dict[str, List[date]] = {}
+        for row in result:
+            instructor_id = row.instructor_id
+            day_date = row.day_date
+            if instructor_id not in results:
+                results[instructor_id] = []
+            results[instructor_id].append(day_date)
 
         return results
 
@@ -314,31 +336,53 @@ class FilterRepository:
         duration_minutes: int = 60,
     ) -> Dict[str, List[date]]:
         """
-        Check availability for weekend (Saturday OR Sunday).
+        Check availability for weekend (Saturday OR Sunday) using batched query.
 
         Instructor passes if available on EITHER day.
 
         Returns:
             Dict mapping instructor_id to list of available weekend dates
         """
+        if not instructor_ids:
+            return {}
+
+        # Use single batched query for both weekend days
+        query = text(
+            """
+            SELECT ad.instructor_id, ad.day_date
+            FROM availability_days ad
+            WHERE ad.instructor_id = ANY(:instructor_ids)
+              AND ad.day_date = ANY(:dates)
+              AND ad.bits IS NOT NULL
+              AND check_availability(
+                  ad.instructor_id,
+                  ad.day_date,
+                  :time_after,
+                  :time_before,
+                  :duration
+              )
+            ORDER BY ad.instructor_id, ad.day_date
+        """
+        )
+
+        result = self.db.execute(
+            query,
+            {
+                "instructor_ids": instructor_ids,
+                "dates": [saturday, sunday],
+                "time_after": time_after,
+                "time_before": time_before,
+                "duration": duration_minutes,
+            },
+        )
+
+        # Group results by instructor
         results: Dict[str, List[date]] = {}
-
-        for instructor_id in instructor_ids:
-            available_dates = []
-
-            # Check Saturday
-            if self.check_availability_single_date(
-                instructor_id, saturday, time_after, time_before, duration_minutes
-            ):
-                available_dates.append(saturday)
-
-            # Check Sunday
-            if self.check_availability_single_date(
-                instructor_id, sunday, time_after, time_before, duration_minutes
-            ):
-                available_dates.append(sunday)
-
-            if available_dates:
-                results[instructor_id] = available_dates
+        for row in result:
+            instructor_id = row.instructor_id
+            day_date = row.day_date
+            if instructor_id not in results:
+                results[instructor_id] = []
+            results[instructor_id].append(day_date)
 
         return results

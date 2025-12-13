@@ -102,24 +102,32 @@ class QueryParser:
     """
     Fast-path regex parser for NL search queries.
 
+    Supports multi-region architecture via region_code parameter.
+
     Usage:
-        parser = QueryParser(db_session, user_id="user123")
+        parser = QueryParser(db_session, user_id="user123", region_code="nyc")
         result = parser.parse("piano lessons under $50 tomorrow in brooklyn")
     """
 
-    def __init__(self, db: "Session", user_id: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        db: "Session",
+        user_id: Optional[str] = None,
+        region_code: str = "nyc",
+    ) -> None:
         self.db = db
         self._user_id = user_id
-        self._location_cache: Optional[Dict[str, Dict[str, str]]] = None
-        self._price_thresholds: Optional[Dict[Tuple[str, str], int]] = None
+        self._region_code = region_code
+        self._location_cache: Optional[Dict[str, Dict[str, Optional[str]]]] = None
+        self._price_thresholds: Optional[Dict[Tuple[str, str], Dict[str, Optional[int]]]] = None
 
         # Initialize repositories (lazy import to avoid circular imports)
         from app.repositories.nl_search_repository import (
-            NYCLocationRepository,
             PriceThresholdRepository,
+            SearchLocationRepository,
         )
 
-        self._location_repository = NYCLocationRepository(db)
+        self._location_repository = SearchLocationRepository(db)
         self._price_threshold_repository = PriceThresholdRepository(db)
 
     def _get_user_today(self) -> DateType:
@@ -426,34 +434,47 @@ class QueryParser:
                 return query, result
 
         # Direct location name match (without preposition)
+        # Use word boundary regex to avoid substring matches (e.g., "si" in "singing")
         if self._location_cache:
+            query_lower = query.lower()
             for name, info in self._location_cache.items():
-                if name in query:
+                # Use word boundary \b to ensure we match whole words only
+                pattern = r"\b" + re.escape(name) + r"\b"
+                if re.search(pattern, query_lower):
                     result.location_text = info["name"]
                     result.location_type = info["type"]  # type: ignore[assignment]
-                    query = query.replace(name, "")
+                    # Remove the matched location using word boundaries
+                    query = re.sub(pattern, "", query, flags=re.IGNORECASE)
                     return query, result
 
         return query, result
 
     def _load_location_cache(self) -> None:
-        """Load NYC locations from database into memory cache."""
-        self._location_cache = self._location_repository.build_location_cache()
+        """Load locations for current region from database into memory cache."""
+        self._location_cache = self._location_repository.build_location_cache(
+            region_code=self._region_code
+        )
 
-    def _match_location(self, text: str) -> Optional[Dict[str, str]]:
-        """Match location text against known NYC locations."""
+    def _match_location(self, text: str) -> Optional[Dict[str, Optional[str]]]:
+        """Match location text against known locations for the current region."""
         text = text.lower().strip()
 
         if self._location_cache is None:
             return None
 
-        # Direct match
+        # Direct exact match
         if text in self._location_cache:
             return self._location_cache[text]
 
-        # Partial match (e.g., "park slope" matches "park slope")
+        # Word boundary match to avoid false positives (e.g., "si" in "signing")
         for name, info in self._location_cache.items():
-            if name in text or text in name:
+            # Use word boundary regex for partial matching
+            pattern = r"\b" + re.escape(name) + r"\b"
+            if re.search(pattern, text):
+                return info
+            # Also check if the text is a word-bounded substring of the location name
+            text_pattern = r"\b" + re.escape(text) + r"\b"
+            if re.search(text_pattern, name):
                 return info
 
         return None
@@ -490,7 +511,7 @@ class QueryParser:
         return query, result
 
     def _resolve_price_intent(self, result: ParsedQuery) -> ParsedQuery:
-        """Convert price_intent to max_price based on detected category."""
+        """Convert price_intent to max_price/min_price based on detected category."""
 
         if result.max_price is not None or result.price_intent is None:
             return result  # Already have explicit price or no intent
@@ -505,13 +526,20 @@ class QueryParser:
         # Look up threshold
         if self._price_thresholds:
             key = (category, result.price_intent)
-            if key in self._price_thresholds:
-                result.max_price = self._price_thresholds[key]
-            else:
+            threshold_info = self._price_thresholds.get(key)
+
+            if threshold_info is None:
                 # Fallback to general
                 fallback_key = ("general", result.price_intent)
-                if fallback_key in self._price_thresholds:
-                    result.max_price = self._price_thresholds[fallback_key]
+                threshold_info = self._price_thresholds.get(fallback_key)
+
+            if threshold_info:
+                # For budget/standard: use max_price
+                # For premium: use min_price
+                if result.price_intent == "premium":
+                    result.min_price = threshold_info.get("min_price")
+                else:
+                    result.max_price = threshold_info.get("max_price")
 
         return result
 
@@ -524,8 +552,10 @@ class QueryParser:
         return "general"
 
     def _load_price_thresholds(self) -> None:
-        """Load price thresholds from database."""
-        self._price_thresholds = self._price_threshold_repository.build_threshold_cache()
+        """Load price thresholds for current region from database."""
+        self._price_thresholds = self._price_threshold_repository.build_threshold_cache(
+            region_code=self._region_code
+        )
 
     def _clean_service_query(self, query: str) -> str:
         """Clean up remaining query text to get service query."""

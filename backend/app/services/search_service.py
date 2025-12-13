@@ -1,17 +1,29 @@
 # backend/app/services/search_service.py
 """
-Natural Language Search Service for InstaInstru
+DEPRECATED: This search service uses sentence-transformers (384-dim embeddings).
 
-Provides intelligent search capabilities that understand queries like:
-- "piano lessons under $50 today"
-- "online math tutoring for high school"
-- "yoga classes in Brooklyn this weekend"
+Use NLSearchService from app/services/search/nl_search_service.py instead,
+which uses OpenAI embeddings (1536-dim) with full NL understanding.
 
-This service parses natural language, generates embeddings, and coordinates
-with repositories to find the best matches.
+This file is kept temporarily for backward compatibility but should be removed.
+The new NLSearchService provides:
+- Better semantic understanding
+- Multi-signal ranking
+- Full constraint filtering (price, location, availability)
+- Analytics integration
+
+Old behavior maintained for /api/v1/search/instructors endpoint.
 """
 
 from __future__ import annotations
+
+import warnings
+
+warnings.warn(
+    "search_service.py is deprecated. Use NLSearchService instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from datetime import datetime, timezone
 import hashlib

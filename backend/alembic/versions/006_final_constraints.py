@@ -1460,96 +1460,150 @@ def upgrade() -> None:
     op.create_index("idx_search_clicks_query", "search_clicks", ["search_query_id"])
     op.create_index("idx_search_clicks_service", "search_clicks", ["service_id"])
 
-    # --- 5. Create nyc_locations table (reference data) ---
-    print("Creating nyc_locations table for location reference...")
+    # --- 5. Create search_locations table (scalable multi-city reference data) ---
+    print("Creating search_locations table for location reference...")
     op.create_table(
-        "nyc_locations",
+        "search_locations",
         sa.Column("id", sa.Text(), nullable=False),
+        sa.Column("region_code", sa.Text(), nullable=False, server_default="nyc"),
+        sa.Column("country_code", sa.Text(), nullable=False, server_default="us"),
         sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("type", sa.Text(), nullable=False),  # 'borough', 'neighborhood'
-        sa.Column("borough", sa.Text(), nullable=False),
+        sa.Column("type", sa.Text(), nullable=False),  # 'city', 'borough', 'neighborhood', 'district'
+        sa.Column("parent_name", sa.Text(), nullable=True),
+        sa.Column("borough", sa.Text(), nullable=True),  # Legacy, for compatibility
         sa.Column("aliases", sa.ARRAY(sa.Text()) if is_postgres else sa.JSON(), nullable=True),
-        sa.Column("lat", sa.Float(), nullable=False),
-        sa.Column("lng", sa.Float(), nullable=False),
+        sa.Column("lat", sa.Float(), nullable=True),
+        sa.Column("lng", sa.Float(), nullable=True),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("name", "type", name="uq_nyc_locations_name_type"),
+        sa.UniqueConstraint("region_code", "name", "type", name="uq_search_locations_region_name_type"),
     )
     if is_postgres:
         op.execute(
             """
-            CREATE INDEX idx_nyc_locations_name_trgm
-            ON nyc_locations USING GIN (name gin_trgm_ops);
+            CREATE INDEX idx_search_locations_name_trgm
+            ON search_locations USING GIN (name gin_trgm_ops);
+            CREATE INDEX idx_search_locations_region_type
+            ON search_locations(region_code, type);
             """
         )
 
-    # Seed NYC boroughs and key neighborhoods
-    print("Seeding nyc_locations with boroughs and key neighborhoods...")
+    # --- 5b. Create region_settings table (per-region configuration) ---
+    print("Creating region_settings table for per-region configuration...")
+    op.create_table(
+        "region_settings",
+        sa.Column("id", sa.Text(), nullable=False),
+        sa.Column("region_code", sa.Text(), nullable=False),
+        sa.Column("region_name", sa.Text(), nullable=False),
+        sa.Column("country_code", sa.Text(), nullable=False, server_default="us"),
+        sa.Column("timezone", sa.Text(), nullable=False),
+        sa.Column("price_floor_in_person", sa.Integer(), nullable=False),
+        sa.Column("price_floor_remote", sa.Integer(), nullable=False),
+        sa.Column("currency_code", sa.Text(), nullable=False, server_default="USD"),
+        sa.Column("student_fee_percent", sa.Numeric(5, 2), nullable=False, server_default="12.0"),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("launch_date", sa.Date(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("region_code", name="uq_region_settings_region_code"),
+    )
+
+    # Seed region settings
+    print("Seeding region_settings with initial regions...")
     op.execute(
         """
-        INSERT INTO nyc_locations (id, name, type, borough, aliases, lat, lng) VALUES
-          ('loc_manhattan', 'Manhattan', 'borough', 'Manhattan',
-           ARRAY['nyc', 'new york', 'the city'],
+        INSERT INTO region_settings (id, region_code, region_name, timezone, price_floor_in_person, price_floor_remote, is_active)
+        VALUES
+            ('rs_nyc', 'nyc', 'New York City', 'America/New_York', 80, 60, true),
+            ('rs_chicago', 'chicago', 'Chicago', 'America/Chicago', 60, 45, false),
+            ('rs_la', 'la', 'Los Angeles', 'America/Los_Angeles', 75, 55, false),
+            ('rs_sf', 'sf', 'San Francisco', 'America/Los_Angeles', 85, 65, false)
+        ON CONFLICT (id) DO NOTHING;
+        """
+    )
+
+    # Seed NYC boroughs and key neighborhoods
+    print("Seeding search_locations with NYC boroughs and key neighborhoods...")
+    op.execute(
+        """
+        INSERT INTO search_locations (id, region_code, country_code, name, type, parent_name, borough, aliases, lat, lng) VALUES
+          ('loc_nyc_city', 'nyc', 'us', 'New York City', 'city', NULL, NULL,
+           ARRAY['nyc', 'new york', 'ny', 'new york city'],
+           40.7128, -74.0060),
+          ('loc_manhattan', 'nyc', 'us', 'Manhattan', 'borough', 'New York City', 'Manhattan',
+           ARRAY['manhattan', 'nyc', 'the city'],
            40.7831, -73.9712),
-          ('loc_brooklyn', 'Brooklyn', 'borough', 'Brooklyn',
+          ('loc_brooklyn', 'nyc', 'us', 'Brooklyn', 'borough', 'New York City', 'Brooklyn',
            ARRAY['bk', 'bklyn', 'kings county'],
            40.6782, -73.9442),
-          ('loc_queens', 'Queens', 'borough', 'Queens',
+          ('loc_queens', 'nyc', 'us', 'Queens', 'borough', 'New York City', 'Queens',
            ARRAY['qns'],
            40.7282, -73.7949),
-          ('loc_bronx', 'Bronx', 'borough', 'Bronx',
+          ('loc_bronx', 'nyc', 'us', 'Bronx', 'borough', 'New York City', 'Bronx',
            ARRAY['the bronx', 'bx'],
            40.8448, -73.8648),
-          ('loc_staten_island', 'Staten Island', 'borough', 'Staten Island',
-           ARRAY['si', 'richmond county'],
+          ('loc_staten_island', 'nyc', 'us', 'Staten Island', 'borough', 'New York City', 'Staten Island',
+           ARRAY['si', 'staten', 'richmond county'],
            40.5795, -74.1502),
-          ('loc_park_slope', 'Park Slope', 'neighborhood', 'Brooklyn',
-           ARRAY['parkslope'],
+          ('loc_park_slope', 'nyc', 'us', 'Park Slope', 'neighborhood', 'Brooklyn', 'Brooklyn',
+           ARRAY['parkslope', 'the slope'],
            40.6721, -73.9772),
-          ('loc_williamsburg', 'Williamsburg', 'neighborhood', 'Brooklyn',
+          ('loc_williamsburg', 'nyc', 'us', 'Williamsburg', 'neighborhood', 'Brooklyn', 'Brooklyn',
            ARRAY['wburg', 'billyburg'],
            40.7081, -73.9572),
-          ('loc_upper_west_side', 'Upper West Side', 'neighborhood', 'Manhattan',
-           ARRAY['uws'],
+          ('loc_upper_west_side', 'nyc', 'us', 'Upper West Side', 'neighborhood', 'Manhattan', 'Manhattan',
+           ARRAY['uws', 'upper west'],
            40.7870, -73.9800),
-          ('loc_upper_east_side', 'Upper East Side', 'neighborhood', 'Manhattan',
-           ARRAY['ues'],
+          ('loc_upper_east_side', 'nyc', 'us', 'Upper East Side', 'neighborhood', 'Manhattan', 'Manhattan',
+           ARRAY['ues', 'upper east'],
            40.7736, -73.9597)
         ON CONFLICT (id) DO NOTHING;
         """
     )
 
-    # --- 6. Create price_thresholds table (configuration) ---
+    # --- 6. Create price_thresholds table (configuration with region support) ---
     print("Creating price_thresholds table for price intent mapping...")
     op.create_table(
         "price_thresholds",
         sa.Column("id", sa.Text(), nullable=False),
+        sa.Column("region_code", sa.Text(), nullable=False, server_default="nyc"),
         sa.Column("category", sa.Text(), nullable=False),  # 'music', 'tutoring', 'sports', 'language', 'general'
         sa.Column("intent", sa.Text(), nullable=False),  # 'budget', 'standard', 'premium'
-        sa.Column("max_price", sa.Integer(), nullable=False),
+        sa.Column("max_price", sa.Integer(), nullable=True),  # For budget/standard
+        sa.Column("min_price", sa.Integer(), nullable=True),  # For premium
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("category", "intent", name="uq_price_thresholds_category_intent"),
+        sa.UniqueConstraint("region_code", "category", "intent", name="uq_price_thresholds_region_category_intent"),
     )
 
-    # Seed price thresholds
-    print("Seeding price_thresholds with category defaults...")
+    # Seed price thresholds (NYC and global fallback)
+    print("Seeding price_thresholds with NYC and global defaults...")
     op.execute(
         """
-        INSERT INTO price_thresholds (id, category, intent, max_price) VALUES
-          ('pt_music_budget', 'music', 'budget', 60),
-          ('pt_music_standard', 'music', 'standard', 100),
-          ('pt_music_premium', 'music', 'premium', 999999),
-          ('pt_tutoring_budget', 'tutoring', 'budget', 50),
-          ('pt_tutoring_standard', 'tutoring', 'standard', 80),
-          ('pt_tutoring_premium', 'tutoring', 'premium', 999999),
-          ('pt_sports_budget', 'sports', 'budget', 40),
-          ('pt_sports_standard', 'sports', 'standard', 70),
-          ('pt_sports_premium', 'sports', 'premium', 999999),
-          ('pt_language_budget', 'language', 'budget', 45),
-          ('pt_language_standard', 'language', 'standard', 75),
-          ('pt_language_premium', 'language', 'premium', 999999),
-          ('pt_general_budget', 'general', 'budget', 50),
-          ('pt_general_standard', 'general', 'standard', 80),
-          ('pt_general_premium', 'general', 'premium', 999999)
+        -- NYC thresholds (floor is $80, budget = $100)
+        INSERT INTO price_thresholds (id, region_code, category, intent, max_price, min_price) VALUES
+          ('pt_nyc_music_budget', 'nyc', 'music', 'budget', 100, NULL),
+          ('pt_nyc_music_standard', 'nyc', 'music', 'standard', 150, 100),
+          ('pt_nyc_music_premium', 'nyc', 'music', 'premium', NULL, 150),
+          ('pt_nyc_tutoring_budget', 'nyc', 'tutoring', 'budget', 100, NULL),
+          ('pt_nyc_tutoring_standard', 'nyc', 'tutoring', 'standard', 150, 100),
+          ('pt_nyc_tutoring_premium', 'nyc', 'tutoring', 'premium', NULL, 150),
+          ('pt_nyc_sports_budget', 'nyc', 'sports', 'budget', 100, NULL),
+          ('pt_nyc_sports_standard', 'nyc', 'sports', 'standard', 150, 100),
+          ('pt_nyc_sports_premium', 'nyc', 'sports', 'premium', NULL, 150),
+          ('pt_nyc_language_budget', 'nyc', 'language', 'budget', 100, NULL),
+          ('pt_nyc_language_standard', 'nyc', 'language', 'standard', 150, 100),
+          ('pt_nyc_language_premium', 'nyc', 'language', 'premium', NULL, 150),
+          ('pt_nyc_general_budget', 'nyc', 'general', 'budget', 100, NULL),
+          ('pt_nyc_general_standard', 'nyc', 'general', 'standard', 150, 100),
+          ('pt_nyc_general_premium', 'nyc', 'general', 'premium', NULL, 150),
+          -- Global fallback thresholds
+          ('pt_global_general_budget', 'global', 'general', 'budget', 80, NULL),
+          ('pt_global_general_standard', 'global', 'general', 'standard', 130, 80),
+          ('pt_global_general_premium', 'global', 'general', 'premium', NULL, 130)
         ON CONFLICT (id) DO NOTHING;
         """
     )
@@ -1722,11 +1776,16 @@ def downgrade() -> None:
     print("Dropping price_thresholds table...")
     op.drop_table("price_thresholds")
 
-    # Drop nyc_locations table
-    print("Dropping nyc_locations table...")
+    # Drop region_settings table
+    print("Dropping region_settings table...")
+    op.drop_table("region_settings")
+
+    # Drop search_locations table
+    print("Dropping search_locations table...")
     if is_postgres:
-        op.execute("DROP INDEX IF EXISTS idx_nyc_locations_name_trgm;")
-    op.drop_table("nyc_locations")
+        op.execute("DROP INDEX IF EXISTS idx_search_locations_name_trgm;")
+        op.execute("DROP INDEX IF EXISTS idx_search_locations_region_type;")
+    op.drop_table("search_locations")
 
     # Drop search_clicks table
     print("Dropping search_clicks table...")

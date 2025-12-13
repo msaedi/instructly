@@ -38,7 +38,14 @@ from .message import (
 from .monitoring import AlertHistory
 
 # NL Search models
-from .nl_search import NYCLocation, PriceThreshold, SearchClick, SearchQuery
+from .nl_search import (
+    NYCLocation,  # Backward compatibility alias for SearchLocation
+    PriceThreshold,
+    RegionSettings,
+    SearchClick,
+    SearchLocation,
+    SearchQuery,
+)
 from .password_reset import PasswordResetToken
 from .payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from .platform_config import PlatformConfig
@@ -130,6 +137,8 @@ __all__ = [
     # NL Search models
     "SearchQuery",
     "SearchClick",
-    "NYCLocation",
+    "SearchLocation",
+    "NYCLocation",  # Backward compatibility alias
+    "RegionSettings",
     "PriceThreshold",
 ]

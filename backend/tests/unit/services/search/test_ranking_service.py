@@ -48,7 +48,7 @@ def mock_repository() -> Mock:
             "avg_rating": 4.8,
             "review_count": 25,
             "last_active_at": datetime.now(timezone.utc),
-            "response_rate": 0.95,
+            "response_rate": 95,  # DB stores 0-100, not 0-1
             "has_photo": True,
             "has_bio": True,
             "has_background_check": True,
@@ -58,7 +58,7 @@ def mock_repository() -> Mock:
             "avg_rating": 4.2,
             "review_count": 5,
             "last_active_at": datetime.now(timezone.utc) - timedelta(days=10),
-            "response_rate": 0.7,
+            "response_rate": 70,  # DB stores 0-100, not 0-1
             "has_photo": True,
             "has_bio": False,
             "has_background_check": True,
@@ -244,7 +244,7 @@ class TestCompletenessScore:
             "has_bio": True,
             "has_background_check": True,
             "has_identity_verified": True,
-            "response_rate": 0.95,
+            "response_rate": 95,  # DB stores 0-100, not 0-1
         }
         score = ranking_service._calculate_completeness_score(metrics)
         assert score == 1.0
@@ -256,7 +256,7 @@ class TestCompletenessScore:
             "has_bio": False,
             "has_background_check": True,
             "has_identity_verified": False,
-            "response_rate": 0.7,  # Below 80% threshold
+            "response_rate": 70,  # Below 80% threshold (DB stores 0-100)
         }
         # 2 components: has_photo + has_background_check = 0.4
         score = ranking_service._calculate_completeness_score(metrics)

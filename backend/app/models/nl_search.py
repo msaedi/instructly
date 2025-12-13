@@ -8,15 +8,29 @@ and reference data tables.
 Tables:
 - SearchQuery: Analytics for NL search queries with parsing metrics
 - SearchClick: Conversion tracking for search result interactions
-- NYCLocation: Reference data for NYC boroughs and neighborhoods
-- PriceThreshold: Configuration for price intent mapping by category
+- SearchLocation: Reference data for locations (multi-city support)
+- RegionSettings: Per-region configuration (pricing, timezone, etc.)
+- PriceThreshold: Configuration for price intent mapping by category and region
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import List, Optional
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -135,35 +149,45 @@ class SearchClick(Base):
         return f"<SearchClick action={self.action} pos={self.position}>"
 
 
-class NYCLocation(Base):
+class SearchLocation(Base):
     """
-    Reference data for NYC boroughs and neighborhoods.
+    Reference data for locations supporting multi-city search.
 
     Used for location parsing and geocoding in NL search queries.
-    Seeded with boroughs and key neighborhoods.
+    Replaces the former NYC-specific nyc_locations table.
 
     Attributes:
         id: Primary key (e.g., 'loc_manhattan')
+        region_code: Region identifier ('nyc', 'chicago', 'la', etc.)
+        country_code: Country code ('us', 'ca', etc.)
         name: Display name (e.g., 'Manhattan')
-        type: Location type ('borough' or 'neighborhood')
-        borough: Parent borough name
+        type: Location type ('city', 'borough', 'neighborhood', 'district')
+        parent_name: Parent location name (e.g., 'Brooklyn' for neighborhoods)
+        borough: Legacy column for backward compatibility
         aliases: Array of alternative names/abbreviations
         lat: Latitude of centroid
         lng: Longitude of centroid
+        is_active: Whether this location is active for search
     """
 
-    __tablename__ = "nyc_locations"
+    __tablename__ = "search_locations"
 
     id = Column(Text, primary_key=True)
+    region_code = Column(Text, nullable=False, default="nyc")
+    country_code = Column(Text, nullable=False, default="us")
     name = Column(Text, nullable=False)
-    type = Column(Text, nullable=False)  # 'borough', 'neighborhood'
-    borough = Column(Text, nullable=False)
+    type = Column(Text, nullable=False)  # 'city', 'borough', 'neighborhood', 'district'
+    parent_name = Column(Text, nullable=True)
+    borough = Column(Text, nullable=True)  # Legacy, kept for compatibility
     aliases: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
-    lat = Column(Float, nullable=False)
-    lng = Column(Float, nullable=False)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     def __repr__(self) -> str:
-        return f"<NYCLocation {self.name} ({self.type})>"
+        return f"<SearchLocation {self.region_code}:{self.name} ({self.type})>"
 
     @property
     def all_names(self) -> List[str]:
@@ -173,30 +197,89 @@ class NYCLocation(Base):
             names.extend(alias.lower() for alias in self.aliases)
         return names
 
+    @property
+    def parent(self) -> Optional[str]:
+        """Get parent location name (prefers parent_name, falls back to borough)."""
+        parent_name: Optional[str] = self.parent_name
+        borough: Optional[str] = self.borough
+        return parent_name or borough
+
+
+# Backward compatibility alias
+NYCLocation = SearchLocation
+
+
+class RegionSettings(Base):
+    """
+    Per-region configuration for multi-city support.
+
+    Stores region-specific settings including pricing floors,
+    timezone, and platform fees.
+
+    Attributes:
+        id: Primary key (ULID)
+        region_code: Unique region identifier ('nyc', 'chicago', etc.)
+        region_name: Display name ('New York City', 'Chicago', etc.)
+        country_code: Country code ('us', 'ca', etc.)
+        timezone: IANA timezone string
+        price_floor_in_person: Minimum hourly rate for in-person lessons
+        price_floor_remote: Minimum hourly rate for remote lessons
+        currency_code: Currency code ('USD', 'CAD', etc.)
+        student_fee_percent: Platform fee charged to students
+        is_active: Whether this region is active on the platform
+        launch_date: Planned or actual launch date
+    """
+
+    __tablename__ = "region_settings"
+
+    id = Column(Text, primary_key=True, default=lambda: str(ulid.ULID()))
+    region_code = Column(Text, unique=True, nullable=False)
+    region_name = Column(Text, nullable=False)
+    country_code = Column(Text, nullable=False, default="us")
+    timezone = Column(Text, nullable=False)
+    price_floor_in_person = Column(Integer, nullable=False)
+    price_floor_remote = Column(Integer, nullable=False)
+    currency_code = Column(Text, nullable=False, default="USD")
+    student_fee_percent = Column(Numeric(5, 2), nullable=False, default=Decimal("12.0"))
+    is_active = Column(Boolean, nullable=False, default=False, server_default="false")
+    launch_date = Column(Date, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    def __repr__(self) -> str:
+        status = "active" if self.is_active else "inactive"
+        return f"<RegionSettings {self.region_code} ({status})>"
+
 
 class PriceThreshold(Base):
     """
-    Configuration for mapping price intents to max prices by category.
+    Configuration for mapping price intents to max prices by category and region.
 
     Used to interpret queries like "affordable piano lessons" where
-    "affordable" maps to a category-specific price threshold.
+    "affordable" maps to a category-specific, region-specific price threshold.
 
     Attributes:
-        id: Primary key (e.g., 'pt_music_budget')
+        id: Primary key (e.g., 'pt_nyc_music_budget')
+        region_code: Region identifier ('nyc', 'global' for fallback)
         category: Service category ('music', 'tutoring', 'sports', 'language', 'general')
         intent: Price intent keyword ('budget', 'standard', 'premium')
-        max_price: Maximum hourly rate for this intent/category combination
+        max_price: Maximum hourly rate for this intent (for budget/standard)
+        min_price: Minimum hourly rate for this intent (for premium)
     """
 
     __tablename__ = "price_thresholds"
 
     id = Column(Text, primary_key=True)
+    region_code = Column(Text, nullable=False, default="nyc")
     category = Column(Text, nullable=False)  # 'music', 'tutoring', 'sports', 'language', 'general'
     intent = Column(Text, nullable=False)  # 'budget', 'standard', 'premium'
-    max_price = Column(Integer, nullable=False)
+    max_price = Column(Integer, nullable=True)  # For budget/standard intents
+    min_price = Column(Integer, nullable=True)  # For premium intent
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     def __repr__(self) -> str:
-        return f"<PriceThreshold {self.category}/{self.intent} max=${self.max_price}>"
+        price_info = f"max=${self.max_price}" if self.max_price else f"min=${self.min_price}"
+        return f"<PriceThreshold {self.region_code}/{self.category}/{self.intent} {price_info}>"
 
     @classmethod
     def get_max_price(
@@ -204,6 +287,7 @@ class PriceThreshold(Base):
         category: str,
         intent: str,
         default: Optional[int] = None,
+        region_code: str = "nyc",
     ) -> Optional[int]:
         """
         Get max price for a category/intent combination.
@@ -215,6 +299,7 @@ class PriceThreshold(Base):
             category: Service category
             intent: Price intent
             default: Default value if not found
+            region_code: Region to lookup thresholds for
 
         Returns:
             Max price or default

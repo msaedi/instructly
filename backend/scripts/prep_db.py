@@ -1018,14 +1018,25 @@ def verify_env_marker(db_url: str, expected_mode: str) -> bool:
 
 
 def generate_embeddings(db_url: str, dry_run: bool, mode: str) -> None:
+    """Generate embeddings using OpenAI API (replaces sentence-transformers)."""
     if dry_run:
         info("dry", f"(dry-run) Would generate embeddings on {redact(db_url)}")
         return
-    info("ops", "Generating service embeddings…")
-    # Skip verification during seeding for faster performance
-    env = {**os.environ, **_mode_env(mode), "DATABASE_URL": db_url, "SKIP_EMBEDDING_VERIFY": "1"}
+
+    # Check for OpenAI API key
+    if not os.getenv("OPENAI_API_KEY"):
+        warn("ops", "OPENAI_API_KEY not set - skipping embedding generation")
+        warn("ops", "Set OPENAI_API_KEY and run: python scripts/generate_openai_embeddings.py")
+        return
+
+    info("ops", "Generating OpenAI service embeddings…")
+    env = {**os.environ, **_mode_env(mode), "DATABASE_URL": db_url}
     with perf_timer("Generate Embeddings"):
-        subprocess.check_call([sys.executable, "scripts/generate_service_embeddings.py"], cwd=str(BACKEND_DIR), env=env)
+        subprocess.check_call(
+            [sys.executable, "scripts/generate_openai_embeddings.py"],
+            cwd=str(BACKEND_DIR),
+            env=env,
+        )
 
 
 def calculate_analytics(db_url: str, dry_run: bool, mode: str) -> None:
