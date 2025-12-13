@@ -35,6 +35,9 @@ logger = logging.getLogger(__name__)
 # Search result cache TTL (60 seconds as specified)
 SEARCH_CACHE_TTL = 60
 
+# Service area cache TTL (1 hour - areas rarely change)
+SERVICE_AREA_CACHE_TTL = 3600
+
 # Module-level model cache to avoid reloading on every request
 _model_cache: Dict[str, SentenceTransformer] = {}
 
@@ -910,12 +913,10 @@ class SearchService(BaseService):
             for profile in profiles:
                 all_instructor_ids.add(profile.user_id)
 
-        # Step 4: Batch query - get all service areas at once
-        service_areas_by_instructor = self.service_area_repository.list_for_instructors(
-            list(all_instructor_ids)
-        )
+        # Step 4: Get service area contexts with caching (1-hour TTL)
+        service_area_contexts = self._get_service_area_contexts_cached(list(all_instructor_ids))
 
-        # Step 5: Build results using pre-fetched data
+        # Step 5: Build results using pre-fetched/cached data
         from ..schemas.search_responses import InstructorInfo
 
         for service_id, instructors in instructors_by_service.items():
@@ -937,10 +938,9 @@ class SearchService(BaseService):
                 if not instructor_service:
                     continue
 
-                # Build service area context from pre-fetched data (no DB query)
-                instructor_areas = service_areas_by_instructor.get(instructor_profile.user_id, [])
-                service_area_context, boroughs_lower = self._build_service_area_context_from_areas(
-                    instructor_areas
+                # Get service area context from cache/pre-fetched data
+                service_area_context, boroughs_lower = service_area_contexts.get(
+                    instructor_profile.user_id, ({}, set())
                 )
 
                 # Check location constraints
@@ -1136,6 +1136,70 @@ class SearchService(BaseService):
             context["coverage_region_ids"] = coverage_region_ids
 
         return context, {borough.lower() for borough in sorted_boroughs}
+
+    def _get_service_area_contexts_cached(
+        self, instructor_ids: list[str]
+    ) -> dict[str, tuple[JsonDict, set[str]]]:
+        """
+        Get service area contexts for multiple instructors with caching.
+
+        Uses per-instructor caching (1 hour TTL) since service areas rarely change.
+        For cache misses, fetches from DB and caches the processed results.
+
+        Args:
+            instructor_ids: List of instructor user IDs
+
+        Returns:
+            Dict mapping instructor_id -> (context_dict, boroughs_lower_set)
+        """
+        if not instructor_ids:
+            return {}
+
+        results: dict[str, tuple[JsonDict, set[str]]] = {}
+        cache_misses: list[str] = []
+
+        # Step 1: Check cache for each instructor
+        if self.cache_service:
+            for instructor_id in instructor_ids:
+                cache_key = f"instructor:service_area_context:{instructor_id}"
+                cached = self.cache_service.get(cache_key)
+                if cached and isinstance(cached, dict):
+                    # Reconstruct the tuple from cached data
+                    context = cached.get("context", {})
+                    boroughs_lower = set(cached.get("boroughs_lower", []))
+                    results[instructor_id] = (context, boroughs_lower)
+                else:
+                    cache_misses.append(instructor_id)
+        else:
+            cache_misses = list(instructor_ids)
+
+        # Step 2: Fetch cache misses from DB
+        if cache_misses:
+            service_areas_by_instructor = self.service_area_repository.list_for_instructors(
+                cache_misses
+            )
+
+            for instructor_id in cache_misses:
+                areas = service_areas_by_instructor.get(instructor_id, [])
+                context, boroughs_lower = self._build_service_area_context_from_areas(areas)
+                results[instructor_id] = (context, boroughs_lower)
+
+                # Cache the processed result
+                if self.cache_service:
+                    cache_key = f"instructor:service_area_context:{instructor_id}"
+                    cache_data = {
+                        "context": context,
+                        "boroughs_lower": list(boroughs_lower),  # Convert set to list for JSON
+                    }
+                    self.cache_service.set(cache_key, cache_data, ttl=SERVICE_AREA_CACHE_TTL)
+
+            if cache_misses:
+                logger.debug(
+                    f"Service area cache: {len(instructor_ids) - len(cache_misses)} hits, "
+                    f"{len(cache_misses)} misses"
+                )
+
+        return results
 
     def _matches_location_constraints(
         self,
