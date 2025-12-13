@@ -1348,6 +1348,322 @@ def upgrade() -> None:
         )
     )
 
+    # ======================================================================
+    # NL SEARCH PHASE 1: Database Schema for Natural Language Search
+    # ======================================================================
+    print("")
+    print("=== NL SEARCH PHASE 1: Adding search schema ===")
+
+    # --- 1. Add embedding_v2 columns to service_catalog ---
+    print("Adding OpenAI embedding columns to service_catalog...")
+    if is_postgres:
+        # Add 1536-dim embedding column for OpenAI text-embedding-3-small
+        op.execute("ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS embedding_v2 vector(1536)")
+        op.add_column(
+            "service_catalog",
+            sa.Column("embedding_model", sa.Text(), nullable=True),
+        )
+        op.add_column(
+            "service_catalog",
+            sa.Column("embedding_model_version", sa.Text(), nullable=True),
+        )
+        op.add_column(
+            "service_catalog",
+            sa.Column("embedding_updated_at", sa.DateTime(timezone=True), nullable=True),
+        )
+        op.add_column(
+            "service_catalog",
+            sa.Column("embedding_text_hash", sa.Text(), nullable=True),
+        )
+
+        # Create IVFFlat index on new embedding column (~300 services, lists=100)
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_service_catalog_embedding_v2
+            ON service_catalog USING ivfflat (embedding_v2 vector_cosine_ops)
+            WITH (lists = 100);
+            """
+        )
+
+        # Index for finding services needing re-embedding
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_service_catalog_embedding_model
+            ON service_catalog(embedding_model)
+            WHERE embedding_v2 IS NOT NULL;
+            """
+        )
+
+    # --- 2. Add ranking signal columns to instructor_profiles ---
+    print("Adding ranking signal columns to instructor_profiles...")
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("last_active_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("response_rate", sa.Numeric(5, 2), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("profile_completeness", sa.Numeric(3, 2), nullable=True),
+    )
+
+    # --- 3. Create search_queries table (NL search analytics) ---
+    print("Creating search_queries table for NL search analytics...")
+    op.create_table(
+        "search_queries",
+        sa.Column("id", sa.String(26), nullable=False),
+        # Query info
+        sa.Column("original_query", sa.Text(), nullable=False),
+        sa.Column("normalized_query", json_type, nullable=False),
+        # Parsing details
+        sa.Column("parsing_mode", sa.Text(), nullable=False),  # 'regex', 'llm', 'hybrid'
+        sa.Column("parsing_latency_ms", sa.Integer(), nullable=False),
+        # Results
+        sa.Column("result_count", sa.Integer(), nullable=False),
+        sa.Column("top_result_ids", sa.ARRAY(sa.Text()) if is_postgres else sa.JSON(), nullable=True),
+        # User context
+        sa.Column("user_id", sa.String(26), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("session_id", sa.Text(), nullable=True),
+        # Performance
+        sa.Column("total_latency_ms", sa.Integer(), nullable=False),
+        sa.Column("cache_hit", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("degraded", sa.Boolean(), nullable=False, server_default="false"),
+        # Timestamps
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("idx_search_queries_created", "search_queries", ["created_at"])
+    if is_postgres:
+        op.execute(
+            """
+            CREATE INDEX idx_search_queries_created_desc
+            ON search_queries (created_at DESC);
+            """
+        )
+    op.create_index("idx_search_queries_user", "search_queries", ["user_id"])
+
+    # --- 4. Create search_clicks table (conversion tracking) ---
+    print("Creating search_clicks table for conversion tracking...")
+    op.create_table(
+        "search_clicks",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("search_query_id", sa.String(26), sa.ForeignKey("search_queries.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("service_id", sa.String(26), sa.ForeignKey("service_catalog.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("instructor_id", sa.String(26), sa.ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("position", sa.Integer(), nullable=False),  # Rank in results (1-indexed)
+        sa.Column("action", sa.Text(), nullable=False),  # 'view', 'book', 'message', 'favorite'
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("idx_search_clicks_query", "search_clicks", ["search_query_id"])
+    op.create_index("idx_search_clicks_service", "search_clicks", ["service_id"])
+
+    # --- 5. Create nyc_locations table (reference data) ---
+    print("Creating nyc_locations table for location reference...")
+    op.create_table(
+        "nyc_locations",
+        sa.Column("id", sa.Text(), nullable=False),
+        sa.Column("name", sa.Text(), nullable=False),
+        sa.Column("type", sa.Text(), nullable=False),  # 'borough', 'neighborhood'
+        sa.Column("borough", sa.Text(), nullable=False),
+        sa.Column("aliases", sa.ARRAY(sa.Text()) if is_postgres else sa.JSON(), nullable=True),
+        sa.Column("lat", sa.Float(), nullable=False),
+        sa.Column("lng", sa.Float(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("name", "type", name="uq_nyc_locations_name_type"),
+    )
+    if is_postgres:
+        op.execute(
+            """
+            CREATE INDEX idx_nyc_locations_name_trgm
+            ON nyc_locations USING GIN (name gin_trgm_ops);
+            """
+        )
+
+    # Seed NYC boroughs and key neighborhoods
+    print("Seeding nyc_locations with boroughs and key neighborhoods...")
+    op.execute(
+        """
+        INSERT INTO nyc_locations (id, name, type, borough, aliases, lat, lng) VALUES
+          ('loc_manhattan', 'Manhattan', 'borough', 'Manhattan',
+           ARRAY['nyc', 'new york', 'the city'],
+           40.7831, -73.9712),
+          ('loc_brooklyn', 'Brooklyn', 'borough', 'Brooklyn',
+           ARRAY['bk', 'bklyn', 'kings county'],
+           40.6782, -73.9442),
+          ('loc_queens', 'Queens', 'borough', 'Queens',
+           ARRAY['qns'],
+           40.7282, -73.7949),
+          ('loc_bronx', 'Bronx', 'borough', 'Bronx',
+           ARRAY['the bronx', 'bx'],
+           40.8448, -73.8648),
+          ('loc_staten_island', 'Staten Island', 'borough', 'Staten Island',
+           ARRAY['si', 'richmond county'],
+           40.5795, -74.1502),
+          ('loc_park_slope', 'Park Slope', 'neighborhood', 'Brooklyn',
+           ARRAY['parkslope'],
+           40.6721, -73.9772),
+          ('loc_williamsburg', 'Williamsburg', 'neighborhood', 'Brooklyn',
+           ARRAY['wburg', 'billyburg'],
+           40.7081, -73.9572),
+          ('loc_upper_west_side', 'Upper West Side', 'neighborhood', 'Manhattan',
+           ARRAY['uws'],
+           40.7870, -73.9800),
+          ('loc_upper_east_side', 'Upper East Side', 'neighborhood', 'Manhattan',
+           ARRAY['ues'],
+           40.7736, -73.9597)
+        ON CONFLICT (id) DO NOTHING;
+        """
+    )
+
+    # --- 6. Create price_thresholds table (configuration) ---
+    print("Creating price_thresholds table for price intent mapping...")
+    op.create_table(
+        "price_thresholds",
+        sa.Column("id", sa.Text(), nullable=False),
+        sa.Column("category", sa.Text(), nullable=False),  # 'music', 'tutoring', 'sports', 'language', 'general'
+        sa.Column("intent", sa.Text(), nullable=False),  # 'budget', 'standard', 'premium'
+        sa.Column("max_price", sa.Integer(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("category", "intent", name="uq_price_thresholds_category_intent"),
+    )
+
+    # Seed price thresholds
+    print("Seeding price_thresholds with category defaults...")
+    op.execute(
+        """
+        INSERT INTO price_thresholds (id, category, intent, max_price) VALUES
+          ('pt_music_budget', 'music', 'budget', 60),
+          ('pt_music_standard', 'music', 'standard', 100),
+          ('pt_music_premium', 'music', 'premium', 999999),
+          ('pt_tutoring_budget', 'tutoring', 'budget', 50),
+          ('pt_tutoring_standard', 'tutoring', 'standard', 80),
+          ('pt_tutoring_premium', 'tutoring', 'premium', 999999),
+          ('pt_sports_budget', 'sports', 'budget', 40),
+          ('pt_sports_standard', 'sports', 'standard', 70),
+          ('pt_sports_premium', 'sports', 'premium', 999999),
+          ('pt_language_budget', 'language', 'budget', 45),
+          ('pt_language_standard', 'language', 'standard', 75),
+          ('pt_language_premium', 'language', 'premium', 999999),
+          ('pt_general_budget', 'general', 'budget', 50),
+          ('pt_general_standard', 'general', 'standard', 80),
+          ('pt_general_premium', 'general', 'premium', 999999)
+        ON CONFLICT (id) DO NOTHING;
+        """
+    )
+
+    # --- 7. Create PostgreSQL functions for availability checking ---
+    if is_postgres:
+        print("Creating check_availability function...")
+        # Adapted for availability_days table (48-bit, 30-min resolution)
+        op.execute(
+            """
+            CREATE OR REPLACE FUNCTION check_availability(
+              p_instructor_id TEXT,
+              p_date DATE,
+              p_time_after TIME DEFAULT NULL,  -- NULL means start of day (00:00)
+              p_time_before TIME DEFAULT NULL, -- NULL means end of day (23:59)
+              p_duration_minutes INT DEFAULT 60
+            ) RETURNS BOOLEAN AS $$
+            DECLARE
+              v_bits BYTEA;
+              v_start_slot INT;
+              v_end_slot INT;
+              v_duration_slots INT;
+              v_contiguous_slots INT := 0;
+              v_bit_value INT;
+              v_byte_idx INT;
+              v_bit_idx INT;
+            BEGIN
+              -- Load bitmap (6 bytes = 48 bits for 30-min slots)
+              SELECT bits INTO v_bits
+              FROM availability_days
+              WHERE instructor_id = p_instructor_id AND day_date = p_date;
+
+              IF v_bits IS NULL THEN
+                RETURN FALSE;
+              END IF;
+
+              -- Calculate slot range (30-min slots, 0-47)
+              v_start_slot := COALESCE(
+                (EXTRACT(HOUR FROM p_time_after)::INT * 2) + (EXTRACT(MINUTE FROM p_time_after)::INT / 30),
+                0  -- 00:00 if null
+              );
+              v_end_slot := COALESCE(
+                (EXTRACT(HOUR FROM p_time_before)::INT * 2) + (EXTRACT(MINUTE FROM p_time_before)::INT / 30) - 1,
+                47  -- 23:30 slot if null
+              );
+
+              -- Duration in 30-min slots (round up)
+              v_duration_slots := CEIL(p_duration_minutes::FLOAT / 30);
+
+              -- Check for contiguous availability
+              FOR i IN v_start_slot..v_end_slot LOOP
+                v_byte_idx := i / 8;
+                v_bit_idx := 7 - (i % 8);  -- MSB first
+                v_bit_value := (get_byte(v_bits, v_byte_idx) >> v_bit_idx) & 1;
+
+                IF v_bit_value = 1 THEN
+                  v_contiguous_slots := v_contiguous_slots + 1;
+                  IF v_contiguous_slots >= v_duration_slots THEN
+                    RETURN TRUE;
+                  END IF;
+                ELSE
+                  v_contiguous_slots := 0;
+                END IF;
+              END LOOP;
+
+              RETURN FALSE;
+            END;
+            $$ LANGUAGE plpgsql;
+            """
+        )
+
+        print("Creating clear_availability_bits function...")
+        op.execute(
+            """
+            CREATE OR REPLACE FUNCTION clear_availability_bits(
+              p_instructor_id TEXT,
+              p_booking_date DATE,
+              p_start_slot INT,  -- 0-47 (30-min slots)
+              p_end_slot INT     -- exclusive
+            ) RETURNS BOOLEAN AS $$
+            DECLARE
+              v_bits BYTEA;
+              v_byte_idx INT;
+              v_bit_idx INT;
+              v_mask INT;
+            BEGIN
+              SELECT bits INTO v_bits
+              FROM availability_days
+              WHERE instructor_id = p_instructor_id AND day_date = p_booking_date;
+
+              IF v_bits IS NULL THEN
+                RETURN FALSE;
+              END IF;
+
+              -- Clear each bit in the range
+              FOR i IN p_start_slot..(p_end_slot - 1) LOOP
+                v_byte_idx := i / 8;
+                v_bit_idx := 7 - (i % 8);  -- MSB first
+                v_mask := 255 - (1 << v_bit_idx);
+                v_bits := set_byte(v_bits, v_byte_idx, get_byte(v_bits, v_byte_idx) & v_mask);
+              END LOOP;
+
+              UPDATE availability_days
+              SET bits = v_bits, updated_at = NOW()
+              WHERE instructor_id = p_instructor_id AND day_date = p_booking_date;
+
+              RETURN FOUND;
+            END;
+            $$ LANGUAGE plpgsql;
+            """
+        )
+
+    print("NL Search Phase 1 schema complete!")
+
     # Add schema documentation
     print("Schema finalization complete!")
     print("")
@@ -1389,6 +1705,61 @@ def downgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name if bind is not None else "postgresql"
     is_postgres = dialect_name == "postgresql"
+
+    # ======================================================================
+    # NL SEARCH PHASE 1: Drop search schema (reverse order)
+    # ======================================================================
+    print("")
+    print("=== NL SEARCH PHASE 1: Dropping search schema ===")
+
+    # Drop PostgreSQL functions
+    if is_postgres:
+        print("Dropping availability functions...")
+        op.execute("DROP FUNCTION IF EXISTS clear_availability_bits(TEXT, DATE, INT, INT);")
+        op.execute("DROP FUNCTION IF EXISTS check_availability(TEXT, DATE, TIME, TIME, INT);")
+
+    # Drop price_thresholds table
+    print("Dropping price_thresholds table...")
+    op.drop_table("price_thresholds")
+
+    # Drop nyc_locations table
+    print("Dropping nyc_locations table...")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS idx_nyc_locations_name_trgm;")
+    op.drop_table("nyc_locations")
+
+    # Drop search_clicks table
+    print("Dropping search_clicks table...")
+    op.drop_index("idx_search_clicks_service", table_name="search_clicks")
+    op.drop_index("idx_search_clicks_query", table_name="search_clicks")
+    op.drop_table("search_clicks")
+
+    # Drop search_queries table
+    print("Dropping search_queries table...")
+    op.drop_index("idx_search_queries_user", table_name="search_queries")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS idx_search_queries_created_desc;")
+    op.drop_index("idx_search_queries_created", table_name="search_queries")
+    op.drop_table("search_queries")
+
+    # Drop ranking signal columns from instructor_profiles
+    print("Dropping ranking signal columns from instructor_profiles...")
+    op.drop_column("instructor_profiles", "profile_completeness")
+    op.drop_column("instructor_profiles", "response_rate")
+    op.drop_column("instructor_profiles", "last_active_at")
+
+    # Drop embedding_v2 columns from service_catalog
+    if is_postgres:
+        print("Dropping OpenAI embedding columns from service_catalog...")
+        op.execute("DROP INDEX IF EXISTS idx_service_catalog_embedding_model;")
+        op.execute("DROP INDEX IF EXISTS idx_service_catalog_embedding_v2;")
+        op.drop_column("service_catalog", "embedding_text_hash")
+        op.drop_column("service_catalog", "embedding_updated_at")
+        op.drop_column("service_catalog", "embedding_model_version")
+        op.drop_column("service_catalog", "embedding_model")
+        op.execute("ALTER TABLE service_catalog DROP COLUMN IF EXISTS embedding_v2;")
+
+    print("NL Search Phase 1 schema dropped!")
 
     if is_postgres:
         print("Disabling RLS and removing permissive policies (idempotent)...")

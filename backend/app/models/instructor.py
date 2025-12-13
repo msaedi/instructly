@@ -167,6 +167,11 @@ class InstructorProfile(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    # NL Search ranking signals
+    last_active_at = Column(DateTime(timezone=True), nullable=True)  # Last login/activity
+    response_rate = Column(Numeric(5, 2), nullable=True)  # 0.00-100.00 percentage
+    profile_completeness = Column(Numeric(3, 2), nullable=True)  # 0.00-1.00 fraction
+
     # Relationships
     user = relationship(
         "User",

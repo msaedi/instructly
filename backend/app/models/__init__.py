@@ -36,6 +36,9 @@ from .message import (
     MessageNotification,
 )
 from .monitoring import AlertHistory
+
+# NL Search models
+from .nl_search import NYCLocation, PriceThreshold, SearchClick, SearchQuery
 from .password_reset import PasswordResetToken
 from .payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from .platform_config import PlatformConfig
@@ -124,4 +127,9 @@ __all__ = [
     "SearchEvent",
     "SearchEventCandidate",
     "SearchInteraction",
+    # NL Search models
+    "SearchQuery",
+    "SearchClick",
+    "NYCLocation",
+    "PriceThreshold",
 ]
