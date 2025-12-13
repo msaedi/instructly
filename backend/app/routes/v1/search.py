@@ -25,9 +25,15 @@ from ...database import get_db
 from ...ratelimit.dependency import rate_limit
 from ...schemas.nl_search import (
     NLSearchResponse,
+    PopularQueriesResponse,
+    PopularQueryItem,
+    SearchClickResponse,
     SearchHealthCache,
     SearchHealthComponents,
     SearchHealthResponse,
+    SearchMetricsResponse,
+    ZeroResultQueriesResponse,
+    ZeroResultQueryItem,
 )
 from ...schemas.search_responses import InstructorSearchResponse
 from ...services.cache_service import CacheService
@@ -208,3 +214,86 @@ async def search_health(db: Session = Depends(get_db)) -> SearchHealthResponse:
             embedding_circuit=EMBEDDING_CIRCUIT.state.value,
         ),
     )
+
+
+# ===== Analytics Endpoints =====
+
+
+@router.get("/analytics/metrics", response_model=SearchMetricsResponse)
+async def search_metrics(
+    days: int = Query(1, ge=1, le=30, description="Number of days to analyze"),
+    db: Session = Depends(get_db),
+) -> SearchMetricsResponse:
+    """
+    Get aggregate search metrics for the last N days.
+
+    Returns metrics including:
+    - Total searches
+    - Average latency (p50, p95)
+    - Average results per search
+    - Zero result rate
+    - Cache hit rate
+    - Degradation rate
+    """
+    from ...repositories.search_analytics_repository import SearchAnalyticsRepository
+
+    repo = SearchAnalyticsRepository(db)
+    metrics = repo.nl_get_search_metrics(days)
+    return SearchMetricsResponse(**metrics)
+
+
+@router.get("/analytics/popular", response_model=PopularQueriesResponse)
+async def popular_queries(
+    days: int = Query(7, ge=1, le=30, description="Number of days to analyze"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum queries to return"),
+    db: Session = Depends(get_db),
+) -> PopularQueriesResponse:
+    """Get most popular search queries."""
+    from ...repositories.search_analytics_repository import SearchAnalyticsRepository
+
+    repo = SearchAnalyticsRepository(db)
+    rows = repo.nl_get_popular_queries(days, limit)
+    queries = [PopularQueryItem(**row) for row in rows]
+    return PopularQueriesResponse(queries=queries)
+
+
+@router.get("/analytics/zero-results", response_model=ZeroResultQueriesResponse)
+async def zero_result_queries(
+    days: int = Query(7, ge=1, le=30, description="Number of days to analyze"),
+    limit: int = Query(100, ge=1, le=500, description="Maximum queries to return"),
+    db: Session = Depends(get_db),
+) -> ZeroResultQueriesResponse:
+    """Get queries that returned zero results."""
+    from ...repositories.search_analytics_repository import SearchAnalyticsRepository
+
+    repo = SearchAnalyticsRepository(db)
+    rows = repo.nl_get_zero_result_queries(days, limit)
+    queries = [ZeroResultQueryItem(**row) for row in rows]
+    return ZeroResultQueriesResponse(queries=queries)
+
+
+@router.post("/click", response_model=SearchClickResponse)
+async def log_search_click(
+    search_query_id: str = Query(..., description="Search query ID from NL search"),
+    service_id: str = Query(..., description="Service ID that was clicked"),
+    instructor_id: str = Query(..., description="Instructor ID that was clicked"),
+    position: int = Query(..., ge=1, description="Position in search results (1-indexed)"),
+    action: str = Query("view", description="Action type: view, book, message, favorite"),
+    db: Session = Depends(get_db),
+) -> SearchClickResponse:
+    """
+    Log a click on a search result for conversion tracking.
+
+    Call this endpoint when a user interacts with a search result.
+    """
+    from ...repositories.search_analytics_repository import SearchAnalyticsRepository
+
+    repo = SearchAnalyticsRepository(db)
+    click_id = repo.nl_log_search_click(
+        search_query_id=search_query_id,
+        service_id=service_id,
+        instructor_id=instructor_id,
+        position=position,
+        action=action,
+    )
+    return SearchClickResponse(click_id=click_id)

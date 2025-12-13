@@ -8,7 +8,7 @@ Separates analytics-specific queries from basic CRUD operations.
 
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import and_, desc, func
 from sqlalchemy.orm import Session
@@ -940,3 +940,254 @@ class SearchAnalyticsRepository:
             )
             for r in rows
         ]
+
+    # ===== NL Search Analytics Methods (search_queries table) =====
+
+    def nl_log_search_query(
+        self,
+        original_query: str,
+        normalized_query: Dict[str, Any],
+        parsing_mode: str,
+        parsing_latency_ms: int,
+        result_count: int,
+        top_result_ids: List[str],
+        total_latency_ms: int,
+        cache_hit: bool = False,
+        degraded: bool = False,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> str:
+        """
+        Log a NL search query for analytics.
+
+        Returns the search_query_id for click tracking.
+        """
+        import json
+
+        from sqlalchemy import text as sql_text
+
+        from app.core.ulid_helper import generate_ulid
+
+        query_id: str = generate_ulid()
+
+        query = sql_text(
+            """
+            INSERT INTO search_queries (
+                id,
+                original_query,
+                normalized_query,
+                parsing_mode,
+                parsing_latency_ms,
+                result_count,
+                top_result_ids,
+                user_id,
+                session_id,
+                total_latency_ms,
+                cache_hit,
+                degraded,
+                created_at
+            ) VALUES (
+                :id,
+                :original_query,
+                :normalized_query,
+                :parsing_mode,
+                :parsing_latency_ms,
+                :result_count,
+                :top_result_ids,
+                :user_id,
+                :session_id,
+                :total_latency_ms,
+                :cache_hit,
+                :degraded,
+                NOW()
+            )
+        """
+        )
+
+        self.db.execute(
+            query,
+            {
+                "id": query_id,
+                "original_query": original_query,
+                "normalized_query": json.dumps(normalized_query),
+                "parsing_mode": parsing_mode,
+                "parsing_latency_ms": parsing_latency_ms,
+                "result_count": result_count,
+                "top_result_ids": top_result_ids[:10],
+                "user_id": user_id,
+                "session_id": session_id,
+                "total_latency_ms": total_latency_ms,
+                "cache_hit": cache_hit,
+                "degraded": degraded,
+            },
+        )
+
+        self.db.commit()
+        return query_id
+
+    def nl_log_search_click(
+        self,
+        search_query_id: str,
+        service_id: str,
+        instructor_id: str,
+        position: int,
+        action: str = "view",
+    ) -> str:
+        """
+        Log a click/action on a NL search result.
+
+        Actions: 'view', 'book', 'message', 'favorite'
+        """
+        from sqlalchemy import text as sql_text
+
+        from app.core.ulid_helper import generate_ulid
+
+        click_id: str = generate_ulid()
+
+        query = sql_text(
+            """
+            INSERT INTO search_clicks (
+                id,
+                search_query_id,
+                service_id,
+                instructor_id,
+                position,
+                action,
+                created_at
+            ) VALUES (
+                :id,
+                :search_query_id,
+                :service_id,
+                :instructor_id,
+                :position,
+                :action,
+                NOW()
+            )
+        """
+        )
+
+        self.db.execute(
+            query,
+            {
+                "id": click_id,
+                "search_query_id": search_query_id,
+                "service_id": service_id,
+                "instructor_id": instructor_id,
+                "position": position,
+                "action": action,
+            },
+        )
+
+        self.db.commit()
+        return click_id
+
+    def nl_get_popular_queries(self, days: int = 7, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get most popular NL search queries in the last N days."""
+        from sqlalchemy import text as sql_text
+
+        query = sql_text(
+            """
+            SELECT
+                original_query,
+                COUNT(*) as query_count,
+                AVG(result_count) as avg_results,
+                AVG(total_latency_ms) as avg_latency_ms
+            FROM search_queries
+            WHERE created_at > NOW() - INTERVAL :days_interval
+            GROUP BY original_query
+            ORDER BY query_count DESC
+            LIMIT :limit
+        """
+        )
+
+        result = self.db.execute(query, {"days_interval": f"{days} days", "limit": limit})
+
+        return [
+            {
+                "query": row.original_query,
+                "count": row.query_count,
+                "avg_results": float(row.avg_results) if row.avg_results else 0.0,
+                "avg_latency_ms": float(row.avg_latency_ms) if row.avg_latency_ms else 0.0,
+            }
+            for row in result
+        ]
+
+    def nl_get_zero_result_queries(self, days: int = 7, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get NL search queries that returned zero results."""
+        from sqlalchemy import text as sql_text
+
+        query = sql_text(
+            """
+            SELECT
+                original_query,
+                COUNT(*) as query_count,
+                MAX(created_at) as last_searched
+            FROM search_queries
+            WHERE created_at > NOW() - INTERVAL :days_interval
+              AND result_count = 0
+            GROUP BY original_query
+            ORDER BY query_count DESC
+            LIMIT :limit
+        """
+        )
+
+        result = self.db.execute(query, {"days_interval": f"{days} days", "limit": limit})
+
+        return [
+            {
+                "query": row.original_query,
+                "count": row.query_count,
+                "last_searched": row.last_searched.isoformat() if row.last_searched else None,
+            }
+            for row in result
+        ]
+
+    def nl_get_search_metrics(self, days: int = 1) -> Dict[str, Any]:
+        """Get aggregate NL search metrics."""
+        from sqlalchemy import text as sql_text
+
+        query = sql_text(
+            """
+            SELECT
+                COUNT(*) as total_searches,
+                AVG(total_latency_ms) as avg_latency_ms,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_latency_ms) as p50_latency_ms,
+                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY total_latency_ms) as p95_latency_ms,
+                AVG(result_count) as avg_results,
+                SUM(CASE WHEN result_count = 0 THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0)
+                    as zero_result_rate,
+                SUM(CASE WHEN cache_hit THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0)
+                    as cache_hit_rate,
+                SUM(CASE WHEN degraded THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0)
+                    as degradation_rate
+            FROM search_queries
+            WHERE created_at > NOW() - INTERVAL :days_interval
+        """
+        )
+
+        result = self.db.execute(query, {"days_interval": f"{days} days"}).first()
+
+        if not result or result.total_searches == 0:
+            return {
+                "total_searches": 0,
+                "avg_latency_ms": 0.0,
+                "p50_latency_ms": 0.0,
+                "p95_latency_ms": 0.0,
+                "avg_results": 0.0,
+                "zero_result_rate": 0.0,
+                "cache_hit_rate": 0.0,
+                "degradation_rate": 0.0,
+            }
+
+        return {
+            "total_searches": result.total_searches,
+            "avg_latency_ms": float(result.avg_latency_ms) if result.avg_latency_ms else 0.0,
+            "p50_latency_ms": float(result.p50_latency_ms) if result.p50_latency_ms else 0.0,
+            "p95_latency_ms": float(result.p95_latency_ms) if result.p95_latency_ms else 0.0,
+            "avg_results": float(result.avg_results) if result.avg_results else 0.0,
+            "zero_result_rate": float(result.zero_result_rate) if result.zero_result_rate else 0.0,
+            "cache_hit_rate": float(result.cache_hit_rate) if result.cache_hit_rate else 0.0,
+            "degradation_rate": (
+                float(result.degradation_rate) if result.degradation_rate else 0.0
+            ),
+        }

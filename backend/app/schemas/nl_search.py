@@ -114,3 +114,51 @@ class SearchHealthResponse(BaseModel):
 
     status: str = Field(..., description="Overall health status")
     components: SearchHealthComponents = Field(..., description="Component health details")
+
+
+class SearchMetricsResponse(BaseModel):
+    """Aggregate search metrics response."""
+
+    total_searches: int = Field(..., ge=0, description="Total number of searches")
+    avg_latency_ms: float = Field(..., ge=0, description="Average latency in ms")
+    p50_latency_ms: float = Field(..., ge=0, description="50th percentile latency")
+    p95_latency_ms: float = Field(..., ge=0, description="95th percentile latency")
+    avg_results: float = Field(..., ge=0, description="Average results per search")
+    zero_result_rate: float = Field(..., ge=0, le=1, description="Rate of zero-result searches")
+    cache_hit_rate: float = Field(..., ge=0, le=1, description="Cache hit rate")
+    degradation_rate: float = Field(..., ge=0, le=1, description="Search degradation rate")
+
+
+class PopularQueryItem(BaseModel):
+    """A popular search query."""
+
+    query: str = Field(..., description="Search query text")
+    count: int = Field(..., ge=1, description="Number of times searched")
+    avg_results: float = Field(..., ge=0, description="Average results for this query")
+    last_searched: str = Field(..., description="Last search timestamp")
+
+
+class PopularQueriesResponse(BaseModel):
+    """List of popular search queries."""
+
+    queries: List[PopularQueryItem] = Field(..., description="Popular queries")
+
+
+class ZeroResultQueryItem(BaseModel):
+    """A search query that returned zero results."""
+
+    query: str = Field(..., description="Search query text")
+    count: int = Field(..., ge=1, description="Number of times searched")
+    last_searched: str = Field(..., description="Last search timestamp")
+
+
+class ZeroResultQueriesResponse(BaseModel):
+    """List of zero-result queries."""
+
+    queries: List[ZeroResultQueryItem] = Field(..., description="Zero-result queries")
+
+
+class SearchClickResponse(BaseModel):
+    """Response for logging a search click."""
+
+    click_id: str = Field(..., description="ID of the logged click")

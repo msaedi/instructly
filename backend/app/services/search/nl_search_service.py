@@ -30,6 +30,7 @@ from app.schemas.nl_search import (
 from app.services.search.embedding_service import EmbeddingService
 from app.services.search.filter_service import FilteredCandidate, FilterResult, FilterService
 from app.services.search.llm_parser import hybrid_parse
+from app.services.search.metrics import record_search_metrics
 from app.services.search.query_parser import ParsedQuery, QueryParser
 from app.services.search.ranking_service import RankedResult, RankingResult, RankingService
 from app.services.search.retriever import PostgresRetriever, RetrievalResult
@@ -145,6 +146,22 @@ class NLSearchService:
         metrics.total_latency_ms = int((time.time() - metrics.total_start) * 1000)
 
         response = self._build_response(query, parsed_query, ranking_result, limit, metrics)
+
+        # Record Prometheus metrics
+        record_search_metrics(
+            total_latency_ms=metrics.total_latency_ms,
+            stage_latencies={
+                "parsing": metrics.parse_latency_ms,
+                "retrieval": metrics.retrieve_latency_ms,
+                "filtering": metrics.filter_latency_ms,
+                "ranking": metrics.rank_latency_ms,
+            },
+            cache_hit=metrics.cache_hit,
+            parsing_mode=parsed_query.parsing_mode,
+            result_count=len(response.results),
+            degraded=metrics.degraded,
+            degradation_reasons=metrics.degradation_reasons,
+        )
 
         # Cache response
         self._cache_response(query, user_location, response)
