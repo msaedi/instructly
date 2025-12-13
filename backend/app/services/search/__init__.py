@@ -33,6 +33,7 @@ from app.services.search.filter_service import (
     FilterService,
 )
 from app.services.search.llm_parser import LLMParser, hybrid_parse
+from app.services.search.nl_search_service import NLSearchService
 from app.services.search.query_parser import ParsedQuery, QueryParser
 from app.services.search.ranking_service import (
     RankedResult,
@@ -89,4 +90,6 @@ __all__ = [
     "invalidate_on_instructor_profile_change",
     "invalidate_on_review_change",
     "invalidate_all_search_cache",
+    # Main service
+    "NLSearchService",
 ]
