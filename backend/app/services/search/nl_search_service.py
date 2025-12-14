@@ -705,18 +705,7 @@ class NLSearchService:
         location_resolution = filter_result.location_resolution if filter_result else None
         location_not_found = bool(getattr(location_resolution, "not_found", False))
 
-        location_resolved: Optional[str] = None
-        if location_resolution:
-            if location_resolution.resolved:
-                location_resolved = location_resolution.region_name or location_resolution.borough
-            elif location_resolution.requires_clarification and location_resolution.candidates:
-                try:
-                    location_resolved = min(
-                        location_resolution.candidates,
-                        key=lambda c: len(str(c.get("region_name") or "")),
-                    ).get("region_name")
-                except Exception:
-                    location_resolved = None
+        location_resolved = self._format_location_resolved(location_resolution)
 
         soft_filter_message: Optional[str] = None
         if filter_result and filter_result.soft_filtering_used:
@@ -747,6 +736,61 @@ class NLSearchService:
         )
 
         return NLSearchResponse(results=results[:limit], meta=meta)
+
+    def _format_location_resolved(
+        self, location_resolution: Optional["ResolvedLocation"]
+    ) -> Optional[str]:
+        """Format a human-friendly resolved location string for UI/debug."""
+        if not location_resolution:
+            return None
+
+        if location_resolution.resolved:
+            return location_resolution.region_name or location_resolution.borough
+
+        if not (location_resolution.requires_clarification and location_resolution.candidates):
+            return None
+
+        candidate_names: List[str] = []
+        for candidate in location_resolution.candidates:
+            if not isinstance(candidate, dict):
+                continue
+            name = candidate.get("region_name")
+            if name is None:
+                continue
+            text = str(name).strip()
+            if text:
+                candidate_names.append(text)
+
+        if not candidate_names:
+            return None
+
+        # De-dupe while preserving order for stable display.
+        seen: set[str] = set()
+        unique_names: List[str] = []
+        for name in candidate_names:
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_names.append(name)
+
+        def _split(name: str) -> tuple[str, str]:
+            if "-" in name:
+                base, suffix = name.split("-", 1)
+                return base.strip(), suffix.strip()
+            if " (" in name and name.endswith(")"):
+                base, rest = name.split(" (", 1)
+                return base.strip(), rest[:-1].strip()
+            return "", ""
+
+        split_parts = [_split(name) for name in unique_names]
+        prefixes = {p for p, s in split_parts if p and s}
+        if prefixes and len(prefixes) == 1 and all(s for _, s in split_parts):
+            prefix = next(iter(prefixes))
+            suffixes = sorted({s for _, s in split_parts}, key=lambda s: s.lower())
+            return f"{prefix} ({', '.join(suffixes)})"
+
+        return ", ".join(unique_names[:5])
 
     def _generate_soft_filter_message(
         self,

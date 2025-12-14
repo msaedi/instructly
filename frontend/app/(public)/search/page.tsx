@@ -12,13 +12,14 @@ import dynamic from 'next/dynamic';
 const InstructorCoverageMap = dynamic(() => import('@/components/maps/InstructorCoverageMap'), { ssr: false });
 import { Instructor } from '@/types/api';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
-import { getString, getNumber, getArray, isRecord, isFeatureCollection } from '@/lib/typesafe';
+import { getString, getNumber, getArray, getBoolean, isRecord, isFeatureCollection } from '@/lib/typesafe';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { recordSearch } from '@/lib/searchTracking';
 import { withApiBase } from '@/lib/apiBase';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { AlertTriangle } from 'lucide-react';
 
 const getServiceDisplayName = (service: Instructor['services'][number]): string => {
   const candidates: Array<unknown> = [
@@ -161,6 +162,7 @@ function SearchPageContent() {
   const [mapBounds, setMapBounds] = useState<unknown>(null);
   const [showSearchAreaButton, setShowSearchAreaButton] = useState(false);
   const [filteredInstructors, setFilteredInstructors] = useState<Instructor[]>([]);
+  const [nlSearchMeta, setNlSearchMeta] = useState<Record<string, unknown> | null>(null);
 
   const RateLimitBanner = () =>
     rateLimit ? (
@@ -176,6 +178,8 @@ function SearchPageContent() {
   const availableNow = searchParams.get('available_now') === 'true';
   const ageGroup = searchParams.get('age_group') || '';
   const fromSource = searchParams.get('from') || '';
+  const softFilteringUsed = nlSearchMeta ? getBoolean(nlSearchMeta, 'soft_filtering_used', false) : false;
+  const softFilterMessage = nlSearchMeta ? getString(nlSearchMeta, 'soft_filter_message', '') : '';
 
   useEffect(() => {
     // reset page and list when search params change
@@ -183,6 +187,7 @@ function SearchPageContent() {
     setPage(1);
     setInstructors([]);
     setHasMore(true);
+    setNlSearchMeta(null);
   }, [query, category, serviceCatalogId, serviceNameFromUrl]);
 
   useEffect(() => {
@@ -217,6 +222,7 @@ function SearchPageContent() {
       if (query) {
         const nlResponse = await publicApi.searchWithNaturalLanguage(query);
         if (nlResponse.error) {
+          setNlSearchMeta(null);
           // If 429, client returns retryAfterSeconds – show rate limit banner instead of generic error
           const secs = (nlResponse as unknown as { retryAfterSeconds?: number }).retryAfterSeconds;
           if (typeof secs === 'number' && secs > 0) {
@@ -345,9 +351,11 @@ function SearchPageContent() {
           // Cast to expected response shape (types will be regenerated after MessageResponse fix)
           const responseData = nlResponse.data as unknown as {
             results: unknown[];
-            meta?: { total_results?: number };
+            meta?: unknown;
           };
-          totalResults = responseData.meta?.total_results ?? instructorsData.length;
+          const meta = isRecord(responseData.meta) ? responseData.meta : null;
+          setNlSearchMeta(meta);
+          totalResults = meta ? getNumber(meta, 'total_results', instructorsData.length) : instructorsData.length;
           setHasMore(false);
         }
       } else if (serviceCatalogId) {
@@ -810,6 +818,14 @@ function SearchPageContent() {
             {ageGroup === 'kids' && (
               <div className="mb-3 rounded-md bg-blue-50 border border-blue-200 text-blue-900 px-3 py-2 text-sm">
                 Showing instructors who teach kids
+              </div>
+            )}
+
+            {/* Soft filter banner (constraint relaxation) */}
+            {softFilteringUsed && softFilterMessage && (
+              <div className="mb-3 rounded-md bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 text-sm flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                <p>{softFilterMessage}</p>
               </div>
             )}
 

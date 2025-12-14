@@ -62,11 +62,27 @@ def seed_location_aliases(
     missing_region = 0
     skipped_existing = 0
     insert_errors = 0
+    inserted_new = 0
+    updated_existing = 0
 
     with Session(engine) as session:
         is_postgres = session.bind is not None and session.bind.dialect.name == "postgresql"
 
         city_id = str(payload.get("city_id") or DEFAULT_CITY_ID).strip()
+        existing_aliases = {
+            _normalize(str(row[0]))
+            for row in session.execute(
+                text(
+                    """
+                    SELECT alias_normalized
+                    FROM location_aliases
+                    WHERE city_id = :city_id
+                    """
+                ),
+                {"city_id": city_id},
+            ).fetchall()
+            if row and row[0]
+        }
 
         rows = session.execute(
             text(
@@ -94,8 +110,9 @@ def seed_location_aliases(
         seen_aliases: set[str] = set()
 
         def _insert_resolved_alias(*, alias_normalized: str, region_boundary_id: str, alias_type: str, confidence: float) -> None:
-            nonlocal inserted, skipped_existing, insert_errors
+            nonlocal inserted, inserted_new, updated_existing, skipped_existing, insert_errors
             try:
+                existed = alias_normalized in existing_aliases
                 result = session.execute(
                     text(
                         """
@@ -135,8 +152,6 @@ def seed_location_aliases(
                             alias_type = EXCLUDED.alias_type,
                             updated_at = CURRENT_TIMESTAMP,
                             deprecated_at = NULL
-                        WHERE location_aliases.source = 'manual'
-                          AND location_aliases.status != 'deprecated'
                         """
                     ),
                     {
@@ -150,6 +165,16 @@ def seed_location_aliases(
                 )
                 if getattr(result, "rowcount", 0) == 1:
                     inserted += 1
+                    if existed:
+                        updated_existing += 1
+                    else:
+                        inserted_new += 1
+                        existing_aliases.add(alias_normalized)
+                    if verbose and alias_normalized == "ues":
+                        action = "Updated" if existed else "Inserted"
+                        print(
+                            f"  ✓ {action} '{alias_normalized}' -> resolved ({region_boundary_id})"
+                        )
                 else:
                     skipped_existing += 1
             except Exception as e:
@@ -158,8 +183,9 @@ def seed_location_aliases(
                     print(f"  ⚠ Could not insert alias '{alias_normalized}': {e}")
 
         def _insert_ambiguous_alias(*, alias_normalized: str, candidate_region_ids: list[str], alias_type: str, confidence: float) -> None:
-            nonlocal inserted, skipped_existing, insert_errors
+            nonlocal inserted, inserted_new, updated_existing, skipped_existing, insert_errors
             try:
+                existed = alias_normalized in existing_aliases
                 candidate_value: Any = candidate_region_ids if is_postgres else json.dumps(candidate_region_ids)
                 result = session.execute(
                     text(
@@ -200,8 +226,6 @@ def seed_location_aliases(
                             alias_type = EXCLUDED.alias_type,
                             updated_at = CURRENT_TIMESTAMP,
                             deprecated_at = NULL
-                        WHERE location_aliases.source = 'manual'
-                          AND location_aliases.status != 'deprecated'
                         """
                     ),
                     {
@@ -215,6 +239,16 @@ def seed_location_aliases(
                 )
                 if getattr(result, "rowcount", 0) == 1:
                     inserted += 1
+                    if existed:
+                        updated_existing += 1
+                    else:
+                        inserted_new += 1
+                        existing_aliases.add(alias_normalized)
+                    if verbose and alias_normalized == "ues":
+                        action = "Updated" if existed else "Inserted"
+                        print(
+                            f"  ✓ {action} '{alias_normalized}' -> ambiguous ({len(candidate_region_ids)} candidates)"
+                        )
                 else:
                     skipped_existing += 1
             except Exception as e:
@@ -309,6 +343,9 @@ def seed_location_aliases(
         print(f"  ✓ Seeded {inserted} location aliases ({region_code})")
         if skipped_duplicate:
             print(f"    - Skipped duplicates in JSON: {skipped_duplicate}")
+        if inserted_new or updated_existing:
+            print(f"    - Inserted new: {inserted_new}")
+            print(f"    - Updated existing: {updated_existing}")
         if skipped_existing:
             print(f"    - Skipped (already exists): {skipped_existing}")
         if missing_region:
