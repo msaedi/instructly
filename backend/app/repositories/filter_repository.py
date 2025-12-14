@@ -63,6 +63,28 @@ class FilterRepository:
         ).fetchall()
         return [row[0] for row in rows]
 
+    def filter_by_any_region_coverage(
+        self, instructor_ids: List[str], region_boundary_ids: List[str]
+    ) -> List[str]:
+        """Return instructor IDs that cover any of the given region boundaries."""
+        if not instructor_ids or not region_boundary_ids:
+            return []
+
+        query = text(
+            """
+            SELECT DISTINCT isa.instructor_id
+            FROM instructor_service_areas isa
+            WHERE isa.instructor_id = ANY(:instructor_ids)
+              AND isa.is_active = true
+              AND isa.neighborhood_id = ANY(:region_ids)
+            """
+        )
+        rows = self.db.execute(
+            query,
+            {"instructor_ids": instructor_ids, "region_ids": region_boundary_ids},
+        ).fetchall()
+        return [row[0] for row in rows]
+
     def filter_by_parent_region(self, instructor_ids: List[str], parent_region: str) -> List[str]:
         """Return instructor IDs that cover any neighborhood in the given parent region (e.g., borough)."""
         if not instructor_ids:

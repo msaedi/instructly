@@ -184,3 +184,33 @@ class LocationResolutionRepository:
             except Exception:
                 pass
             return None, 0.0
+
+    def find_regions_by_name_fragment(self, fragment: str) -> list[RegionBoundary]:
+        """
+        Find regions whose region_name contains the given fragment (case-insensitive).
+
+        Used to bridge differences between alias labels (e.g., "Upper East Side") and
+        canonical region_boundaries names (e.g., "Upper East Side-Carnegie Hill").
+        """
+        normalized = " ".join(str(fragment).strip().lower().split())
+        if not normalized:
+            return []
+
+        try:
+            regions = (
+                self.db.query(RegionBoundary)
+                .filter(
+                    RegionBoundary.region_type == self.region_code,
+                    RegionBoundary.region_name.isnot(None),
+                    func.lower(RegionBoundary.region_name).like(f"%{normalized}%"),
+                )
+                .all()
+            )
+            return [r for r in regions if isinstance(r, RegionBoundary)]
+        except Exception as exc:
+            logger.debug("Region fragment lookup failed for '%s': %s", normalized, str(exc))
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return []

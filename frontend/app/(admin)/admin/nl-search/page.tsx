@@ -86,6 +86,7 @@ interface ParsedQuery {
 
 interface SearchMeta {
   query: string;
+  corrected_query?: string | null;
   parsed: ParsedQuery;
   total_results: number;
   limit: number;
@@ -94,11 +95,23 @@ interface SearchMeta {
   degraded: boolean;
   degradation_reasons: string[];
   parsing_mode: string;
+  filters_applied?: string[];
+  soft_filtering_used?: boolean;
+  filter_stats?: FilterStats | null;
 }
 
 interface SearchResponse {
   results: SearchResult[];
   meta: SearchMeta;
+}
+
+interface FilterStats {
+  initial_candidates: number;
+  after_price?: number;
+  after_location?: number;
+  after_availability?: number;
+  after_soft_filtering?: number;
+  final_candidates: number;
 }
 
 // API functions
@@ -543,7 +556,60 @@ function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
           <ParsedField label="Urgency" value={meta.parsed.urgency} />
         </div>
       </div>
+
+      {/* Filter Funnel */}
+      {meta.filter_stats && (
+        <div className="p-4 mt-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter Funnel</h3>
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              {meta.soft_filtering_used ? 'Soft filtering used' : 'Hard filters only'}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <FunnelChip label="Initial" value={meta.filter_stats.initial_candidates} color="blue" />
+            {meta.filter_stats.after_price !== undefined && (
+              <FunnelChip label="After Price" value={meta.filter_stats.after_price} color="green" />
+            )}
+            {meta.filter_stats.after_location !== undefined && (
+              <FunnelChip label="After Location" value={meta.filter_stats.after_location} color="yellow" />
+            )}
+            {meta.filter_stats.after_availability !== undefined && (
+              <FunnelChip label="After Availability" value={meta.filter_stats.after_availability} color="purple" />
+            )}
+            {meta.filter_stats.after_soft_filtering !== undefined && (
+              <FunnelChip label="After Soft" value={meta.filter_stats.after_soft_filtering} color="orange" />
+            )}
+            <FunnelChip label="Final" value={meta.filter_stats.final_candidates} color="emerald" />
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function FunnelChip({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number | undefined;
+  color: 'blue' | 'green' | 'yellow' | 'purple' | 'orange' | 'emerald';
+}) {
+  const colorClasses = {
+    blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
+    green: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
+    yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200',
+    purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200',
+    orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200',
+    emerald: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200',
+  };
+
+  return (
+    <span className={`px-2 py-1 rounded ${colorClasses[color]}`}>
+      {label}: {value ?? '-'}
+    </span>
   );
 }
 

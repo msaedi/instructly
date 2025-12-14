@@ -15,8 +15,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from functools import lru_cache
+import json
 import logging
-from typing import List, Optional, Sequence, TypedDict
+from pathlib import Path
+from typing import Any, List, Optional, Sequence, TypedDict
 
 from sqlalchemy.orm import Session
 
@@ -28,6 +31,54 @@ from app.repositories.unresolved_location_query_repository import (
 )
 
 logger = logging.getLogger(__name__)
+
+_LOCATION_ALIASES_JSON_PATH = Path(__file__).resolve().parents[3] / "data" / "location_aliases.json"
+
+
+@lru_cache(maxsize=16)
+def _load_location_alias_seed_maps(
+    region_code: str,
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """
+    Load alias -> region_name / candidates mapping from `backend/data/location_aliases.json`.
+
+    This is a best-effort fallback used when the DB seeder was not run or when canonical
+    `region_boundaries.region_name` values differ from the JSON's human labels.
+    """
+    try:
+        payload = json.loads(_LOCATION_ALIASES_JSON_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}, {}
+    except Exception as exc:
+        logger.debug("Failed to load location_aliases.json: %s", str(exc))
+        return {}, {}
+
+    if str(payload.get("region_code") or "").strip().lower() != str(region_code).strip().lower():
+        return {}, {}
+
+    resolved: dict[str, dict[str, Any]] = {}
+    for row in payload.get("aliases") or []:
+        if not isinstance(row, dict):
+            continue
+        alias = row.get("alias")
+        if not alias:
+            continue
+        key = " ".join(str(alias).strip().lower().split())
+        if key:
+            resolved[key] = row
+
+    ambiguous: dict[str, dict[str, Any]] = {}
+    for row in payload.get("ambiguous_aliases") or []:
+        if not isinstance(row, dict):
+            continue
+        alias = row.get("alias")
+        if not alias:
+            continue
+        key = " ".join(str(alias).strip().lower().split())
+        if key:
+            ambiguous[key] = row
+
+    return resolved, ambiguous
 
 
 class ResolutionTier(Enum):
@@ -246,6 +297,11 @@ class LocationResolver:
                 normalized = normalized[len(wrapper) :]
         if normalized.endswith(" area"):
             normalized = normalized[:-5]
+        # Common "landmark + direction" inputs (e.g., "central park north") should
+        # still resolve via the base landmark ("central park") if needed.
+        tokens = normalized.split()
+        if len(tokens) >= 3 and tokens[-1] in {"north", "south", "east", "west"}:
+            normalized = " ".join(tokens[:-1])
         return " ".join(normalized.strip().split())
 
     def _tier1_exact_match(self, normalized: str) -> ResolvedLocation:
@@ -272,7 +328,7 @@ class LocationResolver:
     def _tier2_alias_lookup(self, normalized: str) -> ResolvedLocation:
         alias_row = self.repository.find_trusted_alias(normalized)
         if not alias_row:
-            return ResolvedLocation.from_not_found()
+            return self._tier2_alias_lookup_from_seed_data(normalized)
 
         self.repository.increment_alias_user_count(alias_row)
 
@@ -295,6 +351,93 @@ class LocationResolver:
                     borough=getattr(region, "parent_region", None),
                     tier=ResolutionTier.ALIAS,
                     confidence=float(alias_row.confidence or 1.0),
+                )
+
+        return ResolvedLocation.from_not_found()
+
+    def _tier2_alias_lookup_from_seed_data(self, normalized: str) -> ResolvedLocation:
+        """
+        Best-effort alias lookup from `backend/data/location_aliases.json`.
+
+        This keeps common abbreviations working even if:
+        - the system seeder hasn't been run yet, or
+        - region_boundaries names don't exactly match the JSON labels (sub-neighborhoods, suffixes, etc.)
+        """
+        resolved_map, ambiguous_map = _load_location_alias_seed_maps(self.region_code)
+        payload_row = resolved_map.get(normalized) or ambiguous_map.get(normalized)
+        if not payload_row:
+            return ResolvedLocation.from_not_found()
+
+        confidence = float(payload_row.get("confidence") or 1.0)
+
+        # Resolved alias: map region_name label -> region_boundaries rows
+        region_label = payload_row.get("region_name")
+        if region_label:
+            label_norm = self._normalize(str(region_label))
+            exact = self.repository.find_exact_region_by_name(label_norm)
+            if exact and getattr(exact, "id", None) and getattr(exact, "region_name", None):
+                return ResolvedLocation.from_region(
+                    region_id=exact.id,
+                    region_name=exact.region_name,
+                    borough=getattr(exact, "parent_region", None),
+                    tier=ResolutionTier.ALIAS,
+                    confidence=confidence,
+                )
+
+            regions = self.repository.find_regions_by_name_fragment(label_norm)
+            candidates = self._format_candidates(regions)
+            if len(candidates) == 1:
+                only = candidates[0]
+                return ResolvedLocation.from_region(
+                    region_id=only["region_id"],
+                    region_name=only["region_name"],
+                    borough=only.get("borough"),
+                    tier=ResolutionTier.ALIAS,
+                    confidence=confidence,
+                )
+            if len(candidates) >= 2:
+                return ResolvedLocation.from_ambiguous(
+                    candidates=candidates,
+                    tier=ResolutionTier.ALIAS,
+                    confidence=confidence,
+                )
+            return ResolvedLocation.from_not_found()
+
+        # Ambiguous alias: map candidate labels -> region_boundaries rows (union)
+        candidate_labels = payload_row.get("candidates") or []
+        if isinstance(candidate_labels, list):
+            all_regions: list[RegionBoundary] = []
+            for label in candidate_labels:
+                if not label:
+                    continue
+                label_norm = self._normalize(str(label))
+                exact = self.repository.find_exact_region_by_name(label_norm)
+                if exact:
+                    all_regions.append(exact)
+                    continue
+                all_regions.extend(self.repository.find_regions_by_name_fragment(label_norm))
+
+            # Deduplicate by region id
+            by_id: dict[str, RegionBoundary] = {}
+            for region in all_regions:
+                if getattr(region, "id", None):
+                    by_id[str(region.id)] = region
+
+            candidates = self._format_candidates(list(by_id.values()))
+            if len(candidates) == 1:
+                only = candidates[0]
+                return ResolvedLocation.from_region(
+                    region_id=only["region_id"],
+                    region_name=only["region_name"],
+                    borough=only.get("borough"),
+                    tier=ResolutionTier.ALIAS,
+                    confidence=confidence,
+                )
+            if len(candidates) >= 2:
+                return ResolvedLocation.from_ambiguous(
+                    candidates=candidates,
+                    tier=ResolutionTier.ALIAS,
+                    confidence=confidence,
                 )
 
         return ResolvedLocation.from_not_found()

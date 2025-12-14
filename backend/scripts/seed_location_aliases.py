@@ -81,17 +81,15 @@ def seed_location_aliases(
         ).fetchall()
         name_to_id = {str(r[1]).strip().lower(): str(r[0]) for r in rows if r[1]}
 
-        def _find_region_id(region_name: str) -> str | None:
+        def _find_region_ids(region_name: str) -> list[str]:
             key = _normalize(region_name)
             if key in name_to_id:
-                return name_to_id[key]
+                return [name_to_id[key]]
             # Best-effort normalization (e.g., "Astoria (Central)" -> "Astoria").
             candidates = [
                 rid for existing_name, rid in name_to_id.items() if key in existing_name or existing_name in key
             ]
-            if len(candidates) == 1:
-                return candidates[0]
-            return None
+            return list(dict.fromkeys(candidates))
 
         seen_aliases: set[str] = set()
 
@@ -219,19 +217,28 @@ def seed_location_aliases(
                 continue
             seen_aliases.add(alias)
 
-            region_id = _find_region_id(region_name)
-            if not region_id:
+            region_ids = _find_region_ids(region_name)
+            if not region_ids:
                 missing_region += 1
                 if verbose:
                     print(f"  ⚠ Region not found for alias '{alias}': '{region_name}'")
                 continue
 
-            _insert_resolved_alias(
-                alias_normalized=alias,
-                region_boundary_id=region_id,
-                alias_type=alias_type,
-                confidence=confidence,
-            )
+            if len(region_ids) == 1:
+                _insert_resolved_alias(
+                    alias_normalized=alias,
+                    region_boundary_id=region_ids[0],
+                    alias_type=alias_type,
+                    confidence=confidence,
+                )
+            else:
+                # Coarse labels can map to multiple region_boundaries rows (sub-neighborhoods).
+                _insert_ambiguous_alias(
+                    alias_normalized=alias,
+                    candidate_region_ids=region_ids,
+                    alias_type=alias_type,
+                    confidence=confidence,
+                )
 
         for row in ambiguous_aliases:
             if not isinstance(row, dict):
@@ -250,13 +257,13 @@ def seed_location_aliases(
                 continue
             seen_aliases.add(alias)
 
-            candidate_ids = []
+            candidate_ids: list[str] = []
             for name in candidate_names:
                 if not name:
                     continue
-                region_id = _find_region_id(str(name))
-                if region_id:
-                    candidate_ids.append(region_id)
+                region_ids = _find_region_ids(str(name))
+                if region_ids:
+                    candidate_ids.extend(region_ids)
                 elif verbose:
                     print(f"  ⚠ Candidate not found for ambiguous alias '{alias}': '{name}'")
 

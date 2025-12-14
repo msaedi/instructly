@@ -309,6 +309,53 @@ class TestLocationFilter:
         assert result.soft_filtering_used is False
 
     @pytest.mark.asyncio
+    async def test_location_filter_ambiguous_applies_union(
+        self,
+        filter_service: FilterService,
+        sample_candidates: list[ServiceCandidate],
+        mock_repository: Mock,
+    ) -> None:
+        """Ambiguous locations should still apply a union filter across candidate regions."""
+        mock_repository.filter_by_any_region_coverage.return_value = [
+            "inst_001",
+            "inst_002",
+            "inst_003",
+            "inst_004",
+            "inst_005",
+        ]
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation.from_ambiguous(
+            candidates=[
+                {
+                    "region_id": "reg_001",
+                    "region_name": "Upper East Side",
+                    "borough": "Manhattan",
+                },
+                {
+                    "region_id": "reg_002",
+                    "region_name": "Upper East Side-Carnegie Hill",
+                    "borough": "Manhattan",
+                },
+            ],
+            tier=ResolutionTier.ALIAS,
+            confidence=1.0,
+        )
+
+        query = ParsedQuery(
+            original_query="piano lessons in ues",
+            service_query="piano lessons",
+            parsing_mode="regex",
+            location_text="ues",
+            location_type="neighborhood",
+        )
+
+        result = await filter_service.filter_candidates(sample_candidates, query)
+
+        assert mock_repository.filter_by_any_region_coverage.called
+        assert "location" in result.filters_applied
+        assert result.filter_stats.get("after_location") == 5
+        assert result.soft_filtering_used is False
+
+    @pytest.mark.asyncio
     async def test_location_filter_skipped_for_near_me(
         self,
         filter_service: FilterService,
@@ -701,6 +748,8 @@ class TestEdgeCases:
 
         # Location filter should not be in applied filters
         assert "location" not in result.filters_applied
+        # But the funnel should still expose after_location for observability
+        assert result.filter_stats.get("after_location") == len(sample_candidates)
 
     @pytest.mark.asyncio
     async def test_invalid_time_format(

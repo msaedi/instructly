@@ -51,6 +51,10 @@ TEXT_SKIP_VECTOR_MIN_RESULTS = int(os.getenv("NL_SEARCH_TEXT_SKIP_VECTOR_MIN_RES
 # This is capped by OPENAI_EMBEDDING_TIMEOUT_MS / SearchConfig.embedding_timeout_ms.
 EMBEDDING_SOFT_TIMEOUT_MS = int(os.getenv("NL_SEARCH_EMBEDDING_SOFT_TIMEOUT_MS", "300"))
 
+# Tokens that commonly appear in many service names and can cause trigram search
+# to over-match unrelated categories (e.g., "piano lessons" matching "chess lessons").
+TRIGRAM_GENERIC_TOKENS = frozenset({"lesson", "lessons", "class", "classes"})
+
 
 @dataclass
 class ServiceCandidate:
@@ -152,7 +156,6 @@ class PostgresRetriever:
         vector_latency_ms = 0
 
         service_query = parsed_query.service_query
-        original_query = parsed_query.original_query
 
         # Track degradation
         degraded = False
@@ -164,9 +167,10 @@ class PostgresRetriever:
         text_results: Dict[str, Tuple[float, ServiceData]] = {}
 
         # Step 1: Always run trigram text search first (fast path for common queries)
+        text_query = self._normalize_query_for_trigram(service_query)
         text_start = time.perf_counter()
         text_results = await asyncio.to_thread(
-            self._text_search, service_query, original_query, min(TEXT_TOP_K, top_k)
+            self._text_search, text_query, text_query, min(TEXT_TOP_K, top_k)
         )
         text_latency_ms = int((time.perf_counter() - text_start) * 1000)
 
@@ -316,6 +320,22 @@ class PostgresRetriever:
             for row in rows
         }
 
+    @staticmethod
+    def _normalize_query_for_trigram(service_query: str) -> str:
+        """
+        Reduce trigram over-matching by stripping generic tokens.
+
+        This is intentionally conservative: only removes extremely common tokens.
+        Falls back to the original query if stripping would produce an empty query.
+        """
+        raw = " ".join(str(service_query).strip().split())
+        if not raw:
+            return ""
+
+        tokens = [t for t in raw.split() if t.lower() not in TRIGRAM_GENERIC_TOKENS]
+        normalized = " ".join(tokens).strip()
+        return normalized if normalized else raw
+
     def _fuse_scores(
         self,
         vector_results: Dict[str, Tuple[float, ServiceData]],
@@ -402,9 +422,8 @@ class PostgresRetriever:
         Returns:
             RetrievalResult with text-only candidates
         """
-        text_results = await asyncio.to_thread(
-            self._text_search, service_query, original_query, top_k
-        )
+        text_query = self._normalize_query_for_trigram(service_query)
+        text_results = await asyncio.to_thread(self._text_search, text_query, text_query, top_k)
 
         candidates = [
             ServiceCandidate(

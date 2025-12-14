@@ -154,17 +154,74 @@ class FilterService:
             filters_applied.append("location")
             filter_stats["after_location"] = len(working)
         elif parsed_query.location_text and parsed_query.location_type != "near_me":
+            # Ensure filter funnel always includes an "after_location" stage when a location was parsed.
+            # Even if we end up skipping the filter (unresolved/ambiguous), we want observability.
+            before_location_count = len(working)
+            filter_stats.setdefault("after_location", before_location_count)
+
             location_resolution = self.location_resolver.resolve(
                 parsed_query.location_text,
                 original_query=parsed_query.original_query,
                 track_unresolved=True,
             )
             if location_resolution.requires_clarification:
-                logger.info(
-                    "Ambiguous location '%s' (region=%s); skipping location filter",
-                    parsed_query.location_text,
-                    self.location_resolver.region_code,
+                # In practice, "ambiguous" often means one user-facing neighborhood maps to multiple
+                # region_boundaries rows (e.g., "Upper East Side" -> multiple UES subregions).
+                # Apply a union filter across candidates to avoid ignoring location entirely.
+                candidate_ids = [
+                    c["region_id"]
+                    for c in (location_resolution.candidates or [])
+                    if c.get("region_id")
+                ]
+                candidate_ids = list(dict.fromkeys(candidate_ids))
+
+                filtered = (
+                    self._filter_location_regions(working, candidate_ids) if candidate_ids else []
                 )
+                if filtered:
+                    working = filtered
+                    filters_applied.append("location")
+                    filter_stats["after_location"] = len(working)
+                    logger.info(
+                        "Ambiguous location '%s' resolved to %d candidate regions; applied union filter (%d -> %d)",
+                        parsed_query.location_text,
+                        len(candidate_ids),
+                        before_location_count,
+                        len(working),
+                    )
+                else:
+                    # Best-effort borough fallback if all candidates share a borough.
+                    boroughs = {
+                        c.get("borough")
+                        for c in (location_resolution.candidates or [])
+                        if c.get("borough")
+                    }
+                    if len(boroughs) == 1:
+                        borough = next(iter(boroughs))
+                        borough_filtered = self._filter_location_borough(working, str(borough))
+                        if borough_filtered:
+                            working = borough_filtered
+                            filters_applied.append("location")
+                            filter_stats["after_location"] = len(working)
+                            logger.info(
+                                "Ambiguous location '%s' fell back to borough '%s' (%d -> %d)",
+                                parsed_query.location_text,
+                                borough,
+                                before_location_count,
+                                len(working),
+                            )
+                        else:
+                            logger.info(
+                                "Ambiguous location '%s' (region=%s); no candidate coverage match; skipping location filter",
+                                parsed_query.location_text,
+                                self.location_resolver.region_code,
+                            )
+                    else:
+                        logger.info(
+                            "Ambiguous location '%s' (region=%s); skipping location filter",
+                            parsed_query.location_text,
+                            self.location_resolver.region_code,
+                        )
             elif location_resolution.resolved:
                 if location_resolution.region_id:
                     working = self._filter_location_region(working, location_resolution.region_id)
@@ -264,6 +321,29 @@ class FilterService:
         instructor_ids = list({c.instructor_id for c in candidates})
         passing_ids = set(
             self.repository.filter_by_region_coverage(instructor_ids, region_boundary_id)
+        )
+
+        filtered: List[FilteredCandidate] = []
+        for c in candidates:
+            if c.instructor_id in passing_ids:
+                c.passed_location = True
+                filtered.append(c)
+            else:
+                c.passed_location = False
+        return filtered
+
+    def _filter_location_regions(
+        self,
+        candidates: List[FilteredCandidate],
+        region_boundary_ids: List[str],
+    ) -> List[FilteredCandidate]:
+        """Filter candidates to instructors covering any of the given region boundaries."""
+        if not candidates or not region_boundary_ids:
+            return candidates
+
+        instructor_ids = list({c.instructor_id for c in candidates})
+        passing_ids = set(
+            self.repository.filter_by_any_region_coverage(instructor_ids, region_boundary_ids)
         )
 
         filtered: List[FilteredCandidate] = []

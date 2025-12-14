@@ -54,9 +54,10 @@ class RetrieverRepository:
                 ins.hourly_rate as price_per_hour,
                 ip.user_id as instructor_id,
                 -- Normalize cosine distance to similarity score (0-1)
-                -- pgvector <=> returns distance [0, 2], convert to similarity
-                -- Use CAST() instead of :: to avoid SQLAlchemy parameter binding conflict
-                GREATEST(0, 1 - ((sc.embedding_v2 <=> CAST(:embedding AS vector)) / 2)) as vector_score
+                -- pgvector <=> returns cosine distance [0, 2] (1 - cosine_similarity),
+                -- so 1 - distance yields similarity [0, 1] for the common case (clamped at 0).
+                -- Use CAST() instead of :: to avoid SQLAlchemy parameter binding conflict.
+                GREATEST(0, 1 - (sc.embedding_v2 <=> CAST(:embedding AS vector))) as vector_score
             FROM service_catalog sc
             JOIN instructor_services ins ON ins.service_catalog_id = sc.id
             JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id

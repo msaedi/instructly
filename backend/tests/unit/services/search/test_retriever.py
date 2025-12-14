@@ -221,7 +221,7 @@ class TestHybridSearch:
 
         # Text search called with queries
         mock_repository.text_search.assert_called_once_with(
-            "piano lessons", "piano lessons", 30
+            "piano", "piano", 30
         )
 
 
