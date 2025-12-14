@@ -261,6 +261,12 @@ function SearchPageContent() {
               const coverageAreas = getArray(result, 'coverage_areas')
                 .filter((v): v is string => typeof v === 'string');
 
+              // Optional debug distance from searched location (populated when location was resolved)
+              const distanceMiRaw = getNumber(result, 'distance_mi', Number.NaN);
+              const distanceMi = Number.isFinite(distanceMiRaw) ? distanceMiRaw : null;
+              const distanceKmRaw = getNumber(result, 'distance_km', Number.NaN);
+              const distanceKm = Number.isFinite(distanceKmRaw) ? distanceKmRaw : null;
+
               // Extract best matching service
               const bestMatch = isRecord(result['best_match']) ? result['best_match'] : {};
               const bestServiceId = getString(bestMatch, 'service_id', '');
@@ -320,6 +326,8 @@ function SearchPageContent() {
                 verified,
                 rating: avgRating || undefined,
                 total_reviews: reviewCount,
+                distance_mi: distanceMi,
+                distance_km: distanceKm,
                 _matchedServiceContext: {
                   levels: [] as string[],
                   age_groups: [] as string[],

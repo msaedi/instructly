@@ -111,6 +111,48 @@ class TestLocationResolver:
         assert resolved.region_name == "Lower East Side"
         assert resolved.confidence > 0
 
+    def test_substring_match_resolves_single_region(self, db):
+        region_type = "test"
+        _create_region(
+            db,
+            region_type=region_type,
+            region_name="Upper East Side-Carnegie Hill",
+            parent_region="Manhattan",
+        )
+
+        resolver = LocationResolver(db, region_code=region_type)
+        resolved = resolver.resolve("carnegie")
+
+        assert resolved.kind == "region"
+        assert resolved.method == "fuzzy"
+        assert resolved.resolved is True
+        assert resolved.tier == ResolutionTier.FUZZY
+        assert resolved.region_name == "Upper East Side-Carnegie Hill"
+
+    def test_substring_match_can_return_ambiguous(self, db):
+        region_type = "test"
+        _create_region(
+            db,
+            region_type=region_type,
+            region_name="East Midtown-Turtle Bay",
+            parent_region="Manhattan",
+        )
+        _create_region(
+            db,
+            region_type=region_type,
+            region_name="West Midtown",
+            parent_region="Manhattan",
+        )
+
+        resolver = LocationResolver(db, region_code=region_type)
+        resolved = resolver.resolve("midtown")
+
+        assert resolved.method == "fuzzy"
+        assert resolved.requires_clarification is True
+        assert resolved.tier == ResolutionTier.FUZZY
+        assert resolved.candidates is not None
+        assert len(resolved.candidates) >= 2
+
     def test_no_match_returns_none(self, db):
         resolver = LocationResolver(db, region_code="test")
         resolved = resolver.resolve("narnia")

@@ -168,6 +168,8 @@ export default function InstructorCard({
   const rating = typeof searchRating?.primary_rating === 'number' ? searchRating?.primary_rating : null;
   const reviewCount = searchRating?.review_count || 0;
   const showRating = typeof rating === 'number' && reviewCount >= 3;
+  const distanceMi = (instructor as { distance_mi?: number | null }).distance_mi;
+  const showDistance = typeof distanceMi === 'number' && Number.isFinite(distanceMi);
 
   // Use React Query hook for recent reviews (prevents duplicate API calls)
   const { data: recentReviewsData } = useRecentReviews({
@@ -416,6 +418,11 @@ const findNextAvailableSlot = (
                 >
                   {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
                 </h2>
+                {showDistance && (
+                  <span className={`${compact ? 'text-sm' : 'text-base'} font-medium text-gray-500`}>
+                    · {distanceMi.toFixed(1)} mi
+                  </span>
+                )}
               </div>
               {showRating && (
                 <button

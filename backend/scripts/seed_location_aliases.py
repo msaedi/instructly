@@ -47,7 +47,7 @@ def seed_location_aliases(
     """
     Seed `location_aliases` for the given region_code.
 
-    Returns the number of INSERT attempts (best-effort; idempotent via ON CONFLICT).
+    Returns the number of INSERT/UPSERT attempts (best-effort; idempotent via ON CONFLICT).
     """
     payload = _load_aliases(data_path)
     aliases = payload.get("aliases") or []
@@ -125,7 +125,18 @@ def seed_location_aliases(
                             1,
                             :alias_type
                         )
-                        ON CONFLICT (city_id, alias_normalized) DO NOTHING
+                        ON CONFLICT (city_id, alias_normalized) DO UPDATE SET
+                            region_boundary_id = EXCLUDED.region_boundary_id,
+                            requires_clarification = FALSE,
+                            candidate_region_ids = NULL,
+                            status = 'active',
+                            confidence = EXCLUDED.confidence,
+                            source = 'manual',
+                            alias_type = EXCLUDED.alias_type,
+                            updated_at = CURRENT_TIMESTAMP,
+                            deprecated_at = NULL
+                        WHERE location_aliases.source = 'manual'
+                          AND location_aliases.status != 'deprecated'
                         """
                     ),
                     {
@@ -179,7 +190,18 @@ def seed_location_aliases(
                             1,
                             :alias_type
                         )
-                        ON CONFLICT (city_id, alias_normalized) DO NOTHING
+                        ON CONFLICT (city_id, alias_normalized) DO UPDATE SET
+                            region_boundary_id = NULL,
+                            requires_clarification = TRUE,
+                            candidate_region_ids = EXCLUDED.candidate_region_ids,
+                            status = 'active',
+                            confidence = EXCLUDED.confidence,
+                            source = 'manual',
+                            alias_type = EXCLUDED.alias_type,
+                            updated_at = CURRENT_TIMESTAMP,
+                            deprecated_at = NULL
+                        WHERE location_aliases.source = 'manual'
+                          AND location_aliases.status != 'deprecated'
                         """
                     ),
                     {

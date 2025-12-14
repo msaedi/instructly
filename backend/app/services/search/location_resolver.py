@@ -4,6 +4,7 @@ Location resolver for NL search.
 Phase 1 supports a 3-tier pipeline:
 1) Exact match on `region_boundaries.region_name`
 2) Alias lookup in `location_aliases` (trust + ambiguity model)
+2.5) Substring match on `region_boundaries.region_name`
 3) Fuzzy match via pg_trgm `similarity()` on `region_boundaries.region_name`
 
 Notes:
@@ -276,6 +277,11 @@ class LocationResolver:
         if alias_result.resolved or alias_result.requires_clarification:
             return alias_result
 
+        # Tier 2.5: Substring match on region_boundaries (e.g., "carnegie" -> "Upper East Side-Carnegie Hill")
+        substring = self._tier2_5_region_name_substring(normalized)
+        if substring.resolved or substring.requires_clarification:
+            return substring
+
         # Tier 3: Fuzzy match (pg_trgm similarity)
         fuzzy = self._tier3_fuzzy_match(normalized)
         if fuzzy.resolved:
@@ -440,6 +446,47 @@ class LocationResolver:
                     confidence=confidence,
                 )
 
+        return ResolvedLocation.from_not_found()
+
+    def _tier2_5_region_name_substring(self, normalized: str) -> ResolvedLocation:
+        """
+        Substring match on `region_boundaries.region_name` for partial neighborhood inputs.
+
+        Examples:
+        - "carnegie" -> "Upper East Side-Carnegie Hill"
+        - "yorkville" -> "Upper East Side-Yorkville"
+
+        If multiple matches exist (e.g., "midtown"), returns an ambiguous result with a small
+        candidate set so downstream filtering can apply a union coverage filter.
+        """
+        # Avoid extremely short tokens which tend to match too broadly ("east", "west", etc.).
+        if len(normalized) < 4:
+            return ResolvedLocation.from_not_found()
+
+        regions = self.repository.find_regions_by_name_fragment(normalized)
+        if not regions:
+            return ResolvedLocation.from_not_found()
+
+        # Prefer shorter names as a proxy for specificity; cap to keep payload small.
+        regions_sorted = sorted(
+            regions, key=lambda r: len(str(getattr(r, "region_name", "") or ""))
+        )[:5]
+        candidates = self._format_candidates(regions_sorted)
+        if len(candidates) == 1:
+            only = candidates[0]
+            return ResolvedLocation.from_region(
+                region_id=only["region_id"],
+                region_name=only["region_name"],
+                borough=only.get("borough"),
+                tier=ResolutionTier.FUZZY,
+                confidence=0.9,
+            )
+        if len(candidates) >= 2:
+            return ResolvedLocation.from_ambiguous(
+                candidates=candidates,
+                tier=ResolutionTier.FUZZY,
+                confidence=0.9,
+            )
         return ResolvedLocation.from_not_found()
 
     def _tier3_fuzzy_match(self, normalized: str) -> ResolvedLocation:
