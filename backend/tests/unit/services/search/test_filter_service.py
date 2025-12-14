@@ -13,7 +13,7 @@ from app.services.search.filter_service import (
     FilteredCandidate,
     FilterService,
 )
-from app.services.search.location_resolver import ResolvedLocation
+from app.services.search.location_resolver import ResolutionTier, ResolvedLocation
 from app.services.search.query_parser import ParsedQuery
 from app.services.search.retriever import ServiceCandidate
 
@@ -89,7 +89,7 @@ def filter_service(mock_db: Mock, mock_repository: Mock) -> FilterService:
     """Create filter service with mocks."""
     service = FilterService(db=mock_db, repository=mock_repository, region_code="nyc")
     service.location_resolver = Mock()
-    service.location_resolver.resolve.return_value = ResolvedLocation(kind="none", method="none")
+    service.location_resolver.resolve.return_value = ResolvedLocation.from_not_found()
     return service
 
 
@@ -246,10 +246,10 @@ class TestLocationFilter:
         mock_repository: Mock,
     ) -> None:
         """Should call repository for location filtering."""
-        filter_service.location_resolver.resolve.return_value = ResolvedLocation(
-            kind="borough",
-            method="exact",
-            borough_name="Manhattan",
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation.from_borough(
+            borough="Manhattan",
+            tier=ResolutionTier.EXACT,
+            confidence=1.0,
         )
         query = ParsedQuery(
             original_query="piano in Manhattan",
@@ -280,10 +280,10 @@ class TestLocationFilter:
             "inst_004",
             "inst_005",
         ]
-        filter_service.location_resolver.resolve.return_value = ResolvedLocation(
-            kind="borough",
-            method="exact",
-            borough_name="Brooklyn",
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation.from_borough(
+            borough="Brooklyn",
+            tier=ResolutionTier.EXACT,
+            confidence=1.0,
         )
 
         query = ParsedQuery(
@@ -467,10 +467,10 @@ class TestSoftFiltering:
         mock_repository: Mock,
     ) -> None:
         """Should trigger soft filtering when < 5 results."""
-        filter_service.location_resolver.resolve.return_value = ResolvedLocation(
-            kind="borough",
-            method="exact",
-            borough_name="Manhattan",
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation.from_borough(
+            borough="Manhattan",
+            tier=ResolutionTier.EXACT,
+            confidence=1.0,
         )
         # Only return 2 instructors from hard location filter
         mock_repository.filter_by_parent_region.return_value = ["inst_001", "inst_002"]
@@ -619,10 +619,10 @@ class TestFilterResult:
         mock_repository: Mock,
     ) -> None:
         """Should track which filters were applied."""
-        filter_service.location_resolver.resolve.return_value = ResolvedLocation(
-            kind="borough",
-            method="exact",
-            borough_name="Brooklyn",
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation.from_borough(
+            borough="Brooklyn",
+            tier=ResolutionTier.EXACT,
+            confidence=1.0,
         )
         query = ParsedQuery(
             original_query="piano in Brooklyn under $80 tomorrow",
@@ -679,9 +679,7 @@ class TestEdgeCases:
         mock_repository: Mock,
     ) -> None:
         """Should skip location filter when location not found."""
-        filter_service.location_resolver.resolve.return_value = ResolvedLocation(
-            kind="none", method="none"
-        )
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation.from_not_found()
 
         query = ParsedQuery(
             original_query="piano in Narnia",

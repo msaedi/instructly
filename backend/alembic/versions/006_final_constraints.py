@@ -1460,48 +1460,236 @@ def upgrade() -> None:
     op.create_index("idx_search_clicks_query", "search_clicks", ["search_query_id"])
     op.create_index("idx_search_clicks_service", "search_clicks", ["service_id"])
 
-    # --- 5. Create location_aliases table (abbreviations/colloquialisms for region_boundaries) ---
+    # ============================================
+    # LOCATION ALIASES (multi-city + ambiguity + trust model)
+    # ============================================
     print("Creating location_aliases table for location resolution...")
+    default_city_id = "01JDEFAULTNYC0000000000"
+    candidate_region_ids_type = sa.ARRAY(sa.String(26)) if is_postgres else json_type
+
     op.create_table(
         "location_aliases",
+        # Primary key
         sa.Column("id", sa.String(26), nullable=False),
-        sa.Column("alias", sa.String(100), nullable=False),
+        # Multi-city support (FK to cities table later)
+        sa.Column(
+            "city_id",
+            sa.String(26),
+            nullable=False,
+            server_default=default_city_id,
+        ),
+        # The alias text (normalized: lowercase, trimmed)
+        sa.Column("alias_normalized", sa.String(255), nullable=False),
+        # Resolution outcome - Pattern A: Resolved to single region
         sa.Column(
             "region_boundary_id",
             sa.String(26),
             sa.ForeignKey("region_boundaries.id", ondelete="CASCADE"),
+            nullable=True,
+        ),
+        # Resolution outcome - Pattern B: Ambiguous (requires clarification)
+        sa.Column(
+            "requires_clarification",
+            sa.Boolean(),
             nullable=False,
+            server_default="false",
         ),
         sa.Column(
-            "alias_type",
+            "candidate_region_ids",
+            candidate_region_ids_type,
+            nullable=True,
+        ),
+        # Trust model
+        sa.Column(
+            "status",
             sa.String(20),
             nullable=False,
-            server_default="abbreviation",  # abbreviation|colloquial|misspelling
+            server_default="active",  # pending_review|active|deprecated
         ),
+        # Evidence tracking
+        sa.Column(
+            "confidence",
+            sa.Float(),
+            nullable=False,
+            server_default="1.0",
+        ),
+        sa.Column(
+            "source",
+            sa.String(50),
+            nullable=False,
+            server_default="manual",  # manual|fuzzy|embedding|llm|user_learning
+        ),
+        sa.Column(
+            "user_count",
+            sa.Integer(),
+            nullable=False,
+            server_default="1",
+        ),
+        # Classification
+        sa.Column("alias_type", sa.String(20), nullable=True),  # abbreviation|colloquial|landmark|typo
+        # Timestamps
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "deprecated_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("alias", name="uq_location_aliases_alias"),
     )
-    op.create_index(
-        "idx_location_aliases_region_boundary",
+
+    # Composite uniqueness for multi-city
+    op.create_unique_constraint(
+        "uq_location_aliases_city_alias",
         "location_aliases",
-        ["region_boundary_id"],
+        ["city_id", "alias_normalized"],
     )
+
+    # Index for fast lookups (excluding deprecated)
     if is_postgres:
-        # Case-insensitive lookup index
         op.execute(
             """
-            CREATE INDEX idx_location_aliases_alias_lower
-            ON location_aliases (LOWER(alias));
+            CREATE INDEX idx_location_aliases_lookup
+            ON location_aliases(city_id, alias_normalized)
+            WHERE status != 'deprecated';
             """
         )
     else:
-        op.create_index("idx_location_aliases_alias", "location_aliases", ["alias"])
+        op.create_index(
+            "idx_location_aliases_lookup",
+            "location_aliases",
+            ["city_id", "alias_normalized"],
+        )
+
+    # Index for status filtering
+    op.create_index("idx_location_aliases_status", "location_aliases", ["status"])
+
+    # Check constraint for valid resolution patterns
+    op.create_check_constraint(
+        "location_aliases_valid_resolution",
+        "location_aliases",
+        # Pattern A: Resolved to single region
+        "(region_boundary_id IS NOT NULL AND requires_clarification = FALSE)"
+        " OR "
+        # Pattern B: Ambiguous with candidates
+        "(region_boundary_id IS NULL AND requires_clarification = TRUE AND candidate_region_ids IS NOT NULL)"
+        " OR "
+        # Pattern C: Cached unresolved
+        "(region_boundary_id IS NULL AND requires_clarification = FALSE AND candidate_region_ids IS NULL)",
+    )
+
+    # ============================================
+    # UNRESOLVED LOCATION QUERIES (for analysis/improvement)
+    # ============================================
+    print("Creating unresolved_location_queries table for location analysis...")
+    sample_original_queries_type = (
+        sa.ARRAY(sa.String(500)) if is_postgres else json_type
+    )
+    empty_array_default = (
+        sa.text("'{}'") if is_postgres else sa.text("'[]'")
+    )
+
+    op.create_table(
+        "unresolved_location_queries",
+        sa.Column("id", sa.String(26), nullable=False),
+        # Multi-city support (FK to cities table later)
+        sa.Column(
+            "city_id",
+            sa.String(26),
+            nullable=False,
+            server_default=default_city_id,
+        ),
+        # The query text (normalized)
+        sa.Column("query_normalized", sa.String(255), nullable=False),
+        # Original queries (for debugging)
+        sa.Column(
+            "sample_original_queries",
+            sample_original_queries_type,
+            nullable=False,
+            server_default=empty_array_default,
+        ),
+        # Counters
+        sa.Column(
+            "search_count",
+            sa.Integer(),
+            nullable=False,
+            server_default="1",
+        ),
+        sa.Column(
+            "unique_user_count",
+            sa.Integer(),
+            nullable=False,
+            server_default="1",
+        ),
+        # Timestamps
+        sa.Column(
+            "first_seen_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "last_seen_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        # Admin review tracking
+        sa.Column(
+            "reviewed",
+            sa.Boolean(),
+            nullable=False,
+            server_default="false",
+        ),
+        sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("reviewed_by", sa.String(26), nullable=True),
+        sa.Column("review_notes", sa.Text(), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+    # Composite uniqueness for multi-city
+    op.create_unique_constraint(
+        "uq_unresolved_queries_city_query",
+        "unresolved_location_queries",
+        ["city_id", "query_normalized"],
+    )
+
+    # Index for frequency-based admin view
+    if is_postgres:
+        op.create_index(
+            "idx_unresolved_queries_frequency",
+            "unresolved_location_queries",
+            [sa.text("unique_user_count DESC")],
+        )
+        # Index for unreviewed queries
+        op.execute(
+            """
+            CREATE INDEX idx_unresolved_queries_unreviewed
+            ON unresolved_location_queries(unique_user_count DESC)
+            WHERE reviewed = FALSE;
+            """
+        )
+    else:
+        op.create_index(
+            "idx_unresolved_queries_frequency",
+            "unresolved_location_queries",
+            ["unique_user_count"],
+        )
+        op.create_index(
+            "idx_unresolved_queries_reviewed",
+            "unresolved_location_queries",
+            ["reviewed"],
+        )
 
     # --- 5b. Create region_settings table (per-region configuration) ---
     print("Creating region_settings table for per-region configuration...")
@@ -1754,13 +1942,22 @@ def downgrade() -> None:
     print("Dropping region_settings table...")
     op.drop_table("region_settings")
 
+    # Drop unresolved_location_queries table
+    print("Dropping unresolved_location_queries table...")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS idx_unresolved_queries_unreviewed;")
+    if not is_postgres:
+        op.drop_index("idx_unresolved_queries_reviewed", table_name="unresolved_location_queries")
+    op.drop_index("idx_unresolved_queries_frequency", table_name="unresolved_location_queries")
+    op.drop_table("unresolved_location_queries")
+
     # Drop location_aliases table
     print("Dropping location_aliases table...")
     if is_postgres:
-        op.execute("DROP INDEX IF EXISTS idx_location_aliases_alias_lower;")
-    op.drop_index("idx_location_aliases_region_boundary", table_name="location_aliases")
-    if not is_postgres:
-        op.drop_index("idx_location_aliases_alias", table_name="location_aliases")
+        op.execute("DROP INDEX IF EXISTS idx_location_aliases_lookup;")
+    else:
+        op.drop_index("idx_location_aliases_lookup", table_name="location_aliases")
+    op.drop_index("idx_location_aliases_status", table_name="location_aliases")
     op.drop_table("location_aliases")
 
     # Drop search_clicks table

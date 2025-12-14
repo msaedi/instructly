@@ -12,7 +12,7 @@ import logging
 from typing import TYPE_CHECKING, List, Optional
 
 from app.repositories.filter_repository import FilterRepository
-from app.services.search.location_resolver import LocationResolver
+from app.services.search.location_resolver import LocationResolver, ResolvedLocation
 from app.services.search.retriever import ServiceCandidate
 
 if TYPE_CHECKING:
@@ -60,6 +60,7 @@ class FilterResult:
     total_after_filter: int
     filters_applied: List[str] = field(default_factory=list)
     soft_filtering_used: bool = False
+    location_resolution: Optional[ResolvedLocation] = None
 
 
 class FilterService:
@@ -141,18 +142,30 @@ class FilterService:
             filters_applied.append("price")
 
         # Step 2: Location filter
+        location_resolution: Optional[ResolvedLocation] = None
         resolved_location = user_location
         if resolved_location:
             working = self._filter_location(working, resolved_location)
             filters_applied.append("location")
         elif parsed_query.location_text and parsed_query.location_type != "near_me":
-            resolution = self.location_resolver.resolve(parsed_query.location_text)
-            if resolution.kind == "region" and resolution.region is not None:
-                working = self._filter_location_region(working, resolution.region.id)
-                filters_applied.append("location")
-            elif resolution.kind == "borough" and resolution.borough_name:
-                working = self._filter_location_borough(working, resolution.borough_name)
-                filters_applied.append("location")
+            location_resolution = self.location_resolver.resolve(
+                parsed_query.location_text,
+                original_query=parsed_query.original_query,
+                track_unresolved=True,
+            )
+            if location_resolution.requires_clarification:
+                logger.info(
+                    "Ambiguous location '%s' (region=%s); skipping location filter",
+                    parsed_query.location_text,
+                    self.location_resolver.region_code,
+                )
+            elif location_resolution.resolved:
+                if location_resolution.region_id:
+                    working = self._filter_location_region(working, location_resolution.region_id)
+                    filters_applied.append("location")
+                elif location_resolution.borough:
+                    working = self._filter_location_borough(working, location_resolution.borough)
+                    filters_applied.append("location")
             else:
                 logger.info(
                     "Unresolved location '%s' (region=%s); skipping location filter",
@@ -185,6 +198,7 @@ class FilterService:
             total_after_filter=len(working),
             filters_applied=filters_applied,
             soft_filtering_used=soft_filtering_used,
+            location_resolution=location_resolution,
         )
 
     def _filter_price(

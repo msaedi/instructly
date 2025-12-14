@@ -27,7 +27,7 @@ from .favorite import UserFavorite
 from .instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
 
 # Location resolution models
-from .location_alias import LocationAlias
+from .location_alias import NYC_CITY_ID, LocationAlias
 from .message import (
     MESSAGE_TYPE_SYSTEM_BOOKING_CANCELLED,
     MESSAGE_TYPE_SYSTEM_BOOKING_COMPLETED,
@@ -64,6 +64,7 @@ from .search_event import SearchEvent, SearchEventCandidate
 from .search_history import SearchHistory
 from .search_interaction import SearchInteraction
 from .service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
+from .unresolved_location_query import UnresolvedLocationQuery
 from .user import User
 
 __all__ = [
@@ -131,6 +132,8 @@ __all__ = [
     "InstructorServiceArea",
     "RegionBoundary",
     "LocationAlias",
+    "NYC_CITY_ID",
+    "UnresolvedLocationQuery",
     # Search history
     "SearchHistory",
     "SearchEvent",

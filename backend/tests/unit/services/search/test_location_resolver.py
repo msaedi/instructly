@@ -6,7 +6,7 @@ from ulid import ULID
 
 from app.models.location_alias import LocationAlias
 from app.models.region_boundary import RegionBoundary
-from app.services.search.location_resolver import LocationResolver
+from app.services.search.location_resolver import LocationResolver, ResolutionTier
 
 
 def _create_region(
@@ -38,8 +38,10 @@ class TestLocationResolver:
 
         assert resolved.kind == "region"
         assert resolved.method == "exact"
-        assert resolved.region is not None
-        assert resolved.region.region_name == "Lower East Side"
+        assert resolved.resolved is True
+        assert resolved.tier == ResolutionTier.EXACT
+        assert resolved.region_name == "Lower East Side"
+        assert resolved.borough == "Manhattan"
 
     def test_exact_match_borough(self, db):
         resolver = LocationResolver(db, region_code="test")
@@ -47,7 +49,9 @@ class TestLocationResolver:
 
         assert resolved.kind == "borough"
         assert resolved.method == "exact"
-        assert resolved.borough_name == "Brooklyn"
+        assert resolved.resolved is True
+        assert resolved.tier == ResolutionTier.EXACT
+        assert resolved.borough == "Brooklyn"
 
     def test_alias_match_borough_abbreviation(self, db):
         resolver = LocationResolver(db, region_code="test")
@@ -55,16 +59,21 @@ class TestLocationResolver:
 
         assert resolved.kind == "borough"
         assert resolved.method == "alias"
-        assert resolved.borough_name == "Brooklyn"
+        assert resolved.resolved is True
+        assert resolved.tier == ResolutionTier.ALIAS
+        assert resolved.borough == "Brooklyn"
 
     def test_alias_match_via_table(self, db):
         region_type = "test"
         park_slope = _create_region(db, region_type=region_type, region_name="Park Slope", parent_region="Brooklyn")
         db.add(
             LocationAlias(
-                alias="the slope",
+                alias_normalized="the slope",
                 region_boundary_id=park_slope.id,
                 alias_type="colloquial",
+                status="active",
+                confidence=1.0,
+                user_count=1,
             )
         )
         db.flush()
@@ -74,8 +83,10 @@ class TestLocationResolver:
 
         assert resolved.kind == "region"
         assert resolved.method == "alias"
-        assert resolved.region is not None
-        assert resolved.region.region_name == "Park Slope"
+        assert resolved.resolved is True
+        assert resolved.tier == ResolutionTier.ALIAS
+        assert resolved.region_name == "Park Slope"
+        assert resolved.borough == "Brooklyn"
 
     def test_fuzzy_match(self, db):
         if db.bind.dialect.name != "postgresql":
@@ -95,10 +106,10 @@ class TestLocationResolver:
 
         assert resolved.kind == "region"
         assert resolved.method == "fuzzy"
-        assert resolved.region is not None
-        assert resolved.region.region_name == "Lower East Side"
-        assert resolved.similarity is not None
-        assert resolved.similarity > 0
+        assert resolved.resolved is True
+        assert resolved.tier == ResolutionTier.FUZZY
+        assert resolved.region_name == "Lower East Side"
+        assert resolved.confidence > 0
 
     def test_no_match_returns_none(self, db):
         resolver = LocationResolver(db, region_code="test")
@@ -106,7 +117,9 @@ class TestLocationResolver:
 
         assert resolved.kind == "none"
         assert resolved.method == "none"
-        assert resolved.region is None
+        assert resolved.not_found is True
+        assert resolved.region_id is None
+        assert resolved.borough is None
 
     def test_empty_input_returns_none(self, db):
         resolver = LocationResolver(db, region_code="test")
@@ -124,5 +137,6 @@ class TestLocationResolver:
 
         assert resolved.kind == "region"
         assert resolved.method == "exact"
-        assert resolved.region is not None
-        assert resolved.region.region_name == "Lower East Side"
+        assert resolved.resolved is True
+        assert resolved.tier == ResolutionTier.EXACT
+        assert resolved.region_name == "Lower East Side"

@@ -277,11 +277,12 @@ def load_location_alias_tokens() -> frozenset[str]:
         return frozenset()
 
     aliases = payload.get("aliases") or []
-    if not isinstance(aliases, list):
+    ambiguous_aliases = payload.get("ambiguous_aliases") or []
+    if not isinstance(aliases, list) or not isinstance(ambiguous_aliases, list):
         return frozenset()
 
     tokens: set[str] = set()
-    for row in aliases:
+    for row in list(aliases) + list(ambiguous_aliases):
         if not isinstance(row, dict):
             continue
         alias = row.get("alias")

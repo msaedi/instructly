@@ -17,9 +17,15 @@ from typing import Any
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
-import ulid
 
 DEFAULT_DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "location_aliases.json"
+DEFAULT_CITY_ID = "01JDEFAULTNYC0000000000"
+
+# Ensure `app/` is importable when called directly.
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BACKEND_DIR))
+
+from app.core.ulid_helper import generate_ulid  # noqa: E402
 
 
 def _normalize(text_value: str) -> str:
@@ -45,15 +51,23 @@ def seed_location_aliases(
     """
     payload = _load_aliases(data_path)
     aliases = payload.get("aliases") or []
-    if not isinstance(aliases, list):
-        raise ValueError("Invalid location_aliases.json: 'aliases' must be a list")
+    ambiguous_aliases = payload.get("ambiguous_aliases") or []
+    if not isinstance(aliases, list) or not isinstance(ambiguous_aliases, list):
+        raise ValueError(
+            "Invalid location_aliases.json: 'aliases' and 'ambiguous_aliases' must be lists"
+        )
 
     inserted = 0
-    skipped_region = 0
     skipped_duplicate = 0
     missing_region = 0
+    skipped_existing = 0
+    insert_errors = 0
 
     with Session(engine) as session:
+        is_postgres = session.bind is not None and session.bind.dialect.name == "postgresql"
+
+        city_id = str(payload.get("city_id") or DEFAULT_CITY_ID).strip()
+
         rows = session.execute(
             text(
                 """
@@ -81,6 +95,113 @@ def seed_location_aliases(
 
         seen_aliases: set[str] = set()
 
+        def _insert_resolved_alias(*, alias_normalized: str, region_boundary_id: str, alias_type: str, confidence: float) -> None:
+            nonlocal inserted, skipped_existing, insert_errors
+            try:
+                result = session.execute(
+                    text(
+                        """
+                        INSERT INTO location_aliases (
+                            id,
+                            city_id,
+                            alias_normalized,
+                            region_boundary_id,
+                            requires_clarification,
+                            candidate_region_ids,
+                            status,
+                            confidence,
+                            source,
+                            user_count,
+                            alias_type
+                        )
+                        VALUES (
+                            :id,
+                            :city_id,
+                            :alias_normalized,
+                            :region_boundary_id,
+                            FALSE,
+                            NULL,
+                            'active',
+                            :confidence,
+                            'manual',
+                            1,
+                            :alias_type
+                        )
+                        ON CONFLICT (city_id, alias_normalized) DO NOTHING
+                        """
+                    ),
+                    {
+                        "id": generate_ulid(),
+                        "city_id": city_id,
+                        "alias_normalized": alias_normalized,
+                        "region_boundary_id": region_boundary_id,
+                        "confidence": float(confidence),
+                        "alias_type": alias_type,
+                    },
+                )
+                if getattr(result, "rowcount", 0) == 1:
+                    inserted += 1
+                else:
+                    skipped_existing += 1
+            except Exception as e:
+                insert_errors += 1
+                if verbose:
+                    print(f"  ⚠ Could not insert alias '{alias_normalized}': {e}")
+
+        def _insert_ambiguous_alias(*, alias_normalized: str, candidate_region_ids: list[str], alias_type: str, confidence: float) -> None:
+            nonlocal inserted, skipped_existing, insert_errors
+            try:
+                candidate_value: Any = candidate_region_ids if is_postgres else json.dumps(candidate_region_ids)
+                result = session.execute(
+                    text(
+                        """
+                        INSERT INTO location_aliases (
+                            id,
+                            city_id,
+                            alias_normalized,
+                            region_boundary_id,
+                            requires_clarification,
+                            candidate_region_ids,
+                            status,
+                            confidence,
+                            source,
+                            user_count,
+                            alias_type
+                        )
+                        VALUES (
+                            :id,
+                            :city_id,
+                            :alias_normalized,
+                            NULL,
+                            TRUE,
+                            :candidate_region_ids,
+                            'active',
+                            :confidence,
+                            'manual',
+                            1,
+                            :alias_type
+                        )
+                        ON CONFLICT (city_id, alias_normalized) DO NOTHING
+                        """
+                    ),
+                    {
+                        "id": generate_ulid(),
+                        "city_id": city_id,
+                        "alias_normalized": alias_normalized,
+                        "candidate_region_ids": candidate_value,
+                        "confidence": float(confidence),
+                        "alias_type": alias_type,
+                    },
+                )
+                if getattr(result, "rowcount", 0) == 1:
+                    inserted += 1
+                else:
+                    skipped_existing += 1
+            except Exception as e:
+                insert_errors += 1
+                if verbose:
+                    print(f"  ⚠ Could not insert ambiguous alias '{alias_normalized}': {e}")
+
         for row in aliases:
             if not isinstance(row, dict):
                 continue
@@ -88,6 +209,7 @@ def seed_location_aliases(
             alias = _normalize(row.get("alias", ""))
             region_name = str(row.get("region_name", "")).strip()
             alias_type = str(row.get("type") or row.get("alias_type") or "abbreviation").strip().lower()
+            confidence = float(row.get("confidence") or 1.0)
 
             if not alias or not region_name:
                 continue
@@ -104,27 +226,53 @@ def seed_location_aliases(
                     print(f"  ⚠ Region not found for alias '{alias}': '{region_name}'")
                 continue
 
-            try:
-                session.execute(
-                    text(
-                        """
-                        INSERT INTO location_aliases (id, alias, region_boundary_id, alias_type)
-                        VALUES (:id, :alias, :region_boundary_id, :alias_type)
-                        ON CONFLICT (alias) DO NOTHING
-                        """
-                    ),
-                    {
-                        "id": str(ulid.ULID()),
-                        "alias": alias,
-                        "region_boundary_id": region_id,
-                        "alias_type": alias_type,
-                    },
-                )
-                inserted += 1
-            except Exception as e:
-                skipped_region += 1
+            _insert_resolved_alias(
+                alias_normalized=alias,
+                region_boundary_id=region_id,
+                alias_type=alias_type,
+                confidence=confidence,
+            )
+
+        for row in ambiguous_aliases:
+            if not isinstance(row, dict):
+                continue
+
+            alias = _normalize(row.get("alias", ""))
+            candidate_names = row.get("candidates") or []
+            alias_type = str(row.get("type") or row.get("alias_type") or "colloquial").strip().lower()
+            confidence = float(row.get("confidence") or 1.0)
+
+            if not alias or not isinstance(candidate_names, list):
+                continue
+
+            if alias in seen_aliases:
+                skipped_duplicate += 1
+                continue
+            seen_aliases.add(alias)
+
+            candidate_ids = []
+            for name in candidate_names:
+                if not name:
+                    continue
+                region_id = _find_region_id(str(name))
+                if region_id:
+                    candidate_ids.append(region_id)
+                elif verbose:
+                    print(f"  ⚠ Candidate not found for ambiguous alias '{alias}': '{name}'")
+
+            candidate_ids = list(dict.fromkeys(candidate_ids))
+            if len(candidate_ids) < 2:
+                missing_region += 1
                 if verbose:
-                    print(f"  ⚠ Could not insert alias '{alias}': {e}")
+                    print(f"  ⚠ Not enough candidates found for ambiguous alias '{alias}', skipping")
+                continue
+
+            _insert_ambiguous_alias(
+                alias_normalized=alias,
+                candidate_region_ids=candidate_ids,
+                alias_type=alias_type,
+                confidence=confidence,
+            )
 
         session.commit()
 
@@ -132,10 +280,12 @@ def seed_location_aliases(
         print(f"  ✓ Seeded {inserted} location aliases ({region_code})")
         if skipped_duplicate:
             print(f"    - Skipped duplicates in JSON: {skipped_duplicate}")
+        if skipped_existing:
+            print(f"    - Skipped (already exists): {skipped_existing}")
         if missing_region:
-            print(f"    - Skipped (missing region_boundaries row): {missing_region}")
-        if skipped_region:
-            print(f"    - Skipped (insert errors): {skipped_region}")
+            print(f"    - Skipped (missing region_boundaries row/candidates): {missing_region}")
+        if insert_errors:
+            print(f"    - Skipped (insert errors): {insert_errors}")
 
     return inserted
 
