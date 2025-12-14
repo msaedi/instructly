@@ -5,6 +5,7 @@ Applies price, location, and availability filters to candidates.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import date, time
 import logging
@@ -100,6 +101,21 @@ class FilterService:
         Returns:
             FilterResult with filtered candidates
         """
+        return await asyncio.to_thread(
+            self._filter_candidates_sync,
+            candidates,
+            parsed_query,
+            user_location,
+            default_duration,
+        )
+
+    def _filter_candidates_sync(
+        self,
+        candidates: List[ServiceCandidate],
+        parsed_query: "ParsedQuery",
+        user_location: Optional[tuple[float, float]],
+        default_duration: int,
+    ) -> FilterResult:
         total_before = len(candidates)
         filters_applied: List[str] = []
 
@@ -333,15 +349,16 @@ class FilterService:
             lng, lat = location
             instructor_ids = list({c.instructor_id for c in working})
             passing_ids = set(self.repository.filter_by_location_soft(instructor_ids, lng, lat))
+            hard_passing_ids = (
+                set(self.repository.filter_by_location(list(passing_ids), lng, lat))
+                if passing_ids
+                else set()
+            )
 
             new_working = []
             for c in working:
                 if c.instructor_id in passing_ids:
-                    # Check if it would have passed hard filter
-                    hard_passing = set(
-                        self.repository.filter_by_location([c.instructor_id], lng, lat)
-                    )
-                    if c.instructor_id not in hard_passing:
+                    if c.instructor_id not in hard_passing_ids:
                         c.soft_filter_reasons.append("location_relaxed")
                     new_working.append(c)
             working = new_working

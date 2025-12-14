@@ -141,7 +141,9 @@ class PostgresRetriever:
         embedding_count = await asyncio.to_thread(self.repository.count_embeddings)
         if embedding_count == 0:
             logger.warning("No embeddings in database - falling back to text-only search")
-            text_results = self._text_search(service_query, original_query, top_k)
+            text_results = await asyncio.to_thread(
+                self._text_search, service_query, original_query, top_k
+            )
             candidates = self._fuse_scores({}, text_results, top_k)
             return RetrievalResult(
                 candidates=candidates,
@@ -157,14 +159,24 @@ class PostgresRetriever:
         # Step 2: Run searches
 
         if query_embedding:
-            # Run both searches
-            vector_results = self._vector_search(query_embedding, VECTOR_TOP_K)
-            text_results = self._text_search(service_query, original_query, TEXT_TOP_K)
+            # Run both searches in a worker thread to avoid blocking the event loop.
+            # Keep them in the same thread to avoid using the Session across threads concurrently.
+            def _run_hybrid_queries() -> (
+                tuple[Dict[str, Tuple[float, ServiceData]], Dict[str, Tuple[float, ServiceData]]]
+            ):
+                return (
+                    self._vector_search(query_embedding, VECTOR_TOP_K),
+                    self._text_search(service_query, original_query, TEXT_TOP_K),
+                )
+
+            vector_results, text_results = await asyncio.to_thread(_run_hybrid_queries)
             vector_search_used = True
         else:
             # Degraded mode: text-only search
             logger.warning("Embedding unavailable, using text-only search")
-            text_results = self._text_search(service_query, original_query, top_k)
+            text_results = await asyncio.to_thread(
+                self._text_search, service_query, original_query, top_k
+            )
             degraded = True
             degradation_reason = "embedding_service_unavailable"
 
@@ -315,7 +327,9 @@ class PostgresRetriever:
         Returns:
             RetrievalResult with text-only candidates
         """
-        text_results = self._text_search(service_query, original_query, top_k)
+        text_results = await asyncio.to_thread(
+            self._text_search, service_query, original_query, top_k
+        )
 
         candidates = [
             ServiceCandidate(

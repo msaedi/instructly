@@ -204,6 +204,8 @@ class QueryParser:
     ) -> Tuple[str, ParsedQuery]:
         """Extract price constraints from query."""
 
+        explicit_price_found = False
+
         # Try explicit $ patterns first (highest confidence)
         for pattern in [
             PRICE_UNDER_DOLLAR,
@@ -216,32 +218,38 @@ class QueryParser:
             if match:
                 result.max_price = int(match.group(1))
                 query = pattern.sub("", query)
-                return query, result
+                explicit_price_found = True
+                break
 
         # Try "X dollars" pattern
-        match = PRICE_DOLLARS.search(query)
-        if match:
-            result.max_price = int(match.group(1))
-            query = PRICE_DOLLARS.sub("", query)
-            return query, result
+        if not explicit_price_found:
+            match = PRICE_DOLLARS.search(query)
+            if match:
+                result.max_price = int(match.group(1))
+                query = PRICE_DOLLARS.sub("", query)
+                explicit_price_found = True
 
         # Try implicit "under X" - BUT check for age disambiguation
-        match = PRICE_UNDER_IMPLICIT.search(query)
-        if match:
-            number = int(match.group(1))
-            # Check if this looks like an age, not a price
-            if not self._is_age_context(query, match.start(), number):
-                if number >= 20:  # Numbers >= 20 are likely prices
-                    result.max_price = number
-                    query = PRICE_UNDER_IMPLICIT.sub("", query)
-                    return query, result
+        if not explicit_price_found:
+            match = PRICE_UNDER_IMPLICIT.search(query)
+            if match:
+                number = int(match.group(1))
+                # Check if this looks like an age, not a price
+                if not self._is_age_context(query, match.start(), number):
+                    if number >= 20:  # Numbers >= 20 are likely prices
+                        result.max_price = number
+                        query = PRICE_UNDER_IMPLICIT.sub("", query)
+                        explicit_price_found = True
 
-        # Check for budget/premium intent keywords
+        # Always remove budget/premium intent words from service_query.
+        # Only set price_intent when there is no explicit max_price.
         if BUDGET_KEYWORDS.search(query):
-            result.price_intent = "budget"
+            if not explicit_price_found:
+                result.price_intent = "budget"
             query = BUDGET_KEYWORDS.sub("", query)
-        elif PREMIUM_KEYWORDS.search(query):
-            result.price_intent = "premium"
+        if PREMIUM_KEYWORDS.search(query):
+            if not explicit_price_found:
+                result.price_intent = "premium"
             query = PREMIUM_KEYWORDS.sub("", query)
 
         return query, result
@@ -411,6 +419,31 @@ class QueryParser:
                 )
                 if parsed:
                     result.date = parsed.date()
+                    result.date_type = "single"
+                    query = pattern.sub("", query)
+                    break
+
+        # Standalone weekday names ("monday afternoon") should resolve to next occurrence.
+        # NOTE: Avoid short abbreviations like "sat" because it conflicts with "SAT prep".
+        if result.date is None:
+            weekday_map = {
+                "monday": 0,
+                "tuesday": 1,
+                "wednesday": 2,
+                "thursday": 3,
+                "friday": 4,
+                "saturday": 5,
+                "sunday": 6,
+            }
+            for name, weekday in weekday_map.items():
+                pattern = re.compile(rf"\b{name}\b", re.IGNORECASE)
+                match = pattern.search(query)
+                if match:
+                    today = self._get_user_today()
+                    days_ahead = weekday - today.weekday()
+                    if days_ahead <= 0:
+                        days_ahead += 7
+                    result.date = today + timedelta(days=days_ahead)
                     result.date_type = "single"
                     query = pattern.sub("", query)
                     break

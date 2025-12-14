@@ -20,16 +20,11 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
-from app.repositories.retriever_repository import RetrieverRepository
 from app.schemas.nl_search import (
     InstructorSummary,
-    NLSearchAvailability,
-    NLSearchMatchInfo,
     NLSearchMeta,
     NLSearchResponse,
-    NLSearchResult,
     NLSearchResultItem,
-    NLSearchScores,
     ParsedQueryInfo,
     RatingSummary,
     ServiceMatch,
@@ -112,7 +107,9 @@ class NLSearchService:
         self.filter_service = FilterService(db)
         self.ranking_service = RankingService(db)
 
-        # Direct repository access for instructor-level search
+        # Direct repository access for bulk data hydration (instructor/service info)
+        from app.repositories.retriever_repository import RetrieverRepository
+
         self.retriever_repository = RetrieverRepository(db)
 
     async def search(
@@ -123,14 +120,15 @@ class NLSearchService:
         user_id: Optional[str] = None,
     ) -> NLSearchResponse:
         """
-        Execute instructor-level search pipeline.
+        Execute full NL search pipeline and return instructor-level results.
 
-        Returns instructor-grouped results with all embedded data to eliminate
-        N+1 queries from the frontend. Each result includes:
-        - Instructor profile info
-        - Aggregated ratings
-        - Coverage areas
-        - Best matching service + other matches
+        Pipeline:
+        1. Cache check
+        2. Parse query (regex → LLM as needed)
+        3. Retrieve candidates (hybrid vector + trigram; text-only fallback)
+        4. Filter candidates (price, location, availability; soft fallback)
+        5. Rank candidates (6-signal scoring + audience/skill boosts)
+        6. Hydrate top instructors with embedded data (eliminate N+1)
 
         Args:
             query: Natural language search query
@@ -153,54 +151,63 @@ class NLSearchService:
         # Stage 1: Parse query
         parsed_query = await self._parse_query(query, metrics, user_id)
 
-        # Stage 2: Get embedding for the service query
-        embed_start = time.time()
-        embedding: Optional[List[float]]
+        # Resolve implicit location into a point for filtering/ranking when user_location is absent.
+        # This supports queries like "piano lessons in brooklyn" even without lat/lng params.
+        effective_location = user_location
+        if (
+            effective_location is None
+            and parsed_query.location_text
+            and parsed_query.location_type != "near_me"
+        ):
+            try:
+                effective_location = await asyncio.to_thread(
+                    self.filter_service.repository.get_location_centroid,
+                    parsed_query.location_text,
+                    region_code=self._region_code,
+                )
+            except Exception as e:
+                logger.warning(f"Location centroid resolution failed: {e}")
+                metrics.degraded = True
+                metrics.degradation_reasons.append("location_resolution_error")
+
+        # Stage 2: Retrieve candidates (vector+text hybrid; degraded fallback)
+        retrieval_result = await self._retrieve_candidates(parsed_query, metrics)
+
+        # Stage 3: Apply constraint filters (price, location, availability)
+        filter_result = await self._filter_candidates(
+            retrieval_result,
+            parsed_query,
+            effective_location,
+            metrics,
+        )
+
+        # Stage 4: Rank candidates (multi-signal scoring)
+        rank_start = time.time()
         try:
-            embedding = await self.embedding_service.embed_query(
-                parsed_query.service_query or query
+            ranking_result = await asyncio.to_thread(
+                self.ranking_service.rank_candidates,
+                filter_result.candidates,
+                parsed_query,
+                effective_location,
             )
         except Exception as e:
-            logger.error(f"Embedding failed: {e}")
-            embedding = None
+            logger.error(f"Ranking failed: {e}")
+            ranking_result = RankingResult(results=[], total_results=0)
             metrics.degraded = True
-            metrics.degradation_reasons.append("embedding_error")
-        if embedding is None:
-            metrics.degraded = True
-            metrics.degradation_reasons.append("embedding_service_unavailable")
-        metrics.embed_latency_ms = int((time.time() - embed_start) * 1000)
+            metrics.degradation_reasons.append("ranking_error")
+        metrics.rank_latency_ms = int((time.time() - rank_start) * 1000)
 
-        # Stage 3: Instructor-level search with all embedded data
-        # Use asyncio.to_thread to avoid blocking the event loop with sync DB call
-        retrieve_start = time.time()
-        raw_results: List[Dict[str, Any]]
+        # Stage 5: Build instructor-level results with embedded data
         try:
-            if embedding:
-                raw_results = await asyncio.to_thread(
-                    self.retriever_repository.search_with_instructor_data,
-                    embedding,
-                    limit,
-                    max_price=parsed_query.max_price,
-                )
-            else:
-                query_text = (parsed_query.service_query or query).strip()
-                raw_results = await asyncio.to_thread(
-                    self.retriever_repository.search_text_only,
-                    query_text,
-                    query,
-                    limit,
-                    max_price=parsed_query.max_price,
-                )
+            results = await self._hydrate_instructor_results(
+                ranking_result.results,
+                limit=limit,
+            )
         except Exception as e:
-            logger.error(f"Instructor search failed: {e}")
-            raw_results = []
+            logger.error(f"Hydration failed: {e}")
+            results = []
             metrics.degraded = True
-            metrics.degradation_reasons.append("retrieval_error")
-        metrics.retrieve_latency_ms = int((time.time() - retrieve_start) * 1000)
-
-        # Stage 4: Transform to response schema
-        results = self._transform_instructor_results(raw_results, parsed_query)
-        results.sort(key=lambda r: r.relevance_score, reverse=True)
+            metrics.degradation_reasons.append("hydration_error")
 
         # Build response
         metrics.total_latency_ms = int((time.time() - metrics.total_start) * 1000)
@@ -214,8 +221,8 @@ class NLSearchService:
                 "parsing": metrics.parse_latency_ms,
                 "embedding": metrics.embed_latency_ms,
                 "retrieval": metrics.retrieve_latency_ms,
-                "filtering": 0,  # No separate filtering step
-                "ranking": 0,  # Ranking done in SQL
+                "filtering": metrics.filter_latency_ms,
+                "ranking": metrics.rank_latency_ms,
             },
             cache_hit=metrics.cache_hit,
             parsing_mode=parsed_query.parsing_mode,
@@ -229,6 +236,155 @@ class NLSearchService:
             self._cache_response(query, user_location, response, limit)
 
         return response
+
+    async def _hydrate_instructor_results(
+        self,
+        ranked: List[RankedResult],
+        limit: int,
+    ) -> List[NLSearchResultItem]:
+        """
+        Convert ranked service-level candidates into instructor-level results.
+
+        Uses batch DB queries to avoid N+1:
+        - instructor summaries (users + instructor_profiles)
+        - ratings aggregates (reviews)
+        - coverage areas (instructor_service_areas + region_boundaries)
+        - service catalog mapping for selected instructor_services
+        """
+        if not ranked:
+            return []
+
+        # Determine instructor order by first occurrence (ranked list is already sorted by score).
+        ordered_instructor_ids: List[str] = []
+        seen_instructors: set[str] = set()
+        for r in ranked:
+            if r.instructor_id in seen_instructors:
+                continue
+            seen_instructors.add(r.instructor_id)
+            ordered_instructor_ids.append(r.instructor_id)
+            if len(ordered_instructor_ids) >= limit:
+                break
+
+        selected_instructors = set(ordered_instructor_ids)
+
+        # Group services per instructor (keep all ranked services for match_count)
+        by_instructor: Dict[str, List[RankedResult]] = {iid: [] for iid in ordered_instructor_ids}
+        for r in ranked:
+            if r.instructor_id in selected_instructors:
+                by_instructor[r.instructor_id].append(r)
+
+        # Pick best_match + other_matches by relevance_score (semantic match) per instructor.
+        chosen_by_instructor: Dict[str, List[RankedResult]] = {}
+        selected_service_ids: List[str] = []
+        for instructor_id in ordered_instructor_ids:
+            services = sorted(
+                by_instructor[instructor_id], key=lambda x: x.relevance_score, reverse=True
+            )
+            chosen = services[:4]  # best + up to 3 others
+            if not chosen:
+                continue
+            chosen_by_instructor[instructor_id] = chosen
+            selected_service_ids.extend([s.service_id for s in chosen])
+
+        # Hydrate services (includes service_catalog_id) for selected service_ids
+        service_rows = await asyncio.to_thread(
+            self.retriever_repository.get_services_by_ids,
+            list({sid for sid in selected_service_ids}),
+        )
+        service_by_id: Dict[str, Dict[str, Any]] = {row["id"]: row for row in service_rows}
+
+        # Hydrate instructor-level data
+        profile_rows = await asyncio.to_thread(
+            self.retriever_repository.get_instructor_summaries,
+            ordered_instructor_ids,
+        )
+        profiles_by_id: Dict[str, Dict[str, Any]] = {
+            row["instructor_id"]: row for row in profile_rows
+        }
+
+        rating_rows = await asyncio.to_thread(
+            self.retriever_repository.get_instructor_ratings,
+            ordered_instructor_ids,
+        )
+        ratings_by_id: Dict[str, Dict[str, Any]] = {
+            row["instructor_id"]: row for row in rating_rows
+        }
+
+        coverage_rows = await asyncio.to_thread(
+            self.retriever_repository.get_instructor_coverage_areas,
+            ordered_instructor_ids,
+        )
+        coverage_by_id: Dict[str, List[str]] = {
+            row["instructor_id"]: row.get("coverage_areas", []) for row in coverage_rows
+        }
+
+        results: List[NLSearchResultItem] = []
+        for instructor_id in ordered_instructor_ids:
+            chosen_for_instructor = chosen_by_instructor.get(instructor_id)
+            profile = profiles_by_id.get(instructor_id)
+            if not chosen_for_instructor or not profile:
+                continue
+
+            best_ranked = chosen_for_instructor[0]
+            best_details = service_by_id.get(best_ranked.service_id)
+            if not best_details:
+                continue
+
+            instructor = InstructorSummary(
+                id=instructor_id,
+                first_name=profile["first_name"],
+                last_initial=profile.get("last_initial") or "",
+                profile_picture_url=self._build_photo_url(profile.get("profile_picture_key")),
+                bio_snippet=profile.get("bio_snippet"),
+                verified=bool(profile.get("verified", False)),
+                years_experience=profile.get("years_experience"),
+            )
+
+            rating = ratings_by_id.get(instructor_id, {})
+            rating_summary = RatingSummary(
+                average=round(float(rating["avg_rating"]), 2) if rating.get("avg_rating") else None,
+                count=int(rating.get("review_count", 0) or 0),
+            )
+
+            best_match = ServiceMatch(
+                service_id=best_ranked.service_id,
+                service_catalog_id=best_details["catalog_id"],
+                name=best_details["name"],
+                description=best_details.get("description"),
+                price_per_hour=int(best_details["price_per_hour"]),
+                relevance_score=round(float(best_ranked.relevance_score), 3),
+            )
+
+            other_matches: List[ServiceMatch] = []
+            for other_ranked in chosen_for_instructor[1:]:
+                details = service_by_id.get(other_ranked.service_id)
+                if not details:
+                    continue
+                other_matches.append(
+                    ServiceMatch(
+                        service_id=other_ranked.service_id,
+                        service_catalog_id=details["catalog_id"],
+                        name=details["name"],
+                        description=details.get("description"),
+                        price_per_hour=int(details["price_per_hour"]),
+                        relevance_score=round(float(other_ranked.relevance_score), 3),
+                    )
+                )
+
+            results.append(
+                NLSearchResultItem(
+                    instructor_id=instructor_id,
+                    instructor=instructor,
+                    rating=rating_summary,
+                    coverage_areas=coverage_by_id.get(instructor_id, []),
+                    best_match=best_match,
+                    other_matches=other_matches,
+                    total_matching_services=len(by_instructor.get(instructor_id, [])) or 1,
+                    relevance_score=best_match.relevance_score,
+                )
+            )
+
+        return results
 
     def _check_cache(
         self,
@@ -402,76 +558,6 @@ class NLSearchService:
 
         metrics.rank_latency_ms = int((time.time() - start) * 1000)
         return result
-
-    def _build_response(
-        self,
-        query: str,
-        parsed_query: ParsedQuery,
-        ranking_result: RankingResult,
-        limit: int,
-        metrics: SearchMetrics,
-    ) -> NLSearchResponse:
-        """Build the final response."""
-        # Convert ranked results to response format
-        results: List[NLSearchResult] = []
-        for r in ranking_result.results[:limit]:
-            results.append(
-                NLSearchResult(
-                    service_id=r.service_id,
-                    instructor_id=r.instructor_id,
-                    name=r.name,
-                    description=r.description,
-                    price_per_hour=r.price_per_hour,
-                    rank=r.rank,
-                    score=round(r.final_score, 3),
-                    scores=NLSearchScores(
-                        relevance=round(r.relevance_score, 3),
-                        quality=round(r.quality_score, 3),
-                        distance=round(r.distance_score, 3),
-                        price=round(r.price_score, 3),
-                        freshness=round(r.freshness_score, 3),
-                        completeness=round(r.completeness_score, 3),
-                    ),
-                    availability=NLSearchAvailability(
-                        dates=[d.isoformat() for d in r.available_dates],
-                        earliest=r.earliest_available.isoformat() if r.earliest_available else None,
-                    ),
-                    match_info=NLSearchMatchInfo(
-                        audience_boost=r.audience_boost,
-                        skill_boost=r.skill_boost,
-                        soft_filtered=r.soft_filtered,
-                        soft_filter_reasons=list(r.soft_filter_reasons),
-                    ),
-                )
-            )
-
-        # Build parsed query info
-        parsed_info = ParsedQueryInfo(
-            service_query=parsed_query.service_query,
-            location=parsed_query.location_text,
-            max_price=parsed_query.max_price,
-            date=parsed_query.date.isoformat() if parsed_query.date else None,
-            time_after=parsed_query.time_after,
-            audience_hint=parsed_query.audience_hint,
-            skill_level=parsed_query.skill_level,
-            urgency=parsed_query.urgency,
-        )
-
-        # Build metadata
-        meta = NLSearchMeta(
-            query=query,
-            corrected_query=parsed_query.corrected_query,
-            parsed=parsed_info,
-            total_results=len(results),
-            limit=limit,
-            latency_ms=metrics.total_latency_ms,
-            cache_hit=metrics.cache_hit,
-            degraded=metrics.degraded,
-            degradation_reasons=metrics.degradation_reasons,
-            parsing_mode=parsed_query.parsing_mode,
-        )
-
-        return NLSearchResponse(results=results, meta=meta)
 
     def _cache_response(
         self,

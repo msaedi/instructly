@@ -23,8 +23,11 @@ from app.schemas.nl_search import (
     RatingSummary,
     ServiceMatch,
 )
+from app.services.search.filter_service import FilterResult
 from app.services.search.nl_search_service import NLSearchService, SearchMetrics
 from app.services.search.query_parser import ParsedQuery
+from app.services.search.ranking_service import RankedResult, RankingResult
+from app.services.search.retriever import RetrievalResult, ServiceCandidate
 
 
 @pytest.fixture
@@ -467,6 +470,147 @@ class TestTransformInstructorResults:
         assert results[1].other_matches == []
 
 
+class TestHydrateInstructorResults:
+    """Tests for converting ranked candidates into instructor-level results."""
+
+    @pytest.mark.asyncio
+    async def test_groups_by_instructor_and_picks_best_match_by_relevance(
+        self, mock_db: Mock
+    ) -> None:
+        service = NLSearchService(mock_db)
+
+        ranked = [
+            RankedResult(
+                service_id="svc_a1",
+                instructor_id="usr_A",
+                name="Guitar",
+                description=None,
+                price_per_hour=100,
+                final_score=0.9,
+                rank=1,
+                relevance_score=0.4,
+                quality_score=0.8,
+                distance_score=0.5,
+                price_score=0.3,
+                freshness_score=0.6,
+                completeness_score=0.7,
+            ),
+            RankedResult(
+                service_id="svc_b1",
+                instructor_id="usr_B",
+                name="Piano",
+                description=None,
+                price_per_hour=80,
+                final_score=0.85,
+                rank=2,
+                relevance_score=0.7,
+                quality_score=0.7,
+                distance_score=0.5,
+                price_score=0.4,
+                freshness_score=0.6,
+                completeness_score=0.7,
+            ),
+            RankedResult(
+                service_id="svc_a2",
+                instructor_id="usr_A",
+                name="Jazz Guitar",
+                description=None,
+                price_per_hour=120,
+                final_score=0.8,
+                rank=3,
+                relevance_score=0.95,
+                quality_score=0.8,
+                distance_score=0.5,
+                price_score=0.3,
+                freshness_score=0.6,
+                completeness_score=0.7,
+            ),
+        ]
+
+        service.retriever_repository.get_services_by_ids = Mock(
+            return_value=[
+                {
+                    "id": "svc_a1",
+                    "catalog_id": "cat_a1",
+                    "name": "Guitar",
+                    "description": None,
+                    "price_per_hour": 100,
+                    "instructor_id": "usr_A",
+                    "duration_options": None,
+                    "levels_taught": None,
+                    "age_groups": None,
+                },
+                {
+                    "id": "svc_a2",
+                    "catalog_id": "cat_a2",
+                    "name": "Jazz Guitar",
+                    "description": None,
+                    "price_per_hour": 120,
+                    "instructor_id": "usr_A",
+                    "duration_options": None,
+                    "levels_taught": None,
+                    "age_groups": None,
+                },
+                {
+                    "id": "svc_b1",
+                    "catalog_id": "cat_b1",
+                    "name": "Piano",
+                    "description": None,
+                    "price_per_hour": 80,
+                    "instructor_id": "usr_B",
+                    "duration_options": None,
+                    "levels_taught": None,
+                    "age_groups": None,
+                },
+            ]
+        )
+        service.retriever_repository.get_instructor_summaries = Mock(
+            return_value=[
+                {
+                    "instructor_id": "usr_A",
+                    "first_name": "Alice",
+                    "last_initial": "A",
+                    "bio_snippet": "A bio",
+                    "years_experience": 10,
+                    "profile_picture_key": "photos/usr_A.jpg",
+                    "verified": True,
+                },
+                {
+                    "instructor_id": "usr_B",
+                    "first_name": "Bob",
+                    "last_initial": "B",
+                    "bio_snippet": "B bio",
+                    "years_experience": 5,
+                    "profile_picture_key": None,
+                    "verified": False,
+                },
+            ]
+        )
+        service.retriever_repository.get_instructor_ratings = Mock(
+            return_value=[
+                {"instructor_id": "usr_A", "avg_rating": 4.9, "review_count": 50},
+                {"instructor_id": "usr_B", "avg_rating": 4.7, "review_count": 10},
+            ]
+        )
+        service.retriever_repository.get_instructor_coverage_areas = Mock(
+            return_value=[
+                {"instructor_id": "usr_A", "coverage_areas": ["Brooklyn"]},
+                {"instructor_id": "usr_B", "coverage_areas": ["Manhattan"]},
+            ]
+        )
+
+        results = await service._hydrate_instructor_results(ranked, limit=2)
+
+        assert [r.instructor_id for r in results] == ["usr_A", "usr_B"]
+        assert results[0].best_match.service_id == "svc_a2"
+        assert [m.service_id for m in results[0].other_matches] == ["svc_a1"]
+        assert results[0].total_matching_services == 2
+        assert results[0].rating.count == 50
+        assert results[0].coverage_areas == ["Brooklyn"]
+        assert results[0].instructor.profile_picture_url
+        assert results[0].instructor.profile_picture_url.endswith("photos/usr_A.jpg")
+
+
 class TestSearchPipeline:
     """Tests for full search pipeline."""
 
@@ -503,53 +647,67 @@ class TestSearchPipeline:
         mock_db: Mock,
         mock_search_cache: Mock,
         sample_parsed_query: ParsedQuery,
-        sample_raw_db_results: List[Dict[str, Any]],
+        sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
-        """Should execute full instructor-level pipeline on cache miss."""
-        # Configure mocks
+        """Should execute full pipeline and cache non-degraded responses."""
         mock_search_cache.get_cached_response = Mock(return_value=None)
         mock_search_cache.get_cached_parsed_query = Mock(return_value=None)
 
+        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+
+        retrieval_result = RetrievalResult(
+            candidates=[
+                ServiceCandidate(
+                    service_id="svc_001",
+                    hybrid_score=0.9,
+                    vector_score=0.9,
+                    text_score=0.8,
+                    name="Piano Lessons",
+                    description=None,
+                    price_per_hour=50,
+                    instructor_id="usr_001",
+                )
+            ],
+            total_candidates=1,
+            vector_search_used=True,
+            degraded=False,
+            degradation_reason=None,
+        )
+
         with (
+            patch.object(service, "_parse_query", new_callable=AsyncMock) as mock_parse,
+            patch.object(service.retriever, "search", new_callable=AsyncMock) as mock_retrieve,
+            patch.object(service.filter_service, "filter_candidates", new_callable=AsyncMock) as mock_filter,
+            patch.object(service.ranking_service, "rank_candidates") as mock_rank,
             patch.object(
-                NLSearchService, "_parse_query", new_callable=AsyncMock
-            ) as mock_parse,
-            patch(
-                "app.services.search.nl_search_service.EmbeddingService"
-            ) as mock_embedding_class,
-            patch(
-                "app.services.search.nl_search_service.RetrieverRepository"
-            ) as mock_repo_class,
+                service, "_hydrate_instructor_results", new_callable=AsyncMock
+            ) as mock_hydrate,
+            patch("app.services.search.nl_search_service.record_search_metrics") as mock_metrics,
         ):
             mock_parse.return_value = sample_parsed_query
-
-            # Mock embedding service
-            mock_embedding_instance = Mock()
-            mock_embedding_instance.embed_query = AsyncMock(return_value=[0.1] * 1536)
-            mock_embedding_class.return_value = mock_embedding_instance
-
-            # Mock retriever repository
-            mock_repo_instance = Mock()
-            mock_repo_instance.search_with_instructor_data = Mock(
-                return_value=sample_raw_db_results
+            mock_retrieve.return_value = retrieval_result
+            mock_filter.return_value = FilterResult(
+                candidates=[],
+                total_before_filter=1,
+                total_after_filter=0,
+                filters_applied=[],
+                soft_filtering_used=False,
             )
-            mock_repo_class.return_value = mock_repo_instance
+            mock_rank.return_value = RankingResult(results=[], total_results=0)
+            mock_hydrate.return_value = sample_instructor_results
 
-            service = NLSearchService(mock_db, search_cache=mock_search_cache)
-            # Inject mocked components
-            service.embedding_service = mock_embedding_instance
-            service.retriever_repository = mock_repo_instance
+            response = await service.search("piano lessons", user_location=(-73.95, 40.68))
 
-            response = await service.search("piano lessons")
-
-            # Verify pipeline was called
-            mock_parse.assert_called_once()
-            mock_embedding_instance.embed_query.assert_called_once()
-
-            # Verify response
             assert isinstance(response, NLSearchResponse)
             assert len(response.results) == 2
-            assert response.results[0].instructor_id == "usr_001"
+            assert response.meta.degraded is False
+            mock_parse.assert_awaited_once()
+            mock_retrieve.assert_awaited_once()
+            mock_filter.assert_awaited_once()
+            mock_rank.assert_called_once()
+            mock_hydrate.assert_awaited_once()
+            mock_search_cache.cache_response.assert_called_once()
+            mock_metrics.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_falls_back_to_text_only_when_embedding_unavailable(
@@ -557,64 +715,74 @@ class TestSearchPipeline:
         mock_db: Mock,
         mock_search_cache: Mock,
         sample_parsed_query: ParsedQuery,
-        sample_raw_db_results: List[Dict[str, Any]],
+        sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
-        """Should use text-only search when embedding service returns None."""
+        """Should mark degraded and skip response cache when embeddings unavailable."""
         mock_search_cache.get_cached_response = Mock(return_value=None)
         mock_search_cache.get_cached_parsed_query = Mock(return_value=None)
 
         service = NLSearchService(mock_db, search_cache=mock_search_cache)
-        service.embedding_service.embed_query = AsyncMock(return_value=None)
-        service.retriever_repository.search_text_only = Mock(return_value=sample_raw_db_results)
+        retrieval_result = RetrievalResult(
+            candidates=[],
+            total_candidates=0,
+            vector_search_used=False,
+            degraded=True,
+            degradation_reason="embedding_service_unavailable",
+        )
 
-        with patch.object(NLSearchService, "_parse_query", new_callable=AsyncMock) as mock_parse:
+        with (
+            patch.object(service, "_parse_query", new_callable=AsyncMock) as mock_parse,
+            patch.object(service.retriever, "search", new_callable=AsyncMock) as mock_retrieve,
+            patch.object(service.filter_service, "filter_candidates", new_callable=AsyncMock) as mock_filter,
+            patch.object(service.ranking_service, "rank_candidates") as mock_rank,
+            patch.object(
+                service, "_hydrate_instructor_results", new_callable=AsyncMock
+            ) as mock_hydrate,
+            patch("app.services.search.nl_search_service.record_search_metrics"),
+        ):
             mock_parse.return_value = sample_parsed_query
+            mock_retrieve.return_value = retrieval_result
+            mock_filter.return_value = FilterResult(
+                candidates=[],
+                total_before_filter=0,
+                total_after_filter=0,
+                filters_applied=[],
+                soft_filtering_used=False,
+            )
+            mock_rank.return_value = RankingResult(results=[], total_results=0)
+            mock_hydrate.return_value = sample_instructor_results
 
-            response = await service.search("piano lessons")
+            response = await service.search("piano lessons", user_location=(-73.95, 40.68))
 
         assert isinstance(response, NLSearchResponse)
         assert response.meta.degraded is True
         assert "embedding_service_unavailable" in response.meta.degradation_reasons
         assert len(response.results) == 2
-        service.retriever_repository.search_text_only.assert_called_once()
         mock_search_cache.cache_response.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_handles_parsing_failure(
         self, mock_db: Mock, mock_search_cache: Mock, sample_parsed_query: ParsedQuery
     ) -> None:
-        """Should handle parsing failure gracefully."""
-        mock_search_cache.get_cached_response = Mock(return_value=None)
-        mock_search_cache.get_cached_parsed_query = Mock(return_value=None)
+        """Should fall back to regex parser and mark degraded."""
+        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        metrics = SearchMetrics()
 
         with (
             patch(
                 "app.services.search.nl_search_service.hybrid_parse",
                 new_callable=AsyncMock,
             ) as mock_hybrid_parse,
-            patch(
-                "app.services.search.nl_search_service.QueryParser"
-            ) as mock_parser_class,
+            patch.object(service.parser, "parse") as mock_fallback_parse,
         ):
             mock_hybrid_parse.side_effect = Exception("Parse error")
-            # Mock the fallback parser
-            mock_parser = Mock()
-            mock_parser.parse.return_value = sample_parsed_query
-            mock_parser_class.return_value = mock_parser
+            mock_fallback_parse.return_value = sample_parsed_query
 
-            service = NLSearchService(mock_db, search_cache=mock_search_cache)
+            parsed = await service._parse_query("piano", metrics)
 
-            # Mock embedding to return None (no vector search)
-            with patch.object(
-                service.embedding_service, "embed_query", new_callable=AsyncMock
-            ) as mock_embed:
-                mock_embed.return_value = None
-
-                response = await service.search("piano")
-
-                assert isinstance(response, NLSearchResponse)
-                assert response.meta.degraded is True
-                assert "parsing_error" in response.meta.degradation_reasons
+            assert parsed == sample_parsed_query
+            assert metrics.degraded is True
+            assert "parsing_error" in metrics.degradation_reasons
 
 
 class TestLocationHandling:
@@ -626,38 +794,46 @@ class TestLocationHandling:
         mock_db: Mock,
         mock_search_cache: Mock,
         sample_parsed_query: ParsedQuery,
-        sample_raw_db_results: List[Dict[str, Any]],
     ) -> None:
         """Should pass location through the pipeline."""
         mock_search_cache.get_cached_response = Mock(return_value=None)
         mock_search_cache.get_cached_parsed_query = Mock(return_value=None)
 
+        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        retrieval_result = RetrievalResult(
+            candidates=[],
+            total_candidates=0,
+            vector_search_used=True,
+            degraded=False,
+            degradation_reason=None,
+        )
+
         with (
+            patch.object(service, "_parse_query", new_callable=AsyncMock) as mock_parse,
+            patch.object(service.retriever, "search", new_callable=AsyncMock) as mock_retrieve,
+            patch.object(service.filter_service, "filter_candidates", new_callable=AsyncMock) as mock_filter,
+            patch.object(service.ranking_service, "rank_candidates") as mock_rank,
             patch.object(
-                NLSearchService, "_parse_query", new_callable=AsyncMock
-            ) as mock_parse,
+                service, "_hydrate_instructor_results", new_callable=AsyncMock
+            ) as mock_hydrate,
+            patch("app.services.search.nl_search_service.record_search_metrics"),
         ):
             mock_parse.return_value = sample_parsed_query
+            mock_retrieve.return_value = retrieval_result
+            mock_filter.return_value = FilterResult(
+                candidates=[],
+                total_before_filter=0,
+                total_after_filter=0,
+                filters_applied=[],
+                soft_filtering_used=False,
+            )
+            mock_rank.return_value = RankingResult(results=[], total_results=0)
+            mock_hydrate.return_value = []
 
-            service = NLSearchService(mock_db, search_cache=mock_search_cache)
+            user_location = (-73.95, 40.68)  # Brooklyn
+            await service.search("piano", user_location=user_location)
 
-            # Mock embedding service
-            with patch.object(
-                service.embedding_service, "embed_query", new_callable=AsyncMock
-            ) as mock_embed:
-                mock_embed.return_value = [0.1] * 1536
-
-                # Mock retriever repository
-                with patch.object(
-                    service.retriever_repository, "search_with_instructor_data"
-                ) as mock_search:
-                    mock_search.return_value = sample_raw_db_results
-
-                    user_location = (-73.95, 40.68)  # Brooklyn
-                    await service.search("piano", user_location=user_location)
-
-                    # Verify embedding was called
-                    mock_embed.assert_called_once()
+            assert mock_filter.call_args.kwargs["user_location"] == user_location
 
 
 class TestResponseCaching:

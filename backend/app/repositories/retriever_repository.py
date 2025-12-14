@@ -209,15 +209,144 @@ class RetrieverRepository:
 
         return [
             {
-                "id": row.instructor_service_id,
-                "catalog_id": row.catalog_id,
+                "id": str(row.instructor_service_id),
+                "catalog_id": str(row.catalog_id),
                 "name": row.name,
                 "description": row.description,
                 "price_per_hour": int(row.price_per_hour),
-                "instructor_id": row.instructor_id,
+                "instructor_id": str(row.instructor_id),
                 "duration_options": row.duration_options,
                 "levels_taught": row.levels_taught,
                 "age_groups": row.age_groups,
+            }
+            for row in result
+        ]
+
+    def get_instructor_summaries(self, instructor_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Fetch instructor summary data for a list of instructor (user) IDs.
+
+        Returns:
+            List of dicts with keys:
+              - instructor_id (users.id)
+              - first_name
+              - last_initial
+              - bio_snippet
+              - years_experience
+              - profile_picture_key
+              - verified
+        """
+        if not instructor_ids:
+            return []
+
+        query = text(
+            """
+            SELECT
+                ip.user_id as instructor_id,
+                u.first_name,
+                COALESCE(LEFT(u.last_name, 1), '') as last_initial,
+                LEFT(ip.bio, 150) as bio_snippet,
+                ip.years_experience,
+                u.profile_picture_key,
+                (ip.identity_verified_at IS NOT NULL) as verified
+            FROM instructor_profiles ip
+            JOIN users u ON u.id = ip.user_id
+            WHERE ip.user_id = ANY(:instructor_ids)
+              AND ip.is_live = true
+              AND ip.bgc_status = 'passed'
+        """
+        )
+
+        result = self.db.execute(query, {"instructor_ids": instructor_ids})
+
+        return [
+            {
+                "instructor_id": str(row.instructor_id),
+                "first_name": row.first_name,
+                "last_initial": row.last_initial,
+                "bio_snippet": row.bio_snippet,
+                "years_experience": int(row.years_experience)
+                if row.years_experience is not None
+                else None,
+                "profile_picture_key": row.profile_picture_key,
+                "verified": bool(row.verified),
+            }
+            for row in result
+        ]
+
+    def get_instructor_ratings(self, instructor_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Fetch aggregated instructor ratings for a list of instructor (user) IDs.
+
+        Reviews are filtered to published only.
+
+        Returns:
+            List of dicts with keys:
+              - instructor_id
+              - avg_rating
+              - review_count
+        """
+        if not instructor_ids:
+            return []
+
+        query = text(
+            """
+            SELECT
+                r.instructor_id,
+                AVG(r.rating)::float as avg_rating,
+                COUNT(*)::int as review_count
+            FROM reviews r
+            WHERE r.instructor_id = ANY(:instructor_ids)
+              AND r.status = 'published'
+            GROUP BY r.instructor_id
+        """
+        )
+
+        result = self.db.execute(query, {"instructor_ids": instructor_ids})
+
+        return [
+            {
+                "instructor_id": str(row.instructor_id),
+                "avg_rating": float(row.avg_rating) if row.avg_rating is not None else None,
+                "review_count": int(row.review_count or 0),
+            }
+            for row in result
+        ]
+
+    def get_instructor_coverage_areas(self, instructor_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Fetch coverage area names for a list of instructor (user) IDs.
+
+        Uses instructor_service_areas.neighborhood_id → region_boundaries.id and
+        returns region_boundaries.region_name values.
+
+        Returns:
+            List of dicts with keys:
+              - instructor_id
+              - coverage_areas (list[str])
+        """
+        if not instructor_ids:
+            return []
+
+        query = text(
+            """
+            SELECT
+                isa.instructor_id,
+                array_agg(DISTINCT rb.region_name ORDER BY rb.region_name) as coverage_areas
+            FROM instructor_service_areas isa
+            JOIN region_boundaries rb ON rb.id = isa.neighborhood_id
+            WHERE isa.instructor_id = ANY(:instructor_ids)
+              AND isa.is_active = true
+            GROUP BY isa.instructor_id
+        """
+        )
+
+        result = self.db.execute(query, {"instructor_ids": instructor_ids})
+
+        return [
+            {
+                "instructor_id": str(row.instructor_id),
+                "coverage_areas": list(row.coverage_areas) if row.coverage_areas else [],
             }
             for row in result
         ]

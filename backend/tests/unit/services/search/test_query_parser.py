@@ -62,6 +62,7 @@ def _build_location_cache() -> Dict[str, Dict[str, str]]:
         MockLocation("Park Slope", "neighborhood", "Brooklyn", ["parkslope"]),
         MockLocation("Williamsburg", "neighborhood", "Brooklyn", ["wburg"]),
         MockLocation("Upper West Side", "neighborhood", "Manhattan", ["uws"]),
+        MockLocation("Lower East Side", "neighborhood", "Manhattan", ["les"]),
     ]
     cache: Dict[str, Dict[str, str]] = {}
     for loc in mock_locations:
@@ -186,6 +187,14 @@ class TestPriceExtraction:
         result = parser.parse("premium tutoring")
         assert result.price_intent == "premium"
 
+    def test_explicit_price_removes_budget_words(self, parser: QueryParser) -> None:
+        """Regression: 'cheap ... under 120' must not keep 'cheap' in service_query."""
+        result = parser.parse("cheap guitar lessons under 120")
+        assert result.max_price == 120
+        assert result.price_intent is None  # explicit price wins
+        assert "cheap" not in result.service_query.lower()
+        assert "guitar" in result.service_query.lower()
+
 
 class TestAudienceExtraction:
     """Tests for audience hint extraction."""
@@ -280,6 +289,13 @@ class TestDateExtraction:
         # Weekend should be Sat/Sun
         assert result.date_range_end - result.date_range_start == timedelta(days=1)
 
+    def test_weekday_name_resolves_to_next_occurrence(self, parser: QueryParser) -> None:
+        """Standalone weekday names should resolve to the next occurrence."""
+        result = parser.parse("lessons monday afternoon")
+        assert result.date is not None
+        assert result.date.weekday() == 0  # Monday
+        assert "monday" not in result.service_query.lower()
+
 
 class TestLocationExtraction:
     """Tests for location pattern extraction."""
@@ -301,6 +317,13 @@ class TestLocationExtraction:
     def test_location_alias(self, parser: QueryParser) -> None:
         result = parser.parse("guitar in bk")
         assert result.location_text == "Brooklyn"
+
+    def test_multi_word_neighborhood_in(self, parser: QueryParser) -> None:
+        result = parser.parse("guitar lessons in lower east side")
+        assert result.location_text == "Lower East Side"
+        assert result.location_type == "neighborhood"
+        assert "lower" not in result.service_query.lower()
+        assert "guitar" in result.service_query.lower()
 
 
 class TestSkillLevel:

@@ -73,8 +73,16 @@ TIME_WINDOWS: Dict[str, Tuple[str, str]] = {
 # LOCATION PATTERNS (Apply Fourth)
 # =============================================================================
 
+# Location extraction:
+# - Supports multi-word locations ("lower east side")
+# - Avoids swallowing trailing constraints ("for kids", "under 80", "monday", etc.)
+# - Allows optional "the" ("in the upper west side")
 LOCATION_PREPOSITION: Pattern[str] = re.compile(
-    r"(?:in|near|around)\s+([A-Za-z][A-Za-z\s]{2,25})", re.IGNORECASE
+    r"\b(?:in|near|around)\b\s+(?:the\s+)?"
+    r"([A-Za-z][A-Za-z\s\-'’.]{2,30}?)"
+    r"(?:\s+(?:area|neighborhood|district))?"
+    r"(?=\s+(?:for|under|after|before|today|tomorrow|this|next|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\s*$)",
+    re.IGNORECASE,
 )
 NEAR_ME: Pattern[str] = re.compile(r"\b(?:near\s+me|nearby|close\s+by)\b", re.IGNORECASE)
 

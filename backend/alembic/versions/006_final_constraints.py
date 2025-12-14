@@ -1559,7 +1559,10 @@ def upgrade() -> None:
            40.7870, -73.9800),
           ('loc_upper_east_side', 'nyc', 'us', 'Upper East Side', 'neighborhood', 'Manhattan', 'Manhattan',
            ARRAY['ues', 'upper east'],
-           40.7736, -73.9597)
+           40.7736, -73.9597),
+          ('loc_lower_east_side', 'nyc', 'us', 'Lower East Side', 'neighborhood', 'Manhattan', 'Manhattan',
+           ARRAY['les', 'lower east side'],
+           40.7150, -73.9843)
         ON CONFLICT (id) DO NOTHING;
         """
     )

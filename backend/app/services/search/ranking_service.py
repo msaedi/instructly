@@ -165,8 +165,13 @@ class RankingService:
 
         # Fetch all metrics in batch
         instructor_metrics = self.repository.get_instructor_metrics(instructor_ids)
-        service_audiences = self.repository.get_service_audience(service_ids)
-        service_skills = self.repository.get_service_skill_levels(service_ids)
+        # Audience + skill are boosts only; skip these queries unless hints are present.
+        service_audiences: Dict[str, str] = {}
+        service_skills: Dict[str, List[str]] = {}
+        if parsed_query.audience_hint:
+            service_audiences = self.repository.get_service_audience(service_ids)
+        if parsed_query.skill_level:
+            service_skills = self.repository.get_service_skill_levels(service_ids)
 
         # Get distances if user location provided
         distances: Dict[str, float] = {}
