@@ -71,6 +71,14 @@ class NLSearchResultItem(BaseModel):
     # For sorting/display
     relevance_score: float = Field(..., ge=0, le=1, description="Best match relevance score")
 
+    # Debug-only: distance from searched location (populated for admin tooling when available)
+    distance_km: Optional[float] = Field(
+        None, ge=0, description="Distance from searched location in kilometers (optional)"
+    )
+    distance_mi: Optional[float] = Field(
+        None, ge=0, description="Distance from searched location in miles (optional)"
+    )
+
 
 # =============================================================================
 # Legacy Service-Level Schemas (Kept for backward compatibility during transition)
@@ -158,6 +166,15 @@ class NLSearchMeta(BaseModel):
     )
     filter_stats: Optional[Dict[str, int]] = Field(
         None, description="Filter stage counts for debugging (optional)"
+    )
+    soft_filter_message: Optional[str] = Field(
+        None, description="User-facing message when constraints are relaxed"
+    )
+    location_resolved: Optional[str] = Field(
+        None, description="Resolved location name for display (if available)"
+    )
+    location_not_found: bool = Field(
+        False, description="True if the location text could not be resolved"
     )
 
 

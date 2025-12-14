@@ -49,6 +49,9 @@ from app.services.search.patterns import (
     TIME_WINDOWS,
     URGENCY_HIGH,
     URGENCY_MEDIUM,
+    WEEKDAY_PATTERN,
+    WEEKDAYS,
+    WEEKEND_PATTERN,
 )
 
 if TYPE_CHECKING:
@@ -372,29 +375,61 @@ class QueryParser:
     ) -> Tuple[str, ParsedQuery]:
         """Extract date constraints using dateparser library."""
 
-        # Check for "this weekend" specifically
-        weekend_pattern = re.compile(r"\bthis\s+weekend\b", re.IGNORECASE)
-        if weekend_pattern.search(query):
-            # Calculate this weekend's dates using timezone-aware today
+        # Check for "weekend" phrases ("weekend", "this weekend", "next weekend")
+        weekend_match = WEEKEND_PATTERN.search(query)
+        if weekend_match:
+            prefix = (weekend_match.group(1) or "").strip().lower() or None
+
+            # Calculate weekend dates using timezone-aware today
             today = self._get_user_today()
             days_until_saturday = (5 - today.weekday()) % 7
-            if days_until_saturday == 0 and today.weekday() != 5:
-                days_until_saturday = 7
+            if prefix == "next":
+                days_until_saturday += 7
             saturday = today + timedelta(days=days_until_saturday)
             sunday = saturday + timedelta(days=1)
 
             result.date_type = "weekend"
+            result.date = saturday  # For display/debug convenience
             result.date_range_start = saturday
             result.date_range_end = sunday
-            query = weekend_pattern.sub("", query)
+
+            query = (query[: weekend_match.start()] + " " + query[weekend_match.end() :]).strip()
+            query = re.sub(r"\s+", " ", query)
             return query, result
+
+        # Check for weekday names/abbreviations ("monday", "next fri", etc.)
+        weekday_match = WEEKDAY_PATTERN.search(query)
+        if weekday_match:
+            prefix = (weekday_match.group(1) or "").strip().lower() or None
+            weekday_token = (weekday_match.group(2) or "").strip().lower()
+
+            # Disambiguation: "sat prep" means the SAT exam, not Saturday.
+            if weekday_token == "sat":
+                remainder = query[weekday_match.end() :].lstrip()
+                next_word = remainder.split(" ", 1)[0].strip().lower() if remainder else ""
+                if next_word in {"prep", "preparation", "test", "exam", "tutor", "tutoring"}:
+                    weekday_match = None
+            if weekday_match:
+                target_weekday = WEEKDAYS.get(weekday_token)
+                if target_weekday is not None:
+                    today = self._get_user_today()
+                    days_ahead = (target_weekday - today.weekday()) % 7
+                    if prefix == "next":
+                        days_ahead += 7
+
+                    result.date = today + timedelta(days=days_ahead)
+                    result.date_type = "single"
+
+                    query = (
+                        query[: weekday_match.start()] + " " + query[weekday_match.end() :]
+                    ).strip()
+                    query = re.sub(r"\s+", " ", query)
+                    return query, result
 
         # Try dateparser for other date expressions
         date_patterns = [
             r"\b(today)\b",
             r"\b(tomorrow)\b",
-            r"\b(next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b",
-            r"\b(this\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b",
             r"\b(next\s+week)\b",
             r"\b(in\s+\d+\s+days?)\b",
             r"\b(\d{1,2}/\d{1,2}(?:/\d{2,4})?)\b",  # MM/DD or MM/DD/YYYY
@@ -416,31 +451,6 @@ class QueryParser:
                 )
                 if parsed:
                     result.date = parsed.date()
-                    result.date_type = "single"
-                    query = pattern.sub("", query)
-                    break
-
-        # Standalone weekday names ("monday afternoon") should resolve to next occurrence.
-        # NOTE: Avoid short abbreviations like "sat" because it conflicts with "SAT prep".
-        if result.date is None:
-            weekday_map = {
-                "monday": 0,
-                "tuesday": 1,
-                "wednesday": 2,
-                "thursday": 3,
-                "friday": 4,
-                "saturday": 5,
-                "sunday": 6,
-            }
-            for name, weekday in weekday_map.items():
-                pattern = re.compile(rf"\b{name}\b", re.IGNORECASE)
-                match = pattern.search(query)
-                if match:
-                    today = self._get_user_today()
-                    days_ahead = weekday - today.weekday()
-                    if days_ahead <= 0:
-                        days_ahead += 7
-                    result.date = today + timedelta(days=days_ahead)
                     result.date_type = "single"
                     query = pattern.sub("", query)
                     break

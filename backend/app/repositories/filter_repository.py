@@ -85,6 +85,59 @@ class FilterRepository:
         ).fetchall()
         return [row[0] for row in rows]
 
+    def get_instructor_min_distance_to_region(
+        self, instructor_ids: List[str], region_boundary_id: str
+    ) -> Dict[str, float]:
+        """
+        Get the minimum distance (meters) from a region centroid to each instructor's service areas.
+
+        This is used for admin/debug display to sanity-check that results are geographically sensible.
+        Returns a mapping of instructor_id -> distance_meters (float).
+
+        Notes:
+        - Requires Postgres + PostGIS; returns {} in non-Postgres environments.
+        - Uses region_boundaries.centroid as the reference point and distances to each covered polygon.
+        """
+        if not instructor_ids or not region_boundary_id:
+            return {}
+        if self.db.bind is None or self.db.bind.dialect.name != "postgresql":
+            return {}
+
+        query = text(
+            """
+            WITH target AS (
+                SELECT centroid::geography AS centroid_geo
+                FROM region_boundaries
+                WHERE id = :region_id
+                  AND centroid IS NOT NULL
+            )
+            SELECT
+                isa.instructor_id,
+                MIN(ST_Distance(rb.boundary::geography, t.centroid_geo)) AS distance_m
+            FROM instructor_service_areas isa
+            JOIN region_boundaries rb ON rb.id = isa.neighborhood_id
+            CROSS JOIN target t
+            WHERE isa.instructor_id = ANY(:instructor_ids)
+              AND isa.is_active = true
+              AND rb.boundary IS NOT NULL
+            GROUP BY isa.instructor_id
+            """
+        )
+
+        rows = self.db.execute(
+            query,
+            {"instructor_ids": instructor_ids, "region_id": region_boundary_id},
+        ).fetchall()
+
+        out: Dict[str, float] = {}
+        for row in rows:
+            instructor_id = str(row[0])
+            distance_m = row[1]
+            if distance_m is None:
+                continue
+            out[instructor_id] = float(distance_m)
+        return out
+
     def filter_by_parent_region(self, instructor_ids: List[str], parent_region: str) -> List[str]:
         """Return instructor IDs that cover any neighborhood in the given parent region (e.g., borough)."""
         if not instructor_ids:

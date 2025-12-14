@@ -71,6 +71,8 @@ interface SearchResult {
   other_matches: ServiceMatch[];
   total_matching_services: number;
   relevance_score: number;
+  distance_km?: number | null;
+  distance_mi?: number | null;
 }
 
 interface ParsedQuery {
@@ -98,6 +100,9 @@ interface SearchMeta {
   filters_applied?: string[];
   soft_filtering_used?: boolean;
   filter_stats?: FilterStats | null;
+  soft_filter_message?: string | null;
+  location_resolved?: string | null;
+  location_not_found?: boolean;
 }
 
 interface SearchResponse {
@@ -470,6 +475,14 @@ export default function NLSearchAdminPage() {
                 {/* Diagnostics */}
                 <DiagnosticsPanel meta={searchResults.meta} />
 
+                {/* Soft Filter Message */}
+                {searchResults.meta.soft_filtering_used && searchResults.meta.soft_filter_message && (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4 flex items-center gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    <p className="text-sm text-amber-800 dark:text-amber-200">{searchResults.meta.soft_filter_message}</p>
+                  </div>
+                )}
+
                 {/* Results List */}
                 <ResultsPanel results={searchResults.results} totalResults={searchResults.meta.total_results} />
               </>
@@ -548,6 +561,7 @@ function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <ParsedField label="Service" value={meta.parsed.service_query} />
           <ParsedField label="Location" value={meta.parsed.location} />
+          <ParsedField label="Resolved Location" value={meta.location_resolved ?? null} />
           <ParsedField label="Max Price" value={meta.parsed.max_price ? `$${meta.parsed.max_price}` : null} />
           <ParsedField label="Date" value={meta.parsed.date} />
           <ParsedField label="Time After" value={meta.parsed.time_after} />
@@ -695,6 +709,11 @@ function ResultCard({ result }: { result: SearchResult }) {
               {instructor.first_name} {instructor.last_initial}.
               {instructor.verified && <span className="ml-1 text-blue-500">✓</span>}
             </h3>
+            {result.distance_mi !== null && result.distance_mi !== undefined && (
+              <span className="ml-1 px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded">
+                {result.distance_mi.toFixed(1)} mi
+              </span>
+            )}
           </div>
           <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             Best match: <span className="font-medium">{best_match.name}</span>

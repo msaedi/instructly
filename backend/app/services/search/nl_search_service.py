@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from app.services.cache_service import CacheService
+    from app.services.search.location_resolver import ResolvedLocation
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,7 @@ class NLSearchService:
             results = await self._hydrate_instructor_results(
                 ranking_result.results,
                 limit=limit,
+                location_resolution=filter_result.location_resolution if filter_result else None,
             )
         except Exception as e:
             logger.error(f"Hydration failed: {e}")
@@ -224,6 +226,8 @@ class NLSearchService:
         self,
         ranked: List[RankedResult],
         limit: int,
+        *,
+        location_resolution: Optional["ResolvedLocation"] = None,
     ) -> List[NLSearchResultItem]:
         """
         Convert ranked service-level candidates into instructor-level results.
@@ -267,11 +271,44 @@ class NLSearchService:
                 continue
             chosen_by_instructor[instructor_id] = chosen
 
-        # Hydrate instructor-level data
-        instructor_rows = await asyncio.to_thread(
-            self.retriever_repository.get_instructor_cards,
-            ordered_instructor_ids,
+        instructor_cards_task = asyncio.to_thread(
+            self.retriever_repository.get_instructor_cards, ordered_instructor_ids
         )
+
+        # Optional distance map (meters) for admin debugging when we have a location reference.
+        distance_region_id: Optional[str] = None
+        if location_resolution and location_resolution.region_id:
+            distance_region_id = str(location_resolution.region_id)
+        elif (
+            location_resolution
+            and location_resolution.requires_clarification
+            and location_resolution.candidates
+        ):
+            # Best-effort: pick the shortest-named candidate as a stable reference for display.
+            try:
+                chosen_candidate = min(
+                    location_resolution.candidates,
+                    key=lambda c: len(str(c.get("region_name") or "")),
+                )
+                distance_region_id = str(chosen_candidate.get("region_id") or "") or None
+            except Exception:
+                distance_region_id = None
+
+        distance_task = None
+        if distance_region_id:
+            distance_task = asyncio.to_thread(
+                self.filter_service.repository.get_instructor_min_distance_to_region,
+                ordered_instructor_ids,
+                distance_region_id,
+            )
+
+        if distance_task is not None:
+            instructor_rows, distance_meters = await asyncio.gather(
+                instructor_cards_task, distance_task
+            )
+        else:
+            instructor_rows = await instructor_cards_task
+            distance_meters = {}
         instructor_by_id: Dict[str, Dict[str, Any]] = {
             row["instructor_id"]: row for row in instructor_rows
         }
@@ -334,6 +371,12 @@ class NLSearchService:
                     other_matches=other_matches,
                     total_matching_services=len(by_instructor.get(instructor_id, [])) or 1,
                     relevance_score=best_match.relevance_score,
+                    distance_km=round(float(distance_meters[instructor_id]) / 1000.0, 1)
+                    if distance_meters.get(instructor_id) is not None
+                    else None,
+                    distance_mi=round(float(distance_meters[instructor_id]) / 1609.34, 1)
+                    if distance_meters.get(instructor_id) is not None
+                    else None,
                 )
             )
 
@@ -659,6 +702,31 @@ class NLSearchService:
         )
 
         # Build metadata
+        location_resolution = filter_result.location_resolution if filter_result else None
+        location_not_found = bool(getattr(location_resolution, "not_found", False))
+
+        location_resolved: Optional[str] = None
+        if location_resolution:
+            if location_resolution.resolved:
+                location_resolved = location_resolution.region_name or location_resolution.borough
+            elif location_resolution.requires_clarification and location_resolution.candidates:
+                try:
+                    location_resolved = min(
+                        location_resolution.candidates,
+                        key=lambda c: len(str(c.get("region_name") or "")),
+                    ).get("region_name")
+                except Exception:
+                    location_resolved = None
+
+        soft_filter_message: Optional[str] = None
+        if filter_result and filter_result.soft_filtering_used:
+            soft_filter_message = self._generate_soft_filter_message(
+                parsed_query,
+                filter_result.filter_stats,
+                location_resolution,
+                location_resolved,
+            )
+
         meta = NLSearchMeta(
             query=query,
             corrected_query=parsed_query.corrected_query,
@@ -673,9 +741,56 @@ class NLSearchService:
             filters_applied=filter_result.filters_applied if filter_result else [],
             soft_filtering_used=filter_result.soft_filtering_used if filter_result else False,
             filter_stats=filter_result.filter_stats if filter_result else None,
+            soft_filter_message=soft_filter_message,
+            location_resolved=location_resolved,
+            location_not_found=location_not_found,
         )
 
         return NLSearchResponse(results=results[:limit], meta=meta)
+
+    def _generate_soft_filter_message(
+        self,
+        parsed: ParsedQuery,
+        filter_stats: Dict[str, int],
+        location_resolution: Optional["ResolvedLocation"],
+        location_resolved: Optional[str],
+    ) -> Optional[str]:
+        """Generate a user-facing message when soft filtering/relaxation is used."""
+        messages: List[str] = []
+
+        # Location constraint
+        if parsed.location_text:
+            if location_resolution and location_resolution.not_found:
+                messages.append(f"Couldn't find location '{parsed.location_text}'")
+            elif filter_stats.get("after_location") == 0:
+                messages.append(
+                    f"No instructors found in {location_resolved or parsed.location_text}"
+                )
+
+        # Availability constraint
+        if (parsed.date or parsed.time_after) and filter_stats.get("after_availability") == 0:
+            if parsed.date:
+                messages.append(f"No availability on {parsed.date.strftime('%A, %b %d')}")
+            else:
+                messages.append("No availability matching your time constraints")
+
+        # Price constraint
+        if parsed.max_price is not None and filter_stats.get("after_price") == 0:
+            messages.append(f"No instructors under ${parsed.max_price}")
+
+        if not messages:
+            return None
+
+        location_related = any(
+            m.startswith("No instructors found in") or m.startswith("Couldn't find location")
+            for m in messages
+        )
+        suffix = (
+            "Showing results from nearby areas."
+            if location_related
+            else "Showing available instructors."
+        )
+        return f"{'. '.join(messages)}. {suffix}"
 
     def _build_photo_url(self, key: Optional[str]) -> Optional[str]:
         """Build Cloudflare R2 URL for profile photo."""

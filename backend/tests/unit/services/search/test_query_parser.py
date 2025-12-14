@@ -289,6 +289,42 @@ class TestDateExtraction:
         assert result.date.weekday() == 0  # Monday
         assert "monday" not in result.service_query.lower()
 
+    def test_weekday_with_time(self, parser: QueryParser) -> None:
+        """Weekday + time window should both be parsed."""
+        result = parser.parse("piano lessons monday evening")
+        assert result.date is not None
+        assert result.date.weekday() == 0  # Monday
+        assert result.time_after == "17:00"
+
+    def test_weekday_abbreviations(self, parser: QueryParser) -> None:
+        """Abbreviated weekdays should resolve to a concrete date."""
+        cases = {
+            "mon": 0,
+            "tue": 1,
+            "wed": 2,
+            "thu": 3,
+            "fri": 4,
+            "sat": 5,
+            "sun": 6,
+        }
+        for token, expected_weekday in cases.items():
+            result = parser.parse(f"lessons {token}")
+            assert result.date is not None
+            assert result.date.weekday() == expected_weekday
+
+    def test_next_weekday_is_at_least_7_days_out(self, parser: QueryParser) -> None:
+        """'next <weekday>' should be at least a week away."""
+        result = parser.parse("yoga next saturday")
+        assert result.date is not None
+        assert result.date.weekday() == 5  # Saturday
+        assert result.date >= date.today() + timedelta(days=7)
+
+    def test_sat_prep_not_interpreted_as_saturday(self, parser: QueryParser) -> None:
+        """Regression: 'SAT prep' should not be parsed as a Saturday constraint."""
+        result = parser.parse("SAT prep in brooklyn")
+        assert result.date is None
+        assert "sat" in result.service_query.lower()
+
 
 class TestLocationExtraction:
     """Tests for location pattern extraction."""

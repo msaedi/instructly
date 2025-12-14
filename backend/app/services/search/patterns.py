@@ -70,6 +70,41 @@ TIME_WINDOWS: Dict[str, Tuple[str, str]] = {
 }
 
 # =============================================================================
+# WEEKDAY PATTERNS (Apply near Date)
+# =============================================================================
+
+WEEKDAYS: Dict[str, int] = {
+    "monday": 0,
+    "mon": 0,
+    "tuesday": 1,
+    "tue": 1,
+    "tues": 1,
+    "wednesday": 2,
+    "wed": 2,
+    "thursday": 3,
+    "thu": 3,
+    "thur": 3,
+    "thurs": 3,
+    "friday": 4,
+    "fri": 4,
+    "saturday": 5,
+    "sat": 5,
+    "sunday": 6,
+    "sun": 6,
+}
+
+# Pattern: "monday", "this monday", "next mon", etc.
+# Group 1: optional prefix ("this"|"next")
+# Group 2: weekday token
+WEEKDAY_PATTERN: Pattern[str] = re.compile(
+    r"\b(?:(this|next)\s+)?(" + "|".join(WEEKDAYS.keys()) + r")\b",
+    re.IGNORECASE,
+)
+
+# Pattern: "weekend", "this weekend", "next weekend"
+WEEKEND_PATTERN: Pattern[str] = re.compile(r"\b(?:(this|next)\s+)?weekend\b", re.IGNORECASE)
+
+# =============================================================================
 # LOCATION PATTERNS (Apply Fourth)
 # =============================================================================
 
