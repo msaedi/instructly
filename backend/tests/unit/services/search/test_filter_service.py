@@ -13,6 +13,7 @@ from app.services.search.filter_service import (
     FilteredCandidate,
     FilterService,
 )
+from app.services.search.location_resolver import ResolvedLocation
 from app.services.search.query_parser import ParsedQuery
 from app.services.search.retriever import ServiceCandidate
 
@@ -29,7 +30,6 @@ def mock_repository() -> Mock:
     repo = Mock()
 
     # Default location behavior - return ALL instructors to avoid soft filtering
-    repo.get_location_centroid.return_value = (-73.9857, 40.7484)  # NYC coords
     repo.filter_by_location.return_value = [
         "inst_001",
         "inst_002",
@@ -39,6 +39,22 @@ def mock_repository() -> Mock:
         "inst_006",
     ]
     repo.filter_by_location_soft.return_value = [
+        "inst_001",
+        "inst_002",
+        "inst_003",
+        "inst_004",
+        "inst_005",
+        "inst_006",
+    ]
+    repo.filter_by_region_coverage.return_value = [
+        "inst_001",
+        "inst_002",
+        "inst_003",
+        "inst_004",
+        "inst_005",
+        "inst_006",
+    ]
+    repo.filter_by_parent_region.return_value = [
         "inst_001",
         "inst_002",
         "inst_003",
@@ -71,7 +87,10 @@ def mock_repository() -> Mock:
 @pytest.fixture
 def filter_service(mock_db: Mock, mock_repository: Mock) -> FilterService:
     """Create filter service with mocks."""
-    return FilterService(db=mock_db, repository=mock_repository)
+    service = FilterService(db=mock_db, repository=mock_repository, region_code="nyc")
+    service.location_resolver = Mock()
+    service.location_resolver.resolve.return_value = ResolvedLocation(kind="none", method="none")
+    return service
 
 
 @pytest.fixture
@@ -227,6 +246,11 @@ class TestLocationFilter:
         mock_repository: Mock,
     ) -> None:
         """Should call repository for location filtering."""
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation(
+            kind="borough",
+            method="exact",
+            borough_name="Manhattan",
+        )
         query = ParsedQuery(
             original_query="piano in Manhattan",
             service_query="piano",
@@ -237,9 +261,7 @@ class TestLocationFilter:
 
         result = await filter_service.filter_candidates(sample_candidates, query)
 
-        mock_repository.get_location_centroid.assert_called_once_with("Manhattan")
-        # Location filter called at least once
-        assert mock_repository.filter_by_location.called
+        assert mock_repository.filter_by_parent_region.called
         assert "location" in result.filters_applied
 
     @pytest.mark.asyncio
@@ -251,13 +273,18 @@ class TestLocationFilter:
     ) -> None:
         """Should remove candidates not in service area (when enough pass)."""
         # Return 5 instructors to avoid soft filtering
-        mock_repository.filter_by_location.return_value = [
+        mock_repository.filter_by_parent_region.return_value = [
             "inst_001",
             "inst_002",
             "inst_003",
             "inst_004",
             "inst_005",
         ]
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation(
+            kind="borough",
+            method="exact",
+            borough_name="Brooklyn",
+        )
 
         query = ParsedQuery(
             original_query="piano in Brooklyn",
@@ -295,6 +322,9 @@ class TestLocationFilter:
 
         # Location filter should not be applied without user coords
         mock_repository.filter_by_location.assert_not_called()
+        mock_repository.filter_by_parent_region.assert_not_called()
+        mock_repository.filter_by_region_coverage.assert_not_called()
+        filter_service.location_resolver.resolve.assert_not_called()
         assert "location" not in result.filters_applied
 
     @pytest.mark.asyncio
@@ -433,17 +463,17 @@ class TestSoftFiltering:
     @pytest.mark.asyncio
     async def test_soft_filtering_triggered_when_few_results(
         self,
-        mock_db: Mock,
+        filter_service: FilterService,
         mock_repository: Mock,
     ) -> None:
         """Should trigger soft filtering when < 5 results."""
-        # Only return 2 instructors from location filter
-        mock_repository.filter_by_location.return_value = ["inst_001", "inst_002"]
-        mock_repository.filter_by_location_soft.return_value = [
-            "inst_001",
-            "inst_002",
-            "inst_003",
-        ]
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation(
+            kind="borough",
+            method="exact",
+            borough_name="Manhattan",
+        )
+        # Only return 2 instructors from hard location filter
+        mock_repository.filter_by_parent_region.return_value = ["inst_001", "inst_002"]
         today = date.today()
         mock_repository.filter_by_availability.return_value = {
             "inst_001": [today],
@@ -465,7 +495,6 @@ class TestSoftFiltering:
             for i in range(5)
         ]
 
-        service = FilterService(db=mock_db, repository=mock_repository)
         query = ParsedQuery(
             original_query="piano in Manhattan",
             service_query="piano",
@@ -473,7 +502,7 @@ class TestSoftFiltering:
             location_text="Manhattan",
         )
 
-        result = await service.filter_candidates(candidates, query)
+        result = await filter_service.filter_candidates(candidates, query)
 
         # Should have triggered soft filtering since only 2 passed hard filter
         assert result.soft_filtering_used is True
@@ -590,6 +619,11 @@ class TestFilterResult:
         mock_repository: Mock,
     ) -> None:
         """Should track which filters were applied."""
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation(
+            kind="borough",
+            method="exact",
+            borough_name="Brooklyn",
+        )
         query = ParsedQuery(
             original_query="piano in Brooklyn under $80 tomorrow",
             service_query="piano",
@@ -645,7 +679,9 @@ class TestEdgeCases:
         mock_repository: Mock,
     ) -> None:
         """Should skip location filter when location not found."""
-        mock_repository.get_location_centroid.return_value = None
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation(
+            kind="none", method="none"
+        )
 
         query = ParsedQuery(
             original_query="piano in Narnia",

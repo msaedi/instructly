@@ -8,7 +8,6 @@ and reference data tables.
 Tables:
 - SearchQuery: Analytics for NL search queries with parsing metrics
 - SearchClick: Conversion tracking for search result interactions
-- SearchLocation: Reference data for locations (multi-city support)
 - RegionSettings: Per-region configuration (pricing, timezone, etc.)
 - PriceThreshold: Configuration for price intent mapping by category and region
 """
@@ -24,7 +23,6 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
-    Float,
     ForeignKey,
     Integer,
     Numeric,
@@ -147,66 +145,6 @@ class SearchClick(Base):
 
     def __repr__(self) -> str:
         return f"<SearchClick action={self.action} pos={self.position}>"
-
-
-class SearchLocation(Base):
-    """
-    Reference data for locations supporting multi-city search.
-
-    Used for location parsing and geocoding in NL search queries.
-    Replaces the former NYC-specific nyc_locations table.
-
-    Attributes:
-        id: Primary key (e.g., 'loc_manhattan')
-        region_code: Region identifier ('nyc', 'chicago', 'la', etc.)
-        country_code: Country code ('us', 'ca', etc.)
-        name: Display name (e.g., 'Manhattan')
-        type: Location type ('city', 'borough', 'neighborhood', 'district')
-        parent_name: Parent location name (e.g., 'Brooklyn' for neighborhoods)
-        borough: Legacy column for backward compatibility
-        aliases: Array of alternative names/abbreviations
-        lat: Latitude of centroid
-        lng: Longitude of centroid
-        is_active: Whether this location is active for search
-    """
-
-    __tablename__ = "search_locations"
-
-    id = Column(Text, primary_key=True)
-    region_code = Column(Text, nullable=False, default="nyc")
-    country_code = Column(Text, nullable=False, default="us")
-    name = Column(Text, nullable=False)
-    type = Column(Text, nullable=False)  # 'city', 'borough', 'neighborhood', 'district'
-    parent_name = Column(Text, nullable=True)
-    borough = Column(Text, nullable=True)  # Legacy, kept for compatibility
-    aliases: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
-    lat = Column(Float, nullable=True)
-    lng = Column(Float, nullable=True)
-    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    def __repr__(self) -> str:
-        return f"<SearchLocation {self.region_code}:{self.name} ({self.type})>"
-
-    @property
-    def all_names(self) -> List[str]:
-        """Get all names including aliases for matching."""
-        names = [self.name.lower()]
-        if self.aliases:
-            names.extend(alias.lower() for alias in self.aliases)
-        return names
-
-    @property
-    def parent(self) -> Optional[str]:
-        """Get parent location name (prefers parent_name, falls back to borough)."""
-        parent_name: Optional[str] = self.parent_name
-        borough: Optional[str] = self.borough
-        return parent_name or borough
-
-
-# Backward compatibility alias
-NYCLocation = SearchLocation
 
 
 class RegionSettings(Base):

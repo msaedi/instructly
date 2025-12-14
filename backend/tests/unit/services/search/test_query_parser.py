@@ -122,19 +122,12 @@ def patch_dateparser() -> Any:
 @pytest.fixture
 def parser(mock_db: Mock) -> QueryParser:
     """Create QueryParser with mock database and mocked repositories."""
-    with (
-        patch(
-            "app.repositories.nl_search_repository.NYCLocationRepository.build_location_cache"
-        ) as mock_loc,
-        patch(
-            "app.repositories.nl_search_repository.PriceThresholdRepository.build_threshold_cache"
-        ) as mock_price,
-    ):
-        mock_loc.return_value = _build_location_cache()
+    with patch(
+        "app.repositories.nl_search_repository.PriceThresholdRepository.build_threshold_cache"
+    ) as mock_price:
         mock_price.return_value = _build_threshold_cache()
         p = QueryParser(mock_db)
-        # Pre-populate the caches to avoid repository calls during tests
-        p._location_cache = _build_location_cache()
+        # Pre-populate the cache to avoid repository calls during tests
         p._price_thresholds = _build_threshold_cache()
         # Mock _get_user_today to use date.today() for consistent timezone behavior
         p._get_user_today = lambda: date.today()
@@ -302,12 +295,12 @@ class TestLocationExtraction:
 
     def test_in_brooklyn(self, parser: QueryParser) -> None:
         result = parser.parse("piano in brooklyn")
-        assert result.location_text == "Brooklyn"
+        assert result.location_text == "brooklyn"
         assert result.location_type == "borough"
 
     def test_near_park_slope(self, parser: QueryParser) -> None:
         result = parser.parse("lessons near park slope")
-        assert result.location_text == "Park Slope"
+        assert result.location_text == "park slope"
         assert result.location_type == "neighborhood"
 
     def test_near_me(self, parser: QueryParser) -> None:
@@ -316,11 +309,25 @@ class TestLocationExtraction:
 
     def test_location_alias(self, parser: QueryParser) -> None:
         result = parser.parse("guitar in bk")
-        assert result.location_text == "Brooklyn"
+        assert result.location_text == "bk"
+
+    def test_location_extraction_ues_not_corrupted(self, parser: QueryParser) -> None:
+        """Regression: 'ues' must not become 'us for my' via typo correction + regex."""
+        result = parser.parse("guitar lessons in ues for my kid under 150")
+        assert result.location_text == "ues"
+        assert result.audience_hint == "kids"
+        assert result.max_price == 150
+        assert "for my" not in result.service_query.lower()
+
+    def test_location_extraction_lic_not_corrupted(self, parser: QueryParser) -> None:
+        """Regression: SymSpell shouldn't turn 'lic' into a common word (e.g., 'pic')."""
+        result = parser.parse("piano lessons in lic under 100")
+        assert result.location_text == "lic"
+        assert result.max_price == 100
 
     def test_multi_word_neighborhood_in(self, parser: QueryParser) -> None:
         result = parser.parse("guitar lessons in lower east side")
-        assert result.location_text == "Lower East Side"
+        assert result.location_text == "lower east side"
         assert result.location_type == "neighborhood"
         assert "lower" not in result.service_query.lower()
         assert "guitar" in result.service_query.lower()
@@ -371,7 +378,7 @@ class TestComplexQueries:
         # Date should be tomorrow relative to when test runs
         assert result.date == date.today() + timedelta(days=1)
         assert result.time_after == "17:00"
-        assert result.location_text == "Brooklyn"
+        assert result.location_text == "brooklyn"
         assert result.audience_hint == "kids"
         assert "piano" in result.service_query.lower()
 
@@ -412,7 +419,7 @@ class TestEdgeCases:
         # Should still work, service_query will be minimal
         assert result.date is not None
         assert result.time_after == "17:00"
-        assert result.location_text == "Brooklyn"
+        assert result.location_text == "brooklyn"
 
     def test_preserves_original_query(self, parser: QueryParser) -> None:
         original = "Piano Lessons Under $50 Tomorrow"

@@ -4,14 +4,13 @@ Repository for filter-related database queries.
 Handles PostGIS location checks and availability validation.
 
 Adapted to actual InstaInstru schema:
-- search_locations: Multi-city location reference with lat/lng
 - instructor_service_areas + region_boundaries: Service area polygons
 - availability_days + check_availability function: Bitmap availability
 """
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import pytz
 from sqlalchemy import text
@@ -42,41 +41,49 @@ class FilterRepository:
     # =========================================================================
     # Location Filtering (PostGIS)
     # =========================================================================
+    def filter_by_region_coverage(
+        self, instructor_ids: List[str], region_boundary_id: str
+    ) -> List[str]:
+        """Return instructor IDs that cover the given region boundary."""
+        if not instructor_ids:
+            return []
 
-    def get_location_centroid(
-        self,
-        location_name: str,
-        region_code: str = "nyc",
-    ) -> Optional[Tuple[float, float]]:
-        """
-        Get centroid coordinates for a location name.
-
-        Uses the search_locations table which supports multi-city search.
-
-        Returns:
-            (longitude, latitude) or None if not found.
-        """
         query = text(
             """
-            SELECT lng, lat
-            FROM search_locations
-            WHERE region_code = :region_code
-              AND is_active = true
-              AND (
-                  LOWER(name) = LOWER(:name)
-                  OR LOWER(:name) = ANY(
-                      SELECT LOWER(unnest(aliases))
-                  )
-              )
-            LIMIT 1
-        """
+            SELECT DISTINCT isa.instructor_id
+            FROM instructor_service_areas isa
+            WHERE isa.instructor_id = ANY(:instructor_ids)
+              AND isa.is_active = true
+              AND isa.neighborhood_id = :region_id
+            """
         )
+        rows = self.db.execute(
+            query,
+            {"instructor_ids": instructor_ids, "region_id": region_boundary_id},
+        ).fetchall()
+        return [row[0] for row in rows]
 
-        result = self.db.execute(query, {"name": location_name, "region_code": region_code}).first()
+    def filter_by_parent_region(self, instructor_ids: List[str], parent_region: str) -> List[str]:
+        """Return instructor IDs that cover any neighborhood in the given parent region (e.g., borough)."""
+        if not instructor_ids:
+            return []
 
-        if result:
-            return (float(result.lng), float(result.lat))
-        return None
+        query = text(
+            """
+            SELECT DISTINCT isa.instructor_id
+            FROM instructor_service_areas isa
+            JOIN region_boundaries rb ON rb.id = isa.neighborhood_id
+            WHERE isa.instructor_id = ANY(:instructor_ids)
+              AND isa.is_active = true
+              AND rb.parent_region IS NOT NULL
+              AND LOWER(rb.parent_region) = LOWER(:parent_region)
+            """
+        )
+        rows = self.db.execute(
+            query,
+            {"instructor_ids": instructor_ids, "parent_region": parent_region},
+        ).fetchall()
+        return [row[0] for row in rows]
 
     def filter_by_location(
         self,

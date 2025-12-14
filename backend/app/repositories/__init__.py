@@ -45,7 +45,7 @@ from .conflict_checker_repository import ConflictCheckerRepository
 from .conversation_repository import ConversationRepository
 from .factory import RepositoryFactory
 from .instructor_profile_repository import InstructorProfileRepository
-from .nl_search_repository import NYCLocationRepository, PriceThresholdRepository
+from .nl_search_repository import PriceThresholdRepository
 from .referral_repository import (
     ReferralAttributionRepository,
     ReferralClickRepository,
@@ -79,7 +79,6 @@ __all__ = [
     "ReferralRewardRepository",
     "WalletTransactionRepository",
     "ReferralLimitRepository",
-    "NYCLocationRepository",
     "PriceThresholdRepository",
 ]
 

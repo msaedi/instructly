@@ -6,8 +6,10 @@ Provides fast, accurate typo correction using the SymSpell algorithm.
 Includes domain-specific terms for music, tutoring, sports, and NYC locations.
 """
 from functools import lru_cache
+import json
 import logging
 import os
+from pathlib import Path
 from typing import Optional, Tuple
 
 from symspellpy import SymSpell, Verbosity
@@ -248,6 +250,62 @@ import re as _re
 # Pattern to match time tokens like "5pm", "10am", "3:00pm"
 TIME_TOKEN_PATTERN = _re.compile(r"^\d{1,2}(:\d{2})?(am|pm)$", _re.IGNORECASE)
 
+LOCATION_ALIASES_JSON_PATH = Path(__file__).resolve().parents[3] / "data" / "location_aliases.json"
+
+
+@lru_cache(maxsize=1)
+def load_location_alias_tokens() -> frozenset[str]:
+    """
+    Load single-token location alias strings from `backend/data/location_aliases.json`.
+
+    Used to keep typo-correction protections DRY with the alias seeding source-of-truth.
+    """
+    try:
+        payload = json.loads(LOCATION_ALIASES_JSON_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        logger.warning(
+            "location_aliases.json not found at %s; using fallback protected tokens only",
+            str(LOCATION_ALIASES_JSON_PATH),
+        )
+        return frozenset()
+    except Exception as e:
+        logger.warning(
+            "Failed to load location_aliases.json at %s (%s); using fallback protected tokens only",
+            str(LOCATION_ALIASES_JSON_PATH),
+            e,
+        )
+        return frozenset()
+
+    aliases = payload.get("aliases") or []
+    if not isinstance(aliases, list):
+        return frozenset()
+
+    tokens: set[str] = set()
+    for row in aliases:
+        if not isinstance(row, dict):
+            continue
+        alias = row.get("alias")
+        if not alias:
+            continue
+        normalized = " ".join(str(alias).strip().lower().split())
+        if not normalized or " " in normalized:
+            continue
+        tokens.add(normalized)
+
+    return frozenset(tokens)
+
+
+# Tokens that should never be typo-corrected.
+#
+# Many location abbreviations (e.g., "ues") get "corrected" into common English words (e.g., "us"),
+# which then breaks downstream location extraction. We source tokens from location_aliases.json to stay DRY.
+FALLBACK_PROTECTED_TOKENS = frozenset({"nyc"})
+PROTECTED_TOKENS = load_location_alias_tokens() | FALLBACK_PROTECTED_TOKENS
+
+# Strip leading/trailing punctuation for protected-token checks, while keeping inner punctuation
+# (e.g., "bed-stuy" remains "bed-stuy", "ues," becomes "ues").
+TOKEN_STRIP_PATTERN = _re.compile(r"^[^a-z0-9]+|[^a-z0-9]+$", _re.IGNORECASE)
+
 
 def correct_typos(text: str, max_edit_distance: int = 2) -> Tuple[str, bool]:
     """
@@ -269,6 +327,11 @@ def correct_typos(text: str, max_edit_distance: int = 2) -> Tuple[str, bool]:
     was_corrected = False
 
     for word in words:
+        core = TOKEN_STRIP_PATTERN.sub("", word)
+        if core in PROTECTED_TOKENS:
+            corrected_words.append(core)
+            continue
+
         # Skip short words, numbers, and special tokens
         if len(word) <= 2 or word.isdigit() or word.startswith("$"):
             corrected_words.append(word)

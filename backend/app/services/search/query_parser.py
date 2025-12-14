@@ -119,17 +119,14 @@ class QueryParser:
         self.db = db
         self._user_id = user_id
         self._region_code = region_code
-        self._location_cache: Optional[Dict[str, Dict[str, Optional[str]]]] = None
         self._price_thresholds: Optional[Dict[Tuple[str, str], Dict[str, Optional[int]]]] = None
 
         # Initialize repositories (lazy import to avoid circular imports)
-        from app.repositories.nl_search_repository import (
-            PriceThresholdRepository,
-            SearchLocationRepository,
-        )
+        from app.repositories.nl_search_repository import PriceThresholdRepository
+        from app.services.search.location_resolver import LocationResolver
 
-        self._location_repository = SearchLocationRepository(db)
         self._price_threshold_repository = PriceThresholdRepository(db)
+        self._location_resolver = LocationResolver(db, region_code=region_code)
 
     def _get_user_today(self) -> DateType:
         """
@@ -461,66 +458,119 @@ class QueryParser:
             query = NEAR_ME.sub("", query)
             return query, result
 
-        # Load location cache if needed
-        if self._location_cache is None:
-            self._load_location_cache()
-
-        # Check for "in/near/around <location>" pattern
+        # Check for "in/near/around <location>" pattern (supports multi-word locations)
         match = LOCATION_PREPOSITION.search(query)
         if match:
-            location_text = match.group(1).strip().lower()
-            location_info = self._match_location(location_text)
-            if location_info:
-                result.location_text = location_info["name"]
-                result.location_type = location_info["type"]  # type: ignore[assignment]
-                query = LOCATION_PREPOSITION.sub("", query)
+            location_text = " ".join(match.group(1).strip().lower().split())
+
+            # Guard against common non-location phrases that match this regex.
+            # Example: "in person" (lesson modality, not a neighborhood).
+            if location_text in {"person", "in person", "online", "remote"}:
                 return query, result
 
-        # Direct location name match (without preposition)
-        # Use word boundary regex to avoid substring matches (e.g., "si" in "singing")
-        if self._location_cache:
-            query_lower = query.lower()
-            for name, info in self._location_cache.items():
-                # Use word boundary \b to ensure we match whole words only
-                pattern = r"\b" + re.escape(name) + r"\b"
-                if re.search(pattern, query_lower):
-                    result.location_text = info["name"]
-                    result.location_type = info["type"]  # type: ignore[assignment]
-                    # Remove the matched location using word boundaries
-                    query = re.sub(pattern, "", query, flags=re.IGNORECASE)
+            result.location_text = location_text
+            result.location_type = (
+                "borough"
+                if location_text
+                in {
+                    "manhattan",
+                    "brooklyn",
+                    "queens",
+                    "bronx",
+                    "staten island",
+                    "bk",
+                    "bklyn",
+                    "bx",
+                    "qns",
+                    "si",
+                }
+                else "neighborhood"
+            )
+            query = LOCATION_PREPOSITION.sub("", query)
+            return query, result
+
+        # Direct borough/abbreviation match (without preposition)
+        # Use word boundaries to avoid substring matches (e.g., "si" in "singing").
+        query_lower = query.lower()
+        for token in [
+            "manhattan",
+            "brooklyn",
+            "queens",
+            "bronx",
+            "staten island",
+            "bk",
+            "bklyn",
+            "bx",
+            "qns",
+            "si",
+        ]:
+            pattern = r"\b" + re.escape(token) + r"\b"
+            if re.search(pattern, query_lower):
+                result.location_text = token
+                result.location_type = "borough"
+                query = re.sub(pattern, "", query, flags=re.IGNORECASE)
+                return query, result
+
+        # Location suffix match without preposition (e.g., "violin lessons upper west side").
+        # This is a best-effort heuristic validated via LocationResolver when possible.
+        tokens = query_lower.split()
+        if len(tokens) >= 3:
+            location_hint_words = {
+                "side",
+                "village",
+                "heights",
+                "park",
+                "hill",
+                "district",
+                "island",
+                "harbor",
+                "gardens",
+                "garden",
+            }
+            direction_words = {
+                "upper",
+                "lower",
+                "east",
+                "west",
+                "north",
+                "south",
+                "midtown",
+                "downtown",
+            }
+
+            for n in [4, 3, 2]:
+                if len(tokens) < n:
+                    continue
+                candidate = " ".join(tokens[-n:])
+                if candidate in {"person", "online", "remote"}:
+                    continue
+
+                resolution = self._location_resolver.resolve(candidate)
+                looks_like_location = bool(
+                    (set(candidate.split()) & location_hint_words)
+                    or (set(candidate.split()) & direction_words)
+                )
+                if resolution.kind != "none" or looks_like_location:
+                    result.location_text = candidate
+                    result.location_type = (
+                        "borough" if resolution.kind == "borough" else "neighborhood"
+                    )
+                    query = " ".join(tokens[:-n]).strip()
+                    return query, result
+
+            # Abbreviation suffix (single token), only for short alphabetic tokens.
+            last = tokens[-1]
+            if len(last) <= 5 and last.isalpha():
+                resolution = self._location_resolver.resolve(last)
+                if resolution.kind != "none":
+                    result.location_text = last
+                    result.location_type = (
+                        "borough" if resolution.kind == "borough" else "neighborhood"
+                    )
+                    query = " ".join(tokens[:-1]).strip()
                     return query, result
 
         return query, result
-
-    def _load_location_cache(self) -> None:
-        """Load locations for current region from database into memory cache."""
-        self._location_cache = self._location_repository.build_location_cache(
-            region_code=self._region_code
-        )
-
-    def _match_location(self, text: str) -> Optional[Dict[str, Optional[str]]]:
-        """Match location text against known locations for the current region."""
-        text = text.lower().strip()
-
-        if self._location_cache is None:
-            return None
-
-        # Direct exact match
-        if text in self._location_cache:
-            return self._location_cache[text]
-
-        # Word boundary match to avoid false positives (e.g., "si" in "signing")
-        for name, info in self._location_cache.items():
-            # Use word boundary regex for partial matching
-            pattern = r"\b" + re.escape(name) + r"\b"
-            if re.search(pattern, text):
-                return info
-            # Also check if the text is a word-bounded substring of the location name
-            text_pattern = r"\b" + re.escape(text) + r"\b"
-            if re.search(text_pattern, name):
-                return info
-
-        return None
 
     def _extract_skill_level(
         self, query: str, result: ParsedQuery, spans: List[Tuple[int, int]]

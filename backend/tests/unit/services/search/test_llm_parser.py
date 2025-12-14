@@ -70,19 +70,12 @@ def patch_dateparser() -> Any:
 @pytest.fixture
 def llm_parser(mock_db: Mock) -> LLMParser:
     """Create LLMParser with mocked repositories."""
-    with (
-        patch(
-            "app.repositories.nl_search_repository.NYCLocationRepository.build_location_cache"
-        ) as mock_loc,
-        patch(
-            "app.repositories.nl_search_repository.PriceThresholdRepository.build_threshold_cache"
-        ) as mock_price,
-    ):
-        mock_loc.return_value = _build_location_cache()
+    with patch(
+        "app.repositories.nl_search_repository.PriceThresholdRepository.build_threshold_cache"
+    ) as mock_price:
         mock_price.return_value = _build_threshold_cache()
         parser = LLMParser(mock_db)
-        # Pre-populate the caches to avoid repository calls
-        parser._regex_parser._location_cache = _build_location_cache()
+        # Pre-populate the cache to avoid repository calls
         parser._regex_parser._price_thresholds = _build_threshold_cache()
         # Mock _get_user_today to use date.today() for consistent timezone behavior
         parser._regex_parser._get_user_today = lambda: date.today()
@@ -248,25 +241,12 @@ class TestHybridParse:
     @pytest.mark.asyncio
     async def test_simple_query_skips_llm(self, mock_db: Mock) -> None:
         """Simple queries should not call LLM."""
-        with (
-            patch(
-                "app.repositories.nl_search_repository.NYCLocationRepository.build_location_cache"
-            ) as mock_loc,
-            patch(
-                "app.repositories.nl_search_repository.PriceThresholdRepository.build_threshold_cache"
-            ) as mock_price,
-            patch(
-                "app.services.search.llm_parser.LLMParser.parse",
-                new_callable=AsyncMock,
-            ) as mock_llm_parse,
-        ):
-            mock_loc.return_value = _build_location_cache()
-            mock_price.return_value = _build_threshold_cache()
-
+        with patch(
+            "app.services.search.llm_parser.LLMParser.parse",
+            new_callable=AsyncMock,
+        ) as mock_llm_parse:
             # Patch the regex parser to return a result that doesn't need LLM
-            with patch(
-                "app.services.search.llm_parser.QueryParser"
-            ) as mock_parser_class:
+            with patch("app.services.search.llm_parser.QueryParser") as mock_parser_class:
                 mock_parser = Mock()
                 mock_parser.parse.return_value = ParsedQuery(
                     original_query="piano lessons brooklyn",
@@ -274,8 +254,6 @@ class TestHybridParse:
                     needs_llm=False,
                     parsing_mode="regex",
                 )
-                mock_parser._location_cache = _build_location_cache()
-                mock_parser._price_thresholds = _build_threshold_cache()
                 mock_parser_class.return_value = mock_parser
 
                 result = await hybrid_parse("piano lessons brooklyn", mock_db)
@@ -287,47 +265,32 @@ class TestHybridParse:
     @pytest.mark.asyncio
     async def test_complex_query_uses_llm(self, mock_db: Mock) -> None:
         """Complex queries should use LLM."""
-        with (
-            patch(
-                "app.repositories.nl_search_repository.NYCLocationRepository.build_location_cache"
-            ) as mock_loc,
-            patch(
-                "app.repositories.nl_search_repository.PriceThresholdRepository.build_threshold_cache"
-            ) as mock_price,
-        ):
-            mock_loc.return_value = _build_location_cache()
-            mock_price.return_value = _build_threshold_cache()
+        # Patch the regex parser to return a result that needs LLM
+        with patch("app.services.search.llm_parser.QueryParser") as mock_parser_class:
+            mock_parser = Mock()
+            mock_parser.parse.return_value = ParsedQuery(
+                original_query="piano or guitar",
+                service_query="piano or guitar",
+                needs_llm=True,
+                parsing_mode="regex",
+            )
+            mock_parser_class.return_value = mock_parser
 
-            # Patch the regex parser to return a result that needs LLM
             with patch(
-                "app.services.search.llm_parser.QueryParser"
-            ) as mock_parser_class:
-                mock_parser = Mock()
-                mock_parser.parse.return_value = ParsedQuery(
+                "app.services.search.llm_parser.LLMParser.parse",
+                new_callable=AsyncMock,
+            ) as mock_llm_parse:
+                mock_llm_parse.return_value = ParsedQuery(
                     original_query="piano or guitar",
-                    service_query="piano or guitar",
-                    needs_llm=True,
-                    parsing_mode="regex",
+                    service_query="piano or guitar lessons",
+                    parsing_mode="llm",
                 )
-                mock_parser._location_cache = _build_location_cache()
-                mock_parser._price_thresholds = _build_threshold_cache()
-                mock_parser_class.return_value = mock_parser
 
-                with patch(
-                    "app.services.search.llm_parser.LLMParser.parse",
-                    new_callable=AsyncMock,
-                ) as mock_llm_parse:
-                    mock_llm_parse.return_value = ParsedQuery(
-                        original_query="piano or guitar",
-                        service_query="piano or guitar lessons",
-                        parsing_mode="llm",
-                    )
+                result = await hybrid_parse("piano or guitar lessons", mock_db)
 
-                    result = await hybrid_parse("piano or guitar lessons", mock_db)
-
-                    # LLM should have been called
-                    mock_llm_parse.assert_called_once()
-                    assert result.parsing_mode == "llm"
+                # LLM should have been called
+                mock_llm_parse.assert_called_once()
+                assert result.parsing_mode == "llm"
 
 
 class TestCircuitBreaker:

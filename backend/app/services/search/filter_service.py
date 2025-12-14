@@ -12,6 +12,7 @@ import logging
 from typing import TYPE_CHECKING, List, Optional
 
 from app.repositories.filter_repository import FilterRepository
+from app.services.search.location_resolver import LocationResolver
 from app.services.search.retriever import ServiceCandidate
 
 if TYPE_CHECKING:
@@ -78,9 +79,11 @@ class FilterService:
         self,
         db: "Session",
         repository: Optional[FilterRepository] = None,
+        region_code: str = "nyc",
     ) -> None:
         self.db = db
         self.repository = repository or FilterRepository(db)
+        self.location_resolver = LocationResolver(db, region_code=region_code)
 
     async def filter_candidates(
         self,
@@ -139,12 +142,28 @@ class FilterService:
 
         # Step 2: Location filter
         resolved_location = user_location
-        if not resolved_location and parsed_query.location_text:
-            resolved_location = self._resolve_location(parsed_query)
-
         if resolved_location:
             working = self._filter_location(working, resolved_location)
             filters_applied.append("location")
+        elif parsed_query.location_text and parsed_query.location_type != "near_me":
+            resolution = self.location_resolver.resolve(parsed_query.location_text)
+            if resolution.kind == "region" and resolution.region is not None:
+                working = self._filter_location_region(working, resolution.region.id)
+                filters_applied.append("location")
+            elif resolution.kind == "borough" and resolution.borough_name:
+                working = self._filter_location_borough(working, resolution.borough_name)
+                filters_applied.append("location")
+            else:
+                logger.info(
+                    "Unresolved location '%s' (region=%s); skipping location filter",
+                    parsed_query.location_text,
+                    self.location_resolver.region_code,
+                    extra={
+                        "location_text": parsed_query.location_text,
+                        "region_code": self.location_resolver.region_code,
+                        "original_query": parsed_query.original_query,
+                    },
+                )
 
         # Step 3: Availability filter
         if parsed_query.date or parsed_query.date_range_start or parsed_query.time_after:
@@ -183,22 +202,6 @@ class FilterService:
                 c.passed_price = False
         return filtered
 
-    def _resolve_location(
-        self,
-        parsed_query: "ParsedQuery",
-    ) -> Optional[tuple[float, float]]:
-        """Resolve location text to coordinates."""
-        if parsed_query.location_type == "near_me":
-            # Would need user's saved location from profile
-            # For now, return None (skip location filter)
-            return None
-
-        if parsed_query.location_text:
-            coords = self.repository.get_location_centroid(parsed_query.location_text)
-            return coords
-
-        return None
-
     def _filter_location(
         self,
         candidates: List[FilteredCandidate],
@@ -221,6 +224,50 @@ class FilterService:
             else:
                 c.passed_location = False
 
+        return filtered
+
+    def _filter_location_region(
+        self,
+        candidates: List[FilteredCandidate],
+        region_boundary_id: str,
+    ) -> List[FilteredCandidate]:
+        """Filter candidates to instructors covering a specific region boundary."""
+        if not candidates:
+            return []
+
+        instructor_ids = list({c.instructor_id for c in candidates})
+        passing_ids = set(
+            self.repository.filter_by_region_coverage(instructor_ids, region_boundary_id)
+        )
+
+        filtered: List[FilteredCandidate] = []
+        for c in candidates:
+            if c.instructor_id in passing_ids:
+                c.passed_location = True
+                filtered.append(c)
+            else:
+                c.passed_location = False
+        return filtered
+
+    def _filter_location_borough(
+        self,
+        candidates: List[FilteredCandidate],
+        borough_name: str,
+    ) -> List[FilteredCandidate]:
+        """Filter candidates to instructors covering any neighborhood in the borough."""
+        if not candidates:
+            return []
+
+        instructor_ids = list({c.instructor_id for c in candidates})
+        passing_ids = set(self.repository.filter_by_parent_region(instructor_ids, borough_name))
+
+        filtered: List[FilteredCandidate] = []
+        for c in candidates:
+            if c.instructor_id in passing_ids:
+                c.passed_location = True
+                filtered.append(c)
+            else:
+                c.passed_location = False
         return filtered
 
     def _filter_availability(

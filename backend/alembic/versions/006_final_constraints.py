@@ -1460,35 +1460,48 @@ def upgrade() -> None:
     op.create_index("idx_search_clicks_query", "search_clicks", ["search_query_id"])
     op.create_index("idx_search_clicks_service", "search_clicks", ["service_id"])
 
-    # --- 5. Create search_locations table (scalable multi-city reference data) ---
-    print("Creating search_locations table for location reference...")
+    # --- 5. Create location_aliases table (abbreviations/colloquialisms for region_boundaries) ---
+    print("Creating location_aliases table for location resolution...")
     op.create_table(
-        "search_locations",
-        sa.Column("id", sa.Text(), nullable=False),
-        sa.Column("region_code", sa.Text(), nullable=False, server_default="nyc"),
-        sa.Column("country_code", sa.Text(), nullable=False, server_default="us"),
-        sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("type", sa.Text(), nullable=False),  # 'city', 'borough', 'neighborhood', 'district'
-        sa.Column("parent_name", sa.Text(), nullable=True),
-        sa.Column("borough", sa.Text(), nullable=True),  # Legacy, for compatibility
-        sa.Column("aliases", sa.ARRAY(sa.Text()) if is_postgres else sa.JSON(), nullable=True),
-        sa.Column("lat", sa.Float(), nullable=True),
-        sa.Column("lng", sa.Float(), nullable=True),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        "location_aliases",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("alias", sa.String(100), nullable=False),
+        sa.Column(
+            "region_boundary_id",
+            sa.String(26),
+            sa.ForeignKey("region_boundaries.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "alias_type",
+            sa.String(20),
+            nullable=False,
+            server_default="abbreviation",  # abbreviation|colloquial|misspelling
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("region_code", "name", "type", name="uq_search_locations_region_name_type"),
+        sa.UniqueConstraint("alias", name="uq_location_aliases_alias"),
+    )
+    op.create_index(
+        "idx_location_aliases_region_boundary",
+        "location_aliases",
+        ["region_boundary_id"],
     )
     if is_postgres:
+        # Case-insensitive lookup index
         op.execute(
             """
-            CREATE INDEX idx_search_locations_name_trgm
-            ON search_locations USING GIN (name gin_trgm_ops);
-            CREATE INDEX idx_search_locations_region_type
-            ON search_locations(region_code, type);
+            CREATE INDEX idx_location_aliases_alias_lower
+            ON location_aliases (LOWER(alias));
             """
         )
+    else:
+        op.create_index("idx_location_aliases_alias", "location_aliases", ["alias"])
 
     # --- 5b. Create region_settings table (per-region configuration) ---
     print("Creating region_settings table for per-region configuration...")
@@ -1521,48 +1534,6 @@ def upgrade() -> None:
             ('rs_chicago', 'chicago', 'Chicago', 'America/Chicago', 60, 45, false),
             ('rs_la', 'la', 'Los Angeles', 'America/Los_Angeles', 75, 55, false),
             ('rs_sf', 'sf', 'San Francisco', 'America/Los_Angeles', 85, 65, false)
-        ON CONFLICT (id) DO NOTHING;
-        """
-    )
-
-    # Seed NYC boroughs and key neighborhoods
-    print("Seeding search_locations with NYC boroughs and key neighborhoods...")
-    op.execute(
-        """
-        INSERT INTO search_locations (id, region_code, country_code, name, type, parent_name, borough, aliases, lat, lng) VALUES
-          ('loc_nyc_city', 'nyc', 'us', 'New York City', 'city', NULL, NULL,
-           ARRAY['nyc', 'new york', 'ny', 'new york city'],
-           40.7128, -74.0060),
-          ('loc_manhattan', 'nyc', 'us', 'Manhattan', 'borough', 'New York City', 'Manhattan',
-           ARRAY['manhattan', 'nyc', 'the city'],
-           40.7831, -73.9712),
-          ('loc_brooklyn', 'nyc', 'us', 'Brooklyn', 'borough', 'New York City', 'Brooklyn',
-           ARRAY['bk', 'bklyn', 'kings county'],
-           40.6782, -73.9442),
-          ('loc_queens', 'nyc', 'us', 'Queens', 'borough', 'New York City', 'Queens',
-           ARRAY['qns'],
-           40.7282, -73.7949),
-          ('loc_bronx', 'nyc', 'us', 'Bronx', 'borough', 'New York City', 'Bronx',
-           ARRAY['the bronx', 'bx'],
-           40.8448, -73.8648),
-          ('loc_staten_island', 'nyc', 'us', 'Staten Island', 'borough', 'New York City', 'Staten Island',
-           ARRAY['si', 'staten', 'richmond county'],
-           40.5795, -74.1502),
-          ('loc_park_slope', 'nyc', 'us', 'Park Slope', 'neighborhood', 'Brooklyn', 'Brooklyn',
-           ARRAY['parkslope', 'the slope'],
-           40.6721, -73.9772),
-          ('loc_williamsburg', 'nyc', 'us', 'Williamsburg', 'neighborhood', 'Brooklyn', 'Brooklyn',
-           ARRAY['wburg', 'billyburg'],
-           40.7081, -73.9572),
-          ('loc_upper_west_side', 'nyc', 'us', 'Upper West Side', 'neighborhood', 'Manhattan', 'Manhattan',
-           ARRAY['uws', 'upper west'],
-           40.7870, -73.9800),
-          ('loc_upper_east_side', 'nyc', 'us', 'Upper East Side', 'neighborhood', 'Manhattan', 'Manhattan',
-           ARRAY['ues', 'upper east'],
-           40.7736, -73.9597),
-          ('loc_lower_east_side', 'nyc', 'us', 'Lower East Side', 'neighborhood', 'Manhattan', 'Manhattan',
-           ARRAY['les', 'lower east side'],
-           40.7150, -73.9843)
         ON CONFLICT (id) DO NOTHING;
         """
     )
@@ -1783,12 +1754,14 @@ def downgrade() -> None:
     print("Dropping region_settings table...")
     op.drop_table("region_settings")
 
-    # Drop search_locations table
-    print("Dropping search_locations table...")
+    # Drop location_aliases table
+    print("Dropping location_aliases table...")
     if is_postgres:
-        op.execute("DROP INDEX IF EXISTS idx_search_locations_name_trgm;")
-        op.execute("DROP INDEX IF EXISTS idx_search_locations_region_type;")
-    op.drop_table("search_locations")
+        op.execute("DROP INDEX IF EXISTS idx_location_aliases_alias_lower;")
+    op.drop_index("idx_location_aliases_region_boundary", table_name="location_aliases")
+    if not is_postgres:
+        op.drop_index("idx_location_aliases_alias", table_name="location_aliases")
+    op.drop_table("location_aliases")
 
     # Drop search_clicks table
     print("Dropping search_clicks table...")

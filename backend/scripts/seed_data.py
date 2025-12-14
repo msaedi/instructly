@@ -52,173 +52,8 @@ from app.repositories.beta_repository import (  # noqa: E402
 DEFAULT_ADMIN_PASSWORD = "Test1234!"
 DEFAULT_ADMIN_ZIP = "10001"
 
-
-# NYC neighborhood aliases for NL search parsing
-# These map common shorthand/alternate names to canonical region names
-NYC_NEIGHBORHOOD_ALIASES: dict[str, list[str]] = {
-    # Manhattan
-    "West Village": ["west village", "w village", "wv"],
-    "East Village": ["east village", "ev", "e village"],
-    "Greenwich Village": ["greenwich village", "the village", "greenwich"],
-    "Upper West Side": ["uws", "upper west"],
-    "Upper East Side": ["ues", "upper east"],
-    "Midtown": ["midtown manhattan", "midtown nyc"],
-    "SoHo": ["soho"],
-    "TriBeCa": ["tribeca", "tri-beca"],
-    "Harlem": ["harlem"],
-    "Chelsea": ["chelsea"],
-    "Financial District": ["fidi", "wall street", "financial district"],
-    "Chinatown": ["chinatown"],
-    "Little Italy": ["little italy"],
-    "Lower East Side": ["les", "lower east side"],
-    "NoHo": ["noho"],
-    "Flatiron": ["flatiron", "flatiron district"],
-    "Gramercy": ["gramercy", "gramercy park"],
-    "Murray Hill": ["murray hill"],
-    "Hell's Kitchen": ["hells kitchen", "hell's kitchen", "clinton"],
-    "Washington Heights": ["washington heights", "wash heights"],
-    "Inwood": ["inwood"],
-    # Brooklyn
-    "Williamsburg": ["wburg", "billyburg", "williamsburg"],
-    "Park Slope": ["park slope", "the slope", "parkslope"],
-    "Brooklyn Heights": ["brooklyn heights", "bk heights"],
-    "DUMBO": ["dumbo"],
-    "Bushwick": ["bushwick"],
-    "Greenpoint": ["greenpoint"],
-    "Bedford-Stuyvesant": ["bed stuy", "bed-stuy", "bedstuy"],
-    "Crown Heights": ["crown heights"],
-    "Prospect Heights": ["prospect heights"],
-    "Fort Greene": ["fort greene"],
-    "Cobble Hill": ["cobble hill"],
-    "Carroll Gardens": ["carroll gardens"],
-    "Red Hook": ["red hook"],
-    "Sunset Park": ["sunset park"],
-    "Bay Ridge": ["bay ridge"],
-    # Queens
-    "Astoria": ["astoria"],
-    "Long Island City": ["long island city", "lic"],
-    "Flushing": ["flushing"],
-    "Jackson Heights": ["jackson heights"],
-    "Forest Hills": ["forest hills"],
-    "Sunnyside": ["sunnyside"],
-    "Woodside": ["woodside"],
-    "Bayside": ["bayside"],
-    # Bronx
-    "Riverdale": ["riverdale"],
-    "Fordham": ["fordham"],
-    "Mott Haven": ["mott haven"],
-}
-
-# Borough aliases (used in migration, kept here for reference)
-NYC_BOROUGH_ALIASES: dict[str, list[str]] = {
-    "Manhattan": ["nyc", "new york", "the city"],
-    "Brooklyn": ["bk", "bklyn", "kings county"],
-    "Queens": ["qns"],
-    "Bronx": ["the bronx", "bx"],
-    "Staten Island": ["si", "richmond county", "staten"],
-}
-
-
-def sync_search_locations_from_regions(
-    engine: "sa.Engine", verbose: bool = True, region_code: str = "nyc"
-) -> int:
-    """
-    Sync search_locations table from region_boundaries for a specific region.
-
-    This ensures the NL search parser has access to all neighborhoods
-    that exist in region_boundaries (used for instructor service areas).
-
-    Args:
-        engine: SQLAlchemy engine
-        verbose: Whether to print progress messages
-        region_code: Region code to sync (default: nyc)
-
-    Returns the number of locations synced.
-    """
-    synced = 0
-
-    with Session(engine) as session:
-        # Get all neighborhoods from region_boundaries
-        result = session.execute(
-            text("""
-                SELECT
-                    rb.region_name,
-                    rb.parent_region,
-                    ST_Y(ST_Centroid(rb.boundary)) as lat,
-                    ST_X(ST_Centroid(rb.boundary)) as lng
-                FROM region_boundaries rb
-                WHERE rb.region_type = :region_code
-                  AND rb.parent_region IS NOT NULL
-            """),
-            {"region_code": region_code},
-        )
-        neighborhoods = result.fetchall()
-
-        if verbose:
-            print(f"  Found {len(neighborhoods)} neighborhoods in region_boundaries")
-
-        for row in neighborhoods:
-            region_name = row[0]
-            parent_region = row[1]
-            lat = row[2] or 40.7128  # Default to NYC center if null
-            lng = row[3] or -74.0060
-
-            # Look up aliases from our dictionary
-            # Try exact match first, then try normalized match
-            aliases = NYC_NEIGHBORHOOD_ALIASES.get(region_name)
-            if aliases is None:
-                # Try to find by partial match (e.g., "Astoria (Central)" -> "Astoria")
-                for key in NYC_NEIGHBORHOOD_ALIASES:
-                    if key.lower() in region_name.lower() or region_name.lower() in key.lower():
-                        aliases = NYC_NEIGHBORHOOD_ALIASES[key]
-                        break
-
-            # If still no aliases, create a basic one from the name
-            if aliases is None:
-                aliases = [region_name.lower()]
-
-            # Generate a stable ID from the name
-            location_id = f"loc_{region_code}_{region_name.lower().replace(' ', '_').replace('-', '_').replace('(', '').replace(')', '')[:30]}"
-
-            try:
-                session.execute(
-                    text("""
-                        INSERT INTO search_locations (id, region_code, country_code, name, type, parent_name, borough, aliases, lat, lng, is_active)
-                        VALUES (:id, :region_code, :country_code, :name, :type, :parent_name, :borough, :aliases, :lat, :lng, true)
-                        ON CONFLICT (id) DO UPDATE SET
-                            aliases = EXCLUDED.aliases,
-                            parent_name = EXCLUDED.parent_name,
-                            lat = EXCLUDED.lat,
-                            lng = EXCLUDED.lng
-                    """),
-                    {
-                        "id": location_id,
-                        "region_code": region_code,
-                        "country_code": "us",
-                        "name": region_name,
-                        "type": "neighborhood",
-                        "parent_name": parent_region,
-                        "borough": parent_region,  # Keep for backward compat
-                        "aliases": aliases,
-                        "lat": lat,
-                        "lng": lng,
-                    },
-                )
-                synced += 1
-            except Exception as e:
-                if verbose:
-                    print(f"    ⚠ Could not sync {region_name}: {e}")
-
-        session.commit()
-
-    if verbose:
-        print(f"  ✓ Synced {synced} neighborhoods to search_locations ({region_code})")
-
-    return synced
-
-
-# Backward compatibility alias
-sync_nyc_locations_from_regions = sync_search_locations_from_regions
+# Location aliases are seeded from `backend/data/location_aliases.json` via
+# `backend/scripts/seed_location_aliases.py`.
 
 
 def seed_region_settings(engine: "sa.Engine", verbose: bool = True) -> int:
@@ -981,13 +816,15 @@ def seed_system_data(verbose: bool = True) -> None:
     except Exception as e:
         print(f"  ⚠ Skipping region_settings seed: {e}")
 
-    # Sync search_locations from region_boundaries for NL search
+    # Seed location aliases for NL search
     if verbose:
-        print("\n▶ Syncing search locations for NL search…")
+        print("\n▶ Seeding location aliases for NL search…")
     try:
-        sync_search_locations_from_regions(engine, verbose=verbose, region_code="nyc")
+        from seed_location_aliases import seed_location_aliases  # noqa: E402
+
+        seed_location_aliases(engine, verbose=verbose, region_code="nyc")
     except Exception as e:
-        print(f"  ⚠ Skipping search_locations sync: {e}")
+        print(f"  ⚠ Skipping location_aliases seed: {e}")
     seed_badge_definitions(engine, verbose=verbose)
 
     # Seed baseline admin account

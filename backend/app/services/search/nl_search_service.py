@@ -104,7 +104,7 @@ class NLSearchService:
         # Initialize pipeline components
         self.parser = QueryParser(db, region_code=region_code)
         self.retriever = PostgresRetriever(db, self.embedding_service)
-        self.filter_service = FilterService(db)
+        self.filter_service = FilterService(db, region_code=region_code)
         self.ranking_service = RankingService(db)
 
         # Direct repository access for bulk data hydration (instructor/service info)
@@ -151,25 +151,6 @@ class NLSearchService:
         # Stage 1: Parse query
         parsed_query = await self._parse_query(query, metrics, user_id)
 
-        # Resolve implicit location into a point for filtering/ranking when user_location is absent.
-        # This supports queries like "piano lessons in brooklyn" even without lat/lng params.
-        effective_location = user_location
-        if (
-            effective_location is None
-            and parsed_query.location_text
-            and parsed_query.location_type != "near_me"
-        ):
-            try:
-                effective_location = await asyncio.to_thread(
-                    self.filter_service.repository.get_location_centroid,
-                    parsed_query.location_text,
-                    region_code=self._region_code,
-                )
-            except Exception as e:
-                logger.warning(f"Location centroid resolution failed: {e}")
-                metrics.degraded = True
-                metrics.degradation_reasons.append("location_resolution_error")
-
         # Stage 2: Retrieve candidates (vector+text hybrid; degraded fallback)
         retrieval_result = await self._retrieve_candidates(parsed_query, metrics)
 
@@ -177,7 +158,7 @@ class NLSearchService:
         filter_result = await self._filter_candidates(
             retrieval_result,
             parsed_query,
-            effective_location,
+            user_location,
             metrics,
         )
 
@@ -188,7 +169,7 @@ class NLSearchService:
                 self.ranking_service.rank_candidates,
                 filter_result.candidates,
                 parsed_query,
-                effective_location,
+                user_location,
             )
         except Exception as e:
             logger.error(f"Ranking failed: {e}")

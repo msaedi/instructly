@@ -25,6 +25,9 @@ from .conversation_user_state import ConversationUserState
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
 from .favorite import UserFavorite
 from .instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
+
+# Location resolution models
+from .location_alias import LocationAlias
 from .message import (
     MESSAGE_TYPE_SYSTEM_BOOKING_CANCELLED,
     MESSAGE_TYPE_SYSTEM_BOOKING_COMPLETED,
@@ -39,11 +42,9 @@ from .monitoring import AlertHistory
 
 # NL Search models
 from .nl_search import (
-    NYCLocation,  # Backward compatibility alias for SearchLocation
     PriceThreshold,
     RegionSettings,
     SearchClick,
-    SearchLocation,
     SearchQuery,
 )
 from .password_reset import PasswordResetToken
@@ -129,6 +130,7 @@ __all__ = [
     "NYCNeighborhood",
     "InstructorServiceArea",
     "RegionBoundary",
+    "LocationAlias",
     # Search history
     "SearchHistory",
     "SearchEvent",
@@ -137,8 +139,6 @@ __all__ = [
     # NL Search models
     "SearchQuery",
     "SearchClick",
-    "SearchLocation",
-    "NYCLocation",  # Backward compatibility alias
     "RegionSettings",
     "PriceThreshold",
 ]
