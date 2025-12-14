@@ -98,35 +98,67 @@ class FilterRepository:
         - Requires Postgres + PostGIS; returns {} in non-Postgres environments.
         - Uses region_boundaries.centroid as the reference point and distances to each covered polygon.
         """
-        if not instructor_ids or not region_boundary_id:
+        return self.get_instructor_min_distance_to_regions(instructor_ids, [region_boundary_id])
+
+    def get_instructor_min_distance_to_regions(
+        self, instructor_ids: List[str], region_boundary_ids: List[str]
+    ) -> Dict[str, float]:
+        """
+        Get the minimum distance (meters) from any of the given region centroids to each instructor's service areas.
+
+        For ambiguous locations (e.g., "ues" -> multiple region_boundaries rows), this method:
+        - Returns 0.0 for an instructor that covers ANY of the candidate regions, even if the candidate centroid
+          falls outside the polygon (ST_Centroid can be outside for some shapes).
+        - Otherwise returns the minimum distance across (candidate centroid) × (instructor service-area polygons).
+
+        Returns a mapping of instructor_id -> distance_meters (float).
+        """
+        if not instructor_ids or not region_boundary_ids:
             return {}
         if self.db.bind is None or self.db.bind.dialect.name != "postgresql":
             return {}
 
         query = text(
             """
-            WITH target AS (
+            WITH targets AS (
                 SELECT centroid::geography AS centroid_geo
                 FROM region_boundaries
-                WHERE id = :region_id
+                WHERE id = ANY(:region_ids)
                   AND centroid IS NOT NULL
+            ),
+            raw AS (
+                -- If an instructor covers any candidate region, distance should be 0.
+                SELECT DISTINCT
+                    isa.instructor_id,
+                    0.0::double precision AS distance_m
+                FROM instructor_service_areas isa
+                WHERE isa.instructor_id = ANY(:instructor_ids)
+                  AND isa.is_active = true
+                  AND isa.neighborhood_id = ANY(:region_ids)
+
+                UNION ALL
+
+                -- Otherwise compute min distance from any candidate centroid to any covered polygon.
+                SELECT
+                    isa.instructor_id,
+                    MIN(ST_Distance(rb.boundary::geography, t.centroid_geo)) AS distance_m
+                FROM instructor_service_areas isa
+                JOIN region_boundaries rb ON rb.id = isa.neighborhood_id
+                CROSS JOIN targets t
+                WHERE isa.instructor_id = ANY(:instructor_ids)
+                  AND isa.is_active = true
+                  AND rb.boundary IS NOT NULL
+                GROUP BY isa.instructor_id
             )
-            SELECT
-                isa.instructor_id,
-                MIN(ST_Distance(rb.boundary::geography, t.centroid_geo)) AS distance_m
-            FROM instructor_service_areas isa
-            JOIN region_boundaries rb ON rb.id = isa.neighborhood_id
-            CROSS JOIN target t
-            WHERE isa.instructor_id = ANY(:instructor_ids)
-              AND isa.is_active = true
-              AND rb.boundary IS NOT NULL
-            GROUP BY isa.instructor_id
+            SELECT instructor_id, MIN(distance_m) AS distance_m
+            FROM raw
+            GROUP BY instructor_id
             """
         )
 
         rows = self.db.execute(
             query,
-            {"instructor_ids": instructor_ids, "region_id": region_boundary_id},
+            {"instructor_ids": instructor_ids, "region_ids": region_boundary_ids},
         ).fetchall()
 
         out: Dict[str, float] = {}

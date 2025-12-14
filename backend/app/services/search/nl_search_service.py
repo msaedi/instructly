@@ -276,30 +276,28 @@ class NLSearchService:
         )
 
         # Optional distance map (meters) for admin debugging when we have a location reference.
-        distance_region_id: Optional[str] = None
+        distance_region_ids: Optional[List[str]] = None
         if location_resolution and location_resolution.region_id:
-            distance_region_id = str(location_resolution.region_id)
+            distance_region_ids = [str(location_resolution.region_id)]
         elif (
             location_resolution
             and location_resolution.requires_clarification
             and location_resolution.candidates
         ):
-            # Best-effort: pick the shortest-named candidate as a stable reference for display.
-            try:
-                chosen_candidate = min(
-                    location_resolution.candidates,
-                    key=lambda c: len(str(c.get("region_name") or "")),
-                )
-                distance_region_id = str(chosen_candidate.get("region_id") or "") or None
-            except Exception:
-                distance_region_id = None
+            candidate_ids = [
+                str(c.get("region_id"))
+                for c in location_resolution.candidates
+                if isinstance(c, dict) and c.get("region_id")
+            ]
+            # De-dupe while preserving order
+            distance_region_ids = list(dict.fromkeys(candidate_ids)) or None
 
         distance_task = None
-        if distance_region_id:
+        if distance_region_ids:
             distance_task = asyncio.to_thread(
-                self.filter_service.repository.get_instructor_min_distance_to_region,
+                self.filter_service.repository.get_instructor_min_distance_to_regions,
                 ordered_instructor_ids,
-                distance_region_id,
+                distance_region_ids,
             )
 
         if distance_task is not None:
