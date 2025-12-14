@@ -4,10 +4,11 @@ Unit tests for LLM parser.
 Uses mocks to avoid actual API calls.
 """
 import asyncio
-from datetime import date, timedelta
-from typing import Dict, Tuple
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, Tuple
 from unittest.mock import AsyncMock, Mock, patch
 
+import dateparser
 import pytest
 
 from app.services.search.circuit_breaker import (
@@ -19,6 +20,20 @@ from app.services.search.llm_parser import LLMParser, hybrid_parse
 from app.services.search.llm_schema import LLMParsedQuery
 from app.services.search.query_parser import ParsedQuery
 
+# Store reference to original dateparser.parse before patching
+_original_dateparser_parse = dateparser.parse
+
+
+def _dateparser_with_consistent_base(
+    date_string: str, settings: Dict[str, Any] | None = None
+) -> datetime | None:
+    """Wrapper for dateparser.parse that uses date.today() as RELATIVE_BASE."""
+    if settings is None:
+        settings = {}
+    # Set RELATIVE_BASE to current system time for consistent testing
+    settings["RELATIVE_BASE"] = datetime.combine(date.today(), datetime.min.time())
+    return _original_dateparser_parse(date_string, settings=settings)
+
 
 def _build_location_cache() -> Dict[str, Dict[str, str]]:
     """Build mock location cache."""
@@ -28,11 +43,11 @@ def _build_location_cache() -> Dict[str, Dict[str, str]]:
     }
 
 
-def _build_threshold_cache() -> Dict[Tuple[str, str], int]:
-    """Build mock threshold cache."""
+def _build_threshold_cache() -> Dict[Tuple[str, str], Dict[str, int | None]]:
+    """Build mock threshold cache with proper dict structure."""
     return {
-        ("music", "budget"): 60,
-        ("general", "budget"): 50,
+        ("music", "budget"): {"max_price": 60, "min_price": None},
+        ("general", "budget"): {"max_price": 50, "min_price": None},
     }
 
 
@@ -40,6 +55,16 @@ def _build_threshold_cache() -> Dict[Tuple[str, str], int]:
 def mock_db() -> Mock:
     """Create mock database session."""
     return Mock()
+
+
+@pytest.fixture(autouse=True)
+def patch_dateparser() -> Any:
+    """Patch dateparser.parse to use consistent RELATIVE_BASE for all tests."""
+    with patch(
+        "app.services.search.query_parser.dateparser.parse",
+        side_effect=_dateparser_with_consistent_base,
+    ):
+        yield
 
 
 @pytest.fixture
@@ -59,6 +84,8 @@ def llm_parser(mock_db: Mock) -> LLMParser:
         # Pre-populate the caches to avoid repository calls
         parser._regex_parser._location_cache = _build_location_cache()
         parser._regex_parser._price_thresholds = _build_threshold_cache()
+        # Mock _get_user_today to use date.today() for consistent timezone behavior
+        parser._regex_parser._get_user_today = lambda: date.today()
         return parser
 
 
@@ -192,7 +219,7 @@ class TestLLMParser:
 
             result = await llm_parser.parse("piano tomorrow")
 
-            # Should use regex-extracted date instead
+            # Should use regex-extracted date instead (tomorrow relative to now)
             assert result.date == date.today() + timedelta(days=1)
 
     @pytest.mark.asyncio

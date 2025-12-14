@@ -83,7 +83,7 @@ class TestResponseCache:
         """Cache key should include version number."""
         mock_cache_service.get = Mock(return_value="42")
 
-        key = search_cache._response_cache_key("piano", None, None)
+        key = search_cache._response_cache_key("piano", None, None, limit=20)
 
         assert "v42" in key
 
@@ -93,8 +93,8 @@ class TestResponseCache:
         """Different locations should produce different cache keys."""
         mock_cache_service.get = Mock(return_value="1")
 
-        key1 = search_cache._response_cache_key("piano", (-73.95, 40.68), None)
-        key2 = search_cache._response_cache_key("piano", (-74.00, 40.70), None)
+        key1 = search_cache._response_cache_key("piano", (-73.95, 40.68), None, limit=20)
+        key2 = search_cache._response_cache_key("piano", (-74.00, 40.70), None, limit=20)
 
         assert key1 != key2
 
@@ -104,10 +104,21 @@ class TestResponseCache:
         """Same query should produce same cache key."""
         mock_cache_service.get = Mock(return_value="1")
 
-        key1 = search_cache._response_cache_key("piano", None, None)
-        key2 = search_cache._response_cache_key("piano", None, None)
+        key1 = search_cache._response_cache_key("piano", None, None, limit=20)
+        key2 = search_cache._response_cache_key("piano", None, None, limit=20)
 
         assert key1 == key2
+
+    def test_cache_key_different_for_different_limits(
+        self, search_cache: SearchCacheService, mock_cache_service: Mock
+    ) -> None:
+        """Different limits should produce different cache keys."""
+        mock_cache_service.get = Mock(return_value="1")
+
+        key1 = search_cache._response_cache_key("piano", None, None, limit=10)
+        key2 = search_cache._response_cache_key("piano", None, None, limit=20)
+
+        assert key1 != key2
 
     def test_invalidation_increments_version(
         self, search_cache: SearchCacheService, mock_cache_service: Mock

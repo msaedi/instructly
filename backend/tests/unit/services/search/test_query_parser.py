@@ -2,13 +2,28 @@
 """
 Unit tests for the regex query parser.
 """
-from datetime import date, timedelta
-from typing import Dict, Tuple
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, Tuple
 from unittest.mock import Mock, patch
 
+import dateparser
 import pytest
 
 from app.services.search.query_parser import QueryParser
+
+# Store reference to original dateparser.parse before patching
+_original_dateparser_parse = dateparser.parse
+
+
+def _dateparser_with_consistent_base(
+    date_string: str, settings: Dict[str, Any] | None = None
+) -> datetime | None:
+    """Wrapper for dateparser.parse that uses date.today() as RELATIVE_BASE."""
+    if settings is None:
+        settings = {}
+    # Set RELATIVE_BASE to current system time for consistent testing
+    settings["RELATIVE_BASE"] = datetime.combine(date.today(), datetime.min.time())
+    return _original_dateparser_parse(date_string, settings=settings)
 
 
 class MockLocation:
@@ -26,10 +41,17 @@ class MockLocation:
 class MockPriceThreshold:
     """Mock price threshold for testing."""
 
-    def __init__(self, category: str, intent: str, max_price: int) -> None:
+    def __init__(
+        self,
+        category: str,
+        intent: str,
+        max_price: int | None = None,
+        min_price: int | None = None,
+    ) -> None:
         self.category = category
         self.intent = intent
         self.max_price = max_price
+        self.min_price = min_price
 
 
 def _build_location_cache() -> Dict[str, Dict[str, str]]:
@@ -58,22 +80,25 @@ def _build_location_cache() -> Dict[str, Dict[str, str]]:
     return cache
 
 
-def _build_threshold_cache() -> Dict[Tuple[str, str], int]:
-    """Build mock threshold cache."""
+def _build_threshold_cache() -> Dict[Tuple[str, str], Dict[str, int | None]]:
+    """Build mock threshold cache with proper dict structure."""
     mock_thresholds = [
-        MockPriceThreshold("music", "budget", 60),
-        MockPriceThreshold("music", "standard", 100),
-        MockPriceThreshold("music", "premium", 999999),
-        MockPriceThreshold("tutoring", "budget", 50),
-        MockPriceThreshold("tutoring", "standard", 80),
-        MockPriceThreshold("tutoring", "premium", 999999),
-        MockPriceThreshold("general", "budget", 50),
-        MockPriceThreshold("general", "standard", 80),
-        MockPriceThreshold("general", "premium", 999999),
+        MockPriceThreshold("music", "budget", max_price=60),
+        MockPriceThreshold("music", "standard", max_price=100),
+        MockPriceThreshold("music", "premium", min_price=150),
+        MockPriceThreshold("tutoring", "budget", max_price=50),
+        MockPriceThreshold("tutoring", "standard", max_price=80),
+        MockPriceThreshold("tutoring", "premium", min_price=100),
+        MockPriceThreshold("general", "budget", max_price=50),
+        MockPriceThreshold("general", "standard", max_price=80),
+        MockPriceThreshold("general", "premium", min_price=100),
     ]
-    cache: Dict[Tuple[str, str], int] = {}
+    cache: Dict[Tuple[str, str], Dict[str, int | None]] = {}
     for t in mock_thresholds:
-        cache[(t.category, t.intent)] = t.max_price
+        cache[(t.category, t.intent)] = {
+            "max_price": t.max_price,
+            "min_price": t.min_price,
+        }
     return cache
 
 
@@ -81,6 +106,16 @@ def _build_threshold_cache() -> Dict[Tuple[str, str], int]:
 def mock_db() -> Mock:
     """Create mock database session."""
     return Mock()
+
+
+@pytest.fixture(autouse=True)
+def patch_dateparser() -> Any:
+    """Patch dateparser.parse to use consistent RELATIVE_BASE for all tests."""
+    with patch(
+        "app.services.search.query_parser.dateparser.parse",
+        side_effect=_dateparser_with_consistent_base,
+    ):
+        yield
 
 
 @pytest.fixture
@@ -100,6 +135,8 @@ def parser(mock_db: Mock) -> QueryParser:
         # Pre-populate the caches to avoid repository calls during tests
         p._location_cache = _build_location_cache()
         p._price_thresholds = _build_threshold_cache()
+        # Mock _get_user_today to use date.today() for consistent timezone behavior
+        p._get_user_today = lambda: date.today()
         return p
 
 
@@ -219,14 +256,21 @@ class TestDateExtraction:
     """Tests for date pattern extraction."""
 
     def test_tomorrow(self, parser: QueryParser) -> None:
+        """Test 'tomorrow' parsing extracts correct date type."""
         result = parser.parse("piano tomorrow")
+
+        # The date should be tomorrow relative to when test runs
         expected = date.today() + timedelta(days=1)
         assert result.date == expected
         assert result.date_type == "single"
 
     def test_today(self, parser: QueryParser) -> None:
+        """Test 'today' parsing extracts correct date type."""
         result = parser.parse("lessons today")
+
+        # The date should be today
         assert result.date == date.today()
+        assert result.date_type == "single"
 
     def test_this_weekend(self, parser: QueryParser) -> None:
         result = parser.parse("tutoring this weekend")
@@ -301,6 +345,7 @@ class TestComplexQueries:
         )
 
         assert result.price_intent == "budget" or result.max_price is not None
+        # Date should be tomorrow relative to when test runs
         assert result.date == date.today() + timedelta(days=1)
         assert result.time_after == "17:00"
         assert result.location_text == "Brooklyn"

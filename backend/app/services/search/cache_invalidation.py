@@ -5,25 +5,57 @@ Called when data changes that affect search results.
 
 These hooks should be called from service layer CRUD operations
 to keep search results fresh.
+
+NOTE: Initialize the cache service at app startup by calling:
+    init_search_cache(cache_service)
+This ensures proper Redis connection injection.
 """
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from app.services.search.search_cache import SearchCacheService
 
+if TYPE_CHECKING:
+    from app.services.cache_service import CacheService
+
 logger = logging.getLogger(__name__)
 
-# Global cache service instance (initialized on first use)
+# Global cache service instance (initialized on first use or via init)
 _cache_service: Optional[SearchCacheService] = None
+_underlying_cache: Optional["CacheService"] = None
+
+
+def init_search_cache(cache_service: "CacheService") -> None:
+    """
+    Initialize the search cache with an injected CacheService.
+
+    Call this at app startup to ensure proper Redis connection.
+
+    Args:
+        cache_service: The application's CacheService instance
+    """
+    global _cache_service, _underlying_cache
+    _underlying_cache = cache_service
+    _cache_service = SearchCacheService(cache_service=cache_service)
+    logger.info("Search cache initialized with injected CacheService")
 
 
 def get_search_cache() -> SearchCacheService:
-    """Get or create the search cache service."""
+    """
+    Get or create the search cache service.
+
+    If not initialized via init_search_cache(), creates a service
+    without a cache (operations will be no-ops but won't fail).
+    """
     global _cache_service
     if _cache_service is None:
-        _cache_service = SearchCacheService()
+        logger.warning(
+            "Search cache accessed before initialization. "
+            "Call init_search_cache(cache_service) at app startup."
+        )
+        _cache_service = SearchCacheService(cache_service=_underlying_cache)
     return _cache_service
 
 

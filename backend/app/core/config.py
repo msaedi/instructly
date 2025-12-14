@@ -684,7 +684,8 @@ class Settings(BaseSettings):
     )
 
     rate_limit_general_per_minute: int = Field(
-        default=100, description="General API rate limit per minute per IP"
+        default=100,
+        description="General API rate limit per minute per IP. NL search now returns all embedded data in one request, eliminating N+1 queries.",
     )
 
     rate_limit_auth_per_minute: int = Field(

@@ -391,6 +391,8 @@ class TestResponseModelCoverage:
             "TopServicesMetadata",
             # Strict request companion declared in responses module
             "BetaSettingsUpdateRequest",
+            # Legacy search model (replaced by NL search)
+            "InstructorSearchResponse",
         }
         unused_models = unused_models - allowed_unused
 

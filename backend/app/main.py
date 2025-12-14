@@ -374,6 +374,16 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         await ProductionStartup.initialize()
 
+    # Initialize search cache with Redis connection
+    try:
+        from .services.cache_service import CacheService
+        from .services.search.cache_invalidation import init_search_cache
+
+        cache_service = CacheService()
+        init_search_cache(cache_service)
+    except Exception as e:
+        logger.warning(f"Failed to initialize search cache: {e}")
+
     # Initialize Broadcaster for SSE multiplexing
     # This enables 500+ concurrent SSE users instead of ~30
     try:

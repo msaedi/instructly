@@ -109,8 +109,8 @@ class EmbeddingService:
             logger.warning("Embedding circuit opened during call")
             return None
         except Exception as e:
+            # Don't record_failure here - CircuitBreaker.call() already did
             logger.error(f"Embedding generation failed: {e}")
-            EMBEDDING_CIRCUIT._record_failure()
             return None
 
     def _query_cache_key(self, normalized_query: str) -> str:

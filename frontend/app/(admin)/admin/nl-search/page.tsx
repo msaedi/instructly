@@ -38,36 +38,39 @@ interface SearchConfig {
   available_embedding_models: ModelOption[];
 }
 
-interface SearchScores {
-  relevance: number;
-  quality: number;
-  distance: number;
-  price: number;
-  freshness: number;
-  completeness: number;
+interface InstructorInfo {
+  id: string;
+  first_name: string;
+  last_initial: string;
+  profile_picture_url: string | null;
+  bio_snippet: string | null;
+  verified: boolean;
+  years_experience: number | null;
 }
 
-interface SearchMatchInfo {
-  audience_boost: number;
-  skill_boost: number;
-  soft_filtered: boolean;
-  soft_filter_reasons: string[];
+interface RatingSummary {
+  average: number | null;
+  count: number;
 }
 
-interface SearchResult {
+interface ServiceMatch {
   service_id: string;
-  instructor_id: string;
+  service_catalog_id: string;
   name: string;
   description: string | null;
   price_per_hour: number;
-  rank: number;
-  score: number;
-  scores: SearchScores;
-  availability: {
-    dates: string[];
-    earliest: string | null;
-  };
-  match_info: SearchMatchInfo;
+  relevance_score: number;
+}
+
+interface SearchResult {
+  instructor_id: string;
+  instructor: InstructorInfo;
+  rating: RatingSummary;
+  coverage_areas: string[];
+  best_match: ServiceMatch;
+  other_matches: ServiceMatch[];
+  total_matching_services: number;
+  relevance_score: number;
 }
 
 interface ParsedQuery {
@@ -600,8 +603,8 @@ function ResultsPanel({ results, totalResults }: { results: SearchResult[]; tota
         </div>
       ) : (
         <div className="space-y-4">
-          {results.map((result) => (
-            <ResultCard key={result.service_id} result={result} />
+          {results.map((result, index) => (
+            <ResultCard key={result.instructor_id ?? `result-${index}`} result={result} />
           ))}
         </div>
       )}
@@ -612,6 +615,7 @@ function ResultsPanel({ results, totalResults }: { results: SearchResult[]; tota
 // Result Card Component
 function ResultCard({ result }: { result: SearchResult }) {
   const [showDetails, setShowDetails] = useState(false);
+  const { instructor, best_match, rating, coverage_areas, relevance_score } = result;
 
   return (
     <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors">
@@ -619,18 +623,30 @@ function ResultCard({ result }: { result: SearchResult }) {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 rounded">
-              #{result.rank}
+              {(relevance_score * 100).toFixed(0)}%
             </span>
-            <h3 className="font-medium text-gray-900 dark:text-gray-100">{result.name}</h3>
+            <h3 className="font-medium text-gray-900 dark:text-gray-100">
+              {instructor.first_name} {instructor.last_initial}.
+              {instructor.verified && <span className="ml-1 text-blue-500">✓</span>}
+            </h3>
           </div>
-          {result.description && (
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{result.description}</p>
+          <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            Best match: <span className="font-medium">{best_match.name}</span>
+          </div>
+          {instructor.bio_snippet && (
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{instructor.bio_snippet}</p>
           )}
           <div className="mt-2 flex items-center gap-4 text-sm">
-            <span className="font-medium text-green-600 dark:text-green-400">${result.price_per_hour}/hr</span>
-            <span className="text-gray-500 dark:text-gray-400">Score: {result.score.toFixed(3)}</span>
-            {result.availability.earliest && (
-              <span className="text-gray-500 dark:text-gray-400">Available: {result.availability.earliest}</span>
+            <span className="font-medium text-green-600 dark:text-green-400">${best_match.price_per_hour}/hr</span>
+            {rating.average && (
+              <span className="text-gray-500 dark:text-gray-400">
+                ★ {rating.average.toFixed(1)} ({rating.count} reviews)
+              </span>
+            )}
+            {result.total_matching_services > 1 && (
+              <span className="text-gray-500 dark:text-gray-400">
+                +{result.total_matching_services - 1} more services
+              </span>
             )}
           </div>
         </div>
@@ -651,29 +667,43 @@ function ResultCard({ result }: { result: SearchResult }) {
       </div>
 
       {showDetails && (
-        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Score Breakdown</h4>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-            {Object.entries(result.scores).map(([key, value]) => (
-              <div key={key} className="text-center">
-                <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{key}</div>
-                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {(value * 100).toFixed(0)}%
-                </div>
-              </div>
-            ))}
+        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 space-y-3">
+          <div>
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instructor Info</h4>
+            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+              <div>Years Experience: {instructor.years_experience ?? 'N/A'}</div>
+              <div>Verified: {instructor.verified ? 'Yes' : 'No'}</div>
+            </div>
           </div>
 
-          {(result.match_info.audience_boost > 0 || result.match_info.skill_boost > 0) && (
-            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              Boosts:
-              {result.match_info.audience_boost > 0 && ` Audience +${result.match_info.audience_boost}`}
-              {result.match_info.skill_boost > 0 && ` Skill +${result.match_info.skill_boost}`}
+          {coverage_areas.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coverage Areas</h4>
+              <div className="flex flex-wrap gap-1">
+                {coverage_areas.map((area) => (
+                  <span key={area} className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 rounded">
+                    {area}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
-          <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-            Service ID: {result.service_id} | Instructor ID: {result.instructor_id}
+          {result.other_matches.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Other Matching Services</h4>
+              <div className="space-y-1">
+                {result.other_matches.map((match) => (
+                  <div key={match.service_id} className="text-xs text-gray-500 dark:text-gray-400">
+                    {match.name} - ${match.price_per_hour}/hr ({(match.relevance_score * 100).toFixed(0)}% match)
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="text-xs text-gray-400 dark:text-gray-500">
+            Instructor ID: {result.instructor_id} | Service ID: {best_match.service_id}
           </div>
         </div>
       )}

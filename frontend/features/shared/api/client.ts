@@ -446,7 +446,7 @@ export const publicApi = {
   ): Promise<ApiResponse<GenNaturalLanguageSearchResponse>> {
     // Use optionalAuthFetch to allow unauthenticated searches
     // but include auth token if available for search history tracking
-    return optionalAuthFetch<GenNaturalLanguageSearchResponse>('/api/v1/search/instructors', {
+    return optionalAuthFetch<GenNaturalLanguageSearchResponse>('/api/v1/search', {
       params: { q: query },
     });
   },

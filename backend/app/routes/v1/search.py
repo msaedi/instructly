@@ -4,12 +4,13 @@ Search routes - API v1
 
 Versioned search endpoints under /api/v1/search.
 Provides natural language search functionality for finding instructors
-and services using the SearchService.
+and services using NLSearchService.
 
 Endpoints:
     GET /              → NL search with full pipeline (parsing, embedding, retrieval, ranking)
-    GET /instructors   → Legacy search for instructors with natural language queries
     GET /health        → Health check for search components
+    GET /config        → Get/update search configuration (admin only)
+    GET /analytics/*   → Search analytics endpoints (admin only)
 """
 
 import asyncio
@@ -19,9 +20,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
-from ...api.dependencies.auth import require_beta_phase_access
+from ...api.dependencies.auth import get_current_user, require_beta_phase_access
 from ...api.dependencies.services import get_cache_service_dep
 from ...database import get_db
+from ...dependencies.permissions import require_permission
+from ...models import User
 from ...ratelimit.dependency import rate_limit
 from ...schemas.nl_search import (
     ModelOption,
@@ -39,77 +42,13 @@ from ...schemas.nl_search import (
     ZeroResultQueriesResponse,
     ZeroResultQueryItem,
 )
-from ...schemas.search_responses import InstructorSearchResponse
 from ...services.cache_service import CacheService
 from ...services.search.nl_search_service import NLSearchService
-from ...services.search_service import SearchService
 
 logger = logging.getLogger(__name__)
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["search-v1"])
-
-
-@router.get(
-    "/instructors",
-    response_model=InstructorSearchResponse,
-    dependencies=[Depends(require_beta_phase_access()), Depends(rate_limit("read"))],
-)
-async def search_instructors(
-    q: str = Query(..., description="Search query", min_length=1),
-    limit: Optional[int] = Query(20, ge=1, le=100, description="Maximum results to return"),
-    response: Response = None,
-    db: Session = Depends(get_db),
-    cache_service: CacheService = Depends(get_cache_service_dep),
-) -> InstructorSearchResponse:
-    """
-    Search for instructors using natural language queries.
-
-    Supports queries like:
-    - "piano lessons under $50"
-    - "math tutor near me"
-    - "online yoga classes"
-    - "SAT prep this weekend"
-
-    Args:
-        q: The search query string
-        limit: Maximum number of results to return (1-100, default 20)
-        response: FastAPI response object for setting headers
-        db: Database session
-        cache_service: Cache service for result caching
-
-    Returns:
-        Search results with instructors, services, and metadata
-    """
-    # Validate query
-    if not q.strip():
-        raise HTTPException(status_code=400, detail="Search query cannot be empty")
-
-    try:
-        # Create search service instance with cache
-        search_service = SearchService(db, cache_service=cache_service)
-
-        # Perform search
-        limit_value = int(limit if isinstance(limit, int) else 20)
-        results = await asyncio.to_thread(search_service.search, q, limit_value)
-
-        # Set Cache-Control header (60 seconds to match backend cache TTL)
-        if response:
-            response.headers["Cache-Control"] = "public, max-age=60"
-
-        # Search recording is handled by frontend which has full context
-        # (session ID, referrer, interaction type, etc.)
-        # Backend focuses on returning search results efficiently
-        # This ensures consistent behavior for both guests and authenticated users
-
-        return InstructorSearchResponse(**results)
-
-    except ValueError as e:
-        # Handle invalid search parameters
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        # Handle unexpected errors
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
 @router.get(
@@ -157,6 +96,13 @@ async def nl_search(
     """
     from ...repositories.search_analytics_repository import SearchAnalyticsRepository
 
+    # Validate query is not empty after stripping whitespace
+    if not q.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Query cannot be empty or whitespace-only",
+        )
+
     # Validate location (both or neither)
     user_location: Optional[tuple[float, float]] = None
     if lat is not None and lng is not None:
@@ -196,7 +142,7 @@ async def nl_search(
                     "skill_level": parsed.skill_level,
                     "urgency": parsed.urgency,
                 }
-                top_result_ids = [r.service_id for r in result.results[:10]]
+                top_result_ids = [r.best_match.service_id for r in result.results[:10]]
 
                 search_query_id = await asyncio.to_thread(
                     lambda: analytics_repo.nl_log_search_query(
@@ -227,7 +173,10 @@ async def nl_search(
 
 
 @router.get("/health", response_model=SearchHealthResponse)
-async def search_health(db: Session = Depends(get_db)) -> SearchHealthResponse:
+async def search_health(
+    db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+) -> SearchHealthResponse:
     """
     Health check for search service components.
 
@@ -242,8 +191,8 @@ async def search_health(db: Session = Depends(get_db)) -> SearchHealthResponse:
     from ...services.search.circuit_breaker import EMBEDDING_CIRCUIT, PARSING_CIRCUIT
     from ...services.search.search_cache import SearchCacheService
 
-    cache = SearchCacheService()
-    cache_stats = cache.get_cache_stats()
+    search_cache = SearchCacheService(cache_service=cache_service)
+    cache_stats = search_cache.get_cache_stats()
 
     return SearchHealthResponse(
         status="healthy",
@@ -267,9 +216,10 @@ async def search_health(db: Session = Depends(get_db)) -> SearchHealthResponse:
 async def search_metrics(
     days: int = Query(1, ge=1, le=30, description="Number of days to analyze"),
     db: Session = Depends(get_db),
+    _: User = Depends(require_permission("admin:read")),
 ) -> SearchMetricsResponse:
     """
-    Get aggregate search metrics for the last N days.
+    Get aggregate search metrics for the last N days. Requires admin access.
 
     Returns metrics including:
     - Total searches
@@ -291,8 +241,9 @@ async def popular_queries(
     days: int = Query(7, ge=1, le=30, description="Number of days to analyze"),
     limit: int = Query(50, ge=1, le=200, description="Maximum queries to return"),
     db: Session = Depends(get_db),
+    _: User = Depends(require_permission("admin:read")),
 ) -> PopularQueriesResponse:
-    """Get most popular search queries."""
+    """Get most popular search queries. Requires admin access."""
     from ...repositories.search_analytics_repository import SearchAnalyticsRepository
 
     repo = SearchAnalyticsRepository(db)
@@ -306,8 +257,9 @@ async def zero_result_queries(
     days: int = Query(7, ge=1, le=30, description="Number of days to analyze"),
     limit: int = Query(100, ge=1, le=500, description="Maximum queries to return"),
     db: Session = Depends(get_db),
+    _: User = Depends(require_permission("admin:read")),
 ) -> ZeroResultQueriesResponse:
-    """Get queries that returned zero results."""
+    """Get queries that returned zero results. Requires admin access."""
     from ...repositories.search_analytics_repository import SearchAnalyticsRepository
 
     repo = SearchAnalyticsRepository(db)
@@ -324,11 +276,13 @@ async def log_search_click(
     position: int = Query(..., ge=1, description="Position in search results (1-indexed)"),
     action: str = Query("view", description="Action type: view, book, message, favorite"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SearchClickResponse:
     """
     Log a click on a search result for conversion tracking.
 
     Call this endpoint when a user interacts with a search result.
+    Requires authentication.
     """
     from ...repositories.search_analytics_repository import SearchAnalyticsRepository
 
@@ -347,9 +301,11 @@ async def log_search_click(
 
 
 @router.get("/config", response_model=SearchConfigResponse)
-async def get_config() -> SearchConfigResponse:
+async def get_config(
+    _: User = Depends(require_permission("admin:read")),
+) -> SearchConfigResponse:
     """
-    Get current NL search configuration.
+    Get current NL search configuration. Requires admin access.
 
     Returns the currently active models and timeouts along with
     available options for the admin UI.
@@ -372,9 +328,12 @@ async def get_config() -> SearchConfigResponse:
 
 
 @router.put("/config", response_model=SearchConfigResponse)
-async def update_config(update: SearchConfigUpdate) -> SearchConfigResponse:
+async def update_config(
+    update: SearchConfigUpdate,
+    _: User = Depends(require_permission("admin:manage")),
+) -> SearchConfigResponse:
     """
-    Update NL search configuration at runtime.
+    Update NL search configuration at runtime. Requires admin access.
 
     Changes are temporary (not persisted to environment).
     Useful for testing different models without redeployment.
@@ -415,9 +374,11 @@ async def update_config(update: SearchConfigUpdate) -> SearchConfigResponse:
 
 
 @router.post("/config/reset", response_model=SearchConfigResetResponse)
-async def reset_config() -> SearchConfigResetResponse:
+async def reset_config(
+    _: User = Depends(require_permission("admin:manage")),
+) -> SearchConfigResetResponse:
     """
-    Reset NL search configuration to environment defaults.
+    Reset NL search configuration to environment defaults. Requires admin access.
 
     Use this to revert any runtime changes made via PUT /config.
     """

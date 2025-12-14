@@ -180,6 +180,18 @@ def seed_roles_and_permissions():
         permissions.extend(
             [
                 Permission(
+                    name=PermissionName.ADMIN_READ,
+                    description="Read admin configuration and dashboards",
+                    resource="admin",
+                    action="read",
+                ),
+                Permission(
+                    name=PermissionName.ADMIN_MANAGE,
+                    description="Manage admin configuration and settings",
+                    resource="admin",
+                    action="manage",
+                ),
+                Permission(
                     name=PermissionName.VIEW_ALL_USERS, description="View all users", resource="users", action="view"
                 ),
                 Permission(

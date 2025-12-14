@@ -96,6 +96,7 @@ class SearchCacheService:
         query: str,
         user_location: Optional[tuple[float, float]] = None,
         filters: Optional[Dict[str, Any]] = None,
+        limit: int = 20,
     ) -> Optional[Dict[str, Any]]:
         """
         Get cached search response.
@@ -105,7 +106,7 @@ class SearchCacheService:
         if not self.cache:
             return None
 
-        key = self._response_cache_key(query, user_location, filters)
+        key = self._response_cache_key(query, user_location, filters, limit)
 
         try:
             cached = self.cache.get(key)
@@ -123,6 +124,7 @@ class SearchCacheService:
         response: Dict[str, Any],
         user_location: Optional[tuple[float, float]] = None,
         filters: Optional[Dict[str, Any]] = None,
+        limit: int = 20,
     ) -> bool:
         """
         Cache a search response.
@@ -141,7 +143,7 @@ class SearchCacheService:
             logger.debug(f"Skipping response cache for relative date query: {query[:30]}")
             return False
 
-        key = self._response_cache_key(query, user_location, filters)
+        key = self._response_cache_key(query, user_location, filters, limit)
 
         try:
             serialized = self._serialize_response(response)
@@ -157,6 +159,7 @@ class SearchCacheService:
         query: str,
         user_location: Optional[tuple[float, float]],
         filters: Optional[Dict[str, Any]],
+        limit: int,
     ) -> str:
         """Generate versioned response cache key."""
         version = self._get_cache_version()
@@ -168,6 +171,7 @@ class SearchCacheService:
             "q": normalized_query,
             "loc": f"{user_location[0]:.3f},{user_location[1]:.3f}" if user_location else None,
             "f": json.dumps(filters, sort_keys=True) if filters else None,
+            "limit": limit,
         }
 
         # Hash the key data

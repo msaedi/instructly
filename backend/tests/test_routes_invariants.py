@@ -688,7 +688,7 @@ class TestRoutingInvariants:
         paths = {route.path for route in routes}
 
         expected_search_endpoints = [
-            "/api/v1/search/instructors",  # GET
+            "/api/v1/search",  # GET - NL search endpoint
         ]
 
         missing = []

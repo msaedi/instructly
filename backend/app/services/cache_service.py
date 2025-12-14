@@ -218,11 +218,17 @@ class CacheService(BaseService):
         "static": 604800,  # 7 days - rarely changes
     }
 
-    def __init__(self, db: Session, redis_client: Optional[Redis] = None):
+    def __init__(self, db: Optional[Session] = None, redis_client: Optional[Redis] = None):
         """
         Initialize cache service.
 
         REFACTORED: Split initialization into helper methods to stay under 50 lines.
+
+        Args:
+            db: Optional database session. Not used by CacheService but required
+                by BaseService for consistency with other services.
+            redis_client: Optional Redis client. If not provided, will attempt
+                to connect using REDIS_URL from settings.
         """
         super().__init__(db)
         self.logger = logging.getLogger(__name__)

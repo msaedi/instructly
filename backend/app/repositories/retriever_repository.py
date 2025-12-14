@@ -52,16 +52,19 @@ class RetrieverRepository:
                 sc.name,
                 sc.description,
                 ins.hourly_rate as price_per_hour,
-                ins.instructor_profile_id as instructor_id,
+                ip.user_id as instructor_id,
                 -- Normalize cosine distance to similarity score (0-1)
                 -- pgvector <=> returns distance [0, 2], convert to similarity
                 -- Use CAST() instead of :: to avoid SQLAlchemy parameter binding conflict
                 GREATEST(0, 1 - ((sc.embedding_v2 <=> CAST(:embedding AS vector)) / 2)) as vector_score
             FROM service_catalog sc
             JOIN instructor_services ins ON ins.service_catalog_id = sc.id
+            JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
             WHERE sc.is_active = true
                 AND ins.is_active = true
                 AND sc.embedding_v2 IS NOT NULL
+                AND ip.is_live = true
+                AND ip.bgc_status = 'passed'
             ORDER BY sc.embedding_v2 <=> CAST(:embedding AS vector)
             LIMIT :limit
         """
@@ -116,7 +119,7 @@ class RetrieverRepository:
                 sc.name,
                 sc.description,
                 ins.hourly_rate as price_per_hour,
-                ins.instructor_profile_id as instructor_id,
+                ip.user_id as instructor_id,
                 GREATEST(
                     similarity(sc.name, :corrected_query),
                     similarity(sc.name, :original_query),
@@ -124,8 +127,11 @@ class RetrieverRepository:
                 ) as text_score
             FROM service_catalog sc
             JOIN instructor_services ins ON ins.service_catalog_id = sc.id
+            JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
             WHERE sc.is_active = true
                 AND ins.is_active = true
+                AND ip.is_live = true
+                AND ip.bgc_status = 'passed'
                 AND (
                     sc.name % :corrected_query
                     OR sc.name % :original_query
@@ -184,15 +190,18 @@ class RetrieverRepository:
                 sc.name,
                 sc.description,
                 ins.hourly_rate as price_per_hour,
-                ins.instructor_profile_id as instructor_id,
+                ip.user_id as instructor_id,
                 ins.duration_options,
                 ins.levels_taught,
                 ins.age_groups
             FROM instructor_services ins
             JOIN service_catalog sc ON sc.id = ins.service_catalog_id
+            JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
             WHERE ins.id = ANY(:ids)
                 AND ins.is_active = true
                 AND sc.is_active = true
+                AND ip.is_live = true
+                AND ip.bgc_status = 'passed'
         """
         )
 
@@ -233,3 +242,164 @@ class RetrieverRepository:
             )
         )
         return result.scalar() or 0
+
+    def search_with_instructor_data(
+        self,
+        embedding: List[float],
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search services and return instructor-grouped results with all embedded data.
+
+        This method returns instructor-level results (one row per instructor) with:
+        - Instructor profile info (first_name, last_initial, bio, verified, etc.)
+        - Aggregated ratings (average, count)
+        - Coverage areas (list of region names)
+        - All matching services with relevance scores
+
+        This eliminates N+1 queries by embedding all data the frontend needs.
+
+        Args:
+            embedding: Query embedding vector (1536 dimensions)
+            limit: Maximum instructors to return
+
+        Returns:
+            List of instructor data dicts with embedded profile, ratings, services
+        """
+        embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
+
+        query = text(
+            """
+            WITH matched_services AS (
+                -- Step 1: Vector search to find matching services
+                SELECT
+                    ins.id as service_id,
+                    sc.id as service_catalog_id,
+                    sc.name as service_name,
+                    sc.description as service_description,
+                    ins.hourly_rate as price_per_hour,
+                    ip.user_id as instructor_id,
+                    ip.id as profile_id,
+                    -- Normalize cosine distance to similarity score (0-1)
+                    GREATEST(0, 1 - ((sc.embedding_v2 <=> CAST(:embedding AS vector)) / 2)) as relevance_score
+                FROM instructor_services ins
+                JOIN service_catalog sc ON sc.id = ins.service_catalog_id
+                JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
+                WHERE sc.is_active = true
+                    AND ins.is_active = true
+                    AND sc.embedding_v2 IS NOT NULL
+                    AND ip.is_live = true
+                    AND ip.bgc_status = 'passed'
+                ORDER BY sc.embedding_v2 <=> CAST(:embedding AS vector)
+                LIMIT :search_limit
+            ),
+
+            -- Step 2: Group by instructor, aggregate services
+            instructor_matches AS (
+                SELECT
+                    instructor_id,
+                    profile_id,
+                    json_agg(
+                        json_build_object(
+                            'service_id', service_id,
+                            'service_catalog_id', service_catalog_id,
+                            'name', service_name,
+                            'description', service_description,
+                            'price_per_hour', price_per_hour,
+                            'relevance_score', relevance_score
+                        ) ORDER BY relevance_score DESC
+                    ) as matching_services,
+                    MAX(relevance_score) as best_score,
+                    COUNT(*) as match_count
+                FROM matched_services
+                GROUP BY instructor_id, profile_id
+            ),
+
+            -- Step 3: Get instructor profile data
+            instructor_data AS (
+                SELECT
+                    im.*,
+                    u.first_name,
+                    COALESCE(LEFT(u.last_name, 1), '') as last_initial,
+                    ip.bio,
+                    ip.years_experience,
+                    u.profile_picture_key,
+                    (ip.identity_verified_at IS NOT NULL) as verified
+                FROM instructor_matches im
+                JOIN instructor_profiles ip ON im.profile_id = ip.id
+                JOIN users u ON ip.user_id = u.id
+            ),
+
+            -- Step 4: Get aggregated ratings
+            ratings AS (
+                SELECT
+                    r.instructor_id,
+                    AVG(r.rating)::float as avg_rating,
+                    COUNT(*)::int as review_count
+                FROM reviews r
+                WHERE r.instructor_id IN (SELECT instructor_id FROM instructor_matches)
+                  AND r.status = 'published'
+                GROUP BY r.instructor_id
+            ),
+
+            -- Step 5: Get coverage areas
+            coverage AS (
+                SELECT
+                    isa.instructor_id,
+                    array_agg(DISTINCT rb.region_name ORDER BY rb.region_name) as areas
+                FROM instructor_service_areas isa
+                JOIN region_boundaries rb ON isa.neighborhood_id = rb.id
+                WHERE isa.instructor_id IN (SELECT instructor_id FROM instructor_matches)
+                GROUP BY isa.instructor_id
+            )
+
+            -- Final: Join everything together
+            SELECT
+                id.instructor_id,
+                id.first_name,
+                id.last_initial,
+                LEFT(id.bio, 150) as bio_snippet,
+                id.years_experience,
+                id.profile_picture_key,
+                id.verified,
+                id.matching_services,
+                id.best_score,
+                id.match_count,
+                COALESCE(r.avg_rating, null) as avg_rating,
+                COALESCE(r.review_count, 0) as review_count,
+                COALESCE(c.areas, ARRAY[]::text[]) as coverage_areas
+            FROM instructor_data id
+            LEFT JOIN ratings r ON id.instructor_id = r.instructor_id
+            LEFT JOIN coverage c ON c.instructor_id = id.instructor_id
+            ORDER BY id.best_score DESC
+            LIMIT :limit
+        """
+        )
+
+        result = self.db.execute(
+            query,
+            {
+                "embedding": embedding_str,
+                "search_limit": limit * 5,  # Fetch more services initially, then group
+                "limit": limit,
+            },
+        )
+
+        return [
+            {
+                "instructor_id": row.instructor_id,
+                "first_name": row.first_name,
+                "last_initial": row.last_initial,
+                "bio_snippet": row.bio_snippet,
+                "years_experience": row.years_experience,
+                "profile_picture_key": row.profile_picture_key,
+                "verified": row.verified,
+                "matching_services": row.matching_services,
+                "best_score": float(row.best_score),
+                "match_count": int(row.match_count),
+                "avg_rating": float(row.avg_rating) if row.avg_rating else None,
+                "review_count": int(row.review_count),
+                "coverage_areas": list(row.coverage_areas) if row.coverage_areas else [],
+            }
+            for row in result
+        ]

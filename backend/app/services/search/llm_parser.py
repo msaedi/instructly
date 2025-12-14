@@ -139,8 +139,9 @@ class LLMParser:
             return result
 
         except asyncio.TimeoutError:
+            # Don't record_failure here - the inner CircuitBreaker.call() handles it
+            # when the task is cancelled
             logger.warning(f"LLM parsing timed out after {timeout_seconds:.1f}s")
-            PARSING_CIRCUIT._record_failure()
             regex_result.parsing_mode = "regex"
             regex_result.parsing_latency_ms = int((time.perf_counter() - start_time) * 1000)
             return regex_result
@@ -151,8 +152,8 @@ class LLMParser:
             return regex_result
 
         except OpenAIError as e:
+            # Don't record_failure here - CircuitBreaker.call() already did
             logger.warning(f"OpenAI API error: {e}")
-            PARSING_CIRCUIT._record_failure()
             regex_result.parsing_mode = "regex"
             return regex_result
 

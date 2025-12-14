@@ -65,6 +65,7 @@ class ParsedQuery:
     # Core query
     service_query: str  # "piano lessons" (constraints stripped)
     original_query: str  # Original user input preserved
+    corrected_query: Optional[str] = None  # Typo-corrected query if different from original
 
     # Price constraints
     max_price: Optional[int] = None
@@ -156,11 +157,20 @@ class QueryParser:
         start_time = time.perf_counter()
 
         original_query = query
-        working_query = query.lower().strip()
+
+        # Step 1: Apply typo correction
+        from app.services.search.typo_correction import correct_typos_cached
+
+        corrected_text, was_corrected = correct_typos_cached(query)
+        corrected_query = corrected_text if was_corrected else None
+
+        # Use corrected query for parsing
+        working_query = (corrected_text if was_corrected else query).lower().strip()
         extracted_spans: List[Tuple[int, int]] = []  # Track what we've extracted
 
         result = ParsedQuery(
             original_query=original_query,
+            corrected_query=corrected_query,
             service_query="",  # Will be set at the end
             parsing_mode="regex",
         )

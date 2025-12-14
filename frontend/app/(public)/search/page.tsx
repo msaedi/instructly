@@ -20,8 +20,6 @@ import { withApiBase } from '@/lib/apiBase';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
-const instructorServicesCache = new Map<string, Instructor['services']>();
-
 const getServiceDisplayName = (service: Instructor['services'][number]): string => {
   const candidates: Array<unknown> = [
     (service as { service_catalog_name?: unknown }).service_catalog_name,
@@ -37,109 +35,10 @@ const getServiceDisplayName = (service: Instructor['services'][number]): string 
 
   return '';
 };
-const instructorServicesPromises = new Map<string, Promise<Instructor['services'] | null>>();
 
-const normalizeProfileServices = (services: unknown): Instructor['services'] => {
-  if (!Array.isArray(services)) return [];
-
-  return services
-    .map((service) => {
-      if (!isRecord(service)) return null;
-
-      const id = getString(service, 'id', '');
-      const serviceCatalogId =
-        getString(service, 'service_catalog_id', '') || getString(service, 'service_catalog', '');
-      const hourlyRateRaw = service['hourly_rate'];
-      const hourlyRate =
-        typeof hourlyRateRaw === 'number'
-          ? hourlyRateRaw
-          : typeof hourlyRateRaw === 'string'
-            ? Number(hourlyRateRaw)
-            : getNumber(service, 'hourly_rate', 0);
-      const normalizedRate = Number.isFinite(hourlyRate) ? hourlyRate : 0;
-      const descriptionRaw = service['description'];
-      const description = typeof descriptionRaw === 'string' ? descriptionRaw : undefined;
-      const durationOptions = getArray(service, 'duration_options')
-        .map((value) => {
-          if (typeof value === 'number') return value;
-          const parsed = Number(value);
-          return Number.isFinite(parsed) ? parsed : null;
-        })
-        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
-      const isActiveValue = service['is_active'];
-      const isActive = typeof isActiveValue === 'boolean' ? isActiveValue : undefined;
-
-      const normalized: Instructor['services'][number] = {
-        id: id || serviceCatalogId || '',
-        service_catalog_id: serviceCatalogId || id || '',
-        hourly_rate: normalizedRate,
-      };
-
-      const catalogName =
-        getString(service, 'service_catalog_name', '') ||
-        getString(service, 'name', '');
-
-      if (catalogName) {
-        (normalized as Instructor['services'][number] & { service_catalog_name?: string }).service_catalog_name =
-          catalogName;
-      }
-
-      if (description) {
-        normalized.description = description;
-      }
-      if (durationOptions.length > 0) {
-        normalized.duration_options = durationOptions;
-      }
-      if (typeof isActive === 'boolean') {
-        normalized.is_active = isActive;
-      }
-
-      const displayName = getServiceDisplayName(normalized);
-      const fallbackName = getString(service, 'name', '') || getString(service, 'title', '');
-      if (!displayName && fallbackName) {
-        normalized.service_catalog_name = fallbackName;
-      }
-
-      if (!normalized.id || !normalized.service_catalog_id) {
-        return null;
-      }
-
-      return normalized;
-    })
-    .filter((value): value is Instructor['services'][number] => value !== null);
-};
-
-const mergeInstructorServices = (
-  existing: Instructor['services'] | undefined,
-  incoming: Instructor['services']
-): Instructor['services'] => {
-  if (!incoming.length) {
-    return existing ?? [];
-  }
-
-  if (!existing || !existing.length) {
-    return incoming;
-  }
-
-  const makeKey = (service: Instructor['services'][number]) => {
-    const base = `${service.service_catalog_id || ''}|${service.id}`;
-    const name = getServiceDisplayName(service);
-    return name ? `${base}|${name.toLowerCase()}` : base;
-  };
-
-  const incomingKeys = new Set(incoming.map((service) => makeKey(service)));
-
-  const merged = [...incoming];
-
-  for (const service of existing) {
-    const key = makeKey(service);
-    if (!incomingKeys.has(key)) {
-      merged.push(service);
-    }
-  }
-
-  return merged;
-};
+// Note: normalizeProfileServices and mergeInstructorServices removed
+// - Backend now returns all embedded data in NL search response
+// - No need to hydrate or merge services from individual profile fetches
 
 const dedupeAndOrderServices = (
   services: Instructor['services'],
@@ -214,67 +113,8 @@ const dedupeAndOrderServices = (
     .filter((svc): svc is Instructor['services'][number] => Boolean(svc));
 };
 
-async function hydrateInstructorServices(instructors: Instructor[]): Promise<Instructor[]> {
-  if (!Array.isArray(instructors) || instructors.length === 0) {
-    return instructors;
-  }
-
-  const hydrated = await Promise.all(
-    instructors.map(async (instructor) => {
-      const instructorId = instructor?.user_id || instructor?.id;
-      if (!instructorId) {
-        return instructor;
-      }
-
-      const existingServices = Array.isArray(instructor.services) ? instructor.services : [];
-      if (existingServices.length > 1) {
-        return instructor;
-      }
-
-      const cachedServices = instructorServicesCache.get(instructorId);
-      if (cachedServices) {
-        return {
-          ...instructor,
-          services: mergeInstructorServices(existingServices, cachedServices),
-        };
-      }
-
-      let pending = instructorServicesPromises.get(instructorId);
-      if (!pending) {
-        pending = (async () => {
-          try {
-            const response = await publicApi.getInstructorProfile(instructorId);
-            if (response.status !== 200 || !response.data) {
-              return null;
-            }
-            const normalized = normalizeProfileServices((response.data as { services?: unknown }).services);
-            if (normalized.length) {
-              instructorServicesCache.set(instructorId, normalized);
-            }
-            return normalized.length ? normalized : null;
-          } catch {
-            return null;
-          } finally {
-            instructorServicesPromises.delete(instructorId);
-          }
-        })();
-        instructorServicesPromises.set(instructorId, pending);
-      }
-
-      const fetchedServices = await pending;
-      if (!fetchedServices || !fetchedServices.length) {
-        return instructor;
-      }
-
-      return {
-        ...instructor,
-        services: mergeInstructorServices(existingServices, fetchedServices),
-      };
-    })
-  );
-
-  return hydrated;
-}
+// Note: Instructor profile hydration removed - backend now returns all embedded data
+// in NL search response (instructor info, ratings, coverage areas, services)
 
 // GeoJSON feature interface for coverage areas
 interface GeoJSONFeature {
@@ -372,7 +212,7 @@ function SearchPageContent() {
       let response;
       let instructorsData: Instructor[] = [];
       let totalResults = 0;
-      let observabilityCandidates: Array<Record<string, unknown>> | undefined;
+      // Note: Observability tracking now uses instructor-level results directly
 
       if (query) {
         const nlResponse = await publicApi.searchWithNaturalLanguage(query);
@@ -390,96 +230,116 @@ function SearchPageContent() {
           setError('Our hamsters are sprinting. Please try again shortly.');
           return;
         } else if (nlResponse.data) {
+          // New instructor-level API: results are already deduplicated by instructor
+          // Each result has: instructor_id, instructor (embedded), rating, coverage_areas,
+          // best_match (service), other_matches (services), relevance_score
           instructorsData = nlResponse.data.results.map(
             (result: unknown) => {
-              const instructor = isRecord(result) ? result['instructor'] : undefined;
-              const service = isRecord(result) ? result['service'] : undefined;
-              const offering = isRecord(result) ? result['offering'] : undefined;
-              const matchedServiceCatalogId = getString(service, 'id', '') || null;
+              if (!isRecord(result)) {
+                return null;
+              }
 
-              const levelsFromOffering = getArray(offering, 'levels_taught')
-                .map((value) => (typeof value === 'string' ? value : null))
-                .filter((value): value is string => Boolean(value));
-              const levelsFromService = getArray(service, 'levels_taught')
-                .map((value) => (typeof value === 'string' ? value : null))
-                .filter((value): value is string => Boolean(value));
-              const levelsTaught = levelsFromOffering.length > 0 ? levelsFromOffering : levelsFromService;
+              // Extract instructor-level data
+              const instructorId = getString(result, 'instructor_id', '');
+              const relevanceScore = getNumber(result, 'relevance_score', 0);
 
-              const ageFromOffering = getArray(offering, 'age_groups')
-                .map((value) => (typeof value === 'string' ? value : null))
-                .filter((value): value is string => Boolean(value));
-              const ageFromService = getArray(service, 'age_groups')
-                .map((value) => (typeof value === 'string' ? value : null))
-                .filter((value): value is string => Boolean(value));
-              const ageGroups = ageFromOffering.length > 0 ? ageFromOffering : ageFromService;
+              // Extract embedded instructor info
+              const instructorInfo = isRecord(result['instructor']) ? result['instructor'] : {};
+              const firstName = getString(instructorInfo, 'first_name', 'Instructor');
+              const lastInitial = getString(instructorInfo, 'last_initial', '');
+              const bioSnippet = getString(instructorInfo, 'bio_snippet', '');
+              const profilePictureUrl = getString(instructorInfo, 'profile_picture_url', '');
+              const verified = Boolean(instructorInfo['verified']);
+              const yearsExperience = getNumber(instructorInfo, 'years_experience', 0);
 
-              const locationFromOffering = getArray(offering, 'location_types')
-                .map((value) => (typeof value === 'string' ? value : null))
-                .filter((value): value is string => Boolean(value));
-              const locationFromService = getArray(service, 'location_types')
-                .map((value) => (typeof value === 'string' ? value : null))
-                .filter((value): value is string => Boolean(value));
-              const locationTypes = locationFromOffering.length > 0 ? locationFromOffering : locationFromService;
+              // Extract embedded rating info
+              const ratingInfo = isRecord(result['rating']) ? result['rating'] : {};
+              const avgRating = getNumber(ratingInfo, 'average', 0);
+              const reviewCount = getNumber(ratingInfo, 'count', 0);
 
-              const servicePayload = {
-                id: getString(service, 'id') || '1',
-                service_catalog_id: getString(service, 'id') || '1',
-                service_catalog_name: getString(service, 'name', ''),
-                hourly_rate:
-                  getNumber(offering, 'hourly_rate') || getNumber(service, 'actual_min_price', 0),
-                description:
-                  getString(offering, 'description') || getString(service, 'description', ''),
-                duration_options: getArray(offering, 'duration_options').length > 0
-                  ? (getArray(offering, 'duration_options') as number[])
-                  : [60],
-                levels_taught: levelsTaught,
-                age_groups: ageGroups,
-                location_types: locationTypes,
+              // Extract coverage areas
+              const coverageAreas = getArray(result, 'coverage_areas')
+                .filter((v): v is string => typeof v === 'string');
+
+              // Extract best matching service
+              const bestMatch = isRecord(result['best_match']) ? result['best_match'] : {};
+              const bestServiceId = getString(bestMatch, 'service_id', '');
+              const bestServiceCatalogId = getString(bestMatch, 'service_catalog_id', '');
+              const bestServiceName = getString(bestMatch, 'name', '');
+              const bestServiceDescription = getString(bestMatch, 'description', '');
+              const bestPricePerHour = getNumber(bestMatch, 'price_per_hour', 0);
+
+              // Build services array from best_match + other_matches
+              const services: Instructor['services'] = [];
+
+              // Add best match as first service
+              services.push({
+                id: bestServiceId,
+                service_catalog_id: bestServiceCatalogId,
+                service_catalog_name: bestServiceName,
+                hourly_rate: bestPricePerHour,
+                description: bestServiceDescription,
+                duration_options: [60],
                 is_active: true,
-              };
+              });
+
+              // Add other matches
+              const otherMatches = getArray(result, 'other_matches');
+              for (const match of otherMatches) {
+                if (!isRecord(match)) continue;
+                services.push({
+                  id: getString(match, 'service_id', ''),
+                  service_catalog_id: getString(match, 'service_catalog_id', ''),
+                  service_catalog_name: getString(match, 'name', ''),
+                  hourly_rate: getNumber(match, 'price_per_hour', 0),
+                  description: getString(match, 'description', ''),
+                  duration_options: [60],
+                  is_active: true,
+                });
+              }
 
               const mapped = {
-                id: getString(instructor, 'id', ''),
-                user_id: getString(instructor, 'id', ''),
-                bio: getString(instructor, 'bio', ''),
-                service_area_summary: getString(instructor, 'service_area_summary', ''),
-                service_area_boroughs: getArray(instructor, 'service_area_boroughs')
-                  .map((value) => (typeof value === 'string' ? value : null))
-                  .filter((value): value is string => Boolean(value && value.trim()))
-                  .map((value) => value.trim()),
-                service_area_neighborhoods: getArray(instructor, 'service_area_neighborhoods')
-                  .filter((value): value is Record<string, unknown> => isRecord(value))
-                  .map((value) => ({
-                    neighborhood_id: getString(value, 'neighborhood_id', ''),
-                    ntacode: getString(value, 'ntacode') || null,
-                    name: getString(value, 'name') || null,
-                    borough: getString(value, 'borough') || null,
-                  }))
-                  .filter((value) => value.neighborhood_id.length > 0),
-                years_experience: getNumber(instructor, 'years_experience', 0),
+                id: instructorId,
+                user_id: instructorId,
+                bio: bioSnippet,
+                profile_picture_url: profilePictureUrl,
+                service_area_summary: coverageAreas.join(', '),
+                service_area_boroughs: coverageAreas,
+                service_area_neighborhoods: [] as Array<{
+                  neighborhood_id: string;
+                  ntacode: string | null;
+                  name: string | null;
+                  borough: string | null;
+                }>,
+                years_experience: yearsExperience,
                 user: {
-                  first_name: getString(instructor, 'first_name', 'Unknown'),
-                  last_initial: getString(instructor, 'last_initial', ''),
+                  first_name: firstName,
+                  last_initial: lastInitial,
                 },
-                services: [servicePayload],
+                services,
+                verified,
+                rating: avgRating || undefined,
+                total_reviews: reviewCount,
                 _matchedServiceContext: {
-                  levels: levelsTaught,
-                  age_groups: ageGroups,
-                  location_types: locationTypes,
+                  levels: [] as string[],
+                  age_groups: [] as string[],
+                  location_types: [] as string[],
                 },
-                relevance_score: getNumber(result, 'match_score', 0),
-                _matchedServiceCatalogId: matchedServiceCatalogId,
+                relevance_score: relevanceScore,
+                _matchedServiceCatalogId: bestServiceCatalogId || null,
               } as Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null };
 
               return mapped;
             }
-          );
-          instructorsData.sort(
-            (a, b) => ((b.relevance_score as number) || 0) - ((a.relevance_score as number) || 0)
-          );
-          totalResults = nlResponse.data.total_found;
-          // Capture observability candidates for analytics tracking
-          observabilityCandidates = nlResponse.data.search_metadata?.observability_candidates ?? undefined;
+          ).filter((item: (Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null }) | null): item is Instructor & { relevance_score: number; _matchedServiceCatalogId?: string | null } => item !== null);
+
+          // Results are already sorted by relevance and deduplicated by backend
+          // Cast to expected response shape (types will be regenerated after MessageResponse fix)
+          const responseData = nlResponse.data as unknown as {
+            results: unknown[];
+            meta?: { total_results?: number };
+          };
+          totalResults = responseData.meta?.total_results ?? instructorsData.length;
           setHasMore(false);
         }
       } else if (serviceCatalogId) {
@@ -536,20 +396,9 @@ function SearchPageContent() {
         return;
       }
 
-      const needsHydration = instructorsData.some(
-        (item) => !Array.isArray(item?.services) || item.services.length <= 1
-      );
+      // Backend now provides all embedded data, no hydration needed for NL search
+      // For serviceCatalogId search, data is already complete from searchInstructors
       let finalResults = instructorsData;
-      if (needsHydration) {
-        try {
-          const hydratedResults = await hydrateInstructorServices(instructorsData);
-          if (hydratedResults.length) {
-            finalResults = hydratedResults;
-          }
-        } catch {
-          // ignore hydration errors; fallback to base results
-        }
-      }
 
       finalResults = finalResults.map((instructor) => {
         const highlightId =
@@ -596,13 +445,12 @@ function SearchPageContent() {
               searchQuery = category;
             }
 
-            // Record the search with observability candidates for analytics
+            // Record the search for analytics
             void recordSearch(
               {
                 query: searchQuery,
                 search_type: searchType,
                 results_count: totalResults,
-                ...(observabilityCandidates && { observability_candidates: observabilityCandidates }),
               },
               isAuthenticated
             );

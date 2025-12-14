@@ -380,7 +380,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // Mock the search endpoint FIRST (before the general instructors handler)
-  await routeContext.route('**/api/v1/search/instructors**', async (route: Route) => {
+  await routeContext.route('**/api/v1/search**', async (route: Route) => {
     // Reduce noisy logs
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({

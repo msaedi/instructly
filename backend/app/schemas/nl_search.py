@@ -4,12 +4,77 @@ Pydantic schemas for Natural Language search API.
 
 These schemas define the response format for the NL search pipeline
 that combines parsing, embedding, retrieval, filtering, and ranking.
+
+Architecture: Returns INSTRUCTOR-level results (not service-level) with all
+embedded data to eliminate N+1 queries from the frontend.
 """
 from __future__ import annotations
 
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
+
+# =============================================================================
+# Instructor-Level Result Schemas (New Architecture)
+# =============================================================================
+
+
+class InstructorSummary(BaseModel):
+    """Embedded instructor info for search results."""
+
+    id: str = Field(..., description="Instructor user ID")
+    first_name: str = Field(..., description="Instructor first name")
+    last_initial: str = Field(..., description="Last name initial for privacy (e.g., 'D')")
+    profile_picture_url: Optional[str] = Field(None, description="Profile picture URL")
+    bio_snippet: Optional[str] = Field(None, description="First 150 chars of bio")
+    verified: bool = Field(False, description="Whether instructor is verified")
+    years_experience: Optional[int] = Field(None, description="Years of experience")
+
+
+class RatingSummary(BaseModel):
+    """Aggregated rating info for an instructor."""
+
+    average: Optional[float] = Field(
+        None, ge=0, le=5, description="Average rating (None if no reviews)"
+    )
+    count: int = Field(0, ge=0, description="Number of reviews")
+
+
+class ServiceMatch(BaseModel):
+    """A service that matched the search query."""
+
+    service_id: str = Field(..., description="Instructor service ID (for booking)")
+    service_catalog_id: str = Field(..., description="Service catalog ID (for click tracking)")
+    name: str = Field(..., description="Service name")
+    description: Optional[str] = Field(None, description="Service description")
+    price_per_hour: int = Field(..., ge=0, description="Hourly rate in dollars")
+    relevance_score: float = Field(..., ge=0, le=1, description="Semantic match score")
+
+
+class NLSearchResultItem(BaseModel):
+    """Single instructor result with all embedded data (eliminates N+1)."""
+
+    instructor_id: str = Field(..., description="Instructor user ID")
+
+    # Embedded data (eliminates N+1 fetches)
+    instructor: InstructorSummary = Field(..., description="Instructor profile info")
+    rating: RatingSummary = Field(..., description="Aggregated rating info")
+    coverage_areas: List[str] = Field(default_factory=list, description="Service area names")
+
+    # Service matches
+    best_match: ServiceMatch = Field(..., description="Best matching service")
+    other_matches: List[ServiceMatch] = Field(
+        default_factory=list, description="Other matching services (max 3)"
+    )
+    total_matching_services: int = Field(1, ge=1, description="Total number of matching services")
+
+    # For sorting/display
+    relevance_score: float = Field(..., ge=0, le=1, description="Best match relevance score")
+
+
+# =============================================================================
+# Legacy Service-Level Schemas (Kept for backward compatibility during transition)
+# =============================================================================
 
 
 class NLSearchScores(BaseModel):
@@ -42,7 +107,7 @@ class NLSearchMatchInfo(BaseModel):
 
 
 class NLSearchResult(BaseModel):
-    """A single NL search result."""
+    """A single NL search result (LEGACY: service-level, kept for compatibility)."""
 
     service_id: str = Field(..., description="Instructor service ID")
     instructor_id: str = Field(..., description="Instructor user ID")
@@ -73,6 +138,7 @@ class NLSearchMeta(BaseModel):
     """Search response metadata."""
 
     query: str = Field(..., description="Original search query")
+    corrected_query: Optional[str] = Field(None, description="Typo-corrected query if different")
     parsed: ParsedQueryInfo = Field(..., description="Parsed query details")
     total_results: int = Field(..., ge=0, description="Total results returned")
     limit: int = Field(..., ge=1, description="Requested limit")
@@ -87,9 +153,9 @@ class NLSearchMeta(BaseModel):
 
 
 class NLSearchResponse(BaseModel):
-    """Complete NL search response."""
+    """Complete NL search response with instructor-level results."""
 
-    results: List[NLSearchResult] = Field(..., description="Search results")
+    results: List[NLSearchResultItem] = Field(..., description="Instructor-level search results")
     meta: NLSearchMeta = Field(..., description="Search metadata")
 
 

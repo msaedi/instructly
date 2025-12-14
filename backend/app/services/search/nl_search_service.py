@@ -13,19 +13,26 @@ Pipeline stages:
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 import logging
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+from app.core.config import settings
+from app.repositories.retriever_repository import RetrieverRepository
 from app.schemas.nl_search import (
+    InstructorSummary,
     NLSearchAvailability,
     NLSearchMatchInfo,
     NLSearchMeta,
     NLSearchResponse,
     NLSearchResult,
+    NLSearchResultItem,
     NLSearchScores,
     ParsedQueryInfo,
+    RatingSummary,
+    ServiceMatch,
 )
 from app.services.search.embedding_service import EmbeddingService
 from app.services.search.filter_service import FilteredCandidate, FilterResult, FilterService
@@ -103,6 +110,9 @@ class NLSearchService:
         self.filter_service = FilterService(db)
         self.ranking_service = RankingService(db)
 
+        # Direct repository access for instructor-level search
+        self.retriever_repository = RetrieverRepository(db)
+
     async def search(
         self,
         query: str,
@@ -111,21 +121,28 @@ class NLSearchService:
         user_id: Optional[str] = None,
     ) -> NLSearchResponse:
         """
-        Execute full search pipeline.
+        Execute instructor-level search pipeline.
+
+        Returns instructor-grouped results with all embedded data to eliminate
+        N+1 queries from the frontend. Each result includes:
+        - Instructor profile info
+        - Aggregated ratings
+        - Coverage areas
+        - Best matching service + other matches
 
         Args:
             query: Natural language search query
             user_location: (lng, lat) tuple or None
-            limit: Maximum results to return
+            limit: Maximum instructors to return
             user_id: Optional user ID for timezone-aware parsing
 
         Returns:
-            NLSearchResponse with results and metadata
+            NLSearchResponse with instructor-level results and metadata
         """
         metrics = SearchMetrics(total_start=time.time())
 
         # Stage 0: Check cache
-        cached = self._check_cache(query, user_location)
+        cached = self._check_cache(query, user_location, limit)
         if cached:
             metrics.cache_hit = True
             cached["meta"]["cache_hit"] = True
@@ -134,30 +151,55 @@ class NLSearchService:
         # Stage 1: Parse query
         parsed_query = await self._parse_query(query, metrics, user_id)
 
-        # Stage 2: Retrieve candidates
-        retrieval_result = await self._retrieve_candidates(parsed_query, metrics)
+        # Stage 2: Get embedding for the service query
+        embed_start = time.time()
+        try:
+            embedding = await self.embedding_service.embed_query(
+                parsed_query.service_query or query
+            )
+        except Exception as e:
+            logger.error(f"Embedding failed: {e}")
+            embedding = None
+            metrics.degraded = True
+            metrics.degradation_reasons.append("embedding_error")
+        metrics.embed_latency_ms = int((time.time() - embed_start) * 1000)
 
-        # Stage 3: Filter candidates
-        filter_result = await self._filter_candidates(
-            retrieval_result, parsed_query, user_location, metrics
-        )
+        # Stage 3: Instructor-level search with all embedded data
+        # Use asyncio.to_thread to avoid blocking the event loop with sync DB call
+        retrieve_start = time.time()
+        if embedding:
+            try:
+                raw_results = await asyncio.to_thread(
+                    self.retriever_repository.search_with_instructor_data,
+                    embedding,
+                    limit,
+                )
+            except Exception as e:
+                logger.error(f"Instructor search failed: {e}")
+                raw_results = []
+                metrics.degraded = True
+                metrics.degradation_reasons.append("retrieval_error")
+        else:
+            raw_results = []
+        metrics.retrieve_latency_ms = int((time.time() - retrieve_start) * 1000)
 
-        # Stage 4: Rank results
-        ranking_result = self._rank_results(filter_result, parsed_query, user_location, metrics)
+        # Stage 4: Transform to response schema
+        results = self._transform_instructor_results(raw_results, parsed_query)
 
         # Build response
         metrics.total_latency_ms = int((time.time() - metrics.total_start) * 1000)
 
-        response = self._build_response(query, parsed_query, ranking_result, limit, metrics)
+        response = self._build_instructor_response(query, parsed_query, results, limit, metrics)
 
         # Record Prometheus metrics
         record_search_metrics(
             total_latency_ms=metrics.total_latency_ms,
             stage_latencies={
                 "parsing": metrics.parse_latency_ms,
+                "embedding": metrics.embed_latency_ms,
                 "retrieval": metrics.retrieve_latency_ms,
-                "filtering": metrics.filter_latency_ms,
-                "ranking": metrics.rank_latency_ms,
+                "filtering": 0,  # No separate filtering step
+                "ranking": 0,  # Ranking done in SQL
             },
             cache_hit=metrics.cache_hit,
             parsing_mode=parsed_query.parsing_mode,
@@ -167,7 +209,7 @@ class NLSearchService:
         )
 
         # Cache response
-        self._cache_response(query, user_location, response)
+        self._cache_response(query, user_location, response, limit)
 
         return response
 
@@ -175,11 +217,12 @@ class NLSearchService:
         self,
         query: str,
         user_location: Optional[Tuple[float, float]],
+        limit: int,
     ) -> Optional[Dict[str, Any]]:
         """Check for cached response."""
         try:
             result: Optional[Dict[str, Any]] = self.search_cache.get_cached_response(
-                query, user_location
+                query, user_location, limit=limit
             )
             return result
         except Exception as e:
@@ -395,6 +438,7 @@ class NLSearchService:
         # Build metadata
         meta = NLSearchMeta(
             query=query,
+            corrected_query=parsed_query.corrected_query,
             parsed=parsed_info,
             total_results=len(results),
             limit=limit,
@@ -412,6 +456,7 @@ class NLSearchService:
         query: str,
         user_location: Optional[Tuple[float, float]],
         response: NLSearchResponse,
+        limit: int,
     ) -> None:
         """Cache the response."""
         try:
@@ -419,6 +464,149 @@ class NLSearchService:
                 query,
                 response.model_dump(),
                 user_location=user_location,
+                limit=limit,
             )
         except Exception as e:
             logger.warning(f"Failed to cache response: {e}")
+
+    def _transform_instructor_results(
+        self,
+        raw_results: List[Dict[str, Any]],
+        parsed_query: ParsedQuery,
+    ) -> List[NLSearchResultItem]:
+        """
+        Transform raw DB results into instructor-level result items.
+
+        Args:
+            raw_results: Results from search_with_instructor_data
+            parsed_query: Parsed query for price filtering
+
+        Returns:
+            List of NLSearchResultItem objects
+        """
+        results: List[NLSearchResultItem] = []
+
+        for row in raw_results:
+            # Parse matching services from JSON
+            services = row["matching_services"]
+            if not services:
+                continue
+
+            # Apply price filter if specified
+            if parsed_query.max_price:
+                services = [s for s in services if s["price_per_hour"] <= parsed_query.max_price]
+                if not services:
+                    continue
+
+            # Build best match
+            best = services[0]
+            best_match = ServiceMatch(
+                service_id=best["service_id"],
+                service_catalog_id=best["service_catalog_id"],
+                name=best["name"],
+                description=best.get("description"),
+                price_per_hour=int(best["price_per_hour"]),
+                relevance_score=round(float(best["relevance_score"]), 3),
+            )
+
+            # Build other matches (max 3)
+            other_matches = [
+                ServiceMatch(
+                    service_id=s["service_id"],
+                    service_catalog_id=s["service_catalog_id"],
+                    name=s["name"],
+                    description=s.get("description"),
+                    price_per_hour=int(s["price_per_hour"]),
+                    relevance_score=round(float(s["relevance_score"]), 3),
+                )
+                for s in services[1:4]
+            ]
+
+            # Build instructor summary
+            instructor = InstructorSummary(
+                id=row["instructor_id"],
+                first_name=row["first_name"],
+                last_initial=row["last_initial"] or "",
+                profile_picture_url=self._build_photo_url(row.get("profile_picture_key")),
+                bio_snippet=row.get("bio_snippet"),
+                verified=bool(row.get("verified", False)),
+                years_experience=row.get("years_experience"),
+            )
+
+            # Build rating summary
+            rating = RatingSummary(
+                average=round(row["avg_rating"], 2) if row.get("avg_rating") else None,
+                count=row.get("review_count", 0),
+            )
+
+            results.append(
+                NLSearchResultItem(
+                    instructor_id=row["instructor_id"],
+                    instructor=instructor,
+                    rating=rating,
+                    coverage_areas=row.get("coverage_areas", []),
+                    best_match=best_match,
+                    other_matches=other_matches,
+                    total_matching_services=row.get("match_count", 1),
+                    relevance_score=round(row["best_score"], 3),
+                )
+            )
+
+        return results
+
+    def _build_instructor_response(
+        self,
+        query: str,
+        parsed_query: ParsedQuery,
+        results: List[NLSearchResultItem],
+        limit: int,
+        metrics: SearchMetrics,
+    ) -> NLSearchResponse:
+        """
+        Build the final instructor-level response.
+
+        Args:
+            query: Original search query
+            parsed_query: Parsed query details
+            results: Transformed instructor results
+            limit: Requested limit
+            metrics: Search metrics
+
+        Returns:
+            Complete NLSearchResponse
+        """
+        # Build parsed query info
+        parsed_info = ParsedQueryInfo(
+            service_query=parsed_query.service_query,
+            location=parsed_query.location_text,
+            max_price=parsed_query.max_price,
+            date=parsed_query.date.isoformat() if parsed_query.date else None,
+            time_after=parsed_query.time_after,
+            audience_hint=parsed_query.audience_hint,
+            skill_level=parsed_query.skill_level,
+            urgency=parsed_query.urgency,
+        )
+
+        # Build metadata
+        meta = NLSearchMeta(
+            query=query,
+            corrected_query=parsed_query.corrected_query,
+            parsed=parsed_info,
+            total_results=len(results),
+            limit=limit,
+            latency_ms=metrics.total_latency_ms,
+            cache_hit=metrics.cache_hit,
+            degraded=metrics.degraded,
+            degradation_reasons=metrics.degradation_reasons,
+            parsing_mode=parsed_query.parsing_mode,
+        )
+
+        return NLSearchResponse(results=results[:limit], meta=meta)
+
+    def _build_photo_url(self, key: Optional[str]) -> Optional[str]:
+        """Build Cloudflare R2 URL for profile photo."""
+        if not key:
+            return None
+        # Use R2 assets domain from settings
+        assets_domain = getattr(settings, "r2_public_url", "https://assets.instainstru.com")
+        return f"{assets_domain}/{key}"
