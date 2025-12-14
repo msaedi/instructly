@@ -1025,6 +1025,56 @@ class SearchAnalyticsRepository:
         self.db.commit()
         return query_id
 
+    def nl_resolve_click_targets(
+        self,
+        service_id: str,
+        instructor_id: str,
+    ) -> tuple[Optional[str], Optional[str]]:
+        """
+        Resolve instructor-level click IDs to existing FK targets.
+
+        The SearchClick table stores foreign keys to:
+        - service_catalog.id
+        - instructor_profiles.id
+
+        The instructor-level search response and frontend click payloads use:
+        - instructor_services.id (service_id)
+        - users.id (instructor_id)
+
+        This resolves those IDs, while remaining backward-compatible:
+        - If service_id is already a service_catalog.id, accept it.
+        - If instructor_id is already an instructor_profiles.id, accept it.
+        """
+        from ..models.instructor import InstructorProfile
+
+        # Resolve instructor_services.id -> service_catalog.id
+        service_catalog_id: Optional[str] = (
+            self.db.query(InstructorService.service_catalog_id)
+            .filter(InstructorService.id == service_id)
+            .scalar()
+        )
+        if not service_catalog_id:
+            exists = (
+                self.db.query(ServiceCatalog.id).filter(ServiceCatalog.id == service_id).first()
+            )
+            service_catalog_id = service_id if exists else None
+
+        # Resolve users.id -> instructor_profiles.id
+        instructor_profile_id: Optional[str] = (
+            self.db.query(InstructorProfile.id)
+            .filter(InstructorProfile.user_id == instructor_id)
+            .scalar()
+        )
+        if not instructor_profile_id:
+            exists = (
+                self.db.query(InstructorProfile.id)
+                .filter(InstructorProfile.id == instructor_id)
+                .first()
+            )
+            instructor_profile_id = instructor_id if exists else None
+
+        return service_catalog_id, instructor_profile_id
+
     def nl_log_search_click(
         self,
         search_query_id: str,

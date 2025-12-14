@@ -247,6 +247,7 @@ class RetrieverRepository:
         self,
         embedding: List[float],
         limit: int = 20,
+        max_price: int | None = None,
     ) -> List[Dict[str, Any]]:
         """
         Search services and return instructor-grouped results with all embedded data.
@@ -262,6 +263,7 @@ class RetrieverRepository:
         Args:
             embedding: Query embedding vector (1536 dimensions)
             limit: Maximum instructors to return
+            max_price: Optional hard max hourly rate filter (applied at service level)
 
         Returns:
             List of instructor data dicts with embedded profile, ratings, services
@@ -290,6 +292,7 @@ class RetrieverRepository:
                     AND sc.embedding_v2 IS NOT NULL
                     AND ip.is_live = true
                     AND ip.bgc_status = 'passed'
+                    AND (:max_price IS NULL OR ins.hourly_rate <= :max_price)
                 ORDER BY sc.embedding_v2 <=> CAST(:embedding AS vector)
                 LIMIT :search_limit
             ),
@@ -382,6 +385,171 @@ class RetrieverRepository:
                 "embedding": embedding_str,
                 "search_limit": limit * 5,  # Fetch more services initially, then group
                 "limit": limit,
+                "max_price": max_price,
+            },
+        )
+
+        return [
+            {
+                "instructor_id": row.instructor_id,
+                "first_name": row.first_name,
+                "last_initial": row.last_initial,
+                "bio_snippet": row.bio_snippet,
+                "years_experience": row.years_experience,
+                "profile_picture_key": row.profile_picture_key,
+                "verified": row.verified,
+                "matching_services": row.matching_services,
+                "best_score": float(row.best_score),
+                "match_count": int(row.match_count),
+                "avg_rating": float(row.avg_rating) if row.avg_rating else None,
+                "review_count": int(row.review_count),
+                "coverage_areas": list(row.coverage_areas) if row.coverage_areas else [],
+            }
+            for row in result
+        ]
+
+    def search_text_only(
+        self,
+        corrected_query: str,
+        original_query: str,
+        limit: int = 20,
+        max_price: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Text-only fallback search using pg_trgm trigram matching.
+
+        Used when the embedding service is unavailable (OpenAI outage, circuit open, etc).
+
+        Returns instructor-grouped results with embedded data, matching the shape of
+        search_with_instructor_data().
+
+        Args:
+            corrected_query: Typo-corrected query text (typically parsed service_query)
+            original_query: Original query text for robustness
+            limit: Maximum instructors to return
+            max_price: Optional hard max hourly rate filter (applied at service level)
+
+        Returns:
+            List of instructor data dicts with embedded profile, ratings, services
+        """
+        query = text(
+            """
+            WITH matched_services AS (
+                SELECT
+                    ins.id as service_id,
+                    sc.id as service_catalog_id,
+                    sc.name as service_name,
+                    sc.description as service_description,
+                    ins.hourly_rate as price_per_hour,
+                    ip.user_id as instructor_id,
+                    ip.id as profile_id,
+                    GREATEST(
+                        similarity(sc.name, :corrected_query),
+                        similarity(sc.name, :original_query),
+                        similarity(COALESCE(sc.description, ''), :corrected_query) * 0.8
+                    ) as relevance_score
+                FROM instructor_services ins
+                JOIN service_catalog sc ON sc.id = ins.service_catalog_id
+                JOIN instructor_profiles ip ON ip.id = ins.instructor_profile_id
+                WHERE sc.is_active = true
+                  AND ins.is_active = true
+                  AND ip.is_live = true
+                  AND ip.bgc_status = 'passed'
+                  AND (:max_price IS NULL OR ins.hourly_rate <= :max_price)
+                  AND (
+                        sc.name % :corrected_query
+                        OR sc.name % :original_query
+                        OR COALESCE(sc.description, '') % :corrected_query
+                  )
+                ORDER BY relevance_score DESC
+                LIMIT :search_limit
+            ),
+
+            instructor_matches AS (
+                SELECT
+                    instructor_id,
+                    profile_id,
+                    json_agg(
+                        json_build_object(
+                            'service_id', service_id,
+                            'service_catalog_id', service_catalog_id,
+                            'name', service_name,
+                            'description', service_description,
+                            'price_per_hour', price_per_hour,
+                            'relevance_score', relevance_score
+                        ) ORDER BY relevance_score DESC
+                    ) as matching_services,
+                    MAX(relevance_score) as best_score,
+                    COUNT(*) as match_count
+                FROM matched_services
+                GROUP BY instructor_id, profile_id
+            ),
+
+            instructor_data AS (
+                SELECT
+                    im.*,
+                    u.first_name,
+                    COALESCE(LEFT(u.last_name, 1), '') as last_initial,
+                    ip.bio,
+                    ip.years_experience,
+                    u.profile_picture_key,
+                    (ip.identity_verified_at IS NOT NULL) as verified
+                FROM instructor_matches im
+                JOIN instructor_profiles ip ON im.profile_id = ip.id
+                JOIN users u ON ip.user_id = u.id
+            ),
+
+            ratings AS (
+                SELECT
+                    r.instructor_id,
+                    AVG(r.rating)::float as avg_rating,
+                    COUNT(*)::int as review_count
+                FROM reviews r
+                WHERE r.instructor_id IN (SELECT instructor_id FROM instructor_matches)
+                  AND r.status = 'published'
+                GROUP BY r.instructor_id
+            ),
+
+            coverage AS (
+                SELECT
+                    isa.instructor_id,
+                    array_agg(DISTINCT rb.region_name ORDER BY rb.region_name) as areas
+                FROM instructor_service_areas isa
+                JOIN region_boundaries rb ON isa.neighborhood_id = rb.id
+                WHERE isa.instructor_id IN (SELECT instructor_id FROM instructor_matches)
+                GROUP BY isa.instructor_id
+            )
+
+            SELECT
+                id.instructor_id,
+                id.first_name,
+                id.last_initial,
+                LEFT(id.bio, 150) as bio_snippet,
+                id.years_experience,
+                id.profile_picture_key,
+                id.verified,
+                id.matching_services,
+                id.best_score,
+                id.match_count,
+                COALESCE(r.avg_rating, null) as avg_rating,
+                COALESCE(r.review_count, 0) as review_count,
+                COALESCE(c.areas, ARRAY[]::text[]) as coverage_areas
+            FROM instructor_data id
+            LEFT JOIN ratings r ON id.instructor_id = r.instructor_id
+            LEFT JOIN coverage c ON c.instructor_id = id.instructor_id
+            ORDER BY id.best_score DESC
+            LIMIT :limit
+        """
+        )
+
+        result = self.db.execute(
+            query,
+            {
+                "corrected_query": corrected_query,
+                "original_query": original_query,
+                "search_limit": limit * 5,
+                "limit": limit,
+                "max_price": max_price,
             },
         )
 

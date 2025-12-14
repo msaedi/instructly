@@ -68,11 +68,13 @@ class LLMParser:
         result = await parser.parse("piano or guitar lessons tomorrow")
     """
 
-    def __init__(self, db: "Session", user_id: Optional[str] = None) -> None:
+    def __init__(
+        self, db: "Session", user_id: Optional[str] = None, region_code: str = "nyc"
+    ) -> None:
         self.db = db
         self._user_id = user_id
         self._client: Optional[AsyncOpenAI] = None
-        self._regex_parser = QueryParser(db, user_id=user_id)
+        self._regex_parser = QueryParser(db, user_id=user_id, region_code=region_code)
 
     @property
     def client(self) -> AsyncOpenAI:
@@ -219,6 +221,7 @@ class LLMParser:
         """
         result = ParsedQuery(
             original_query=original_query,
+            corrected_query=regex_result.corrected_query,
             service_query=llm_response.service_query or regex_result.service_query,
             parsing_mode="llm",
         )
@@ -327,5 +330,5 @@ async def hybrid_parse(
         return regex_result
 
     # Otherwise, enhance with LLM
-    llm_parser = LLMParser(db, user_id=user_id)
+    llm_parser = LLMParser(db, user_id=user_id, region_code=region_code)
     return await llm_parser.parse(query, regex_result)

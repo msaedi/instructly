@@ -97,7 +97,9 @@ class NLSearchService:
         self._region_code = region_code
 
         # Initialize search cache
-        self.search_cache = search_cache or SearchCacheService(cache_service=cache_service)
+        self.search_cache = search_cache or SearchCacheService(
+            cache_service=cache_service, region_code=region_code
+        )
 
         # Initialize embedding service
         self.embedding_service = embedding_service or EmbeddingService(
@@ -153,6 +155,7 @@ class NLSearchService:
 
         # Stage 2: Get embedding for the service query
         embed_start = time.time()
+        embedding: Optional[List[float]]
         try:
             embedding = await self.embedding_service.embed_query(
                 parsed_query.service_query or query
@@ -162,29 +165,42 @@ class NLSearchService:
             embedding = None
             metrics.degraded = True
             metrics.degradation_reasons.append("embedding_error")
+        if embedding is None:
+            metrics.degraded = True
+            metrics.degradation_reasons.append("embedding_service_unavailable")
         metrics.embed_latency_ms = int((time.time() - embed_start) * 1000)
 
         # Stage 3: Instructor-level search with all embedded data
         # Use asyncio.to_thread to avoid blocking the event loop with sync DB call
         retrieve_start = time.time()
-        if embedding:
-            try:
+        raw_results: List[Dict[str, Any]]
+        try:
+            if embedding:
                 raw_results = await asyncio.to_thread(
                     self.retriever_repository.search_with_instructor_data,
                     embedding,
                     limit,
+                    max_price=parsed_query.max_price,
                 )
-            except Exception as e:
-                logger.error(f"Instructor search failed: {e}")
-                raw_results = []
-                metrics.degraded = True
-                metrics.degradation_reasons.append("retrieval_error")
-        else:
+            else:
+                query_text = (parsed_query.service_query or query).strip()
+                raw_results = await asyncio.to_thread(
+                    self.retriever_repository.search_text_only,
+                    query_text,
+                    query,
+                    limit,
+                    max_price=parsed_query.max_price,
+                )
+        except Exception as e:
+            logger.error(f"Instructor search failed: {e}")
             raw_results = []
+            metrics.degraded = True
+            metrics.degradation_reasons.append("retrieval_error")
         metrics.retrieve_latency_ms = int((time.time() - retrieve_start) * 1000)
 
         # Stage 4: Transform to response schema
         results = self._transform_instructor_results(raw_results, parsed_query)
+        results.sort(key=lambda r: r.relevance_score, reverse=True)
 
         # Build response
         metrics.total_latency_ms = int((time.time() - metrics.total_start) * 1000)
@@ -208,8 +224,9 @@ class NLSearchService:
             degradation_reasons=metrics.degradation_reasons,
         )
 
-        # Cache response
-        self._cache_response(query, user_location, response, limit)
+        # Cache response (skip degraded responses to avoid "sticky" outages)
+        if not metrics.degraded:
+            self._cache_response(query, user_location, response, limit)
 
         return response
 
@@ -222,7 +239,10 @@ class NLSearchService:
         """Check for cached response."""
         try:
             result: Optional[Dict[str, Any]] = self.search_cache.get_cached_response(
-                query, user_location, limit=limit
+                query,
+                user_location,
+                limit=limit,
+                region_code=self._region_code,
             )
             return result
         except Exception as e:
@@ -240,7 +260,9 @@ class NLSearchService:
 
         try:
             # Try cache first
-            cached_parsed = self.search_cache.get_cached_parsed_query(query)
+            cached_parsed = self.search_cache.get_cached_parsed_query(
+                query, region_code=self._region_code
+            )
             if cached_parsed:
                 metrics.parse_latency_ms = int((time.time() - start) * 1000)
                 return cached_parsed
@@ -249,7 +271,7 @@ class NLSearchService:
             parsed = await hybrid_parse(query, self.db, user_id, region_code=self._region_code)
 
             # Cache the parsed query
-            self.search_cache.cache_parsed_query(query, parsed)
+            self.search_cache.cache_parsed_query(query, parsed, region_code=self._region_code)
 
         except Exception as e:
             logger.error(f"Parsing failed, using basic extraction: {e}")
@@ -465,6 +487,7 @@ class NLSearchService:
                 response.model_dump(),
                 user_location=user_location,
                 limit=limit,
+                region_code=self._region_code,
             )
         except Exception as e:
             logger.warning(f"Failed to cache response: {e}")
@@ -497,6 +520,7 @@ class NLSearchService:
                 services = [s for s in services if s["price_per_hour"] <= parsed_query.max_price]
                 if not services:
                     continue
+            match_count = len(services)
 
             # Build best match
             best = services[0]
@@ -547,8 +571,8 @@ class NLSearchService:
                     coverage_areas=row.get("coverage_areas", []),
                     best_match=best_match,
                     other_matches=other_matches,
-                    total_matching_services=row.get("match_count", 1),
-                    relevance_score=round(row["best_score"], 3),
+                    total_matching_services=match_count,
+                    relevance_score=best_match.relevance_score,
                 )
             )
 

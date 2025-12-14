@@ -128,37 +128,36 @@ async def nl_search(
 
         # Log search for analytics (non-blocking, don't fail search on logging error)
         try:
-            if not result.meta.cache_hit:
-                analytics_repo = SearchAnalyticsRepository(db)
-                # Build normalized query from parsed info
-                parsed = result.meta.parsed
-                normalized_query = {
-                    "service_query": parsed.service_query,
-                    "location": parsed.location,
-                    "max_price": parsed.max_price,
-                    "date": parsed.date,
-                    "time_after": parsed.time_after,
-                    "audience_hint": parsed.audience_hint,
-                    "skill_level": parsed.skill_level,
-                    "urgency": parsed.urgency,
-                }
-                top_result_ids = [r.best_match.service_id for r in result.results[:10]]
+            analytics_repo = SearchAnalyticsRepository(db)
+            # Build normalized query from parsed info
+            parsed = result.meta.parsed
+            normalized_query = {
+                "service_query": parsed.service_query,
+                "location": parsed.location,
+                "max_price": parsed.max_price,
+                "date": parsed.date,
+                "time_after": parsed.time_after,
+                "audience_hint": parsed.audience_hint,
+                "skill_level": parsed.skill_level,
+                "urgency": parsed.urgency,
+            }
+            top_result_ids = [r.best_match.service_catalog_id for r in result.results[:10]]
 
-                search_query_id = await asyncio.to_thread(
-                    lambda: analytics_repo.nl_log_search_query(
-                        original_query=q,
-                        normalized_query=normalized_query,
-                        parsing_mode=result.meta.parsing_mode,
-                        parsing_latency_ms=0,  # Not tracked separately in response
-                        result_count=result.meta.total_results,
-                        top_result_ids=top_result_ids,
-                        total_latency_ms=result.meta.latency_ms,
-                        cache_hit=result.meta.cache_hit,
-                        degraded=result.meta.degraded,
-                    )
+            search_query_id = await asyncio.to_thread(
+                lambda: analytics_repo.nl_log_search_query(
+                    original_query=q,
+                    normalized_query=normalized_query,
+                    parsing_mode=result.meta.parsing_mode,
+                    parsing_latency_ms=0,  # Not tracked separately in response
+                    result_count=result.meta.total_results,
+                    top_result_ids=top_result_ids,
+                    total_latency_ms=result.meta.latency_ms,
+                    cache_hit=result.meta.cache_hit,
+                    degraded=result.meta.degraded,
                 )
-                # Update result with search_query_id for click tracking
-                result.meta.search_query_id = search_query_id
+            )
+            # Update result with search_query_id for click tracking
+            result.meta.search_query_id = search_query_id
         except Exception as log_err:
             logger.warning(f"Failed to log search analytics: {log_err}")
 
@@ -269,10 +268,10 @@ async def zero_result_queries(
 
 
 @router.post("/click", response_model=SearchClickResponse)
-async def log_search_click(
+def log_search_click(
     search_query_id: str = Query(..., description="Search query ID from NL search"),
-    service_id: str = Query(..., description="Service ID that was clicked"),
-    instructor_id: str = Query(..., description="Instructor ID that was clicked"),
+    service_id: str = Query(..., description="Service ID that was clicked (instructor_service_id)"),
+    instructor_id: str = Query(..., description="Instructor user ID that was clicked"),
     position: int = Query(..., ge=1, description="Position in search results (1-indexed)"),
     action: str = Query("view", description="Action type: view, book, message, favorite"),
     db: Session = Depends(get_db),
@@ -287,10 +286,21 @@ async def log_search_click(
     from ...repositories.search_analytics_repository import SearchAnalyticsRepository
 
     repo = SearchAnalyticsRepository(db)
-    click_id = repo.nl_log_search_click(
-        search_query_id=search_query_id,
+
+    service_catalog_id, instructor_profile_id = repo.nl_resolve_click_targets(
         service_id=service_id,
         instructor_id=instructor_id,
+    )
+    if not service_catalog_id:
+        raise HTTPException(status_code=400, detail="Invalid service_id")
+
+    if not instructor_profile_id:
+        raise HTTPException(status_code=400, detail="Invalid instructor_id")
+
+    click_id = repo.nl_log_search_click(
+        search_query_id=search_query_id,
+        service_id=service_catalog_id,
+        instructor_id=instructor_profile_id,
         position=position,
         action=action,
     )

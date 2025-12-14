@@ -78,9 +78,12 @@ class SearchCacheService:
     expensive key scanning operations.
     """
 
-    def __init__(self, cache_service: Optional["CacheService"] = None) -> None:
+    def __init__(
+        self, cache_service: Optional["CacheService"] = None, region_code: str = "nyc"
+    ) -> None:
         self._cache = cache_service
         self._version_cache: int = 1  # Local version cache for memory fallback
+        self._region_code = region_code
 
     @property
     def cache(self) -> Optional["CacheService"]:
@@ -97,6 +100,7 @@ class SearchCacheService:
         user_location: Optional[tuple[float, float]] = None,
         filters: Optional[Dict[str, Any]] = None,
         limit: int = 20,
+        region_code: str | None = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Get cached search response.
@@ -106,7 +110,9 @@ class SearchCacheService:
         if not self.cache:
             return None
 
-        key = self._response_cache_key(query, user_location, filters, limit)
+        key = self._response_cache_key(
+            query, user_location, filters, limit, region_code=region_code
+        )
 
         try:
             cached = self.cache.get(key)
@@ -125,6 +131,7 @@ class SearchCacheService:
         user_location: Optional[tuple[float, float]] = None,
         filters: Optional[Dict[str, Any]] = None,
         limit: int = 20,
+        region_code: str | None = None,
     ) -> bool:
         """
         Cache a search response.
@@ -143,7 +150,9 @@ class SearchCacheService:
             logger.debug(f"Skipping response cache for relative date query: {query[:30]}")
             return False
 
-        key = self._response_cache_key(query, user_location, filters, limit)
+        key = self._response_cache_key(
+            query, user_location, filters, limit, region_code=region_code
+        )
 
         try:
             serialized = self._serialize_response(response)
@@ -160,9 +169,11 @@ class SearchCacheService:
         user_location: Optional[tuple[float, float]],
         filters: Optional[Dict[str, Any]],
         limit: int,
+        region_code: str | None = None,
     ) -> str:
         """Generate versioned response cache key."""
         version = self._get_cache_version()
+        region = (region_code or self._region_code).lower().strip()
 
         # Build normalized key data
         # Normalize query: lowercase, strip whitespace, collapse multiple spaces
@@ -172,6 +183,7 @@ class SearchCacheService:
             "loc": f"{user_location[0]:.3f},{user_location[1]:.3f}" if user_location else None,
             "f": json.dumps(filters, sort_keys=True) if filters else None,
             "limit": limit,
+            "region": region,
         }
 
         # Hash the key data
@@ -257,6 +269,7 @@ class SearchCacheService:
     def get_cached_parsed_query(
         self,
         query: str,
+        region_code: str | None = None,
     ) -> Optional["ParsedQuery"]:
         """
         Get cached parsed query.
@@ -266,7 +279,7 @@ class SearchCacheService:
         if not self.cache:
             return None
 
-        key = self._parsed_cache_key(query)
+        key = self._parsed_cache_key(query, region_code=region_code)
 
         try:
             cached = self.cache.get(key)
@@ -282,6 +295,7 @@ class SearchCacheService:
         self,
         query: str,
         parsed: "ParsedQuery",
+        region_code: str | None = None,
     ) -> bool:
         """
         Cache a parsed query.
@@ -300,7 +314,7 @@ class SearchCacheService:
             logger.debug(f"Skipping cache for relative date query: {query[:30]}")
             return False
 
-        key = self._parsed_cache_key(query)
+        key = self._parsed_cache_key(query, region_code=region_code)
 
         try:
             serialized = self._serialize_parsed_query(parsed)
@@ -311,17 +325,19 @@ class SearchCacheService:
             logger.warning(f"Failed to cache parsed query: {e}")
             return False
 
-    def _parsed_cache_key(self, query: str) -> str:
+    def _parsed_cache_key(self, query: str, region_code: str | None = None) -> str:
         """Generate parsed query cache key."""
+        region = (region_code or self._region_code).lower().strip()
         # Normalize: lowercase, collapse multiple spaces
         normalized = " ".join(query.lower().split())
-        key_hash = hashlib.sha256(normalized.encode()).hexdigest()[:16]
-        return f"{PARSED_PREFIX}:{key_hash}"
+        key_hash = hashlib.sha256(f"{region}:{normalized}".encode()).hexdigest()[:16]
+        return f"{PARSED_PREFIX}:{region}:{key_hash}"
 
     def _serialize_parsed_query(self, parsed: "ParsedQuery") -> str:
         """Serialize ParsedQuery for caching."""
         data = {
             "original_query": parsed.original_query,
+            "corrected_query": parsed.corrected_query,
             "service_query": parsed.service_query,
             "max_price": parsed.max_price,
             "min_price": parsed.min_price,
@@ -358,6 +374,7 @@ class SearchCacheService:
 
         return ParsedQuery(
             original_query=data["original_query"],
+            corrected_query=data.get("corrected_query"),
             service_query=data["service_query"],
             max_price=data.get("max_price"),
             min_price=data.get("min_price"),
@@ -391,6 +408,7 @@ class SearchCacheService:
     def get_cached_location(
         self,
         location_text: str,
+        region_code: str | None = None,
     ) -> Optional[CachedLocation]:
         """
         Get cached location coordinates.
@@ -400,7 +418,7 @@ class SearchCacheService:
         if not self.cache:
             return None
 
-        key = self._location_cache_key(location_text)
+        key = self._location_cache_key(location_text, region_code=region_code)
 
         try:
             cached = self.cache.get(key)
@@ -420,6 +438,7 @@ class SearchCacheService:
         self,
         location_text: str,
         location: CachedLocation,
+        region_code: str | None = None,
     ) -> bool:
         """
         Cache location coordinates.
@@ -429,7 +448,7 @@ class SearchCacheService:
         if not self.cache:
             return False
 
-        key = self._location_cache_key(location_text)
+        key = self._location_cache_key(location_text, region_code=region_code)
 
         try:
             serialized = json.dumps(asdict(location))
@@ -440,10 +459,11 @@ class SearchCacheService:
             logger.warning(f"Failed to cache location: {e}")
             return False
 
-    def _location_cache_key(self, location_text: str) -> str:
+    def _location_cache_key(self, location_text: str, region_code: str | None = None) -> str:
         """Generate location cache key."""
+        region = (region_code or self._region_code).lower().strip()
         normalized = location_text.lower().strip()
-        return f"{LOCATION_PREFIX}:{normalized}"
+        return f"{LOCATION_PREFIX}:{region}:{normalized}"
 
     # =========================================================================
     # Cache Warming

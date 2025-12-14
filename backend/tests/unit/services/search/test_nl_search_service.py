@@ -375,6 +375,98 @@ class TestBuildInstructorResponse:
         assert response.meta.parsing_mode == "llm"
 
 
+class TestTransformInstructorResults:
+    """Tests for transforming raw instructor results into response schema."""
+
+    def test_recomputes_best_match_after_price_filter(self, mock_db: Mock) -> None:
+        """
+        Price filtering must update best_match + relevance_score.
+
+        Regression test for ranking correctness: if an instructor's top-scoring
+        service is filtered out by max_price, the instructor must be ranked by
+        the best remaining affordable service (not the filtered one).
+        """
+        service = NLSearchService(mock_db)
+        parsed = ParsedQuery(
+            original_query="jazz improv under $60",
+            service_query="jazz improv",
+            max_price=60,
+            parsing_mode="regex",
+        )
+
+        raw_results: List[Dict[str, Any]] = [
+            {
+                "instructor_id": "usr_A",
+                "first_name": "Alice",
+                "last_initial": "A",
+                "bio_snippet": "Jazz teacher",
+                "years_experience": 10,
+                "profile_picture_key": None,
+                "verified": True,
+                "matching_services": [
+                    {
+                        "service_id": "svc_expensive",
+                        "service_catalog_id": "cat_expensive",
+                        "name": "Jazz Improv",
+                        "description": "Advanced improv",
+                        "price_per_hour": 150,
+                        "relevance_score": 0.95,
+                    },
+                    {
+                        "service_id": "svc_affordable",
+                        "service_catalog_id": "cat_affordable",
+                        "name": "Basic Guitar",
+                        "description": "Guitar basics",
+                        "price_per_hour": 50,
+                        "relevance_score": 0.40,
+                    },
+                ],
+                "best_score": 0.95,
+                "match_count": 2,
+                "avg_rating": 4.9,
+                "review_count": 25,
+                "coverage_areas": ["Manhattan"],
+            },
+            {
+                "instructor_id": "usr_B",
+                "first_name": "Bob",
+                "last_initial": "B",
+                "bio_snippet": "Affordable jazz teacher",
+                "years_experience": 5,
+                "profile_picture_key": None,
+                "verified": False,
+                "matching_services": [
+                    {
+                        "service_id": "svc_b1",
+                        "service_catalog_id": "cat_b1",
+                        "name": "Jazz Basics",
+                        "description": "Intro improv",
+                        "price_per_hour": 55,
+                        "relevance_score": 0.50,
+                    },
+                ],
+                "best_score": 0.50,
+                "match_count": 1,
+                "avg_rating": 4.7,
+                "review_count": 10,
+                "coverage_areas": ["Brooklyn"],
+            },
+        ]
+
+        results = service._transform_instructor_results(raw_results, parsed)
+        results.sort(key=lambda r: r.relevance_score, reverse=True)
+
+        assert [r.instructor_id for r in results] == ["usr_B", "usr_A"]
+
+        assert results[0].best_match.service_id == "svc_b1"
+        assert results[0].relevance_score == 0.5
+
+        assert results[1].best_match.service_id == "svc_affordable"
+        assert results[1].relevance_score == 0.4
+        assert results[1].total_matching_services == 1
+        assert results[1].other_matches == []
+
+
 class TestSearchPipeline:
     """Tests for full search pipeline."""
 
@@ -458,6 +550,34 @@ class TestSearchPipeline:
             assert isinstance(response, NLSearchResponse)
             assert len(response.results) == 2
             assert response.results[0].instructor_id == "usr_001"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_text_only_when_embedding_unavailable(
+        self,
+        mock_db: Mock,
+        mock_search_cache: Mock,
+        sample_parsed_query: ParsedQuery,
+        sample_raw_db_results: List[Dict[str, Any]],
+    ) -> None:
+        """Should use text-only search when embedding service returns None."""
+        mock_search_cache.get_cached_response = Mock(return_value=None)
+        mock_search_cache.get_cached_parsed_query = Mock(return_value=None)
+
+        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service.embedding_service.embed_query = AsyncMock(return_value=None)
+        service.retriever_repository.search_text_only = Mock(return_value=sample_raw_db_results)
+
+        with patch.object(NLSearchService, "_parse_query", new_callable=AsyncMock) as mock_parse:
+            mock_parse.return_value = sample_parsed_query
+
+            response = await service.search("piano lessons")
+
+        assert isinstance(response, NLSearchResponse)
+        assert response.meta.degraded is True
+        assert "embedding_service_unavailable" in response.meta.degradation_reasons
+        assert len(response.results) == 2
+        service.retriever_repository.search_text_only.assert_called_once()
+        mock_search_cache.cache_response.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_handles_parsing_failure(
