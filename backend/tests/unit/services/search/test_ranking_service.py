@@ -96,6 +96,7 @@ def sample_candidates() -> List[FilteredCandidate]:
     return [
         FilteredCandidate(
             service_id="svc_001",
+            service_catalog_id="cat_001",
             instructor_id="inst_001",
             hybrid_score=0.9,
             name="Piano for Kids",
@@ -106,6 +107,7 @@ def sample_candidates() -> List[FilteredCandidate]:
         ),
         FilteredCandidate(
             service_id="svc_002",
+            service_catalog_id="cat_002",
             instructor_id="inst_002",
             hybrid_score=0.8,
             name="Guitar Lessons",
@@ -452,6 +454,7 @@ class TestRankingIntegration:
         """Soft filter metadata should be preserved in ranked results."""
         soft_filtered_candidate = FilteredCandidate(
             service_id="svc_soft",
+            service_catalog_id="cat_soft",
             instructor_id="inst_001",
             hybrid_score=0.85,
             name="Soft Piano",

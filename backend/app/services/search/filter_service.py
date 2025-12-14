@@ -9,7 +9,7 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import date, time
 import logging
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from app.repositories.filter_repository import FilterRepository
 from app.services.search.location_resolver import LocationResolver, ResolvedLocation
@@ -33,6 +33,7 @@ class FilteredCandidate:
     """A candidate that passed filtering."""
 
     service_id: str
+    service_catalog_id: str
     instructor_id: str
     hybrid_score: float
 
@@ -61,6 +62,7 @@ class FilterResult:
     filters_applied: List[str] = field(default_factory=list)
     soft_filtering_used: bool = False
     location_resolution: Optional[ResolvedLocation] = None
+    filter_stats: Dict[str, int] = field(default_factory=dict)
 
 
 class FilterService:
@@ -122,11 +124,13 @@ class FilterService:
     ) -> FilterResult:
         total_before = len(candidates)
         filters_applied: List[str] = []
+        filter_stats: Dict[str, int] = {"initial_candidates": total_before}
 
         # Convert candidates to working list
         working = [
             FilteredCandidate(
                 service_id=c.service_id,
+                service_catalog_id=c.service_catalog_id,
                 instructor_id=c.instructor_id,
                 hybrid_score=c.hybrid_score,
                 name=c.name,
@@ -140,6 +144,7 @@ class FilterService:
         if parsed_query.max_price:
             working = self._filter_price(working, parsed_query.max_price)
             filters_applied.append("price")
+            filter_stats["after_price"] = len(working)
 
         # Step 2: Location filter
         location_resolution: Optional[ResolvedLocation] = None
@@ -147,6 +152,7 @@ class FilterService:
         if resolved_location:
             working = self._filter_location(working, resolved_location)
             filters_applied.append("location")
+            filter_stats["after_location"] = len(working)
         elif parsed_query.location_text and parsed_query.location_type != "near_me":
             location_resolution = self.location_resolver.resolve(
                 parsed_query.location_text,
@@ -163,9 +169,11 @@ class FilterService:
                 if location_resolution.region_id:
                     working = self._filter_location_region(working, location_resolution.region_id)
                     filters_applied.append("location")
+                    filter_stats["after_location"] = len(working)
                 elif location_resolution.borough:
                     working = self._filter_location_borough(working, location_resolution.borough)
                     filters_applied.append("location")
+                    filter_stats["after_location"] = len(working)
             else:
                 logger.info(
                     "Unresolved location '%s' (region=%s); skipping location filter",
@@ -182,6 +190,7 @@ class FilterService:
         if parsed_query.date or parsed_query.date_range_start or parsed_query.time_after:
             working = self._filter_availability(working, parsed_query, default_duration)
             filters_applied.append("availability")
+            filter_stats["after_availability"] = len(working)
 
         # Step 4: Soft filtering if too few results
         soft_filtering_used = False
@@ -191,7 +200,9 @@ class FilterService:
                 candidates, parsed_query, resolved_location, default_duration
             )
             soft_filtering_used = True
+            filter_stats["after_soft_filtering"] = len(working)
 
+        filter_stats["final_candidates"] = len(working)
         return FilterResult(
             candidates=working,
             total_before_filter=total_before,
@@ -199,6 +210,7 @@ class FilterService:
             filters_applied=filters_applied,
             soft_filtering_used=soft_filtering_used,
             location_resolution=location_resolution,
+            filter_stats=filter_stats,
         )
 
     def _filter_price(
@@ -384,6 +396,7 @@ class FilterService:
         working = [
             FilteredCandidate(
                 service_id=c.service_id,
+                service_catalog_id=c.service_catalog_id,
                 instructor_id=c.instructor_id,
                 hybrid_score=c.hybrid_score,
                 name=c.name,

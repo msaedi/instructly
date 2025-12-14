@@ -99,6 +99,7 @@ def sample_candidates() -> list[ServiceCandidate]:
     return [
         ServiceCandidate(
             service_id="svc_001",
+            service_catalog_id="cat_001",
             hybrid_score=0.95,
             vector_score=0.95,
             text_score=0.90,
@@ -109,6 +110,7 @@ def sample_candidates() -> list[ServiceCandidate]:
         ),
         ServiceCandidate(
             service_id="svc_002",
+            service_catalog_id="cat_002",
             hybrid_score=0.85,
             vector_score=0.80,
             text_score=0.85,
@@ -119,6 +121,7 @@ def sample_candidates() -> list[ServiceCandidate]:
         ),
         ServiceCandidate(
             service_id="svc_003",
+            service_catalog_id="cat_003",
             hybrid_score=0.75,
             vector_score=0.70,
             text_score=0.75,
@@ -129,6 +132,7 @@ def sample_candidates() -> list[ServiceCandidate]:
         ),
         ServiceCandidate(
             service_id="svc_004",
+            service_catalog_id="cat_004",
             hybrid_score=0.65,
             vector_score=0.60,
             text_score=0.65,
@@ -139,6 +143,7 @@ def sample_candidates() -> list[ServiceCandidate]:
         ),
         ServiceCandidate(
             service_id="svc_005",
+            service_catalog_id="cat_005",
             hybrid_score=0.55,
             vector_score=0.50,
             text_score=0.55,
@@ -149,6 +154,7 @@ def sample_candidates() -> list[ServiceCandidate]:
         ),
         ServiceCandidate(
             service_id="svc_006",
+            service_catalog_id="cat_006",
             hybrid_score=0.45,
             vector_score=0.40,
             text_score=0.45,
@@ -484,6 +490,7 @@ class TestSoftFiltering:
         candidates = [
             ServiceCandidate(
                 service_id=f"svc_{i}",
+                service_catalog_id=f"cat_{i}",
                 hybrid_score=0.9 - i * 0.1,
                 vector_score=0.9 - i * 0.1,
                 text_score=None,
@@ -523,6 +530,7 @@ class TestSoftFiltering:
         candidates = [
             ServiceCandidate(
                 service_id="svc_001",
+                service_catalog_id="cat_001",
                 hybrid_score=0.9,
                 vector_score=0.9,
                 text_score=None,
@@ -563,6 +571,7 @@ class TestSoftFiltering:
         candidates = [
             ServiceCandidate(
                 service_id="svc_001",
+                service_catalog_id="cat_001",
                 hybrid_score=1.0,
                 vector_score=1.0,
                 text_score=None,
@@ -719,6 +728,7 @@ class TestFilteredCandidate:
         """Should create filtered candidate with all fields."""
         candidate = FilteredCandidate(
             service_id="svc_001",
+            service_catalog_id="cat_001",
             instructor_id="inst_001",
             hybrid_score=0.85,
             name="Piano Lessons",
@@ -741,6 +751,7 @@ class TestFilteredCandidate:
         """Should track soft filter reasons."""
         candidate = FilteredCandidate(
             service_id="svc_001",
+            service_catalog_id="cat_001",
             instructor_id="inst_001",
             hybrid_score=0.85,
             name="Piano Lessons",

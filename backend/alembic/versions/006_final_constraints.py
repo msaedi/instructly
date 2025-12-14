@@ -174,6 +174,18 @@ def upgrade() -> None:
                     "and re-run migrations. Original error: %s" % str(e)
                 )
 
+        # pg_trgm is required for trigram text search and fuzzy matching (idempotent)
+        print("Checking/Enabling pg_trgm extension (if not already enabled)...")
+        try:
+            _create_extension_prefer_extensions_schema("pg_trgm")
+            print("pg_trgm extension ensured")
+        except Exception as e:
+            raise RuntimeError(
+                "pg_trgm extension is not enabled on this PostgreSQL instance. "
+                "Enable it (e.g., 'CREATE EXTENSION pg_trgm;') and re-run migrations. "
+                "Original error: %s" % str(e)
+            )
+
     print("Creating platform_config table...")
     json_type = JSONB(astext_type=sa.Text()) if is_postgres else sa.JSON()
     op.create_table(
@@ -1394,6 +1406,21 @@ def upgrade() -> None:
             """
         )
 
+        # Trigram indexes for pg_trgm text search (name + description)
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_service_catalog_name_trgm
+            ON service_catalog USING gin (name gin_trgm_ops);
+            """
+        )
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_service_catalog_description_trgm
+            ON service_catalog USING gin (description gin_trgm_ops)
+            WHERE description IS NOT NULL;
+            """
+        )
+
     # --- 2. Add ranking signal columns to instructor_profiles ---
     print("Adding ranking signal columns to instructor_profiles...")
     op.add_column(
@@ -1983,6 +2010,8 @@ def downgrade() -> None:
     # Drop embedding_v2 columns from service_catalog
     if is_postgres:
         print("Dropping OpenAI embedding columns from service_catalog...")
+        op.execute("DROP INDEX IF EXISTS idx_service_catalog_description_trgm;")
+        op.execute("DROP INDEX IF EXISTS idx_service_catalog_name_trgm;")
         op.execute("DROP INDEX IF EXISTS idx_service_catalog_embedding_model;")
         op.execute("DROP INDEX IF EXISTS idx_service_catalog_embedding_v2;")
         op.drop_column("service_catalog", "embedding_text_hash")

@@ -59,6 +59,7 @@ class RankedResult:
 
     # Identity
     service_id: str
+    service_catalog_id: str
     instructor_id: str
 
     # Service data
@@ -280,6 +281,7 @@ class RankingService:
 
         return RankedResult(
             service_id=candidate.service_id,
+            service_catalog_id=candidate.service_catalog_id,
             instructor_id=candidate.instructor_id,
             name=candidate.name,
             description=candidate.description,

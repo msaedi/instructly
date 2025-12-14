@@ -482,6 +482,7 @@ class TestHydrateInstructorResults:
         ranked = [
             RankedResult(
                 service_id="svc_a1",
+                service_catalog_id="cat_a1",
                 instructor_id="usr_A",
                 name="Guitar",
                 description=None,
@@ -497,6 +498,7 @@ class TestHydrateInstructorResults:
             ),
             RankedResult(
                 service_id="svc_b1",
+                service_catalog_id="cat_b1",
                 instructor_id="usr_B",
                 name="Piano",
                 description=None,
@@ -512,6 +514,7 @@ class TestHydrateInstructorResults:
             ),
             RankedResult(
                 service_id="svc_a2",
+                service_catalog_id="cat_a2",
                 instructor_id="usr_A",
                 name="Jazz Guitar",
                 description=None,
@@ -527,44 +530,7 @@ class TestHydrateInstructorResults:
             ),
         ]
 
-        service.retriever_repository.get_services_by_ids = Mock(
-            return_value=[
-                {
-                    "id": "svc_a1",
-                    "catalog_id": "cat_a1",
-                    "name": "Guitar",
-                    "description": None,
-                    "price_per_hour": 100,
-                    "instructor_id": "usr_A",
-                    "duration_options": None,
-                    "levels_taught": None,
-                    "age_groups": None,
-                },
-                {
-                    "id": "svc_a2",
-                    "catalog_id": "cat_a2",
-                    "name": "Jazz Guitar",
-                    "description": None,
-                    "price_per_hour": 120,
-                    "instructor_id": "usr_A",
-                    "duration_options": None,
-                    "levels_taught": None,
-                    "age_groups": None,
-                },
-                {
-                    "id": "svc_b1",
-                    "catalog_id": "cat_b1",
-                    "name": "Piano",
-                    "description": None,
-                    "price_per_hour": 80,
-                    "instructor_id": "usr_B",
-                    "duration_options": None,
-                    "levels_taught": None,
-                    "age_groups": None,
-                },
-            ]
-        )
-        service.retriever_repository.get_instructor_summaries = Mock(
+        service.retriever_repository.get_instructor_cards = Mock(
             return_value=[
                 {
                     "instructor_id": "usr_A",
@@ -574,6 +540,9 @@ class TestHydrateInstructorResults:
                     "years_experience": 10,
                     "profile_picture_key": "photos/usr_A.jpg",
                     "verified": True,
+                    "avg_rating": 4.9,
+                    "review_count": 50,
+                    "coverage_areas": ["Brooklyn"],
                 },
                 {
                     "instructor_id": "usr_B",
@@ -583,19 +552,10 @@ class TestHydrateInstructorResults:
                     "years_experience": 5,
                     "profile_picture_key": None,
                     "verified": False,
+                    "avg_rating": 4.7,
+                    "review_count": 10,
+                    "coverage_areas": ["Manhattan"],
                 },
-            ]
-        )
-        service.retriever_repository.get_instructor_ratings = Mock(
-            return_value=[
-                {"instructor_id": "usr_A", "avg_rating": 4.9, "review_count": 50},
-                {"instructor_id": "usr_B", "avg_rating": 4.7, "review_count": 10},
-            ]
-        )
-        service.retriever_repository.get_instructor_coverage_areas = Mock(
-            return_value=[
-                {"instructor_id": "usr_A", "coverage_areas": ["Brooklyn"]},
-                {"instructor_id": "usr_B", "coverage_areas": ["Manhattan"]},
             ]
         )
 
@@ -659,6 +619,7 @@ class TestSearchPipeline:
             candidates=[
                 ServiceCandidate(
                     service_id="svc_001",
+                    service_catalog_id="cat_001",
                     hybrid_score=0.9,
                     vector_score=0.9,
                     text_score=0.8,

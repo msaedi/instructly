@@ -338,6 +338,7 @@ class TestScoreFusion:
             "svc_001": (
                 0.9,
                 {
+                    "service_catalog_id": "cat_001",
                     "name": "Test",
                     "description": None,
                     "price_per_hour": 50,
@@ -359,6 +360,7 @@ class TestScoreFusion:
             "svc_001": (
                 0.8,
                 {
+                    "service_catalog_id": "cat_001",
                     "name": "Test",
                     "description": None,
                     "price_per_hour": 50,
@@ -377,6 +379,7 @@ class TestScoreFusion:
     def test_fuse_overlapping_results(self, retriever: PostgresRetriever) -> None:
         """Should combine scores for overlapping results."""
         service_data = {
+            "service_catalog_id": "cat_001",
             "name": "Test",
             "description": "A test",
             "price_per_hour": 60,
@@ -399,6 +402,7 @@ class TestScoreFusion:
             f"svc_{i}": (
                 0.9 - i * 0.1,
                 {
+                    "service_catalog_id": f"cat_{i}",
                     "name": f"Test {i}",
                     "description": None,
                     "price_per_hour": 50,
@@ -423,6 +427,7 @@ class TestServiceCandidate:
         """Should create candidate with all fields."""
         candidate = ServiceCandidate(
             service_id="svc_001",
+            service_catalog_id="cat_001",
             hybrid_score=0.85,
             vector_score=0.9,
             text_score=0.8,
@@ -445,6 +450,7 @@ class TestServiceCandidate:
         """Should allow None for optional scores."""
         candidate = ServiceCandidate(
             service_id="svc_001",
+            service_catalog_id="cat_001",
             hybrid_score=0.72,
             vector_score=None,
             text_score=0.9,
@@ -467,6 +473,7 @@ class TestRetrievalResult:
         candidates = [
             ServiceCandidate(
                 service_id="svc_001",
+                service_catalog_id="cat_001",
                 hybrid_score=0.9,
                 vector_score=0.9,
                 text_score=0.8,

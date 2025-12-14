@@ -150,6 +150,15 @@ class NLSearchMeta(BaseModel):
     )
     parsing_mode: str = Field("regex", description="Parsing mode used (regex/llm)")
     search_query_id: Optional[str] = Field(None, description="Search query ID for click tracking")
+    filters_applied: List[str] = Field(
+        default_factory=list, description="Filters applied during constraint filtering"
+    )
+    soft_filtering_used: bool = Field(
+        False, description="Whether soft filtering/relaxation was applied"
+    )
+    filter_stats: Optional[Dict[str, int]] = Field(
+        None, description="Filter stage counts for debugging (optional)"
+    )
 
 
 class NLSearchResponse(BaseModel):

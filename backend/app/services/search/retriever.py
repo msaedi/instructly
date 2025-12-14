@@ -13,9 +13,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import logging
+import os
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, Tuple
 
 from app.repositories.retriever_repository import RetrieverRepository
+from app.services.search.config import get_search_config
 from app.services.search.embedding_service import EmbeddingService
 
 # Type alias for service data dictionary
@@ -38,6 +41,16 @@ VECTOR_TOP_K = 30
 TEXT_TOP_K = 30
 MAX_CANDIDATES = 60
 
+# Skip embedding/vector search when trigram text search is already strong enough.
+TEXT_SKIP_VECTOR_SCORE_THRESHOLD = float(
+    os.getenv("NL_SEARCH_TEXT_SKIP_VECTOR_SCORE_THRESHOLD", "0.60")
+)
+TEXT_SKIP_VECTOR_MIN_RESULTS = int(os.getenv("NL_SEARCH_TEXT_SKIP_VECTOR_MIN_RESULTS", "10"))
+
+# Soft budget: if embeddings are slow, fall back to text-only to protect latency.
+# This is capped by OPENAI_EMBEDDING_TIMEOUT_MS / SearchConfig.embedding_timeout_ms.
+EMBEDDING_SOFT_TIMEOUT_MS = int(os.getenv("NL_SEARCH_EMBEDDING_SOFT_TIMEOUT_MS", "300"))
+
 
 @dataclass
 class ServiceCandidate:
@@ -48,6 +61,7 @@ class ServiceCandidate:
     """
 
     service_id: str  # instructor_service.id
+    service_catalog_id: str  # service_catalog.id (for click tracking / schema)
     hybrid_score: float  # Combined score (0-1)
     vector_score: Optional[float]  # Semantic similarity (0-1), None if text-only
     text_score: Optional[float]  # Trigram similarity (0-1), None if not matched
@@ -68,6 +82,12 @@ class RetrievalResult:
     vector_search_used: bool  # False if degraded to text-only
     degraded: bool  # True if any degradation occurred
     degradation_reason: Optional[str]
+
+    # Timing breakdown (ms) for observability
+    embed_latency_ms: int = 0
+    db_latency_ms: int = 0
+    text_search_latency_ms: int = 0
+    vector_search_latency_ms: int = 0
 
 
 class Retriever(Protocol):
@@ -125,6 +145,12 @@ class PostgresRetriever:
         Returns:
             RetrievalResult with scored candidates
         """
+        start_total = time.perf_counter()
+        embed_latency_ms = 0
+        db_latency_ms = 0
+        text_latency_ms = 0
+        vector_latency_ms = 0
+
         service_query = parsed_query.service_query
         original_query = parsed_query.original_query
 
@@ -137,58 +163,104 @@ class PostgresRetriever:
         vector_results: Dict[str, Tuple[float, ServiceData]] = {}
         text_results: Dict[str, Tuple[float, ServiceData]] = {}
 
-        # Step 0: Check if any embeddings exist in the database
-        embedding_count = await asyncio.to_thread(self.repository.count_embeddings)
-        if embedding_count == 0:
-            logger.warning("No embeddings in database - falling back to text-only search")
-            text_results = await asyncio.to_thread(
-                self._text_search, service_query, original_query, top_k
-            )
+        # Step 1: Always run trigram text search first (fast path for common queries)
+        text_start = time.perf_counter()
+        text_results = await asyncio.to_thread(
+            self._text_search, service_query, original_query, min(TEXT_TOP_K, top_k)
+        )
+        text_latency_ms = int((time.perf_counter() - text_start) * 1000)
+
+        # If trigram results are strong enough, skip embeddings/vector search entirely.
+        best_text_score = max((score for score, _ in text_results.values()), default=0.0)
+        if (
+            len(text_results) >= TEXT_SKIP_VECTOR_MIN_RESULTS
+            and best_text_score >= TEXT_SKIP_VECTOR_SCORE_THRESHOLD
+        ):
             candidates = self._fuse_scores({}, text_results, top_k)
+            db_latency_ms = int((time.perf_counter() - start_total) * 1000)
+            return RetrievalResult(
+                candidates=candidates,
+                total_candidates=len(candidates),
+                vector_search_used=False,
+                degraded=False,
+                degradation_reason=None,
+                embed_latency_ms=0,
+                db_latency_ms=db_latency_ms,
+                text_search_latency_ms=text_latency_ms,
+                vector_search_latency_ms=0,
+            )
+
+        # Step 2: Only attempt embeddings/vector search when the DB has embeddings.
+        embedding_check_start = time.perf_counter()
+        has_embeddings = await asyncio.to_thread(self.repository.has_embeddings)
+        embedding_check_ms = int((time.perf_counter() - embedding_check_start) * 1000)
+
+        if not has_embeddings:
+            logger.warning("No embeddings in database - falling back to text-only search")
+            candidates = self._fuse_scores({}, text_results, top_k)
+            db_latency_ms = text_latency_ms + embedding_check_ms
             return RetrievalResult(
                 candidates=candidates,
                 total_candidates=len(candidates),
                 vector_search_used=False,
                 degraded=True,
                 degradation_reason="no_embeddings_in_database",
+                embed_latency_ms=0,
+                db_latency_ms=db_latency_ms,
+                text_search_latency_ms=text_latency_ms,
+                vector_search_latency_ms=0,
             )
 
-        # Step 1: Try to get query embedding
-        query_embedding = await self.embedding_service.embed_query(service_query)
+        # Step 3: Get query embedding (soft time-budgeted for UX)
+        embed_start = time.perf_counter()
+        try:
+            config_timeout_ms = max(0, int(get_search_config().embedding_timeout_ms))
+            soft_timeout_ms = max(0, EMBEDDING_SOFT_TIMEOUT_MS)
+            timeout_ms = (
+                min(config_timeout_ms, soft_timeout_ms) if soft_timeout_ms else config_timeout_ms
+            )
+            timeout_s = (timeout_ms / 1000.0) if timeout_ms else None
 
-        # Step 2: Run searches
-
-        if query_embedding:
-            # Run both searches in a worker thread to avoid blocking the event loop.
-            # Keep them in the same thread to avoid using the Session across threads concurrently.
-            def _run_hybrid_queries() -> (
-                tuple[Dict[str, Tuple[float, ServiceData]], Dict[str, Tuple[float, ServiceData]]]
-            ):
-                return (
-                    self._vector_search(query_embedding, VECTOR_TOP_K),
-                    self._text_search(service_query, original_query, TEXT_TOP_K),
+            if timeout_s:
+                query_embedding = await asyncio.wait_for(
+                    self.embedding_service.embed_query(service_query), timeout=timeout_s
                 )
+            else:
+                query_embedding = await self.embedding_service.embed_query(service_query)
+        except asyncio.TimeoutError:
+            query_embedding = None
+            degraded = True
+            degradation_reason = "embedding_timeout"
+        embed_latency_ms = int((time.perf_counter() - embed_start) * 1000)
 
-            vector_results, text_results = await asyncio.to_thread(_run_hybrid_queries)
+        # Step 4: Run vector search if embedding available, otherwise return text-only.
+        if query_embedding:
+            vector_start = time.perf_counter()
+            vector_results = await asyncio.to_thread(
+                self._vector_search, query_embedding, min(VECTOR_TOP_K, top_k)
+            )
+            vector_latency_ms = int((time.perf_counter() - vector_start) * 1000)
             vector_search_used = True
         else:
-            # Degraded mode: text-only search
-            logger.warning("Embedding unavailable, using text-only search")
-            text_results = await asyncio.to_thread(
-                self._text_search, service_query, original_query, top_k
-            )
-            degraded = True
-            degradation_reason = "embedding_service_unavailable"
+            if not degraded:
+                logger.warning("Embedding unavailable, using text-only search")
+                degraded = True
+                degradation_reason = "embedding_service_unavailable"
 
         # Step 3: Fuse scores
         candidates = self._fuse_scores(vector_results, text_results, top_k)
 
+        db_latency_ms = text_latency_ms + vector_latency_ms + embedding_check_ms
         return RetrievalResult(
             candidates=candidates,
             total_candidates=len(candidates),
             vector_search_used=vector_search_used,
             degraded=degraded,
             degradation_reason=degradation_reason,
+            embed_latency_ms=embed_latency_ms,
+            db_latency_ms=db_latency_ms,
+            text_search_latency_ms=text_latency_ms,
+            vector_search_latency_ms=vector_latency_ms,
         )
 
     def _vector_search(
@@ -207,6 +279,7 @@ class PostgresRetriever:
             str(row["id"]): (
                 float(row["vector_score"]),
                 {
+                    "service_catalog_id": row["catalog_id"],
                     "name": row["name"],
                     "description": row["description"],
                     "price_per_hour": row["price_per_hour"],
@@ -233,6 +306,7 @@ class PostgresRetriever:
             str(row["id"]): (
                 float(row["text_score"]),
                 {
+                    "service_catalog_id": row["catalog_id"],
                     "name": row["name"],
                     "description": row["description"],
                     "price_per_hour": row["price_per_hour"],
@@ -290,6 +364,7 @@ class PostgresRetriever:
             candidates.append(
                 ServiceCandidate(
                     service_id=service_id,
+                    service_catalog_id=str(service_data["service_catalog_id"]),
                     hybrid_score=hybrid_score,
                     vector_score=vector_score,
                     text_score=text_score,
@@ -334,6 +409,7 @@ class PostgresRetriever:
         candidates = [
             ServiceCandidate(
                 service_id=service_id,
+                service_catalog_id=str(data["service_catalog_id"]),
                 hybrid_score=score * SINGLE_SOURCE_PENALTY,
                 vector_score=None,
                 text_score=score,

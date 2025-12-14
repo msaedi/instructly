@@ -193,7 +193,9 @@ class NLSearchService:
         # Build response
         metrics.total_latency_ms = int((time.time() - metrics.total_start) * 1000)
 
-        response = self._build_instructor_response(query, parsed_query, results, limit, metrics)
+        response = self._build_instructor_response(
+            query, parsed_query, results, limit, metrics, filter_result=filter_result
+        )
 
         # Record Prometheus metrics
         record_search_metrics(
@@ -256,7 +258,6 @@ class NLSearchService:
 
         # Pick best_match + other_matches by relevance_score (semantic match) per instructor.
         chosen_by_instructor: Dict[str, List[RankedResult]] = {}
-        selected_service_ids: List[str] = []
         for instructor_id in ordered_instructor_ids:
             services = sorted(
                 by_instructor[instructor_id], key=lambda x: x.relevance_score, reverse=True
@@ -265,51 +266,24 @@ class NLSearchService:
             if not chosen:
                 continue
             chosen_by_instructor[instructor_id] = chosen
-            selected_service_ids.extend([s.service_id for s in chosen])
-
-        # Hydrate services (includes service_catalog_id) for selected service_ids
-        service_rows = await asyncio.to_thread(
-            self.retriever_repository.get_services_by_ids,
-            list({sid for sid in selected_service_ids}),
-        )
-        service_by_id: Dict[str, Dict[str, Any]] = {row["id"]: row for row in service_rows}
 
         # Hydrate instructor-level data
-        profile_rows = await asyncio.to_thread(
-            self.retriever_repository.get_instructor_summaries,
+        instructor_rows = await asyncio.to_thread(
+            self.retriever_repository.get_instructor_cards,
             ordered_instructor_ids,
         )
-        profiles_by_id: Dict[str, Dict[str, Any]] = {
-            row["instructor_id"]: row for row in profile_rows
-        }
-
-        rating_rows = await asyncio.to_thread(
-            self.retriever_repository.get_instructor_ratings,
-            ordered_instructor_ids,
-        )
-        ratings_by_id: Dict[str, Dict[str, Any]] = {
-            row["instructor_id"]: row for row in rating_rows
-        }
-
-        coverage_rows = await asyncio.to_thread(
-            self.retriever_repository.get_instructor_coverage_areas,
-            ordered_instructor_ids,
-        )
-        coverage_by_id: Dict[str, List[str]] = {
-            row["instructor_id"]: row.get("coverage_areas", []) for row in coverage_rows
+        instructor_by_id: Dict[str, Dict[str, Any]] = {
+            row["instructor_id"]: row for row in instructor_rows
         }
 
         results: List[NLSearchResultItem] = []
         for instructor_id in ordered_instructor_ids:
             chosen_for_instructor = chosen_by_instructor.get(instructor_id)
-            profile = profiles_by_id.get(instructor_id)
+            profile = instructor_by_id.get(instructor_id)
             if not chosen_for_instructor or not profile:
                 continue
 
             best_ranked = chosen_for_instructor[0]
-            best_details = service_by_id.get(best_ranked.service_id)
-            if not best_details:
-                continue
 
             instructor = InstructorSummary(
                 id=instructor_id,
@@ -321,33 +295,31 @@ class NLSearchService:
                 years_experience=profile.get("years_experience"),
             )
 
-            rating = ratings_by_id.get(instructor_id, {})
             rating_summary = RatingSummary(
-                average=round(float(rating["avg_rating"]), 2) if rating.get("avg_rating") else None,
-                count=int(rating.get("review_count", 0) or 0),
+                average=round(float(profile["avg_rating"]), 2)
+                if profile.get("avg_rating")
+                else None,
+                count=int(profile.get("review_count", 0) or 0),
             )
 
             best_match = ServiceMatch(
                 service_id=best_ranked.service_id,
-                service_catalog_id=best_details["catalog_id"],
-                name=best_details["name"],
-                description=best_details.get("description"),
-                price_per_hour=int(best_details["price_per_hour"]),
+                service_catalog_id=best_ranked.service_catalog_id,
+                name=best_ranked.name,
+                description=best_ranked.description,
+                price_per_hour=int(best_ranked.price_per_hour),
                 relevance_score=round(float(best_ranked.relevance_score), 3),
             )
 
             other_matches: List[ServiceMatch] = []
             for other_ranked in chosen_for_instructor[1:]:
-                details = service_by_id.get(other_ranked.service_id)
-                if not details:
-                    continue
                 other_matches.append(
                     ServiceMatch(
                         service_id=other_ranked.service_id,
-                        service_catalog_id=details["catalog_id"],
-                        name=details["name"],
-                        description=details.get("description"),
-                        price_per_hour=int(details["price_per_hour"]),
+                        service_catalog_id=other_ranked.service_catalog_id,
+                        name=other_ranked.name,
+                        description=other_ranked.description,
+                        price_per_hour=int(other_ranked.price_per_hour),
                         relevance_score=round(float(other_ranked.relevance_score), 3),
                     )
                 )
@@ -357,7 +329,7 @@ class NLSearchService:
                     instructor_id=instructor_id,
                     instructor=instructor,
                     rating=rating_summary,
-                    coverage_areas=coverage_by_id.get(instructor_id, []),
+                    coverage_areas=profile.get("coverage_areas", []) or [],
                     best_match=best_match,
                     other_matches=other_matches,
                     total_matching_services=len(by_instructor.get(instructor_id, [])) or 1,
@@ -447,7 +419,11 @@ class NLSearchService:
             metrics.degraded = True
             metrics.degradation_reasons.append("retrieval_error")
 
-        metrics.retrieve_latency_ms = int((time.time() - start) * 1000)
+        total_ms = int((time.time() - start) * 1000)
+        metrics.embed_latency_ms = int(getattr(result, "embed_latency_ms", 0) or 0)
+        metrics.retrieve_latency_ms = int(getattr(result, "db_latency_ms", 0) or 0) or max(
+            0, total_ms - metrics.embed_latency_ms
+        )
         return result
 
     async def _filter_candidates(
@@ -473,6 +449,7 @@ class NLSearchService:
                 candidates=[
                     FilteredCandidate(
                         service_id=c.service_id,
+                        service_catalog_id=c.service_catalog_id,
                         instructor_id=c.instructor_id,
                         hybrid_score=c.hybrid_score,
                         name=c.name,
@@ -515,6 +492,7 @@ class NLSearchService:
                 results=[
                     RankedResult(
                         service_id=c.service_id,
+                        service_catalog_id=c.service_catalog_id,
                         instructor_id=c.instructor_id,
                         name=c.name,
                         description=c.description,
@@ -652,6 +630,8 @@ class NLSearchService:
         results: List[NLSearchResultItem],
         limit: int,
         metrics: SearchMetrics,
+        *,
+        filter_result: Optional[FilterResult] = None,
     ) -> NLSearchResponse:
         """
         Build the final instructor-level response.
@@ -690,6 +670,9 @@ class NLSearchService:
             degraded=metrics.degraded,
             degradation_reasons=metrics.degradation_reasons,
             parsing_mode=parsed_query.parsing_mode,
+            filters_applied=filter_result.filters_applied if filter_result else [],
+            soft_filtering_used=filter_result.soft_filtering_used if filter_result else False,
+            filter_stats=filter_result.filter_stats if filter_result else None,
         )
 
         return NLSearchResponse(results=results[:limit], meta=meta)

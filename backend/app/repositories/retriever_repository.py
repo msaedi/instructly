@@ -135,7 +135,7 @@ class RetrieverRepository:
                 AND (
                     sc.name % :corrected_query
                     OR sc.name % :original_query
-                    OR COALESCE(sc.description, '') % :corrected_query
+                    OR (sc.description IS NOT NULL AND sc.description % :corrected_query)
                 )
             ORDER BY text_score DESC
             LIMIT :limit
@@ -351,6 +351,79 @@ class RetrieverRepository:
             for row in result
         ]
 
+    def get_instructor_cards(self, instructor_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Fetch instructor "card" data for the search response in one query.
+
+        Combines:
+        - instructor profile + user fields (name, photo, bio, verified)
+        - aggregated ratings (avg + count)
+        - coverage area names
+        """
+        if not instructor_ids:
+            return []
+
+        query = text(
+            """
+            SELECT
+                ip.user_id as instructor_id,
+                u.first_name,
+                COALESCE(LEFT(u.last_name, 1), '') as last_initial,
+                LEFT(ip.bio, 150) as bio_snippet,
+                ip.years_experience,
+                u.profile_picture_key,
+                (ip.identity_verified_at IS NOT NULL) as verified,
+                rs.avg_rating,
+                COALESCE(rs.review_count, 0) as review_count,
+                COALESCE(c.coverage_areas, ARRAY[]::text[]) as coverage_areas
+            FROM instructor_profiles ip
+            JOIN users u ON u.id = ip.user_id
+            LEFT JOIN (
+                SELECT
+                    r.instructor_id,
+                    AVG(r.rating)::float as avg_rating,
+                    COUNT(*)::int as review_count
+                FROM reviews r
+                WHERE r.instructor_id = ANY(:instructor_ids)
+                  AND r.status = 'published'
+                GROUP BY r.instructor_id
+            ) rs ON rs.instructor_id = ip.user_id
+            LEFT JOIN (
+                SELECT
+                    isa.instructor_id,
+                    array_agg(DISTINCT rb.region_name ORDER BY rb.region_name) as coverage_areas
+                FROM instructor_service_areas isa
+                JOIN region_boundaries rb ON rb.id = isa.neighborhood_id
+                WHERE isa.instructor_id = ANY(:instructor_ids)
+                  AND isa.is_active = true
+                GROUP BY isa.instructor_id
+            ) c ON c.instructor_id = ip.user_id
+            WHERE ip.user_id = ANY(:instructor_ids)
+              AND ip.is_live = true
+              AND ip.bgc_status = 'passed'
+        """
+        )
+
+        result = self.db.execute(query, {"instructor_ids": instructor_ids})
+
+        return [
+            {
+                "instructor_id": str(row.instructor_id),
+                "first_name": row.first_name,
+                "last_initial": row.last_initial,
+                "bio_snippet": row.bio_snippet,
+                "years_experience": int(row.years_experience)
+                if row.years_experience is not None
+                else None,
+                "profile_picture_key": row.profile_picture_key,
+                "verified": bool(row.verified),
+                "avg_rating": float(row.avg_rating) if row.avg_rating is not None else None,
+                "review_count": int(row.review_count or 0),
+                "coverage_areas": list(row.coverage_areas) if row.coverage_areas else [],
+            }
+            for row in result
+        ]
+
     def count_embeddings(self) -> int:
         """
         Count services with embeddings populated.
@@ -371,6 +444,26 @@ class RetrieverRepository:
             )
         )
         return result.scalar() or 0
+
+    def has_embeddings(self) -> bool:
+        """
+        Return True if any active services have embeddings populated.
+
+        This is a cheaper alternative to count_embeddings() for request-time checks.
+        """
+        result = self.db.execute(
+            text(
+                """
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM service_catalog
+                    WHERE embedding_v2 IS NOT NULL AND is_active = true
+                    LIMIT 1
+                ) as has_embeddings
+            """
+            )
+        ).first()
+        return bool(result.has_embeddings) if result else False
 
     def search_with_instructor_data(
         self,
