@@ -23,6 +23,7 @@ import urllib.request
 
 import click
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 
 BACKEND_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
@@ -361,6 +362,12 @@ def seed_system_data(db_url: str, dry_run: bool, mode: str, seed_db_url: Optiona
     env = {**os.environ, **_mode_env(mode), "DATABASE_URL": target}
     with perf_timer("Seed System Data"):
         subprocess.check_call([sys.executable, "scripts/seed_data.py", "--system-only"], cwd=str(BACKEND_DIR), env=env)
+    engine = create_engine(db_url)
+    try:
+        with Session(engine) as session:
+            populate_region_embeddings(session, dry_run=dry_run, mode=mode)
+    finally:
+        engine.dispose()
 
 
 def seed_mock_users(db_url: str, dry_run: bool, mode: str, seed_db_url: Optional[str] = None):
@@ -1025,8 +1032,8 @@ def generate_embeddings(db_url: str, dry_run: bool, mode: str) -> None:
 
     # Check for OpenAI API key
     if not os.getenv("OPENAI_API_KEY"):
-        warn("ops", "OPENAI_API_KEY not set - skipping embedding generation")
-        warn("ops", "Set OPENAI_API_KEY and run: python scripts/generate_openai_embeddings.py")
+        warn("OPENAI_API_KEY not set - skipping embedding generation")
+        warn("Set OPENAI_API_KEY and run: python scripts/generate_openai_embeddings.py")
         return
 
     info("ops", "Generating OpenAI service embeddings…")
@@ -1037,6 +1044,122 @@ def generate_embeddings(db_url: str, dry_run: bool, mode: str) -> None:
             cwd=str(BACKEND_DIR),
             env=env,
         )
+
+
+def populate_region_embeddings(db: Session, *, dry_run: bool, mode: str) -> None:
+    """Populate region_boundaries.name_embedding for semantic location resolution."""
+    if dry_run:
+        info("dry", "(dry-run) Would populate region embeddings")
+        return
+
+    if not os.getenv("OPENAI_API_KEY"):
+        warn("OPENAI_API_KEY not set - skipping region embeddings")
+        warn("Set OPENAI_API_KEY and run: python scripts/populate_region_embeddings.py --region-type nyc")
+        return
+
+    try:
+        from openai import OpenAI  # type: ignore
+    except Exception as exc:  # pragma: no cover - optional dependency
+        warn(f"OpenAI client unavailable; skipping region embeddings ({exc})")
+        return
+
+    model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    missing = 0
+    try:
+        missing_raw = db.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM region_boundaries
+                WHERE region_type = :rtype
+                  AND region_name IS NOT NULL
+                  AND name_embedding IS NULL
+                """
+            ),
+            {"rtype": "nyc"},
+        ).scalar()
+        missing = int(missing_raw or 0)
+    except Exception as exc:  # pragma: no cover - best effort infra step
+        warn(f"Unable to check region embeddings status; skipping ({exc})")
+        warn("Ensure migrations are applied (name_embedding column) before embedding population.")
+        return
+
+    if missing == 0:
+        info("ops", "Region embeddings already populated.")
+        return
+
+    info("ops", f"Populating embeddings for {missing} region(s)…")
+    batch_size = int(os.getenv("REGION_EMBEDDINGS_BATCH_SIZE", "50") or 50)
+    delay_s = float(os.getenv("REGION_EMBEDDINGS_BATCH_DELAY_S", "0.25") or 0.25)
+
+    def _embedding_text(region_name: str, parent_region: Optional[str]) -> str:
+        base = region_name.strip()
+        parts = [base]
+        if parent_region:
+            parts.append(str(parent_region).strip())
+        parts.append("NYC location")
+        return ", ".join([p for p in parts if p])
+
+    try:
+        rows = db.execute(
+            text(
+                """
+                SELECT id, region_name, parent_region
+                FROM region_boundaries
+                WHERE region_type = :rtype
+                  AND region_name IS NOT NULL
+                  AND name_embedding IS NULL
+                ORDER BY region_name
+                """
+            ),
+            {"rtype": "nyc"},
+        ).fetchall()
+    except Exception as exc:  # pragma: no cover - defensive
+        warn(f"Unable to load region_boundaries for embedding; skipping ({exc})")
+        return
+
+    if not rows:
+        info("ops", "Region embeddings already populated.")
+        return
+
+    total = len(rows)
+    info("ops", f"Embedding model: {model}")
+
+    with perf_timer("Populate Region Embeddings", lambda: f"regions={total} batch={batch_size}"):
+        try:
+            for offset in range(0, total, batch_size):
+                batch = rows[offset : offset + batch_size]
+                inputs = [
+                    _embedding_text(str(r.region_name), str(r.parent_region) if r.parent_region else None)
+                    for r in batch
+                ]
+                response = client.embeddings.create(model=model, input=inputs)
+
+                for idx, item in enumerate(response.data):
+                    region_id = str(batch[idx].id)
+                    embedding = list(item.embedding)
+                    db.execute(
+                        text(
+                            """
+                            UPDATE region_boundaries
+                            SET name_embedding = :embedding,
+                                updated_at = NOW()
+                            WHERE id = :id
+                            """
+                        ),
+                        {"id": region_id, "embedding": embedding},
+                    )
+                db.commit()
+
+                done = min(offset + len(batch), total)
+                info("ops", f"  Embedded {done}/{total}")
+
+                if done < total and delay_s > 0:
+                    time.sleep(delay_s)
+        finally:
+            db.rollback()
 
 
 def calculate_analytics(db_url: str, dry_run: bool, mode: str) -> None:
