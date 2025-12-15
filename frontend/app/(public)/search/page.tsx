@@ -180,6 +180,30 @@ function SearchPageContent() {
   const fromSource = searchParams.get('from') || '';
   const softFilteringUsed = nlSearchMeta ? getBoolean(nlSearchMeta, 'soft_filtering_used', false) : false;
   const softFilterMessage = nlSearchMeta ? getString(nlSearchMeta, 'soft_filter_message', '') : '';
+  const searchQueryId = nlSearchMeta ? getString(nlSearchMeta, 'search_query_id', '') : '';
+
+  const trackSearchClick = useCallback(
+    (params: { serviceId: string; instructorId: string; position: number; action?: string }) => {
+      if (!searchQueryId) return;
+      const { serviceId, instructorId, position, action = 'view' } = params;
+      if (!serviceId || !instructorId || !Number.isFinite(position) || position <= 0) return;
+
+      try {
+        const qs = new URLSearchParams({
+          search_query_id: searchQueryId,
+          service_id: serviceId,
+          instructor_id: instructorId,
+          position: String(position),
+          action,
+        });
+        const url = withApiBase(`/api/v1/search/click?${qs.toString()}`);
+        void fetch(url, { method: 'POST', credentials: 'include', keepalive: true });
+      } catch {
+        // best-effort: never block navigation
+      }
+    },
+    [searchQueryId]
+  );
 
   useEffect(() => {
     // reset page and list when search params change
@@ -846,7 +870,7 @@ function SearchPageContent() {
             ) : (
               <>
                 <div className={`flex flex-col ${isStacked ? 'gap-20' : 'gap-4 md:gap-6'}`}>
-                  {filteredInstructors.map((instructor) => {
+                  {filteredInstructors.map((instructor, index) => {
                     const highlightServiceCatalogId =
                       (instructor as { _matchedServiceCatalogId?: string | null })._matchedServiceCatalogId ??
                       (serviceCatalogId || null);
@@ -864,6 +888,7 @@ function SearchPageContent() {
                         router.push(`/instructors/${instructor.user_id}`);
                       }
                     };
+                    const position = index + 1;
 
                     return (
                       <div
@@ -879,7 +904,15 @@ function SearchPageContent() {
                           {...(availabilityByInstructor[instructor.user_id] && {
                             availabilityData: availabilityByInstructor[instructor.user_id],
                           })}
-                          onViewProfile={() => handleInteraction('view_profile')}
+                          onViewProfile={() => {
+                            trackSearchClick({
+                              serviceId: enhancedInstructor.services?.[0]?.id || '',
+                              instructorId: enhancedInstructor.user_id,
+                              position,
+                              action: 'view',
+                            });
+                            handleInteraction('view_profile');
+                          }}
                           compact={isStacked}
                           onBookNow={(e) => {
                             e?.preventDefault?.();

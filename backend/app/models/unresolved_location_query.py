@@ -2,13 +2,26 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 import ulid
 
 from ..database import Base
 from .location_alias import NYC_CITY_ID
 from .types import StringArrayType
+
+json_type = JSONB(astext_type=Text()).with_variant(JSON(), "sqlite")
 
 
 class UnresolvedLocationQuery(Base):
@@ -41,6 +54,20 @@ class UnresolvedLocationQuery(Base):
     search_count = Column(Integer, nullable=False, default=1, server_default="1")
     unique_user_count = Column(Integer, nullable=False, default=1, server_default="1")
 
+    # Click-learning (best-effort; populated via /search/click when location was not found)
+    click_region_counts = Column(json_type, nullable=False, default=dict)
+    click_count = Column(Integer, nullable=False, default=0, server_default="0")
+    last_clicked_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Resolution status for self-learning loop
+    status = Column(String(20), nullable=False, default="pending", server_default="pending")
+    resolved_region_boundary_id = Column(
+        String(26),
+        ForeignKey("region_boundaries.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     first_seen_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     last_seen_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -52,6 +79,4 @@ class UnresolvedLocationQuery(Base):
     review_notes = Column(Text, nullable=True)
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"<UnresolvedLocationQuery {self.query_normalized!r} ({self.unique_user_count} users)>"
-        )
+        return f"<UnresolvedLocationQuery {self.query_normalized!r} ({self.unique_user_count} users, status={self.status})>"

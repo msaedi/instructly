@@ -1636,6 +1636,9 @@ def upgrade() -> None:
     empty_array_default = (
         sa.text("'{}'") if is_postgres else sa.text("'[]'")
     )
+    click_region_counts_default = (
+        sa.text("'{}'::jsonb") if is_postgres else sa.text("'{}'")
+    )
 
     op.create_table(
         "unresolved_location_queries",
@@ -1668,6 +1671,42 @@ def upgrade() -> None:
             sa.Integer(),
             nullable=False,
             server_default="1",
+        ),
+        # Click-learning (best-effort; populated via /search/click when location was not found)
+        sa.Column(
+            "click_region_counts",
+            json_type,
+            nullable=False,
+            server_default=click_region_counts_default,
+        ),
+        sa.Column(
+            "click_count",
+            sa.Integer(),
+            nullable=False,
+            server_default="0",
+        ),
+        sa.Column(
+            "last_clicked_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+        # Resolution status for self-learning loop
+        sa.Column(
+            "status",
+            sa.String(20),
+            nullable=False,
+            server_default="pending",  # pending|learned|rejected|manual_review
+        ),
+        sa.Column(
+            "resolved_region_boundary_id",
+            sa.String(26),
+            sa.ForeignKey("region_boundaries.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
+            "resolved_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
         ),
         # Timestamps
         sa.Column(
@@ -1709,6 +1748,16 @@ def upgrade() -> None:
             "unresolved_location_queries",
             [sa.text("unique_user_count DESC")],
         )
+        op.create_index(
+            "idx_unresolved_queries_click_count",
+            "unresolved_location_queries",
+            [sa.text("click_count DESC")],
+        )
+        op.create_index(
+            "idx_unresolved_queries_status",
+            "unresolved_location_queries",
+            ["status"],
+        )
         # Index for unreviewed queries
         op.execute(
             """
@@ -1722,6 +1771,16 @@ def upgrade() -> None:
             "idx_unresolved_queries_frequency",
             "unresolved_location_queries",
             ["unique_user_count"],
+        )
+        op.create_index(
+            "idx_unresolved_queries_click_count",
+            "unresolved_location_queries",
+            ["click_count"],
+        )
+        op.create_index(
+            "idx_unresolved_queries_status",
+            "unresolved_location_queries",
+            ["status"],
         )
         op.create_index(
             "idx_unresolved_queries_reviewed",
@@ -1984,9 +2043,15 @@ def downgrade() -> None:
     print("Dropping unresolved_location_queries table...")
     if is_postgres:
         op.execute("DROP INDEX IF EXISTS idx_unresolved_queries_unreviewed;")
+        op.execute("DROP INDEX IF EXISTS idx_unresolved_queries_click_count;")
     if not is_postgres:
         op.drop_index("idx_unresolved_queries_reviewed", table_name="unresolved_location_queries")
     op.drop_index("idx_unresolved_queries_frequency", table_name="unresolved_location_queries")
+    op.drop_index("idx_unresolved_queries_status", table_name="unresolved_location_queries")
+    if not is_postgres:
+        op.drop_index(
+            "idx_unresolved_queries_click_count", table_name="unresolved_location_queries"
+        )
     op.drop_table("unresolved_location_queries")
 
     # Drop location_aliases table

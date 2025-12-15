@@ -20,7 +20,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
-from ...api.dependencies.auth import get_current_user, require_beta_phase_access
+from ...api.dependencies.auth import (
+    get_current_active_user_optional,
+    require_beta_phase_access,
+)
 from ...api.dependencies.services import get_cache_service_dep
 from ...database import get_db
 from ...dependencies.permissions import require_permission
@@ -134,9 +137,12 @@ async def nl_search(
             normalized_query = {
                 "service_query": parsed.service_query,
                 "location": parsed.location,
+                "location_resolved": result.meta.location_resolved,
+                "location_not_found": result.meta.location_not_found,
                 "max_price": parsed.max_price,
                 "date": parsed.date,
                 "time_after": parsed.time_after,
+                "time_before": parsed.time_before,
                 "audience_hint": parsed.audience_hint,
                 "skill_level": parsed.skill_level,
                 "urgency": parsed.urgency,
@@ -275,13 +281,13 @@ def log_search_click(
     position: int = Query(..., ge=1, description="Position in search results (1-indexed)"),
     action: str = Query("view", description="Action type: view, book, message, favorite"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _current_user: Optional[User] = Depends(get_current_active_user_optional),
 ) -> SearchClickResponse:
     """
     Log a click on a search result for conversion tracking.
 
     Call this endpoint when a user interacts with a search result.
-    Requires authentication.
+    Authentication is optional (best-effort).
     """
     from ...repositories.search_analytics_repository import SearchAnalyticsRepository
 
@@ -304,6 +310,19 @@ def log_search_click(
         position=position,
         action=action,
     )
+
+    # Self-learning: if the location was unresolved for this search, record which region
+    # the user clicked into (best-effort; do not fail the endpoint).
+    try:
+        from app.services.search.location_learning_click_service import LocationLearningClickService
+
+        LocationLearningClickService(db).capture_location_learning_click(
+            search_query_id=search_query_id,
+            instructor_user_id=instructor_id,
+        )
+    except Exception as learn_err:
+        logger.debug("Location learning click capture failed: %s", str(learn_err))
+
     return SearchClickResponse(click_id=click_id)
 
 

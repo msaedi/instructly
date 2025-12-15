@@ -130,6 +130,7 @@ def create_celery_app() -> Celery:
         | {
             "app.tasks.payment_tasks",
             "app.tasks.search_analytics",
+            "app.tasks.location_learning",
             "app.tasks.analytics",
             "app.tasks.monitoring_tasks",
             "app.tasks.codebase_metrics",

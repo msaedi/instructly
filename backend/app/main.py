@@ -134,6 +134,7 @@ from .routes.v1.admin import (
     badges as admin_badges_v1,
     config as admin_config_v1,
     instructors as admin_instructors_v1,
+    location_learning as admin_location_learning_v1,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
@@ -1007,6 +1008,7 @@ api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: i
 api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
 api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
 api_v1.include_router(admin_auth_blocks_v1.router, prefix="/admin/auth-blocks")  # type: ignore[attr-defined]
+api_v1.include_router(admin_location_learning_v1.router, prefix="/admin/location-learning")  # type: ignore[attr-defined]
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
 # Phase 24.5 v1 admin operations routers

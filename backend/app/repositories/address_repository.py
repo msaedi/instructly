@@ -5,6 +5,7 @@ from typing import List, Optional, cast
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.address import InstructorServiceArea, NYCNeighborhood, UserAddress
+from ..models.region_boundary import RegionBoundary
 from .base_repository import BaseRepository
 
 
@@ -167,3 +168,30 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
             )
             .all(),
         )
+
+    def get_primary_active_neighborhood_id(self, instructor_id: str) -> Optional[str]:
+        """
+        Best-effort primary neighborhood for an instructor (deterministic).
+
+        Used for self-learning click capture when a user clicks an instructor result after an
+        unresolved location search.
+        """
+        try:
+            row = (
+                self.db.query(InstructorServiceArea.neighborhood_id)
+                .join(RegionBoundary, RegionBoundary.id == InstructorServiceArea.neighborhood_id)
+                .filter(
+                    InstructorServiceArea.instructor_id == instructor_id,
+                    InstructorServiceArea.is_active.is_(True),
+                )
+                .order_by(RegionBoundary.region_name.asc())
+                .first()
+            )
+            neighborhood_id = getattr(row, "neighborhood_id", None) if row else None
+            return str(neighborhood_id) if neighborhood_id else None
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return None
