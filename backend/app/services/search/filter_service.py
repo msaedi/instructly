@@ -163,6 +163,7 @@ class FilterService:
                 parsed_query.location_text,
                 original_query=parsed_query.original_query,
                 track_unresolved=True,
+                enable_semantic=True,
             )
             if location_resolution.requires_clarification:
                 # In practice, "ambiguous" often means one user-facing neighborhood maps to multiple

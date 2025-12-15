@@ -14,7 +14,7 @@ import re
 import time
 from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Tuple
 
-import dateparser  # type: ignore[import-untyped]
+import dateparser
 
 from app.services.search.patterns import (
     ADULT_KEYWORDS,

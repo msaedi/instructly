@@ -24,12 +24,15 @@ from typing import Any, List, Optional, Sequence, TypedDict
 
 from sqlalchemy.orm import Session
 
-from app.models.location_alias import NYC_CITY_ID
+from app.core.ulid_helper import generate_ulid
+from app.models.location_alias import NYC_CITY_ID, LocationAlias
 from app.models.region_boundary import RegionBoundary
 from app.repositories.location_resolution_repository import LocationResolutionRepository
 from app.repositories.unresolved_location_query_repository import (
     UnresolvedLocationQueryRepository,
 )
+from app.services.search.location_embedding_service import LocationEmbeddingService
+from app.services.search.location_llm_service import LocationLLMService
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +240,8 @@ class LocationResolver:
         self.unresolved_repository = unresolved_repository or UnresolvedLocationQueryRepository(
             db, city_id=city_id
         )
+        self.embedding_service = LocationEmbeddingService(self.repository)
+        self.llm_service = LocationLLMService()
 
     def resolve(
         self,
@@ -244,6 +249,7 @@ class LocationResolver:
         *,
         original_query: Optional[str] = None,
         track_unresolved: bool = False,
+        enable_semantic: bool = False,
     ) -> ResolvedLocation:
         """
         Resolve a user-entered location string to a region boundary or borough.
@@ -286,6 +292,16 @@ class LocationResolver:
         fuzzy = self._tier3_fuzzy_match(normalized)
         if fuzzy.resolved:
             return fuzzy
+
+        if enable_semantic:
+            tier4 = self._tier4_embedding_match(normalized)
+            if tier4.resolved or tier4.requires_clarification:
+                return tier4
+            tier5 = self._tier5_llm_match(
+                normalized, original_query=original_query or location_text
+            )
+            if tier5.resolved or tier5.requires_clarification:
+                return tier5
 
         if track_unresolved:
             self.unresolved_repository.track_unresolved(
@@ -500,6 +516,172 @@ class LocationResolver:
                 borough=getattr(region, "parent_region", None),
                 tier=ResolutionTier.FUZZY,
                 confidence=float(similarity or 0.0),
+            )
+        return ResolvedLocation.from_not_found()
+
+    def _tier4_embedding_match(self, normalized: str) -> ResolvedLocation:
+        """Tier 4: Semantic match using OpenAI embeddings + pgvector on region_boundaries."""
+        candidates = self.embedding_service.get_candidates(normalized, limit=5)
+        best, ambiguous = self.embedding_service.pick_best_or_ambiguous(candidates)
+
+        if best and best.get("region_id") and best.get("region_name"):
+            return ResolvedLocation.from_region(
+                region_id=str(best["region_id"]),
+                region_name=str(best["region_name"]),
+                borough=best.get("borough"),
+                tier=ResolutionTier.EMBEDDING,
+                confidence=float(best.get("similarity") or 0.0),
+            )
+
+        if ambiguous:
+            formatted: List[LocationCandidate] = []
+            for row in ambiguous:
+                if not row.get("region_id") or not row.get("region_name"):
+                    continue
+                formatted.append(
+                    {
+                        "region_id": str(row["region_id"]),
+                        "region_name": str(row["region_name"]),
+                        "borough": row.get("borough"),
+                    }
+                )
+            if len(formatted) >= 2:
+                top_sim = float(ambiguous[0].get("similarity") or 0.0)
+                return ResolvedLocation.from_ambiguous(
+                    candidates=formatted,
+                    tier=ResolutionTier.EMBEDDING,
+                    confidence=top_sim,
+                )
+
+        return ResolvedLocation.from_not_found()
+
+    def _tier5_llm_match(
+        self,
+        normalized: str,
+        *,
+        original_query: str,
+    ) -> ResolvedLocation:
+        """
+        Tier 5: LLM-based resolution (cached in location_aliases as pending_review).
+
+        This tier is designed for landmark-style inputs that don't match well via substring/fuzzy/embeddings.
+        """
+        cached = self.repository.find_cached_alias(normalized, source="llm")
+        if cached:
+            self.repository.increment_alias_user_count(cached)
+            if cached.is_ambiguous and cached.candidate_region_ids:
+                candidate_regions = self.repository.get_regions_by_ids(
+                    list(cached.candidate_region_ids)
+                )
+                candidates = self._format_candidates(candidate_regions)
+                if len(candidates) >= 2:
+                    return ResolvedLocation.from_ambiguous(
+                        candidates=candidates,
+                        tier=ResolutionTier.LLM,
+                        confidence=float(cached.confidence or 0.5),
+                    )
+            if cached.is_resolved and cached.region_boundary_id:
+                region = self.repository.get_region_by_id(str(cached.region_boundary_id))
+                if region and getattr(region, "id", None) and getattr(region, "region_name", None):
+                    return ResolvedLocation.from_region(
+                        region_id=region.id,
+                        region_name=region.region_name,
+                        borough=getattr(region, "parent_region", None),
+                        tier=ResolutionTier.LLM,
+                        confidence=float(cached.confidence or 0.5),
+                    )
+
+        allowed_names = self.repository.list_region_names()
+        llm_result = self.llm_service.resolve(
+            location_text=original_query,
+            allowed_region_names=allowed_names,
+        )
+        if not llm_result:
+            return ResolvedLocation.from_not_found()
+
+        neighborhoods = llm_result.get("neighborhoods") or []
+        if not isinstance(neighborhoods, list) or not neighborhoods:
+            return ResolvedLocation.from_not_found()
+
+        regions: list[RegionBoundary] = []
+        for name in neighborhoods:
+            if not isinstance(name, str) or not name.strip():
+                continue
+            name_norm = " ".join(name.strip().lower().split())
+            exact = self.repository.find_exact_region_by_name(name_norm)
+            if exact:
+                regions.append(exact)
+                continue
+            # Best-effort fallback (should be rare because LLM is constrained to allowed list).
+            regions.extend(self.repository.find_regions_by_name_fragment(name_norm))
+
+        by_id: dict[str, RegionBoundary] = {}
+        for region in regions:
+            if getattr(region, "id", None):
+                by_id[str(region.id)] = region
+        resolved_regions = list(by_id.values())
+
+        if not resolved_regions:
+            return ResolvedLocation.from_not_found()
+
+        confidence_val = float(llm_result.get("confidence") or 0.5)
+
+        # Cache as pending_review (best-effort).
+        try:
+            existing_any = self.repository.find_cached_alias(normalized)
+            if existing_any and isinstance(existing_any, LocationAlias):
+                alias_row = existing_any
+                alias_row.source = "llm"
+                alias_row.status = "pending_review"
+                alias_row.confidence = confidence_val
+                alias_row.alias_type = "landmark"
+                alias_row.deprecated_at = None
+                alias_row.user_count = int(alias_row.user_count or 0) + 1
+            else:
+                alias_row = LocationAlias(
+                    id=generate_ulid(),
+                    city_id=self.city_id,
+                    alias_normalized=normalized,
+                    source="llm",
+                    status="pending_review",
+                    confidence=confidence_val,
+                    user_count=1,
+                    alias_type="landmark",
+                )
+                self.repository.db.add(alias_row)
+
+            if len(resolved_regions) == 1:
+                alias_row.region_boundary_id = resolved_regions[0].id
+                alias_row.requires_clarification = False
+                alias_row.candidate_region_ids = None
+            else:
+                alias_row.region_boundary_id = None
+                alias_row.requires_clarification = True
+                alias_row.candidate_region_ids = [str(r.id) for r in resolved_regions]
+
+            self.repository.db.flush()
+        except Exception as exc:
+            logger.debug("Failed to cache LLM alias '%s': %s", normalized, str(exc))
+            try:
+                self.repository.db.rollback()
+            except Exception:
+                pass
+
+        candidates = self._format_candidates(resolved_regions)
+        if len(candidates) == 1:
+            only = candidates[0]
+            return ResolvedLocation.from_region(
+                region_id=only["region_id"],
+                region_name=only["region_name"],
+                borough=only.get("borough"),
+                tier=ResolutionTier.LLM,
+                confidence=confidence_val,
+            )
+        if len(candidates) >= 2:
+            return ResolvedLocation.from_ambiguous(
+                candidates=candidates,
+                tier=ResolutionTier.LLM,
+                confidence=confidence_val,
             )
         return ResolvedLocation.from_not_found()
 

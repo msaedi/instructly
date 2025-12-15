@@ -514,6 +514,12 @@ def _prepare_database() -> None:
     # Ensure outbox table exists (guarded to prevent conflicts)
     ensure_outbox_table()
 
+    # Keep region_boundaries schema aligned with ORM models (tests reuse an existing DB).
+    with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
+            conn.execute(text("ALTER TABLE region_boundaries ADD COLUMN IF NOT EXISTS name_embedding vector(1536)"))
+            conn.commit()
+
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":
             conn.execute(

@@ -1421,6 +1421,17 @@ def upgrade() -> None:
             """
         )
 
+        # --- 1b. Add name_embedding to region_boundaries for semantic location resolution ---
+        print("Adding name_embedding column to region_boundaries for location resolution...")
+        op.execute("ALTER TABLE region_boundaries ADD COLUMN IF NOT EXISTS name_embedding vector(1536)")
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_region_boundaries_name_embedding
+            ON region_boundaries USING ivfflat (name_embedding vector_cosine_ops)
+            WITH (lists = 100);
+            """
+        )
+
     # --- 2. Add ranking signal columns to instructor_profiles ---
     print("Adding ranking signal columns to instructor_profiles...")
     op.add_column(
@@ -2019,6 +2030,8 @@ def downgrade() -> None:
         op.drop_column("service_catalog", "embedding_model_version")
         op.drop_column("service_catalog", "embedding_model")
         op.execute("ALTER TABLE service_catalog DROP COLUMN IF EXISTS embedding_v2;")
+        op.execute("DROP INDEX IF EXISTS idx_region_boundaries_name_embedding;")
+        op.execute("ALTER TABLE region_boundaries DROP COLUMN IF EXISTS name_embedding;")
 
     print("NL Search Phase 1 schema dropped!")
 

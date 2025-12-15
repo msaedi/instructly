@@ -182,3 +182,105 @@ class TestLocationResolver:
         assert resolved.resolved is True
         assert resolved.tier == ResolutionTier.EXACT
         assert resolved.region_name == "Lower East Side"
+
+    def test_tier4_embedding_match_when_enabled(self, db, monkeypatch):
+        region_type = "test"
+        region = _create_region(
+            db,
+            region_type=region_type,
+            region_name="Upper East Side-Carnegie Hill",
+            parent_region="Manhattan",
+        )
+
+        resolver = LocationResolver(db, region_code=region_type)
+
+        monkeypatch.setattr(
+            resolver.embedding_service,
+            "get_candidates",
+            lambda *_args, **_kwargs: [
+                {
+                    "region_id": str(region.id),
+                    "region_name": region.region_name,
+                    "borough": region.parent_region,
+                    "similarity": 0.91,
+                }
+            ],
+        )
+        monkeypatch.setattr(
+            resolver.embedding_service,
+            "pick_best_or_ambiguous",
+            lambda candidates: (candidates[0], None),
+        )
+
+        resolved = resolver.resolve("museum mile", enable_semantic=True)
+
+        assert resolved.method == "embedding"
+        assert resolved.resolved is True
+        assert resolved.tier == ResolutionTier.EMBEDDING
+        assert resolved.region_name == "Upper East Side-Carnegie Hill"
+
+    def test_tier4_embedding_ambiguous_when_enabled(self, db, monkeypatch):
+        region_type = "test"
+        r1 = _create_region(db, region_type=region_type, region_name="Upper East Side", parent_region="Manhattan")
+        r2 = _create_region(db, region_type=region_type, region_name="Upper West Side", parent_region="Manhattan")
+
+        resolver = LocationResolver(db, region_code=region_type)
+        candidates = [
+            {"region_id": str(r1.id), "region_name": r1.region_name, "borough": r1.parent_region, "similarity": 0.83},
+            {"region_id": str(r2.id), "region_name": r2.region_name, "borough": r2.parent_region, "similarity": 0.82},
+        ]
+        monkeypatch.setattr(resolver.embedding_service, "get_candidates", lambda *_args, **_kwargs: candidates)
+        monkeypatch.setattr(resolver.embedding_service, "pick_best_or_ambiguous", lambda _c: (None, candidates))
+
+        resolved = resolver.resolve("central park", enable_semantic=True)
+
+        assert resolved.method == "embedding"
+        assert resolved.requires_clarification is True
+        assert resolved.tier == ResolutionTier.EMBEDDING
+        assert resolved.candidates is not None
+        assert len(resolved.candidates) >= 2
+
+    def test_tier5_llm_cached_alias_short_circuits(self, db, monkeypatch):
+        region_type = "test"
+        region = _create_region(
+            db,
+            region_type=region_type,
+            region_name="Upper East Side-Carnegie Hill",
+            parent_region="Manhattan",
+        )
+
+        resolver = LocationResolver(db, region_code=region_type)
+
+        # First call: LLM resolves + caches.
+        monkeypatch.setattr(
+            resolver.embedding_service,
+            "get_candidates",
+            lambda *_args, **_kwargs: [],
+        )
+        monkeypatch.setattr(
+            resolver.llm_service,
+            "resolve",
+            lambda **_kwargs: {
+                "neighborhoods": [region.region_name],
+                "confidence": 0.92,
+                "reason": "landmark mapping",
+            },
+        )
+
+        first = resolver.resolve("museum mile", enable_semantic=True)
+        assert first.method == "llm"
+        assert first.tier == ResolutionTier.LLM
+        assert first.resolved is True
+        assert first.region_name == region.region_name
+
+        # Second call: should use cached alias row, not call LLM again.
+        monkeypatch.setattr(
+            resolver.llm_service,
+            "resolve",
+            lambda **_kwargs: (_ for _ in ()).throw(AssertionError("LLM should not be called when cached")),
+        )
+        second = resolver.resolve("museum mile", enable_semantic=True)
+        assert second.method == "llm"
+        assert second.tier == ResolutionTier.LLM
+        assert second.resolved is True
+        assert second.region_name == region.region_name

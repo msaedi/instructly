@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, Column, DateTime, String
 import ulid
 
@@ -21,6 +22,9 @@ class RegionBoundary(Base):
     # boundary POLYGON, centroid POINT (SRID 4326)
 
     region_metadata = Column(JSON, nullable=True)
+
+    # Optional embedding used for semantic location resolution (Tier 4).
+    name_embedding = Column(Vector(1536), nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

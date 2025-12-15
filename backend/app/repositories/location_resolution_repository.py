@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session
@@ -82,6 +82,33 @@ class LocationResolutionRepository:
             return alias_row if isinstance(alias_row, LocationAlias) else None
         except Exception as exc:
             logger.debug("Trusted alias lookup failed for '%s': %s", normalized, str(exc))
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return None
+
+    def find_cached_alias(
+        self, normalized: str, *, source: Optional[str] = None
+    ) -> Optional[LocationAlias]:
+        """
+        Find a cached alias row regardless of trust model (excluding deprecated).
+
+        Used for Tier 5 (LLM) caching, where we want to avoid repeat LLM calls even
+        while the alias is still pending_review.
+        """
+        try:
+            query = self.db.query(LocationAlias).filter(
+                LocationAlias.city_id == self.city_id,
+                func.lower(LocationAlias.alias_normalized) == normalized,
+                LocationAlias.status != "deprecated",
+            )
+            if source:
+                query = query.filter(LocationAlias.source == source)
+            alias_row = query.first()
+            return alias_row if isinstance(alias_row, LocationAlias) else None
+        except Exception as exc:
+            logger.debug("Cached alias lookup failed for '%s': %s", normalized, str(exc))
             try:
                 self.db.rollback()
             except Exception:
@@ -209,6 +236,110 @@ class LocationResolutionRepository:
             return [r for r in regions if isinstance(r, RegionBoundary)]
         except Exception as exc:
             logger.debug("Region fragment lookup failed for '%s': %s", normalized, str(exc))
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return []
+
+    def list_region_names(self) -> list[str]:
+        """List region_boundaries.region_name values for this region_code (for LLM prompts)."""
+        try:
+            rows = self.db.execute(
+                text(
+                    """
+                    SELECT region_name
+                    FROM region_boundaries
+                    WHERE region_type = :rtype
+                      AND region_name IS NOT NULL
+                    ORDER BY region_name
+                    """
+                ),
+                {"rtype": self.region_code},
+            ).fetchall()
+            return [str(r[0]) for r in rows if r and r[0]]
+        except Exception as exc:
+            logger.debug("Region name listing failed: %s", str(exc))
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return []
+
+    def has_region_name_embeddings(self) -> bool:
+        """Return True if `region_boundaries.name_embedding` has any populated rows."""
+        try:
+            row = self.db.execute(
+                text(
+                    """
+                    SELECT EXISTS(
+                        SELECT 1
+                        FROM region_boundaries
+                        WHERE region_type = :rtype
+                          AND name_embedding IS NOT NULL
+                        LIMIT 1
+                    ) AS has_embeddings
+                    """
+                ),
+                {"rtype": self.region_code},
+            ).first()
+            return bool(getattr(row, "has_embeddings", False)) if row else False
+        except Exception as exc:
+            logger.debug("Embedding availability check failed: %s", str(exc))
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return False
+
+    def find_regions_by_name_embedding(
+        self, embedding: List[float], *, limit: int = 5
+    ) -> List[Tuple[RegionBoundary, float]]:
+        """
+        Find regions by pgvector similarity on `region_boundaries.name_embedding`.
+
+        Returns ordered pairs of (RegionBoundary, similarity) where similarity is normalized to [0..1].
+        """
+        if not embedding:
+            return []
+
+        try:
+            embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
+            rows = self.db.execute(
+                text(
+                    """
+                    SELECT
+                        id,
+                        GREATEST(0, 1 - ((name_embedding <=> CAST(:embedding AS vector)) / 2)) AS similarity
+                    FROM region_boundaries
+                    WHERE region_type = :rtype
+                      AND name_embedding IS NOT NULL
+                    ORDER BY name_embedding <=> CAST(:embedding AS vector)
+                    LIMIT :limit
+                    """
+                ),
+                {"embedding": embedding_str, "rtype": self.region_code, "limit": int(limit)},
+            ).fetchall()
+
+            if not rows:
+                return []
+
+            ids = [str(r.id) for r in rows if getattr(r, "id", None)]
+            regions = self.get_regions_by_ids(ids)
+            by_id = {str(r.id): r for r in regions if getattr(r, "id", None)}
+
+            ordered: List[Tuple[RegionBoundary, float]] = []
+            for r in rows:
+                region = by_id.get(str(r.id))
+                if not region:
+                    continue
+                try:
+                    ordered.append((region, float(r.similarity or 0.0)))
+                except Exception:
+                    ordered.append((region, 0.0))
+            return ordered
+        except Exception as exc:
+            logger.debug("Embedding region lookup failed: %s", str(exc))
             try:
                 self.db.rollback()
             except Exception:
