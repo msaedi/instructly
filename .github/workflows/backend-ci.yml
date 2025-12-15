@@ -140,21 +140,11 @@ jobs:
         # Seed service catalog
         python scripts/seed_catalog_only.py
 
-    - name: Generate service embeddings for NLS tests
-      env:
-        SECRET_KEY: test-secret-key-for-ci
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-        TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-        IS_TESTING: true
-        RESEND_API_KEY: test-resend-key
-        FRONTEND_URL: http://localhost:3000
-        ENVIRONMENT: test
-        REDIS_URL: redis://localhost:6379
-        USE_TEST_DATABASE: true
+    - name: Embeddings (CI)
       run: |
         cd backend
-        echo "Generating embeddings for service catalog..."
-        python scripts/generate_service_embeddings.py
+        echo "Skipping deprecated embedding generation in CI."
+        echo "NL search retriever gracefully falls back to trigram search when embeddings are missing."
 
     - name: Backend Tests
       env:

@@ -81,6 +81,7 @@ interface ParsedQuery {
   max_price: number | null;
   date: string | null;
   time_after: string | null;
+  time_before?: string | null;
   audience_hint: string | null;
   skill_level: string | null;
   urgency: string | null;
@@ -526,6 +527,7 @@ function StatsCard({
 // Diagnostics Panel Component
 function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
   const latencyStatus = meta.latency_ms < 200 ? 'good' : meta.latency_ms < 500 ? 'warning' : 'error';
+  const parsedTime = formatParsedTimeWindow(meta.parsed.time_after, meta.parsed.time_before);
 
   return (
     <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
@@ -564,7 +566,7 @@ function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
           <ParsedField label="Resolved Location" value={meta.location_resolved ?? null} />
           <ParsedField label="Max Price" value={meta.parsed.max_price ? `$${meta.parsed.max_price}` : null} />
           <ParsedField label="Date" value={meta.parsed.date} />
-          <ParsedField label="Time After" value={meta.parsed.time_after} />
+          <ParsedField label="Time" value={parsedTime} />
           <ParsedField label="Audience" value={meta.parsed.audience_hint} />
           <ParsedField label="Skill Level" value={meta.parsed.skill_level} />
           <ParsedField label="Urgency" value={meta.parsed.urgency} />
@@ -669,6 +671,31 @@ function ParsedField({ label, value }: { label: string; value: string | number |
       <span className="ml-1 font-medium text-gray-900 dark:text-gray-100">{value}</span>
     </div>
   );
+}
+
+function formatTime12h(time: string): string {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!match) return time;
+
+  const hours24 = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours24) || !Number.isFinite(minutes)) return time;
+
+  const period = hours24 >= 12 ? 'pm' : 'am';
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+
+  if (minutes === 0) return `${hours12}${period}`;
+  return `${hours12}:${minutes.toString().padStart(2, '0')}${period}`;
+}
+
+function formatParsedTimeWindow(
+  timeAfter: string | null,
+  timeBefore: string | null | undefined,
+): string | null {
+  if (!timeAfter && !timeBefore) return null;
+  if (timeAfter && timeBefore) return `${formatTime12h(timeAfter)} - ${formatTime12h(timeBefore)}`;
+  if (timeAfter) return `after ${formatTime12h(timeAfter)}`;
+  return `before ${formatTime12h(timeBefore ?? '')}`;
 }
 
 // Results Panel Component

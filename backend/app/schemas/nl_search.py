@@ -137,6 +137,7 @@ class ParsedQueryInfo(BaseModel):
     max_price: Optional[int] = Field(None, description="Extracted max price")
     date: Optional[str] = Field(None, description="Extracted date")
     time_after: Optional[str] = Field(None, description="Extracted time constraint")
+    time_before: Optional[str] = Field(None, description="Extracted time constraint end")
     audience_hint: Optional[str] = Field(None, description="Detected audience hint")
     skill_level: Optional[str] = Field(None, description="Detected skill level")
     urgency: Optional[str] = Field(None, description="Detected urgency level")

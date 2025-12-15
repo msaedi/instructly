@@ -58,9 +58,17 @@ TIME_AFTER: Pattern[str] = re.compile(r"after\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)
 TIME_BEFORE: Pattern[str] = re.compile(r"before\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", re.IGNORECASE)
 TIME_AT: Pattern[str] = re.compile(r"(?:^|\s)at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", re.IGNORECASE)
 TIME_AROUND: Pattern[str] = re.compile(r"around\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", re.IGNORECASE)
-TIME_MORNING: Pattern[str] = re.compile(r"\b(?:morning|mornings)\b", re.IGNORECASE)
-TIME_AFTERNOON: Pattern[str] = re.compile(r"\b(?:afternoon|afternoons)\b", re.IGNORECASE)
-TIME_EVENING: Pattern[str] = re.compile(r"\b(?:evening|evenings|tonight)\b", re.IGNORECASE)
+# Include optional leading "in the" to avoid leaving behind trailing "in the" tokens
+# that can confuse location extraction (e.g., "in ues tomorrow in the morning").
+TIME_MORNING: Pattern[str] = re.compile(
+    r"\b(?:in\s+(?:the\s+)?)?(?:morning|mornings)\b", re.IGNORECASE
+)
+TIME_AFTERNOON: Pattern[str] = re.compile(
+    r"\b(?:in\s+(?:the\s+)?)?(?:afternoon|afternoons)\b", re.IGNORECASE
+)
+TIME_EVENING: Pattern[str] = re.compile(
+    r"\b(?:in\s+(?:the\s+)?)?(?:evening|evenings|tonight)\b", re.IGNORECASE
+)
 
 # Time window resolution
 TIME_WINDOWS: Dict[str, Tuple[str, str]] = {

@@ -65,7 +65,15 @@ from app.utils.env_logging import (
 _ENV_TAGS = {"INT", "STG", "PREVIEW", "PROD"}
 
 
-def warn(msg: str):
+def warn(msg: str, *more: object):
+    """
+    Emit a warning message.
+
+    Backwards-compatible with legacy call sites that passed a tag + message
+    (e.g., warn("ops", "something happened")).
+    """
+    if more:
+        msg = f"[{msg}] " + " ".join(str(part) for part in more)
     click.echo(f"{click.style('[WARN]', fg='yellow')} {msg}", err=True)
 
 

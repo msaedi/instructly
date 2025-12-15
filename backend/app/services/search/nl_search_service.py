@@ -694,6 +694,7 @@ class NLSearchService:
             max_price=parsed_query.max_price,
             date=parsed_query.date.isoformat() if parsed_query.date else None,
             time_after=parsed_query.time_after,
+            time_before=parsed_query.time_before,
             audience_hint=parsed_query.audience_hint,
             skill_level=parsed_query.skill_level,
             urgency=parsed_query.urgency,

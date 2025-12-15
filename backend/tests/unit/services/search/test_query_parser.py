@@ -235,6 +235,7 @@ class TestTimeExtraction:
     def test_at_time(self, parser: QueryParser) -> None:
         result = parser.parse("tutoring at 10am")
         assert result.time_after == "10:00"
+        assert result.time_before == "11:00"
 
     def test_morning_window(self, parser: QueryParser) -> None:
         result = parser.parse("yoga morning")
@@ -252,6 +253,12 @@ class TestTimeExtraction:
         """Times 1-6 without meridiem assume PM."""
         result = parser.parse("lessons after 5")
         assert result.time_after == "17:00"
+
+    def test_specific_time_creates_window(self, parser: QueryParser) -> None:
+        """'at 6am' should create a 1-hour window, not open-ended."""
+        result = parser.parse("piano at 6am")
+        assert result.time_after == "06:00"
+        assert result.time_before == "07:00"
 
 
 class TestDateExtraction:
@@ -360,6 +367,14 @@ class TestLocationExtraction:
         result = parser.parse("piano lessons in lic under 100")
         assert result.location_text == "lic"
         assert result.max_price == 100
+
+    def test_in_the_morning_does_not_break_location(self, parser: QueryParser) -> None:
+        """Regression: 'in the morning' shouldn't corrupt location extraction."""
+        result = parser.parse("piano in ues tomorrow in the morning")
+        assert result.location_text == "ues"
+        assert result.time_after == "06:00"
+        assert result.time_before == "12:00"
+        assert "in the" not in result.service_query.lower()
 
     def test_multi_word_neighborhood_in(self, parser: QueryParser) -> None:
         result = parser.parse("guitar lessons in lower east side")

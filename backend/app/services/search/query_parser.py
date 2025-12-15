@@ -316,18 +316,42 @@ class QueryParser:
     ) -> Tuple[str, ParsedQuery]:
         """Extract time constraints from query."""
 
+        def _add_minutes(time_str: str, delta_minutes: int) -> Optional[str]:
+            """Add minutes to an HH:MM time string (clamped to same-day)."""
+            try:
+                hour_str, minute_str = time_str.split(":", 1)
+                total = int(hour_str) * 60 + int(minute_str) + int(delta_minutes)
+            except Exception:
+                return None
+
+            total = max(0, min(total, (24 * 60) - 1))
+            return f"{total // 60:02d}:{total % 60:02d}"
+
         # Check for specific times
         for pattern, field_name in [
             (TIME_AFTER, "time_after"),
             (TIME_BEFORE, "time_before"),
-            (TIME_AT, "time_after"),  # "at 5pm" treated as "after 5pm"
-            (TIME_AROUND, "time_after"),  # "around 2pm" treated as "after 2pm"
+            (TIME_AT, "time_at"),
+            (TIME_AROUND, "time_around"),
         ]:
             match = pattern.search(query)
             if match:
                 time_str = self._parse_time_match(match)
                 if time_str:
-                    setattr(result, field_name, time_str)
+                    if field_name == "time_at":
+                        if not result.time_after:
+                            result.time_after = time_str
+                        # Specific times should be a narrow window, not open-ended.
+                        if not result.time_before:
+                            result.time_before = _add_minutes(time_str, 60)
+                    elif field_name == "time_around":
+                        # "around 2pm" -> +/- 1 hour window by default.
+                        if not result.time_after:
+                            result.time_after = _add_minutes(time_str, -60) or time_str
+                        if not result.time_before:
+                            result.time_before = _add_minutes(time_str, 60)
+                    else:
+                        setattr(result, field_name, time_str)
                     query = pattern.sub("", query)
 
         # Check for time windows
