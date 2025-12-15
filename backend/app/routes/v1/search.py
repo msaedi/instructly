@@ -17,7 +17,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import (
@@ -34,6 +34,7 @@ from ...schemas.nl_search import (
     NLSearchResponse,
     PopularQueriesResponse,
     PopularQueryItem,
+    SearchClickRequest,
     SearchClickResponse,
     SearchConfigResetResponse,
     SearchConfigResponse,
@@ -275,10 +276,21 @@ async def zero_result_queries(
 
 @router.post("/click", response_model=SearchClickResponse)
 def log_search_click(
-    search_query_id: str = Query(..., description="Search query ID from NL search"),
-    service_id: str = Query(..., description="Service ID that was clicked (instructor_service_id)"),
-    instructor_id: str = Query(..., description="Instructor user ID that was clicked"),
-    position: int = Query(..., ge=1, description="Position in search results (1-indexed)"),
+    request: Optional[SearchClickRequest] = Body(
+        None,
+        description=(
+            "JSON body payload for click tracking. If omitted, query parameters are accepted for "
+            "backward compatibility."
+        ),
+    ),
+    search_query_id: Optional[str] = Query(None, description="Search query ID from NL search"),
+    service_id: Optional[str] = Query(
+        None, description="Service ID that was clicked (instructor_service_id)"
+    ),
+    instructor_id: Optional[str] = Query(None, description="Instructor user ID that was clicked"),
+    position: Optional[int] = Query(
+        None, ge=1, description="Position in search results (1-indexed)"
+    ),
     action: str = Query("view", description="Action type: view, book, message, favorite"),
     db: Session = Depends(get_db),
     _current_user: Optional[User] = Depends(get_current_active_user_optional),
@@ -293,23 +305,39 @@ def log_search_click(
 
     repo = SearchAnalyticsRepository(db)
 
-    service_catalog_id, instructor_profile_id = repo.nl_resolve_click_targets(
-        service_id=service_id,
-        instructor_id=instructor_id,
-    )
-    if not service_catalog_id:
-        raise HTTPException(status_code=400, detail="Invalid service_id")
+    if request is None:
+        if not search_query_id or not instructor_id or position is None:
+            raise HTTPException(
+                status_code=422,
+                detail="search_query_id, instructor_id, and position are required",
+            )
+        request = SearchClickRequest(
+            search_query_id=search_query_id,
+            service_id=service_id,
+            instructor_id=instructor_id,
+            position=position,
+            action=action,
+        )
 
-    if not instructor_profile_id:
-        raise HTTPException(status_code=400, detail="Invalid instructor_id")
+    click_id: Optional[str] = None
+    if request.service_id:
+        service_catalog_id, instructor_profile_id = repo.nl_resolve_click_targets(
+            service_id=request.service_id,
+            instructor_id=request.instructor_id,
+        )
+        if not service_catalog_id:
+            raise HTTPException(status_code=400, detail="Invalid service_id")
 
-    click_id = repo.nl_log_search_click(
-        search_query_id=search_query_id,
-        service_id=service_catalog_id,
-        instructor_id=instructor_profile_id,
-        position=position,
-        action=action,
-    )
+        if not instructor_profile_id:
+            raise HTTPException(status_code=400, detail="Invalid instructor_id")
+
+        click_id = repo.nl_log_search_click(
+            search_query_id=request.search_query_id,
+            service_id=service_catalog_id,
+            instructor_id=instructor_profile_id,
+            position=request.position,
+            action=request.action,
+        )
 
     # Self-learning: if the location was unresolved for this search, record which region
     # the user clicked into (best-effort; do not fail the endpoint).
@@ -317,11 +345,16 @@ def log_search_click(
         from app.services.search.location_learning_click_service import LocationLearningClickService
 
         LocationLearningClickService(db).capture_location_learning_click(
-            search_query_id=search_query_id,
-            instructor_user_id=instructor_id,
+            search_query_id=request.search_query_id,
+            instructor_user_id=request.instructor_id,
         )
     except Exception as learn_err:
         logger.debug("Location learning click capture failed: %s", str(learn_err))
+
+    if click_id is None:
+        from app.core.ulid_helper import generate_ulid
+
+        click_id = generate_ulid()
 
     return SearchClickResponse(click_id=click_id)
 

@@ -252,6 +252,18 @@ class ZeroResultQueriesResponse(BaseModel):
     queries: List[ZeroResultQueryItem] = Field(..., description="Zero-result queries")
 
 
+class SearchClickRequest(BaseModel):
+    """Request payload for logging a search click."""
+
+    search_query_id: str = Field(..., description="Search query ID from NL search")
+    instructor_id: str = Field(..., description="Instructor user ID that was clicked")
+    service_id: Optional[str] = Field(
+        None, description="Service ID that was clicked (instructor_service_id)"
+    )
+    position: int = Field(..., ge=1, description="Position in search results (1-indexed)")
+    action: str = Field("view", description="Action type: view, book, message, favorite")
+
+
 class SearchClickResponse(BaseModel):
     """Response for logging a search click."""
 
