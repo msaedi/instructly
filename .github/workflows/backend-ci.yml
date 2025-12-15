@@ -188,6 +188,8 @@ jobs:
       working-directory: backend
       run: bandit -r app/ -ll -x tests --skip B324
 
-    - name: pip-audit
+    - name: pip-audit (project dependencies only)
       working-directory: backend
-      run: pip-audit --desc || echo "Vulnerability check completed"
+      run: |
+        # Scan requirements files directly - NOT the system Python packages
+        pip-audit -r requirements.txt -r requirements-dev.txt --desc

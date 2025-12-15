@@ -88,6 +88,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: npm audit (security scan)
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
       - name: Lint (full project)
         working-directory: frontend
         run: npm run lint
