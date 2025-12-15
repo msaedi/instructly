@@ -47,6 +47,12 @@ TEXT_SKIP_VECTOR_SCORE_THRESHOLD = float(
 )
 TEXT_SKIP_VECTOR_MIN_RESULTS = int(os.getenv("NL_SEARCH_TEXT_SKIP_VECTOR_MIN_RESULTS", "10"))
 
+# When trigram returns any strong match for a short, specific query, require lexical support
+# (i.e., drop vector-only candidates) to avoid semantic near-misses like "bass guitar" for "violin".
+TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD = float(
+    os.getenv("NL_SEARCH_TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD", "0.45")
+)
+
 # Soft budget: if embeddings are slow, fall back to text-only to protect latency.
 # This is capped by OPENAI_EMBEDDING_TIMEOUT_MS / SearchConfig.embedding_timeout_ms.
 EMBEDDING_SOFT_TIMEOUT_MS = int(os.getenv("NL_SEARCH_EMBEDDING_SOFT_TIMEOUT_MS", "300"))
@@ -176,6 +182,17 @@ class PostgresRetriever:
 
         # If trigram results are strong enough, skip embeddings/vector search entirely.
         best_text_score = max((score for score, _ in text_results.values()), default=0.0)
+
+        # Guardrail: For "specific" service queries (e.g., "violin", "piano lessons"),
+        # don't allow unrelated vector-only matches to displace strong lexical matches.
+        raw_tokens = [t for t in str(service_query or "").strip().split() if t]
+        non_generic_tokens = [t for t in raw_tokens if t.lower() not in TRIGRAM_GENERIC_TOKENS]
+        require_text_match = (
+            bool(text_results)
+            and (0 < len(non_generic_tokens) <= 2)
+            and best_text_score >= TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD
+        )
+
         if (
             len(text_results) >= TEXT_SKIP_VECTOR_MIN_RESULTS
             and best_text_score >= TEXT_SKIP_VECTOR_SCORE_THRESHOLD
@@ -245,6 +262,13 @@ class PostgresRetriever:
             )
             vector_latency_ms = int((time.perf_counter() - vector_start) * 1000)
             vector_search_used = True
+
+            if require_text_match and vector_results:
+                vector_results = {
+                    service_id: entry
+                    for service_id, entry in vector_results.items()
+                    if service_id in text_results
+                }
         else:
             if not degraded:
                 logger.warning("Embedding unavailable, using text-only search")

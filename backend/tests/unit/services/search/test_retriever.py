@@ -116,12 +116,13 @@ class TestHybridSearch:
         retriever: PostgresRetriever,
         sample_parsed_query: ParsedQuery,
     ) -> None:
-        """Should return candidates from both vector and text search."""
+        """Should return candidates, favoring lexical matches for specific queries."""
         result = await retriever.search(sample_parsed_query)
 
         assert result.vector_search_used is True
         assert result.degraded is False
-        assert len(result.candidates) == 3  # 2 vector + 2 text - 1 overlap
+        # Specific query guardrail filters out vector-only mismatches (e.g., guitar for "piano lessons").
+        assert len(result.candidates) == 2  # 1 overlap + 1 text-only
 
     @pytest.mark.asyncio
     async def test_service_in_both_gets_combined_score(
@@ -150,8 +151,11 @@ class TestHybridSearch:
         self,
         retriever: PostgresRetriever,
         sample_parsed_query: ParsedQuery,
+        mock_repository: Mock,
     ) -> None:
         """Services only in vector results should have penalty applied."""
+        # No lexical matches => allow vector-only results.
+        mock_repository.text_search.return_value = []
         result = await retriever.search(sample_parsed_query)
 
         # Find vector-only service (svc_002)

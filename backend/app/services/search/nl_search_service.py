@@ -712,6 +712,8 @@ class NLSearchService:
                 filter_result.filter_stats,
                 location_resolution,
                 location_resolved,
+                relaxed_constraints=filter_result.relaxed_constraints,
+                result_count=len(results),
             )
 
         meta = NLSearchMeta(
@@ -796,6 +798,9 @@ class NLSearchService:
         filter_stats: Dict[str, int],
         location_resolution: Optional["ResolvedLocation"],
         location_resolved: Optional[str],
+        *,
+        relaxed_constraints: List[str],
+        result_count: int,
     ) -> Optional[str]:
         """Generate a user-facing message when soft filtering/relaxation is used."""
         messages: List[str] = []
@@ -821,18 +826,28 @@ class NLSearchService:
             messages.append(f"No instructors under ${parsed.max_price}")
 
         if not messages:
-            return None
+            # Even if we don't have a specific "no results" cause, still report what we relaxed.
+            messages.append("No exact matches")
 
         location_related = any(
             m.startswith("No instructors found in") or m.startswith("Couldn't find location")
             for m in messages
-        )
-        suffix = (
-            "Showing results from nearby areas."
-            if location_related
-            else "Showing available instructors."
-        )
-        return f"{'. '.join(messages)}. {suffix}"
+        ) or ("location" in relaxed_constraints)
+
+        relaxed = [c for c in relaxed_constraints if c]
+        relaxed_text = f"Relaxed: {', '.join(relaxed)}." if relaxed else None
+
+        if result_count > 0:
+            lead = (
+                f"Showing {result_count} results from nearby areas."
+                if location_related
+                else f"Showing {result_count} results."
+            )
+        else:
+            lead = "No results found."
+
+        parts = [lead, ". ".join(messages) + ".", relaxed_text]
+        return " ".join(p for p in parts if p).strip()
 
     def _build_photo_url(self, key: Optional[str]) -> Optional[str]:
         """Build Cloudflare R2 URL for profile photo."""

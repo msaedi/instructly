@@ -6,7 +6,7 @@ Applies price, location, and availability filters to candidates.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, time
 import logging
 from typing import TYPE_CHECKING, Dict, List, Optional
@@ -61,6 +61,7 @@ class FilterResult:
     total_after_filter: int
     filters_applied: List[str] = field(default_factory=list)
     soft_filtering_used: bool = False
+    relaxed_constraints: List[str] = field(default_factory=list)
     location_resolution: Optional[ResolvedLocation] = None
     filter_stats: Dict[str, int] = field(default_factory=dict)
 
@@ -75,7 +76,8 @@ class FilterService:
     3. Availability - bitmap validation
 
     Soft Filtering:
-    If < 5 results after hard filters, relax constraints and mark results.
+    If < 5 results after hard filters, progressively relax constraints in this order:
+    1) time -> 2) date -> 3) location -> 4) price
     """
 
     def __init__(
@@ -176,53 +178,19 @@ class FilterService:
                 ]
                 candidate_ids = list(dict.fromkeys(candidate_ids))
 
-                filtered = (
+                # Apply a strict union filter across candidate regions (may yield 0).
+                working = (
                     self._filter_location_regions(working, candidate_ids) if candidate_ids else []
                 )
-                if filtered:
-                    working = filtered
-                    filters_applied.append("location")
-                    filter_stats["after_location"] = len(working)
-                    logger.info(
-                        "Ambiguous location '%s' resolved to %d candidate regions; applied union filter (%d -> %d)",
-                        parsed_query.location_text,
-                        len(candidate_ids),
-                        before_location_count,
-                        len(working),
-                    )
-                else:
-                    # Best-effort borough fallback if all candidates share a borough.
-                    boroughs = {
-                        c.get("borough")
-                        for c in (location_resolution.candidates or [])
-                        if c.get("borough")
-                    }
-                    if len(boroughs) == 1:
-                        borough = next(iter(boroughs))
-                        borough_filtered = self._filter_location_borough(working, str(borough))
-                        if borough_filtered:
-                            working = borough_filtered
-                            filters_applied.append("location")
-                            filter_stats["after_location"] = len(working)
-                            logger.info(
-                                "Ambiguous location '%s' fell back to borough '%s' (%d -> %d)",
-                                parsed_query.location_text,
-                                borough,
-                                before_location_count,
-                                len(working),
-                            )
-                        else:
-                            logger.info(
-                                "Ambiguous location '%s' (region=%s); no candidate coverage match; skipping location filter",
-                                parsed_query.location_text,
-                                self.location_resolver.region_code,
-                            )
-                    else:
-                        logger.info(
-                            "Ambiguous location '%s' (region=%s); skipping location filter",
-                            parsed_query.location_text,
-                            self.location_resolver.region_code,
-                        )
+                filters_applied.append("location")
+                filter_stats["after_location"] = len(working)
+                logger.info(
+                    "Ambiguous location '%s' resolved to %d candidate regions; applied union filter (%d -> %d)",
+                    parsed_query.location_text,
+                    len(candidate_ids),
+                    before_location_count,
+                    len(working),
+                )
             elif location_resolution.resolved:
                 if location_resolution.region_id:
                     working = self._filter_location_region(working, location_resolution.region_id)
@@ -252,13 +220,41 @@ class FilterService:
 
         # Step 4: Soft filtering if too few results
         soft_filtering_used = False
-        if len(working) < MIN_RESULTS_BEFORE_SOFT_FILTER and total_before > 0:
-            logger.info(f"Only {len(working)} results, applying soft filtering")
-            working = self._apply_soft_filtering(
-                candidates, parsed_query, resolved_location, default_duration
+        relaxed_constraints: List[str] = []
+        has_relaxable_constraints = bool(
+            parsed_query.max_price
+            or parsed_query.date
+            or parsed_query.date_range_start
+            or parsed_query.date_range_end
+            or parsed_query.time_after
+            or parsed_query.time_before
+            or resolved_location
+            or (
+                parsed_query.location_text
+                and parsed_query.location_type != "near_me"
+                and location_resolution
+                and not location_resolution.not_found
             )
-            soft_filtering_used = True
-            filter_stats["after_soft_filtering"] = len(working)
+        )
+
+        if (
+            has_relaxable_constraints
+            and len(working) < MIN_RESULTS_BEFORE_SOFT_FILTER
+            and total_before > 0
+        ):
+            logger.info(f"Only {len(working)} results, applying soft filtering")
+            working, relaxed_constraints = self._apply_soft_filtering(
+                original_candidates=candidates,
+                parsed_query=parsed_query,
+                user_location=resolved_location,
+                location_resolution=location_resolution,
+                duration_minutes=default_duration,
+                strict_service_ids={c.service_id for c in working},
+                filter_stats=filter_stats,
+            )
+            soft_filtering_used = bool(relaxed_constraints)
+            if soft_filtering_used:
+                filter_stats["after_soft_filtering"] = len(working)
 
         filter_stats["final_candidates"] = len(working)
         return FilterResult(
@@ -267,6 +263,7 @@ class FilterService:
             total_after_filter=len(working),
             filters_applied=filters_applied,
             soft_filtering_used=soft_filtering_used,
+            relaxed_constraints=relaxed_constraints,
             location_resolution=location_resolution,
             filter_stats=filter_stats,
         )
@@ -463,87 +460,306 @@ class FilterService:
         self,
         original_candidates: List[ServiceCandidate],
         parsed_query: "ParsedQuery",
-        location: Optional[tuple[float, float]],
+        user_location: Optional[tuple[float, float]],
+        location_resolution: Optional[ResolvedLocation],
         duration_minutes: int,
-    ) -> List[FilteredCandidate]:
+        strict_service_ids: set[str],
+        filter_stats: Dict[str, int],
+    ) -> tuple[List[FilteredCandidate], List[str]]:
         """
-        Apply relaxed filters when hard filters return too few results.
+        Progressively relax constraints until we reach a minimum result threshold.
 
-        Relaxation rules:
-        - Price: Allow up to 1.25x max_price
-        - Location: Expand distance to 10km
-        - Availability: Check next 7 days instead of specific date
+        Relaxation order (least important -> most important):
+        1) time: remove time_after/time_before
+        2) date: remove date constraints (still require availability in next 7 days)
+        3) location: expand to nearby areas
+        4) price: increase max_price by SOFT_PRICE_MULTIPLIER
+
+        Returns:
+            (relaxed_candidates, relaxed_constraints)
         """
-        working = [
-            FilteredCandidate(
-                service_id=c.service_id,
-                service_catalog_id=c.service_catalog_id,
-                instructor_id=c.instructor_id,
-                hybrid_score=c.hybrid_score,
-                name=c.name,
-                description=c.description,
-                price_per_hour=c.price_per_hour,
-                soft_filtered=True,
-            )
-            for c in original_candidates
-        ]
 
-        # Soft price filter
-        if parsed_query.max_price:
-            soft_max = int(parsed_query.max_price * SOFT_PRICE_MULTIPLIER)
-            new_working = []
-            for c in working:
-                if c.price_per_hour <= soft_max:
-                    if c.price_per_hour > parsed_query.max_price:
-                        c.soft_filter_reasons.append("price_relaxed")
-                    new_working.append(c)
-            working = new_working
+        def _build_base_candidates() -> List[FilteredCandidate]:
+            return [
+                FilteredCandidate(
+                    service_id=c.service_id,
+                    service_catalog_id=c.service_catalog_id,
+                    instructor_id=c.instructor_id,
+                    hybrid_score=c.hybrid_score,
+                    name=c.name,
+                    description=c.description,
+                    price_per_hour=c.price_per_hour,
+                )
+                for c in original_candidates
+            ]
 
-        # Soft location filter
-        if location:
-            lng, lat = location
-            instructor_ids = list({c.instructor_id for c in working})
-            passing_ids = set(self.repository.filter_by_location_soft(instructor_ids, lng, lat))
-            hard_passing_ids = (
-                set(self.repository.filter_by_location(list(passing_ids), lng, lat))
-                if passing_ids
-                else set()
+        def _has_availability_constraint(query: "ParsedQuery") -> bool:
+            return bool(
+                query.date
+                or query.date_range_start
+                or query.date_range_end
+                or query.time_after
+                or query.time_before
             )
 
-            new_working = []
-            for c in working:
-                if c.instructor_id in passing_ids:
-                    if c.instructor_id not in hard_passing_ids:
-                        c.soft_filter_reasons.append("location_relaxed")
-                    new_working.append(c)
-            working = new_working
+        def _apply_location_hard(
+            candidates: List[FilteredCandidate],
+        ) -> List[FilteredCandidate]:
+            if user_location:
+                return self._filter_location(candidates, user_location)
 
-        # Soft availability filter (always check 7 days)
-        instructor_ids = list({c.instructor_id for c in working})
-        availability_map = self.repository.filter_by_availability(
-            instructor_ids,
-            target_date=None,  # Check next 7 days
-            time_after=self._parse_time(parsed_query.time_after),
-            time_before=self._parse_time(parsed_query.time_before),
-            duration_minutes=duration_minutes,
+            if not (parsed_query.location_text and parsed_query.location_type != "near_me"):
+                return candidates
+
+            if not location_resolution or not (
+                location_resolution.resolved or location_resolution.requires_clarification
+            ):
+                return candidates
+
+            if location_resolution.requires_clarification:
+                candidate_ids = [
+                    c["region_id"]
+                    for c in (location_resolution.candidates or [])
+                    if isinstance(c, dict) and c.get("region_id")
+                ]
+                candidate_ids = list(dict.fromkeys(candidate_ids))
+                return (
+                    self._filter_location_regions(candidates, candidate_ids)
+                    if candidate_ids
+                    else []
+                )
+
+            if location_resolution.region_id:
+                return self._filter_location_region(candidates, str(location_resolution.region_id))
+
+            if location_resolution.borough:
+                return self._filter_location_borough(candidates, str(location_resolution.borough))
+
+            return candidates
+
+        def _apply_location_soft(
+            candidates: List[FilteredCandidate],
+        ) -> List[FilteredCandidate]:
+            if user_location:
+                lng, lat = user_location
+                instructor_ids = list({c.instructor_id for c in candidates})
+                passing_ids = set(self.repository.filter_by_location_soft(instructor_ids, lng, lat))
+                return [c for c in candidates if c.instructor_id in passing_ids]
+
+            if not (parsed_query.location_text and parsed_query.location_type != "near_me"):
+                return candidates
+
+            if not location_resolution or not (
+                location_resolution.resolved or location_resolution.requires_clarification
+            ):
+                return candidates
+
+            region_ids: List[str] = []
+            if location_resolution.region_id:
+                region_ids = [str(location_resolution.region_id)]
+            elif location_resolution.requires_clarification:
+                region_ids = [
+                    str(c.get("region_id"))
+                    for c in (location_resolution.candidates or [])
+                    if isinstance(c, dict) and c.get("region_id")
+                ]
+                region_ids = list(dict.fromkeys(region_ids))
+
+            if region_ids:
+                instructor_ids = list({c.instructor_id for c in candidates})
+                distances = self.repository.get_instructor_min_distance_to_regions(
+                    instructor_ids, region_ids
+                )
+                passing_ids = {
+                    iid for iid, dist_m in distances.items() if dist_m <= SOFT_DISTANCE_METERS
+                }
+                return [c for c in candidates if c.instructor_id in passing_ids]
+
+            # Borough-only locations are already quite broad; if we can't resolve to concrete regions,
+            # relaxing location falls back to skipping the filter (last-resort).
+            return candidates
+
+        def _run_filters(
+            query: "ParsedQuery",
+            *,
+            relax_location: bool,
+            enforce_availability: bool,
+        ) -> List[FilteredCandidate]:
+            working = _build_base_candidates()
+
+            if query.max_price:
+                working = self._filter_price(working, query.max_price)
+
+            working = (
+                _apply_location_soft(working) if relax_location else _apply_location_hard(working)
+            )
+
+            if enforce_availability or _has_availability_constraint(query):
+                working = self._filter_availability(working, query, duration_minutes)
+
+            return working
+
+        # If the user specified any availability constraint, keep a baseline requirement that
+        # instructors have availability within the next 7 days (even after relaxing date/time).
+        enforce_availability = _has_availability_constraint(parsed_query)
+
+        original_max_price = parsed_query.max_price
+        time_relaxed = False
+        date_relaxed = False
+        location_relax_enabled = False
+        price_relaxed = False
+
+        relaxed_constraints: List[str] = []
+        relax_location = False
+        relaxed_query = replace(parsed_query)
+
+        # Start from the strict constraints and progressively relax.
+        best = _run_filters(
+            relaxed_query, relax_location=relax_location, enforce_availability=enforce_availability
         )
 
-        final = []
-        for c in working:
-            available_dates = availability_map.get(c.instructor_id, [])
-            if available_dates:
-                c.available_dates = available_dates
-                c.earliest_available = min(available_dates)
+        def _mark_soft(candidates: List[FilteredCandidate], constraints: List[str]) -> None:
+            for c in candidates:
+                if c.service_id in strict_service_ids:
+                    continue
+                if constraints:
+                    c.soft_filtered = True
+                    c.soft_filter_reasons = [f"{step}_relaxed" for step in constraints]
+                    c.hybrid_score *= 0.7
 
-                # Check if original date constraint wasn't met
-                if parsed_query.date and parsed_query.date not in available_dates:
-                    c.soft_filter_reasons.append("availability_relaxed")
+        if len(best) >= MIN_RESULTS_BEFORE_SOFT_FILTER:
+            _mark_soft(best, relaxed_constraints)
+            return best, relaxed_constraints
 
-                final.append(c)
+        # TIME relaxation
+        if relaxed_query.time_after or relaxed_query.time_before:
+            relaxed_query.time_after = None
+            relaxed_query.time_before = None
+            relaxed_query.time_window = None
+            time_relaxed = True
+            relaxed_constraints.append("time")
+            best = _run_filters(
+                relaxed_query,
+                relax_location=relax_location,
+                enforce_availability=enforce_availability,
+            )
+            filter_stats["after_relax_time"] = len(best)
+            if len(best) >= MIN_RESULTS_BEFORE_SOFT_FILTER:
+                _mark_soft(best, relaxed_constraints)
+                return best, relaxed_constraints
 
-        # Apply score penalty for soft-filtered results
-        for c in final:
-            if c.soft_filter_reasons:
-                c.hybrid_score *= 0.7
+        # DATE relaxation
+        if relaxed_query.date or relaxed_query.date_range_start or relaxed_query.date_range_end:
+            relaxed_query.date = None
+            relaxed_query.date_range_start = None
+            relaxed_query.date_range_end = None
+            relaxed_query.date_type = None
+            date_relaxed = True
+            relaxed_constraints.append("date")
+            best = _run_filters(
+                relaxed_query,
+                relax_location=relax_location,
+                enforce_availability=enforce_availability,
+            )
+            filter_stats["after_relax_date"] = len(best)
+            if len(best) >= MIN_RESULTS_BEFORE_SOFT_FILTER:
+                _mark_soft(best, relaxed_constraints)
+                return best, relaxed_constraints
 
-        return final
+        # LOCATION relaxation
+        strict_location_matches_exist = bool(filter_stats.get("after_location", 0) > 0)
+        can_relax_location = False
+        if user_location:
+            can_relax_location = True
+        elif (
+            parsed_query.location_text
+            and parsed_query.location_type != "near_me"
+            and location_resolution
+            and not location_resolution.not_found
+        ):
+            can_relax_location = True
+
+        # IMPORTANT: If the strict location filter produced any results, keep location strict.
+        # Users explicitly asked for a location; don't expand to nearby areas just to pad count.
+        if can_relax_location and not strict_location_matches_exist:
+            relax_location = True
+            location_relax_enabled = True
+            best = _run_filters(
+                relaxed_query,
+                relax_location=relax_location,
+                enforce_availability=enforce_availability,
+            )
+            filter_stats["after_relax_location"] = len(best)
+            if len(best) >= MIN_RESULTS_BEFORE_SOFT_FILTER:
+                relaxed_constraints.append("location")
+                _mark_soft(best, relaxed_constraints)
+                return best, relaxed_constraints
+
+        # PRICE relaxation (last resort)
+        if relaxed_query.max_price:
+            relaxed_query.max_price = int(relaxed_query.max_price * SOFT_PRICE_MULTIPLIER)
+            price_relaxed = True
+            relaxed_constraints.append("price")
+            best = _run_filters(
+                relaxed_query,
+                relax_location=relax_location,
+                enforce_availability=enforce_availability,
+            )
+            filter_stats["after_relax_price"] = len(best)
+
+        def _service_ids(cands: List[FilteredCandidate]) -> set[str]:
+            return {c.service_id for c in cands}
+
+        # Only report constraints that actually affected the final candidate set.
+        best_ids = _service_ids(best)
+        effective_constraints: List[str] = []
+
+        if time_relaxed:
+            with_time_query = replace(relaxed_query)
+            with_time_query.time_after = parsed_query.time_after
+            with_time_query.time_before = parsed_query.time_before
+            with_time_query.time_window = parsed_query.time_window
+            with_time = _run_filters(
+                with_time_query,
+                relax_location=relax_location,
+                enforce_availability=enforce_availability,
+            )
+            if _service_ids(with_time) != best_ids:
+                effective_constraints.append("time")
+
+        if date_relaxed:
+            with_date_query = replace(relaxed_query)
+            with_date_query.date = parsed_query.date
+            with_date_query.date_range_start = parsed_query.date_range_start
+            with_date_query.date_range_end = parsed_query.date_range_end
+            with_date_query.date_type = parsed_query.date_type
+            with_date = _run_filters(
+                with_date_query,
+                relax_location=relax_location,
+                enforce_availability=enforce_availability,
+            )
+            if _service_ids(with_date) != best_ids:
+                effective_constraints.append("date")
+
+        if location_relax_enabled:
+            without_location = _run_filters(
+                relaxed_query,
+                relax_location=False,
+                enforce_availability=enforce_availability,
+            )
+            if _service_ids(without_location) != best_ids:
+                effective_constraints.append("location")
+
+        if price_relaxed and original_max_price is not None:
+            without_price_query = replace(relaxed_query)
+            without_price_query.max_price = original_max_price
+            without_price = _run_filters(
+                without_price_query,
+                relax_location=relax_location,
+                enforce_availability=enforce_availability,
+            )
+            if _service_ids(without_price) != best_ids:
+                effective_constraints.append("price")
+
+        _mark_soft(best, effective_constraints)
+        return best, effective_constraints

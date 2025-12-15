@@ -54,6 +54,14 @@ def mock_repository() -> Mock:
         "inst_005",
         "inst_006",
     ]
+    repo.filter_by_any_region_coverage.return_value = [
+        "inst_001",
+        "inst_002",
+        "inst_003",
+        "inst_004",
+        "inst_005",
+        "inst_006",
+    ]
     repo.filter_by_parent_region.return_value = [
         "inst_001",
         "inst_002",
@@ -558,8 +566,63 @@ class TestSoftFiltering:
 
         result = await filter_service.filter_candidates(candidates, query)
 
-        # Should have triggered soft filtering since only 2 passed hard filter
-        assert result.soft_filtering_used is True
+        # We have strict location matches; don't relax location just to pad results.
+        assert result.soft_filtering_used is False
+        assert result.relaxed_constraints == []
+        assert result.filter_stats.get("after_soft_filtering") is None
+
+    @pytest.mark.asyncio
+    async def test_soft_filtering_does_not_expand_location_when_strict_matches_exist(
+        self,
+        filter_service: FilterService,
+        mock_repository: Mock,
+    ) -> None:
+        """
+        When the strict location filter yields at least one match, don't expand to nearby areas
+        just to hit a minimum result threshold.
+        """
+        mock_repository.filter_by_region_coverage.return_value = ["inst_001"]
+        mock_repository.filter_by_availability.return_value = {"inst_001": [date.today()]}
+
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation.from_region(
+            region_id="reg_ues",
+            region_name="Upper East Side",
+            borough="Manhattan",
+            tier=ResolutionTier.EXACT,
+            confidence=1.0,
+        )
+
+        candidates = [
+            ServiceCandidate(
+                service_id=f"svc_{i+1}",
+                service_catalog_id=f"cat_{i+1}",
+                hybrid_score=1.0,
+                vector_score=1.0,
+                text_score=None,
+                name=f"Lesson {i}",
+                description=None,
+                price_per_hour=50,
+                instructor_id=f"inst_00{i+1}",
+            )
+            for i in range(2)
+        ]
+
+        query = ParsedQuery(
+            original_query="piano in ues tomorrow at 6am",
+            service_query="piano",
+            parsing_mode="regex",
+            location_text="ues",
+            location_type="neighborhood",
+            date=date.today() + timedelta(days=1),
+            time_after="06:00",
+        )
+
+        result = await filter_service.filter_candidates(candidates, query)
+
+        assert result.soft_filtering_used is False
+        assert result.relaxed_constraints == []
+        assert {c.instructor_id for c in result.candidates} == {"inst_001"}
+        assert mock_repository.get_instructor_min_distance_to_regions.call_count == 0
 
     @pytest.mark.asyncio
     async def test_soft_filtering_relaxes_price(
@@ -600,6 +663,7 @@ class TestSoftFiltering:
 
         # Should include $70 candidate with soft filtering
         assert result.soft_filtering_used is True
+        assert result.relaxed_constraints == ["price"]
         assert len(result.candidates) > 0
         assert any("price_relaxed" in c.soft_filter_reasons for c in result.candidates)
 
@@ -642,6 +706,121 @@ class TestSoftFiltering:
         if result.candidates and result.candidates[0].soft_filter_reasons:
             # Score should be penalized
             assert result.candidates[0].hybrid_score == pytest.approx(0.7, abs=0.01)
+
+    @pytest.mark.asyncio
+    async def test_relaxation_order_time_then_date(
+        self,
+        filter_service: FilterService,
+        sample_candidates: list[ServiceCandidate],
+        mock_repository: Mock,
+    ) -> None:
+        """Time should be relaxed before date when availability is too restrictive."""
+        target_date = date.today() + timedelta(days=1)
+
+        def availability_side_effect(
+            instructor_ids: list[str],
+            target_date: date | None = None,
+            time_after: time | None = None,
+            time_before: time | None = None,
+            duration_minutes: int = 60,
+        ) -> dict[str, list[date]]:
+            # Strict: date + time constraint returns nothing.
+            if target_date is not None and time_after is not None:
+                return {}
+            # After relaxing time, still nothing.
+            if target_date is not None and time_after is None:
+                return {}
+            # After relaxing date, return enough results.
+            today = date.today()
+            return {
+                "inst_001": [today],
+                "inst_002": [today],
+                "inst_003": [today],
+                "inst_004": [today],
+                "inst_005": [today],
+            }
+
+        mock_repository.filter_by_availability.side_effect = availability_side_effect
+
+        query = ParsedQuery(
+            original_query="piano monday 9am",
+            service_query="piano",
+            parsing_mode="regex",
+            date=target_date,
+            time_after="09:00",
+        )
+
+        result = await filter_service.filter_candidates(sample_candidates, query)
+
+        assert result.soft_filtering_used is True
+        assert result.relaxed_constraints[:2] == ["time", "date"]
+
+        calls = mock_repository.filter_by_availability.call_args_list
+        assert len(calls) >= 3  # strict + at least one relaxation attempt
+
+        # Find the first availability call where time was relaxed (time_after=None) but date is still fixed.
+        time_relax_index = None
+        for idx, call in enumerate(calls):
+            if len(call.args) >= 3 and call.args[1] == target_date and call.args[2] is None:
+                time_relax_index = idx
+                break
+        assert time_relax_index is not None
+
+        # Find the first availability call where date was relaxed (target_date=None) to check next 7 days.
+        date_relax_index = None
+        for idx, call in enumerate(calls):
+            if call.kwargs.get("target_date") is None and "target_date" in call.kwargs:
+                date_relax_index = idx
+                break
+        assert date_relax_index is not None
+        assert time_relax_index < date_relax_index
+
+    @pytest.mark.asyncio
+    async def test_location_relaxation_uses_nearby_distance_for_regions(
+        self,
+        filter_service: FilterService,
+        sample_candidates: list[ServiceCandidate],
+        mock_repository: Mock,
+    ) -> None:
+        """Location relaxation should use nearby areas when a region is resolved but has no direct coverage."""
+        # Strict location coverage returns nothing.
+        mock_repository.filter_by_region_coverage.return_value = []
+
+        # Soft location uses min-distance to include nearby instructors.
+        mock_repository.get_instructor_min_distance_to_regions.return_value = {
+            "inst_001": 0.0,
+            "inst_002": 100.0,
+            "inst_003": 5000.0,
+            "inst_004": 9000.0,
+            "inst_005": 9999.0,
+            "inst_006": 15000.0,  # outside soft radius
+        }
+
+        filter_service.location_resolver.resolve.return_value = ResolvedLocation.from_region(
+            region_id="reg_lic",
+            region_name="Long Island City",
+            borough="Queens",
+            tier=ResolutionTier.EXACT,
+            confidence=1.0,
+        )
+
+        query = ParsedQuery(
+            original_query="piano in lic",
+            service_query="piano",
+            parsing_mode="regex",
+            location_text="lic",
+            location_type="neighborhood",
+        )
+
+        result = await filter_service.filter_candidates(sample_candidates, query)
+
+        assert result.soft_filtering_used is True
+        assert "location" in result.relaxed_constraints
+        assert result.filter_stats.get("after_location") == 0
+        assert result.filter_stats.get("after_soft_filtering") == 5
+
+        instructor_ids = {c.instructor_id for c in result.candidates}
+        assert "inst_006" not in instructor_ids
 
 
 class TestFilterResult:
