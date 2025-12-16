@@ -229,3 +229,49 @@ class UnresolvedLocationQueryRepository:
                 self.db.rollback()
             except Exception:
                 pass
+
+    def set_status(self, query_normalized: str, *, status: str) -> bool:
+        """Update status for an unresolved query row (best-effort)."""
+        row = self.get_by_normalized(query_normalized)
+        if not row:
+            return False
+        try:
+            row.status = str(status)
+            self.db.flush()
+            return True
+        except Exception as exc:
+            logger.debug(
+                "Failed to set unresolved query '%s' status=%s: %s",
+                query_normalized,
+                status,
+                str(exc),
+            )
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return False
+
+    def mark_resolved(
+        self, query_normalized: str, *, region_boundary_id: Optional[str] = None
+    ) -> bool:
+        """Mark an unresolved query as handled via admin action (best-effort)."""
+        row = self.get_by_normalized(query_normalized)
+        if not row:
+            return False
+        try:
+            row.status = "manual_review"
+            if region_boundary_id:
+                row.resolved_region_boundary_id = str(region_boundary_id)
+                row.resolved_at = func.now()
+            row.reviewed = True
+            row.reviewed_at = func.now()
+            self.db.flush()
+            return True
+        except Exception as exc:
+            logger.debug("Failed to mark unresolved query resolved: %s", str(exc))
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return False

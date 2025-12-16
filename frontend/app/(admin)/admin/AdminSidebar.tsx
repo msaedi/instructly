@@ -3,7 +3,17 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
-import { Search, Server, Code, FlaskConical, Gift, ShieldCheck, SlidersHorizontal, Award, Sparkles } from 'lucide-react';
+import {
+  Award,
+  Code,
+  FlaskConical,
+  Gift,
+  Search,
+  Server,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+} from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useBGCCounts } from './bgc-review/hooks';
@@ -107,6 +117,7 @@ function AdminSidebar() {
       icon: Sparkles,
       items: [
         { name: 'Testing', href: '/admin/nl-search' },
+        { name: 'Location Learning', href: '/admin/location-learning' },
       ],
     },
     {
@@ -163,7 +174,9 @@ function AdminSidebar() {
       <ul className="space-y-1">
         {categories.map((cat) => {
           const Icon = cat.icon;
-          const active = pathname.startsWith(`/admin/${cat.key}`);
+          const active =
+            pathname.startsWith(`/admin/${cat.key}`) ||
+            (cat.key === 'nl-search' && pathname.startsWith('/admin/location-learning'));
           return (
           <li key={cat.key}>
             <Link

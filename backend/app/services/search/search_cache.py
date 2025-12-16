@@ -139,6 +139,7 @@ class SearchCacheService:
         user_location: Optional[tuple[float, float]] = None,
         filters: Optional[Dict[str, Any]] = None,
         limit: int = 20,
+        ttl: Optional[int] = None,
         region_code: str | None = None,
     ) -> bool:
         """
@@ -164,7 +165,7 @@ class SearchCacheService:
 
         try:
             serialized = self._serialize_response(response)
-            self.cache.set(key, serialized, ttl=RESPONSE_CACHE_TTL)
+            self.cache.set(key, serialized, ttl=ttl or RESPONSE_CACHE_TTL)
             logger.debug(f"Response cached: {key[:50]}")
             return True
         except Exception as e:

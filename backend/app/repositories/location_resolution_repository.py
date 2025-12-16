@@ -173,6 +173,32 @@ class LocationResolutionRepository:
                 pass
             return []
 
+    def list_regions(self, *, limit: int = 2000) -> list[RegionBoundary]:
+        """List RegionBoundary rows for this region_code (best-effort)."""
+        try:
+            rows = (
+                self.db.query(RegionBoundary)
+                .filter(
+                    RegionBoundary.region_type == self.region_code,
+                    RegionBoundary.region_name.isnot(None),
+                )
+                .order_by(
+                    func.coalesce(RegionBoundary.parent_region, "").asc(),
+                    func.coalesce(RegionBoundary.region_name, "").asc(),
+                    RegionBoundary.id.asc(),
+                )
+                .limit(int(limit))
+                .all()
+            )
+            return [r for r in rows if isinstance(r, RegionBoundary)]
+        except Exception as exc:
+            logger.debug("Region list failed: %s", str(exc))
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return []
+
     def find_best_fuzzy_region(
         self, normalized: str, *, threshold: float
     ) -> tuple[Optional[RegionBoundary], float]:

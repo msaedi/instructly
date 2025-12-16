@@ -36,6 +36,7 @@ class AdminLocationLearningPendingAliasItem(StrictModel):
     id: str
     alias_normalized: str
     region_boundary_id: Optional[str] = None
+    region_name: Optional[str] = None
     confidence: float
     user_count: int
     status: str
@@ -64,12 +65,36 @@ class AdminLocationLearningAliasActionResponse(StrictModel):
     alias_id: str
 
 
+class AdminLocationLearningCreateAliasResponse(StrictModel):
+    status: Literal["created"]
+    alias_id: str
+
+
+class AdminLocationLearningDismissQueryResponse(StrictModel):
+    status: Literal["dismissed"]
+    query_normalized: str
+
+
+class AdminLocationLearningRegionItem(StrictModel):
+    id: str
+    name: str
+    borough: Optional[str] = None
+
+
+class AdminLocationLearningRegionsResponse(StrictModel):
+    regions: list[AdminLocationLearningRegionItem]
+
+
 __all__ = [
     "AdminLocationLearningAliasActionResponse",
     "AdminLocationLearningClickCount",
+    "AdminLocationLearningCreateAliasResponse",
+    "AdminLocationLearningDismissQueryResponse",
     "AdminLocationLearningLearnedAliasItem",
     "AdminLocationLearningPendingAliasItem",
     "AdminLocationLearningPendingAliasesResponse",
+    "AdminLocationLearningRegionItem",
+    "AdminLocationLearningRegionsResponse",
     "AdminLocationLearningProcessResponse",
     "AdminLocationLearningUnresolvedQueriesResponse",
     "AdminLocationLearningUnresolvedQueryItem",

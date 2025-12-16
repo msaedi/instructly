@@ -7,6 +7,7 @@ Modes: prod | preview | stg | int
 """
 
 import argparse
+import asyncio
 from contextlib import contextmanager
 from datetime import date, timedelta
 import json
@@ -370,7 +371,7 @@ def seed_system_data(db_url: str, dry_run: bool, mode: str, seed_db_url: Optiona
     env = {**os.environ, **_mode_env(mode), "DATABASE_URL": target}
     with perf_timer("Seed System Data"):
         subprocess.check_call([sys.executable, "scripts/seed_data.py", "--system-only"], cwd=str(BACKEND_DIR), env=env)
-    engine = create_engine(db_url)
+    engine = create_engine(target)
     try:
         with Session(engine) as session:
             populate_region_embeddings(session, dry_run=dry_run, mode=mode)
@@ -1341,6 +1342,11 @@ to control the mock-data phases (stg/int default to include).
     parser.add_argument("--seed-system-only", action="store_true")
     parser.add_argument("--seed-mock-users", action="store_true")
     parser.add_argument(
+        "--seed-popular-queries",
+        action="store_true",
+        help="Warm NL search caches with popular queries",
+    )
+    parser.add_argument(
         "--seed-availability-only",
         action="store_true",
         help="Run only the bitmap availability pipeline (future + backfill) and exit.",
@@ -1425,11 +1431,18 @@ to control the mock-data phases (stg/int default to include).
             args.seed_system_only = True
             args.seed_mock_users = False
             args.seed_all = False
-        if not args.dry_run and (args.migrate or args.seed_system_only or args.seed_all_prod):
+        if not args.dry_run and (
+            args.migrate or args.seed_system_only or args.seed_all_prod or args.seed_popular_queries
+        ):
             if not (args.force and args.yes):
                 fail("Prod writes require BOTH --force and --yes.")
         # optional interactive confirmation (only when writing)
-        if not args.yes and not args.dry_run and (args.migrate or args.seed_system_only) and not os.getenv("CI"):
+        if (
+            not args.yes
+            and not args.dry_run
+            and (args.migrate or args.seed_system_only or args.seed_popular_queries)
+            and not os.getenv("CI")
+        ):
             resp = input("You are about to modify PRODUCTION. Type 'yes' to continue: ").strip().lower()
             if resp != "yes":
                 info("prod", "Operation cancelled.")
@@ -1561,6 +1574,31 @@ to control the mock-data phases (stg/int default to include).
             generate_embeddings(db_url, args.dry_run, mode)
             calculate_analytics(db_url, args.dry_run, mode)
             clear_cache(mode, args.dry_run)
+        if args.seed_popular_queries:
+            if args.dry_run:
+                info("dry", "(dry-run) Would warm NL search cache with popular queries")
+            else:
+                info("seed", "Warming NL search cache with popular queries…")
+                from scripts.seed_popular_queries import warm_queries  # noqa: E402
+
+                engine = create_engine(seed_db_url)
+                try:
+                    with Session(engine) as session:
+                        stats = asyncio.run(
+                            warm_queries(
+                                db=session,
+                                region_code="nyc",
+                                limit=20,
+                                user_location=None,
+                            )
+                        )
+                        info(
+                            "seed",
+                            "Popular query warmup complete: "
+                            f"success={stats['success']} failed={stats['failed']} degraded={stats['degraded']}",
+                        )
+                finally:
+                    engine.dispose()
         info(mode, "Complete!")
         # Print performance summary at the end
         perf_summary()

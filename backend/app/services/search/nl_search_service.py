@@ -216,9 +216,11 @@ class NLSearchService:
             degradation_reasons=metrics.degradation_reasons,
         )
 
-        # Cache response (skip degraded responses to avoid "sticky" outages)
-        if not metrics.degraded:
-            self._cache_response(query, user_location, response, limit)
+        # Cache response.
+        # Degraded responses get a short TTL to avoid "sticky" outages while still
+        # preventing repeated expensive cache misses during provider instability.
+        degraded_ttl = 30 if metrics.degraded else None
+        self._cache_response(query, user_location, response, limit, ttl=degraded_ttl)
 
         return response
 
@@ -565,6 +567,8 @@ class NLSearchService:
         user_location: Optional[Tuple[float, float]],
         response: NLSearchResponse,
         limit: int,
+        *,
+        ttl: Optional[int] = None,
     ) -> None:
         """Cache the response."""
         try:
@@ -573,6 +577,7 @@ class NLSearchService:
                 response.model_dump(),
                 user_location=user_location,
                 limit=limit,
+                ttl=ttl,
                 region_code=self._region_code,
             )
         except Exception as e:
