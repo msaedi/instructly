@@ -678,7 +678,7 @@ class TestSearchPipeline:
         sample_parsed_query: ParsedQuery,
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
-        """Should mark degraded and skip response cache when embeddings unavailable."""
+        """Should mark degraded and cache response briefly when embeddings unavailable."""
         mock_search_cache.get_cached_response = Mock(return_value=None)
         mock_search_cache.get_cached_parsed_query = Mock(return_value=None)
 
@@ -719,7 +719,9 @@ class TestSearchPipeline:
         assert response.meta.degraded is True
         assert "embedding_service_unavailable" in response.meta.degradation_reasons
         assert len(response.results) == 2
-        mock_search_cache.cache_response.assert_not_called()
+        mock_search_cache.cache_response.assert_called_once()
+        _, kwargs = mock_search_cache.cache_response.call_args
+        assert kwargs.get("ttl") == 30
 
     @pytest.mark.asyncio
     async def test_handles_parsing_failure(

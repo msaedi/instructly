@@ -54,8 +54,11 @@ TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD = float(
 )
 
 # Soft budget: if embeddings are slow, fall back to text-only to protect latency.
-# This is capped by OPENAI_EMBEDDING_TIMEOUT_MS / SearchConfig.embedding_timeout_ms.
-EMBEDDING_SOFT_TIMEOUT_MS = int(os.getenv("NL_SEARCH_EMBEDDING_SOFT_TIMEOUT_MS", "300"))
+# When unset/0, we rely on OPENAI_EMBEDDING_TIMEOUT_MS / SearchConfig.embedding_timeout_ms.
+_EMBEDDING_SOFT_TIMEOUT_RAW = os.getenv("NL_SEARCH_EMBEDDING_SOFT_TIMEOUT_MS")
+EMBEDDING_SOFT_TIMEOUT_MS = (
+    int(_EMBEDDING_SOFT_TIMEOUT_RAW) if _EMBEDDING_SOFT_TIMEOUT_RAW is not None else 0
+)
 
 # Tokens that commonly appear in many service names and can cause trigram search
 # to over-match unrelated categories (e.g., "piano lessons" matching "chess lessons").

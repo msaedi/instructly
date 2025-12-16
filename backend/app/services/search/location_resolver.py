@@ -297,14 +297,26 @@ class LocationResolver:
             return fuzzy
 
         if enable_semantic:
-            # Gate embedding tier: if fuzzy score is too low, query is likely nonsense
-            # (e.g., "madeupplace" has 0.18 fuzzy score - skip embedding to prevent false positives)
-            best_fuzzy_score = self.repository.get_best_fuzzy_score(normalized)
-            if best_fuzzy_score >= self.MIN_FUZZY_FOR_EMBEDDING:
+            tokens = normalized.split()
+
+            # Gate embedding tier for single-token inputs: if fuzzy score is too low, the query is
+            # likely nonsense (e.g., "madeupplace" has a very low fuzzy score) and embedding
+            # similarity can produce surprising false positives.
+            #
+            # Multi-token inputs (e.g., "museum mile", "central park") are more likely to be
+            # meaningful landmarks; allow Tier 4 even if fuzzy similarity to neighborhood names is low.
+            should_try_embedding = len(tokens) >= 2
+            best_fuzzy_score: float | None = None
+
+            if not should_try_embedding:
+                best_fuzzy_score = self.repository.get_best_fuzzy_score(normalized)
+                should_try_embedding = best_fuzzy_score >= self.MIN_FUZZY_FOR_EMBEDDING
+
+            if should_try_embedding:
                 tier4 = self._tier4_embedding_match(normalized)
                 if tier4.resolved or tier4.requires_clarification:
                     return tier4
-            else:
+            elif best_fuzzy_score is not None:
                 logger.debug(
                     "Skipping embedding tier for '%s' - fuzzy score %.2f < %.2f threshold",
                     normalized,
