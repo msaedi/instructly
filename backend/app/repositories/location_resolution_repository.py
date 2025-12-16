@@ -212,6 +212,35 @@ class LocationResolutionRepository:
                 pass
             return None, 0.0
 
+    def get_best_fuzzy_score(self, normalized: str) -> float:
+        """
+        Get the best fuzzy similarity score for a query, without threshold filtering.
+
+        Used to gate whether embedding tier should be attempted - if the query has
+        extremely low lexical similarity to all region names, it's likely nonsense
+        and embedding tier would produce false positives.
+        """
+        try:
+            row = self.db.execute(
+                text(
+                    """
+                    SELECT MAX(similarity(LOWER(region_name), :query)) AS max_sim
+                    FROM region_boundaries
+                    WHERE region_type = :rtype
+                      AND region_name IS NOT NULL
+                    """
+                ),
+                {"query": normalized, "rtype": self.region_code},
+            ).first()
+            return float(row.max_sim or 0.0) if row else 0.0
+        except Exception as exc:
+            logger.debug("Best fuzzy score lookup failed for '%s': %s", normalized, str(exc))
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return 0.0
+
     def find_regions_by_name_fragment(self, fragment: str) -> list[RegionBoundary]:
         """
         Find regions whose region_name contains the given fragment (case-insensitive).

@@ -202,6 +202,9 @@ class LocationResolver:
 
     # Thresholds (calibrate via eval harness)
     FUZZY_THRESHOLD = 0.4
+    # Minimum fuzzy score to attempt embedding tier - prevents false positives on nonsense
+    # (e.g., "madeupplace" has 0.18 fuzzy score, below this threshold, so skip embedding)
+    MIN_FUZZY_FOR_EMBEDDING = 0.25
 
     _BOROUGH_CANONICAL = {
         "manhattan": "Manhattan",
@@ -294,9 +297,21 @@ class LocationResolver:
             return fuzzy
 
         if enable_semantic:
-            tier4 = self._tier4_embedding_match(normalized)
-            if tier4.resolved or tier4.requires_clarification:
-                return tier4
+            # Gate embedding tier: if fuzzy score is too low, query is likely nonsense
+            # (e.g., "madeupplace" has 0.18 fuzzy score - skip embedding to prevent false positives)
+            best_fuzzy_score = self.repository.get_best_fuzzy_score(normalized)
+            if best_fuzzy_score >= self.MIN_FUZZY_FOR_EMBEDDING:
+                tier4 = self._tier4_embedding_match(normalized)
+                if tier4.resolved or tier4.requires_clarification:
+                    return tier4
+            else:
+                logger.debug(
+                    "Skipping embedding tier for '%s' - fuzzy score %.2f < %.2f threshold",
+                    normalized,
+                    best_fuzzy_score,
+                    self.MIN_FUZZY_FOR_EMBEDDING,
+                )
+
             tier5 = self._tier5_llm_match(
                 normalized, original_query=original_query or location_text
             )

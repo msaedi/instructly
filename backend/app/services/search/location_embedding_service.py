@@ -27,7 +27,9 @@ class LocationEmbeddingService:
     """Embedding-based semantic matcher for location strings."""
 
     # Filter out low-confidence candidates (0..1 after normalization)
-    SIMILARITY_THRESHOLD = 0.7
+    # Raised from 0.7 to 0.82 to prevent false positives on nonsense queries
+    # (e.g., "madeupplace" was matching to "Baisley Park" at 0.7)
+    SIMILARITY_THRESHOLD = 0.82
     # If the top candidate is only slightly better than the second, treat as ambiguous.
     AMBIGUITY_MARGIN = 0.1
 
