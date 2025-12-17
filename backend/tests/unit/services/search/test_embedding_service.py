@@ -6,7 +6,7 @@ Uses mock provider to avoid API calls.
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -27,11 +27,11 @@ def mock_db() -> Mock:
 
 
 @pytest.fixture
-def mock_cache() -> Mock:
-    """Create mock cache service."""
-    cache = Mock()
-    cache.get = Mock(return_value=None)
-    cache.set = Mock()
+def mock_cache() -> AsyncMock:
+    """Create mock async cache service."""
+    cache = AsyncMock()
+    cache.get = AsyncMock(return_value=None)
+    cache.set = AsyncMock(return_value=True)
     return cache
 
 
@@ -130,27 +130,27 @@ class TestEmbeddingService:
 
     @pytest.mark.asyncio
     async def test_embed_query_uses_cache(
-        self, embedding_service: EmbeddingService, mock_cache: Mock
+        self, embedding_service: EmbeddingService, mock_cache: AsyncMock
     ) -> None:
         """Should check cache before generating."""
         cached_embedding = [0.1] * 1536
-        mock_cache.get = Mock(return_value=cached_embedding)
+        mock_cache.get.return_value = cached_embedding
 
         result = await embedding_service.embed_query("piano lessons")
 
         assert result == cached_embedding
-        mock_cache.get.assert_called_once()
+        mock_cache.get.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_embed_query_caches_result(
-        self, embedding_service: EmbeddingService, mock_cache: Mock
+        self, embedding_service: EmbeddingService, mock_cache: AsyncMock
     ) -> None:
         """Should cache generated embeddings."""
-        mock_cache.get = Mock(return_value=None)
+        mock_cache.get.return_value = None
 
         await embedding_service.embed_query("piano lessons")
 
-        mock_cache.set.assert_called_once()
+        mock_cache.set.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_embed_query_returns_none_when_circuit_open(

@@ -48,12 +48,12 @@ def mock_cache_service() -> Mock:
 @pytest.fixture
 def mock_search_cache() -> Mock:
     """Create mock search cache service."""
-    cache = Mock()
-    cache.get_cached_response = Mock(return_value=None)
-    cache.get_cached_parsed_query = Mock(return_value=None)
-    cache.cache_response = Mock(return_value=True)
-    cache.cache_parsed_query = Mock(return_value=True)
-    return cache
+    cache = AsyncMock()
+    cache.get_cached_response = AsyncMock(return_value=None)
+    cache.get_cached_parsed_query = AsyncMock(return_value=None)
+    cache.cache_response = AsyncMock(return_value=True)
+    cache.cache_parsed_query = AsyncMock(return_value=True)
+    return cache  # type: ignore[return-value]
 
 
 @pytest.fixture
@@ -225,31 +225,40 @@ class TestNLSearchServiceInit:
 class TestCacheCheck:
     """Tests for cache check logic."""
 
-    def test_returns_none_on_cache_miss(self, mock_db: Mock, mock_search_cache: Mock) -> None:
+    @pytest.mark.asyncio
+    async def test_returns_none_on_cache_miss(
+        self, mock_db: Mock, mock_search_cache: Mock
+    ) -> None:
         """Should return None on cache miss."""
-        mock_search_cache.get_cached_response = Mock(return_value=None)
+        mock_search_cache.get_cached_response.return_value = None
 
         service = NLSearchService(mock_db, search_cache=mock_search_cache)
-        result = service._check_cache("piano lessons", None, limit=20)
+        result = await service._check_cache("piano lessons", None, limit=20)
 
         assert result is None
 
-    def test_returns_cached_response_on_hit(self, mock_db: Mock, mock_search_cache: Mock) -> None:
+    @pytest.mark.asyncio
+    async def test_returns_cached_response_on_hit(
+        self, mock_db: Mock, mock_search_cache: Mock
+    ) -> None:
         """Should return cached response on hit."""
         cached = {"results": [], "meta": {"cache_hit": False}}
-        mock_search_cache.get_cached_response = Mock(return_value=cached)
+        mock_search_cache.get_cached_response.return_value = cached
 
         service = NLSearchService(mock_db, search_cache=mock_search_cache)
-        result = service._check_cache("piano lessons", None, limit=20)
+        result = await service._check_cache("piano lessons", None, limit=20)
 
         assert result == cached
 
-    def test_handles_cache_error_gracefully(self, mock_db: Mock, mock_search_cache: Mock) -> None:
+    @pytest.mark.asyncio
+    async def test_handles_cache_error_gracefully(
+        self, mock_db: Mock, mock_search_cache: Mock
+    ) -> None:
         """Should handle cache errors gracefully."""
-        mock_search_cache.get_cached_response = Mock(side_effect=Exception("Cache error"))
+        mock_search_cache.get_cached_response.side_effect = Exception("Cache error")
 
         service = NLSearchService(mock_db, search_cache=mock_search_cache)
-        result = service._check_cache("piano lessons", None, limit=20)
+        result = await service._check_cache("piano lessons", None, limit=20)
 
         assert result is None
 
@@ -593,7 +602,7 @@ class TestSearchPipeline:
                 "parsing_mode": "regex",
             },
         }
-        mock_search_cache.get_cached_response = Mock(return_value=cached_response)
+        mock_search_cache.get_cached_response.return_value = cached_response
 
         service = NLSearchService(mock_db, search_cache=mock_search_cache)
         response = await service.search("piano")
@@ -610,8 +619,8 @@ class TestSearchPipeline:
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
         """Should execute full pipeline and cache non-degraded responses."""
-        mock_search_cache.get_cached_response = Mock(return_value=None)
-        mock_search_cache.get_cached_parsed_query = Mock(return_value=None)
+        mock_search_cache.get_cached_response.return_value = None
+        mock_search_cache.get_cached_parsed_query.return_value = None
 
         service = NLSearchService(mock_db, search_cache=mock_search_cache)
 
@@ -667,7 +676,7 @@ class TestSearchPipeline:
             mock_filter.assert_awaited_once()
             mock_rank.assert_called_once()
             mock_hydrate.assert_awaited_once()
-            mock_search_cache.cache_response.assert_called_once()
+            mock_search_cache.cache_response.assert_awaited_once()
             mock_metrics.assert_called_once()
 
     @pytest.mark.asyncio
@@ -679,8 +688,8 @@ class TestSearchPipeline:
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
         """Should mark degraded and cache response briefly when embeddings unavailable."""
-        mock_search_cache.get_cached_response = Mock(return_value=None)
-        mock_search_cache.get_cached_parsed_query = Mock(return_value=None)
+        mock_search_cache.get_cached_response.return_value = None
+        mock_search_cache.get_cached_parsed_query.return_value = None
 
         service = NLSearchService(mock_db, search_cache=mock_search_cache)
         retrieval_result = RetrievalResult(
@@ -719,7 +728,7 @@ class TestSearchPipeline:
         assert response.meta.degraded is True
         assert "embedding_service_unavailable" in response.meta.degradation_reasons
         assert len(response.results) == 2
-        mock_search_cache.cache_response.assert_called_once()
+        mock_search_cache.cache_response.assert_awaited_once()
         _, kwargs = mock_search_cache.cache_response.call_args
         assert kwargs.get("ttl") == 30
 
@@ -759,8 +768,8 @@ class TestLocationHandling:
         sample_parsed_query: ParsedQuery,
     ) -> None:
         """Should pass location through the pipeline."""
-        mock_search_cache.get_cached_response = Mock(return_value=None)
-        mock_search_cache.get_cached_parsed_query = Mock(return_value=None)
+        mock_search_cache.get_cached_response.return_value = None
+        mock_search_cache.get_cached_parsed_query.return_value = None
 
         service = NLSearchService(mock_db, search_cache=mock_search_cache)
         retrieval_result = RetrievalResult(
@@ -802,7 +811,8 @@ class TestLocationHandling:
 class TestResponseCaching:
     """Tests for response caching."""
 
-    def test_caches_response(
+    @pytest.mark.asyncio
+    async def test_caches_response(
         self,
         mock_db: Mock,
         mock_search_cache: Mock,
@@ -821,11 +831,12 @@ class TestResponseCaching:
             metrics=metrics,
         )
 
-        service._cache_response("piano", None, response, limit=20)
+        await service._cache_response("piano", None, response, limit=20)
 
-        mock_search_cache.cache_response.assert_called_once()
+        mock_search_cache.cache_response.assert_awaited_once()
 
-    def test_handles_cache_error(
+    @pytest.mark.asyncio
+    async def test_handles_cache_error(
         self,
         mock_db: Mock,
         mock_search_cache: Mock,
@@ -833,7 +844,7 @@ class TestResponseCaching:
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
         """Should handle cache error gracefully."""
-        mock_search_cache.cache_response = Mock(side_effect=Exception("Cache error"))
+        mock_search_cache.cache_response.side_effect = Exception("Cache error")
 
         service = NLSearchService(mock_db, search_cache=mock_search_cache)
         metrics = SearchMetrics()
@@ -847,4 +858,4 @@ class TestResponseCaching:
         )
 
         # Should not raise
-        service._cache_response("piano", None, response, limit=20)
+        await service._cache_response("piano", None, response, limit=20)

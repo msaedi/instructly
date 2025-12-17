@@ -75,7 +75,7 @@ async def get_monitoring_dashboard(
 
         # Get cache statistics
         cache_service = get_cache_service(db)
-        cache_stats = cache_service.get_stats()
+        cache_stats = await cache_service.get_stats()
         cache_health = monitor.check_cache_health(cache_stats)
 
         # Get current database pool status
@@ -128,16 +128,11 @@ async def get_extended_cache_stats(
     """Get extended cache statistics."""
     cache_service = get_cache_service(db)
 
-    # Check if we have the extended stats method
-    stats = (
-        cache_service.get_extended_stats()
-        if hasattr(cache_service, "get_extended_stats")
-        else cache_service.get_stats()
-    )
+    stats = await cache_service.get_stats()
 
     return ExtendedCacheStats(
         basic_stats=stats.get("basic_stats", stats),
-        redis_info=stats.get("redis_info"),
+        redis_info=stats.get("redis_info") or stats.get("redis"),
         key_patterns=stats.get("key_patterns"),
     )
 

@@ -355,12 +355,22 @@ class PermissionService(BaseService):
 
         # Also invalidate Redis cache (fire-and-forget from sync context)
         try:
-            import asyncio
-
             try:
                 loop = asyncio.get_running_loop()
-                # We're in an async context, schedule the coroutine
-                loop.create_task(invalidate_cached_permissions(user_id))
+
+                from ..core.config import settings
+
+                if settings.is_testing:
+                    return
+
+                task = loop.create_task(invalidate_cached_permissions(user_id))
+
+                def _consume_task_exception(t: asyncio.Task[None]) -> None:
+                    if t.cancelled():
+                        return
+                    t.exception()
+
+                task.add_done_callback(_consume_task_exception)
             except RuntimeError:
                 # No running loop - we're in a sync context, use anyio
                 import anyio

@@ -20,11 +20,10 @@ from ..models.password_reset import PasswordResetToken
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..services.email import EmailService
-from .base import BaseService
+from .base import BaseService, CacheInvalidationProtocol
 
 if TYPE_CHECKING:
     from ..repositories.base_repository import BaseRepository
-    from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ class PasswordResetService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache_service: Optional["CacheService"] = None,
+        cache_service: Optional[CacheInvalidationProtocol] = None,
         email_service: Optional[EmailService] = None,
         user_repository: Optional["BaseRepository[User]"] = None,
         token_repository: Optional["BaseRepository[PasswordResetToken]"] = None,

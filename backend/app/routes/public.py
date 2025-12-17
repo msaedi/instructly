@@ -255,7 +255,7 @@ async def get_instructor_public_availability(
     cached_result: Optional[Dict[str, Any]] = None
     if cache_service:
         try:
-            cached_data = cache_service.get(cache_key)
+            cached_data = await cache_service.get(cache_key)
             if cached_data:
                 logger.info(f"Cache hit for public availability: {cache_key}")
                 cached_result = cast(Dict[str, Any], cached_data)
@@ -440,7 +440,7 @@ async def get_instructor_public_availability(
     # Cache the response if not already cached
     if not cached_result and cache_service:
         try:
-            cache_service.set(
+            await cache_service.set(
                 cache_key,
                 response_data.model_dump(exclude_none=True),
                 ttl=settings.public_availability_cache_ttl,

@@ -15,9 +15,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from redis.asyncio import Redis
 
+from app.core.cache_redis import get_async_cache_redis_client
 from app.core.config import settings
 from app.core.enums import PermissionName
-from app.core.redis import get_async_redis_client
 from app.dependencies.permissions import require_permission
 from app.models.user import User
 
@@ -265,7 +265,7 @@ async def list_auth_issues(
     - Require CAPTCHA (after 3+ failures)
     - Approaching lockout (3+ failures)
     """
-    redis = await get_async_redis_client()
+    redis = await get_async_cache_redis_client()
     if redis is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -333,7 +333,7 @@ async def get_summary_stats(
 
     Requires ACCESS_MONITORING permission.
     """
-    redis = await get_async_redis_client()
+    redis = await get_async_cache_redis_client()
     if redis is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -393,7 +393,7 @@ async def get_account_state(
 
     Requires ACCESS_MONITORING permission.
     """
-    redis = await get_async_redis_client()
+    redis = await get_async_cache_redis_client()
     if redis is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -441,7 +441,7 @@ async def clear_account_blocks(
 
     If no types specified, clears ALL blocks for the account.
     """
-    redis = await get_async_redis_client()
+    redis = await get_async_cache_redis_client()
     if redis is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

@@ -24,7 +24,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import logging
-from typing import List, Optional
+from typing import List, Optional, cast
 from urllib.parse import urlparse, urlunparse
 from uuid import uuid4
 
@@ -141,7 +141,7 @@ async def resolve_referral_slug(
     referral_service: ReferralService = Depends(get_referral_service),
 ) -> Response:
     """Resolve referral slug and redirect to landing page."""
-    code_obj = referral_service.resolve_code(slug)
+    code_obj = await run_in_threadpool(referral_service.resolve_code, slug)
     if not code_obj:
         return HTMLResponse(
             "<html><body><h1>Invalid referral link</h1><p>Please check with your friend for an updated link.</p></body></html>",
@@ -161,7 +161,8 @@ async def resolve_referral_slug(
         or "unknown"
     )
 
-    referral_service.record_click(
+    await run_in_threadpool(
+        referral_service.record_click,
         code=code_value,
         device_fp_hash=_hash_value(device_fp),
         ip_hash=_hash_value(client_ip),
@@ -195,7 +196,7 @@ async def claim_referral_code(
     referral_service: ReferralService = Depends(get_referral_service),
 ) -> Response:
     """Claim a referral code."""
-    code_obj = referral_service.resolve_code(payload.code)
+    code_obj = await run_in_threadpool(referral_service.resolve_code, payload.code)
     if not code_obj:
         response.status_code = status.HTTP_404_NOT_FOUND
         return ReferralErrorResponse(reason="not_found")
@@ -207,11 +208,12 @@ async def claim_referral_code(
         logger.info("referral.api.v1.claim.anonymous", extra={"code": code_value})
         return ReferralClaimResponse(attributed=False, reason="anonymous")
 
-    if referral_service.has_attribution(current_user.id):
+    if await run_in_threadpool(referral_service.has_attribution, current_user.id):
         response.status_code = status.HTTP_409_CONFLICT
         return ReferralErrorResponse(reason="already_attributed")
 
-    attributed = referral_service.attribute_signup(
+    attributed = await run_in_threadpool(
+        referral_service.attribute_signup,
         referred_user_id=current_user.id,
         code=code_value,
         source="manual_claim",
@@ -332,7 +334,8 @@ async def apply_referral_credit(
 ) -> Response:
     """Apply referral credit to a checkout order."""
     try:
-        applied = checkout_service.apply_student_credit(
+        applied = await run_in_threadpool(
+            checkout_service.apply_student_credit,
             user_id=current_user.id,
             order_id=str(payload.order_id),
         )
@@ -354,7 +357,7 @@ async def get_referral_config(
     """Get referral configuration (admin only)."""
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return referral_service.get_admin_config()
+    return cast(AdminReferralsConfigOut, await run_in_threadpool(referral_service.get_admin_config))
 
 
 @admin_router.get("/summary", response_model=AdminReferralsSummaryOut)
@@ -365,7 +368,9 @@ async def get_referral_summary(
     """Get referral summary statistics (admin only)."""
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return referral_service.get_admin_summary()
+    return cast(
+        AdminReferralsSummaryOut, await run_in_threadpool(referral_service.get_admin_summary)
+    )
 
 
 @admin_router.get("/health", response_model=AdminReferralsHealthOut)
@@ -376,7 +381,7 @@ async def get_referral_health(
     """Get referral system health (admin only)."""
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return referral_service.get_admin_health()
+    return cast(AdminReferralsHealthOut, await run_in_threadpool(referral_service.get_admin_health))
 
 
 __all__ = ["router", "admin_router", "public_router"]

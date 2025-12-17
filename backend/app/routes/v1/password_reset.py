@@ -9,6 +9,7 @@ UPDATED: Added aggressive rate limiting to prevent email enumeration
 and brute force attacks.
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
@@ -65,7 +66,7 @@ async def request_password_reset(
     Raises:
         HTTPException: If rate limit exceeded
     """
-    password_reset_service.request_password_reset(email=payload.email)
+    await asyncio.to_thread(password_reset_service.request_password_reset, email=payload.email)
 
     # Always return success to prevent email enumeration
     return PasswordResetResponse(
@@ -100,7 +101,8 @@ async def confirm_password_reset(
         HTTPException: If token is invalid, expired, already used, or rate limit exceeded
     """
     try:
-        password_reset_service.confirm_password_reset(
+        await asyncio.to_thread(
+            password_reset_service.confirm_password_reset,
             token=payload.token,
             new_password=payload.new_password,
         )
@@ -151,7 +153,9 @@ async def verify_reset_token(
     Raises:
         HTTPException: If rate limit exceeded
     """
-    is_valid, masked_email = password_reset_service.verify_reset_token(token=token)
+    is_valid, masked_email = await asyncio.to_thread(
+        password_reset_service.verify_reset_token, token=token
+    )
 
     return PasswordResetVerifyResponse(
         valid=is_valid,

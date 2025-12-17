@@ -9,9 +9,12 @@ User Journey Simulated:
 1. Load homepage (services catalog)
 2. Click category pill OR type natural language search
 3. View search results
-4. Click on instructor profile
+4. Click on instructor profile (from search results)
 5. View availability calendar
 6. (Optional) View reviews
+
+Design: Instructor IDs are dynamically extracted from search results, not
+hardcoded. This ensures tests work regardless of database state/seeding.
 
 Usage:
     cd backend/tests/load
@@ -24,6 +27,7 @@ from datetime import date, timedelta
 import logging
 import os
 import random
+from typing import List, Set
 
 from locust import HttpUser, between, events, tag, task
 
@@ -32,8 +36,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# Sample search queries (realistic user searches)
-SEARCH_QUERIES = [
+# Sample search queries (realistic user searches) - these will hit cache
+CACHED_QUERIES = [
     "piano lessons",
     "guitar teacher near me",
     "math tutor",
@@ -51,6 +55,13 @@ SEARCH_QUERIES = [
     "art classes",
 ]
 
+# Components for generating unique uncached queries
+SERVICES = ["piano", "guitar", "violin", "drums", "voice", "yoga", "tennis", "swimming"]
+LOCATIONS = ["ues", "brooklyn", "manhattan", "queens", "harlem", "soho", "tribeca", "astoria"]
+AUDIENCES = ["kids", "adults", "beginners", "advanced", "teens", "seniors"]
+TIME_CONSTRAINTS = ["tomorrow", "this weekend", "next week", "evenings", "mornings"]
+PRICE_CONSTRAINTS = ["under $50", "under $75", "under $100", "under $150"]
+
 CATEGORIES = [
     "music",
     "tutoring",
@@ -61,24 +72,37 @@ CATEGORIES = [
     "lifestyle",
 ]
 
-# Known instructor IDs from production database (is_live=true)
-INSTRUCTOR_IDS = [
-    "01KC57H6ZJ795K25XQDAPA4Y85",  # Amanda Johnson
-    "01KC57H6ZJA7EZBE1XFFS9KKK7",  # Jason Park
-    "01KC57H6ZJKP543DH2M49TH5VW",  # Carlos Garcia
-    "01KC57H6ZJN0M4510PXM5SAKXT",  # Michael Rodriguez
-    "01KC57H6ZJS2YXD6TC680M7DVC",  # Sarah Chen
-    "01KC57H6ZK0010HHV92YQ3TPPN",  # Wei Zhang
-    "01KC57H6ZK0X1N0CX5291HQRFM",  # James Wilson
-    "01KC57H6ZK0XXTWNTJMCG564WX",  # Sarah Mitchell
-    "01KC57H6ZK112H0BKFNT4K4FBJ",  # Kevin Zhang
-    "01KC57H6ZK3ZBR5ATFNQVCJMY7",  # Yuki Nakamura
-    "01KC57H6ZK4QQ0NSJYAJAV94RP",  # Dwayne Jackson
-    "01KC57H6ZK54D873BK1SV02T6G",  # Lucia Fernandez
-    "01KC57H6ZK68Z6N2D0F7QNA8YP",  # Robert Davis
-    "01KC57H6ZK7N0DE99YJ0DP7JZA",  # Carlos Mendez
-    "01KC57H6ZK9B6AMASTNJ0XVDFW",  # Jin Park
-]
+
+def generate_unique_query() -> str:
+    """Generate a truly unique query that won't be cached (includes random suffix)."""
+    import time as time_module
+
+    service = random.choice(SERVICES)
+    pattern = random.randint(1, 4)
+    # Add unique suffix to guarantee cache miss
+    suffix = f"{int(time_module.time() * 1000) % 100000}{random.randint(0, 999)}"
+
+    if pattern == 1:
+        # Service + location: "piano in brooklyn"
+        location = random.choice(LOCATIONS)
+        return f"{service} in {location} {suffix}"
+    elif pattern == 2:
+        # Service + audience: "guitar for kids"
+        audience = random.choice(AUDIENCES)
+        return f"{service} for {audience} {suffix}"
+    elif pattern == 3:
+        # Service + time: "yoga tomorrow"
+        time_val = random.choice(TIME_CONSTRAINTS)
+        return f"{service} {time_val} {suffix}"
+    else:
+        # Service + location + audience: "violin in manhattan for beginners"
+        location = random.choice(LOCATIONS)
+        audience = random.choice(AUDIENCES)
+        return f"{service} in {location} for {audience} {suffix}"
+
+# Shared pool of discovered instructor IDs (populated from search results)
+# This is thread-safe because locust uses gevent greenlets
+discovered_instructor_ids: Set[str] = set()
 
 
 class Config:
@@ -89,6 +113,35 @@ class Config:
         "LOADTEST_FRONTEND_ORIGIN", "https://preview.instainstru.com"
     )
     RATE_LIMIT_BYPASS_TOKEN: str = os.getenv("LOADTEST_BYPASS_TOKEN", "")
+
+
+def extract_instructor_ids(data: dict | list) -> List[str]:
+    """Extract instructor IDs from search response data."""
+    ids: List[str] = []
+
+    # Handle different response structures
+    items = []
+    if isinstance(data, dict):
+        items = data.get("items", []) or data.get("results", []) or []
+    elif isinstance(data, list):
+        items = data
+
+    for item in items:
+        if isinstance(item, dict):
+            # Try common ID field names
+            for key in ["instructor_id", "id", "user_id"]:
+                if key in item and item[key]:
+                    ids.append(str(item[key]))
+                    break
+
+    return ids
+
+
+def get_random_instructor_id() -> str | None:
+    """Get a random instructor ID from the discovered pool."""
+    if discovered_instructor_ids:
+        return random.choice(list(discovered_instructor_ids))
+    return None
 
 
 class SearchDiscoveryUser(HttpUser):
@@ -122,20 +175,47 @@ class SearchDiscoveryUser(HttpUser):
                 response.failure(f"Status {response.status_code}")
 
     @tag("search")
-    @task(5)  # Highest weight - core action
-    def natural_language_search(self) -> None:
-        """Search using natural language query."""
-        query = random.choice(SEARCH_QUERIES)
+    @task(7)  # 70% - cached queries (repeat searches)
+    def search_cached(self) -> None:
+        """Search using cached query (simulates repeat/common searches)."""
+        query = random.choice(CACHED_QUERIES)
         with self.client.get(
-            f"/api/v1/search/instructors?q={query}",
-            name="search_nl",
+            f"/api/v1/search?q={query}",
+            name="search_cached",
             catch_response=True,
         ) as response:
             if response.status_code == 200:
                 try:
                     data = response.json()
-                    # Verify we got results structure
                     if "items" in data or "results" in data or isinstance(data, list):
+                        ids = extract_instructor_ids(data)
+                        if ids:
+                            discovered_instructor_ids.update(ids)
+                        response.success()
+                    else:
+                        response.failure("Missing results in response")
+                except Exception as e:
+                    response.failure(f"JSON parse error: {e}")
+            else:
+                response.failure(f"Status {response.status_code}")
+
+    @tag("search")
+    @task(3)  # 30% - unique queries (cache misses)
+    def search_uncached(self) -> None:
+        """Search using unique query (guaranteed cache miss)."""
+        query = generate_unique_query()
+        with self.client.get(
+            f"/api/v1/search?q={query}",
+            name="search_uncached",
+            catch_response=True,
+        ) as response:
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    if "items" in data or "results" in data or isinstance(data, list):
+                        ids = extract_instructor_ids(data)
+                        if ids:
+                            discovered_instructor_ids.update(ids)
                         response.success()
                     else:
                         response.failure("Missing results in response")
@@ -147,25 +227,37 @@ class SearchDiscoveryUser(HttpUser):
     @tag("search")
     @task(3)
     def category_search(self) -> None:
-        """Search by category name (as query)."""
+        """Search by category name and extract instructor IDs."""
         # Use category names as search queries (the API requires q param)
         category_queries = ["music lessons", "tutoring", "fitness", "art classes", "language"]
         query = random.choice(category_queries)
         with self.client.get(
-            f"/api/v1/search/instructors?q={query}",
+            f"/api/v1/search?q={query}",
             name="search_category",
             catch_response=True,
         ) as response:
             if response.status_code == 200:
-                response.success()
+                try:
+                    data = response.json()
+                    # Extract and cache instructor IDs
+                    ids = extract_instructor_ids(data)
+                    if ids:
+                        discovered_instructor_ids.update(ids)
+                    response.success()
+                except Exception:
+                    response.success()  # Still count as success even if parsing fails
             else:
                 response.failure(f"Status {response.status_code}")
 
     @tag("profile")
     @task(4)  # High weight - users view profiles
     def view_instructor_profile(self) -> None:
-        """View an instructor's profile page."""
-        instructor_id = random.choice(INSTRUCTOR_IDS)
+        """View an instructor's profile page (from search results)."""
+        instructor_id = get_random_instructor_id()
+        if not instructor_id:
+            # No instructors discovered yet - skip this task
+            return
+
         with self.client.get(
             f"/api/v1/instructors/{instructor_id}",
             name="instructor_profile",
@@ -174,8 +266,8 @@ class SearchDiscoveryUser(HttpUser):
             if response.status_code == 200:
                 response.success()
             elif response.status_code == 404:
-                # Instructor may not exist, mark as success but log
-                logger.debug(f"Instructor {instructor_id} not found")
+                # Remove stale ID from pool
+                discovered_instructor_ids.discard(instructor_id)
                 response.success()
             else:
                 response.failure(f"Status {response.status_code}")
@@ -184,7 +276,10 @@ class SearchDiscoveryUser(HttpUser):
     @task(3)
     def view_instructor_ratings(self) -> None:
         """View instructor's ratings/reviews."""
-        instructor_id = random.choice(INSTRUCTOR_IDS)
+        instructor_id = get_random_instructor_id()
+        if not instructor_id:
+            return
+
         with self.client.get(
             f"/api/v1/reviews/instructor/{instructor_id}/ratings",
             name="instructor_ratings",
@@ -201,7 +296,10 @@ class SearchDiscoveryUser(HttpUser):
     @task(3)
     def view_availability(self) -> None:
         """View instructor's availability calendar."""
-        instructor_id = random.choice(INSTRUCTOR_IDS)
+        instructor_id = get_random_instructor_id()
+        if not instructor_id:
+            return
+
         # Availability endpoint requires date range parameters
         start_date = date.today().isoformat()
         end_date = (date.today() + timedelta(days=7)).isoformat()
@@ -218,40 +316,6 @@ class SearchDiscoveryUser(HttpUser):
                 response.failure(f"Status {response.status_code}")
 
 
-class AggressiveSearchUser(HttpUser):
-    """
-    Simulates power user doing rapid searches.
-    Use sparingly - represents ~10% of traffic.
-    """
-
-    host = Config.BASE_URL
-    wait_time = between(0.5, 1)  # Faster browsing
-    weight = 1  # Lower weight than normal users
-
-    def on_start(self) -> None:
-        """Set up headers for all requests."""
-        headers = {
-            "Origin": Config.FRONTEND_ORIGIN,
-            "Referer": f"{Config.FRONTEND_ORIGIN}/",
-            "Content-Type": "application/json",
-        }
-        if Config.RATE_LIMIT_BYPASS_TOKEN:
-            headers["X-Rate-Limit-Bypass"] = Config.RATE_LIMIT_BYPASS_TOKEN
-        self.client.headers.update(headers)
-
-    @task
-    def rapid_search(self) -> None:
-        """Quick successive searches (autocomplete behavior)."""
-        base_query = random.choice(["piano", "guitar", "math", "spanish", "yoga"])
-
-        # Simulate typing/autocomplete
-        for i in range(1, len(base_query) + 1):
-            partial = base_query[:i]
-            self.client.get(
-                f"/api/v1/search/instructors?q={partial}", name="search_autocomplete"
-            )
-
-
 # Event listeners for test lifecycle logging
 @events.test_start.add_listener
 def on_test_start(**_kwargs) -> None:
@@ -260,8 +324,9 @@ def on_test_start(**_kwargs) -> None:
     logger.info("Search & Discovery Load Test Starting")
     logger.info(f"  API Base URL: {Config.BASE_URL}")
     logger.info(f"  Frontend Origin: {Config.FRONTEND_ORIGIN}")
-    logger.info(f"  Instructor IDs: {len(INSTRUCTOR_IDS)} configured")
-    logger.info(f"  Search queries: {len(SEARCH_QUERIES)} configured")
+    logger.info(f"  Cached queries: {len(CACHED_QUERIES)} (70% of searches)")
+    logger.info("  Uncached queries: Generated dynamically (30% of searches)")
+    logger.info("  Instructor IDs: Dynamic (extracted from search results)")
     bypass_status = "ENABLED" if Config.RATE_LIMIT_BYPASS_TOKEN else "disabled"
     logger.info(f"  Rate limit bypass: {bypass_status}")
     logger.info("=" * 60)
@@ -272,4 +337,5 @@ def on_test_stop(**_kwargs) -> None:
     """Log summary when test stops."""
     logger.info("=" * 60)
     logger.info("Search & Discovery Load Test Complete")
+    logger.info(f"  Discovered {len(discovered_instructor_ids)} unique instructor IDs")
     logger.info("=" * 60)

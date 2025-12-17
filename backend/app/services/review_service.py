@@ -32,8 +32,7 @@ from ..services.config_service import ConfigService
 from ..services.pricing_service import PricingService
 from ..services.stripe_service import StripeService
 from .badge_award_service import BadgeAwardService
-from .base import BaseService
-from .cache_service import CacheService
+from .base import BaseService, CacheInvalidationProtocol
 from .ratings_config import DEFAULT_RATINGS_CONFIG, RatingsConfig
 from .ratings_math import (
     compute_dirichlet_rating,
@@ -85,7 +84,7 @@ class ReviewService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache: Optional[CacheService] = None,
+        cache: Optional[CacheInvalidationProtocol] = None,
         config: RatingsConfig = DEFAULT_RATINGS_CONFIG,
     ) -> None:
         super().__init__(db, cache)

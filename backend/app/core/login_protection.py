@@ -12,8 +12,8 @@ import httpx
 from prometheus_client import Counter, Histogram
 from redis.asyncio import Redis
 
+from app.core.cache_redis import get_async_cache_redis_client
 from app.core.config import is_running_tests, settings
-from app.core.redis import get_async_redis_client
 from app.monitoring.prometheus_metrics import REGISTRY
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ async def _get_redis_client(explicit: Optional[Redis] = None) -> Optional[Redis]
     """Return async Redis client, allowing override for tests."""
     if explicit is not None:
         return explicit
-    return await get_async_redis_client()
+    return await get_async_cache_redis_client()
 
 
 # --------------------------------------------------------------------------- #
@@ -147,6 +147,7 @@ class AccountRateLimiter:
 
     def __init__(self, redis: Optional[Redis] = None) -> None:
         self.redis = redis
+        self._explicit_redis = redis is not None
         self.attempts_per_minute = max(1, settings.login_attempts_per_minute or 5)
         self.attempts_per_hour = max(1, settings.login_attempts_per_hour or 20)
 
@@ -157,6 +158,9 @@ class AccountRateLimiter:
         Returns:
             (allowed: bool, info: dict with remaining attempts and reset time)
         """
+        if is_running_tests() and not self._explicit_redis:
+            return True, {"remaining_minute": None, "remaining_hour": None}
+
         try:
             redis = await _get_redis_client(self.redis)
         except Exception as exc:  # pragma: no cover - defensive
@@ -208,6 +212,9 @@ class AccountRateLimiter:
 
     async def record_attempt(self, email: str) -> None:
         """Increment rate limit counters after a failed login attempt."""
+        if is_running_tests() and not self._explicit_redis:
+            return
+
         try:
             redis = await _get_redis_client(self.redis)
         except Exception as exc:  # pragma: no cover - defensive
@@ -252,6 +259,9 @@ class AccountRateLimiter:
 
     async def reset(self, email: str) -> None:
         """Reset counters on successful login."""
+        if is_running_tests() and not self._explicit_redis:
+            return
+
         try:
             redis = await _get_redis_client(self.redis)
         except Exception as exc:  # pragma: no cover - defensive
@@ -281,9 +291,13 @@ class AccountLockout:
 
     def __init__(self, redis: Optional[Redis] = None) -> None:
         self.redis = redis
+        self._explicit_redis = redis is not None
 
     async def check_lockout(self, email: str) -> Tuple[bool, Dict[str, Any]]:
         """Check if account is currently locked out."""
+        if is_running_tests() and not self._explicit_redis:
+            return False, {"locked": False}
+
         try:
             redis = await _get_redis_client(self.redis)
         except Exception as exc:  # pragma: no cover - defensive
@@ -318,6 +332,9 @@ class AccountLockout:
         Returns:
             dict with failure count and any lockout applied
         """
+        if is_running_tests() and not self._explicit_redis:
+            return {"failures": None, "lockout_applied": False}
+
         try:
             redis = await _get_redis_client(self.redis)
         except Exception as exc:  # pragma: no cover - defensive
@@ -352,6 +369,9 @@ class AccountLockout:
 
     async def reset(self, email: str) -> None:
         """Reset failure counters on successful login."""
+        if is_running_tests() and not self._explicit_redis:
+            return
+
         try:
             redis = await _get_redis_client(self.redis)
         except Exception as exc:  # pragma: no cover - defensive

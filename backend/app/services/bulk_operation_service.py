@@ -37,7 +37,7 @@ from .conflict_checker import ConflictChecker
 
 if TYPE_CHECKING:
     from ..repositories.bulk_operation_repository import BulkOperationRepository
-    from .cache_service import CacheService
+    from .cache_service import CacheServiceSyncAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class BulkOperationService(BaseService):
         db: Session,
         slot_manager: Optional[Any] = None,  # DEPRECATED: Not used, kept for compatibility
         conflict_checker: Optional[ConflictChecker] = None,
-        cache_service: Optional["CacheService"] = None,
+        cache_service: Optional["CacheServiceSyncAdapter"] = None,
         repository: Optional["BulkOperationRepository"] = None,
         availability_service: Optional[AvailabilityService] = None,
     ):

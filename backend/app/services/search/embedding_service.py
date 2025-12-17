@@ -85,7 +85,7 @@ class EmbeddingService:
         # Check cache
         cache_key = self._query_cache_key(normalized)
         if self.cache:
-            cached = self.cache.get(cache_key)
+            cached = await self.cache.get(cache_key)
             if cached is not None and isinstance(cached, list):
                 logger.debug(f"Embedding cache hit for: {normalized[:50]}")
                 return cast(List[float], cached)
@@ -101,7 +101,7 @@ class EmbeddingService:
 
             # Cache result
             if self.cache:
-                self.cache.set(cache_key, embedding, ttl=EMBEDDING_CACHE_TTL)
+                await self.cache.set(cache_key, embedding, ttl=EMBEDDING_CACHE_TTL)
 
             return embedding
 

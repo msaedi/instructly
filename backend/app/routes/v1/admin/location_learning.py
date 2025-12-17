@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -32,7 +34,7 @@ async def list_unresolved_location_queries(
     _: object = Depends(require_admin),
 ) -> AdminLocationLearningUnresolvedQueriesResponse:
     service = LocationLearningAdminService(db)
-    return service.list_unresolved(limit=limit)
+    return await asyncio.to_thread(service.list_unresolved, limit=limit)
 
 
 @router.get("/pending-aliases", response_model=AdminLocationLearningPendingAliasesResponse)
@@ -42,7 +44,7 @@ async def list_pending_learned_aliases(
     _: object = Depends(require_admin),
 ) -> AdminLocationLearningPendingAliasesResponse:
     service = LocationLearningAdminService(db)
-    return service.list_pending_aliases()
+    return await asyncio.to_thread(service.list_pending_aliases)
 
 
 @router.get("/regions", response_model=AdminLocationLearningRegionsResponse)
@@ -53,7 +55,7 @@ async def list_regions(
     _: object = Depends(require_admin),
 ) -> AdminLocationLearningRegionsResponse:
     service = LocationLearningAdminService(db)
-    return service.list_regions(limit=limit)
+    return await asyncio.to_thread(service.list_regions, limit=limit)
 
 
 @router.post("/process", response_model=AdminLocationLearningProcessResponse)
@@ -64,7 +66,7 @@ async def process_location_learning(
     _: object = Depends(require_admin),
 ) -> AdminLocationLearningProcessResponse:
     service = LocationLearningAdminService(db)
-    return service.process(limit=limit)
+    return await asyncio.to_thread(service.process, limit=limit)
 
 
 @router.post(
@@ -78,7 +80,7 @@ async def approve_learned_alias(
     _: object = Depends(require_admin),
 ) -> AdminLocationLearningAliasActionResponse:
     service = LocationLearningAdminService(db)
-    if not service.approve_alias(alias_id):
+    if not await asyncio.to_thread(service.approve_alias, alias_id):
         raise HTTPException(status_code=404, detail="Alias not found")
     return AdminLocationLearningAliasActionResponse(status="approved", alias_id=alias_id)
 
@@ -94,7 +96,7 @@ async def reject_learned_alias(
     _: object = Depends(require_admin),
 ) -> AdminLocationLearningAliasActionResponse:
     service = LocationLearningAdminService(db)
-    if not service.reject_alias(alias_id):
+    if not await asyncio.to_thread(service.reject_alias, alias_id):
         raise HTTPException(status_code=404, detail="Alias not found")
     return AdminLocationLearningAliasActionResponse(status="rejected", alias_id=alias_id)
 
@@ -108,7 +110,8 @@ async def create_manual_alias(
 ) -> AdminLocationLearningCreateAliasResponse:
     service = LocationLearningAdminService(db)
     try:
-        return service.create_manual_alias(
+        return await asyncio.to_thread(
+            service.create_manual_alias,
             alias=request.alias,
             region_boundary_id=request.region_boundary_id,
             candidate_region_ids=request.candidate_region_ids,
@@ -129,4 +132,4 @@ async def dismiss_unresolved_query(
     _: object = Depends(require_admin),
 ) -> AdminLocationLearningDismissQueryResponse:
     service = LocationLearningAdminService(db)
-    return service.dismiss_unresolved(query_normalized)
+    return await asyncio.to_thread(service.dismiss_unresolved, query_normalized)

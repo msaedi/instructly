@@ -11,10 +11,18 @@ Adapted to actual InstaInstru schema:
 """
 from __future__ import annotations
 
+import os
+import threading
+import time
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+_GLOBAL_AVG_RATING_TTL_S = int(os.getenv("NL_SEARCH_GLOBAL_AVG_RATING_TTL_S", "600"))
+_GLOBAL_AVG_RATING_CACHE: Optional[float] = None
+_GLOBAL_AVG_RATING_CACHED_AT: float = 0.0
+_GLOBAL_AVG_RATING_LOCK = threading.Lock()
 
 
 class RankingRepository:
@@ -81,6 +89,7 @@ class RankingRepository:
                     COUNT(*) as review_count
                 FROM reviews
                 WHERE status = 'published'
+                  AND instructor_id = ANY(:instructor_ids)
                 GROUP BY instructor_id
             ) rs ON rs.instructor_id = ip.user_id
             WHERE ip.user_id = ANY(:instructor_ids)
@@ -122,6 +131,27 @@ class RankingRepository:
             WHERE status = 'published'
         """
         )
+
+        global _GLOBAL_AVG_RATING_CACHE, _GLOBAL_AVG_RATING_CACHED_AT
+
+        ttl_s = _GLOBAL_AVG_RATING_TTL_S
+        if ttl_s > 0:
+            now = time.monotonic()
+            cached = _GLOBAL_AVG_RATING_CACHE
+            if cached is not None and (now - _GLOBAL_AVG_RATING_CACHED_AT) < ttl_s:
+                return cached
+
+            with _GLOBAL_AVG_RATING_LOCK:
+                now = time.monotonic()
+                cached = _GLOBAL_AVG_RATING_CACHE
+                if cached is not None and (now - _GLOBAL_AVG_RATING_CACHED_AT) < ttl_s:
+                    return cached
+
+                result = self.db.execute(query).first()
+                avg = float(result.global_avg) if result and result.global_avg else 4.2
+                _GLOBAL_AVG_RATING_CACHE = avg
+                _GLOBAL_AVG_RATING_CACHED_AT = now
+                return avg
 
         result = self.db.execute(query).first()
         return float(result.global_avg) if result and result.global_avg else 4.2

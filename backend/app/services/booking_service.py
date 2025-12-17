@@ -47,6 +47,7 @@ from ..repositories.job_repository import JobRepository
 from ..schemas.booking import BookingCreate, BookingUpdate
 from .audit_redaction import redact
 from .base import BaseService
+from .cache_service import CacheService, CacheServiceSyncAdapter
 from .config_service import ConfigService
 from .notification_service import NotificationService
 from .pricing_service import PricingService
@@ -61,7 +62,6 @@ if TYPE_CHECKING:
     from ..repositories.conflict_checker_repository import ConflictCheckerRepository
     from ..repositories.event_outbox_repository import EventOutboxRepository
     from ..schemas.booking import PaymentSummary
-    from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class BookingService(BaseService):
     repository: "BookingRepository"
     availability_repository: "AvailabilityRepository"
     conflict_checker_repository: "ConflictCheckerRepository"
-    cache_service: Optional["CacheService"]
+    cache_service: Optional[CacheServiceSyncAdapter]
     notification_service: NotificationService
     event_outbox_repository: "EventOutboxRepository"
     audit_repository: "AuditRepository"
@@ -97,7 +97,7 @@ class BookingService(BaseService):
         event_publisher: Optional[EventPublisher] = None,
         repository: Optional["BookingRepository"] = None,
         conflict_checker_repository: Optional["ConflictCheckerRepository"] = None,
-        cache_service: Optional["CacheService"] = None,
+        cache_service: Optional[CacheService | CacheServiceSyncAdapter] = None,
         system_message_service: Optional[SystemMessageService] = None,
     ):
         """
@@ -112,7 +112,13 @@ class BookingService(BaseService):
             cache_service: Optional cache service for invalidation
             system_message_service: Optional system message service for conversation messages
         """
-        super().__init__(db, cache=cache_service)
+        cache_impl = cache_service
+        cache_adapter: Optional[CacheServiceSyncAdapter] = None
+        if isinstance(cache_impl, CacheServiceSyncAdapter):
+            cache_adapter = cache_impl
+        elif isinstance(cache_impl, CacheService):
+            cache_adapter = CacheServiceSyncAdapter(cache_impl)
+        super().__init__(db, cache=cache_adapter)
         self.notification_service = notification_service or NotificationService(db)
         self.event_publisher = event_publisher or EventPublisher(JobRepository(db))
         self.system_message_service = system_message_service or SystemMessageService(db)
@@ -122,12 +128,12 @@ class BookingService(BaseService):
         else:
             from ..repositories.booking_repository import BookingRepository
 
-            self.repository = BookingRepository(db, cache_service=cache_service)
+            self.repository = BookingRepository(db, cache_service=cache_adapter)
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
         self.conflict_checker_repository = (
             conflict_checker_repository or RepositoryFactory.create_conflict_checker_repository(db)
         )
-        self.cache_service = cache_service
+        self.cache_service = cache_adapter
         self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
             db
         )
@@ -1040,19 +1046,29 @@ class BookingService(BaseService):
                     )
                     booking.payment_status = "capture_not_possible"
                 else:
-                    capture = stripe_service.capture_payment_intent(
-                        booking.payment_intent_id,
-                        idempotency_key=f"capture_late_cancel_{booking.id}",
-                    )
-                    payment_repo.create_payment_event(
-                        booking_id=booking.id,
-                        event_type="captured_last_minute_cancel",
-                        event_data={
-                            "payment_intent_id": booking.payment_intent_id,
-                            "amount": capture.get("amount_received"),
-                        },
-                    )
-                    booking.payment_status = "captured"
+                    try:
+                        capture = stripe_service.capture_payment_intent(
+                            booking.payment_intent_id,
+                            idempotency_key=f"capture_late_cancel_{booking.id}",
+                        )
+                        payment_repo.create_payment_event(
+                            booking_id=booking.id,
+                            event_type="captured_last_minute_cancel",
+                            event_data={
+                                "payment_intent_id": booking.payment_intent_id,
+                                "amount": capture.get("amount_received"),
+                            },
+                        )
+                        booking.payment_status = "captured"
+                    except Exception as e:
+                        # Best-effort capture; do not block cancellation if PI is invalid/missing
+                        logger.warning(f"Capture not performed for booking {booking.id}: {e}")
+                        payment_repo.create_payment_event(
+                            booking_id=booking.id,
+                            event_type="capture_failed_last_minute_cancel",
+                            event_data={"payment_intent_id": booking.payment_intent_id},
+                        )
+                        booking.payment_status = "capture_failed"
 
             # Cancel the booking
             booking.cancel(user.id, reason)

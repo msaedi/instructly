@@ -16,7 +16,7 @@ from app.schemas.availability_window import WeekSpecificScheduleCreate
 from app.schemas.booking import BookingCreate
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import INSTRUCTOR_CONFLICT_MESSAGE, BookingService
-from app.services.cache_service import CacheService
+from app.services.cache_service import CacheService, CacheServiceSyncAdapter
 from app.utils.bitset import bits_from_windows
 
 
@@ -63,7 +63,7 @@ async def test_booking_availability_flow(monkeypatch, db: Session, test_instruct
     # Force cache service into in-memory mode to exercise cache-aware paths without Redis.
     monkeypatch.setenv("AVAILABILITY_TEST_MEMORY_CACHE", "1")
     monkeypatch.setenv("AVAILABILITY_PERF_DEBUG", "1")
-    cache_service = CacheService(db)
+    cache_service = CacheServiceSyncAdapter(CacheService(db))
 
     availability_service = AvailabilityService(db, cache_service=cache_service)
     notification_stub = _StubNotificationService()

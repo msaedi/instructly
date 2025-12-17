@@ -234,6 +234,54 @@ class TestLLMParser:
             assert result.time_after == "17:00"
             assert result.time_before is None  # Invalid time rejected
 
+    @pytest.mark.asyncio
+    async def test_make_api_call_uses_max_completion_tokens_for_gpt5(
+        self, llm_parser: LLMParser
+    ) -> None:
+        """GPT-5 models require max_completion_tokens (not max_tokens)."""
+        mock_response = LLMParsedQuery(service_query="piano lessons")
+        message = Mock(parsed=mock_response, refusal=None)
+        response = Mock(choices=[Mock(message=message)])
+
+        parse_mock = AsyncMock(return_value=response)
+        llm_parser._client = Mock(
+            beta=Mock(chat=Mock(completions=Mock(parse=parse_mock)))  # type: ignore[arg-type]
+        )
+
+        with patch("app.services.search.llm_parser.get_search_config") as mock_config:
+            mock_config.return_value = Mock(parsing_model="gpt-5-nano")
+            result = await llm_parser._make_api_call("piano", "sys")
+
+        assert result.service_query == "piano lessons"
+        _, kwargs = parse_mock.call_args
+        assert kwargs.get("max_completion_tokens") == 500
+        assert "max_tokens" not in kwargs
+        assert "temperature" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_make_api_call_uses_max_tokens_for_non_gpt5(
+        self, llm_parser: LLMParser
+    ) -> None:
+        """Older models should keep using max_tokens."""
+        mock_response = LLMParsedQuery(service_query="piano lessons")
+        message = Mock(parsed=mock_response, refusal=None)
+        response = Mock(choices=[Mock(message=message)])
+
+        parse_mock = AsyncMock(return_value=response)
+        llm_parser._client = Mock(
+            beta=Mock(chat=Mock(completions=Mock(parse=parse_mock)))  # type: ignore[arg-type]
+        )
+
+        with patch("app.services.search.llm_parser.get_search_config") as mock_config:
+            mock_config.return_value = Mock(parsing_model="gpt-4o-mini")
+            result = await llm_parser._make_api_call("piano", "sys")
+
+        assert result.service_query == "piano lessons"
+        _, kwargs = parse_mock.call_args
+        assert kwargs.get("max_tokens") == 500
+        assert "max_completion_tokens" not in kwargs
+        assert kwargs.get("temperature") == 0
+
 
 class TestHybridParse:
     """Tests for hybrid parsing function."""

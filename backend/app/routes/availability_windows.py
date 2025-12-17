@@ -53,7 +53,7 @@ from ..api.dependencies.auth import get_current_active_user, require_beta_access
 from ..api.dependencies.services import (
     get_availability_service,
     get_bulk_operation_service,
-    get_cache_service_dep,
+    get_cache_service_sync_dep,
     get_conflict_checker,
     get_presentation_service,
     get_week_operation_service,
@@ -97,7 +97,7 @@ from ..schemas.availability_window import (
 )
 from ..services.availability_service import ALLOW_PAST as SERVICE_ALLOW_PAST, AvailabilityService
 from ..services.bulk_operation_service import BulkOperationService
-from ..services.cache_service import CacheService
+from ..services.cache_service import CacheServiceSyncAdapter
 from ..services.conflict_checker import ConflictChecker
 from ..services.presentation_service import PresentationService
 
@@ -230,7 +230,7 @@ async def save_week_availability(
     payload: WeekSpecificScheduleCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
     override: bool = Query(
         False,
         description="Set to true to bypass version conflict checks when saving availability",
@@ -380,7 +380,6 @@ async def copy_week_availability(
     payload: CopyWeekRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> CopyWeekResponse:
     """Copy availability from one week to another."""
     verify_instructor(current_user)
@@ -393,9 +392,6 @@ async def copy_week_availability(
         payload_size_bytes=payload_size,
     ):
         try:
-            if not week_operation_service.cache_service and cache_service:
-                week_operation_service.cache_service = cache_service
-
             result = await week_operation_service.copy_week_availability(
                 instructor_id=current_user.id,
                 from_week_start=payload.from_week_start,
@@ -433,15 +429,11 @@ async def apply_to_date_range(
     payload: ApplyToDateRangeRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> ApplyToDateRangeResponse:
     """Apply a week's pattern to a date range."""
     verify_instructor(current_user)
 
     try:
-        if not week_operation_service.cache_service and cache_service:
-            week_operation_service.cache_service = cache_service
-
         result = await week_operation_service.apply_pattern_to_date_range(
             instructor_id=current_user.id,
             from_week_start=payload.from_week_start,

@@ -12,7 +12,7 @@ FIXED: Dynamic date checking instead of hardcoded day names for timezone compati
 
 from datetime import date, time, timedelta
 import os
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -122,10 +122,11 @@ class TestSupportingSystemsIntegration:
             assert "{booking.service_name}" not in html_content
             assert "{booking.meeting_location}" not in html_content  # FIXED: No more placeholder bug!
 
-    def test_reminder_and_cache_integration(self, db, full_booking):
+    @pytest.mark.asyncio
+    async def test_reminder_and_cache_integration(self, db, full_booking):
         """Test reminders work with cached data using clean patterns."""
         # Mock cache service
-        mock_redis = Mock()
+        mock_redis = AsyncMock()
         mock_redis.get.return_value = None
         mock_redis.setex.return_value = True
         mock_redis.ping.return_value = True
@@ -156,7 +157,9 @@ class TestSupportingSystemsIntegration:
             ]
         }
 
-        cache_service.cache_week_availability(full_booking.instructor_id, week_start, availability_data)
+        await cache_service.cache_week_availability(
+            full_booking.instructor_id, week_start, availability_data
+        )
 
         # Send reminders
         count = notification_service.send_reminder_emails()
@@ -217,17 +220,26 @@ class TestErrorHandlingWithCleanArchitecture:
         # without exposing removed concepts
         assert result is False or result is None
 
-    def test_cache_error_messages_are_clean(self, db):
+    @pytest.mark.asyncio
+    async def test_cache_error_messages_are_clean(self, db):
         """Test cache error messages don't reference removed concepts."""
         # Create cache service with failing Redis
         mock_redis = Mock()
         mock_redis.get.side_effect = Exception("Redis connection failed")
         mock_redis.ping.side_effect = Exception("Redis connection failed")
 
-        cache_service = CacheService(db, redis_client=None)  # Will use in-memory
+        previous_flag = os.environ.get("AVAILABILITY_TEST_MEMORY_CACHE")
+        os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = "1"
+        try:
+            cache_service = CacheService(db, redis_client=None)  # Force in-memory
 
-        # Try to cache something
-        result = cache_service.set("test:key", {"data": "value"})
+            # Try to cache something
+            result = await cache_service.set("test:key", {"data": "value"})
+        finally:
+            if previous_flag is None:
+                os.environ.pop("AVAILABILITY_TEST_MEMORY_CACHE", None)
+            else:
+                os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = previous_flag
 
         # Should handle gracefully without slot references
         assert result is True  # In-memory cache works

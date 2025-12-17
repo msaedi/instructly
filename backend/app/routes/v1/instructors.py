@@ -29,7 +29,7 @@ from ...api.dependencies.auth import (
     require_beta_access,
 )
 from ...api.dependencies.services import (
-    get_cache_service_dep,
+    get_cache_service_sync_dep,
     get_favorites_service,
     get_instructor_service,
 )
@@ -48,7 +48,7 @@ from ...schemas.instructor import (
     InstructorProfileUpdate,
 )
 from ...services.address_service import AddressService
-from ...services.cache_service import CacheService
+from ...services.cache_service import CacheServiceSyncAdapter
 from ...services.favorites_service import FavoritesService
 from ...services.instructor_service import InstructorService
 
@@ -216,7 +216,7 @@ async def update_profile(
     profile_update: InstructorProfileUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> InstructorProfileResponse:
     """Update instructor profile."""
     if not current_user.is_instructor:
@@ -300,7 +300,7 @@ async def go_live(
 async def delete_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> None:
     """Delete instructor profile and revert to student role."""
     if not current_user.is_instructor:
@@ -313,7 +313,8 @@ async def delete_profile(
         if not instructor_service.cache_service and cache_service:
             instructor_service.cache_service = cache_service
 
-        instructor_service.delete_instructor_profile(current_user.id)
+        # Run sync service call off the event loop so cache invalidation (sync adapter) executes.
+        await asyncio.to_thread(instructor_service.delete_instructor_profile, current_user.id)
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
@@ -358,13 +359,17 @@ async def get_instructor(
 
         # Add favorite status
         if current_user:
-            result.is_favorited = favorites_service.is_favorited(
-                student_id=current_user.id, instructor_id=instructor_user_id
+            result.is_favorited = await asyncio.to_thread(
+                favorites_service.is_favorited,
+                student_id=current_user.id,
+                instructor_id=instructor_user_id,
             )
         else:
             result.is_favorited = None
 
-        stats = favorites_service.get_instructor_favorite_stats(instructor_user_id)
+        stats = await asyncio.to_thread(
+            favorites_service.get_instructor_favorite_stats, instructor_user_id
+        )
         result.favorited_count = stats["favorite_count"]
 
         # Set Cache-Control header (5 minutes to match backend cache TTL)
@@ -409,7 +414,9 @@ async def get_coverage(
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
 
-    geo = address_service.get_coverage_geojson_for_instructors([instructor_user.id])
+    geo = await asyncio.to_thread(
+        address_service.get_coverage_geojson_for_instructors, [instructor_user.id]
+    )
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
     )

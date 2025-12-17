@@ -125,6 +125,14 @@ repos:
         pass_filenames: true
         description: Detect sync DB/repo calls in async functions without asyncio.to_thread()
 
+      - id: check-sync-in-async-routes
+        name: Check for sync service calls in async routes
+        entry: python backend/scripts/check_sync_in_async_routes.py
+        language: python
+        files: ^backend/app/routes/.*\.py$
+        pass_filenames: false
+        description: Prevent event-loop blocking by requiring asyncio.to_thread() for sync services in async route handlers
+
       - id: check-no-db-in-routes
         name: Check for direct DB access in routes
         entry: python backend/scripts/check_no_db_in_routes.py

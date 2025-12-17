@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 import logging
+import os
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -45,6 +46,10 @@ if TYPE_CHECKING:
     from app.services.search.location_resolver import ResolvedLocation
 
 logger = logging.getLogger(__name__)
+
+# Optional perf logging for profiling in staging/dev.
+_PERF_LOG_ENABLED = os.getenv("NL_SEARCH_PERF_LOG") == "1"
+_PERF_LOG_SLOW_MS = int(os.getenv("NL_SEARCH_PERF_LOG_SLOW_MS", "0"))
 
 
 @dataclass
@@ -140,13 +145,40 @@ class NLSearchService:
         Returns:
             NLSearchResponse with instructor-level results and metadata
         """
+        perf_start = time.perf_counter()
+        cache_check_start = time.perf_counter()
         metrics = SearchMetrics(total_start=time.time())
 
         # Stage 0: Check cache
-        cached = self._check_cache(query, user_location, limit)
+        cached = await self._check_cache(query, user_location, limit)
+        cache_check_ms = int((time.perf_counter() - cache_check_start) * 1000)
         if cached:
             metrics.cache_hit = True
             cached["meta"]["cache_hit"] = True
+            cached_total_ms = int((time.perf_counter() - perf_start) * 1000)
+            cached["meta"]["latency_ms"] = cached_total_ms
+
+            record_search_metrics(
+                total_latency_ms=cached_total_ms,
+                stage_latencies={"cache_check": cache_check_ms},
+                cache_hit=True,
+                parsing_mode=str(cached.get("meta", {}).get("parsing_mode") or "regex"),
+                result_count=len(cached.get("results") or []),
+                degraded=False,
+                degradation_reasons=[],
+            )
+
+            if _PERF_LOG_ENABLED and (cached_total_ms >= _PERF_LOG_SLOW_MS):
+                logger.info(
+                    "NL search timings (cache_hit): %s",
+                    {
+                        "cache_check_ms": cache_check_ms,
+                        "total_ms": cached_total_ms,
+                        "limit": limit,
+                        "region": self._region_code,
+                    },
+                )
+
             return NLSearchResponse(**cached)
 
         # Stage 1: Parse query
@@ -180,6 +212,7 @@ class NLSearchService:
         metrics.rank_latency_ms = int((time.time() - rank_start) * 1000)
 
         # Stage 5: Build instructor-level results with embedded data
+        hydrate_start = time.perf_counter()
         try:
             results = await self._hydrate_instructor_results(
                 ranking_result.results,
@@ -191,23 +224,29 @@ class NLSearchService:
             results = []
             metrics.degraded = True
             metrics.degradation_reasons.append("hydration_error")
+        hydrate_ms = int((time.perf_counter() - hydrate_start) * 1000)
 
         # Build response
         metrics.total_latency_ms = int((time.time() - metrics.total_start) * 1000)
 
+        response_build_start = time.perf_counter()
         response = self._build_instructor_response(
             query, parsed_query, results, limit, metrics, filter_result=filter_result
         )
+        response_build_ms = int((time.perf_counter() - response_build_start) * 1000)
 
         # Record Prometheus metrics
         record_search_metrics(
             total_latency_ms=metrics.total_latency_ms,
             stage_latencies={
+                "cache_check": cache_check_ms,
                 "parsing": metrics.parse_latency_ms,
                 "embedding": metrics.embed_latency_ms,
                 "retrieval": metrics.retrieve_latency_ms,
                 "filtering": metrics.filter_latency_ms,
                 "ranking": metrics.rank_latency_ms,
+                "hydration": hydrate_ms,
+                "response_build": response_build_ms,
             },
             cache_hit=metrics.cache_hit,
             parsing_mode=parsed_query.parsing_mode,
@@ -220,7 +259,39 @@ class NLSearchService:
         # Degraded responses get a short TTL to avoid "sticky" outages while still
         # preventing repeated expensive cache misses during provider instability.
         degraded_ttl = 30 if metrics.degraded else None
-        self._cache_response(query, user_location, response, limit, ttl=degraded_ttl)
+        cache_write_start = time.perf_counter()
+        await self._cache_response(query, user_location, response, limit, ttl=degraded_ttl)
+        cache_write_ms = int((time.perf_counter() - cache_write_start) * 1000)
+
+        if _PERF_LOG_ENABLED and (metrics.total_latency_ms >= _PERF_LOG_SLOW_MS):
+            retrieval_stats = {
+                "text_search_ms": int(getattr(retrieval_result, "text_search_latency_ms", 0) or 0),
+                "vector_search_ms": int(
+                    getattr(retrieval_result, "vector_search_latency_ms", 0) or 0
+                ),
+                "vector_used": bool(getattr(retrieval_result, "vector_search_used", False)),
+                "candidates": int(getattr(retrieval_result, "total_candidates", 0) or 0),
+            }
+            logger.info(
+                "NL search timings: %s",
+                {
+                    "cache_check_ms": cache_check_ms,
+                    "parse_ms": metrics.parse_latency_ms,
+                    "embed_ms": metrics.embed_latency_ms,
+                    "retrieve_db_ms": metrics.retrieve_latency_ms,
+                    "retrieve": retrieval_stats,
+                    "filter_ms": metrics.filter_latency_ms,
+                    "rank_ms": metrics.rank_latency_ms,
+                    "hydrate_ms": hydrate_ms,
+                    "response_build_ms": response_build_ms,
+                    "cache_write_ms": cache_write_ms,
+                    "total_ms": metrics.total_latency_ms,
+                    "degraded": metrics.degraded,
+                    "reasons": list(metrics.degradation_reasons),
+                    "limit": limit,
+                    "region": self._region_code,
+                },
+            )
 
         return response
 
@@ -382,7 +453,7 @@ class NLSearchService:
 
         return results
 
-    def _check_cache(
+    async def _check_cache(
         self,
         query: str,
         user_location: Optional[Tuple[float, float]],
@@ -390,7 +461,7 @@ class NLSearchService:
     ) -> Optional[Dict[str, Any]]:
         """Check for cached response."""
         try:
-            result: Optional[Dict[str, Any]] = self.search_cache.get_cached_response(
+            result: Optional[Dict[str, Any]] = await self.search_cache.get_cached_response(
                 query,
                 user_location,
                 limit=limit,
@@ -412,7 +483,7 @@ class NLSearchService:
 
         try:
             # Try cache first
-            cached_parsed = self.search_cache.get_cached_parsed_query(
+            cached_parsed = await self.search_cache.get_cached_parsed_query(
                 query, region_code=self._region_code
             )
             if cached_parsed:
@@ -423,7 +494,7 @@ class NLSearchService:
             parsed = await hybrid_parse(query, self.db, user_id, region_code=self._region_code)
 
             # Cache the parsed query
-            self.search_cache.cache_parsed_query(query, parsed, region_code=self._region_code)
+            await self.search_cache.cache_parsed_query(query, parsed, region_code=self._region_code)
 
         except Exception as e:
             logger.error(f"Parsing failed, using basic extraction: {e}")
@@ -561,7 +632,7 @@ class NLSearchService:
         metrics.rank_latency_ms = int((time.time() - start) * 1000)
         return result
 
-    def _cache_response(
+    async def _cache_response(
         self,
         query: str,
         user_location: Optional[Tuple[float, float]],
@@ -572,7 +643,7 @@ class NLSearchService:
     ) -> None:
         """Cache the response."""
         try:
-            self.search_cache.cache_response(
+            await self.search_cache.cache_response(
                 query,
                 response.model_dump(),
                 user_location=user_location,

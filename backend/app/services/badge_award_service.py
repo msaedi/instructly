@@ -14,7 +14,7 @@ from ..models.badge import BadgeDefinition
 from ..notifications.policy import can_send_now, record_send
 from ..repositories.badge_repository import BadgeRepository
 from ..repositories.factory import RepositoryFactory
-from ..services.cache_service import CacheService
+from ..services.cache_service import CacheService, CacheServiceSyncAdapter
 from ..services.notification_service import NotificationService
 from ..utils.streaks import compute_week_streak_local
 
@@ -37,7 +37,7 @@ class BadgeAwardService:
         self,
         db: Session,
         notification_service: Optional[NotificationService] = None,
-        cache_service: Optional[CacheService] = None,
+        cache_service: Optional[CacheService | CacheServiceSyncAdapter] = None,
     ):
         self.db = db
         self.repository: BadgeRepository = RepositoryFactory.create_badge_repository(db)
@@ -48,7 +48,11 @@ class BadgeAwardService:
             except Exception as exc:
                 logger.warning("CacheService unavailable for BadgeAwardService: %s", exc)
                 cache_service = None
-        self.cache_service = cache_service
+        self.cache_service = (
+            CacheServiceSyncAdapter(cache_service)
+            if isinstance(cache_service, CacheService)
+            else cache_service
+        )
 
         if notification_service is None:
             try:

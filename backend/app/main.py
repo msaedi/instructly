@@ -300,6 +300,14 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','') or 'unset'})"
     )
 
+    # Wire the running event loop for sync→async cache bridging (CacheServiceSyncAdapter).
+    try:
+        from .services.cache_service import set_cache_event_loop
+
+        set_cache_event_loop(asyncio.get_running_loop())
+    except Exception as e:
+        logger.warning("Failed to set cache event loop: %s", e)
+
     site_mode_raw = os.getenv("SITE_MODE", "")
     assert_env(
         site_mode_raw,
@@ -431,6 +439,32 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("[REDIS-PUBSUB] Async Redis client closed")
     except Exception as e:
         logger.error(f"[REDIS-PUBSUB] Error closing async Redis client: {e}")
+
+    # Close Redis cache client (separate from Pub/Sub)
+    try:
+        from .core.cache_redis import close_async_cache_redis_client
+
+        await close_async_cache_redis_client()
+        logger.info("[REDIS-CACHE] Async Redis client closed")
+    except Exception as e:
+        logger.error(f"[REDIS-CACHE] Error closing async Redis client: {e}")
+
+    # Close Redis client used by rate limiting / idempotency (may be separate from cache Redis)
+    try:
+        from .ratelimit.redis_backend import close_async_rate_limit_redis_client
+
+        await close_async_rate_limit_redis_client()
+        logger.info("[REDIS-RATELIMIT] Async Redis client closed")
+    except Exception as e:
+        logger.error(f"[REDIS-RATELIMIT] Error closing async Redis client: {e}")
+
+    # Clear the cached event-loop reference used by CacheServiceSyncAdapter.
+    try:
+        from .services.cache_service import clear_cache_event_loop
+
+        clear_cache_event_loop()
+    except Exception as e:
+        logger.debug("Failed to clear cache event loop: %s", e)
 
     # Here you can add cleanup logic like:
     # - Closing database connections

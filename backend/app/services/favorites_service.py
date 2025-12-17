@@ -18,7 +18,7 @@ from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..repositories.favorites_repository import FavoritesRepository
 from .base import BaseService
-from .cache_service import CacheService
+from .cache_service import CacheService, CacheServiceSyncAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +34,18 @@ class FavoritesService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache_service: Optional[CacheService] = None,
+        cache_service: Optional[CacheService | CacheServiceSyncAdapter] = None,
         favorites_repository: Optional[FavoritesRepository] = None,
         user_repository: Any | None = None,
     ) -> None:
         """Initialize favorites service with dependencies."""
-        super().__init__(db, cache=cache_service)
+        cache_impl = cache_service
+        cache_adapter: Optional[CacheServiceSyncAdapter] = None
+        if isinstance(cache_impl, CacheServiceSyncAdapter):
+            cache_adapter = cache_impl
+        elif isinstance(cache_impl, CacheService):
+            cache_adapter = CacheServiceSyncAdapter(cache_impl)
+        super().__init__(db, cache=cache_adapter)
         self.logger = logging.getLogger(__name__)
 
         # Initialize repositories

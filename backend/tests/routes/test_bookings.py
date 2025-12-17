@@ -180,7 +180,7 @@ class TestBookingRoutes:
         response = client_with_mock_booking_service.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Should return 422 due to extra field with extra='forbid'
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
 
     def test_create_booking_past_date(self, client, auth_headers_student, booking_data):
         """Test booking creation for past date fails."""
@@ -235,7 +235,7 @@ class TestBookingRoutes:
         response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Should fail validation
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
 
     def test_get_bookings_list(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test retrieving bookings list."""
@@ -422,7 +422,7 @@ class TestBookingRoutes:
         response = client.post(f"/api/v1/bookings/{booking_id}/cancel", json={}, headers=auth_headers_student)
 
         # Verify
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
 
     def test_complete_booking_instructor_only(
         self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
@@ -802,11 +802,11 @@ class TestBookingRoutes:
         """Test invalid pagination parameters."""
         # Negative page
         response = client.get("/api/v1/bookings/?page=-1", headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
 
         # Per page too large
         response = client.get("/api/v1/bookings/?per_page=1000", headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
 
     def test_all_endpoints_require_auth(self, client):
         """Test that all booking endpoints require authentication."""
@@ -920,7 +920,7 @@ class TestBookingRoutes:
             "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/cancel", json={"reason": "Already cancelled"}, headers=auth_headers_student
         )
         # BusinessRuleException returns 422 in current implementation
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
 
     def test_complete_booking_already_completed(
         self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
@@ -935,7 +935,7 @@ class TestBookingRoutes:
 
         response = client_with_mock_booking_service.post("/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/complete", headers=auth_headers_instructor)
         # BusinessRuleException returns 422 in current implementation
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
 
     def test_update_booking_not_found(
         self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
@@ -996,13 +996,13 @@ class TestBookingRoutes:
         """Test booking with invalid location type."""
         booking_data["location_type"] = "invalid_type"
         response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
 
     def test_create_booking_missing_fields(self, client, auth_headers_student):
         """Test booking creation with missing required fields."""
         incomplete_data = {"instructor_id": 1}  # Missing other fields
         response = client.post("/api/v1/bookings/", json=incomplete_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
 
     def test_booking_validation_edge_cases(self, client, auth_headers_student):
         """Test various validation edge cases."""
@@ -1019,7 +1019,7 @@ class TestBookingRoutes:
             "student_note": "x" * 1001,  # Too long
         }
         response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
 
     def test_create_booking_business_rule_violation(
         self, client_with_mock_booking_service, auth_headers_student, booking_data, mock_booking_service
@@ -1033,7 +1033,7 @@ class TestBookingRoutes:
 
         response = client_with_mock_booking_service.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
         # BusinessRuleException may return 422 (current implementation)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
         error_data = response.json()
         # Check in both 'detail' and 'message' fields
         assert "at least 2 hours" in str(error_data)
@@ -1385,7 +1385,7 @@ class TestBookingRoutes:
             f"/api/v1/bookings/{original.id}/reschedule", json=payload, headers=auth_headers_student
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == 422
         assert "late" in str(response.json()).lower()
 
 

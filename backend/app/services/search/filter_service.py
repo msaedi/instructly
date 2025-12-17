@@ -9,6 +9,8 @@ import asyncio
 from dataclasses import dataclass, field, replace
 from datetime import date, time
 import logging
+import os
+import time as time_module
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from app.repositories.filter_repository import FilterRepository
@@ -21,6 +23,10 @@ if TYPE_CHECKING:
     from app.services.search.query_parser import ParsedQuery
 
 logger = logging.getLogger(__name__)
+
+# Optional perf logging for profiling in staging/dev.
+_PERF_LOG_ENABLED = os.getenv("NL_SEARCH_PERF_LOG") == "1"
+_PERF_LOG_SLOW_MS = int(os.getenv("NL_SEARCH_PERF_LOG_SLOW_MS", "0"))
 
 # Configuration
 MIN_RESULTS_BEFORE_SOFT_FILTER = 5
@@ -124,6 +130,9 @@ class FilterService:
         user_location: Optional[tuple[float, float]],
         default_duration: int,
     ) -> FilterResult:
+        perf_start = time_module.perf_counter()
+        perf: Dict[str, int] = {}
+
         total_before = len(candidates)
         filters_applied: List[str] = []
         filter_stats: Dict[str, int] = {"initial_candidates": total_before}
@@ -143,14 +152,17 @@ class FilterService:
         ]
 
         # Step 1: Price filter
+        price_start = time_module.perf_counter()
         if parsed_query.max_price:
             working = self._filter_price(working, parsed_query.max_price)
             filters_applied.append("price")
             filter_stats["after_price"] = len(working)
+        perf["price_ms"] = int((time_module.perf_counter() - price_start) * 1000)
 
         # Step 2: Location filter
         location_resolution: Optional[ResolvedLocation] = None
         resolved_location = user_location
+        location_start = time_module.perf_counter()
         if resolved_location:
             working = self._filter_location(working, resolved_location)
             filters_applied.append("location")
@@ -161,11 +173,15 @@ class FilterService:
             before_location_count = len(working)
             filter_stats.setdefault("after_location", before_location_count)
 
+            location_resolve_start = time_module.perf_counter()
             location_resolution = self.location_resolver.resolve(
                 parsed_query.location_text,
                 original_query=parsed_query.original_query,
                 track_unresolved=True,
                 enable_semantic=True,
+            )
+            perf["location_resolve_ms"] = int(
+                (time_module.perf_counter() - location_resolve_start) * 1000
             )
             if location_resolution.requires_clarification:
                 # In practice, "ambiguous" often means one user-facing neighborhood maps to multiple
@@ -213,12 +229,17 @@ class FilterService:
                 )
 
         # Step 3: Availability filter
+        perf["location_ms"] = int((time_module.perf_counter() - location_start) * 1000)
+
+        availability_start = time_module.perf_counter()
         if parsed_query.date or parsed_query.date_range_start or parsed_query.time_after:
             working = self._filter_availability(working, parsed_query, default_duration)
             filters_applied.append("availability")
             filter_stats["after_availability"] = len(working)
+        perf["availability_ms"] = int((time_module.perf_counter() - availability_start) * 1000)
 
         # Step 4: Soft filtering if too few results
+        soft_start = time_module.perf_counter()
         soft_filtering_used = False
         relaxed_constraints: List[str] = []
         has_relaxable_constraints = bool(
@@ -255,8 +276,24 @@ class FilterService:
             soft_filtering_used = bool(relaxed_constraints)
             if soft_filtering_used:
                 filter_stats["after_soft_filtering"] = len(working)
+        perf["soft_filter_ms"] = int((time_module.perf_counter() - soft_start) * 1000)
 
         filter_stats["final_candidates"] = len(working)
+        perf_total_ms = int((time_module.perf_counter() - perf_start) * 1000)
+        if _PERF_LOG_ENABLED and (perf_total_ms >= _PERF_LOG_SLOW_MS):
+            logger.info(
+                "NL search filter timings: %s",
+                {
+                    **perf,
+                    "total_ms": perf_total_ms,
+                    "initial": total_before,
+                    "final": len(working),
+                    "soft_filtered": soft_filtering_used,
+                    "relaxed": list(relaxed_constraints),
+                    "region": self.location_resolver.region_code,
+                },
+            )
+
         return FilterResult(
             candidates=working,
             total_before_filter=total_before,

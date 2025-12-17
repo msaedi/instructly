@@ -102,7 +102,7 @@ class SearchCacheService:
     # Response Cache (Versioned)
     # =========================================================================
 
-    def get_cached_response(
+    async def get_cached_response(
         self,
         query: str,
         user_location: Optional[tuple[float, float]] = None,
@@ -118,12 +118,12 @@ class SearchCacheService:
         if not self.cache:
             return None
 
-        key = self._response_cache_key(
+        key = await self._response_cache_key(
             query, user_location, filters, limit, region_code=region_code
         )
 
         try:
-            cached = self.cache.get(key)
+            cached = await self.cache.get(key)
             if cached:
                 logger.debug(f"Response cache HIT: {key[:50]}")
                 return self._deserialize_response(cached)
@@ -132,7 +132,7 @@ class SearchCacheService:
 
         return None
 
-    def cache_response(
+    async def cache_response(
         self,
         query: str,
         response: Dict[str, Any],
@@ -159,20 +159,20 @@ class SearchCacheService:
             logger.debug(f"Skipping response cache for relative date query: {query[:30]}")
             return False
 
-        key = self._response_cache_key(
+        key = await self._response_cache_key(
             query, user_location, filters, limit, region_code=region_code
         )
 
         try:
             serialized = self._serialize_response(response)
-            self.cache.set(key, serialized, ttl=ttl or RESPONSE_CACHE_TTL)
+            await self.cache.set(key, serialized, ttl=ttl or RESPONSE_CACHE_TTL)
             logger.debug(f"Response cached: {key[:50]}")
             return True
         except Exception as e:
             logger.warning(f"Failed to cache response: {e}")
             return False
 
-    def _response_cache_key(
+    async def _response_cache_key(
         self,
         query: str,
         user_location: Optional[tuple[float, float]],
@@ -181,7 +181,7 @@ class SearchCacheService:
         region_code: str | None = None,
     ) -> str:
         """Generate versioned response cache key."""
-        version = self._get_cache_version()
+        version = await self._get_cache_version()
         region = (region_code or self._region_code).lower().strip()
 
         # Build normalized key data
@@ -201,18 +201,18 @@ class SearchCacheService:
 
         return f"{RESPONSE_PREFIX}:v{version}:{key_hash}"
 
-    def _get_cache_version(self) -> int:
+    async def _get_cache_version(self) -> int:
         """Get current cache version."""
         if not self.cache:
             return self._version_cache
 
         try:
-            version = self.cache.get(VERSION_KEY)
+            version = await self.cache.get(VERSION_KEY)
             return int(version) if version else 1
         except Exception:
             return 1
 
-    def invalidate_response_cache(self) -> int:
+    async def invalidate_response_cache(self) -> int:
         """
         Invalidate all response cache by incrementing version.
 
@@ -223,23 +223,13 @@ class SearchCacheService:
             return self._version_cache
 
         try:
-            # Use Redis INCR if available, otherwise get/set
-            redis_client = getattr(self.cache, "redis", None)
+            redis_client = await self.cache.get_redis_client()
             if redis_client is not None:
-                # Redis INCR is atomic and returns new value
-                incr_fn = getattr(redis_client, "incr", None)
-                if incr_fn is not None:
-                    new_version = incr_fn(VERSION_KEY)
-                else:
-                    # Fallback if incr not available
-                    current = self._get_cache_version()
-                    new_version = current + 1
-                    self.cache.set(VERSION_KEY, new_version, ttl=60 * 60 * 24 * 30)
+                new_version = await redis_client.incr(VERSION_KEY)
             else:
-                # Memory fallback: get, increment, set
-                current = self._get_cache_version()
+                current = await self._get_cache_version()
                 new_version = current + 1
-                self.cache.set(VERSION_KEY, new_version, ttl=60 * 60 * 24 * 30)  # 30 days
+                await self.cache.set(VERSION_KEY, new_version, ttl=60 * 60 * 24 * 30)  # 30 days
 
             logger.info(f"Response cache invalidated, new version: {new_version}")
             return int(new_version)
@@ -275,7 +265,7 @@ class SearchCacheService:
     # Parsed Query Cache
     # =========================================================================
 
-    def get_cached_parsed_query(
+    async def get_cached_parsed_query(
         self,
         query: str,
         region_code: str | None = None,
@@ -291,7 +281,7 @@ class SearchCacheService:
         key = self._parsed_cache_key(query, region_code=region_code)
 
         try:
-            cached = self.cache.get(key)
+            cached = await self.cache.get(key)
             if cached:
                 logger.debug(f"Parsed cache HIT: {query[:30]}")
                 return self._deserialize_parsed_query(cached)
@@ -300,7 +290,7 @@ class SearchCacheService:
 
         return None
 
-    def cache_parsed_query(
+    async def cache_parsed_query(
         self,
         query: str,
         parsed: "ParsedQuery",
@@ -327,7 +317,7 @@ class SearchCacheService:
 
         try:
             serialized = self._serialize_parsed_query(parsed)
-            self.cache.set(key, serialized, ttl=PARSED_CACHE_TTL)
+            await self.cache.set(key, serialized, ttl=PARSED_CACHE_TTL)
             logger.debug(f"Parsed query cached: {query[:30]}")
             return True
         except Exception as e:
@@ -414,7 +404,7 @@ class SearchCacheService:
     # Location Cache
     # =========================================================================
 
-    def get_cached_location(
+    async def get_cached_location(
         self,
         location_text: str,
         region_code: str | None = None,
@@ -430,7 +420,7 @@ class SearchCacheService:
         key = self._location_cache_key(location_text, region_code=region_code)
 
         try:
-            cached = self.cache.get(key)
+            cached = await self.cache.get(key)
             if cached:
                 logger.debug(f"Location cache HIT: {location_text}")
                 if isinstance(cached, str):
@@ -443,7 +433,7 @@ class SearchCacheService:
 
         return None
 
-    def cache_location(
+    async def cache_location(
         self,
         location_text: str,
         location: CachedLocation,
@@ -461,7 +451,7 @@ class SearchCacheService:
 
         try:
             serialized = json.dumps(asdict(location))
-            self.cache.set(key, serialized, ttl=LOCATION_CACHE_TTL)
+            await self.cache.set(key, serialized, ttl=LOCATION_CACHE_TTL)
             logger.debug(f"Location cached: {location_text}")
             return True
         except Exception as e:
@@ -478,7 +468,7 @@ class SearchCacheService:
     # Cache Warming
     # =========================================================================
 
-    def warm_location_cache(
+    async def warm_location_cache(
         self,
         locations: List[Dict[str, Any]],
     ) -> int:
@@ -502,7 +492,7 @@ class SearchCacheService:
                 borough=loc.get("borough"),
                 neighborhood=loc.get("neighborhood"),
             )
-            if self.cache_location(loc["name"], cached_loc):
+            if await self.cache_location(loc["name"], cached_loc):
                 count += 1
 
         logger.info(f"Warmed location cache with {count} locations")
@@ -512,7 +502,7 @@ class SearchCacheService:
     # Cache Statistics
     # =========================================================================
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    async def get_cache_stats(self) -> Dict[str, Any]:
         """
         Get cache statistics for monitoring.
 
@@ -522,7 +512,7 @@ class SearchCacheService:
             return {"available": False}
 
         try:
-            version = self._get_cache_version()
+            version = await self._get_cache_version()
             return {
                 "available": True,
                 "response_cache_version": version,

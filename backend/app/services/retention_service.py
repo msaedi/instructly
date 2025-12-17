@@ -34,7 +34,7 @@ from app.services.retention_metrics import (
 from ..metrics import retention_metrics as soft_delete_retention_metrics
 from ..repositories.retention_repository import RetentionRepository
 from .base import BaseService
-from .cache_service import CacheService
+from .cache_service import CacheServiceSyncAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ class RetentionService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache_service: Optional[CacheService] = None,
+        cache_service: Optional[CacheServiceSyncAdapter] = None,
         retention_repository: Optional[RetentionRepository] = None,
     ) -> None:
         super().__init__(db, cache=cache_service)

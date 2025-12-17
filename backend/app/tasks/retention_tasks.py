@@ -13,7 +13,7 @@ import os
 from typing import Any, Dict, Optional
 
 from app.database import SessionLocal
-from app.services.cache_service import CacheService
+from app.services.cache_service import CacheService, CacheServiceSyncAdapter
 from app.services.retention_service import RetentionService
 from app.tasks.celery_app import celery_app
 
@@ -63,7 +63,7 @@ def purge_soft_deleted_task(
     dry_run_to_use = DEFAULT_DRY_RUN if dry_run is None else dry_run
 
     db = SessionLocal()
-    cache_service = CacheService(db)
+    cache_service = CacheServiceSyncAdapter(CacheService(db))
     service = RetentionService(db, cache_service=cache_service)
 
     try:

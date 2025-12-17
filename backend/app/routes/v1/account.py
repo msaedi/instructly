@@ -12,6 +12,7 @@ Endpoints:
     GET /status                          → Check account status
 """
 
+import asyncio
 import logging
 from typing import Any, Dict
 
@@ -50,11 +51,15 @@ async def suspend_account(
         )
 
     try:
-        result: Dict[str, Any] = account_service.suspend_instructor_account(current_user)
+        result: Dict[str, Any] = await asyncio.to_thread(
+            account_service.suspend_instructor_account, current_user
+        )
         return AccountStatusChangeResponse(**result)
     except BusinessRuleException as e:
         # Extract future bookings info if available
-        has_bookings, _future_bookings = account_service.has_future_bookings(current_user)
+        has_bookings, _future_bookings = await asyncio.to_thread(
+            account_service.has_future_bookings, current_user
+        )
         if has_bookings:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -82,11 +87,15 @@ async def deactivate_account(
         )
 
     try:
-        result: Dict[str, Any] = account_service.deactivate_instructor_account(current_user)
+        result: Dict[str, Any] = await asyncio.to_thread(
+            account_service.deactivate_instructor_account, current_user
+        )
         return AccountStatusChangeResponse(**result)
     except BusinessRuleException as e:
         # Extract future bookings info if available
-        has_bookings, _future_bookings = account_service.has_future_bookings(current_user)
+        has_bookings, _future_bookings = await asyncio.to_thread(
+            account_service.has_future_bookings, current_user
+        )
         if has_bookings:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -114,7 +123,9 @@ async def reactivate_account(
         )
 
     try:
-        result: Dict[str, Any] = account_service.reactivate_instructor_account(current_user)
+        result: Dict[str, Any] = await asyncio.to_thread(
+            account_service.reactivate_instructor_account, current_user
+        )
         return AccountStatusChangeResponse(**result)
     except ValidationException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -135,7 +146,9 @@ async def check_account_status(
     - Available status change options based on current state and future bookings
     """
     try:
-        result: Dict[str, Any] = account_service.get_account_status(current_user)
+        result: Dict[str, Any] = await asyncio.to_thread(
+            account_service.get_account_status, current_user
+        )
         return AccountStatusResponse(**result)
     except Exception as e:
         logger.error(f"Error checking account status: {str(e)}")

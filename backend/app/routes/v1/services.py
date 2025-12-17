@@ -15,6 +15,7 @@ Endpoints:
     POST /instructor/add               → Add service to instructor profile (instructor)
 """
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional, cast
 
@@ -57,7 +58,7 @@ async def get_service_categories(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> List[CategoryResponse]:
     """Get all service categories (cached for 1 hour)."""
-    categories = instructor_service.get_service_categories()
+    categories = await asyncio.to_thread(instructor_service.get_service_categories)
     # Set Cache-Control header (1 hour to match backend cache TTL)
     response.headers["Cache-Control"] = "public, max-age=3600"
     return cast(List[CategoryResponse], categories)
@@ -74,7 +75,9 @@ async def get_catalog_services(
     Optionally filter by category slug (e.g., 'music-arts', 'academic').
     """
     try:
-        services = instructor_service.get_available_catalog_services(category_slug=category)
+        services = await asyncio.to_thread(
+            instructor_service.get_available_catalog_services, category_slug=category
+        )
         return cast(List[CatalogServiceResponse], services)
     except Exception as e:
         if "not found" in str(e).lower():
@@ -102,7 +105,8 @@ async def add_service_to_profile(
         )
 
     try:
-        created = instructor_service.create_instructor_service_from_catalog(
+        created = await asyncio.to_thread(
+            instructor_service.create_instructor_service_from_catalog,
             instructor_id=current_user.id,
             catalog_service_id=service_data.catalog_service_id,
             hourly_rate=service_data.hourly_rate,
@@ -130,7 +134,9 @@ async def search_services(
     Searches across service names, categories, and search terms.
     """
     # Use the existing instructor search but with service-focused messaging
-    result: Dict[str, Any] = instructor_service.get_instructors_filtered(search=q, skip=0, limit=50)
+    result: Dict[str, Any] = await asyncio.to_thread(
+        instructor_service.get_instructors_filtered, search=q, skip=0, limit=50
+    )
 
     metadata_raw = cast(Dict[str, Any], result.get("metadata", {}))
     metadata = ServiceSearchMetadata(**model_filter(ServiceSearchMetadata, metadata_raw))
@@ -163,7 +169,9 @@ async def get_top_services_per_category(
     Returns:
         Dictionary with categories and their top services
     """
-    data: Dict[str, Any] = instructor_service.get_top_services_per_category(limit=limit)
+    data: Dict[str, Any] = await asyncio.to_thread(
+        instructor_service.get_top_services_per_category, limit=limit
+    )
 
     categories_clean: List[TopCategoryItem] = []
     for category in cast(List[Dict[str, Any]], data.get("categories", [])):
@@ -223,7 +231,9 @@ async def get_all_services_with_instructors(
     Returns:
         Dictionary with categories and their services, including active instructor counts
     """
-    payload: Dict[str, Any] = instructor_service.get_all_services_with_instructors()
+    payload: Dict[str, Any] = await asyncio.to_thread(
+        instructor_service.get_all_services_with_instructors
+    )
 
     categories_clean: List[CategoryWithServices] = []
     for category in cast(List[Dict[str, Any]], payload.get("categories", [])):
@@ -289,5 +299,5 @@ async def get_kids_available_services(
 
     Minimal payload: id, name, slug. Cached for 5 minutes.
     """
-    services = instructor_service.get_kids_available_services()
+    services = await asyncio.to_thread(instructor_service.get_kids_available_services)
     return cast(List[CatalogServiceMinimalResponse], services)

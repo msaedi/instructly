@@ -198,7 +198,7 @@ async def search_health(
     from ...services.search.search_cache import SearchCacheService
 
     search_cache = SearchCacheService(cache_service=cache_service)
-    cache_stats = search_cache.get_cache_stats()
+    cache_stats = await search_cache.get_cache_stats()
 
     return SearchHealthResponse(
         status="healthy",

@@ -171,7 +171,7 @@ async def get_performance_metrics(
 
     # Cache metrics
     if cache_service:
-        raw_cache_stats = cache_service.get_stats()
+        raw_cache_stats = await cache_service.get_stats()
         cache_stats = _coerce_json_dict(raw_cache_stats, "Unexpected cache stats format")
     else:
         cache_stats = {"error": "Cache service not available"}
@@ -190,15 +190,19 @@ async def get_performance_metrics(
         "pool_status": get_db_pool_status(),
     }
 
+    availability_service_metrics = await asyncio.to_thread(availability_service.get_metrics)
+    booking_service_metrics = await asyncio.to_thread(booking_service.get_metrics)
+    conflict_checker_metrics = await asyncio.to_thread(conflict_checker.get_metrics)
+
     return PerformanceMetricsResponse(
         availability_service=_normalize_service_metrics(
-            cast(Mapping[str, Any], availability_service.get_metrics())
+            cast(Mapping[str, Any], availability_service_metrics)
         ),
         booking_service=_normalize_service_metrics(
-            cast(Mapping[str, Any], booking_service.get_metrics())
+            cast(Mapping[str, Any], booking_service_metrics)
         ),
         conflict_checker=_normalize_service_metrics(
-            cast(Mapping[str, Any], conflict_checker.get_metrics())
+            cast(Mapping[str, Any], conflict_checker_metrics)
         ),
         cache=cache_stats,
         system=system_metrics,
@@ -220,7 +224,7 @@ async def get_cache_metrics(
         raise HTTPException(status_code=503, detail="Cache service not available")
 
     # Get basic cache stats
-    stats = _coerce_json_dict(cache_service.get_stats(), "Unexpected cache stats format")
+    stats = _coerce_json_dict(await cache_service.get_stats(), "Unexpected cache stats format")
 
     # Add availability-specific metrics
     availability_stats: JsonDict = {
@@ -240,10 +244,11 @@ async def get_cache_metrics(
 
     # Add cache size estimates (if Redis is available)
     redis_info: Optional[JsonDict] = None
-    if hasattr(cache_service, "redis") and cache_service.redis:
+    redis_client = await cache_service.get_redis_client()
+    if redis_client is not None:
         try:
             # Get approximate cache size
-            info = cache_service.redis.info()
+            info = await redis_client.info()
             redis_info = {
                 "used_memory_human": info.get("used_memory_human", "Unknown"),
                 "keyspace_hits": info.get("keyspace_hits", 0),
@@ -316,7 +321,7 @@ async def get_availability_cache_metrics(
     if not cache_service:
         raise HTTPException(status_code=503, detail="Cache service not available")
 
-    stats = cache_service.get_stats()
+    stats = await cache_service.get_stats()
 
     # Calculate availability-specific metrics
     avail_hits = stats.get("availability_hits", 0)
@@ -337,13 +342,18 @@ async def get_availability_cache_metrics(
 
     # Get top cached keys (if possible)
     top_keys: List[str] = []
-    if hasattr(cache_service, "redis") and cache_service.redis:
+    redis_client = await cache_service.get_redis_client()
+    if redis_client is not None:
         try:
             # Sample some availability-related keys
             sample_keys: List[str] = []
             for pattern in ["avail:*", "availability:*"]:
-                keys = list(cache_service.redis.scan_iter(match=pattern, count=10))
-                sample_keys.extend(keys[:5])  # Limit to 5 per pattern
+                keys: List[str] = []
+                async for key in redis_client.scan_iter(match=pattern, count=10):
+                    keys.append(key)
+                    if len(keys) >= 5:
+                        break
+                sample_keys.extend(keys)
 
             top_keys = sample_keys[:10]  # Top 10 keys
         except Exception as e:
@@ -429,7 +439,7 @@ async def reset_cache_stats(
     response_model=RateLimitStats,
     dependencies=[Depends(_ensure_ops_access)],
 )
-def get_rate_limit_stats() -> RateLimitStats:
+async def get_rate_limit_stats() -> RateLimitStats:
     """
     Get current rate limit statistics.
 
@@ -441,7 +451,7 @@ def get_rate_limit_stats() -> RateLimitStats:
     Requires authentication.
     """
     stats = _coerce_json_dict(
-        RateLimitAdmin.get_rate_limit_stats(), "Unexpected rate limit stats format"
+        await RateLimitAdmin.get_rate_limit_stats(), "Unexpected rate limit stats format"
     )
     return RateLimitStats(**stats)
 
@@ -451,7 +461,7 @@ def get_rate_limit_stats() -> RateLimitStats:
     response_model=RateLimitResetResponse,
     dependencies=[Depends(_ensure_ops_access)],
 )
-def reset_rate_limits(
+async def reset_rate_limits(
     pattern: str = Query(..., description="Pattern to match (e.g., 'email_*', 'ip_192.168.*')"),
 ) -> RateLimitResetResponse:
     """
@@ -464,7 +474,7 @@ def reset_rate_limits(
 
     Requires admin privileges.
     """
-    count = RateLimitAdmin.reset_all_limits(pattern)
+    count = await RateLimitAdmin.reset_all_limits(pattern)
 
     return RateLimitResetResponse(
         status="success",

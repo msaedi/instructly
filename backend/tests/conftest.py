@@ -501,6 +501,9 @@ def _prepare_database() -> None:
                 conn.execute(text("DROP TABLE IF EXISTS notification_delivery CASCADE"))
             if insp.has_table("event_outbox"):
                 conn.execute(text("DROP TABLE IF EXISTS event_outbox CASCADE"))
+            # Postgres can rarely leave behind an orphaned composite type for a dropped/failed table
+            # create, which then breaks subsequent CREATE TABLE with pg_type_typname_nsp_index errors.
+            conn.execute(text("DROP TYPE IF EXISTS event_outbox CASCADE"))
             # These schemas evolve quickly during search/location work; drop so create_all
             # recreates them with the latest SQLAlchemy models for this test run.
             if insp.has_table("location_aliases"):

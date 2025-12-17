@@ -143,7 +143,8 @@ async def register(
         HTTPException: If email already registered or rate limit exceeded
     """
     try:
-        db_user = auth_service.register_user(
+        db_user = await asyncio.to_thread(
+            auth_service.register_user,
             email=payload.email,
             password=payload.password,
             first_name=payload.first_name,
@@ -157,8 +158,10 @@ async def register(
         if payload.guest_session_id:
             try:
                 search_service = SearchHistoryService(db)
-                converted_count = search_service.convert_guest_searches_to_user(
-                    guest_session_id=payload.guest_session_id, user_id=db_user.id
+                converted_count = await asyncio.to_thread(
+                    search_service.convert_guest_searches_to_user,
+                    guest_session_id=payload.guest_session_id,
+                    user_id=db_user.id,
                 )
                 logger.info(f"Converted {converted_count} guest searches for new user {db_user.id}")
             except Exception as e:
@@ -329,7 +332,7 @@ async def login(
         beta_claims = None
 
     # Step 3: Release DB connection BEFORE Argon2id verification (critical for throughput)
-    auth_service.release_connection()
+    await asyncio.to_thread(auth_service.release_connection)
 
     # Step 4: ONLY password verification is concurrency-capped
     async with login_slot():
@@ -555,7 +558,7 @@ async def login_with_session(
         beta_claims = None
 
     # Step 3: Release auth_service DB connection BEFORE Argon2id verification
-    auth_service.release_connection()
+    await asyncio.to_thread(auth_service.release_connection)
 
     # Step 4: ONLY password verification is concurrency-capped
     async with login_slot():
@@ -630,8 +633,10 @@ async def login_with_session(
     if login_data.guest_session_id and user_id:
         try:
             search_service = SearchHistoryService(db)
-            converted_count = search_service.convert_guest_searches_to_user(
-                guest_session_id=login_data.guest_session_id, user_id=user_id
+            converted_count = await asyncio.to_thread(
+                search_service.convert_guest_searches_to_user,
+                guest_session_id=login_data.guest_session_id,
+                user_id=user_id,
             )
             logger.info(f"Converted {converted_count} guest searches for user {user_id}")
         except Exception as e:

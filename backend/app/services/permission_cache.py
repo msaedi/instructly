@@ -13,7 +13,7 @@ import json
 import logging
 from typing import Optional, Set
 
-from ..core.redis import get_async_redis_client
+from ..core.cache_redis import get_async_cache_redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ async def get_cached_permissions(user_id: str) -> Optional[Set[str]]:
         Set of permission names if cached, None if not cached.
     """
     try:
-        redis = await get_async_redis_client()
+        redis = await get_async_cache_redis_client()
         if redis is None:
             logger.warning("[PERM-CACHE] Redis unavailable, falling back to DB")
             return None
@@ -53,7 +53,7 @@ async def set_cached_permissions(user_id: str, permissions: Set[str]) -> None:
         permissions: Set of permission names
     """
     try:
-        redis = await get_async_redis_client()
+        redis = await get_async_cache_redis_client()
         if redis is None:
             logger.warning("[PERM-CACHE] Redis unavailable, skipping cache write")
             return
@@ -74,7 +74,7 @@ async def invalidate_cached_permissions(user_id: str) -> None:
     Call this when user's permissions change (role change, etc.)
     """
     try:
-        redis = await get_async_redis_client()
+        redis = await get_async_cache_redis_client()
         if redis is None:
             logger.warning("[PERM-CACHE] Redis unavailable, skipping cache invalidation")
             return

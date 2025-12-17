@@ -255,7 +255,8 @@ async def mark_lesson_complete(
     check_permission(current_user, PermissionName.COMPLETE_BOOKINGS, db)
 
     try:
-        booking = booking_service.instructor_mark_complete(
+        booking = await asyncio.to_thread(
+            booking_service.instructor_mark_complete,
             booking_id=booking_id,
             instructor=current_user,
             notes=notes,
@@ -264,9 +265,13 @@ async def mark_lesson_complete(
     except NotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValidationException as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+        raise HTTPException(
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422), detail=str(e)
+        )
     except BusinessRuleException as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+        raise HTTPException(
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422), detail=str(e)
+        )
 
 
 @router.post(
@@ -305,7 +310,8 @@ async def dispute_completion(
     check_permission(current_user, PermissionName.COMPLETE_BOOKINGS, db)
 
     try:
-        booking = booking_service.instructor_dispute_completion(
+        booking = await asyncio.to_thread(
+            booking_service.instructor_dispute_completion,
             booking_id=booking_id,
             instructor=current_user,
             reason=reason,
@@ -314,4 +320,6 @@ async def dispute_completion(
     except NotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValidationException as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+        raise HTTPException(
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422), detail=str(e)
+        )

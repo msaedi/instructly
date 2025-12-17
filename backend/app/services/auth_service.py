@@ -9,7 +9,7 @@ FIXED: Added @measure_operation decorators to all public methods
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, cast
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -20,11 +20,8 @@ from ..core.exceptions import ConflictException, NotFoundException, ValidationEx
 from ..models.instructor import InstructorProfile
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
-from .base import BaseService
+from .base import BaseService, CacheInvalidationProtocol
 from .permission_service import PermissionService
-
-if TYPE_CHECKING:
-    from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +32,7 @@ class AuthService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache_service: Optional["CacheService"] = None,
+        cache_service: Optional[CacheInvalidationProtocol] = None,
         user_repository: Any | None = None,
         instructor_repository: Any | None = None,
     ) -> None:

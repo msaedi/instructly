@@ -35,7 +35,7 @@ from ..schemas.instructor import (
     ServiceCreate,
 )
 from .base import BaseService
-from .cache_service import CacheService
+from .cache_service import CacheServiceSyncAdapter
 from .config_service import ConfigService
 from .geocoding.factory import create_geocoding_provider
 from .pricing_service import PricingService
@@ -62,7 +62,7 @@ class InstructorService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache_service: Optional[CacheService] = None,
+        cache_service: Optional[CacheServiceSyncAdapter] = None,
         profile_repository: Optional[Any] = None,
         service_repository: Optional[Any] = None,
         user_repository: Optional[Any] = None,
@@ -1573,7 +1573,7 @@ class InstructorService(BaseService):
 
 # Dependency injection
 def get_instructor_service(
-    db: Session, cache_service: Optional[CacheService] = None
+    db: Session, cache_service: Optional[CacheServiceSyncAdapter] = None
 ) -> InstructorService:
     """Get instructor service instance for dependency injection."""
     return InstructorService(db, cache_service)

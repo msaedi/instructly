@@ -79,7 +79,13 @@ def invalidate_on_service_change(
         change_type: "create", "update", or "delete"
     """
     cache = get_search_cache()
-    cache.invalidate_response_cache()
+    # Best-effort invalidation. Callers should await this function when possible.
+    import asyncio
+
+    async def _invalidate() -> None:
+        await cache.invalidate_response_cache()
+
+    asyncio.create_task(_invalidate())
     logger.info(f"Search cache invalidated: service {change_type} ({service_id})")
 
 
@@ -95,7 +101,12 @@ def invalidate_on_availability_change(
         instructor_id: The instructor whose availability changed
     """
     cache = get_search_cache()
-    cache.invalidate_response_cache()
+    import asyncio
+
+    async def _invalidate() -> None:
+        await cache.invalidate_response_cache()
+
+    asyncio.create_task(_invalidate())
     logger.info(f"Search cache invalidated: availability change ({instructor_id})")
 
 
@@ -113,7 +124,12 @@ def invalidate_on_price_change(
         service_id: Specific service that changed (optional)
     """
     cache = get_search_cache()
-    cache.invalidate_response_cache()
+    import asyncio
+
+    async def _invalidate() -> None:
+        await cache.invalidate_response_cache()
+
+    asyncio.create_task(_invalidate())
     logger.info(f"Search cache invalidated: price change ({instructor_id})")
 
 
@@ -129,7 +145,12 @@ def invalidate_on_instructor_profile_change(
         instructor_id: The instructor whose profile changed
     """
     cache = get_search_cache()
-    cache.invalidate_response_cache()
+    import asyncio
+
+    async def _invalidate() -> None:
+        await cache.invalidate_response_cache()
+
+    asyncio.create_task(_invalidate())
     logger.info(f"Search cache invalidated: profile change ({instructor_id})")
 
 
@@ -147,11 +168,16 @@ def invalidate_on_review_change(
         review_id: The review that changed (optional)
     """
     cache = get_search_cache()
-    cache.invalidate_response_cache()
+    import asyncio
+
+    async def _invalidate() -> None:
+        await cache.invalidate_response_cache()
+
+    asyncio.create_task(_invalidate())
     logger.info(f"Search cache invalidated: review change ({instructor_id})")
 
 
-def invalidate_all_search_cache() -> int:
+async def invalidate_all_search_cache() -> int:
     """
     Force invalidation of all search response caches.
 
@@ -161,6 +187,6 @@ def invalidate_all_search_cache() -> int:
         New cache version number
     """
     cache = get_search_cache()
-    new_version = cache.invalidate_response_cache()
+    new_version = await cache.invalidate_response_cache()
     logger.info(f"Search cache fully invalidated, new version: {new_version}")
     return new_version

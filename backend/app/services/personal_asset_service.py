@@ -27,7 +27,7 @@ from ..monitoring.prometheus_metrics import (
 )
 from ..repositories.user_repository import UserRepository
 from .base import BaseService
-from .cache_service import CacheService, get_cache_service
+from .cache_service import CacheService, CacheServiceSyncAdapter, get_cache_service
 from .image_processing_service import ImageProcessingService
 from .r2_storage_client import PresignedUrl, R2StorageClient
 from .storage_null_client import NullStorageClient
@@ -77,13 +77,16 @@ class PersonalAssetService(BaseService):
         storage: Optional[R2StorageClient] = None,
         images: Optional[ImageProcessingService] = None,
         users_repo: Optional[UserRepository] = None,
-        cache_service: Optional[CacheService] = None,
+        cache_service: Optional[CacheService | CacheServiceSyncAdapter] = None,
     ) -> None:
         super().__init__(db)
         self.storage = storage if storage is not None else self._build_storage()
         self.images = images if images is not None else ImageProcessingService()
         self.users = users_repo if users_repo is not None else UserRepository(db)
-        self.cache = cache_service if cache_service is not None else get_cache_service(self.db)
+        raw_cache = cache_service if cache_service is not None else get_cache_service(self.db)
+        self.cache = (
+            CacheServiceSyncAdapter(raw_cache) if isinstance(raw_cache, CacheService) else raw_cache
+        )
 
     def _build_storage(self) -> NullStorageClient | R2StorageClient:
         global _FALLBACK_STORAGE_WARNED

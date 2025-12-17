@@ -103,10 +103,12 @@ class ProductionStartup:
 
         # Check Redis/Upstash
         try:
-            import redis
+            from app.core.cache_redis import get_async_cache_redis_client
 
-            r = redis.from_url(settings.redis_url or "redis://localhost:6379")
-            r.ping()
+            client = await get_async_cache_redis_client()
+            if client is None:
+                raise RuntimeError("Redis unavailable")
+            await client.ping()
             logger.info("✓ Redis/Upstash connection verified")
         except Exception as e:
             logger.warning(f"✗ Redis/Upstash connection failed: {e} (will use fallback)")

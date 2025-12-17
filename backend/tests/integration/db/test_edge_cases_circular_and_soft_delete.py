@@ -50,7 +50,9 @@ except ModuleNotFoundError:  # pragma: no cover
 
 @pytest.fixture(autouse=True)
 def _clear_service_cache_namespace(db: Session) -> None:
-    cache = CacheService(db)
+    from app.services.cache_service import CacheServiceSyncAdapter
+
+    cache = CacheServiceSyncAdapter(CacheService(db))
     prefixes = [
         "catalog:services:",
         "catalog:top-services:",

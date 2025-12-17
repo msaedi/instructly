@@ -12,7 +12,7 @@ Students cannot change their account status - they are always active.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -20,10 +20,7 @@ from ..core.exceptions import BusinessRuleException, ValidationException
 from ..models.booking import Booking
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
-from .base import BaseService
-
-if TYPE_CHECKING:
-    from .cache_service import CacheService
+from .base import BaseService, CacheInvalidationProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +36,7 @@ class AccountLifecycleService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache_service: Optional["CacheService"] = None,
+        cache_service: Optional[CacheInvalidationProtocol] = None,
     ) -> None:
         """
         Initialize account lifecycle service.

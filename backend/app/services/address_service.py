@@ -16,7 +16,7 @@ from ..repositories.address_repository import (
 from ..repositories.region_boundary_repository import RegionBoundaryRepository
 from ..repositories.user_repository import UserRepository
 from .base import BaseService
-from .cache_service import CacheService, get_cache_service
+from .cache_service import CacheService, CacheServiceSyncAdapter, get_cache_service
 from .geocoding.factory import create_geocoding_provider
 from .location_enrichment import LocationEnrichmentService
 
@@ -41,7 +41,9 @@ def _square_polygon(lon: float, lat: float, delta: float = 0.01) -> Dict[str, An
 
 
 class AddressService(BaseService):
-    def __init__(self, db: Session, cache_service: Optional[CacheService] = None):
+    def __init__(
+        self, db: Session, cache_service: Optional[CacheService | CacheServiceSyncAdapter] = None
+    ):
         super().__init__(db)
         self.address_repo = UserAddressRepository(db)
         self.neighborhood_repo = NYCNeighborhoodRepository(db)
@@ -49,7 +51,12 @@ class AddressService(BaseService):
         self.user_repo = UserRepository(db)
         self.region_repo = RegionBoundaryRepository(db)
         try:
-            self.cache: Optional[CacheService] = cache_service or get_cache_service(db)
+            cache_impl = cache_service or get_cache_service(db)
+            self.cache: Optional[CacheServiceSyncAdapter]
+            if isinstance(cache_impl, CacheServiceSyncAdapter):
+                self.cache = cache_impl
+            else:
+                self.cache = CacheServiceSyncAdapter(cache_impl)
         except Exception:
             self.cache = None
 

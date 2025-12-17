@@ -19,7 +19,9 @@ from enum import Enum
 from functools import lru_cache
 import json
 import logging
+import os
 from pathlib import Path
+import time as time_module
 from typing import Any, List, Optional, Sequence, TypedDict
 
 from sqlalchemy.orm import Session
@@ -35,6 +37,9 @@ from app.services.search.location_embedding_service import LocationEmbeddingServ
 from app.services.search.location_llm_service import LocationLLMService
 
 logger = logging.getLogger(__name__)
+
+_PERF_LOG_ENABLED = os.getenv("NL_SEARCH_PERF_LOG") == "1"
+_PERF_LOG_SLOW_MS = int(os.getenv("NL_SEARCH_PERF_LOG_SLOW_MS", "0"))
 
 _LOCATION_ALIASES_JSON_PATH = Path(__file__).resolve().parents[3] / "data" / "location_aliases.json"
 
@@ -260,6 +265,29 @@ class LocationResolver:
         If `track_unresolved=True`, unresolved location texts are persisted to
         `unresolved_location_queries` for later analysis.
         """
+        perf_start = time_module.perf_counter() if _PERF_LOG_ENABLED else 0.0
+        perf: dict[str, int] = {} if _PERF_LOG_ENABLED else {}
+
+        def _finalize(result: ResolvedLocation) -> ResolvedLocation:
+            if not _PERF_LOG_ENABLED:
+                return result
+            total_ms = int((time_module.perf_counter() - perf_start) * 1000)
+            if total_ms < _PERF_LOG_SLOW_MS:
+                return result
+            logger.info(
+                "NL location resolution timings: %s",
+                {
+                    **perf,
+                    "total_ms": total_ms,
+                    "method": result.method,
+                    "resolved": bool(result.resolved),
+                    "ambiguous": bool(result.requires_clarification),
+                    "not_found": bool(result.not_found),
+                    "region_code": self.region_code,
+                },
+            )
+            return result
+
         if not location_text:
             return ResolvedLocation.from_not_found()
 
@@ -270,31 +298,45 @@ class LocationResolver:
         # Tier 0: Borough aliases (no DB dependency)
         borough_key = self._BOROUGH_ALIASES.get(normalized)
         if borough_key:
-            return ResolvedLocation.from_borough(
-                borough=self._BOROUGH_CANONICAL[borough_key],
-                tier=ResolutionTier.ALIAS,
-                confidence=1.0,
+            return _finalize(
+                ResolvedLocation.from_borough(
+                    borough=self._BOROUGH_CANONICAL[borough_key],
+                    tier=ResolutionTier.ALIAS,
+                    confidence=1.0,
+                )
             )
 
         # Tier 1: Exact match (includes borough names)
+        tier_start = time_module.perf_counter()
         exact = self._tier1_exact_match(normalized)
+        if _PERF_LOG_ENABLED:
+            perf["tier1_exact_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
         if exact.resolved:
-            return exact
+            return _finalize(exact)
 
         # Tier 2: Alias lookup (trust + ambiguity)
+        tier_start = time_module.perf_counter()
         alias_result = self._tier2_alias_lookup(normalized)
+        if _PERF_LOG_ENABLED:
+            perf["tier2_alias_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
         if alias_result.resolved or alias_result.requires_clarification:
-            return alias_result
+            return _finalize(alias_result)
 
         # Tier 2.5: Substring match on region_boundaries (e.g., "carnegie" -> "Upper East Side-Carnegie Hill")
+        tier_start = time_module.perf_counter()
         substring = self._tier2_5_region_name_substring(normalized)
+        if _PERF_LOG_ENABLED:
+            perf["tier2_5_substring_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
         if substring.resolved or substring.requires_clarification:
-            return substring
+            return _finalize(substring)
 
         # Tier 3: Fuzzy match (pg_trgm similarity)
+        tier_start = time_module.perf_counter()
         fuzzy = self._tier3_fuzzy_match(normalized)
+        if _PERF_LOG_ENABLED:
+            perf["tier3_fuzzy_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
         if fuzzy.resolved:
-            return fuzzy
+            return _finalize(fuzzy)
 
         if enable_semantic:
             tokens = normalized.split()
@@ -309,13 +351,23 @@ class LocationResolver:
             best_fuzzy_score: float | None = None
 
             if not should_try_embedding:
+                fuzzy_gate_start = time_module.perf_counter()
                 best_fuzzy_score = self.repository.get_best_fuzzy_score(normalized)
+                if _PERF_LOG_ENABLED:
+                    perf["fuzzy_gate_ms"] = int(
+                        (time_module.perf_counter() - fuzzy_gate_start) * 1000
+                    )
                 should_try_embedding = best_fuzzy_score >= self.MIN_FUZZY_FOR_EMBEDDING
 
             if should_try_embedding:
+                tier_start = time_module.perf_counter()
                 tier4 = self._tier4_embedding_match(normalized)
+                if _PERF_LOG_ENABLED:
+                    perf["tier4_embedding_ms"] = int(
+                        (time_module.perf_counter() - tier_start) * 1000
+                    )
                 if tier4.resolved or tier4.requires_clarification:
-                    return tier4
+                    return _finalize(tier4)
             elif best_fuzzy_score is not None:
                 logger.debug(
                     "Skipping embedding tier for '%s' - fuzzy score %.2f < %.2f threshold",
@@ -324,11 +376,14 @@ class LocationResolver:
                     self.MIN_FUZZY_FOR_EMBEDDING,
                 )
 
+            tier_start = time_module.perf_counter()
             tier5 = self._tier5_llm_match(
                 normalized, original_query=original_query or location_text
             )
+            if _PERF_LOG_ENABLED:
+                perf["tier5_llm_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
             if tier5.resolved or tier5.requires_clarification:
-                return tier5
+                return _finalize(tier5)
 
         if track_unresolved:
             self.unresolved_repository.track_unresolved(
@@ -336,7 +391,7 @@ class LocationResolver:
             )
             logger.info("Tracked unresolved location '%s' (city_id=%s)", normalized, self.city_id)
 
-        return ResolvedLocation.from_not_found()
+        return _finalize(ResolvedLocation.from_not_found())
 
     def _normalize(self, text_value: str) -> str:
         normalized = " ".join(str(text_value).lower().strip().split())

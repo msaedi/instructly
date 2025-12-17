@@ -17,7 +17,7 @@ class RateLimitKeyType:
 class RateLimiter:
     def __init__(self, cache_service: Any | None = ...) -> None: ...
 
-    def check_rate_limit(
+    async def check_rate_limit(
         self,
         identifier: str,
         limit: int,
@@ -25,9 +25,9 @@ class RateLimiter:
         window_name: str | None = ...,
     ) -> tuple[bool, int, int]: ...
 
-    def reset_limit(self, identifier: str, window_name: str) -> bool: ...
+    async def reset_limit(self, identifier: str, window_name: str) -> bool: ...
 
-    def get_remaining_requests(
+    async def get_remaining_requests(
         self,
         identifier: str,
         limit: int,
@@ -35,8 +35,12 @@ class RateLimiter:
         window_name: str | None = ...,
     ) -> int: ...
 
+class RateLimitAdmin:
     @staticmethod
-    def get_rate_limit_stats() -> dict[str, Any]: ...
+    async def reset_all_limits(identifier_pattern: str) -> int: ...
+
+    @staticmethod
+    async def get_rate_limit_stats() -> dict[str, Any]: ...
 
 @overload
 def rate_limit(func: Callable[P, R]) -> Callable[P, R]: ...

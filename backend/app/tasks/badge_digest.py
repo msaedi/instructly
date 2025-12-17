@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from ..models.user import User
 from ..notifications.policy import can_send_now, record_send
 from ..repositories.badge_repository import BadgeRepository
-from ..services.cache_service import CacheService
+from ..services.cache_service import CacheService, CacheServiceSyncAdapter
 from ..services.notification_service import NotificationService
 
 
@@ -68,8 +68,10 @@ def send_weekly_digest(
     users: Iterable[User],
     repository: BadgeRepository,
     notification_service: Optional[NotificationService],
-    cache_service: Optional[CacheService],
+    cache_service: Optional[CacheService | CacheServiceSyncAdapter],
 ) -> Dict[str, int]:
+    if isinstance(cache_service, CacheService):
+        cache_service = CacheServiceSyncAdapter(cache_service)
     summary = {"scanned": 0, "sent": 0}
     for user in users:
         summary["scanned"] += 1

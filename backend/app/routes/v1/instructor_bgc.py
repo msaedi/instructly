@@ -197,7 +197,7 @@ def _is_package_not_found_error(err: CheckrError) -> bool:
 def _is_work_location_error(err: CheckrError) -> bool:
     if err.status_code not in {
         status.HTTP_400_BAD_REQUEST,
-        status.HTTP_422_UNPROCESSABLE_CONTENT,
+        getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
     }:
         return False
     body = getattr(err, "error_body", None)

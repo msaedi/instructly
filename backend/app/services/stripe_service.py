@@ -50,7 +50,7 @@ from ..schemas.payment_schemas import (
     TransactionHistoryItem,
 )
 from .base import BaseService
-from .cache_service import CacheService
+from .cache_service import CacheService, CacheServiceSyncAdapter
 from .config_service import ConfigService
 from .payment_summary_service import build_student_payment_summary
 from .pricing_service import PricingService
@@ -91,13 +91,19 @@ class StripeService(BaseService):
         *,
         config_service: ConfigService,
         pricing_service: PricingService,
-        cache_service: Optional[CacheService] = None,
+        cache_service: Optional[CacheService | CacheServiceSyncAdapter] = None,
     ):
         """Initialize with explicit configuration dependencies and configure Stripe."""
-        super().__init__(db, cache=cache_service)
+        cache_impl = cache_service
+        cache_adapter: Optional[CacheServiceSyncAdapter] = None
+        if isinstance(cache_impl, CacheServiceSyncAdapter):
+            cache_adapter = cache_impl
+        elif isinstance(cache_impl, CacheService):
+            cache_adapter = CacheServiceSyncAdapter(cache_impl)
+        super().__init__(db, cache=cache_adapter)
         self.config_service = config_service
         self.pricing_service = pricing_service
-        self.cache_service = cache_service
+        self.cache_service = cache_adapter
         self.payment_repository = RepositoryFactory.create_payment_repository(db)
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
         self.user_repository = RepositoryFactory.create_user_repository(db)

@@ -29,8 +29,6 @@ except Exception:  # pragma: no cover - optional on CI
         return False
 
 
-import sys
-
 from pydantic import (
     AliasChoices,
     Field,
@@ -49,10 +47,10 @@ def is_running_tests() -> bool:
     """
     Detect if code is running under pytest.
 
-    This is safer than using an env var because it cannot be accidentally
-    left enabled in .env files. Only returns True when pytest is actually loaded.
+    PYTEST_CURRENT_TEST is set automatically by pytest during test runs, and is
+    not expected to be present in production environments.
     """
-    return "pytest" in sys.modules
+    return os.getenv("PYTEST_CURRENT_TEST") is not None
 
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]

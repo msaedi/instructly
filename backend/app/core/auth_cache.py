@@ -24,7 +24,7 @@ import json
 import logging
 from typing import Any, Dict, Optional, cast
 
-from ..core.config import settings
+from ..core.cache_redis import get_async_cache_redis_client
 from ..database import SessionLocal
 from ..models.user import User  # Used in _user_to_dict type hint and create_transient_user
 
@@ -35,28 +35,14 @@ logger = logging.getLogger(__name__)
 USER_CACHE_TTL_SECONDS = 1800
 USER_CACHE_PREFIX = "auth_user:"
 
-# Module-level Redis client singleton (lazy init)
-_auth_redis_client = None
 
-
-def _get_auth_redis_client() -> Any:
-    """Get or create sync Redis client for auth caching.
-
-    Returns None if Redis is unavailable (graceful degradation).
-    """
-    global _auth_redis_client
-    if _auth_redis_client is None:
-        try:
-            from redis import from_url
-
-            redis_url = settings.redis_url or "redis://localhost:6379"
-            _auth_redis_client = from_url(redis_url, decode_responses=True)
-            _auth_redis_client.ping()  # Verify connection
-            logger.info("[AUTH-CACHE] Redis client initialized for user caching")
-        except Exception as e:
-            logger.warning("[AUTH-CACHE] Redis init failed, caching disabled: %s", e)
-            return None
-    return _auth_redis_client
+async def _get_auth_redis_client() -> Any:
+    """Get the shared async Redis client for auth caching (or None if unavailable)."""
+    try:
+        return await get_async_cache_redis_client()
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning("[AUTH-CACHE] Redis init failed, caching disabled: %s", e)
+        return None
 
 
 async def get_cached_user(email: str) -> Optional[Dict[str, Any]]:
@@ -69,12 +55,12 @@ async def get_cached_user(email: str) -> Optional[Dict[str, Any]]:
         Dict with user data if cached, None otherwise
     """
     try:
-        redis = _get_auth_redis_client()
+        redis = await _get_auth_redis_client()
         if redis is None:
             return None
 
         cache_key = f"{USER_CACHE_PREFIX}{email}"
-        cached = redis.get(cache_key)
+        cached = await redis.get(cache_key)
         if cached:
             logger.debug("[AUTH-CACHE] Cache HIT for user %s", email)
             return cast(Dict[str, Any], json.loads(cached))
@@ -93,12 +79,12 @@ async def set_cached_user(email: str, user_data: Dict[str, Any]) -> None:
         user_data: Dict containing user attributes to cache
     """
     try:
-        redis = _get_auth_redis_client()
+        redis = await _get_auth_redis_client()
         if redis is None:
             return
 
         cache_key = f"{USER_CACHE_PREFIX}{email}"
-        redis.setex(cache_key, USER_CACHE_TTL_SECONDS, json.dumps(user_data))
+        await redis.setex(cache_key, USER_CACHE_TTL_SECONDS, json.dumps(user_data))
         logger.debug("[AUTH-CACHE] SET user %s (TTL=%ds)", email, USER_CACHE_TTL_SECONDS)
     except Exception as e:
         logger.warning("[AUTH-CACHE] Cache write failed: %s", e)
@@ -350,5 +336,6 @@ def user_has_cached_permission(user: User, permission_name: str) -> bool:
 # For tests - allow patching the Redis client getter
 def _reset_redis_client() -> None:
     """Reset the Redis client singleton (for testing only)."""
-    global _auth_redis_client
-    _auth_redis_client = None
+    # The caching Redis client is managed per-event-loop in app.core.cache_redis.
+    # Tests that need to influence Redis behavior should patch _get_auth_redis_client().
+    return

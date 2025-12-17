@@ -180,16 +180,26 @@ class LLMParser:
     async def _make_api_call(self, query: str, system_prompt: str) -> LLMParsedQuery:
         """Make the actual API call to OpenAI."""
         config = get_search_config()
-        response = await self.client.beta.chat.completions.parse(
-            model=config.parsing_model,
-            messages=[
+        # GPT-5 models require `max_completion_tokens` (not `max_tokens`).
+        # Older models (e.g., gpt-4o-mini) use `max_tokens`.
+        model = config.parsing_model
+        request_kwargs = {
+            "model": model,
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": query},
             ],
-            response_format=LLMParsedQuery,
-            temperature=0,  # Deterministic output
-            max_tokens=500,
-        )
+            "response_format": LLMParsedQuery,
+        }
+        # Note: GPT-5 models currently only support default temperature; passing 0 triggers 400s.
+        if not str(model).startswith("gpt-5"):
+            request_kwargs["temperature"] = 0  # Deterministic output where supported
+        if str(model).startswith("gpt-5"):
+            request_kwargs["max_completion_tokens"] = 500
+        else:
+            request_kwargs["max_tokens"] = 500
+
+        response = await self.client.beta.chat.completions.parse(**request_kwargs)
 
         message = response.choices[0].message
 

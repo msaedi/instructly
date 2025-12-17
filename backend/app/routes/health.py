@@ -6,6 +6,7 @@ These endpoints are used for monitoring application health,
 database connectivity, and service availability.
 """
 
+import asyncio
 from datetime import datetime, timezone
 import logging
 import os
@@ -16,6 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from ..core.config import settings
 from ..database import get_db
 from ..schemas.base_responses import HealthCheckResponse
 from ..schemas.monitoring_responses import ComponentHealth, DetailedHealthCheckResponse
@@ -23,6 +25,11 @@ from ..services.cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["health"])
+
+
+def _count_users_for_health(db: Session) -> int:
+    result = db.execute(text("SELECT COUNT(*) FROM users"))  # db-access-ok: Health probe
+    return int(result.scalar() or 0)
 
 
 class LiveHealthResponse(BaseModel):
@@ -66,7 +73,7 @@ def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
 
 
 @router.get("/health/detailed", response_model=DetailedHealthCheckResponse)
-def detailed_health_check(db: Session = Depends(get_db)) -> DetailedHealthCheckResponse:
+async def detailed_health_check(db: Session = Depends(get_db)) -> DetailedHealthCheckResponse:
     """
     Detailed health check with component status.
 
@@ -79,8 +86,7 @@ def detailed_health_check(db: Session = Depends(get_db)) -> DetailedHealthCheckR
 
     # Database check
     try:
-        result = db.execute(text("SELECT COUNT(*) FROM users"))  # db-access-ok: Health probe
-        user_count = result.scalar()
+        user_count = await asyncio.to_thread(_count_users_for_health, db)
         components["database"] = ComponentHealth(
             status="healthy",
             type="postgresql",
@@ -97,32 +103,34 @@ def detailed_health_check(db: Session = Depends(get_db)) -> DetailedHealthCheckR
     # Cache check
     try:
         cache_service = CacheService(db)
-        cache_type = type(cache_service.cache).__name__
+        redis_client = await cache_service.get_redis_client()
+        cache_type = "redis" if redis_client is not None else "memory"
 
         # Test cache operations
         test_key = "health:check:test"
         test_value = {"timestamp": "now", "test": True}
-        cache_service.set(test_key, test_value, ttl=10)
-        retrieved = cache_service.get(test_key)
+        await cache_service.set(test_key, test_value, ttl=10)
+        retrieved = await cache_service.get(test_key)
         cache_working = retrieved == test_value
 
         # Check if Redis URL is configured
-        redis_url = os.getenv("REDIS_URL", "Not configured")
-        is_redis = "redis" in redis_url.lower()
+        redis_url = getattr(settings, "redis_url", None)
+        redis_url_value = str(redis_url or "")
+        is_redis = bool(redis_url_value) and "redis" in redis_url_value.lower()
 
         components["cache"] = ComponentHealth(
             status="healthy" if cache_working else "unhealthy",
             type=cache_type,
             details={
                 "redis_configured": is_redis,
-                "redis_url_set": redis_url != "Not configured",
+                "redis_url_set": bool(redis_url),
                 "test_passed": cache_working,
             },
         )
 
         # Get cache stats if available
         try:
-            cache_stats = cache_service.get_stats()
+            cache_stats = await cache_service.get_stats()
         except Exception:
             pass
 

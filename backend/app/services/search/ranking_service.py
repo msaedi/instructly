@@ -24,6 +24,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 import logging
+import os
+import time as time_module
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
@@ -35,6 +37,10 @@ if TYPE_CHECKING:
 from app.repositories.ranking_repository import RankingRepository
 
 logger = logging.getLogger(__name__)
+
+# Optional perf logging for profiling in staging/dev.
+_PERF_LOG_ENABLED = os.getenv("NL_SEARCH_PERF_LOG") == "1"
+_PERF_LOG_SLOW_MS = int(os.getenv("NL_SEARCH_PERF_LOG_SLOW_MS", "0"))
 
 # Ranking weights
 WEIGHT_RELEVANCE = 0.35
@@ -160,27 +166,39 @@ class RankingService:
         if not candidates:
             return RankingResult(results=[], total_results=0)
 
+        perf_start = time_module.perf_counter()
+        perf: Dict[str, int] = {}
+
         # Collect IDs for batch queries
         instructor_ids = list({c.instructor_id for c in candidates})
         service_ids = [c.service_id for c in candidates]
 
         # Fetch all metrics in batch
+        metrics_start = time_module.perf_counter()
         instructor_metrics = self.repository.get_instructor_metrics(instructor_ids)
+        perf["instructor_metrics_ms"] = int((time_module.perf_counter() - metrics_start) * 1000)
         # Audience + skill are boosts only; skip these queries unless hints are present.
         service_audiences: Dict[str, str] = {}
         service_skills: Dict[str, List[str]] = {}
         if parsed_query.audience_hint:
+            audience_start = time_module.perf_counter()
             service_audiences = self.repository.get_service_audience(service_ids)
+            perf["service_audience_ms"] = int((time_module.perf_counter() - audience_start) * 1000)
         if parsed_query.skill_level:
+            skills_start = time_module.perf_counter()
             service_skills = self.repository.get_service_skill_levels(service_ids)
+            perf["service_skills_ms"] = int((time_module.perf_counter() - skills_start) * 1000)
 
         # Get distances if user location provided
         distances: Dict[str, float] = {}
         if user_location:
             lng, lat = user_location
+            distance_start = time_module.perf_counter()
             distances = self.repository.get_instructor_distances(instructor_ids, lng, lat)
+            perf["distance_query_ms"] = int((time_module.perf_counter() - distance_start) * 1000)
 
         # Score each candidate
+        scoring_start = time_module.perf_counter()
         scored: List[RankedResult] = []
         for candidate in candidates:
             metrics = instructor_metrics.get(candidate.instructor_id, {})
@@ -197,9 +215,12 @@ class RankingService:
                 parsed_query,
             )
             scored.append(result)
+        perf["scoring_ms"] = int((time_module.perf_counter() - scoring_start) * 1000)
 
         # Sort by final_score descending
+        sort_start = time_module.perf_counter()
         scored.sort(key=lambda r: r.final_score, reverse=True)
+        perf["sort_ms"] = int((time_module.perf_counter() - sort_start) * 1000)
 
         # Handle special sort orders
         if parsed_query.urgency == "high":
@@ -212,8 +233,24 @@ class RankingService:
             )
 
         # Assign ranks
+        rank_start = time_module.perf_counter()
         for i, result in enumerate(scored):
             result.rank = i + 1
+        perf["rank_assign_ms"] = int((time_module.perf_counter() - rank_start) * 1000)
+
+        perf_total_ms = int((time_module.perf_counter() - perf_start) * 1000)
+        if _PERF_LOG_ENABLED and (perf_total_ms >= _PERF_LOG_SLOW_MS):
+            logger.info(
+                "NL search ranking timings: %s",
+                {
+                    **perf,
+                    "total_ms": perf_total_ms,
+                    "candidates": len(candidates),
+                    "instructors": len(instructor_ids),
+                    "services": len(service_ids),
+                    "distance": bool(user_location),
+                },
+            )
 
         # Determine which signals were used
         signals_used = ["relevance", "quality", "freshness", "completeness"]

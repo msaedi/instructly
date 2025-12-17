@@ -13,11 +13,12 @@ Tests cover:
 """
 
 import time
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 import pytest
+import pytest_asyncio
 from redis.exceptions import RedisError
 
 from app.core.config import settings
@@ -42,28 +43,44 @@ def enable_rate_limiting():
     settings.rate_limit_enabled = original_value
 
 
-@pytest.fixture
-def clear_rate_limits():
-    """Clear rate limit cache before rate limit tests."""
-    from app.services.cache_service import get_cache_service
-
-    cache = get_cache_service()
-    if cache and cache.redis:
-        # Clear all rate limit keys
-        for key in cache.redis.scan_iter(match="rate_limit:*"):
-            cache.redis.delete(key)
+@pytest_asyncio.fixture
+async def clear_rate_limits():
+    """Best-effort clear of rate limiting keys when Redis is available."""
+    cache = CacheService()
+    redis = await cache.get_redis_client()
+    if redis is None:
+        yield
+        return
+    try:
+        async for key in redis.scan_iter(match="rate_limit:*"):
+            await redis.delete(key)
+    except Exception:
+        # In CI or local environments without Redis, keep tests resilient.
+        pass
     yield
 
 
 @pytest.mark.usefixtures("enable_rate_limiting", "clear_rate_limits")
+@pytest.mark.asyncio
 class TestRateLimiter:
     """Test the core RateLimiter class."""
 
     @pytest.fixture
-    def mock_cache(self):
-        """Create a mock cache service."""
-        cache = Mock(spec=CacheService)
-        cache.redis = MagicMock()
+    def mock_redis(self):
+        """Create a mock redis client compatible with redis.asyncio usage."""
+        redis = MagicMock()
+        redis.zrange = AsyncMock(return_value=[])
+        redis.zrem = AsyncMock(return_value=1)
+        redis.zremrangebyscore = AsyncMock(return_value=0)
+        redis.zcard = AsyncMock(return_value=0)
+        return redis
+
+    @pytest.fixture
+    def mock_cache(self, mock_redis):
+        """Create a mock async cache service."""
+        cache = AsyncMock(spec=CacheService)
+        cache.get_redis_client.return_value = mock_redis
+        cache.delete.return_value = True
         return cache
 
     @pytest.fixture
@@ -71,91 +88,100 @@ class TestRateLimiter:
         """Create a rate limiter with mock cache."""
         return RateLimiter(cache_service=mock_cache)
 
-    def test_rate_limiter_initialization(self):
+    async def test_rate_limiter_initialization(self):
         """Test rate limiter can be initialized without cache service."""
         limiter = RateLimiter()
         assert limiter.enabled == getattr(settings, "rate_limit_enabled", True)
 
-    def test_check_rate_limit_when_disabled(self, rate_limiter):
+    async def test_check_rate_limit_when_disabled(self, rate_limiter):
         """Test rate limiting when disabled."""
         rate_limiter.enabled = False
-        allowed, requests, retry_after = rate_limiter.check_rate_limit(identifier="test", limit=5, window_seconds=60)
+        allowed, requests, retry_after = await rate_limiter.check_rate_limit(
+            identifier="test", limit=5, window_seconds=60
+        )
         assert allowed is True
         assert requests == 0
         assert retry_after == 0
 
-    def test_check_rate_limit_without_cache(self, rate_limiter):
+    async def test_check_rate_limit_without_cache(self, rate_limiter):
         """Test rate limiting when cache is unavailable."""
-        rate_limiter.cache.redis = None
+        rate_limiter.cache.get_redis_client.return_value = None
 
-        allowed, requests, retry_after = rate_limiter.check_rate_limit(identifier="test", limit=5, window_seconds=60)
+        allowed, requests, retry_after = await rate_limiter.check_rate_limit(
+            identifier="test", limit=5, window_seconds=60
+        )
 
         assert allowed is True
         assert requests == 0
         assert retry_after == 0
 
-    def test_check_rate_limit_sliding_window(self, rate_limiter, mock_cache):
+    async def test_check_rate_limit_sliding_window(self, rate_limiter, mock_redis):
         """Test sliding window algorithm."""
         # Setup mock pipeline
         pipe = MagicMock()
-        mock_cache.redis.pipeline.return_value = pipe
+        pipe.execute = AsyncMock(return_value=[None, 0, None, None])  # No requests in window
+        mock_redis.pipeline.return_value = pipe
 
         # First request - should be allowed
-        pipe.execute.return_value = [None, 0, None, None]  # No requests in window
-
-        allowed, requests, retry_after = rate_limiter.check_rate_limit(identifier="user123", limit=5, window_seconds=60)
+        allowed, requests, retry_after = await rate_limiter.check_rate_limit(
+            identifier="user123", limit=5, window_seconds=60
+        )
 
         assert allowed is True
         assert requests == 1
         assert retry_after == 0
 
         # Verify pipeline operations
-        mock_cache.redis.pipeline.assert_called_once()
+        mock_redis.pipeline.assert_called_once()
         pipe.zremrangebyscore.assert_called_once()
         pipe.zcard.assert_called_once()
         pipe.zadd.assert_called_once()
         pipe.expire.assert_called_once()
+        pipe.execute.assert_awaited_once()
 
-    def test_check_rate_limit_exceeded(self, rate_limiter, mock_cache):
+    async def test_check_rate_limit_exceeded(self, rate_limiter, mock_redis):
         """Test when rate limit is exceeded."""
         # Setup mock pipeline
         pipe = MagicMock()
-        mock_cache.redis.pipeline.return_value = pipe
+        pipe.execute = AsyncMock(return_value=[None, 5, None, None])
+        mock_redis.pipeline.return_value = pipe
 
         # Simulate limit exceeded (5 requests already made)
-        pipe.execute.return_value = [None, 5, None, None]
-
         # Mock oldest timestamp for retry_after calculation
-        mock_cache.redis.zrange.return_value = [(b"timestamp", time.time() - 30)]
+        mock_redis.zrange.return_value = [("timestamp", time.time() - 30)]
 
-        allowed, requests, retry_after = rate_limiter.check_rate_limit(identifier="user123", limit=5, window_seconds=60)
+        allowed, requests, retry_after = await rate_limiter.check_rate_limit(
+            identifier="user123", limit=5, window_seconds=60
+        )
 
         assert allowed is False
         assert requests == 5
         assert retry_after > 0 and retry_after <= 60
 
         # Verify the rejected request was removed
-        mock_cache.redis.zrem.assert_called_once()
+        mock_redis.zrem.assert_awaited_once()
 
-    def test_reset_limit(self, rate_limiter, mock_cache):
+    async def test_reset_limit(self, rate_limiter, mock_cache):
         """Test resetting rate limits."""
         mock_cache.delete.return_value = True
 
-        result = rate_limiter.reset_limit("user123", "test_window")
+        result = await rate_limiter.reset_limit("user123", "test_window")
 
         assert result is True
-        mock_cache.delete.assert_called_once_with("rate_limit:test_window:user123")
+        mock_cache.delete.assert_awaited_once_with("rate_limit:test_window:user123")
 
-    def test_get_remaining_requests(self, rate_limiter, mock_cache):
+    async def test_get_remaining_requests(self, rate_limiter, mock_redis):
         """Test getting remaining requests."""
-        mock_cache.redis.zremrangebyscore.return_value = None
-        mock_cache.redis.zcard.return_value = 3
+        mock_redis.zremrangebyscore.return_value = None
+        mock_redis.zcard.return_value = 3
 
-        remaining = rate_limiter.get_remaining_requests(identifier="user123", limit=5, window_seconds=60)
+        remaining = await rate_limiter.get_remaining_requests(
+            identifier="user123", limit=5, window_seconds=60
+        )
 
         assert remaining == 2
 
-    def test_cache_key_generation(self, rate_limiter):
+    async def test_cache_key_generation(self, rate_limiter):
         """Test cache key generation with long identifiers."""
         # Short identifier
         key = rate_limiter._get_cache_key("user123", "test")
@@ -167,11 +193,13 @@ class TestRateLimiter:
         assert key.startswith("rate_limit:test:")
         assert len(key.split(":")[-1]) == 16  # MD5 hash truncated
 
-    def test_error_handling(self, rate_limiter, mock_cache):
+    async def test_error_handling(self, rate_limiter, mock_redis):
         """Test error handling when Redis operations fail."""
-        mock_cache.redis.pipeline.side_effect = RedisError("Connection failed")
+        mock_redis.pipeline.side_effect = RedisError("Connection failed")
 
-        allowed, requests, retry_after = rate_limiter.check_rate_limit(identifier="user123", limit=5, window_seconds=60)
+        allowed, requests, retry_after = await rate_limiter.check_rate_limit(
+            identifier="user123", limit=5, window_seconds=60
+        )
 
         # Should allow on error
         assert allowed is True
@@ -229,8 +257,8 @@ class TestRateLimitMiddleware:
         mock_limiter_class.return_value = mock_limiter
 
         # First request allowed
-        mock_limiter.check_rate_limit.return_value = (False, 100, 30)
-        mock_limiter.get_remaining_requests.return_value = 0
+        mock_limiter.check_rate_limit = AsyncMock(return_value=(False, 100, 30))
+        mock_limiter.get_remaining_requests = AsyncMock(return_value=0)
 
         response = client.get("/test")
 
@@ -296,8 +324,8 @@ class TestRateLimitDecorator:
         mock_limiter_class.return_value = mock_limiter
 
         # Allow request
-        mock_limiter.check_rate_limit.return_value = (True, 1, 0)
-        mock_limiter.get_remaining_requests.return_value = 4
+        mock_limiter.check_rate_limit = AsyncMock(return_value=(True, 1, 0))
+        mock_limiter.get_remaining_requests = AsyncMock(return_value=4)
 
         response = client.post("/login")
 
@@ -311,7 +339,7 @@ class TestRateLimitDecorator:
         mock_limiter_class.return_value = mock_limiter
 
         # Block request
-        mock_limiter.check_rate_limit.return_value = (False, 5, 45)
+        mock_limiter.check_rate_limit = AsyncMock(return_value=(False, 5, 45))
 
         response = client.post("/login")
 
@@ -333,51 +361,59 @@ class TestRateLimitDecorator:
 class TestRateLimitAdmin:
     """Test administrative functions."""
 
-    @patch("app.middleware.rate_limiter.get_cache_service")
-    def test_reset_all_limits(self, mock_get_cache):
+    @pytest.mark.asyncio
+    @patch("app.core.cache_redis.get_async_cache_redis_client", new_callable=AsyncMock)
+    async def test_reset_all_limits(self, mock_get_redis):
         """Test resetting all limits matching a pattern."""
-        # Setup mock cache
-        mock_cache = Mock()
         mock_redis = Mock()
-        mock_cache.redis = mock_redis
-        mock_get_cache.return_value = mock_cache
+        mock_get_redis.return_value = mock_redis
 
         # Mock scan_iter to return some keys
-        mock_redis.scan_iter.return_value = [
+        keys = [
             "rate_limit:login:email_test@example.com",
             "rate_limit:register:email_test@example.com",
         ]
-        mock_redis.delete.return_value = 1
 
-        count = RateLimitAdmin.reset_all_limits("email_*")
+        async def _async_iter(items):
+            for item in items:
+                yield item
+
+        mock_redis.scan_iter = MagicMock(return_value=_async_iter(keys))
+        mock_redis.delete = AsyncMock(return_value=1)
+
+        count = await RateLimitAdmin.reset_all_limits("email_*")
 
         assert count == 2
         mock_redis.scan_iter.assert_called_once_with(match="rate_limit:*:email_*")
-        assert mock_redis.delete.call_count == 2
+        assert mock_redis.delete.await_count == 2
 
-    @patch("app.middleware.rate_limiter.get_cache_service")
-    def test_get_rate_limit_stats(self, mock_get_cache):
+    @pytest.mark.asyncio
+    @patch("app.core.cache_redis.get_async_cache_redis_client", new_callable=AsyncMock)
+    async def test_get_rate_limit_stats(self, mock_get_redis):
         """Test getting rate limit statistics."""
-        # Setup mock cache
-        mock_cache = Mock()
         mock_redis = Mock()
-        mock_cache.redis = mock_redis
-        mock_get_cache.return_value = mock_cache
+        mock_get_redis.return_value = mock_redis
 
         # Mock scan_iter to return some keys
-        mock_redis.scan_iter.return_value = [
+        keys = [
             "rate_limit:login:user123",
             "rate_limit:register:user456",
             "rate_limit:login:user789",
         ]
 
-        # Mock zcard for request counts
-        mock_redis.zcard.side_effect = [5, 2, 10]
+        async def _async_iter(items):
+            for item in items:
+                yield item
+
+        mock_redis.scan_iter = MagicMock(return_value=_async_iter(keys))
+
+        # Mock zcard for request counts (async)
+        mock_redis.zcard = AsyncMock(side_effect=[5, 2, 10])
 
         # Mock ttl
-        mock_redis.ttl.return_value = 300
+        mock_redis.ttl = AsyncMock(return_value=300)
 
-        stats = RateLimitAdmin.get_rate_limit_stats()
+        stats = await RateLimitAdmin.get_rate_limit_stats()
 
         assert stats["total_keys"] == 3
         assert stats["by_type"]["login"] == 2
@@ -387,41 +423,43 @@ class TestRateLimitAdmin:
 
 
 @pytest.mark.usefixtures("enable_rate_limiting", "clear_rate_limits")
+@pytest.mark.asyncio
 class TestIntegration:
     """Integration tests with real cache."""
 
-    @pytest.fixture
-    def real_cache(self):
+    @pytest_asyncio.fixture
+    async def real_cache(self):
         """Use real cache service if available."""
-        try:
-            cache = CacheService(Mock())  # Mock DB session
-            if cache.redis:
-                yield cache
-            else:
-                pytest.skip("Redis not available")
-        except:
-            pytest.skip("Cache service not available")
+        cache = CacheService()
+        redis = await cache.get_redis_client()
+        if redis is None:
+            pytest.skip("Redis not available")
+        yield cache
 
     @pytest.fixture
     def rate_limiter(self, real_cache):
         """Create rate limiter with real cache."""
         return RateLimiter(cache_service=real_cache)
 
-    def test_sliding_window_with_real_cache(self, rate_limiter):
+    async def test_sliding_window_with_real_cache(self, rate_limiter):
         """Test sliding window algorithm with real cache."""
         identifier = f"test_user_{int(time.time())}"
 
         # Make requests up to limit
         for i in range(5):
-            allowed, count, retry = rate_limiter.check_rate_limit(identifier=identifier, limit=5, window_seconds=10)
+            allowed, count, retry = await rate_limiter.check_rate_limit(
+                identifier=identifier, limit=5, window_seconds=10
+            )
             assert allowed is True
             assert count == i + 1
 
         # Next request should be blocked
-        allowed, count, retry = rate_limiter.check_rate_limit(identifier=identifier, limit=5, window_seconds=10)
+        allowed, count, retry = await rate_limiter.check_rate_limit(
+            identifier=identifier, limit=5, window_seconds=10
+        )
         assert allowed is False
         assert count == 5
         assert retry > 0
 
         # Clean up
-        rate_limiter.reset_limit(identifier, "5per10s")
+        await rate_limiter.reset_limit(identifier, "5per10s")

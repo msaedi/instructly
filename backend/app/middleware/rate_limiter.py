@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..core.config import settings
-from ..services.cache_service import CacheService, get_cache_service
+from ..services.cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,8 @@ class RateLimiter:
         Args:
             cache_service: Cache service instance (uses singleton if not provided)
         """
-        self.cache = cache_service or get_cache_service()
+        # Avoid FastAPI dependency helpers here; middleware may instantiate this directly.
+        self.cache = cache_service or CacheService()
         self.enabled = getattr(settings, "rate_limit_enabled", True)
 
     def _get_cache_key(self, identifier: str, window_name: str) -> str:
@@ -96,7 +97,7 @@ class RateLimiter:
         now = int(time.time())
         return now - window_seconds
 
-    def check_rate_limit(
+    async def check_rate_limit(
         self, identifier: str, limit: int, window_seconds: int, window_name: Optional[str] = None
     ) -> Tuple[bool, int, int]:
         """
@@ -114,7 +115,8 @@ class RateLimiter:
         if not self.enabled:
             return True, 0, 0
 
-        if not self.cache.redis:
+        redis = await self.cache.get_redis_client()
+        if redis is None:
             # If cache is unavailable, allow request but log warning
             logger.warning("Rate limiting bypassed - cache unavailable")
             return True, 0, 0
@@ -124,7 +126,7 @@ class RateLimiter:
 
         try:
             # Use Redis pipeline for atomic operations
-            pipe = self.cache.redis.pipeline()
+            pipe = redis.pipeline()
 
             now = time.time()
             window_start = now - window_seconds
@@ -142,14 +144,14 @@ class RateLimiter:
             pipe.expire(cache_key, window_seconds + 60)  # Extra 60s buffer
 
             # Execute pipeline
-            results = pipe.execute()
+            results = await pipe.execute()
 
             # results[1] is the count before adding current request
             requests_in_window = results[1]
 
             if requests_in_window >= limit:
                 # Get oldest request timestamp to calculate retry_after
-                oldest_timestamp = self.cache.redis.zrange(cache_key, 0, 0, withscores=True)
+                oldest_timestamp = await redis.zrange(cache_key, 0, 0, withscores=True)
 
                 if oldest_timestamp:
                     retry_after = int(oldest_timestamp[0][1] + window_seconds - now)
@@ -158,7 +160,7 @@ class RateLimiter:
                     retry_after = window_seconds
 
                 # Remove the current request we just added since it's rejected
-                self.cache.redis.zrem(cache_key, str(now))
+                await redis.zrem(cache_key, str(now))
 
                 return False, requests_in_window, retry_after
 
@@ -169,7 +171,7 @@ class RateLimiter:
             # On error, allow request but log
             return True, 0, 0
 
-    def reset_limit(self, identifier: str, window_name: str) -> bool:
+    async def reset_limit(self, identifier: str, window_name: str) -> bool:
         """
         Reset rate limit for an identifier.
 
@@ -180,18 +182,19 @@ class RateLimiter:
         Returns:
             True if reset successful
         """
-        if not self.cache.redis:
+        redis = await self.cache.get_redis_client()
+        if redis is None:
             return False
 
         cache_key = self._get_cache_key(identifier, window_name)
 
         try:
-            return self.cache.delete(cache_key)
+            return await self.cache.delete(cache_key)
         except Exception as e:
             logger.error(f"Failed to reset rate limit: {e}")
             return False
 
-    def get_remaining_requests(
+    async def get_remaining_requests(
         self, identifier: str, limit: int, window_seconds: int, window_name: Optional[str] = None
     ) -> int:
         """
@@ -206,7 +209,8 @@ class RateLimiter:
         Returns:
             Number of remaining requests
         """
-        if not self.enabled or not self.cache.redis:
+        redis = await self.cache.get_redis_client()
+        if not self.enabled or redis is None:
             return limit
 
         window_name = window_name or f"{limit}per{window_seconds}s"
@@ -215,8 +219,8 @@ class RateLimiter:
         try:
             # Remove old entries and count current
             window_start = time.time() - window_seconds
-            self.cache.redis.zremrangebyscore(cache_key, 0, window_start)
-            current_count = self.cache.redis.zcard(cache_key)
+            await redis.zremrangebyscore(cache_key, 0, window_start)
+            current_count = await redis.zcard(cache_key)
 
             return max(0, limit - current_count)
 
@@ -250,7 +254,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         client_ip = request.client.host if request.client else "unknown"
 
         # Apply general rate limit
-        allowed, requests_made, retry_after = self.rate_limiter.check_rate_limit(
+        allowed, requests_made, retry_after = await self.rate_limiter.check_rate_limit(
             identifier=client_ip, limit=self.general_limit, window_seconds=60, window_name="general"
         )
 
@@ -274,7 +278,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
 
         # Add rate limit headers
-        remaining = self.rate_limiter.get_remaining_requests(
+        remaining = await self.rate_limiter.get_remaining_requests(
             identifier=client_ip, limit=self.general_limit, window_seconds=60, window_name="general"
         )
 
@@ -369,7 +373,7 @@ def rate_limit(
             rate_limiter = RateLimiter()
             window_name = f"{func.__name__}_{rate_string.replace('/', 'per')}"
 
-            allowed, requests_made, retry_after = rate_limiter.check_rate_limit(
+            allowed, requests_made, retry_after = await rate_limiter.check_rate_limit(
                 identifier=identifier,
                 limit=limit,
                 window_seconds=window_seconds,
@@ -400,7 +404,7 @@ def rate_limit(
             response = await _call_wrapped(*args, **kwargs)
 
             if isinstance(response, Response):
-                remaining = rate_limiter.get_remaining_requests(
+                remaining = await rate_limiter.get_remaining_requests(
                     identifier=identifier,
                     limit=limit,
                     window_seconds=window_seconds,
@@ -563,7 +567,7 @@ class RateLimitAdmin:
     """Administrative functions for rate limit management."""
 
     @staticmethod
-    def reset_all_limits(identifier_pattern: str) -> int:
+    async def reset_all_limits(identifier_pattern: str) -> int:
         """
         Reset all rate limits matching a pattern.
 
@@ -573,16 +577,18 @@ class RateLimitAdmin:
         Returns:
             Number of limits reset
         """
-        cache = get_cache_service()
-        if not cache.redis:
+        from app.core.cache_redis import get_async_cache_redis_client
+
+        redis = await get_async_cache_redis_client()
+        if redis is None:
             return 0
 
         pattern = f"rate_limit:*:{identifier_pattern}"
         count = 0
 
         try:
-            for key in cache.redis.scan_iter(match=pattern):
-                if cache.redis.delete(key):
+            async for key in redis.scan_iter(match=pattern):
+                if await redis.delete(key):
                     count += 1
 
             logger.info(f"Reset {count} rate limits matching pattern: {identifier_pattern}")
@@ -593,17 +599,19 @@ class RateLimitAdmin:
             return 0
 
     @staticmethod
-    def get_rate_limit_stats() -> Dict[str, Any]:
+    async def get_rate_limit_stats() -> Dict[str, Any]:
         """Get statistics about current rate limits."""
-        cache = get_cache_service()
-        if not cache.redis:
+        from app.core.cache_redis import get_async_cache_redis_client
+
+        redis = await get_async_cache_redis_client()
+        if redis is None:
             return {"error": "Cache not available"}
 
         stats = {"total_keys": 0, "by_type": {}, "top_limited": []}
 
         try:
             # Scan all rate limit keys
-            for key in cache.redis.scan_iter(match="rate_limit:*"):
+            async for key in redis.scan_iter(match="rate_limit:*"):
                 stats["total_keys"] += 1
 
                 # Parse key type
@@ -613,9 +621,9 @@ class RateLimitAdmin:
                     stats["by_type"][window_type] = stats["by_type"].get(window_type, 0) + 1
 
                 # Get request count
-                count = cache.redis.zcard(key)
+                count = await redis.zcard(key)
                 if count > 0:
-                    ttl = cache.redis.ttl(key)
+                    ttl = await redis.ttl(key)
                     stats["top_limited"].append({"key": key, "requests": count, "ttl_seconds": ttl})
 
             # Sort by request count

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Response, status
 from sqlalchemy import text
@@ -14,26 +17,31 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/ready", response_model=ReadyProbeResponse)
-def ready_probe(response_obj: Response) -> ReadyProbeResponse:
+async def ready_probe(response_obj: Response) -> ReadyProbeResponse:
     try:
-        with SessionLocal() as session:
-            session.execute(text("SELECT 1"))
-            session.rollback()  # Clean up transaction before returning to pool
+
+        def _db_probe() -> None:
+            with SessionLocal() as session:
+                session.execute(text("SELECT 1"))
+                session.rollback()  # Clean up transaction before returning to pool
+
+        await asyncio.to_thread(_db_probe)
     except Exception:
         response_obj.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadyProbeResponse(status="db_not_ready")
 
     try:
-        client = get_healthcheck_redis_client()
-        try:
-            client.ping()
-        finally:
-            pool = getattr(client, "connection_pool", None)
-            if pool is not None:
-                try:
-                    pool.disconnect()
-                except Exception:
-                    pass
+        client_candidate: Any = get_healthcheck_redis_client()
+        client: Any
+        if inspect.isawaitable(client_candidate):
+            client = await client_candidate
+        else:
+            client = client_candidate
+        if client is None:
+            raise RuntimeError("Redis unavailable")
+        ping_candidate: Any = client.ping()
+        if inspect.isawaitable(ping_candidate):
+            await ping_candidate
     except Exception:
         response_obj.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadyProbeResponse(status="cache_not_ready")

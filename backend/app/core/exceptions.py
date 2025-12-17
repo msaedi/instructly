@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, status
 
+HTTP_422_UNPROCESSABLE: int = getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422)
+
 
 class DomainException(Exception):
     """Base exception for all domain-specific errors."""
@@ -84,7 +86,7 @@ class BusinessRuleException(DomainException):
 
     def to_http_exception(self) -> HTTPException:
         return HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=HTTP_422_UNPROCESSABLE,
             detail={
                 "message": self.message,
                 "code": self.code,

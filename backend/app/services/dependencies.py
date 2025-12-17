@@ -7,7 +7,6 @@ to provide proper dependency injection for TemplateService and NotificationServi
 """
 
 import os
-from typing import Optional
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -16,7 +15,7 @@ from ..core.config import settings
 from ..database import get_db
 from .account_lifecycle_service import AccountLifecycleService
 from .booking_service import BookingService
-from .cache_service import CacheService, get_cache_service
+from .cache_service import CacheServiceSyncAdapter, get_cache_service
 from .email import EmailService
 from .email_console import ConsoleEmailService
 from .notification_service import NotificationService
@@ -24,8 +23,13 @@ from .personal_asset_service import PersonalAssetService
 from .template_service import TemplateService
 
 
+def get_cache_service_sync(db: Session = Depends(get_db)) -> CacheServiceSyncAdapter:
+    """Get sync cache adapter for legacy sync call sites."""
+    return CacheServiceSyncAdapter(get_cache_service(db))
+
+
 def get_template_service(
-    db: Session = Depends(get_db), cache: Optional[CacheService] = Depends(get_cache_service)
+    db: Session = Depends(get_db), cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync)
 ) -> TemplateService:
     """
     Dependency injection function for TemplateService.
@@ -38,7 +42,7 @@ def get_template_service(
 
 def get_notification_service(
     db: Session = Depends(get_db),
-    cache: Optional[CacheService] = Depends(get_cache_service),
+    cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync),
     template_service: TemplateService = Depends(get_template_service),
 ) -> NotificationService:
     """
@@ -54,7 +58,7 @@ def get_notification_service(
 
 def get_booking_service(
     db: Session = Depends(get_db),
-    cache: Optional[CacheService] = Depends(get_cache_service),
+    cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync),
     notification_service: NotificationService = Depends(get_notification_service),
 ) -> BookingService:
     """
@@ -72,7 +76,7 @@ def get_booking_service(
 
 def get_account_lifecycle_service(
     db: Session = Depends(get_db),
-    cache: Optional[CacheService] = Depends(get_cache_service),
+    cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync),
 ) -> AccountLifecycleService:
     """
     Dependency injection function for AccountLifecycleService.
@@ -96,7 +100,7 @@ def get_personal_asset_service(
 
 def get_email_service(
     db: Session = Depends(get_db),
-    cache: Optional[CacheService] = Depends(get_cache_service),
+    cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync),
 ) -> EmailService | ConsoleEmailService:
     provider = getattr(settings, "email_provider", "console").lower()
     missing_key = not settings.resend_api_key
