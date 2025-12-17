@@ -388,7 +388,7 @@ class TestModelConfiguration:
     """Tests for model configuration."""
 
     def test_default_model(self) -> None:
-        """Default model should be gpt-4o-mini when env var not set."""
+        """Default model should be gpt-5-nano when env var not set."""
         from app.services.search import config as config_module
 
         # Reset the singleton to test defaults
@@ -403,7 +403,7 @@ class TestModelConfiguration:
             orig_env = os.environ.pop("OPENAI_PARSING_MODEL", None)
             try:
                 config = get_search_config()
-                assert "gpt-4o-mini" in config.parsing_model
+                assert "gpt-5-nano" in config.parsing_model
             finally:
                 if orig_env is not None:
                     os.environ["OPENAI_PARSING_MODEL"] = orig_env

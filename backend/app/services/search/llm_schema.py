@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class LLMParsedQuery(BaseModel):
     """
-    Schema for GPT-4o-mini structured output.
+    Schema for LLM structured output.
 
     This schema is passed to OpenAI's parse() method which ensures
     the response conforms to this structure.

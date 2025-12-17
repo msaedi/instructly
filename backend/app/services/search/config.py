@@ -23,8 +23,8 @@ class SearchConfig:
     """Configuration for NL Search."""
 
     # Parsing model (for extracting constraints from queries)
-    parsing_model: str = "gpt-4o-mini"
-    parsing_timeout_ms: int = 2000
+    parsing_model: str = "gpt-5-nano"
+    parsing_timeout_ms: int = 1000
 
     # Embedding model (for vector search)
     embedding_model: str = "text-embedding-3-small"
@@ -37,8 +37,8 @@ class SearchConfig:
     def from_env(cls) -> "SearchConfig":
         """Load configuration from environment variables."""
         return cls(
-            parsing_model=os.getenv("OPENAI_PARSING_MODEL", "gpt-4o-mini"),
-            parsing_timeout_ms=int(os.getenv("OPENAI_PARSING_TIMEOUT_MS", "2000")),
+            parsing_model=os.getenv("OPENAI_PARSING_MODEL", "gpt-5-nano"),
+            parsing_timeout_ms=int(os.getenv("OPENAI_PARSING_TIMEOUT_MS", "1000")),
             embedding_model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
             embedding_timeout_ms=int(os.getenv("OPENAI_EMBEDDING_TIMEOUT_MS", "2000")),
             max_retries=int(os.getenv("OPENAI_MAX_RETRIES", "2")),
@@ -87,7 +87,7 @@ def update_search_config(
     Changes are NOT persisted to environment - they reset on server restart.
 
     Args:
-        parsing_model: New parsing model (e.g., "gpt-4o-mini")
+        parsing_model: New parsing model (e.g., "gpt-5-nano")
         parsing_timeout_ms: New parsing timeout in milliseconds
         embedding_model: New embedding model (e.g., "text-embedding-3-small")
         embedding_timeout_ms: New embedding timeout in milliseconds

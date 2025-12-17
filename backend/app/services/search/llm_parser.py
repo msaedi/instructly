@@ -1,6 +1,6 @@
 # backend/app/services/search/llm_parser.py
 """
-LLM parser for complex NL search queries using GPT-4o-mini.
+LLM parser for complex NL search queries.
 Falls back to regex parser on any failure.
 """
 from __future__ import annotations
@@ -102,7 +102,7 @@ class LLMParser:
 
     async def parse(self, query: str, regex_result: Optional[ParsedQuery] = None) -> ParsedQuery:
         """
-        Parse a query using GPT-4o-mini with structured outputs.
+        Parse a query using the configured OpenAI model with structured outputs.
 
         Args:
             query: The natural language query to parse
@@ -166,7 +166,7 @@ class LLMParser:
 
     async def _call_llm(self, query: str) -> LLMParsedQuery:
         """
-        Call GPT-4o-mini with structured output parsing.
+        Call the configured OpenAI parsing model with structured output parsing.
 
         Uses OpenAI's beta.chat.completions.parse() for reliable JSON extraction.
         """

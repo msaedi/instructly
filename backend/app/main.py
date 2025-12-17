@@ -413,6 +413,17 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             asyncio.to_thread(_background_jobs_worker_sync, job_worker_stop_event)
         )
 
+    # Pre-warm SymSpell dictionary (NL search typo correction) to avoid first-request cold start.
+    if not getattr(settings, "is_testing", False):
+        try:
+            logger.info("[SEARCH] Pre-warming SymSpell dictionary...")
+            from .services.search.typo_correction import get_symspell
+
+            await asyncio.to_thread(get_symspell)
+            logger.info("[SEARCH] SymSpell dictionary loaded")
+        except Exception as e:
+            logger.warning("[SEARCH] SymSpell pre-warm failed: %s", e)
+
     _prewarm_metrics_cache()
 
     yield
