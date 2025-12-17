@@ -1,0 +1,11 @@
+{
+  "enabledPlugins": {
+    "commit-commands@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "gitlab@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "supabase@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true
+  }
+}
