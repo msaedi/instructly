@@ -19,12 +19,6 @@ from app.services.search.retriever import ServiceCandidate
 
 
 @pytest.fixture
-def mock_db() -> Mock:
-    """Create mock database session."""
-    return Mock()
-
-
-@pytest.fixture
 def mock_repository() -> Mock:
     """Create mock filter repository."""
     repo = Mock()
@@ -93,12 +87,20 @@ def mock_repository() -> Mock:
 
 
 @pytest.fixture
-def filter_service(mock_db: Mock, mock_repository: Mock) -> FilterService:
+def mock_location_resolver() -> Mock:
+    """Create mock location resolver."""
+    resolver = Mock()
+    resolver.resolve.return_value = ResolvedLocation.from_not_found()
+    resolver.region_code = "nyc"
+    return resolver
+
+
+@pytest.fixture
+def filter_service(mock_repository: Mock, mock_location_resolver: Mock) -> FilterService:
     """Create filter service with mocks."""
-    service = FilterService(db=mock_db, repository=mock_repository, region_code="nyc")
-    service.location_resolver = Mock()
-    service.location_resolver.resolve.return_value = ResolvedLocation.from_not_found()
-    return service
+    return FilterService(
+        repository=mock_repository, location_resolver=mock_location_resolver, region_code="nyc"
+    )
 
 
 @pytest.fixture
@@ -627,8 +629,8 @@ class TestSoftFiltering:
     @pytest.mark.asyncio
     async def test_soft_filtering_relaxes_price(
         self,
-        mock_db: Mock,
         mock_repository: Mock,
+        mock_location_resolver: Mock,
     ) -> None:
         """Soft filtering should allow 1.25x price."""
         today = date.today()
@@ -658,7 +660,9 @@ class TestSoftFiltering:
             max_price=60,
         )
 
-        service = FilterService(db=mock_db, repository=mock_repository)
+        service = FilterService(
+            repository=mock_repository, location_resolver=mock_location_resolver
+        )
         result = await service.filter_candidates(candidates, query)
 
         # Should include $70 candidate with soft filtering
@@ -670,8 +674,8 @@ class TestSoftFiltering:
     @pytest.mark.asyncio
     async def test_soft_filtering_applies_score_penalty(
         self,
-        mock_db: Mock,
         mock_repository: Mock,
+        mock_location_resolver: Mock,
     ) -> None:
         """Soft-filtered candidates should have 0.7x score penalty."""
         today = date.today()
@@ -700,7 +704,9 @@ class TestSoftFiltering:
             max_price=60,
         )
 
-        service = FilterService(db=mock_db, repository=mock_repository)
+        service = FilterService(
+            repository=mock_repository, location_resolver=mock_location_resolver
+        )
         result = await service.filter_candidates(candidates, query)
 
         if result.candidates and result.candidates[0].soft_filter_reasons:

@@ -5,6 +5,7 @@ Database engine, session factory, and metadata shared across the application.
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 from datetime import datetime
 import logging
 import random
@@ -173,6 +174,24 @@ Base: DeclarativeMeta = declarative_base()
 
 def get_db() -> Generator[Session, None, None]:
     """Get database session with proper cleanup."""
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@contextmanager
+def get_db_session() -> Generator[Session, None, None]:
+    """
+    Context manager for short-lived DB operations.
+
+    Prefer this over storing SQLAlchemy sessions on long-lived service objects.
+    """
     db = SessionLocal()
     try:
         yield db

@@ -21,6 +21,7 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from app.core.config import settings
+from app.database import get_db_session
 from app.schemas.nl_search import (
     InstructorSummary,
     NLSearchMeta,
@@ -40,8 +41,6 @@ from app.services.search.retriever import PostgresRetriever, RetrievalResult
 from app.services.search.search_cache import SearchCacheService
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
     from app.services.cache_service import CacheService
     from app.services.search.location_resolver import ResolvedLocation
 
@@ -87,13 +86,14 @@ class NLSearchService:
 
     def __init__(
         self,
-        db: "Session",
         cache_service: Optional["CacheService"] = None,
         search_cache: Optional[SearchCacheService] = None,
         embedding_service: Optional[EmbeddingService] = None,
+        retriever: Optional[PostgresRetriever] = None,
+        filter_service: Optional[FilterService] = None,
+        ranking_service: Optional[RankingService] = None,
         region_code: str = "nyc",
     ) -> None:
-        self.db = db
         self._cache_service = cache_service
         self._region_code = region_code
 
@@ -103,20 +103,12 @@ class NLSearchService:
         )
 
         # Initialize embedding service
-        self.embedding_service = embedding_service or EmbeddingService(
-            db, cache_service=cache_service
-        )
+        self.embedding_service = embedding_service or EmbeddingService(cache_service=cache_service)
 
-        # Initialize pipeline components
-        self.parser = QueryParser(db, region_code=region_code)
-        self.retriever = PostgresRetriever(db, self.embedding_service)
-        self.filter_service = FilterService(db, region_code=region_code)
-        self.ranking_service = RankingService(db)
-
-        # Direct repository access for bulk data hydration (instructor/service info)
-        from app.repositories.retriever_repository import RetrieverRepository
-
-        self.retriever_repository = RetrieverRepository(db)
+        # Initialize pipeline components (DB sessions are acquired per operation)
+        self.retriever = retriever or PostgresRetriever(self.embedding_service)
+        self.filter_service = filter_service or FilterService(region_code=region_code)
+        self.ranking_service = ranking_service or RankingService()
 
     async def search(
         self,
@@ -344,10 +336,6 @@ class NLSearchService:
                 continue
             chosen_by_instructor[instructor_id] = chosen
 
-        instructor_cards_task = asyncio.to_thread(
-            self.retriever_repository.get_instructor_cards, ordered_instructor_ids
-        )
-
         # Optional distance map (meters) for admin debugging when we have a location reference.
         distance_region_ids: Optional[List[str]] = None
         if location_resolution and location_resolution.region_id:
@@ -365,21 +353,24 @@ class NLSearchService:
             # De-dupe while preserving order
             distance_region_ids = list(dict.fromkeys(candidate_ids)) or None
 
-        distance_task = None
-        if distance_region_ids:
-            distance_task = asyncio.to_thread(
-                self.filter_service.repository.get_instructor_min_distance_to_regions,
-                ordered_instructor_ids,
-                distance_region_ids,
-            )
+        def _load_hydration_data() -> tuple[List[Dict[str, Any]], Dict[str, float]]:
+            from app.repositories.filter_repository import FilterRepository
+            from app.repositories.retriever_repository import RetrieverRepository
 
-        if distance_task is not None:
-            instructor_rows, distance_meters = await asyncio.gather(
-                instructor_cards_task, distance_task
-            )
-        else:
-            instructor_rows = await instructor_cards_task
-            distance_meters = {}
+            with get_db_session() as db:
+                retriever_repo = RetrieverRepository(db)
+                instructor_rows = retriever_repo.get_instructor_cards(ordered_instructor_ids)
+
+                distance_meters: Dict[str, float] = {}
+                if distance_region_ids:
+                    filter_repo = FilterRepository(db)
+                    distance_meters = filter_repo.get_instructor_min_distance_to_regions(
+                        ordered_instructor_ids,
+                        distance_region_ids,
+                    )
+                return instructor_rows, distance_meters
+
+        instructor_rows, distance_meters = await asyncio.to_thread(_load_hydration_data)
         instructor_by_id: Dict[str, Dict[str, Any]] = {
             row["instructor_id"]: row for row in instructor_rows
         }
@@ -491,14 +482,20 @@ class NLSearchService:
                 return cached_parsed
 
             # Parse with hybrid approach
-            parsed = await hybrid_parse(query, self.db, user_id, region_code=self._region_code)
+            parsed = await hybrid_parse(query, user_id=user_id, region_code=self._region_code)
 
             # Cache the parsed query
             await self.search_cache.cache_parsed_query(query, parsed, region_code=self._region_code)
 
         except Exception as e:
             logger.error(f"Parsing failed, using basic extraction: {e}")
-            parsed = self.parser.parse(query)
+
+            def _parse_regex_fallback() -> ParsedQuery:
+                with get_db_session() as db:
+                    parser = QueryParser(db, user_id=user_id, region_code=self._region_code)
+                    return parser.parse(query)
+
+            parsed = await asyncio.to_thread(_parse_regex_fallback)
             metrics.degraded = True
             metrics.degradation_reasons.append("parsing_error")
 

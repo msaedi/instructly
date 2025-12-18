@@ -31,12 +31,6 @@ from app.services.search.ranking_service import (
 
 
 @pytest.fixture
-def mock_db() -> Mock:
-    """Create mock database session."""
-    return Mock()
-
-
-@pytest.fixture
 def mock_repository() -> Mock:
     """Create mock ranking repository with default return values."""
     repo = Mock()
@@ -85,9 +79,9 @@ def mock_repository() -> Mock:
 
 
 @pytest.fixture
-def ranking_service(mock_db: Mock, mock_repository: Mock) -> RankingService:
+def ranking_service(mock_repository: Mock) -> RankingService:
     """Create ranking service with mock dependencies."""
-    return RankingService(mock_db, repository=mock_repository)
+    return RankingService(repository=mock_repository)
 
 
 @pytest.fixture

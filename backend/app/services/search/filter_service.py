@@ -11,15 +11,14 @@ from datetime import date, time
 import logging
 import os
 import time as time_module
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
+from app.database import get_db_session
 from app.repositories.filter_repository import FilterRepository
 from app.services.search.location_resolver import LocationResolver, ResolvedLocation
 from app.services.search.retriever import ServiceCandidate
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
     from app.services.search.query_parser import ParsedQuery
 
 logger = logging.getLogger(__name__)
@@ -88,13 +87,17 @@ class FilterService:
 
     def __init__(
         self,
-        db: "Session",
         repository: Optional[FilterRepository] = None,
+        location_resolver: Optional[LocationResolver] = None,
         region_code: str = "nyc",
     ) -> None:
-        self.db = db
-        self.repository = repository or FilterRepository(db)
-        self.location_resolver = LocationResolver(db, region_code=region_code)
+        self._region_code = region_code
+        self._repository_override = repository
+        self._location_resolver_override = location_resolver
+
+        # These are initialized per-call in the worker thread (or injected for unit tests).
+        self.repository: FilterRepository = repository or cast(FilterRepository, None)
+        self.location_resolver: LocationResolver = location_resolver or cast(LocationResolver, None)
 
     async def filter_candidates(
         self,
@@ -124,6 +127,39 @@ class FilterService:
         )
 
     def _filter_candidates_sync(
+        self,
+        candidates: List[ServiceCandidate],
+        parsed_query: "ParsedQuery",
+        user_location: Optional[tuple[float, float]],
+        default_duration: int,
+    ) -> FilterResult:
+        if self._repository_override is not None and self._location_resolver_override is not None:
+            # Unit tests can inject mocks to avoid DB access.
+            self.repository = self._repository_override
+            self.location_resolver = self._location_resolver_override
+            return self._filter_candidates_sync_impl(
+                candidates,
+                parsed_query,
+                user_location,
+                default_duration,
+            )
+
+        def _inner() -> FilterResult:
+            with get_db_session() as db:
+                self.repository = self._repository_override or FilterRepository(db)
+                self.location_resolver = self._location_resolver_override or LocationResolver(
+                    db, region_code=self._region_code
+                )
+                return self._filter_candidates_sync_impl(
+                    candidates,
+                    parsed_query,
+                    user_location,
+                    default_duration,
+                )
+
+        return _inner()
+
+    def _filter_candidates_sync_impl(
         self,
         candidates: List[ServiceCandidate],
         parsed_query: "ParsedQuery",

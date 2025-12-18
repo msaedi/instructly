@@ -21,12 +21,6 @@ from app.services.search.embedding_service import EmbeddingService
 
 
 @pytest.fixture
-def mock_db() -> Mock:
-    """Create mock database session."""
-    return Mock()
-
-
-@pytest.fixture
 def mock_cache() -> AsyncMock:
     """Create mock async cache service."""
     cache = AsyncMock()
@@ -43,10 +37,10 @@ def mock_provider() -> MockEmbeddingProvider:
 
 @pytest.fixture
 def embedding_service(
-    mock_db: Mock, mock_cache: Mock, mock_provider: MockEmbeddingProvider
+    mock_cache: Mock, mock_provider: MockEmbeddingProvider
 ) -> EmbeddingService:
     """Create embedding service with mocks."""
-    service = EmbeddingService(mock_db, cache_service=mock_cache, provider=mock_provider)
+    service = EmbeddingService(cache_service=mock_cache, provider=mock_provider)
     return service
 
 

@@ -19,12 +19,6 @@ from app.services.search.retriever import (
 
 
 @pytest.fixture
-def mock_db() -> Mock:
-    """Create mock database session."""
-    return Mock()
-
-
-@pytest.fixture
 def mock_embedding_service() -> Mock:
     """Create mock embedding service."""
     service = Mock()
@@ -85,13 +79,11 @@ def mock_repository() -> Mock:
 
 @pytest.fixture
 def retriever(
-    mock_db: Mock,
     mock_embedding_service: Mock,
     mock_repository: Mock,
 ) -> PostgresRetriever:
     """Create retriever with mocks."""
     return PostgresRetriever(
-        db=mock_db,
         embedding_service=mock_embedding_service,
         repository=mock_repository,
     )
@@ -235,7 +227,6 @@ class TestDegradedMode:
     @pytest.mark.asyncio
     async def test_falls_back_to_text_only_when_no_embedding(
         self,
-        mock_db: Mock,
         mock_repository: Mock,
     ) -> None:
         """Should use text-only search when embedding fails."""
@@ -244,7 +235,6 @@ class TestDegradedMode:
         embedding_service.embed_query = AsyncMock(return_value=None)
 
         retriever = PostgresRetriever(
-            db=mock_db,
             embedding_service=embedding_service,
             repository=mock_repository,
         )
@@ -264,7 +254,6 @@ class TestDegradedMode:
     @pytest.mark.asyncio
     async def test_text_only_does_not_call_vector_search(
         self,
-        mock_db: Mock,
         mock_repository: Mock,
     ) -> None:
         """Text-only mode should skip vector search."""
@@ -272,7 +261,6 @@ class TestDegradedMode:
         embedding_service.embed_query = AsyncMock(return_value=None)
 
         retriever = PostgresRetriever(
-            db=mock_db,
             embedding_service=embedding_service,
             repository=mock_repository,
         )

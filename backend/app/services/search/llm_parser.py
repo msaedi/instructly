@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Optional, cast
 
 from openai import AsyncOpenAI, OpenAIError
 
+from app.database import get_db_session
 from app.services.search.circuit_breaker import (
     PARSING_CIRCUIT,
     CircuitOpenError,
@@ -22,7 +23,7 @@ from app.services.search.llm_schema import LLMParsedQuery
 from app.services.search.query_parser import ParsedQuery, QueryParser
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -68,13 +69,10 @@ class LLMParser:
         result = await parser.parse("piano or guitar lessons tomorrow")
     """
 
-    def __init__(
-        self, db: "Session", user_id: Optional[str] = None, region_code: str = "nyc"
-    ) -> None:
-        self.db = db
+    def __init__(self, user_id: Optional[str] = None, region_code: str = "nyc") -> None:
         self._user_id = user_id
+        self._region_code = region_code
         self._client: Optional[AsyncOpenAI] = None
-        self._regex_parser = QueryParser(db, user_id=user_id, region_code=region_code)
 
     @property
     def client(self) -> AsyncOpenAI:
@@ -83,22 +81,33 @@ class LLMParser:
             self._client = AsyncOpenAI()
         return self._client
 
-    def _get_current_date(self) -> datetime.date:
+    async def _get_current_date(self) -> datetime.date:
         """
         Get current date in user's timezone for LLM context.
 
         Falls back to America/New_York if no user_id is provided.
         """
-        if self._user_id:
+        user_id = self._user_id
+        if user_id:
             from app.core.timezone_utils import get_user_today_by_id
 
-            return get_user_today_by_id(self._user_id, self.db)
+            def _load_today() -> datetime.date:
+                with get_db_session() as db:
+                    return get_user_today_by_id(user_id, db)
+
+            return await asyncio.to_thread(_load_today)
         else:
             # Default to NYC timezone for anonymous searches
             import pytz
 
             nyc_tz = pytz.timezone("America/New_York")
             return datetime.datetime.now(nyc_tz).date()
+
+    @staticmethod
+    def _parse_regex_sync(query: str, *, user_id: Optional[str], region_code: str) -> ParsedQuery:
+        with get_db_session() as db:
+            parser = QueryParser(db, user_id=user_id, region_code=region_code)
+            return parser.parse(query)
 
     async def parse(self, query: str, regex_result: Optional[ParsedQuery] = None) -> ParsedQuery:
         """
@@ -118,7 +127,12 @@ class LLMParser:
 
         # Get regex result as fallback
         if regex_result is None:
-            regex_result = self._regex_parser.parse(query)
+            regex_result = await asyncio.to_thread(
+                self._parse_regex_sync,
+                query,
+                user_id=self._user_id,
+                region_code=self._region_code,
+            )
 
         # Check circuit breaker
         if PARSING_CIRCUIT.is_open:
@@ -170,7 +184,7 @@ class LLMParser:
 
         Uses OpenAI's beta.chat.completions.parse() for reliable JSON extraction.
         """
-        current_date = self._get_current_date().isoformat()
+        current_date = (await self._get_current_date()).isoformat()
         system_prompt = SYSTEM_PROMPT.format(current_date=current_date)
 
         response = await PARSING_CIRCUIT.call(self._make_api_call, query, system_prompt)
@@ -314,7 +328,6 @@ class LLMParser:
 
 async def hybrid_parse(
     query: str,
-    db: "Session",
     user_id: Optional[str] = None,
     region_code: str = "nyc",
 ) -> ParsedQuery:
@@ -332,13 +345,18 @@ async def hybrid_parse(
     Returns:
         ParsedQuery with extracted constraints
     """
-    regex_parser = QueryParser(db, user_id=user_id, region_code=region_code)
-    regex_result = regex_parser.parse(query)
+
+    def _parse_regex() -> ParsedQuery:
+        with get_db_session() as db:
+            parser = QueryParser(db, user_id=user_id, region_code=region_code)
+            return parser.parse(query)
+
+    regex_result = await asyncio.to_thread(_parse_regex)
 
     # If regex handled it well, return immediately
     if not regex_result.needs_llm:
         return regex_result
 
     # Otherwise, enhance with LLM
-    llm_parser = LLMParser(db, user_id=user_id, region_code=region_code)
+    llm_parser = LLMParser(user_id=user_id, region_code=region_code)
     return await llm_parser.parse(query, regex_result)

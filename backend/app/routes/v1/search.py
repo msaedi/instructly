@@ -25,7 +25,7 @@ from ...api.dependencies.auth import (
     require_beta_phase_access,
 )
 from ...api.dependencies.services import get_cache_service_dep
-from ...database import get_db
+from ...database import get_db, get_db_session
 from ...dependencies.permissions import require_permission
 from ...models import User
 from ...ratelimit.dependency import rate_limit
@@ -67,7 +67,6 @@ async def nl_search(
     region: str = Query("nyc", description="Region code for location/price lookups"),
     limit: int = Query(20, ge=1, le=50, description="Maximum results to return"),
     response: Response = None,
-    db: Session = Depends(get_db),
     cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> NLSearchResponse:
     """
@@ -118,7 +117,7 @@ async def nl_search(
         )
 
     try:
-        service = NLSearchService(db, cache_service=cache_service, region_code=region)
+        service = NLSearchService(cache_service=cache_service, region_code=region)
         result = await service.search(
             query=q,
             user_location=user_location,
@@ -132,7 +131,6 @@ async def nl_search(
 
         # Log search for analytics (non-blocking, don't fail search on logging error)
         try:
-            analytics_repo = SearchAnalyticsRepository(db)
             # Build normalized query from parsed info
             parsed = result.meta.parsed
             normalized_query = {
@@ -150,19 +148,22 @@ async def nl_search(
             }
             top_result_ids = [r.best_match.service_catalog_id for r in result.results[:10]]
 
-            search_query_id = await asyncio.to_thread(
-                lambda: analytics_repo.nl_log_search_query(
-                    original_query=q,
-                    normalized_query=normalized_query,
-                    parsing_mode=result.meta.parsing_mode,
-                    parsing_latency_ms=0,  # Not tracked separately in response
-                    result_count=result.meta.total_results,
-                    top_result_ids=top_result_ids,
-                    total_latency_ms=result.meta.latency_ms,
-                    cache_hit=result.meta.cache_hit,
-                    degraded=result.meta.degraded,
-                )
-            )
+            def _log_search_query() -> str:
+                with get_db_session() as db:
+                    analytics_repo = SearchAnalyticsRepository(db)
+                    return analytics_repo.nl_log_search_query(
+                        original_query=q,
+                        normalized_query=normalized_query,
+                        parsing_mode=result.meta.parsing_mode,
+                        parsing_latency_ms=0,  # Not tracked separately in response
+                        result_count=result.meta.total_results,
+                        top_result_ids=top_result_ids,
+                        total_latency_ms=result.meta.latency_ms,
+                        cache_hit=result.meta.cache_hit,
+                        degraded=result.meta.degraded,
+                    )
+
+            search_query_id = await asyncio.to_thread(_log_search_query)
             # Update result with search_query_id for click tracking
             result.meta.search_query_id = search_query_id
         except Exception as log_err:

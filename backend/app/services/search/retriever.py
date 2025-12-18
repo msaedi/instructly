@@ -15,8 +15,9 @@ from dataclasses import dataclass
 import logging
 import os
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Protocol, Tuple, TypeVar
 
+from app.database import get_db_session
 from app.repositories.retriever_repository import RetrieverRepository
 from app.services.search.config import get_search_config
 from app.services.search.embedding_service import EmbeddingService
@@ -25,11 +26,11 @@ from app.services.search.embedding_service import EmbeddingService
 ServiceData = Dict[str, Any]
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
     from app.services.search.query_parser import ParsedQuery
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 # Score fusion weights
 VECTOR_WEIGHT = 0.6
@@ -123,19 +124,31 @@ class PostgresRetriever:
     Falls back to text-only search when embedding service is unavailable.
 
     Usage:
-        retriever = PostgresRetriever(db, embedding_service)
+        retriever = PostgresRetriever(embedding_service)
         result = await retriever.search(parsed_query)
     """
 
     def __init__(
         self,
-        db: "Session",
         embedding_service: EmbeddingService,
         repository: Optional[RetrieverRepository] = None,
     ) -> None:
-        self.db = db
         self.embedding_service = embedding_service
-        self.repository = repository or RetrieverRepository(db)
+        # Optional override (unit tests); production uses short-lived sessions via get_db_session().
+        self._repository_override = repository
+
+    async def _run_db(self, op: Callable[[RetrieverRepository], T]) -> T:
+        """Run a DB operation in a thread with a short-lived SQLAlchemy session."""
+
+        if self._repository_override is not None:
+            return await asyncio.to_thread(op, self._repository_override)
+
+        def _inner() -> T:
+            with get_db_session() as db:
+                repo = RetrieverRepository(db)
+                return op(repo)
+
+        return await asyncio.to_thread(_inner)
 
     async def search(
         self,
@@ -178,8 +191,8 @@ class PostgresRetriever:
         # Step 1: Always run trigram text search first (fast path for common queries)
         text_query = self._normalize_query_for_trigram(service_query)
         text_start = time.perf_counter()
-        text_results = await asyncio.to_thread(
-            self._text_search, text_query, text_query, min(TEXT_TOP_K, top_k)
+        text_results = await self._run_db(
+            lambda repo: self._text_search(repo, text_query, text_query, min(TEXT_TOP_K, top_k))
         )
         text_latency_ms = int((time.perf_counter() - text_start) * 1000)
 
@@ -216,7 +229,7 @@ class PostgresRetriever:
 
         # Step 2: Only attempt embeddings/vector search when the DB has embeddings.
         embedding_check_start = time.perf_counter()
-        has_embeddings = await asyncio.to_thread(self.repository.has_embeddings)
+        has_embeddings = await self._run_db(lambda repo: repo.has_embeddings())
         embedding_check_ms = int((time.perf_counter() - embedding_check_start) * 1000)
 
         if not has_embeddings:
@@ -260,8 +273,8 @@ class PostgresRetriever:
         # Step 4: Run vector search if embedding available, otherwise return text-only.
         if query_embedding:
             vector_start = time.perf_counter()
-            vector_results = await asyncio.to_thread(
-                self._vector_search, query_embedding, min(VECTOR_TOP_K, top_k)
+            vector_results = await self._run_db(
+                lambda repo: self._vector_search(repo, query_embedding, min(VECTOR_TOP_K, top_k))
             )
             vector_latency_ms = int((time.perf_counter() - vector_start) * 1000)
             vector_search_used = True
@@ -296,6 +309,7 @@ class PostgresRetriever:
 
     def _vector_search(
         self,
+        repo: RetrieverRepository,
         query_embedding: List[float],
         top_k: int,
     ) -> Dict[str, Tuple[float, ServiceData]]:
@@ -304,7 +318,7 @@ class PostgresRetriever:
 
         Returns dict mapping service_id to (score, service_data).
         """
-        rows = self.repository.vector_search(query_embedding, top_k)
+        rows = repo.vector_search(query_embedding, top_k)
 
         return {
             str(row["id"]): (
@@ -322,6 +336,7 @@ class PostgresRetriever:
 
     def _text_search(
         self,
+        repo: RetrieverRepository,
         corrected_query: str,
         original_query: str,
         top_k: int,
@@ -331,7 +346,7 @@ class PostgresRetriever:
 
         Returns dict mapping service_id to (score, service_data).
         """
-        rows = self.repository.text_search(corrected_query, original_query, top_k)
+        rows = repo.text_search(corrected_query, original_query, top_k)
 
         return {
             str(row["id"]): (
@@ -450,7 +465,9 @@ class PostgresRetriever:
             RetrievalResult with text-only candidates
         """
         text_query = self._normalize_query_for_trigram(service_query)
-        text_results = await asyncio.to_thread(self._text_search, text_query, text_query, top_k)
+        text_results = await self._run_db(
+            lambda repo: self._text_search(repo, text_query, original_query, top_k)
+        )
 
         candidates = [
             ServiceCandidate(

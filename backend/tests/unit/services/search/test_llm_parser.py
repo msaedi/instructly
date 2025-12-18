@@ -4,11 +4,9 @@ Unit tests for LLM parser.
 Uses mocks to avoid actual API calls.
 """
 import asyncio
-from datetime import date, datetime, timedelta
-from typing import Any, Dict, Tuple
+from datetime import date, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
-import dateparser
 import pytest
 
 from app.services.search.circuit_breaker import (
@@ -20,66 +18,11 @@ from app.services.search.llm_parser import LLMParser, hybrid_parse
 from app.services.search.llm_schema import LLMParsedQuery
 from app.services.search.query_parser import ParsedQuery
 
-# Store reference to original dateparser.parse before patching
-_original_dateparser_parse = dateparser.parse
-
-
-def _dateparser_with_consistent_base(
-    date_string: str, settings: Dict[str, Any] | None = None
-) -> datetime | None:
-    """Wrapper for dateparser.parse that uses date.today() as RELATIVE_BASE."""
-    if settings is None:
-        settings = {}
-    # Set RELATIVE_BASE to current system time for consistent testing
-    settings["RELATIVE_BASE"] = datetime.combine(date.today(), datetime.min.time())
-    return _original_dateparser_parse(date_string, settings=settings)
-
-
-def _build_location_cache() -> Dict[str, Dict[str, str]]:
-    """Build mock location cache."""
-    return {
-        "brooklyn": {"name": "Brooklyn", "type": "borough", "borough": "Brooklyn"},
-        "bk": {"name": "Brooklyn", "type": "borough", "borough": "Brooklyn"},
-    }
-
-
-def _build_threshold_cache() -> Dict[Tuple[str, str], Dict[str, int | None]]:
-    """Build mock threshold cache with proper dict structure."""
-    return {
-        ("music", "budget"): {"max_price": 60, "min_price": None},
-        ("general", "budget"): {"max_price": 50, "min_price": None},
-    }
-
 
 @pytest.fixture
-def mock_db() -> Mock:
-    """Create mock database session."""
-    return Mock()
-
-
-@pytest.fixture(autouse=True)
-def patch_dateparser() -> Any:
-    """Patch dateparser.parse to use consistent RELATIVE_BASE for all tests."""
-    with patch(
-        "app.services.search.query_parser.dateparser.parse",
-        side_effect=_dateparser_with_consistent_base,
-    ):
-        yield
-
-
-@pytest.fixture
-def llm_parser(mock_db: Mock) -> LLMParser:
-    """Create LLMParser with mocked repositories."""
-    with patch(
-        "app.repositories.nl_search_repository.PriceThresholdRepository.build_threshold_cache"
-    ) as mock_price:
-        mock_price.return_value = _build_threshold_cache()
-        parser = LLMParser(mock_db)
-        # Pre-populate the cache to avoid repository calls
-        parser._regex_parser._price_thresholds = _build_threshold_cache()
-        # Mock _get_user_today to use date.today() for consistent timezone behavior
-        parser._regex_parser._get_user_today = lambda: date.today()
-        return parser
+def llm_parser() -> LLMParser:
+    """Create LLMParser with no DB access (regex fallback injected per-test)."""
+    return LLMParser()
 
 
 @pytest.fixture(autouse=True)
@@ -96,6 +39,12 @@ class TestLLMParser:
     @pytest.mark.asyncio
     async def test_successful_parse(self, llm_parser: LLMParser) -> None:
         """Test successful LLM parsing."""
+        regex_result = ParsedQuery(
+            original_query="cheap piano for my kid in brooklyn",
+            service_query="piano lessons",
+            location_text="brooklyn",
+            parsing_mode="regex",
+        )
         mock_response = LLMParsedQuery(
             service_query="piano lessons",
             max_price=60,
@@ -108,7 +57,9 @@ class TestLLMParser:
         ) as mock_call:
             mock_call.return_value = mock_response
 
-            result = await llm_parser.parse("cheap piano for my kid in brooklyn")
+            result = await llm_parser.parse(
+                "cheap piano for my kid in brooklyn", regex_result=regex_result
+            )
 
             assert result.service_query == "piano lessons"
             assert result.max_price == 60
@@ -119,6 +70,12 @@ class TestLLMParser:
     @pytest.mark.asyncio
     async def test_timeout_fallback(self, llm_parser: LLMParser) -> None:
         """Test fallback to regex on timeout."""
+        regex_result = ParsedQuery(
+            original_query="piano lessons in brooklyn",
+            service_query="piano lessons",
+            location_text="brooklyn",
+            parsing_mode="regex",
+        )
 
         async def slow_call(*args: object, **kwargs: object) -> None:
             await asyncio.sleep(5)  # Longer than timeout
@@ -128,7 +85,9 @@ class TestLLMParser:
         ) as mock_call:
             mock_call.side_effect = slow_call
 
-            result = await llm_parser.parse("piano lessons in brooklyn")
+            result = await llm_parser.parse(
+                "piano lessons in brooklyn", regex_result=regex_result
+            )
 
             # Should fall back to regex
             assert result.parsing_mode == "regex"
@@ -139,12 +98,18 @@ class TestLLMParser:
         """Test fallback to regex on API error."""
         from openai import OpenAIError
 
+        regex_result = ParsedQuery(
+            original_query="guitar lessons",
+            service_query="guitar lessons",
+            parsing_mode="regex",
+        )
+
         with patch.object(
             llm_parser, "_call_llm", new_callable=AsyncMock
         ) as mock_call:
             mock_call.side_effect = OpenAIError("Rate limited")
 
-            result = await llm_parser.parse("guitar lessons")
+            result = await llm_parser.parse("guitar lessons", regex_result=regex_result)
 
             assert result.parsing_mode == "regex"
             assert "guitar" in result.service_query.lower()
@@ -158,13 +123,23 @@ class TestLLMParser:
 
         assert PARSING_CIRCUIT.state == CircuitState.OPEN
 
-        result = await llm_parser.parse("piano lessons")
+        regex_result = ParsedQuery(
+            original_query="piano lessons",
+            service_query="piano lessons",
+            parsing_mode="regex",
+        )
+        result = await llm_parser.parse("piano lessons", regex_result=regex_result)
 
         assert result.parsing_mode == "regex"
 
     @pytest.mark.asyncio
     async def test_typo_correction(self, llm_parser: LLMParser) -> None:
         """Test LLM corrects typos in service query."""
+        regex_result = ParsedQuery(
+            original_query="paino lesons",
+            service_query="paino lesons",
+            parsing_mode="regex",
+        )
         mock_response = LLMParsedQuery(
             service_query="piano lessons",  # Corrected from "paino"
         )
@@ -174,13 +149,18 @@ class TestLLMParser:
         ) as mock_call:
             mock_call.return_value = mock_response
 
-            result = await llm_parser.parse("paino lesons")
+            result = await llm_parser.parse("paino lesons", regex_result=regex_result)
 
             assert result.service_query == "piano lessons"
 
     @pytest.mark.asyncio
     async def test_date_parsing(self, llm_parser: LLMParser) -> None:
         """Test LLM parses relative dates."""
+        regex_result = ParsedQuery(
+            original_query="math tutor tomorrow",
+            service_query="math tutoring",
+            parsing_mode="regex",
+        )
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         mock_response = LLMParsedQuery(
             service_query="math tutoring",
@@ -192,7 +172,7 @@ class TestLLMParser:
         ) as mock_call:
             mock_call.return_value = mock_response
 
-            result = await llm_parser.parse("math tutor tomorrow")
+            result = await llm_parser.parse("math tutor tomorrow", regex_result=regex_result)
 
             assert result.date == date.today() + timedelta(days=1)
             assert result.date_type == "single"
@@ -200,6 +180,13 @@ class TestLLMParser:
     @pytest.mark.asyncio
     async def test_invalid_date_uses_regex(self, llm_parser: LLMParser) -> None:
         """Test invalid LLM date falls back to regex result."""
+        regex_result = ParsedQuery(
+            original_query="piano tomorrow",
+            service_query="piano lessons",
+            parsing_mode="regex",
+            date=date.today() + timedelta(days=1),
+            date_type="single",
+        )
         mock_response = LLMParsedQuery(
             service_query="piano lessons",
             date="not-a-date",  # Invalid format
@@ -210,7 +197,7 @@ class TestLLMParser:
         ) as mock_call:
             mock_call.return_value = mock_response
 
-            result = await llm_parser.parse("piano tomorrow")
+            result = await llm_parser.parse("piano tomorrow", regex_result=regex_result)
 
             # Should use regex-extracted date instead (tomorrow relative to now)
             assert result.date == date.today() + timedelta(days=1)
@@ -218,6 +205,11 @@ class TestLLMParser:
     @pytest.mark.asyncio
     async def test_time_validation(self, llm_parser: LLMParser) -> None:
         """Test time format validation."""
+        regex_result = ParsedQuery(
+            original_query="yoga after 5pm",
+            service_query="yoga class",
+            parsing_mode="regex",
+        )
         mock_response = LLMParsedQuery(
             service_query="yoga class",
             time_after="17:00",
@@ -229,7 +221,7 @@ class TestLLMParser:
         ) as mock_call:
             mock_call.return_value = mock_response
 
-            result = await llm_parser.parse("yoga after 5pm")
+            result = await llm_parser.parse("yoga after 5pm", regex_result=regex_result)
 
             assert result.time_after == "17:00"
             assert result.time_before is None  # Invalid time rejected
@@ -287,7 +279,7 @@ class TestHybridParse:
     """Tests for hybrid parsing function."""
 
     @pytest.mark.asyncio
-    async def test_simple_query_skips_llm(self, mock_db: Mock) -> None:
+    async def test_simple_query_skips_llm(self) -> None:
         """Simple queries should not call LLM."""
         with patch(
             "app.services.search.llm_parser.LLMParser.parse",
@@ -303,15 +295,22 @@ class TestHybridParse:
                     parsing_mode="regex",
                 )
                 mock_parser_class.return_value = mock_parser
+                session_ctx = Mock()
+                session_ctx.__enter__ = Mock(return_value=Mock())
+                session_ctx.__exit__ = Mock(return_value=None)
 
-                result = await hybrid_parse("piano lessons brooklyn", mock_db)
+                with patch(
+                    "app.services.search.llm_parser.get_db_session",
+                    return_value=session_ctx,
+                ):
+                    result = await hybrid_parse("piano lessons brooklyn")
 
                 # LLM should not be called for simple queries
                 assert result.parsing_mode == "regex"
                 mock_llm_parse.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_complex_query_uses_llm(self, mock_db: Mock) -> None:
+    async def test_complex_query_uses_llm(self) -> None:
         """Complex queries should use LLM."""
         # Patch the regex parser to return a result that needs LLM
         with patch("app.services.search.llm_parser.QueryParser") as mock_parser_class:
@@ -333,8 +332,15 @@ class TestHybridParse:
                     service_query="piano or guitar lessons",
                     parsing_mode="llm",
                 )
+                session_ctx = Mock()
+                session_ctx.__enter__ = Mock(return_value=Mock())
+                session_ctx.__exit__ = Mock(return_value=None)
 
-                result = await hybrid_parse("piano or guitar lessons", mock_db)
+                with patch(
+                    "app.services.search.llm_parser.get_db_session",
+                    return_value=session_ctx,
+                ):
+                    result = await hybrid_parse("piano or guitar lessons")
 
                 # LLM should have been called
                 mock_llm_parse.assert_called_once()

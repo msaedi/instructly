@@ -46,14 +46,11 @@ class EmbeddingService:
 
     def __init__(
         self,
-        db: "Session",
         cache_service: Optional["CacheService"] = None,
         provider: Optional[EmbeddingProvider] = None,
     ) -> None:
-        self.db = db
         self.cache = cache_service
         self._provider = provider
-        self._repository = ServiceCatalogRepository(db)
 
     @property
     def provider(self) -> EmbeddingProvider:
@@ -241,7 +238,7 @@ class EmbeddingService:
     # Migration Support
     # =========================================================================
 
-    def get_services_needing_embedding(self, limit: int = 100) -> List[Any]:
+    def get_services_needing_embedding(self, db: "Session", limit: int = 100) -> List[Any]:
         """
         Find services that need embedding generation or update.
 
@@ -250,16 +247,18 @@ class EmbeddingService:
         - Services with different embedding_model than current
         - Services with stale embeddings (>30 days old)
         """
-        return self._repository.get_services_needing_embedding(_get_current_model(), limit)
+        return ServiceCatalogRepository(db).get_services_needing_embedding(
+            _get_current_model(), limit
+        )
 
     def update_service_embedding(
-        self, service_id: str, embedding: List[float], text_hash: str
+        self, db: "Session", service_id: str, embedding: List[float], text_hash: str
     ) -> bool:
         """
         Update a service's embedding in the database.
 
         Updates embedding_v2 and metadata columns.
         """
-        return self._repository.update_service_embedding(
+        return ServiceCatalogRepository(db).update_service_embedding(
             service_id, embedding, _get_current_model(), text_hash
         )

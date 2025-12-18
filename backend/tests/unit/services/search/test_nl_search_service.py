@@ -31,12 +31,6 @@ from app.services.search.retriever import RetrievalResult, ServiceCandidate
 
 
 @pytest.fixture
-def mock_db() -> Mock:
-    """Create mock database session."""
-    return Mock()
-
-
-@pytest.fixture
 def mock_cache_service() -> Mock:
     """Create mock cache service."""
     cache = Mock()
@@ -205,19 +199,19 @@ class TestSearchMetrics:
 class TestNLSearchServiceInit:
     """Tests for NLSearchService initialization."""
 
-    def test_initializes_with_db(self, mock_db: Mock) -> None:
-        """Should initialize with just db session."""
-        service = NLSearchService(mock_db)
+    def test_initializes(self) -> None:
+        """Should initialize with default dependencies."""
+        service = NLSearchService()
 
-        assert service.db is mock_db
         assert service.search_cache is not None
         assert service.embedding_service is not None
-        assert service.parser is not None
-        assert service.retriever_repository is not None
+        assert service.retriever is not None
+        assert service.filter_service is not None
+        assert service.ranking_service is not None
 
-    def test_accepts_custom_search_cache(self, mock_db: Mock, mock_search_cache: Mock) -> None:
+    def test_accepts_custom_search_cache(self, mock_search_cache: Mock) -> None:
         """Should accept custom search cache."""
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
 
         assert service.search_cache is mock_search_cache
 
@@ -226,38 +220,32 @@ class TestCacheCheck:
     """Tests for cache check logic."""
 
     @pytest.mark.asyncio
-    async def test_returns_none_on_cache_miss(
-        self, mock_db: Mock, mock_search_cache: Mock
-    ) -> None:
+    async def test_returns_none_on_cache_miss(self, mock_search_cache: Mock) -> None:
         """Should return None on cache miss."""
         mock_search_cache.get_cached_response.return_value = None
 
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
         result = await service._check_cache("piano lessons", None, limit=20)
 
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_cached_response_on_hit(
-        self, mock_db: Mock, mock_search_cache: Mock
-    ) -> None:
+    async def test_returns_cached_response_on_hit(self, mock_search_cache: Mock) -> None:
         """Should return cached response on hit."""
         cached = {"results": [], "meta": {"cache_hit": False}}
         mock_search_cache.get_cached_response.return_value = cached
 
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
         result = await service._check_cache("piano lessons", None, limit=20)
 
         assert result == cached
 
     @pytest.mark.asyncio
-    async def test_handles_cache_error_gracefully(
-        self, mock_db: Mock, mock_search_cache: Mock
-    ) -> None:
+    async def test_handles_cache_error_gracefully(self, mock_search_cache: Mock) -> None:
         """Should handle cache errors gracefully."""
         mock_search_cache.get_cached_response.side_effect = Exception("Cache error")
 
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
         result = await service._check_cache("piano lessons", None, limit=20)
 
         assert result is None
@@ -268,12 +256,11 @@ class TestBuildInstructorResponse:
 
     def test_builds_response_with_results(
         self,
-        mock_db: Mock,
         sample_parsed_query: ParsedQuery,
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
         """Should build response with instructor-level results."""
-        service = NLSearchService(mock_db)
+        service = NLSearchService()
         metrics = SearchMetrics(total_latency_ms=150)
 
         response = service._build_instructor_response(
@@ -294,12 +281,11 @@ class TestBuildInstructorResponse:
 
     def test_respects_limit(
         self,
-        mock_db: Mock,
         sample_parsed_query: ParsedQuery,
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
         """Should respect limit parameter."""
-        service = NLSearchService(mock_db)
+        service = NLSearchService()
         metrics = SearchMetrics()
 
         response = service._build_instructor_response(
@@ -313,11 +299,9 @@ class TestBuildInstructorResponse:
         assert len(response.results) == 1
         assert response.results[0].instructor_id == "usr_001"
 
-    def test_builds_empty_response(
-        self, mock_db: Mock, sample_parsed_query: ParsedQuery
-    ) -> None:
+    def test_builds_empty_response(self, sample_parsed_query: ParsedQuery) -> None:
         """Should build response with no results."""
-        service = NLSearchService(mock_db)
+        service = NLSearchService()
         metrics = SearchMetrics()
 
         response = service._build_instructor_response(
@@ -333,12 +317,11 @@ class TestBuildInstructorResponse:
 
     def test_includes_degradation_info(
         self,
-        mock_db: Mock,
         sample_parsed_query: ParsedQuery,
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
         """Should include degradation information in meta."""
-        service = NLSearchService(mock_db)
+        service = NLSearchService()
         metrics = SearchMetrics(
             degraded=True,
             degradation_reasons=["embedding_unavailable", "filter_fallback"],
@@ -357,12 +340,12 @@ class TestBuildInstructorResponse:
         assert "filter_fallback" in response.meta.degradation_reasons
 
     def test_includes_parsed_query_info(
-        self, mock_db: Mock, sample_instructor_results: List[NLSearchResultItem]
+        self, sample_instructor_results: List[NLSearchResultItem]
     ) -> None:
         """Should include parsed query info in meta."""
         from datetime import date
 
-        service = NLSearchService(mock_db)
+        service = NLSearchService()
         metrics = SearchMetrics()
 
         parsed = ParsedQuery(
@@ -390,7 +373,7 @@ class TestBuildInstructorResponse:
 class TestTransformInstructorResults:
     """Tests for transforming raw instructor results into response schema."""
 
-    def test_recomputes_best_match_after_price_filter(self, mock_db: Mock) -> None:
+    def test_recomputes_best_match_after_price_filter(self) -> None:
         """
         Price filtering must update best_match + relevance_score.
 
@@ -398,7 +381,7 @@ class TestTransformInstructorResults:
         service is filtered out by max_price, the instructor must be ranked by
         the best remaining affordable service (not the filtered one).
         """
-        service = NLSearchService(mock_db)
+        service = NLSearchService()
         parsed = ParsedQuery(
             original_query="jazz improv under $60",
             service_query="jazz improv",
@@ -483,10 +466,8 @@ class TestHydrateInstructorResults:
     """Tests for converting ranked candidates into instructor-level results."""
 
     @pytest.mark.asyncio
-    async def test_groups_by_instructor_and_picks_best_match_by_relevance(
-        self, mock_db: Mock
-    ) -> None:
-        service = NLSearchService(mock_db)
+    async def test_groups_by_instructor_and_picks_best_match_by_relevance(self) -> None:
+        service = NLSearchService()
 
         ranked = [
             RankedResult(
@@ -539,36 +520,46 @@ class TestHydrateInstructorResults:
             ),
         ]
 
-        service.retriever_repository.get_instructor_cards = Mock(
-            return_value=[
-                {
-                    "instructor_id": "usr_A",
-                    "first_name": "Alice",
-                    "last_initial": "A",
-                    "bio_snippet": "A bio",
-                    "years_experience": 10,
-                    "profile_picture_key": "photos/usr_A.jpg",
-                    "verified": True,
-                    "avg_rating": 4.9,
-                    "review_count": 50,
-                    "coverage_areas": ["Brooklyn"],
-                },
-                {
-                    "instructor_id": "usr_B",
-                    "first_name": "Bob",
-                    "last_initial": "B",
-                    "bio_snippet": "B bio",
-                    "years_experience": 5,
-                    "profile_picture_key": None,
-                    "verified": False,
-                    "avg_rating": 4.7,
-                    "review_count": 10,
-                    "coverage_areas": ["Manhattan"],
-                },
-            ]
-        )
+        instructor_cards = [
+            {
+                "instructor_id": "usr_A",
+                "first_name": "Alice",
+                "last_initial": "A",
+                "bio_snippet": "A bio",
+                "years_experience": 10,
+                "profile_picture_key": "photos/usr_A.jpg",
+                "verified": True,
+                "avg_rating": 4.9,
+                "review_count": 50,
+                "coverage_areas": ["Brooklyn"],
+            },
+            {
+                "instructor_id": "usr_B",
+                "first_name": "Bob",
+                "last_initial": "B",
+                "bio_snippet": "B bio",
+                "years_experience": 5,
+                "profile_picture_key": None,
+                "verified": False,
+                "avg_rating": 4.7,
+                "review_count": 10,
+                "coverage_areas": ["Manhattan"],
+            },
+        ]
 
-        results = await service._hydrate_instructor_results(ranked, limit=2)
+        class _DummySessionCtx:
+            def __enter__(self) -> Mock:  # type: ignore[override]
+                return Mock()
+
+            def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
+                return None
+
+        with (
+            patch("app.services.search.nl_search_service.get_db_session", return_value=_DummySessionCtx()),
+            patch("app.repositories.retriever_repository.RetrieverRepository") as mock_repo_cls,
+        ):
+            mock_repo_cls.return_value.get_instructor_cards = Mock(return_value=instructor_cards)
+            results = await service._hydrate_instructor_results(ranked, limit=2)
 
         assert [r.instructor_id for r in results] == ["usr_A", "usr_B"]
         assert results[0].best_match.service_id == "svc_a2"
@@ -584,9 +575,7 @@ class TestSearchPipeline:
     """Tests for full search pipeline."""
 
     @pytest.mark.asyncio
-    async def test_returns_cached_response(
-        self, mock_db: Mock, mock_search_cache: Mock
-    ) -> None:
+    async def test_returns_cached_response(self, mock_search_cache: Mock) -> None:
         """Should return cached response on cache hit."""
         cached_response = {
             "results": [],
@@ -604,7 +593,7 @@ class TestSearchPipeline:
         }
         mock_search_cache.get_cached_response.return_value = cached_response
 
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
         response = await service.search("piano")
 
         assert isinstance(response, NLSearchResponse)
@@ -613,7 +602,6 @@ class TestSearchPipeline:
     @pytest.mark.asyncio
     async def test_full_pipeline_on_cache_miss(
         self,
-        mock_db: Mock,
         mock_search_cache: Mock,
         sample_parsed_query: ParsedQuery,
         sample_instructor_results: List[NLSearchResultItem],
@@ -622,7 +610,7 @@ class TestSearchPipeline:
         mock_search_cache.get_cached_response.return_value = None
         mock_search_cache.get_cached_parsed_query.return_value = None
 
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
 
         retrieval_result = RetrievalResult(
             candidates=[
@@ -682,7 +670,6 @@ class TestSearchPipeline:
     @pytest.mark.asyncio
     async def test_falls_back_to_text_only_when_embedding_unavailable(
         self,
-        mock_db: Mock,
         mock_search_cache: Mock,
         sample_parsed_query: ParsedQuery,
         sample_instructor_results: List[NLSearchResultItem],
@@ -691,7 +678,7 @@ class TestSearchPipeline:
         mock_search_cache.get_cached_response.return_value = None
         mock_search_cache.get_cached_parsed_query.return_value = None
 
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
         retrieval_result = RetrievalResult(
             candidates=[],
             total_candidates=0,
@@ -734,10 +721,10 @@ class TestSearchPipeline:
 
     @pytest.mark.asyncio
     async def test_handles_parsing_failure(
-        self, mock_db: Mock, mock_search_cache: Mock, sample_parsed_query: ParsedQuery
+        self, mock_search_cache: Mock, sample_parsed_query: ParsedQuery
     ) -> None:
         """Should fall back to regex parser and mark degraded."""
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
         metrics = SearchMetrics()
 
         with (
@@ -745,10 +732,12 @@ class TestSearchPipeline:
                 "app.services.search.nl_search_service.hybrid_parse",
                 new_callable=AsyncMock,
             ) as mock_hybrid_parse,
-            patch.object(service.parser, "parse") as mock_fallback_parse,
+            patch("app.services.search.nl_search_service.QueryParser") as mock_parser_cls,
+            patch("app.services.search.nl_search_service.get_db_session") as mock_session_ctx,
         ):
             mock_hybrid_parse.side_effect = Exception("Parse error")
-            mock_fallback_parse.return_value = sample_parsed_query
+            mock_parser_cls.return_value.parse.return_value = sample_parsed_query
+            mock_session_ctx.return_value.__enter__.return_value = Mock()
 
             parsed = await service._parse_query("piano", metrics)
 
@@ -763,7 +752,6 @@ class TestLocationHandling:
     @pytest.mark.asyncio
     async def test_passes_location_to_filter(
         self,
-        mock_db: Mock,
         mock_search_cache: Mock,
         sample_parsed_query: ParsedQuery,
     ) -> None:
@@ -771,7 +759,7 @@ class TestLocationHandling:
         mock_search_cache.get_cached_response.return_value = None
         mock_search_cache.get_cached_parsed_query.return_value = None
 
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
         retrieval_result = RetrievalResult(
             candidates=[],
             total_candidates=0,
@@ -814,13 +802,12 @@ class TestResponseCaching:
     @pytest.mark.asyncio
     async def test_caches_response(
         self,
-        mock_db: Mock,
         mock_search_cache: Mock,
         sample_parsed_query: ParsedQuery,
         sample_instructor_results: List[NLSearchResultItem],
     ) -> None:
         """Should cache response after building."""
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
         metrics = SearchMetrics()
 
         response = service._build_instructor_response(
@@ -838,7 +825,6 @@ class TestResponseCaching:
     @pytest.mark.asyncio
     async def test_handles_cache_error(
         self,
-        mock_db: Mock,
         mock_search_cache: Mock,
         sample_parsed_query: ParsedQuery,
         sample_instructor_results: List[NLSearchResultItem],
@@ -846,7 +832,7 @@ class TestResponseCaching:
         """Should handle cache error gracefully."""
         mock_search_cache.cache_response.side_effect = Exception("Cache error")
 
-        service = NLSearchService(mock_db, search_cache=mock_search_cache)
+        service = NLSearchService(search_cache=mock_search_cache)
         metrics = SearchMetrics()
 
         response = service._build_instructor_response(

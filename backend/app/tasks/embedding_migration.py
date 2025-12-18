@@ -56,7 +56,7 @@ async def _maintain_embeddings_async() -> Dict[str, int]:
     cache = CacheService(db)
 
     try:
-        service = EmbeddingService(db, cache_service=cache)
+        service = EmbeddingService(cache_service=cache)
 
         total_updated = 0
         total_failed = 0
@@ -64,7 +64,7 @@ async def _maintain_embeddings_async() -> Dict[str, int]:
         # Process in batches until done or limit reached
         while total_updated + total_failed < MAX_SERVICES_PER_RUN:
             # Get services needing embedding
-            services = service.get_services_needing_embedding(limit=BATCH_SIZE)
+            services = service.get_services_needing_embedding(db, limit=BATCH_SIZE)
 
             if not services:
                 logger.info("No services need embedding updates")
@@ -82,6 +82,7 @@ async def _maintain_embeddings_async() -> Dict[str, int]:
                     text_hash = service.compute_text_hash(text)
 
                     success = service.update_service_embedding(
+                        db,
                         svc.id,
                         embeddings[svc.id],
                         text_hash,
@@ -153,7 +154,7 @@ async def _bulk_embed_async() -> Dict[str, int]:
     repo = ServiceCatalogRepository(db)
 
     try:
-        service = EmbeddingService(db, cache_service=cache)
+        service = EmbeddingService(cache_service=cache)
 
         # Get ALL services needing embedding (no limit)
         services = repo.get_all_services_missing_embedding()
@@ -180,6 +181,7 @@ async def _bulk_embed_async() -> Dict[str, int]:
                     text_hash = service.compute_text_hash(text)
 
                     success = service.update_service_embedding(
+                        db,
                         svc.id,
                         embeddings[svc.id],
                         text_hash,

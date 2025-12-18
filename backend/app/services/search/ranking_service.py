@@ -26,14 +26,13 @@ from datetime import date, datetime, timezone
 import logging
 import os
 import time as time_module
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
     from app.services.search.filter_service import FilteredCandidate
     from app.services.search.query_parser import ParsedQuery
 
+from app.database import get_db_session
 from app.repositories.ranking_repository import RankingRepository
 
 logger = logging.getLogger(__name__)
@@ -132,11 +131,10 @@ class RankingService:
 
     def __init__(
         self,
-        db: "Session",
         repository: Optional[RankingRepository] = None,
     ) -> None:
-        self.db = db
-        self.repository = repository or RankingRepository(db)
+        self._repository_override = repository
+        self.repository: RankingRepository = repository or cast(RankingRepository, None)
         self._global_avg_rating: Optional[float] = None
 
     @property
@@ -147,6 +145,29 @@ class RankingService:
         return self._global_avg_rating
 
     def rank_candidates(
+        self,
+        candidates: List["FilteredCandidate"],
+        parsed_query: "ParsedQuery",
+        user_location: Optional[Tuple[float, float]] = None,  # (lng, lat)
+    ) -> RankingResult:
+        """
+        Rank filtered candidates by multiple signals.
+
+        This method is synchronous and should be called via `asyncio.to_thread()` from async code.
+        It acquires a short-lived DB session for the duration of ranking.
+        """
+        if not candidates:
+            return RankingResult(results=[], total_results=0)
+
+        if self._repository_override is not None:
+            self.repository = self._repository_override
+            return self._rank_candidates_impl(candidates, parsed_query, user_location=user_location)
+
+        with get_db_session() as db:
+            self.repository = RankingRepository(db)
+            return self._rank_candidates_impl(candidates, parsed_query, user_location=user_location)
+
+    def _rank_candidates_impl(
         self,
         candidates: List["FilteredCandidate"],
         parsed_query: "ParsedQuery",

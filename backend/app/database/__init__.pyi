@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from contextlib import AbstractContextManager
 from typing import Any, Awaitable, Callable, TypedDict, TypeVar
 
 from sqlalchemy.engine import Engine
@@ -29,6 +30,8 @@ class Base(DeclarativeBase):
 
 def get_db() -> Generator[Session, None, None]: ...
 
+def get_db_session() -> AbstractContextManager[Session]: ...
+
 
 def get_db_pool_status() -> _PoolStatus: ...
 
@@ -54,6 +57,7 @@ SessionLocal: sessionmaker[Session]
 __all__ = [
     "Base",
     "get_db",
+    "get_db_session",
     "get_db_pool_status",
     "engine",
     "SessionLocal",
