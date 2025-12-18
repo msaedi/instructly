@@ -466,6 +466,13 @@ class BackgroundJob(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
+    __table_args__ = (
+        # Primary index for fetch_due() - most frequent query (Celery beat polling)
+        Index("ix_background_jobs_status_available", "status", "available_at"),
+        # Secondary index for type-based lookups (get_next_scheduled, get_pending_final_adverse_job)
+        Index("ix_background_jobs_type_status", "type", "status"),
+    )
+
 
 class BGCWebhookLog(Base):
     """Append-only record of recent Checkr webhook deliveries."""

@@ -139,14 +139,20 @@ def invalidate_cached_user_by_id_sync(user_id: str, db_session: Any) -> bool:
             logger.warning("[AUTH-CACHE] Cannot invalidate: user %s not found", user_id)
             return False
 
-        # Run async invalidation in a new event loop
-        # This is safe because we're in a sync context with no running loop
-        return asyncio.run(invalidate_cached_user(user.email))
-    except RuntimeError:
-        # Event loop already running - use to_thread pattern
-        # This shouldn't happen in normal sync service code
-        logger.warning("[AUTH-CACHE] Sync invalidation failed: event loop conflict")
-        return False
+        email = user.email
+
+        # Check if event loop is already running (e.g., in pytest)
+        # Must check BEFORE creating coroutine to avoid unawaited coroutine warning
+        try:
+            loop = asyncio.get_running_loop()
+            # Event loop is running - schedule as task (fire-and-forget)
+            # Cache invalidation is best-effort, so this is acceptable
+            loop.create_task(invalidate_cached_user(email))
+            logger.debug("[AUTH-CACHE] Scheduled async invalidation for %s", email)
+            return True
+        except RuntimeError:
+            # No running event loop - use asyncio.run()
+            return asyncio.run(invalidate_cached_user(email))
     except Exception as e:
         logger.warning("[AUTH-CACHE] Sync invalidation failed: %s", e)
         return False
