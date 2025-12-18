@@ -5,9 +5,11 @@ Handles query embedding (search-time) and service embedding (index-time).
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+import weakref
 
 from app.repositories.service_catalog_repository import ServiceCatalogRepository
 from app.services.search.circuit_breaker import EMBEDDING_CIRCUIT, CircuitOpenError
@@ -26,6 +28,13 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 EMBEDDING_CACHE_TTL = 60 * 60 * 24  # 24 hours
+
+_pending_by_loop: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, Dict[str, asyncio.Future[Optional[List[float]]]]]" = (
+    weakref.WeakKeyDictionary()
+)
+_locks_by_loop: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock]" = (
+    weakref.WeakKeyDictionary()
+)
 
 
 def _get_current_model() -> str:
@@ -92,23 +101,66 @@ class EmbeddingService:
             logger.warning("Embedding circuit is OPEN, returning None")
             return None
 
-        try:
-            # Generate embedding
-            embedding = await EMBEDDING_CIRCUIT.call(self.provider.embed, normalized)
+        pending_future: Optional[asyncio.Future[Optional[List[float]]]] = None
+        pending_lock: Optional[asyncio.Lock] = None
+        is_owner = False
 
-            # Cache result
-            if self.cache:
-                await self.cache.set(cache_key, embedding, ttl=EMBEDDING_CACHE_TTL)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None:
+            pending = _pending_by_loop.get(loop)
+            if pending is None:
+                pending = {}
+                _pending_by_loop[loop] = pending
+
+            pending_lock = _locks_by_loop.get(loop)
+            if pending_lock is None:
+                pending_lock = asyncio.Lock()
+                _locks_by_loop[loop] = pending_lock
+
+            async with pending_lock:
+                existing = pending.get(cache_key)
+                if existing is not None:
+                    pending_future = existing
+                else:
+                    pending_future = loop.create_future()
+                    pending[cache_key] = pending_future
+                    is_owner = True
+
+            if not is_owner:
+                assert pending_future is not None
+                logger.info("[EMBED] Coalesced request for: %s", normalized[:50])
+                return await pending_future
+
+        embedding: Optional[List[float]] = None
+        try:
+            try:
+                embedding = await EMBEDDING_CIRCUIT.call(self.provider.embed, normalized)
+            except CircuitOpenError:
+                logger.warning("Embedding circuit opened during call")
+                embedding = None
+            except Exception as e:
+                # Don't record_failure here - CircuitBreaker.call() already did
+                logger.error(f"Embedding generation failed: {e}")
+                embedding = None
+
+            if embedding is not None and self.cache:
+                try:
+                    await self.cache.set(cache_key, embedding, ttl=EMBEDDING_CACHE_TTL)
+                except Exception as cache_error:
+                    logger.warning(f"Failed to cache embedding: {cache_error}")
 
             return embedding
-
-        except CircuitOpenError:
-            logger.warning("Embedding circuit opened during call")
-            return None
-        except Exception as e:
-            # Don't record_failure here - CircuitBreaker.call() already did
-            logger.error(f"Embedding generation failed: {e}")
-            return None
+        finally:
+            if loop is not None and pending_future is not None and is_owner:
+                if not pending_future.done():
+                    pending_future.set_result(embedding)
+                pending = _pending_by_loop.get(loop)
+                if pending is not None:
+                    pending.pop(cache_key, None)
 
     def _query_cache_key(self, normalized_query: str) -> str:
         """Generate cache key for query embedding."""

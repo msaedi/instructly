@@ -5,6 +5,7 @@ Uses mock provider to avoid API calls.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -167,6 +168,62 @@ class TestEmbeddingService:
 
         # Mock provider is deterministic, so normalized queries should match
         assert result1 == result2
+
+    @pytest.mark.asyncio
+    async def test_embed_query_coalesces_concurrent_requests(
+        self, mock_cache: AsyncMock
+    ) -> None:
+        """Concurrent identical queries should share a single provider call."""
+
+        class SlowCountingProvider(MockEmbeddingProvider):
+            def __init__(self) -> None:
+                super().__init__(dimensions=1536)
+                self.calls = 0
+
+            async def embed(self, text: str) -> list[float]:
+                self.calls += 1
+                await asyncio.sleep(0.05)
+                return await super().embed(text)
+
+        provider = SlowCountingProvider()
+        service_a = EmbeddingService(cache_service=mock_cache, provider=provider)
+        service_b = EmbeddingService(cache_service=mock_cache, provider=provider)
+
+        results = await asyncio.gather(
+            service_a.embed_query("PIANO LESSONS"),
+            service_b.embed_query("  piano lessons  "),
+        )
+
+        assert provider.calls == 1
+        assert results[0] == results[1]
+
+    @pytest.mark.asyncio
+    async def test_embed_query_coalesces_failures(
+        self, mock_cache: AsyncMock
+    ) -> None:
+        """If the shared call fails, all waiters should return None (no hang)."""
+
+        class FailingProvider(MockEmbeddingProvider):
+            def __init__(self) -> None:
+                super().__init__(dimensions=1536)
+                self.calls = 0
+
+            async def embed(self, text: str) -> list[float]:
+                self.calls += 1
+                await asyncio.sleep(0.05)
+                raise RuntimeError("boom")
+
+        provider = FailingProvider()
+        service_a = EmbeddingService(cache_service=mock_cache, provider=provider)
+        service_b = EmbeddingService(cache_service=mock_cache, provider=provider)
+
+        results = await asyncio.gather(
+            service_a.embed_query("piano lessons"),
+            service_b.embed_query("piano lessons"),
+        )
+
+        assert provider.calls == 1
+        assert results == [None, None]
 
 
 class TestEmbeddingTextGeneration:
