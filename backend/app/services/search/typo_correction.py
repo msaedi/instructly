@@ -1,192 +1,37 @@
-# backend/app/services/search/typo_correction.py
 """
-SymSpell-based typo correction for search queries.
+Lightweight SymSpell-based typo correction for search queries.
 
-Provides fast, accurate typo correction using the SymSpell algorithm.
-Includes domain-specific terms for music, tutoring, sports, and NYC locations.
+Key constraints:
+- Use a small domain-specific dictionary to keep memory low.
+- Load at module import time so Gunicorn `preload_app=True` can share pages via COW.
 """
+
+from __future__ import annotations
+
 from functools import lru_cache
 import json
 import logging
 import os
 from pathlib import Path
+import re
 from typing import Optional, Tuple
 
 from symspellpy import SymSpell, Verbosity
 
 logger = logging.getLogger(__name__)
 
-# Singleton instance
-_symspell: Optional[SymSpell] = None
+# Optimized settings:
+# - Edit distance 1 catches the majority of real-world typos with far less memory than ED=2.
+# - Smaller prefix further reduces SymSpell delete-table size.
+MAX_EDIT_DISTANCE = 1
+PREFIX_LENGTH = 5
 
+# Dictionary path (repo file, not symspellpy's full English dictionary).
+DOMAIN_DICTIONARY_PATH = Path(__file__).resolve().parents[3] / "data" / "domain_dictionary.txt"
 
-def get_symspell() -> SymSpell:
-    """Get or create SymSpell instance with dictionary loaded."""
-    global _symspell
-    if _symspell is None:
-        _symspell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
-
-        # Try to load frequency dictionary from symspellpy package
-        try:
-            from importlib.resources import files
-
-            dict_path = str(files("symspellpy").joinpath("frequency_dictionary_en_82_765.txt"))
-            if os.path.exists(dict_path):
-                _symspell.load_dictionary(dict_path, term_index=0, count_index=1)
-                logger.info(f"Loaded SymSpell dictionary from {dict_path}")
-            else:
-                logger.warning("SymSpell dictionary not found, using domain terms only")
-        except Exception as e:
-            logger.warning(f"Failed to load SymSpell dictionary: {e}")
-
-        # Load custom domain terms
-        _load_domain_dictionary(_symspell)
-
-    return _symspell
-
-
-def _load_domain_dictionary(sym: SymSpell) -> None:
-    """Add domain-specific terms with very high frequency to override general English."""
-    # Use frequencies higher than common English words (which max around 100M)
-    # to ensure domain terms are always preferred for typo correction
-    HIGH_FREQ = 200_000_000  # Higher than any common English word
-    MED_FREQ = 150_000_000
-    LOW_FREQ = 100_000_000
-
-    domain_terms = [
-        # Music instruments and lessons - highest priority
-        ("piano", HIGH_FREQ),
-        ("guitar", HIGH_FREQ),
-        ("violin", HIGH_FREQ),
-        ("drums", HIGH_FREQ),
-        ("saxophone", MED_FREQ),
-        ("cello", MED_FREQ),
-        ("flute", MED_FREQ),
-        ("trumpet", MED_FREQ),
-        ("ukulele", MED_FREQ),
-        ("vocals", MED_FREQ),
-        ("singing", HIGH_FREQ),
-        ("voice", MED_FREQ),
-        ("bass", MED_FREQ),
-        ("clarinet", LOW_FREQ),
-        ("trombone", LOW_FREQ),
-        ("harmonica", LOW_FREQ),
-        # Tutoring subjects
-        ("tutoring", HIGH_FREQ),
-        ("tutor", HIGH_FREQ),
-        ("math", HIGH_FREQ),
-        ("mathematics", MED_FREQ),
-        ("algebra", MED_FREQ),
-        ("calculus", MED_FREQ),
-        ("geometry", MED_FREQ),
-        ("trigonometry", LOW_FREQ),
-        ("statistics", LOW_FREQ),
-        ("physics", MED_FREQ),
-        ("chemistry", MED_FREQ),
-        ("biology", MED_FREQ),
-        ("science", MED_FREQ),
-        ("english", HIGH_FREQ),
-        ("writing", HIGH_FREQ),
-        ("reading", HIGH_FREQ),
-        ("essay", MED_FREQ),
-        ("grammar", LOW_FREQ),
-        ("literature", LOW_FREQ),
-        ("history", MED_FREQ),
-        ("economics", LOW_FREQ),
-        # Test prep
-        ("sat", HIGH_FREQ),
-        ("act", MED_FREQ),
-        ("gre", MED_FREQ),
-        ("gmat", MED_FREQ),
-        ("lsat", MED_FREQ),
-        ("mcat", MED_FREQ),
-        ("shsat", LOW_FREQ),
-        # Languages
-        ("spanish", HIGH_FREQ),
-        ("french", HIGH_FREQ),
-        ("mandarin", MED_FREQ),
-        ("chinese", HIGH_FREQ),
-        ("japanese", MED_FREQ),
-        ("korean", MED_FREQ),
-        ("german", MED_FREQ),
-        ("italian", MED_FREQ),
-        ("portuguese", LOW_FREQ),
-        ("russian", LOW_FREQ),
-        ("arabic", LOW_FREQ),
-        ("hebrew", LOW_FREQ),
-        # Sports and fitness
-        ("tennis", HIGH_FREQ),
-        ("swimming", HIGH_FREQ),
-        ("yoga", HIGH_FREQ),
-        ("pilates", MED_FREQ),
-        ("basketball", MED_FREQ),
-        ("soccer", MED_FREQ),
-        ("golf", MED_FREQ),
-        ("boxing", LOW_FREQ),
-        ("martial", LOW_FREQ),
-        ("karate", LOW_FREQ),
-        ("taekwondo", LOW_FREQ),
-        ("judo", LOW_FREQ),
-        ("fencing", LOW_FREQ),
-        # Arts
-        ("painting", MED_FREQ),
-        ("drawing", MED_FREQ),
-        ("photography", MED_FREQ),
-        ("pottery", LOW_FREQ),
-        ("sculpting", LOW_FREQ),
-        ("dance", MED_FREQ),
-        ("ballet", LOW_FREQ),
-        # Kids/age groups
-        ("toddler", MED_FREQ),
-        ("toddlers", MED_FREQ),
-        ("preschool", MED_FREQ),
-        ("kindergarten", MED_FREQ),
-        ("kids", HIGH_FREQ),
-        ("children", MED_FREQ),
-        ("beginner", MED_FREQ),
-        ("beginners", MED_FREQ),
-        ("advanced", LOW_FREQ),
-        ("intermediate", LOW_FREQ),
-        # NYC boroughs
-        ("manhattan", HIGH_FREQ),
-        ("brooklyn", HIGH_FREQ),
-        ("queens", HIGH_FREQ),
-        ("bronx", HIGH_FREQ),
-        ("staten", MED_FREQ),
-        # NYC neighborhoods
-        ("williamsburg", MED_FREQ),
-        ("bushwick", LOW_FREQ),
-        ("astoria", LOW_FREQ),
-        ("harlem", MED_FREQ),
-        ("chelsea", MED_FREQ),
-        ("soho", LOW_FREQ),
-        ("tribeca", LOW_FREQ),
-        ("greenpoint", LOW_FREQ),
-        ("flushing", LOW_FREQ),
-        ("midtown", MED_FREQ),
-        # Common lesson-related words
-        ("lessons", HIGH_FREQ),
-        ("lesson", HIGH_FREQ),
-        ("classes", MED_FREQ),
-        ("class", MED_FREQ),
-        ("instructor", MED_FREQ),
-        ("teacher", MED_FREQ),
-        ("coach", MED_FREQ),
-        ("private", MED_FREQ),
-        ("online", MED_FREQ),
-        ("virtual", LOW_FREQ),
-        ("affordable", MED_FREQ),
-        ("cheap", LOW_FREQ),
-        ("budget", LOW_FREQ),
-        ("expensive", LOW_FREQ),
-        ("premium", LOW_FREQ),
-    ]
-
-    for term, freq in domain_terms:
-        # Create entry with high frequency to prioritize domain terms
-        sym.create_dictionary_entry(term, freq)
-
-    logger.info(f"Loaded {len(domain_terms)} domain-specific terms")
+# Location aliases (single-token) used to protect abbreviations like "ues" and "lic"
+# from being "corrected" into unrelated common words.
+LOCATION_ALIASES_JSON_PATH = Path(__file__).resolve().parents[3] / "data" / "location_aliases.json"
 
 
 # Words to skip during correction (prepositions, articles, etc.)
@@ -244,13 +89,11 @@ SKIP_WORDS = frozenset(
     }
 )
 
-
-import re as _re
-
 # Pattern to match time tokens like "5pm", "10am", "3:00pm"
-TIME_TOKEN_PATTERN = _re.compile(r"^\d{1,2}(:\d{2})?(am|pm)$", _re.IGNORECASE)
+TIME_TOKEN_PATTERN = re.compile(r"^\d{1,2}(:\d{2})?(am|pm)$", re.IGNORECASE)
 
-LOCATION_ALIASES_JSON_PATH = Path(__file__).resolve().parents[3] / "data" / "location_aliases.json"
+# Strip leading/trailing punctuation for protected-token checks, while keeping inner punctuation.
+TOKEN_STRIP_PATTERN = re.compile(r"^[^a-z0-9]+|[^a-z0-9]+$", re.IGNORECASE)
 
 
 @lru_cache(maxsize=1)
@@ -260,6 +103,7 @@ def load_location_alias_tokens() -> frozenset[str]:
 
     Used to keep typo-correction protections DRY with the alias seeding source-of-truth.
     """
+
     try:
         payload = json.loads(LOCATION_ALIASES_JSON_PATH.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -268,11 +112,11 @@ def load_location_alias_tokens() -> frozenset[str]:
             str(LOCATION_ALIASES_JSON_PATH),
         )
         return frozenset()
-    except Exception as e:
+    except Exception as exc:
         logger.warning(
             "Failed to load location_aliases.json at %s (%s); using fallback protected tokens only",
             str(LOCATION_ALIASES_JSON_PATH),
-            e,
+            exc,
         )
         return frozenset()
 
@@ -296,25 +140,83 @@ def load_location_alias_tokens() -> frozenset[str]:
     return frozenset(tokens)
 
 
-# Tokens that should never be typo-corrected.
-#
-# Many location abbreviations (e.g., "ues") get "corrected" into common English words (e.g., "us"),
-# which then breaks downstream location extraction. We source tokens from location_aliases.json to stay DRY.
 FALLBACK_PROTECTED_TOKENS = frozenset({"nyc"})
 PROTECTED_TOKENS = load_location_alias_tokens() | FALLBACK_PROTECTED_TOKENS
 
-# Strip leading/trailing punctuation for protected-token checks, while keeping inner punctuation
-# (e.g., "bed-stuy" remains "bed-stuy", "ues," becomes "ues").
-TOKEN_STRIP_PATTERN = _re.compile(r"^[^a-z0-9]+|[^a-z0-9]+$", _re.IGNORECASE)
+
+def _load_fallback_dictionary(sym: SymSpell) -> None:
+    # Minimal vocabulary for resiliency if the file isn't present for some reason.
+    fallback = [
+        ("piano", 1_000_000),
+        ("guitar", 1_000_000),
+        ("violin", 900_000),
+        ("lessons", 1_000_000),
+        ("lesson", 900_000),
+        ("tutor", 900_000),
+        ("tutoring", 800_000),
+        ("math", 1_000_000),
+        ("swimming", 800_000),
+        ("brooklyn", 900_000),
+        ("manhattan", 900_000),
+    ]
+    for term, freq in fallback:
+        sym.create_dictionary_entry(term, freq)
 
 
-def correct_typos(text: str, max_edit_distance: int = 2) -> Tuple[str, bool]:
+def _initialize_symspell() -> Optional[SymSpell]:
+    sym = SymSpell(max_dictionary_edit_distance=MAX_EDIT_DISTANCE, prefix_length=PREFIX_LENGTH)
+
+    try:
+        if DOMAIN_DICTIONARY_PATH.exists():
+            sym.load_dictionary(
+                str(DOMAIN_DICTIONARY_PATH),
+                term_index=0,
+                count_index=1,
+                separator=" ",
+            )
+            logger.info(
+                "[SEARCH] Loaded SymSpell domain dictionary (%d words, ED=%d, prefix=%d) from %s",
+                len(sym.words),
+                MAX_EDIT_DISTANCE,
+                PREFIX_LENGTH,
+                str(DOMAIN_DICTIONARY_PATH),
+            )
+        else:
+            logger.warning(
+                "[SEARCH] Domain dictionary not found at %s; using fallback vocabulary",
+                str(DOMAIN_DICTIONARY_PATH),
+            )
+            _load_fallback_dictionary(sym)
+    except Exception as exc:
+        logger.warning("[SEARCH] Failed to load SymSpell domain dictionary: %s", exc)
+        try:
+            _load_fallback_dictionary(sym)
+        except Exception:
+            return None
+
+    return sym
+
+
+# -----------------------------------------------------------------------------
+# CRITICAL: Load at module import time for copy-on-write sharing.
+# This runs once in the Gunicorn master process when `preload_app=True`.
+# -----------------------------------------------------------------------------
+_symspell: Optional[SymSpell] = None
+if os.getenv("PYTEST_CURRENT_TEST") is None:
+    _symspell = _initialize_symspell()
+
+
+def get_symspell() -> Optional[SymSpell]:
+    """Return SymSpell instance (lazy-init if skipped at import time)."""
+    global _symspell
+    if _symspell is None:
+        _symspell = _initialize_symspell()
+    return _symspell
+
+
+def correct_typos(text: str, max_edit_distance: int = MAX_EDIT_DISTANCE) -> Tuple[str, bool]:
     """
     Correct typos in search text.
-
-    Args:
-        text: Input text to correct
-        max_edit_distance: Maximum edit distance for corrections (1 or 2)
 
     Returns:
         Tuple of (corrected_text, was_corrected)
@@ -323,8 +225,13 @@ def correct_typos(text: str, max_edit_distance: int = 2) -> Tuple[str, bool]:
         return text, False
 
     sym = get_symspell()
+    if sym is None:
+        return text, False
+
+    max_edit_distance = max(0, min(int(max_edit_distance), MAX_EDIT_DISTANCE))
+
     words = text.lower().split()
-    corrected_words = []
+    corrected_words: list[str] = []
     was_corrected = False
 
     for word in words:
@@ -333,8 +240,10 @@ def correct_typos(text: str, max_edit_distance: int = 2) -> Tuple[str, bool]:
             corrected_words.append(core)
             continue
 
-        # Skip short words, numbers, and special tokens
-        if len(word) <= 2 or word.isdigit() or word.startswith("$"):
+        # Skip short words, numbers, and special tokens.
+        # Domain dictionaries are intentionally small, so correcting very short tokens (3 chars)
+        # is more likely to corrupt meaningful abbreviations ("wed" -> "web", "act" -> "art", etc.).
+        if len(word) <= 3 or word.isdigit() or word.startswith("$"):
             corrected_words.append(word)
             continue
 
@@ -348,14 +257,10 @@ def correct_typos(text: str, max_edit_distance: int = 2) -> Tuple[str, bool]:
             corrected_words.append(word)
             continue
 
-        # Check for correction
         suggestions = sym.lookup(word, Verbosity.CLOSEST, max_edit_distance=max_edit_distance)
-
         if suggestions and suggestions[0].distance > 0:
-            # Found a correction with actual distance
             corrected_words.append(suggestions[0].term)
             was_corrected = True
-            logger.debug(f"Typo corrected: '{word}' -> '{suggestions[0].term}'")
         else:
             corrected_words.append(word)
 
@@ -363,24 +268,12 @@ def correct_typos(text: str, max_edit_distance: int = 2) -> Tuple[str, bool]:
 
 
 def suggest_correction(text: str) -> Optional[str]:
-    """
-    Get correction suggestion for display to user.
-
-    Returns None if no correction needed.
-    """
+    """Return suggested corrected query (or None if no correction applied)."""
     corrected, was_corrected = correct_typos(text)
     return corrected if was_corrected else None
 
 
 @lru_cache(maxsize=1000)
 def correct_typos_cached(text: str) -> Tuple[str, bool]:
-    """
-    Cached version of correct_typos for frequently used queries.
-
-    Args:
-        text: Input text to correct
-
-    Returns:
-        Tuple of (corrected_text, was_corrected)
-    """
+    """Cached version of correct_typos for frequently used queries."""
     return correct_typos(text)

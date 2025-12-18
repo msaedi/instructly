@@ -53,6 +53,7 @@ from app.services.search.patterns import (
     WEEKDAYS,
     WEEKEND_PATTERN,
 )
+from app.services.search.typo_correction import correct_typos_cached
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -159,8 +160,6 @@ class QueryParser:
         original_query = query
 
         # Step 1: Apply typo correction
-        from app.services.search.typo_correction import correct_typos_cached
-
         corrected_text, was_corrected = correct_typos_cached(query)
         corrected_query = corrected_text if was_corrected else None
 
