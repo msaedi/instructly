@@ -221,11 +221,12 @@ class User(Base):
     )
 
     def __init__(self, **kwargs: Any) -> None:
-        """Initialize a new user and log the creation."""
+        """Initialize a new user."""
         super().__init__(**kwargs)
-        logger.info(
-            f"Creating new {kwargs.get('role', 'unknown')} user with email: {kwargs.get('email', 'unknown')}"
-        )
+        # Only log actual new user creations (with role), not transient/cache reconstructions
+        role = kwargs.get("role")
+        if role:
+            logger.info(f"Creating new {role} user with email: {kwargs.get('email', 'unknown')}")
 
     def __repr__(self) -> str:
         """String representation of the User object."""

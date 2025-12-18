@@ -90,11 +90,74 @@ async def set_cached_user(email: str, user_data: Dict[str, Any]) -> None:
         logger.warning("[AUTH-CACHE] Cache write failed: %s", e)
 
 
-def _user_to_dict(user: User) -> Dict[str, Any]:
+async def invalidate_cached_user(email: str) -> bool:
+    """Invalidate user data in Redis cache.
+
+    Call this when user data changes (role change, beta access granted/revoked, etc.)
+    to ensure the next request fetches fresh data from the database.
+
+    Args:
+        email: User's email address
+
+    Returns:
+        True if cache entry was deleted, False if not found or error
+    """
+    try:
+        redis = await _get_auth_redis_client()
+        if redis is None:
+            return False
+
+        cache_key = f"{USER_CACHE_PREFIX}{email}"
+        deleted = await redis.delete(cache_key)
+        if deleted:
+            logger.info("[AUTH-CACHE] INVALIDATED user %s", email)
+        return bool(deleted)
+    except Exception as e:
+        logger.warning("[AUTH-CACHE] Cache invalidation failed: %s", e)
+        return False
+
+
+def invalidate_cached_user_by_id_sync(user_id: str, db_session: Any) -> bool:
+    """Sync helper to invalidate user cache by user_id.
+
+    Looks up user email and invalidates their cache. For use in sync contexts
+    (like BetaService) where async calls aren't convenient.
+
+    Args:
+        user_id: User's ULID
+        db_session: SQLAlchemy session to look up user email
+
+    Returns:
+        True if cache was invalidated, False otherwise
+    """
+    try:
+        from ..repositories.user_repository import UserRepository
+
+        user_repo = UserRepository(db_session)
+        user = user_repo.get_by_id(user_id)
+        if not user:
+            logger.warning("[AUTH-CACHE] Cannot invalidate: user %s not found", user_id)
+            return False
+
+        # Run async invalidation in a new event loop
+        # This is safe because we're in a sync context with no running loop
+        return asyncio.run(invalidate_cached_user(user.email))
+    except RuntimeError:
+        # Event loop already running - use to_thread pattern
+        # This shouldn't happen in normal sync service code
+        logger.warning("[AUTH-CACHE] Sync invalidation failed: event loop conflict")
+        return False
+    except Exception as e:
+        logger.warning("[AUTH-CACHE] Sync invalidation failed: %s", e)
+        return False
+
+
+def _user_to_dict(user: User, beta_access: Optional[Any] = None) -> Dict[str, Any]:
     """Extract user attributes to dict while session is still open.
 
     Args:
         user: User ORM object with active session
+        beta_access: Optional BetaAccess ORM object to include in cached data
 
     Returns:
         Dict with user data including permissions and all fields needed by /auth/me
@@ -107,7 +170,7 @@ def _user_to_dict(user: User) -> Dict[str, Any]:
         for perm in role.permissions:
             permissions.add(perm.name)
 
-    return {
+    result: Dict[str, Any] = {
         "id": user.id,
         "email": user.email,
         "is_active": user.is_active,
@@ -125,7 +188,14 @@ def _user_to_dict(user: User) -> Dict[str, Any]:
         # Role names for direct use in /auth/me response
         "roles": role_names,
         "permissions": list(permissions),  # Cache permissions for SSE permission checks
+        # Beta access cached to avoid per-request DB query in /auth/me
+        "beta_access": bool(beta_access),
+        "beta_role": getattr(beta_access, "role", None) if beta_access else None,
+        "beta_phase": getattr(beta_access, "phase", None) if beta_access else None,
+        "beta_invited_by": getattr(beta_access, "invited_by_code", None) if beta_access else None,
     }
+
+    return result
 
 
 def _sync_user_lookup(email: str) -> Optional[Dict[str, Any]]:
@@ -140,12 +210,15 @@ def _sync_user_lookup(email: str) -> Optional[Dict[str, Any]]:
     Uses get_by_email_with_roles_and_permissions() to load permissions in one query,
     avoiding a separate DB query for permission checks in SSE.
 
+    Also fetches beta_access to cache it and avoid per-request queries in /auth/me.
+
     Args:
         email: User's email address
 
     Returns:
         Dict with user data if found, None otherwise
     """
+    from ..repositories.beta_repository import BetaAccessRepository
     from ..repositories.user_repository import UserRepository
 
     db = SessionLocal()
@@ -154,9 +227,12 @@ def _sync_user_lookup(email: str) -> Optional[Dict[str, Any]]:
         # Use method that eager-loads roles+permissions in one query
         user = user_repo.get_by_email_with_roles_and_permissions(email)
         if user:
+            # Also fetch beta_access to cache it (avoids per-request query in /auth/me)
+            beta_repo = BetaAccessRepository(db)
+            beta_access = beta_repo.get_latest_for_user(user.id)
             # Extract attributes BEFORE closing session, return as dict
             # Roles and permissions are explicitly loaded via joinedload
-            return _user_to_dict(user)
+            return _user_to_dict(user, beta_access)
         return None
     finally:
         db.rollback()  # Clean up transaction before returning to pool
@@ -169,12 +245,15 @@ def _sync_user_lookup_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     Uses UserRepository to follow the repository pattern.
     Uses get_with_roles_and_permissions() to load permissions in one query.
 
+    Also fetches beta_access to cache it and avoid per-request queries in /auth/me.
+
     Args:
         user_id: User's ULID
 
     Returns:
         Dict with user data if found, None otherwise
     """
+    from ..repositories.beta_repository import BetaAccessRepository
     from ..repositories.user_repository import UserRepository
 
     db = SessionLocal()
@@ -183,8 +262,11 @@ def _sync_user_lookup_by_id(user_id: str) -> Optional[Dict[str, Any]]:
         # Use method that eager-loads roles+permissions in one query
         user = user_repo.get_with_roles_and_permissions(user_id)
         if user:
+            # Also fetch beta_access to cache it (avoids per-request query in /auth/me)
+            beta_repo = BetaAccessRepository(db)
+            beta_access = beta_repo.get_latest_for_user(user.id)
             # Roles and permissions are explicitly loaded via joinedload
-            return _user_to_dict(user)
+            return _user_to_dict(user, beta_access)
         return None
     finally:
         db.rollback()
@@ -302,6 +384,12 @@ def create_transient_user(user_data: Dict[str, Any]) -> User:
 
     # Store cached role names for /auth/me response (avoids re-extracting)
     setattr(user, "_cached_role_names", list(user_data.get("roles", [])))
+
+    # Store cached beta_access for /auth/me (avoids per-request DB query)
+    setattr(user, "_cached_beta_access", user_data.get("beta_access", False))
+    setattr(user, "_cached_beta_role", user_data.get("beta_role"))
+    setattr(user, "_cached_beta_phase", user_data.get("beta_phase"))
+    setattr(user, "_cached_beta_invited_by", user_data.get("beta_invited_by"))
 
     return user
 

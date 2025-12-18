@@ -133,6 +133,13 @@ class BetaService(BaseService):
         grant = self.access.grant_access(
             user_id=user_id, role=role, phase=phase, invited_by_code=code
         )
+
+        # Invalidate user's auth cache so next /auth/me sees new beta_access
+        if grant:
+            from ..core.auth_cache import invalidate_cached_user_by_id_sync
+
+            invalidate_cached_user_by_id_sync(user_id, self.db)
+
         return grant, None
 
     @BaseService.measure_operation("beta_invite_sent")

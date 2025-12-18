@@ -42,13 +42,26 @@ IS_SQLITE = os.getenv("DB_DIALECT", "").lower().startswith("sqlite")
 
 
 class BookingStatus(str, Enum):
-    """Booking lifecycle statuses."""
+    """Booking lifecycle statuses.
+
+    Case-insensitive: accepts 'completed', 'COMPLETED', or 'Completed'.
+    """
 
     PENDING = "PENDING"  # Reserved for future use
     CONFIRMED = "CONFIRMED"  # Default - instant booking
     COMPLETED = "COMPLETED"  # Lesson completed
     CANCELLED = "CANCELLED"  # Booking cancelled
     NO_SHOW = "NO_SHOW"  # Student didn't attend
+
+    @classmethod
+    def _missing_(cls, value: object) -> "BookingStatus | None":
+        """Handle case-insensitive enum lookup."""
+        if isinstance(value, str):
+            upper_value = value.upper()
+            for member in cls:
+                if member.value == upper_value:
+                    return member
+        return None
 
 
 class LocationType(str, Enum):
