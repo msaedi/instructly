@@ -18,7 +18,6 @@ import {
   markMessagesAsReadImperative,
 } from '@/src/api/services/messages';
 import { sendMessage as sendConversationMessage } from '@/src/api/services/conversations';
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import type {
   ConversationEntry,
   MessageWithAttachments,
@@ -225,7 +224,7 @@ export function useMessageThread({
     lastHistoryAppliedRef.current = dedupeKey;
 
     const mappedMessages = messages.map((msg) =>
-      mapMessageFromResponse(msg as unknown as MessageResponse, conversation, currentUserId)
+      mapMessageFromResponse(msg, conversation, currentUserId)
     );
 
     // Merge history with any SSE-only messages we already have
@@ -250,7 +249,7 @@ export function useMessageThread({
 
     // Update conversation unread count
     const unreadCount = computeUnreadFromMessages(
-      messages as unknown as MessageResponse[],
+      messages,
       conversation,
       currentUserId
     );
@@ -308,7 +307,7 @@ export function useMessageThread({
     if (!currentUserId) return;
 
     const mappedMessage = mapMessageFromResponse(
-      message as MessageResponse,
+      message,
       activeConversation,
       currentUserId
     );

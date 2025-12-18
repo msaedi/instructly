@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -44,14 +41,11 @@ import type {
   SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams,
   StartOnboardingApiV1PaymentsConnectOnboardPostParams,
   TransactionHistoryItem,
-  WebhookResponse
+  WebhookResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Create a checkout/payment for a booking.
@@ -67,67 +61,86 @@ Raises:
  * @summary Create Checkout
  */
 export const createCheckoutApiV1PaymentsCheckoutPost = (
-    createCheckoutRequest: CreateCheckoutRequest,
- signal?: AbortSignal
+  createCheckoutRequest: CreateCheckoutRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<CheckoutResponse>({
+    url: `/api/v1/payments/checkout`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: createCheckoutRequest,
+    signal,
+  });
+};
 
+export const getCreateCheckoutApiV1PaymentsCheckoutPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>,
+    TError,
+    { data: CreateCheckoutRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>,
+  TError,
+  { data: CreateCheckoutRequest },
+  TContext
+> => {
+  const mutationKey = ['createCheckoutApiV1PaymentsCheckoutPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<CheckoutResponse>(
-      {url: `/api/v1/payments/checkout`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: createCheckoutRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>,
+    { data: CreateCheckoutRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return createCheckoutApiV1PaymentsCheckoutPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getCreateCheckoutApiV1PaymentsCheckoutPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>, TError,{data: CreateCheckoutRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>, TError,{data: CreateCheckoutRequest}, TContext> => {
+export type CreateCheckoutApiV1PaymentsCheckoutPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>
+>;
+export type CreateCheckoutApiV1PaymentsCheckoutPostMutationBody = CreateCheckoutRequest;
+export type CreateCheckoutApiV1PaymentsCheckoutPostMutationError = ErrorType<HTTPValidationError>;
 
-const mutationKey = ['createCheckoutApiV1PaymentsCheckoutPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>, {data: CreateCheckoutRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  createCheckoutApiV1PaymentsCheckoutPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CreateCheckoutApiV1PaymentsCheckoutPostMutationResult = NonNullable<Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>>
-    export type CreateCheckoutApiV1PaymentsCheckoutPostMutationBody = CreateCheckoutRequest
-    export type CreateCheckoutApiV1PaymentsCheckoutPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Create Checkout
  */
-export const useCreateCheckoutApiV1PaymentsCheckoutPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>, TError,{data: CreateCheckoutRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>,
-        TError,
-        {data: CreateCheckoutRequest},
-        TContext
-      > => {
+export const useCreateCheckoutApiV1PaymentsCheckoutPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>,
+      TError,
+      { data: CreateCheckoutRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createCheckoutApiV1PaymentsCheckoutPost>>,
+  TError,
+  { data: CreateCheckoutRequest },
+  TContext
+> => {
+  const mutationOptions = getCreateCheckoutApiV1PaymentsCheckoutPostMutationOptions(options);
 
-      const mutationOptions = getCreateCheckoutApiV1PaymentsCheckoutPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get a link to the Stripe Express dashboard for an instructor.
 
 Returns:
@@ -137,94 +150,141 @@ Raises:
     HTTPException: If dashboard link creation fails
  * @summary Get Dashboard Link
  */
-export const getDashboardLinkApiV1PaymentsConnectDashboardGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<DashboardLinkResponse>(
-      {url: `/api/v1/payments/connect/dashboard`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getDashboardLinkApiV1PaymentsConnectDashboardGet = (signal?: AbortSignal) => {
+  return customFetch<DashboardLinkResponse>({
+    url: `/api/v1/payments/connect/dashboard`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetDashboardLinkApiV1PaymentsConnectDashboardGetQueryKey = () => {
-    return [
-    `/api/v1/payments/connect/dashboard`
-    ] as const;
-    }
+  return [`/api/v1/payments/connect/dashboard`] as const;
+};
 
+export const getGetDashboardLinkApiV1PaymentsConnectDashboardGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetDashboardLinkApiV1PaymentsConnectDashboardGetQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ?? getGetDashboardLinkApiV1PaymentsConnectDashboardGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>
+  > = ({ signal }) => getDashboardLinkApiV1PaymentsConnectDashboardGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetDashboardLinkApiV1PaymentsConnectDashboardGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetDashboardLinkApiV1PaymentsConnectDashboardGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>
+>;
+export type GetDashboardLinkApiV1PaymentsConnectDashboardGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>> = ({ signal }) => getDashboardLinkApiV1PaymentsConnectDashboardGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetDashboardLinkApiV1PaymentsConnectDashboardGetQueryResult = NonNullable<Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>>
-export type GetDashboardLinkApiV1PaymentsConnectDashboardGetQueryError = ErrorType<unknown>
-
-
-export function useGetDashboardLinkApiV1PaymentsConnectDashboardGet<TData = Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError, TData>> & Pick<
+export function useGetDashboardLinkApiV1PaymentsConnectDashboardGet<
+  TData = Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
           TError,
           Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetDashboardLinkApiV1PaymentsConnectDashboardGet<TData = Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetDashboardLinkApiV1PaymentsConnectDashboardGet<
+  TData = Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
           TError,
           Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetDashboardLinkApiV1PaymentsConnectDashboardGet<TData = Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetDashboardLinkApiV1PaymentsConnectDashboardGet<
+  TData = Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Dashboard Link
  */
 
-export function useGetDashboardLinkApiV1PaymentsConnectDashboardGet<TData = Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetDashboardLinkApiV1PaymentsConnectDashboardGet<
+  TData = Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getDashboardLinkApiV1PaymentsConnectDashboardGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetDashboardLinkApiV1PaymentsConnectDashboardGetQueryOptions(options);
 
-  const queryOptions = getGetDashboardLinkApiV1PaymentsConnectDashboardGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Trigger an instant payout for an instructor's connected account.
@@ -233,66 +293,82 @@ Uses Stripe's instant payout capability (account eligibility required). This doe
 triggers Stripe to pay out the instructor's available balance instantly. We record a metric for adoption.
  * @summary Request Instant Payout
  */
-export const requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost = (
+export const requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost = (signal?: AbortSignal) => {
+  return customFetch<InstantPayoutResponse>({
+    url: `/api/v1/payments/connect/instant-payout`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getRequestInstantPayoutApiV1PaymentsConnectInstantPayoutPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>,
+    void
+  > = () => {
+    return requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost();
+  };
 
-      return customFetch<InstantPayoutResponse>(
-      {url: `/api/v1/payments/connect/instant-payout`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type RequestInstantPayoutApiV1PaymentsConnectInstantPayoutPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>
+>;
 
+export type RequestInstantPayoutApiV1PaymentsConnectInstantPayoutPostMutationError =
+  ErrorType<unknown>;
 
-export const getRequestInstantPayoutApiV1PaymentsConnectInstantPayoutPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>, TError,void, TContext> => {
-
-const mutationKey = ['requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>, void> = () => {
-
-
-          return  requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type RequestInstantPayoutApiV1PaymentsConnectInstantPayoutPostMutationResult = NonNullable<Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>>
-
-    export type RequestInstantPayoutApiV1PaymentsConnectInstantPayoutPostMutationError = ErrorType<unknown>
-
-    /**
+/**
  * @summary Request Instant Payout
  */
-export const useRequestInstantPayoutApiV1PaymentsConnectInstantPayoutPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useRequestInstantPayoutApiV1PaymentsConnectInstantPayoutPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof requestInstantPayoutApiV1PaymentsConnectInstantPayoutPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions =
+    getRequestInstantPayoutApiV1PaymentsConnectInstantPayoutPostMutationOptions(options);
 
-      const mutationOptions = getRequestInstantPayoutApiV1PaymentsConnectInstantPayoutPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Start Stripe Connect onboarding for an instructor.
 
 Creates a Stripe Express account and generates an onboarding link.
@@ -306,132 +382,173 @@ Raises:
  * @summary Start Onboarding
  */
 export const startOnboardingApiV1PaymentsConnectOnboardPost = (
-    params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams,
- signal?: AbortSignal
+  params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<OnboardingResponse>({
+    url: `/api/v1/payments/connect/onboard`,
+    method: 'POST',
+    params,
+    signal,
+  });
+};
 
+export const getStartOnboardingApiV1PaymentsConnectOnboardPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>,
+    TError,
+    { params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>,
+  TError,
+  { params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams },
+  TContext
+> => {
+  const mutationKey = ['startOnboardingApiV1PaymentsConnectOnboardPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<OnboardingResponse>(
-      {url: `/api/v1/payments/connect/onboard`, method: 'POST',
-        params, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>,
+    { params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams }
+  > = (props) => {
+    const { params } = props ?? {};
 
+    return startOnboardingApiV1PaymentsConnectOnboardPost(params);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getStartOnboardingApiV1PaymentsConnectOnboardPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>, TError,{params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>, TError,{params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams}, TContext> => {
+export type StartOnboardingApiV1PaymentsConnectOnboardPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>
+>;
 
-const mutationKey = ['startOnboardingApiV1PaymentsConnectOnboardPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type StartOnboardingApiV1PaymentsConnectOnboardPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>, {params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams}> = (props) => {
-          const {params} = props ?? {};
-
-          return  startOnboardingApiV1PaymentsConnectOnboardPost(params,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type StartOnboardingApiV1PaymentsConnectOnboardPostMutationResult = NonNullable<Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>>
-
-    export type StartOnboardingApiV1PaymentsConnectOnboardPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Start Onboarding
  */
-export const useStartOnboardingApiV1PaymentsConnectOnboardPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>, TError,{params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>,
-        TError,
-        {params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams},
-        TContext
-      > => {
+export const useStartOnboardingApiV1PaymentsConnectOnboardPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>,
+      TError,
+      { params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof startOnboardingApiV1PaymentsConnectOnboardPost>>,
+  TError,
+  { params?: StartOnboardingApiV1PaymentsConnectOnboardPostParams },
+  TContext
+> => {
+  const mutationOptions = getStartOnboardingApiV1PaymentsConnectOnboardPostMutationOptions(options);
 
-      const mutationOptions = getStartOnboardingApiV1PaymentsConnectOnboardPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Set payout schedule for the current instructor's connected account.
 
 Default: weekly on Tuesday. Valid anchors: monday..sunday.
  * @summary Set Payout Schedule
  */
 export const setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost = (
-    params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams,
- signal?: AbortSignal
+  params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PayoutScheduleResponse>({
+    url: `/api/v1/payments/connect/payout-schedule`,
+    method: 'POST',
+    params,
+    signal,
+  });
+};
 
+export const getSetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>,
+    TError,
+    { params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>,
+  TError,
+  { params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams },
+  TContext
+> => {
+  const mutationKey = ['setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<PayoutScheduleResponse>(
-      {url: `/api/v1/payments/connect/payout-schedule`, method: 'POST',
-        params, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>,
+    { params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams }
+  > = (props) => {
+    const { params } = props ?? {};
 
+    return setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost(params);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getSetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>, TError,{params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>, TError,{params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams}, TContext> => {
+export type SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>
+>;
 
-const mutationKey = ['setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostMutationError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>, {params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams}> = (props) => {
-          const {params} = props ?? {};
-
-          return  setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost(params,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostMutationResult = NonNullable<Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>>
-
-    export type SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Set Payout Schedule
  */
-export const useSetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>, TError,{params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>,
-        TError,
-        {params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams},
-        TContext
-      > => {
+export const useSetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>,
+      TError,
+      { params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setPayoutScheduleApiV1PaymentsConnectPayoutSchedulePost>>,
+  TError,
+  { params?: SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams },
+  TContext
+> => {
+  const mutationOptions =
+    getSetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostMutationOptions(options);
 
-      const mutationOptions = getSetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get the onboarding status for an instructor's Stripe account.
 
 Returns:
@@ -441,94 +558,141 @@ Raises:
     HTTPException: If status check fails
  * @summary Get Onboarding Status
  */
-export const getOnboardingStatusApiV1PaymentsConnectStatusGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<OnboardingStatusResponse>(
-      {url: `/api/v1/payments/connect/status`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getOnboardingStatusApiV1PaymentsConnectStatusGet = (signal?: AbortSignal) => {
+  return customFetch<OnboardingStatusResponse>({
+    url: `/api/v1/payments/connect/status`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetOnboardingStatusApiV1PaymentsConnectStatusGetQueryKey = () => {
-    return [
-    `/api/v1/payments/connect/status`
-    ] as const;
-    }
+  return [`/api/v1/payments/connect/status`] as const;
+};
 
+export const getGetOnboardingStatusApiV1PaymentsConnectStatusGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetOnboardingStatusApiV1PaymentsConnectStatusGetQueryOptions = <TData = Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOnboardingStatusApiV1PaymentsConnectStatusGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>
+  > = ({ signal }) => getOnboardingStatusApiV1PaymentsConnectStatusGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetOnboardingStatusApiV1PaymentsConnectStatusGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetOnboardingStatusApiV1PaymentsConnectStatusGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>
+>;
+export type GetOnboardingStatusApiV1PaymentsConnectStatusGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>> = ({ signal }) => getOnboardingStatusApiV1PaymentsConnectStatusGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetOnboardingStatusApiV1PaymentsConnectStatusGetQueryResult = NonNullable<Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>>
-export type GetOnboardingStatusApiV1PaymentsConnectStatusGetQueryError = ErrorType<unknown>
-
-
-export function useGetOnboardingStatusApiV1PaymentsConnectStatusGet<TData = Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError, TData>> & Pick<
+export function useGetOnboardingStatusApiV1PaymentsConnectStatusGet<
+  TData = Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
           TError,
           Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetOnboardingStatusApiV1PaymentsConnectStatusGet<TData = Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetOnboardingStatusApiV1PaymentsConnectStatusGet<
+  TData = Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
           TError,
           Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetOnboardingStatusApiV1PaymentsConnectStatusGet<TData = Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetOnboardingStatusApiV1PaymentsConnectStatusGet<
+  TData = Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Onboarding Status
  */
 
-export function useGetOnboardingStatusApiV1PaymentsConnectStatusGet<TData = Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetOnboardingStatusApiV1PaymentsConnectStatusGet<
+  TData = Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getOnboardingStatusApiV1PaymentsConnectStatusGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetOnboardingStatusApiV1PaymentsConnectStatusGetQueryOptions(options);
 
-  const queryOptions = getGetOnboardingStatusApiV1PaymentsConnectStatusGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get user's credit balance
@@ -536,94 +700,140 @@ export function useGetOnboardingStatusApiV1PaymentsConnectStatusGet<TData = Awai
 Returns available credits and expiration
  * @summary Get Credit Balance
  */
-export const getCreditBalanceApiV1PaymentsCreditsGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<CreditBalanceResponse>(
-      {url: `/api/v1/payments/credits`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getCreditBalanceApiV1PaymentsCreditsGet = (signal?: AbortSignal) => {
+  return customFetch<CreditBalanceResponse>({
+    url: `/api/v1/payments/credits`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetCreditBalanceApiV1PaymentsCreditsGetQueryKey = () => {
-    return [
-    `/api/v1/payments/credits`
-    ] as const;
-    }
+  return [`/api/v1/payments/credits`] as const;
+};
 
+export const getGetCreditBalanceApiV1PaymentsCreditsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetCreditBalanceApiV1PaymentsCreditsGetQueryOptions = <TData = Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getGetCreditBalanceApiV1PaymentsCreditsGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>
+  > = ({ signal }) => getCreditBalanceApiV1PaymentsCreditsGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCreditBalanceApiV1PaymentsCreditsGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetCreditBalanceApiV1PaymentsCreditsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>
+>;
+export type GetCreditBalanceApiV1PaymentsCreditsGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>> = ({ signal }) => getCreditBalanceApiV1PaymentsCreditsGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetCreditBalanceApiV1PaymentsCreditsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>>
-export type GetCreditBalanceApiV1PaymentsCreditsGetQueryError = ErrorType<unknown>
-
-
-export function useGetCreditBalanceApiV1PaymentsCreditsGet<TData = Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError, TData>> & Pick<
+export function useGetCreditBalanceApiV1PaymentsCreditsGet<
+  TData = Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
           TError,
           Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCreditBalanceApiV1PaymentsCreditsGet<TData = Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCreditBalanceApiV1PaymentsCreditsGet<
+  TData = Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
           TError,
           Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCreditBalanceApiV1PaymentsCreditsGet<TData = Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCreditBalanceApiV1PaymentsCreditsGet<
+  TData = Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Credit Balance
  */
 
-export function useGetCreditBalanceApiV1PaymentsCreditsGet<TData = Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetCreditBalanceApiV1PaymentsCreditsGet<
+  TData = Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCreditBalanceApiV1PaymentsCreditsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCreditBalanceApiV1PaymentsCreditsGetQueryOptions(options);
 
-  const queryOptions = getGetCreditBalanceApiV1PaymentsCreditsGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get earnings statistics for an instructor.
@@ -635,94 +845,137 @@ Raises:
     HTTPException: If earnings calculation fails
  * @summary Get Instructor Earnings
  */
-export const getInstructorEarningsApiV1PaymentsEarningsGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<EarningsResponse>(
-      {url: `/api/v1/payments/earnings`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getInstructorEarningsApiV1PaymentsEarningsGet = (signal?: AbortSignal) => {
+  return customFetch<EarningsResponse>({ url: `/api/v1/payments/earnings`, method: 'GET', signal });
+};
 
 export const getGetInstructorEarningsApiV1PaymentsEarningsGetQueryKey = () => {
-    return [
-    `/api/v1/payments/earnings`
-    ] as const;
-    }
+  return [`/api/v1/payments/earnings`] as const;
+};
 
+export const getGetInstructorEarningsApiV1PaymentsEarningsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetInstructorEarningsApiV1PaymentsEarningsGetQueryOptions = <TData = Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ?? getGetInstructorEarningsApiV1PaymentsEarningsGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>
+  > = ({ signal }) => getInstructorEarningsApiV1PaymentsEarningsGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetInstructorEarningsApiV1PaymentsEarningsGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetInstructorEarningsApiV1PaymentsEarningsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>
+>;
+export type GetInstructorEarningsApiV1PaymentsEarningsGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>> = ({ signal }) => getInstructorEarningsApiV1PaymentsEarningsGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetInstructorEarningsApiV1PaymentsEarningsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>>
-export type GetInstructorEarningsApiV1PaymentsEarningsGetQueryError = ErrorType<unknown>
-
-
-export function useGetInstructorEarningsApiV1PaymentsEarningsGet<TData = Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError, TData>> & Pick<
+export function useGetInstructorEarningsApiV1PaymentsEarningsGet<
+  TData = Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
           TError,
           Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInstructorEarningsApiV1PaymentsEarningsGet<TData = Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInstructorEarningsApiV1PaymentsEarningsGet<
+  TData = Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
           TError,
           Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInstructorEarningsApiV1PaymentsEarningsGet<TData = Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInstructorEarningsApiV1PaymentsEarningsGet<
+  TData = Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Instructor Earnings
  */
 
-export function useGetInstructorEarningsApiV1PaymentsEarningsGet<TData = Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetInstructorEarningsApiV1PaymentsEarningsGet<
+  TData = Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorEarningsApiV1PaymentsEarningsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetInstructorEarningsApiV1PaymentsEarningsGetQueryOptions(options);
 
-  const queryOptions = getGetInstructorEarningsApiV1PaymentsEarningsGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Fetch latest Stripe Identity status and persist verification on success.
@@ -731,129 +984,159 @@ This avoids blocking general status calls and lets the UI trigger a one-off refr
 right after the modal/hosted flow returns.
  * @summary Refresh Identity Status
  */
-export const refreshIdentityStatusApiV1PaymentsIdentityRefreshPost = (
+export const refreshIdentityStatusApiV1PaymentsIdentityRefreshPost = (signal?: AbortSignal) => {
+  return customFetch<IdentityRefreshResponse>({
+    url: `/api/v1/payments/identity/refresh`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getRefreshIdentityStatusApiV1PaymentsIdentityRefreshPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['refreshIdentityStatusApiV1PaymentsIdentityRefreshPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>,
+    void
+  > = () => {
+    return refreshIdentityStatusApiV1PaymentsIdentityRefreshPost();
+  };
 
-      return customFetch<IdentityRefreshResponse>(
-      {url: `/api/v1/payments/identity/refresh`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type RefreshIdentityStatusApiV1PaymentsIdentityRefreshPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>
+>;
 
+export type RefreshIdentityStatusApiV1PaymentsIdentityRefreshPostMutationError = ErrorType<unknown>;
 
-export const getRefreshIdentityStatusApiV1PaymentsIdentityRefreshPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>, TError,void, TContext> => {
-
-const mutationKey = ['refreshIdentityStatusApiV1PaymentsIdentityRefreshPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>, void> = () => {
-
-
-          return  refreshIdentityStatusApiV1PaymentsIdentityRefreshPost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type RefreshIdentityStatusApiV1PaymentsIdentityRefreshPostMutationResult = NonNullable<Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>>
-
-    export type RefreshIdentityStatusApiV1PaymentsIdentityRefreshPostMutationError = ErrorType<unknown>
-
-    /**
+/**
  * @summary Refresh Identity Status
  */
-export const useRefreshIdentityStatusApiV1PaymentsIdentityRefreshPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useRefreshIdentityStatusApiV1PaymentsIdentityRefreshPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof refreshIdentityStatusApiV1PaymentsIdentityRefreshPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions =
+    getRefreshIdentityStatusApiV1PaymentsIdentityRefreshPostMutationOptions(options);
 
-      const mutationOptions = getRefreshIdentityStatusApiV1PaymentsIdentityRefreshPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Create a Stripe Identity verification session for the current user.
  * @summary Create Identity Session
  */
-export const createIdentitySessionApiV1PaymentsIdentitySessionPost = (
+export const createIdentitySessionApiV1PaymentsIdentitySessionPost = (signal?: AbortSignal) => {
+  return customFetch<IdentitySessionResponse>({
+    url: `/api/v1/payments/identity/session`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getCreateIdentitySessionApiV1PaymentsIdentitySessionPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['createIdentitySessionApiV1PaymentsIdentitySessionPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>,
+    void
+  > = () => {
+    return createIdentitySessionApiV1PaymentsIdentitySessionPost();
+  };
 
-      return customFetch<IdentitySessionResponse>(
-      {url: `/api/v1/payments/identity/session`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type CreateIdentitySessionApiV1PaymentsIdentitySessionPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>
+>;
 
+export type CreateIdentitySessionApiV1PaymentsIdentitySessionPostMutationError = ErrorType<unknown>;
 
-export const getCreateIdentitySessionApiV1PaymentsIdentitySessionPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>, TError,void, TContext> => {
-
-const mutationKey = ['createIdentitySessionApiV1PaymentsIdentitySessionPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>, void> = () => {
-
-
-          return  createIdentitySessionApiV1PaymentsIdentitySessionPost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CreateIdentitySessionApiV1PaymentsIdentitySessionPostMutationResult = NonNullable<Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>>
-
-    export type CreateIdentitySessionApiV1PaymentsIdentitySessionPostMutationError = ErrorType<unknown>
-
-    /**
+/**
  * @summary Create Identity Session
  */
-export const useCreateIdentitySessionApiV1PaymentsIdentitySessionPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useCreateIdentitySessionApiV1PaymentsIdentitySessionPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createIdentitySessionApiV1PaymentsIdentitySessionPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions =
+    getCreateIdentitySessionApiV1PaymentsIdentitySessionPostMutationOptions(options);
 
-      const mutationOptions = getCreateIdentitySessionApiV1PaymentsIdentitySessionPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * List all payment methods for a student.
 
 Returns:
@@ -863,94 +1146,140 @@ Raises:
     HTTPException: If payment method listing fails
  * @summary List Payment Methods
  */
-export const listPaymentMethodsApiV1PaymentsMethodsGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<PaymentMethodResponse[]>(
-      {url: `/api/v1/payments/methods`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const listPaymentMethodsApiV1PaymentsMethodsGet = (signal?: AbortSignal) => {
+  return customFetch<PaymentMethodResponse[]>({
+    url: `/api/v1/payments/methods`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getListPaymentMethodsApiV1PaymentsMethodsGetQueryKey = () => {
-    return [
-    `/api/v1/payments/methods`
-    ] as const;
-    }
+  return [`/api/v1/payments/methods`] as const;
+};
 
+export const getListPaymentMethodsApiV1PaymentsMethodsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getListPaymentMethodsApiV1PaymentsMethodsGetQueryOptions = <TData = Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getListPaymentMethodsApiV1PaymentsMethodsGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>
+  > = ({ signal }) => listPaymentMethodsApiV1PaymentsMethodsGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getListPaymentMethodsApiV1PaymentsMethodsGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type ListPaymentMethodsApiV1PaymentsMethodsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>
+>;
+export type ListPaymentMethodsApiV1PaymentsMethodsGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>> = ({ signal }) => listPaymentMethodsApiV1PaymentsMethodsGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListPaymentMethodsApiV1PaymentsMethodsGetQueryResult = NonNullable<Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>>
-export type ListPaymentMethodsApiV1PaymentsMethodsGetQueryError = ErrorType<unknown>
-
-
-export function useListPaymentMethodsApiV1PaymentsMethodsGet<TData = Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError, TData>> & Pick<
+export function useListPaymentMethodsApiV1PaymentsMethodsGet<
+  TData = Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
           TError,
           Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPaymentMethodsApiV1PaymentsMethodsGet<TData = Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPaymentMethodsApiV1PaymentsMethodsGet<
+  TData = Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
           TError,
           Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPaymentMethodsApiV1PaymentsMethodsGet<TData = Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPaymentMethodsApiV1PaymentsMethodsGet<
+  TData = Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary List Payment Methods
  */
 
-export function useListPaymentMethodsApiV1PaymentsMethodsGet<TData = Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useListPaymentMethodsApiV1PaymentsMethodsGet<
+  TData = Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPaymentMethodsApiV1PaymentsMethodsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListPaymentMethodsApiV1PaymentsMethodsGetQueryOptions(options);
 
-  const queryOptions = getListPaymentMethodsApiV1PaymentsMethodsGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Save a payment method for a student.
@@ -966,67 +1295,86 @@ Raises:
  * @summary Save Payment Method
  */
 export const savePaymentMethodApiV1PaymentsMethodsPost = (
-    savePaymentMethodRequest: SavePaymentMethodRequest,
- signal?: AbortSignal
+  savePaymentMethodRequest: SavePaymentMethodRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PaymentMethodResponse>({
+    url: `/api/v1/payments/methods`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: savePaymentMethodRequest,
+    signal,
+  });
+};
 
+export const getSavePaymentMethodApiV1PaymentsMethodsPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>,
+    TError,
+    { data: SavePaymentMethodRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>,
+  TError,
+  { data: SavePaymentMethodRequest },
+  TContext
+> => {
+  const mutationKey = ['savePaymentMethodApiV1PaymentsMethodsPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<PaymentMethodResponse>(
-      {url: `/api/v1/payments/methods`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: savePaymentMethodRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>,
+    { data: SavePaymentMethodRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return savePaymentMethodApiV1PaymentsMethodsPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getSavePaymentMethodApiV1PaymentsMethodsPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>, TError,{data: SavePaymentMethodRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>, TError,{data: SavePaymentMethodRequest}, TContext> => {
+export type SavePaymentMethodApiV1PaymentsMethodsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>
+>;
+export type SavePaymentMethodApiV1PaymentsMethodsPostMutationBody = SavePaymentMethodRequest;
+export type SavePaymentMethodApiV1PaymentsMethodsPostMutationError = ErrorType<HTTPValidationError>;
 
-const mutationKey = ['savePaymentMethodApiV1PaymentsMethodsPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>, {data: SavePaymentMethodRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  savePaymentMethodApiV1PaymentsMethodsPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type SavePaymentMethodApiV1PaymentsMethodsPostMutationResult = NonNullable<Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>>
-    export type SavePaymentMethodApiV1PaymentsMethodsPostMutationBody = SavePaymentMethodRequest
-    export type SavePaymentMethodApiV1PaymentsMethodsPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Save Payment Method
  */
-export const useSavePaymentMethodApiV1PaymentsMethodsPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>, TError,{data: SavePaymentMethodRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>,
-        TError,
-        {data: SavePaymentMethodRequest},
-        TContext
-      > => {
+export const useSavePaymentMethodApiV1PaymentsMethodsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>,
+      TError,
+      { data: SavePaymentMethodRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof savePaymentMethodApiV1PaymentsMethodsPost>>,
+  TError,
+  { data: SavePaymentMethodRequest },
+  TContext
+> => {
+  const mutationOptions = getSavePaymentMethodApiV1PaymentsMethodsPostMutationOptions(options);
 
-      const mutationOptions = getSavePaymentMethodApiV1PaymentsMethodsPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Delete a payment method for a student.
 
 Args:
@@ -1039,159 +1387,240 @@ Raises:
     HTTPException: If payment method deletion fails
  * @summary Delete Payment Method
  */
-export const deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete = (
-    methodId: string,
- ) => {
+export const deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete = (methodId: string) => {
+  return customFetch<AppSchemasPaymentSchemasDeleteResponse>({
+    url: `/api/v1/payments/methods/${methodId}`,
+    method: 'DELETE',
+  });
+};
 
+export const getDeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>,
+    TError,
+    { methodId: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>,
+  TError,
+  { methodId: string },
+  TContext
+> => {
+  const mutationKey = ['deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<AppSchemasPaymentSchemasDeleteResponse>(
-      {url: `/api/v1/payments/methods/${methodId}`, method: 'DELETE'
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>,
+    { methodId: string }
+  > = (props) => {
+    const { methodId } = props ?? {};
 
+    return deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete(methodId);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getDeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>, TError,{methodId: string}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>, TError,{methodId: string}, TContext> => {
+export type DeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>
+>;
 
-const mutationKey = ['deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type DeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>, {methodId: string}> = (props) => {
-          const {methodId} = props ?? {};
-
-          return  deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete(methodId,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>>
-
-    export type DeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Delete Payment Method
  */
-export const useDeletePaymentMethodApiV1PaymentsMethodsMethodIdDelete = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>, TError,{methodId: string}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>,
-        TError,
-        {methodId: string},
-        TContext
-      > => {
+export const useDeletePaymentMethodApiV1PaymentsMethodsMethodIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>,
+      TError,
+      { methodId: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deletePaymentMethodApiV1PaymentsMethodsMethodIdDelete>>,
+  TError,
+  { methodId: string },
+  TContext
+> => {
+  const mutationOptions =
+    getDeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteMutationOptions(options);
 
-      const mutationOptions = getDeletePaymentMethodApiV1PaymentsMethodsMethodIdDeleteMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get user's transaction history
 
 Returns list of completed payments with booking details
  * @summary Get Transaction History
  */
 export const getTransactionHistoryApiV1PaymentsTransactionsGet = (
-    params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams,
- signal?: AbortSignal
+  params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<TransactionHistoryItem[]>({
+    url: `/api/v1/payments/transactions`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<TransactionHistoryItem[]>(
-      {url: `/api/v1/payments/transactions`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetTransactionHistoryApiV1PaymentsTransactionsGetQueryKey = (params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams,) => {
-    return [
-    `/api/v1/payments/transactions`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetTransactionHistoryApiV1PaymentsTransactionsGetQueryOptions = <TData = Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError, TData>>, }
+export const getGetTransactionHistoryApiV1PaymentsTransactionsGetQueryKey = (
+  params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams
 ) => {
+  return [`/api/v1/payments/transactions`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetTransactionHistoryApiV1PaymentsTransactionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetTransactionHistoryApiV1PaymentsTransactionsGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetTransactionHistoryApiV1PaymentsTransactionsGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>
+  > = ({ signal }) => getTransactionHistoryApiV1PaymentsTransactionsGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>> = ({ signal }) => getTransactionHistoryApiV1PaymentsTransactionsGet(params, signal);
+export type GetTransactionHistoryApiV1PaymentsTransactionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>
+>;
+export type GetTransactionHistoryApiV1PaymentsTransactionsGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetTransactionHistoryApiV1PaymentsTransactionsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>>
-export type GetTransactionHistoryApiV1PaymentsTransactionsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetTransactionHistoryApiV1PaymentsTransactionsGet<TData = Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetTransactionHistoryApiV1PaymentsTransactionsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError, TData>> & Pick<
+export function useGetTransactionHistoryApiV1PaymentsTransactionsGet<
+  TData = Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetTransactionHistoryApiV1PaymentsTransactionsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
           TError,
           Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetTransactionHistoryApiV1PaymentsTransactionsGet<TData = Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetTransactionHistoryApiV1PaymentsTransactionsGet<
+  TData = Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
           TError,
           Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetTransactionHistoryApiV1PaymentsTransactionsGet<TData = Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetTransactionHistoryApiV1PaymentsTransactionsGet<
+  TData = Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Transaction History
  */
 
-export function useGetTransactionHistoryApiV1PaymentsTransactionsGet<TData = Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetTransactionHistoryApiV1PaymentsTransactionsGet<
+  TData = Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTransactionHistoryApiV1PaymentsTransactionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTransactionHistoryApiV1PaymentsTransactionsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetTransactionHistoryApiV1PaymentsTransactionsGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetTransactionHistoryApiV1PaymentsTransactionsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Handle Stripe webhook events from both platform and connected accounts.
@@ -1206,62 +1635,77 @@ Note:
     This endpoint has no authentication as it uses webhook signature verification
  * @summary Handle Stripe Webhook
  */
-export const handleStripeWebhookApiV1PaymentsWebhooksStripePost = (
+export const handleStripeWebhookApiV1PaymentsWebhooksStripePost = (signal?: AbortSignal) => {
+  return customFetch<WebhookResponse>({
+    url: `/api/v1/payments/webhooks/stripe`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getHandleStripeWebhookApiV1PaymentsWebhooksStripePostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['handleStripeWebhookApiV1PaymentsWebhooksStripePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>,
+    void
+  > = () => {
+    return handleStripeWebhookApiV1PaymentsWebhooksStripePost();
+  };
 
-      return customFetch<WebhookResponse>(
-      {url: `/api/v1/payments/webhooks/stripe`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type HandleStripeWebhookApiV1PaymentsWebhooksStripePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>
+>;
 
+export type HandleStripeWebhookApiV1PaymentsWebhooksStripePostMutationError = ErrorType<unknown>;
 
-export const getHandleStripeWebhookApiV1PaymentsWebhooksStripePostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>, TError,void, TContext> => {
-
-const mutationKey = ['handleStripeWebhookApiV1PaymentsWebhooksStripePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>, void> = () => {
-
-
-          return  handleStripeWebhookApiV1PaymentsWebhooksStripePost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type HandleStripeWebhookApiV1PaymentsWebhooksStripePostMutationResult = NonNullable<Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>>
-
-    export type HandleStripeWebhookApiV1PaymentsWebhooksStripePostMutationError = ErrorType<unknown>
-
-    /**
+/**
  * @summary Handle Stripe Webhook
  */
-export const useHandleStripeWebhookApiV1PaymentsWebhooksStripePost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useHandleStripeWebhookApiV1PaymentsWebhooksStripePost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof handleStripeWebhookApiV1PaymentsWebhooksStripePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions =
+    getHandleStripeWebhookApiV1PaymentsWebhooksStripePostMutationOptions(options);
 
-      const mutationOptions = getHandleStripeWebhookApiV1PaymentsWebhooksStripePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
+  return useMutation(mutationOptions, queryClient);
+};

@@ -133,6 +133,7 @@
     "openapi-typescript": "7.9.1",
     "orval": "^7.16.1",
     "postcss": "^8.5.6",
+    "prettier": "^3.7.4",
     "size-limit": "^11.2.0",
     "tailwindcss": "4.1.12",
     "ts-morph": "^22.0.0",

@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -31,14 +28,11 @@ import type {
   SearchHistoryCreate,
   SearchHistoryResponse,
   SearchInteractionResponse,
-  TrackInteractionApiV1SearchHistoryInteractionPostBody
+  TrackInteractionApiV1SearchHistoryInteractionPostBody,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Get recent searches for the current user (authenticated or guest).
@@ -56,94 +50,153 @@ Returns:
  * @summary Get Recent Searches
  */
 export const getRecentSearchesApiV1SearchHistoryGet = (
-    params?: GetRecentSearchesApiV1SearchHistoryGetParams,
- signal?: AbortSignal
+  params?: GetRecentSearchesApiV1SearchHistoryGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SearchHistoryResponse[]>({
+    url: `/api/v1/search-history`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<SearchHistoryResponse[]>(
-      {url: `/api/v1/search-history`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetRecentSearchesApiV1SearchHistoryGetQueryKey = (params?: GetRecentSearchesApiV1SearchHistoryGetParams,) => {
-    return [
-    `/api/v1/search-history`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetRecentSearchesApiV1SearchHistoryGetQueryOptions = <TData = Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetRecentSearchesApiV1SearchHistoryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError, TData>>, }
+export const getGetRecentSearchesApiV1SearchHistoryGetQueryKey = (
+  params?: GetRecentSearchesApiV1SearchHistoryGetParams
 ) => {
+  return [`/api/v1/search-history`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetRecentSearchesApiV1SearchHistoryGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetRecentSearchesApiV1SearchHistoryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetRecentSearchesApiV1SearchHistoryGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetRecentSearchesApiV1SearchHistoryGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>
+  > = ({ signal }) => getRecentSearchesApiV1SearchHistoryGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>> = ({ signal }) => getRecentSearchesApiV1SearchHistoryGet(params, signal);
+export type GetRecentSearchesApiV1SearchHistoryGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>
+>;
+export type GetRecentSearchesApiV1SearchHistoryGetQueryError = ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetRecentSearchesApiV1SearchHistoryGetQueryResult = NonNullable<Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>>
-export type GetRecentSearchesApiV1SearchHistoryGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetRecentSearchesApiV1SearchHistoryGet<TData = Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetRecentSearchesApiV1SearchHistoryGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError, TData>> & Pick<
+export function useGetRecentSearchesApiV1SearchHistoryGet<
+  TData = Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetRecentSearchesApiV1SearchHistoryGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
           TError,
           Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetRecentSearchesApiV1SearchHistoryGet<TData = Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetRecentSearchesApiV1SearchHistoryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetRecentSearchesApiV1SearchHistoryGet<
+  TData = Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetRecentSearchesApiV1SearchHistoryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
           TError,
           Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetRecentSearchesApiV1SearchHistoryGet<TData = Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetRecentSearchesApiV1SearchHistoryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetRecentSearchesApiV1SearchHistoryGet<
+  TData = Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetRecentSearchesApiV1SearchHistoryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Recent Searches
  */
 
-export function useGetRecentSearchesApiV1SearchHistoryGet<TData = Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetRecentSearchesApiV1SearchHistoryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetRecentSearchesApiV1SearchHistoryGet<
+  TData = Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetRecentSearchesApiV1SearchHistoryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRecentSearchesApiV1SearchHistoryGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetRecentSearchesApiV1SearchHistoryGetQueryOptions(params, options);
 
-  const queryOptions = getGetRecentSearchesApiV1SearchHistoryGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Record a search for the current user (authenticated or guest).
@@ -164,132 +217,171 @@ Returns:
  * @summary Record Search
  */
 export const recordSearchApiV1SearchHistoryPost = (
-    searchHistoryCreate: SearchHistoryCreate,
- signal?: AbortSignal
+  searchHistoryCreate: SearchHistoryCreate,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SearchHistoryResponse>({
+    url: `/api/v1/search-history`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: searchHistoryCreate,
+    signal,
+  });
+};
 
+export const getRecordSearchApiV1SearchHistoryPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>,
+    TError,
+    { data: SearchHistoryCreate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>,
+  TError,
+  { data: SearchHistoryCreate },
+  TContext
+> => {
+  const mutationKey = ['recordSearchApiV1SearchHistoryPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<SearchHistoryResponse>(
-      {url: `/api/v1/search-history`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: searchHistoryCreate, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>,
+    { data: SearchHistoryCreate }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return recordSearchApiV1SearchHistoryPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getRecordSearchApiV1SearchHistoryPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>, TError,{data: SearchHistoryCreate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>, TError,{data: SearchHistoryCreate}, TContext> => {
+export type RecordSearchApiV1SearchHistoryPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>
+>;
+export type RecordSearchApiV1SearchHistoryPostMutationBody = SearchHistoryCreate;
+export type RecordSearchApiV1SearchHistoryPostMutationError = ErrorType<HTTPValidationError>;
 
-const mutationKey = ['recordSearchApiV1SearchHistoryPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>, {data: SearchHistoryCreate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  recordSearchApiV1SearchHistoryPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type RecordSearchApiV1SearchHistoryPostMutationResult = NonNullable<Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>>
-    export type RecordSearchApiV1SearchHistoryPostMutationBody = SearchHistoryCreate
-    export type RecordSearchApiV1SearchHistoryPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Record Search
  */
-export const useRecordSearchApiV1SearchHistoryPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>, TError,{data: SearchHistoryCreate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>,
-        TError,
-        {data: SearchHistoryCreate},
-        TContext
-      > => {
+export const useRecordSearchApiV1SearchHistoryPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>,
+      TError,
+      { data: SearchHistoryCreate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof recordSearchApiV1SearchHistoryPost>>,
+  TError,
+  { data: SearchHistoryCreate },
+  TContext
+> => {
+  const mutationOptions = getRecordSearchApiV1SearchHistoryPostMutationOptions(options);
 
-      const mutationOptions = getRecordSearchApiV1SearchHistoryPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Record a guest search with strict validation.
  * @summary Record Guest Search
  */
 export const recordGuestSearchApiV1SearchHistoryGuestPost = (
-    guestSearchHistoryCreate: GuestSearchHistoryCreate,
- signal?: AbortSignal
+  guestSearchHistoryCreate: GuestSearchHistoryCreate,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SearchHistoryResponse>({
+    url: `/api/v1/search-history/guest`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: guestSearchHistoryCreate,
+    signal,
+  });
+};
 
+export const getRecordGuestSearchApiV1SearchHistoryGuestPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>,
+    TError,
+    { data: GuestSearchHistoryCreate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>,
+  TError,
+  { data: GuestSearchHistoryCreate },
+  TContext
+> => {
+  const mutationKey = ['recordGuestSearchApiV1SearchHistoryGuestPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<SearchHistoryResponse>(
-      {url: `/api/v1/search-history/guest`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: guestSearchHistoryCreate, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>,
+    { data: GuestSearchHistoryCreate }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return recordGuestSearchApiV1SearchHistoryGuestPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getRecordGuestSearchApiV1SearchHistoryGuestPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>, TError,{data: GuestSearchHistoryCreate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>, TError,{data: GuestSearchHistoryCreate}, TContext> => {
+export type RecordGuestSearchApiV1SearchHistoryGuestPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>
+>;
+export type RecordGuestSearchApiV1SearchHistoryGuestPostMutationBody = GuestSearchHistoryCreate;
+export type RecordGuestSearchApiV1SearchHistoryGuestPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['recordGuestSearchApiV1SearchHistoryGuestPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>, {data: GuestSearchHistoryCreate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  recordGuestSearchApiV1SearchHistoryGuestPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type RecordGuestSearchApiV1SearchHistoryGuestPostMutationResult = NonNullable<Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>>
-    export type RecordGuestSearchApiV1SearchHistoryGuestPostMutationBody = GuestSearchHistoryCreate
-    export type RecordGuestSearchApiV1SearchHistoryGuestPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Record Guest Search
  */
-export const useRecordGuestSearchApiV1SearchHistoryGuestPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>, TError,{data: GuestSearchHistoryCreate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>,
-        TError,
-        {data: GuestSearchHistoryCreate},
-        TContext
-      > => {
+export const useRecordGuestSearchApiV1SearchHistoryGuestPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>,
+      TError,
+      { data: GuestSearchHistoryCreate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof recordGuestSearchApiV1SearchHistoryGuestPost>>,
+  TError,
+  { data: GuestSearchHistoryCreate },
+  TContext
+> => {
+  const mutationOptions = getRecordGuestSearchApiV1SearchHistoryGuestPostMutationOptions(options);
 
-      const mutationOptions = getRecordGuestSearchApiV1SearchHistoryGuestPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Track user interaction with search results.
 
 Records clicks, hovers, bookmarks, and other interactions with search results
@@ -311,67 +403,89 @@ Returns:
  * @summary Track Interaction
  */
 export const trackInteractionApiV1SearchHistoryInteractionPost = (
-    trackInteractionApiV1SearchHistoryInteractionPostBody: TrackInteractionApiV1SearchHistoryInteractionPostBody,
- signal?: AbortSignal
+  trackInteractionApiV1SearchHistoryInteractionPostBody: TrackInteractionApiV1SearchHistoryInteractionPostBody,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SearchInteractionResponse>({
+    url: `/api/v1/search-history/interaction`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: trackInteractionApiV1SearchHistoryInteractionPostBody,
+    signal,
+  });
+};
 
+export const getTrackInteractionApiV1SearchHistoryInteractionPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>,
+    TError,
+    { data: TrackInteractionApiV1SearchHistoryInteractionPostBody },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>,
+  TError,
+  { data: TrackInteractionApiV1SearchHistoryInteractionPostBody },
+  TContext
+> => {
+  const mutationKey = ['trackInteractionApiV1SearchHistoryInteractionPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<SearchInteractionResponse>(
-      {url: `/api/v1/search-history/interaction`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: trackInteractionApiV1SearchHistoryInteractionPostBody, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>,
+    { data: TrackInteractionApiV1SearchHistoryInteractionPostBody }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return trackInteractionApiV1SearchHistoryInteractionPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getTrackInteractionApiV1SearchHistoryInteractionPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>, TError,{data: TrackInteractionApiV1SearchHistoryInteractionPostBody}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>, TError,{data: TrackInteractionApiV1SearchHistoryInteractionPostBody}, TContext> => {
+export type TrackInteractionApiV1SearchHistoryInteractionPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>
+>;
+export type TrackInteractionApiV1SearchHistoryInteractionPostMutationBody =
+  TrackInteractionApiV1SearchHistoryInteractionPostBody;
+export type TrackInteractionApiV1SearchHistoryInteractionPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['trackInteractionApiV1SearchHistoryInteractionPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>, {data: TrackInteractionApiV1SearchHistoryInteractionPostBody}> = (props) => {
-          const {data} = props ?? {};
-
-          return  trackInteractionApiV1SearchHistoryInteractionPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type TrackInteractionApiV1SearchHistoryInteractionPostMutationResult = NonNullable<Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>>
-    export type TrackInteractionApiV1SearchHistoryInteractionPostMutationBody = TrackInteractionApiV1SearchHistoryInteractionPostBody
-    export type TrackInteractionApiV1SearchHistoryInteractionPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Track Interaction
  */
-export const useTrackInteractionApiV1SearchHistoryInteractionPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>, TError,{data: TrackInteractionApiV1SearchHistoryInteractionPostBody}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>,
-        TError,
-        {data: TrackInteractionApiV1SearchHistoryInteractionPostBody},
-        TContext
-      > => {
+export const useTrackInteractionApiV1SearchHistoryInteractionPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>,
+      TError,
+      { data: TrackInteractionApiV1SearchHistoryInteractionPostBody },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof trackInteractionApiV1SearchHistoryInteractionPost>>,
+  TError,
+  { data: TrackInteractionApiV1SearchHistoryInteractionPostBody },
+  TContext
+> => {
+  const mutationOptions =
+    getTrackInteractionApiV1SearchHistoryInteractionPostMutationOptions(options);
 
-      const mutationOptions = getTrackInteractionApiV1SearchHistoryInteractionPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Delete a search for the current user (authenticated or guest).
 
 For authenticated users: Pass authorization token
@@ -390,61 +504,75 @@ Raises:
     404 if search not found or doesn't belong to the user/guest
  * @summary Delete Search
  */
-export const deleteSearchApiV1SearchHistorySearchIdDelete = (
-    searchId: string,
- ) => {
+export const deleteSearchApiV1SearchHistorySearchIdDelete = (searchId: string) => {
+  return customFetch<void>({ url: `/api/v1/search-history/${searchId}`, method: 'DELETE' });
+};
 
+export const getDeleteSearchApiV1SearchHistorySearchIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>,
+    TError,
+    { searchId: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>,
+  TError,
+  { searchId: string },
+  TContext
+> => {
+  const mutationKey = ['deleteSearchApiV1SearchHistorySearchIdDelete'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<void>(
-      {url: `/api/v1/search-history/${searchId}`, method: 'DELETE'
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>,
+    { searchId: string }
+  > = (props) => {
+    const { searchId } = props ?? {};
 
+    return deleteSearchApiV1SearchHistorySearchIdDelete(searchId);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getDeleteSearchApiV1SearchHistorySearchIdDeleteMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>, TError,{searchId: string}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>, TError,{searchId: string}, TContext> => {
+export type DeleteSearchApiV1SearchHistorySearchIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>
+>;
 
-const mutationKey = ['deleteSearchApiV1SearchHistorySearchIdDelete'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type DeleteSearchApiV1SearchHistorySearchIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>, {searchId: string}> = (props) => {
-          const {searchId} = props ?? {};
-
-          return  deleteSearchApiV1SearchHistorySearchIdDelete(searchId,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteSearchApiV1SearchHistorySearchIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>>
-
-    export type DeleteSearchApiV1SearchHistorySearchIdDeleteMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Delete Search
  */
-export const useDeleteSearchApiV1SearchHistorySearchIdDelete = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>, TError,{searchId: string}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>,
-        TError,
-        {searchId: string},
-        TContext
-      > => {
+export const useDeleteSearchApiV1SearchHistorySearchIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>,
+      TError,
+      { searchId: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSearchApiV1SearchHistorySearchIdDelete>>,
+  TError,
+  { searchId: string },
+  TContext
+> => {
+  const mutationOptions = getDeleteSearchApiV1SearchHistorySearchIdDeleteMutationOptions(options);
 
-      const mutationOptions = getDeleteSearchApiV1SearchHistorySearchIdDeleteMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
+  return useMutation(mutationOptions, queryClient);
+};

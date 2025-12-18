@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,19 +18,13 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
-import type {
-  AccountStatusChangeResponse,
-  AccountStatusResponse
-} from '../instructly.schemas';
+import type { AccountStatusChangeResponse, AccountStatusResponse } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Permanently deactivate the current user's instructor account.
@@ -44,66 +35,80 @@ Requirements:
 - Deactivated instructors cannot login or be reactivated through the API
  * @summary Deactivate Account
  */
-export const deactivateAccountApiV1AccountDeactivatePost = (
+export const deactivateAccountApiV1AccountDeactivatePost = (signal?: AbortSignal) => {
+  return customFetch<AccountStatusChangeResponse>({
+    url: `/api/v1/account/deactivate`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getDeactivateAccountApiV1AccountDeactivatePostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['deactivateAccountApiV1AccountDeactivatePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>,
+    void
+  > = () => {
+    return deactivateAccountApiV1AccountDeactivatePost();
+  };
 
-      return customFetch<AccountStatusChangeResponse>(
-      {url: `/api/v1/account/deactivate`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type DeactivateAccountApiV1AccountDeactivatePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>
+>;
 
+export type DeactivateAccountApiV1AccountDeactivatePostMutationError = ErrorType<unknown>;
 
-export const getDeactivateAccountApiV1AccountDeactivatePostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>, TError,void, TContext> => {
-
-const mutationKey = ['deactivateAccountApiV1AccountDeactivatePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>, void> = () => {
-
-
-          return  deactivateAccountApiV1AccountDeactivatePost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeactivateAccountApiV1AccountDeactivatePostMutationResult = NonNullable<Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>>
-
-    export type DeactivateAccountApiV1AccountDeactivatePostMutationError = ErrorType<unknown>
-
-    /**
+/**
  * @summary Deactivate Account
  */
-export const useDeactivateAccountApiV1AccountDeactivatePost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useDeactivateAccountApiV1AccountDeactivatePost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deactivateAccountApiV1AccountDeactivatePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions = getDeactivateAccountApiV1AccountDeactivatePostMutationOptions(options);
 
-      const mutationOptions = getDeactivateAccountApiV1AccountDeactivatePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Reactivate a suspended instructor account.
 
 Requirements:
@@ -112,66 +117,80 @@ Requirements:
 - Once reactivated, instructor can receive bookings again
  * @summary Reactivate Account
  */
-export const reactivateAccountApiV1AccountReactivatePost = (
+export const reactivateAccountApiV1AccountReactivatePost = (signal?: AbortSignal) => {
+  return customFetch<AccountStatusChangeResponse>({
+    url: `/api/v1/account/reactivate`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getReactivateAccountApiV1AccountReactivatePostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['reactivateAccountApiV1AccountReactivatePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>,
+    void
+  > = () => {
+    return reactivateAccountApiV1AccountReactivatePost();
+  };
 
-      return customFetch<AccountStatusChangeResponse>(
-      {url: `/api/v1/account/reactivate`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type ReactivateAccountApiV1AccountReactivatePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>
+>;
 
+export type ReactivateAccountApiV1AccountReactivatePostMutationError = ErrorType<unknown>;
 
-export const getReactivateAccountApiV1AccountReactivatePostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>, TError,void, TContext> => {
-
-const mutationKey = ['reactivateAccountApiV1AccountReactivatePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>, void> = () => {
-
-
-          return  reactivateAccountApiV1AccountReactivatePost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ReactivateAccountApiV1AccountReactivatePostMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>>
-
-    export type ReactivateAccountApiV1AccountReactivatePostMutationError = ErrorType<unknown>
-
-    /**
+/**
  * @summary Reactivate Account
  */
-export const useReactivateAccountApiV1AccountReactivatePost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useReactivateAccountApiV1AccountReactivatePost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof reactivateAccountApiV1AccountReactivatePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions = getReactivateAccountApiV1AccountReactivatePostMutationOptions(options);
 
-      const mutationOptions = getReactivateAccountApiV1AccountReactivatePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Check the current account status and available status change options.
 
 Returns:
@@ -181,94 +200,140 @@ Returns:
 - Available status change options based on current state and future bookings
  * @summary Check Account Status
  */
-export const checkAccountStatusApiV1AccountStatusGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<AccountStatusResponse>(
-      {url: `/api/v1/account/status`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const checkAccountStatusApiV1AccountStatusGet = (signal?: AbortSignal) => {
+  return customFetch<AccountStatusResponse>({
+    url: `/api/v1/account/status`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getCheckAccountStatusApiV1AccountStatusGetQueryKey = () => {
-    return [
-    `/api/v1/account/status`
-    ] as const;
-    }
+  return [`/api/v1/account/status`] as const;
+};
 
+export const getCheckAccountStatusApiV1AccountStatusGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getCheckAccountStatusApiV1AccountStatusGetQueryOptions = <TData = Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getCheckAccountStatusApiV1AccountStatusGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>
+  > = ({ signal }) => checkAccountStatusApiV1AccountStatusGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getCheckAccountStatusApiV1AccountStatusGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type CheckAccountStatusApiV1AccountStatusGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>
+>;
+export type CheckAccountStatusApiV1AccountStatusGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>> = ({ signal }) => checkAccountStatusApiV1AccountStatusGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type CheckAccountStatusApiV1AccountStatusGetQueryResult = NonNullable<Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>>
-export type CheckAccountStatusApiV1AccountStatusGetQueryError = ErrorType<unknown>
-
-
-export function useCheckAccountStatusApiV1AccountStatusGet<TData = Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError, TData>> & Pick<
+export function useCheckAccountStatusApiV1AccountStatusGet<
+  TData = Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
           TError,
           Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCheckAccountStatusApiV1AccountStatusGet<TData = Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCheckAccountStatusApiV1AccountStatusGet<
+  TData = Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
           TError,
           Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCheckAccountStatusApiV1AccountStatusGet<TData = Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCheckAccountStatusApiV1AccountStatusGet<
+  TData = Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Check Account Status
  */
 
-export function useCheckAccountStatusApiV1AccountStatusGet<TData = Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useCheckAccountStatusApiV1AccountStatusGet<
+  TData = Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof checkAccountStatusApiV1AccountStatusGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getCheckAccountStatusApiV1AccountStatusGetQueryOptions(options);
 
-  const queryOptions = getCheckAccountStatusApiV1AccountStatusGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Suspend the current user's instructor account.
@@ -279,62 +344,76 @@ Requirements:
 - Suspended instructors can still login but cannot receive new bookings
  * @summary Suspend Account
  */
-export const suspendAccountApiV1AccountSuspendPost = (
+export const suspendAccountApiV1AccountSuspendPost = (signal?: AbortSignal) => {
+  return customFetch<AccountStatusChangeResponse>({
+    url: `/api/v1/account/suspend`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getSuspendAccountApiV1AccountSuspendPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['suspendAccountApiV1AccountSuspendPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>,
+    void
+  > = () => {
+    return suspendAccountApiV1AccountSuspendPost();
+  };
 
-      return customFetch<AccountStatusChangeResponse>(
-      {url: `/api/v1/account/suspend`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type SuspendAccountApiV1AccountSuspendPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>
+>;
 
+export type SuspendAccountApiV1AccountSuspendPostMutationError = ErrorType<unknown>;
 
-export const getSuspendAccountApiV1AccountSuspendPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>, TError,void, TContext> => {
-
-const mutationKey = ['suspendAccountApiV1AccountSuspendPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>, void> = () => {
-
-
-          return  suspendAccountApiV1AccountSuspendPost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type SuspendAccountApiV1AccountSuspendPostMutationResult = NonNullable<Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>>
-
-    export type SuspendAccountApiV1AccountSuspendPostMutationError = ErrorType<unknown>
-
-    /**
+/**
  * @summary Suspend Account
  */
-export const useSuspendAccountApiV1AccountSuspendPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useSuspendAccountApiV1AccountSuspendPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof suspendAccountApiV1AccountSuspendPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions = getSuspendAccountApiV1AccountSuspendPostMutationOptions(options);
 
-      const mutationOptions = getSuspendAccountApiV1AccountSuspendPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
+  return useMutation(mutationOptions, queryClient);
+};

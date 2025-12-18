@@ -4,7 +4,6 @@
  * Consolidated type definitions for messaging components, hooks, and utilities.
  */
 
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import type { BookingSummary } from '@/types/conversation';
 
 /**
@@ -143,7 +142,18 @@ export type MailSection = 'inbox' | 'compose' | 'sent' | 'drafts' | 'templates';
 /**
  * SSE Message with ownership flag
  */
-export type SSEMessageWithOwnership = MessageResponse & {
-  is_mine?: boolean;
-  sender_id?: string;
+export type SSEMessageWithOwnership = {
+  id: string;
+  content: string;
+  sender_id: string | null;
+  sender_name?: string | null;
+  booking_id?: string | null;
+  created_at: string;
+  delivered_at?: string | null;
+  edited_at?: string | null;
+  is_deleted?: boolean;
+  read_by?: ReadByEntry[] | null;
+  reactions?: unknown;
+  my_reactions?: string[] | null;
+  is_mine: boolean;
 };

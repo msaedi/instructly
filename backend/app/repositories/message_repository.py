@@ -501,13 +501,7 @@ class MessageRepository(BaseRepository[Message]):
             List of messages ordered by created_at descending
         """
         try:
-            query = self.db.query(Message).filter(
-                and_(
-                    Message.conversation_id == conversation_id,
-                    Message.is_deleted == False,
-                    Message.deleted_at.is_(None),
-                )
-            )
+            query = self.db.query(Message).filter(Message.conversation_id == conversation_id)
 
             if booking_id_filter:
                 query = query.filter(Message.booking_id == booking_id_filter)

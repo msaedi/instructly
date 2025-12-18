@@ -239,8 +239,54 @@ class TestGetMessages:
         assert res.status_code == 200
         data = res.json()
         assert len(data["messages"]) == 1
-        assert data["messages"][0]["content"] == "Test message"
-        assert data["messages"][0]["is_from_me"] is True
+        msg = data["messages"][0]
+        assert msg["conversation_id"] == conversation.id
+        assert msg["content"] == "Test message"
+        assert msg["is_from_me"] is True
+        assert msg["edited_at"] is None
+        assert msg["is_deleted"] is False
+
+    def test_get_messages_includes_deleted(
+        self, client, db, test_student, test_instructor_with_availability, auth_headers
+    ):
+        """Includes soft-deleted messages and redacts their content."""
+        conversation = Conversation(
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+        )
+        db.add(conversation)
+        db.flush()
+
+        db.add_all(
+            [
+                Message(
+                    conversation_id=conversation.id,
+                    sender_id=test_student.id,
+                    content="Visible message",
+                    message_type=MESSAGE_TYPE_USER,
+                    created_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+                ),
+                Message(
+                    conversation_id=conversation.id,
+                    sender_id=test_student.id,
+                    content="Original content should not leak",
+                    message_type=MESSAGE_TYPE_USER,
+                    is_deleted=True,
+                    deleted_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(timezone.utc),
+                ),
+            ]
+        )
+        db.commit()
+
+        res = client.get(f"/api/v1/conversations/{conversation.id}/messages", headers=auth_headers)
+        assert res.status_code == 200
+        data = res.json()
+        assert len(data["messages"]) == 2
+
+        deleted = next(m for m in data["messages"] if m["is_deleted"] is True)
+        assert deleted["conversation_id"] == conversation.id
+        assert deleted["content"] == "This message was deleted"
 
     def test_get_messages_empty(
         self, client, db, test_student, test_instructor_with_availability, auth_headers

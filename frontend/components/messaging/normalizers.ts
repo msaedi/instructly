@@ -1,4 +1,3 @@
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import type { MessageWithAttachments } from '@/components/instructor/messages/types';
 import type { NormalizedMessage, NormalizedReaction, NormalizedAttachment } from './types';
 
@@ -14,7 +13,15 @@ export function isSystemMessage(messageType: string | undefined | null): boolean
 }
 
 export function normalizeStudentMessage(
-  message: MessageResponse,
+  message: {
+    id: string;
+    content?: string | null;
+    created_at: string;
+    sender_id?: string | null;
+    sender_name?: string | null;
+    edited_at?: string | null;
+    is_deleted?: boolean;
+  },
   currentUserId: string,
   options?: {
     reactions?: NormalizedReaction[];
@@ -30,9 +37,9 @@ export function normalizeStudentMessage(
     timestamp: new Date(message.created_at),
     timestampLabel: options?.timestampLabel ?? message.created_at,
     isOwn: message.sender_id === currentUserId,
-    senderName: (message as { sender_name?: string }).sender_name,
+    senderName: message.sender_name ?? undefined,
     isEdited: Boolean(message.edited_at),
-    isDeleted: Boolean((message as { is_deleted?: boolean }).is_deleted),
+    isDeleted: Boolean(message.is_deleted),
     readStatus: options?.readStatus ?? undefined,
     readTimestampLabel: options?.readTimestampLabel,
     reactions: options?.reactions ?? [],

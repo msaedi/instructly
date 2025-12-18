@@ -90,6 +90,7 @@ export interface ConversationDetail {
  */
 export interface ConversationMessage {
   id: string;
+  conversation_id: string;
   content: string;
   sender_id: string | null; // null for system messages
   is_from_me: boolean;
@@ -97,6 +98,8 @@ export interface ConversationMessage {
   booking_id?: string | null;
   booking_details?: BookingSummary | null;
   created_at: string;
+  edited_at?: string | null;
+  is_deleted: boolean;
   delivered_at?: string | null;
   read_by: ReadReceiptEntry[];
   reactions: ReactionInfo[];

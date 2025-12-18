@@ -5,9 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useQuery
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -17,288 +15,425 @@ import type {
   QueryKey,
   UndefinedInitialDataOptions,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
-import type {
-  StudentBadgeView
-} from '../instructly.schemas';
+import type { StudentBadgeView } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
 
-
-
-
 /**
  * @summary List Student Badges
  */
-export const listStudentBadgesApiV1StudentsBadgesGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<StudentBadgeView[]>(
-      {url: `/api/v1/students/badges`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const listStudentBadgesApiV1StudentsBadgesGet = (signal?: AbortSignal) => {
+  return customFetch<StudentBadgeView[]>({ url: `/api/v1/students/badges`, method: 'GET', signal });
+};
 
 export const getListStudentBadgesApiV1StudentsBadgesGetQueryKey = () => {
-    return [
-    `/api/v1/students/badges`
-    ] as const;
-    }
+  return [`/api/v1/students/badges`] as const;
+};
 
+export const getListStudentBadgesApiV1StudentsBadgesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getListStudentBadgesApiV1StudentsBadgesGetQueryOptions = <TData = Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getListStudentBadgesApiV1StudentsBadgesGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>
+  > = ({ signal }) => listStudentBadgesApiV1StudentsBadgesGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getListStudentBadgesApiV1StudentsBadgesGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type ListStudentBadgesApiV1StudentsBadgesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>
+>;
+export type ListStudentBadgesApiV1StudentsBadgesGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>> = ({ signal }) => listStudentBadgesApiV1StudentsBadgesGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListStudentBadgesApiV1StudentsBadgesGetQueryResult = NonNullable<Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>>
-export type ListStudentBadgesApiV1StudentsBadgesGetQueryError = ErrorType<unknown>
-
-
-export function useListStudentBadgesApiV1StudentsBadgesGet<TData = Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError, TData>> & Pick<
+export function useListStudentBadgesApiV1StudentsBadgesGet<
+  TData = Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
           TError,
           Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListStudentBadgesApiV1StudentsBadgesGet<TData = Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListStudentBadgesApiV1StudentsBadgesGet<
+  TData = Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
           TError,
           Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListStudentBadgesApiV1StudentsBadgesGet<TData = Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListStudentBadgesApiV1StudentsBadgesGet<
+  TData = Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary List Student Badges
  */
 
-export function useListStudentBadgesApiV1StudentsBadgesGet<TData = Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useListStudentBadgesApiV1StudentsBadgesGet<
+  TData = Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listStudentBadgesApiV1StudentsBadgesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListStudentBadgesApiV1StudentsBadgesGetQueryOptions(options);
 
-  const queryOptions = getListStudentBadgesApiV1StudentsBadgesGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
 
-
-
-
 /**
  * @summary List Earned Student Badges
  */
-export const listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<StudentBadgeView[]>(
-      {url: `/api/v1/students/badges/earned`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet = (signal?: AbortSignal) => {
+  return customFetch<StudentBadgeView[]>({
+    url: `/api/v1/students/badges/earned`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryKey = () => {
-    return [
-    `/api/v1/students/badges/earned`
-    ] as const;
-    }
+  return [`/api/v1/students/badges/earned`] as const;
+};
 
+export const getListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryOptions = <TData = Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ?? getListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>
+  > = ({ signal }) => listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type ListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>
+>;
+export type ListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>> = ({ signal }) => listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryResult = NonNullable<Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>>
-export type ListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryError = ErrorType<unknown>
-
-
-export function useListEarnedStudentBadgesApiV1StudentsBadgesEarnedGet<TData = Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError, TData>> & Pick<
+export function useListEarnedStudentBadgesApiV1StudentsBadgesEarnedGet<
+  TData = Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
           TError,
           Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListEarnedStudentBadgesApiV1StudentsBadgesEarnedGet<TData = Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListEarnedStudentBadgesApiV1StudentsBadgesEarnedGet<
+  TData = Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
           TError,
           Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListEarnedStudentBadgesApiV1StudentsBadgesEarnedGet<TData = Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListEarnedStudentBadgesApiV1StudentsBadgesEarnedGet<
+  TData = Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary List Earned Student Badges
  */
 
-export function useListEarnedStudentBadgesApiV1StudentsBadgesEarnedGet<TData = Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useListEarnedStudentBadgesApiV1StudentsBadgesEarnedGet<
+  TData = Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listEarnedStudentBadgesApiV1StudentsBadgesEarnedGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryOptions(options);
 
-  const queryOptions = getListEarnedStudentBadgesApiV1StudentsBadgesEarnedGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
 
-
-
-
 /**
  * @summary List In Progress Student Badges
  */
-export const listInProgressStudentBadgesApiV1StudentsBadgesProgressGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<StudentBadgeView[]>(
-      {url: `/api/v1/students/badges/progress`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const listInProgressStudentBadgesApiV1StudentsBadgesProgressGet = (signal?: AbortSignal) => {
+  return customFetch<StudentBadgeView[]>({
+    url: `/api/v1/students/badges/progress`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryKey = () => {
-    return [
-    `/api/v1/students/badges/progress`
-    ] as const;
-    }
+  return [`/api/v1/students/badges/progress`] as const;
+};
 
+export const getListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryOptions = <TData = Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>
+  > = ({ signal }) => listInProgressStudentBadgesApiV1StudentsBadgesProgressGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type ListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>
+>;
+export type ListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryError =
+  ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>> = ({ signal }) => listInProgressStudentBadgesApiV1StudentsBadgesProgressGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryResult = NonNullable<Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>>
-export type ListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryError = ErrorType<unknown>
-
-
-export function useListInProgressStudentBadgesApiV1StudentsBadgesProgressGet<TData = Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError, TData>> & Pick<
+export function useListInProgressStudentBadgesApiV1StudentsBadgesProgressGet<
+  TData = Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
           TError,
           Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListInProgressStudentBadgesApiV1StudentsBadgesProgressGet<TData = Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInProgressStudentBadgesApiV1StudentsBadgesProgressGet<
+  TData = Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
           TError,
           Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListInProgressStudentBadgesApiV1StudentsBadgesProgressGet<TData = Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInProgressStudentBadgesApiV1StudentsBadgesProgressGet<
+  TData = Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary List In Progress Student Badges
  */
 
-export function useListInProgressStudentBadgesApiV1StudentsBadgesProgressGet<TData = Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useListInProgressStudentBadgesApiV1StudentsBadgesProgressGet<
+  TData = Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInProgressStudentBadgesApiV1StudentsBadgesProgressGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryOptions(options);
 
-  const queryOptions = getListInProgressStudentBadgesApiV1StudentsBadgesProgressGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

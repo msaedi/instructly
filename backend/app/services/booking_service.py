@@ -22,7 +22,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 from zoneinfo import ZoneInfo
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 import stripe
 
@@ -89,6 +89,15 @@ class BookingService(BaseService):
     event_outbox_repository: "EventOutboxRepository"
     audit_repository: "AuditRepository"
     event_publisher: EventPublisher
+
+    @staticmethod
+    def _is_deadlock_error(exc: OperationalError) -> bool:
+        orig = getattr(exc, "orig", None)
+        pgcode = getattr(orig, "pgcode", None) or getattr(orig, "sqlstate", None)
+        if pgcode == "40P01":
+            return True
+        message = str(exc).lower()
+        return "deadlock detected" in message
 
     def __init__(
         self,
@@ -519,6 +528,14 @@ class BookingService(BaseService):
                 message=message,
                 details=conflict_details,
             ) from exc
+        except OperationalError as exc:
+            if self._is_deadlock_error(exc):
+                conflict_details = self._build_conflict_details(booking_data, student.id)
+                raise BookingConflictException(
+                    message=GENERIC_CONFLICT_MESSAGE,
+                    details=conflict_details,
+                ) from exc
+            raise
         except RepositoryException as exc:
             self._raise_conflict_from_repo_error(exc, booking_data, student.id)
 
@@ -684,6 +701,14 @@ class BookingService(BaseService):
                 message=message,
                 details=conflict_details,
             ) from exc
+        except OperationalError as exc:
+            if self._is_deadlock_error(exc):
+                conflict_details = self._build_conflict_details(booking_data, student.id)
+                raise BookingConflictException(
+                    message=GENERIC_CONFLICT_MESSAGE,
+                    details=conflict_details,
+                ) from exc
+            raise
         except RepositoryException as exc:
             self._raise_conflict_from_repo_error(exc, booking_data, student.id)
 

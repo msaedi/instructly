@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -42,14 +39,11 @@ import type {
   PlaceDetailsApiV1AddressesPlacesDetailsGetParams,
   PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams,
   ServiceAreasResponse,
-  ServiceAreasUpdateRequest
+  ServiceAreasUpdateRequest,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Return GeoJSON FeatureCollection of neighborhoods served by the given instructors.
@@ -58,475 +52,680 @@ import type { ErrorType } from '../../orval-mutator';
  * @summary Get Bulk Coverage Geojson
  */
 export const getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet = (
-    params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams,
- signal?: AbortSignal
+  params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<CoverageFeatureCollectionResponse>({
+    url: `/api/v1/addresses/coverage/bulk`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<CoverageFeatureCollectionResponse>(
-      {url: `/api/v1/addresses/coverage/bulk`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryKey = (params?: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams,) => {
-    return [
-    `/api/v1/addresses/coverage/bulk`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryOptions = <TData = Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError = ErrorType<HTTPValidationError>>(params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError, TData>>, }
+export const getGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryKey = (
+  params?: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams
 ) => {
+  return [`/api/v1/addresses/coverage/bulk`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>
+  > = ({ signal }) => getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>> = ({ signal }) => getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet(params, signal);
+export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>
+>;
+export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryResult = NonNullable<Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>>
-export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGet<TData = Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError, TData>> & Pick<
+export function useGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGet<
+  TData = Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
           TError,
           Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGet<TData = Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGet<
+  TData = Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
           TError,
           Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGet<TData = Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGet<
+  TData = Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Bulk Coverage Geojson
  */
 
-export function useGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGet<TData = Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGet<
+  TData = Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBulkCoverageGeojsonApiV1AddressesCoverageBulkGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * List all addresses for the current user.
  * @summary List My Addresses
  */
-export const listMyAddressesApiV1AddressesMeGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<AddressListResponse>(
-      {url: `/api/v1/addresses/me`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const listMyAddressesApiV1AddressesMeGet = (signal?: AbortSignal) => {
+  return customFetch<AddressListResponse>({ url: `/api/v1/addresses/me`, method: 'GET', signal });
+};
 
 export const getListMyAddressesApiV1AddressesMeGetQueryKey = () => {
-    return [
-    `/api/v1/addresses/me`
-    ] as const;
-    }
+  return [`/api/v1/addresses/me`] as const;
+};
 
+export const getListMyAddressesApiV1AddressesMeGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData>
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getListMyAddressesApiV1AddressesMeGetQueryOptions = <TData = Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getListMyAddressesApiV1AddressesMeGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>> = ({
+    signal,
+  }) => listMyAddressesApiV1AddressesMeGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getListMyAddressesApiV1AddressesMeGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type ListMyAddressesApiV1AddressesMeGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>
+>;
+export type ListMyAddressesApiV1AddressesMeGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>> = ({ signal }) => listMyAddressesApiV1AddressesMeGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListMyAddressesApiV1AddressesMeGetQueryResult = NonNullable<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>>
-export type ListMyAddressesApiV1AddressesMeGetQueryError = ErrorType<unknown>
-
-
-export function useListMyAddressesApiV1AddressesMeGet<TData = Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData>> & Pick<
+export function useListMyAddressesApiV1AddressesMeGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>,
           TError,
           Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListMyAddressesApiV1AddressesMeGet<TData = Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyAddressesApiV1AddressesMeGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>,
           TError,
           Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListMyAddressesApiV1AddressesMeGet<TData = Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyAddressesApiV1AddressesMeGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary List My Addresses
  */
 
-export function useListMyAddressesApiV1AddressesMeGet<TData = Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useListMyAddressesApiV1AddressesMeGet<
+  TData = Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyAddressesApiV1AddressesMeGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyAddressesApiV1AddressesMeGetQueryOptions(options);
 
-  const queryOptions = getListMyAddressesApiV1AddressesMeGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Create a new address for the current user.
  * @summary Create My Address
  */
 export const createMyAddressApiV1AddressesMePost = (
-    addressCreate: AddressCreate,
- signal?: AbortSignal
+  addressCreate: AddressCreate,
+  signal?: AbortSignal
 ) => {
+  return customFetch<AddressResponse>({
+    url: `/api/v1/addresses/me`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: addressCreate,
+    signal,
+  });
+};
 
+export const getCreateMyAddressApiV1AddressesMePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>,
+    TError,
+    { data: AddressCreate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>,
+  TError,
+  { data: AddressCreate },
+  TContext
+> => {
+  const mutationKey = ['createMyAddressApiV1AddressesMePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<AddressResponse>(
-      {url: `/api/v1/addresses/me`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: addressCreate, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>,
+    { data: AddressCreate }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return createMyAddressApiV1AddressesMePost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getCreateMyAddressApiV1AddressesMePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>, TError,{data: AddressCreate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>, TError,{data: AddressCreate}, TContext> => {
+export type CreateMyAddressApiV1AddressesMePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>
+>;
+export type CreateMyAddressApiV1AddressesMePostMutationBody = AddressCreate;
+export type CreateMyAddressApiV1AddressesMePostMutationError = ErrorType<HTTPValidationError>;
 
-const mutationKey = ['createMyAddressApiV1AddressesMePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>, {data: AddressCreate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  createMyAddressApiV1AddressesMePost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CreateMyAddressApiV1AddressesMePostMutationResult = NonNullable<Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>>
-    export type CreateMyAddressApiV1AddressesMePostMutationBody = AddressCreate
-    export type CreateMyAddressApiV1AddressesMePostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Create My Address
  */
-export const useCreateMyAddressApiV1AddressesMePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>, TError,{data: AddressCreate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>,
-        TError,
-        {data: AddressCreate},
-        TContext
-      > => {
+export const useCreateMyAddressApiV1AddressesMePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>,
+      TError,
+      { data: AddressCreate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createMyAddressApiV1AddressesMePost>>,
+  TError,
+  { data: AddressCreate },
+  TContext
+> => {
+  const mutationOptions = getCreateMyAddressApiV1AddressesMePostMutationOptions(options);
 
-      const mutationOptions = getCreateMyAddressApiV1AddressesMePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Delete an address for the current user.
  * @summary Delete My Address
  */
-export const deleteMyAddressApiV1AddressesMeAddressIdDelete = (
-    addressId: string,
- ) => {
+export const deleteMyAddressApiV1AddressesMeAddressIdDelete = (addressId: string) => {
+  return customFetch<AppSchemasAddressResponsesDeleteResponse>({
+    url: `/api/v1/addresses/me/${addressId}`,
+    method: 'DELETE',
+  });
+};
 
+export const getDeleteMyAddressApiV1AddressesMeAddressIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>,
+    TError,
+    { addressId: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>,
+  TError,
+  { addressId: string },
+  TContext
+> => {
+  const mutationKey = ['deleteMyAddressApiV1AddressesMeAddressIdDelete'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<AppSchemasAddressResponsesDeleteResponse>(
-      {url: `/api/v1/addresses/me/${addressId}`, method: 'DELETE'
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>,
+    { addressId: string }
+  > = (props) => {
+    const { addressId } = props ?? {};
 
+    return deleteMyAddressApiV1AddressesMeAddressIdDelete(addressId);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getDeleteMyAddressApiV1AddressesMeAddressIdDeleteMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>, TError,{addressId: string}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>, TError,{addressId: string}, TContext> => {
+export type DeleteMyAddressApiV1AddressesMeAddressIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>
+>;
 
-const mutationKey = ['deleteMyAddressApiV1AddressesMeAddressIdDelete'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type DeleteMyAddressApiV1AddressesMeAddressIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>, {addressId: string}> = (props) => {
-          const {addressId} = props ?? {};
-
-          return  deleteMyAddressApiV1AddressesMeAddressIdDelete(addressId,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteMyAddressApiV1AddressesMeAddressIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>>
-
-    export type DeleteMyAddressApiV1AddressesMeAddressIdDeleteMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Delete My Address
  */
-export const useDeleteMyAddressApiV1AddressesMeAddressIdDelete = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>, TError,{addressId: string}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>,
-        TError,
-        {addressId: string},
-        TContext
-      > => {
+export const useDeleteMyAddressApiV1AddressesMeAddressIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>,
+      TError,
+      { addressId: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMyAddressApiV1AddressesMeAddressIdDelete>>,
+  TError,
+  { addressId: string },
+  TContext
+> => {
+  const mutationOptions = getDeleteMyAddressApiV1AddressesMeAddressIdDeleteMutationOptions(options);
 
-      const mutationOptions = getDeleteMyAddressApiV1AddressesMeAddressIdDeleteMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Update an existing address for the current user.
  * @summary Update My Address
  */
 export const updateMyAddressApiV1AddressesMeAddressIdPatch = (
-    addressId: string,
-    addressUpdate: AddressUpdate,
- ) => {
+  addressId: string,
+  addressUpdate: AddressUpdate
+) => {
+  return customFetch<AddressResponse>({
+    url: `/api/v1/addresses/me/${addressId}`,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    data: addressUpdate,
+  });
+};
 
+export const getUpdateMyAddressApiV1AddressesMeAddressIdPatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>,
+    TError,
+    { addressId: string; data: AddressUpdate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>,
+  TError,
+  { addressId: string; data: AddressUpdate },
+  TContext
+> => {
+  const mutationKey = ['updateMyAddressApiV1AddressesMeAddressIdPatch'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<AddressResponse>(
-      {url: `/api/v1/addresses/me/${addressId}`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: addressUpdate
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>,
+    { addressId: string; data: AddressUpdate }
+  > = (props) => {
+    const { addressId, data } = props ?? {};
 
+    return updateMyAddressApiV1AddressesMeAddressIdPatch(addressId, data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getUpdateMyAddressApiV1AddressesMeAddressIdPatchMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>, TError,{addressId: string;data: AddressUpdate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>, TError,{addressId: string;data: AddressUpdate}, TContext> => {
+export type UpdateMyAddressApiV1AddressesMeAddressIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>
+>;
+export type UpdateMyAddressApiV1AddressesMeAddressIdPatchMutationBody = AddressUpdate;
+export type UpdateMyAddressApiV1AddressesMeAddressIdPatchMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['updateMyAddressApiV1AddressesMeAddressIdPatch'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>, {addressId: string;data: AddressUpdate}> = (props) => {
-          const {addressId,data} = props ?? {};
-
-          return  updateMyAddressApiV1AddressesMeAddressIdPatch(addressId,data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdateMyAddressApiV1AddressesMeAddressIdPatchMutationResult = NonNullable<Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>>
-    export type UpdateMyAddressApiV1AddressesMeAddressIdPatchMutationBody = AddressUpdate
-    export type UpdateMyAddressApiV1AddressesMeAddressIdPatchMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Update My Address
  */
-export const useUpdateMyAddressApiV1AddressesMeAddressIdPatch = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>, TError,{addressId: string;data: AddressUpdate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>,
-        TError,
-        {addressId: string;data: AddressUpdate},
-        TContext
-      > => {
+export const useUpdateMyAddressApiV1AddressesMeAddressIdPatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>,
+      TError,
+      { addressId: string; data: AddressUpdate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateMyAddressApiV1AddressesMeAddressIdPatch>>,
+  TError,
+  { addressId: string; data: AddressUpdate },
+  TContext
+> => {
+  const mutationOptions = getUpdateMyAddressApiV1AddressesMeAddressIdPatchMutationOptions(options);
 
-      const mutationOptions = getUpdateMyAddressApiV1AddressesMeAddressIdPatchMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Provider-agnostic autocomplete passthrough.
 
 Uses the configured provider to retrieve suggestions.
  * @summary Places Autocomplete
  */
 export const placesAutocompleteApiV1AddressesPlacesAutocompleteGet = (
-    params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams,
- signal?: AbortSignal
+  params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<AutocompleteResponse>({
+    url: `/api/v1/addresses/places/autocomplete`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<AutocompleteResponse>(
-      {url: `/api/v1/addresses/places/autocomplete`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getPlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryKey = (params?: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams,) => {
-    return [
-    `/api/v1/addresses/places/autocomplete`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getPlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryOptions = <TData = Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError = ErrorType<HTTPValidationError>>(params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError, TData>>, }
+export const getPlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryKey = (
+  params?: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams
 ) => {
+  return [`/api/v1/addresses/places/autocomplete`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getPlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getPlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getPlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>
+  > = ({ signal }) => placesAutocompleteApiV1AddressesPlacesAutocompleteGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>> = ({ signal }) => placesAutocompleteApiV1AddressesPlacesAutocompleteGet(params, signal);
+export type PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>
+>;
+export type PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryResult = NonNullable<Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>>
-export type PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function usePlacesAutocompleteApiV1AddressesPlacesAutocompleteGet<TData = Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError = ErrorType<HTTPValidationError>>(
- params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError, TData>> & Pick<
+export function usePlacesAutocompleteApiV1AddressesPlacesAutocompleteGet<
+  TData = Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
           TError,
           Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePlacesAutocompleteApiV1AddressesPlacesAutocompleteGet<TData = Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError = ErrorType<HTTPValidationError>>(
- params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function usePlacesAutocompleteApiV1AddressesPlacesAutocompleteGet<
+  TData = Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
           TError,
           Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePlacesAutocompleteApiV1AddressesPlacesAutocompleteGet<TData = Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError = ErrorType<HTTPValidationError>>(
- params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function usePlacesAutocompleteApiV1AddressesPlacesAutocompleteGet<
+  TData = Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Places Autocomplete
  */
 
-export function usePlacesAutocompleteApiV1AddressesPlacesAutocompleteGet<TData = Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError = ErrorType<HTTPValidationError>>(
- params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function usePlacesAutocompleteApiV1AddressesPlacesAutocompleteGet<
+  TData = Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof placesAutocompleteApiV1AddressesPlacesAutocompleteGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getPlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getPlacesAutocompleteApiV1AddressesPlacesAutocompleteGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Return normalized place details for a selected suggestion.
@@ -535,347 +734,538 @@ Frontend uses this to auto-fill form fields without exposing provider payloads.
  * @summary Place Details
  */
 export const placeDetailsApiV1AddressesPlacesDetailsGet = (
-    params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams,
- signal?: AbortSignal
+  params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PlaceDetails>({
+    url: `/api/v1/addresses/places/details`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<PlaceDetails>(
-      {url: `/api/v1/addresses/places/details`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getPlaceDetailsApiV1AddressesPlacesDetailsGetQueryKey = (params?: PlaceDetailsApiV1AddressesPlacesDetailsGetParams,) => {
-    return [
-    `/api/v1/addresses/places/details`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getPlaceDetailsApiV1AddressesPlacesDetailsGetQueryOptions = <TData = Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError = ErrorType<HTTPValidationError>>(params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError, TData>>, }
+export const getPlaceDetailsApiV1AddressesPlacesDetailsGetQueryKey = (
+  params?: PlaceDetailsApiV1AddressesPlacesDetailsGetParams
 ) => {
+  return [`/api/v1/addresses/places/details`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getPlaceDetailsApiV1AddressesPlacesDetailsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getPlaceDetailsApiV1AddressesPlacesDetailsGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getPlaceDetailsApiV1AddressesPlacesDetailsGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>
+  > = ({ signal }) => placeDetailsApiV1AddressesPlacesDetailsGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>> = ({ signal }) => placeDetailsApiV1AddressesPlacesDetailsGet(params, signal);
+export type PlaceDetailsApiV1AddressesPlacesDetailsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>
+>;
+export type PlaceDetailsApiV1AddressesPlacesDetailsGetQueryError = ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type PlaceDetailsApiV1AddressesPlacesDetailsGetQueryResult = NonNullable<Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>>
-export type PlaceDetailsApiV1AddressesPlacesDetailsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function usePlaceDetailsApiV1AddressesPlacesDetailsGet<TData = Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError, TData>> & Pick<
+export function usePlaceDetailsApiV1AddressesPlacesDetailsGet<
+  TData = Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
           TError,
           Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePlaceDetailsApiV1AddressesPlacesDetailsGet<TData = Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function usePlaceDetailsApiV1AddressesPlacesDetailsGet<
+  TData = Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
           TError,
           Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function usePlaceDetailsApiV1AddressesPlacesDetailsGet<TData = Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function usePlaceDetailsApiV1AddressesPlacesDetailsGet<
+  TData = Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Place Details
  */
 
-export function usePlaceDetailsApiV1AddressesPlacesDetailsGet<TData = Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function usePlaceDetailsApiV1AddressesPlacesDetailsGet<
+  TData = Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: PlaceDetailsApiV1AddressesPlacesDetailsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof placeDetailsApiV1AddressesPlacesDetailsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getPlaceDetailsApiV1AddressesPlacesDetailsGetQueryOptions(params, options);
 
-  const queryOptions = getPlaceDetailsApiV1AddressesPlacesDetailsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * List neighborhoods for a region type.
  * @summary List Neighborhoods
  */
 export const listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet = (
-    params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams,
- signal?: AbortSignal
+  params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<NeighborhoodsListResponse>({
+    url: `/api/v1/addresses/regions/neighborhoods`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<NeighborhoodsListResponse>(
-      {url: `/api/v1/addresses/regions/neighborhoods`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryKey = (params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams,) => {
-    return [
-    `/api/v1/addresses/regions/neighborhoods`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryOptions = <TData = Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError = ErrorType<HTTPValidationError>>(params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError, TData>>, }
+export const getListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryKey = (
+  params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams
 ) => {
+  return [`/api/v1/addresses/regions/neighborhoods`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>
+  > = ({ signal }) => listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>> = ({ signal }) => listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet(params, signal);
+export type ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>
+>;
+export type ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryResult = NonNullable<Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>>
-export type ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet<TData = Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError, TData>> & Pick<
+export function useListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet<
+  TData = Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
           TError,
           Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet<TData = Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet<
+  TData = Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
           TError,
           Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet<TData = Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet<
+  TData = Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary List Neighborhoods
  */
 
-export function useListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet<TData = Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet<
+  TData = Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listNeighborhoodsApiV1AddressesRegionsNeighborhoodsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * List service areas for the current instructor.
  * @summary List My Service Areas
  */
-export const listMyServiceAreasApiV1AddressesServiceAreasMeGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<ServiceAreasResponse>(
-      {url: `/api/v1/addresses/service-areas/me`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const listMyServiceAreasApiV1AddressesServiceAreasMeGet = (signal?: AbortSignal) => {
+  return customFetch<ServiceAreasResponse>({
+    url: `/api/v1/addresses/service-areas/me`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryKey = () => {
-    return [
-    `/api/v1/addresses/service-areas/me`
-    ] as const;
-    }
+  return [`/api/v1/addresses/service-areas/me`] as const;
+};
 
+export const getListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryOptions = <TData = Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ?? getListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>
+  > = ({ signal }) => listMyServiceAreasApiV1AddressesServiceAreasMeGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type ListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>
+>;
+export type ListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>> = ({ signal }) => listMyServiceAreasApiV1AddressesServiceAreasMeGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryResult = NonNullable<Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>>
-export type ListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryError = ErrorType<unknown>
-
-
-export function useListMyServiceAreasApiV1AddressesServiceAreasMeGet<TData = Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError, TData>> & Pick<
+export function useListMyServiceAreasApiV1AddressesServiceAreasMeGet<
+  TData = Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
           TError,
           Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListMyServiceAreasApiV1AddressesServiceAreasMeGet<TData = Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyServiceAreasApiV1AddressesServiceAreasMeGet<
+  TData = Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
           TError,
           Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListMyServiceAreasApiV1AddressesServiceAreasMeGet<TData = Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyServiceAreasApiV1AddressesServiceAreasMeGet<
+  TData = Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary List My Service Areas
  */
 
-export function useListMyServiceAreasApiV1AddressesServiceAreasMeGet<TData = Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useListMyServiceAreasApiV1AddressesServiceAreasMeGet<
+  TData = Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listMyServiceAreasApiV1AddressesServiceAreasMeGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryOptions(options);
 
-  const queryOptions = getListMyServiceAreasApiV1AddressesServiceAreasMeGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Replace all service areas for the current instructor.
  * @summary Replace My Service Areas
  */
 export const replaceMyServiceAreasApiV1AddressesServiceAreasMePut = (
-    serviceAreasUpdateRequest: ServiceAreasUpdateRequest,
- ) => {
+  serviceAreasUpdateRequest: ServiceAreasUpdateRequest
+) => {
+  return customFetch<ServiceAreasResponse>({
+    url: `/api/v1/addresses/service-areas/me`,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    data: serviceAreasUpdateRequest,
+  });
+};
 
+export const getReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>,
+    TError,
+    { data: ServiceAreasUpdateRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>,
+  TError,
+  { data: ServiceAreasUpdateRequest },
+  TContext
+> => {
+  const mutationKey = ['replaceMyServiceAreasApiV1AddressesServiceAreasMePut'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<ServiceAreasResponse>(
-      {url: `/api/v1/addresses/service-areas/me`, method: 'PUT',
-      headers: {'Content-Type': 'application/json', },
-      data: serviceAreasUpdateRequest
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>,
+    { data: ServiceAreasUpdateRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return replaceMyServiceAreasApiV1AddressesServiceAreasMePut(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>, TError,{data: ServiceAreasUpdateRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>, TError,{data: ServiceAreasUpdateRequest}, TContext> => {
+export type ReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>
+>;
+export type ReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationBody =
+  ServiceAreasUpdateRequest;
+export type ReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['replaceMyServiceAreasApiV1AddressesServiceAreasMePut'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>, {data: ServiceAreasUpdateRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  replaceMyServiceAreasApiV1AddressesServiceAreasMePut(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationResult = NonNullable<Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>>
-    export type ReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationBody = ServiceAreasUpdateRequest
-    export type ReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Replace My Service Areas
  */
-export const useReplaceMyServiceAreasApiV1AddressesServiceAreasMePut = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>, TError,{data: ServiceAreasUpdateRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>,
-        TError,
-        {data: ServiceAreasUpdateRequest},
-        TContext
-      > => {
+export const useReplaceMyServiceAreasApiV1AddressesServiceAreasMePut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>,
+      TError,
+      { data: ServiceAreasUpdateRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof replaceMyServiceAreasApiV1AddressesServiceAreasMePut>>,
+  TError,
+  { data: ServiceAreasUpdateRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationOptions(options);
 
-      const mutationOptions = getReplaceMyServiceAreasApiV1AddressesServiceAreasMePutMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Lightweight NYC ZIP check.
 
 Args:
@@ -891,88 +1281,129 @@ Notes:
  * @summary Is Nyc Zip
  */
 export const isNycZipApiV1AddressesZipIsNycGet = (
-    params: IsNycZipApiV1AddressesZipIsNycGetParams,
- signal?: AbortSignal
+  params: IsNycZipApiV1AddressesZipIsNycGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<NYCZipCheckResponse>({
+    url: `/api/v1/addresses/zip/is-nyc`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<NYCZipCheckResponse>(
-      {url: `/api/v1/addresses/zip/is-nyc`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getIsNycZipApiV1AddressesZipIsNycGetQueryKey = (params?: IsNycZipApiV1AddressesZipIsNycGetParams,) => {
-    return [
-    `/api/v1/addresses/zip/is-nyc`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getIsNycZipApiV1AddressesZipIsNycGetQueryOptions = <TData = Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError = ErrorType<HTTPValidationError>>(params: IsNycZipApiV1AddressesZipIsNycGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData>>, }
+export const getIsNycZipApiV1AddressesZipIsNycGetQueryKey = (
+  params?: IsNycZipApiV1AddressesZipIsNycGetParams
 ) => {
+  return [`/api/v1/addresses/zip/is-nyc`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getIsNycZipApiV1AddressesZipIsNycGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: IsNycZipApiV1AddressesZipIsNycGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData>
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getIsNycZipApiV1AddressesZipIsNycGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getIsNycZipApiV1AddressesZipIsNycGetQueryKey(params);
 
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>> = ({
+    signal,
+  }) => isNycZipApiV1AddressesZipIsNycGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>> = ({ signal }) => isNycZipApiV1AddressesZipIsNycGet(params, signal);
+export type IsNycZipApiV1AddressesZipIsNycGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>
+>;
+export type IsNycZipApiV1AddressesZipIsNycGetQueryError = ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type IsNycZipApiV1AddressesZipIsNycGetQueryResult = NonNullable<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>>
-export type IsNycZipApiV1AddressesZipIsNycGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useIsNycZipApiV1AddressesZipIsNycGet<TData = Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError = ErrorType<HTTPValidationError>>(
- params: IsNycZipApiV1AddressesZipIsNycGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData>> & Pick<
+export function useIsNycZipApiV1AddressesZipIsNycGet<
+  TData = Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: IsNycZipApiV1AddressesZipIsNycGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>,
           TError,
           Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useIsNycZipApiV1AddressesZipIsNycGet<TData = Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError = ErrorType<HTTPValidationError>>(
- params: IsNycZipApiV1AddressesZipIsNycGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useIsNycZipApiV1AddressesZipIsNycGet<
+  TData = Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: IsNycZipApiV1AddressesZipIsNycGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>,
           TError,
           Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useIsNycZipApiV1AddressesZipIsNycGet<TData = Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError = ErrorType<HTTPValidationError>>(
- params: IsNycZipApiV1AddressesZipIsNycGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useIsNycZipApiV1AddressesZipIsNycGet<
+  TData = Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: IsNycZipApiV1AddressesZipIsNycGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Is Nyc Zip
  */
 
-export function useIsNycZipApiV1AddressesZipIsNycGet<TData = Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError = ErrorType<HTTPValidationError>>(
- params: IsNycZipApiV1AddressesZipIsNycGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useIsNycZipApiV1AddressesZipIsNycGet<
+  TData = Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: IsNycZipApiV1AddressesZipIsNycGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof isNycZipApiV1AddressesZipIsNycGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getIsNycZipApiV1AddressesZipIsNycGetQueryOptions(params, options);
 
-  const queryOptions = getIsNycZipApiV1AddressesZipIsNycGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

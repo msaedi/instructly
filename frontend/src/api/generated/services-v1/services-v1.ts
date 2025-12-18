@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -36,14 +33,11 @@ import type {
   InstructorServiceResponse,
   SearchServicesApiV1ServicesSearchGetParams,
   ServiceSearchResponse,
-  TopServicesPerCategoryResponse
+  TopServicesPerCategoryResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Get available services from the catalog.
@@ -52,94 +46,153 @@ Optionally filter by category slug (e.g., 'music-arts', 'academic').
  * @summary Get Catalog Services
  */
 export const getCatalogServicesApiV1ServicesCatalogGet = (
-    params?: GetCatalogServicesApiV1ServicesCatalogGetParams,
- signal?: AbortSignal
+  params?: GetCatalogServicesApiV1ServicesCatalogGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<CatalogServiceResponse[]>({
+    url: `/api/v1/services/catalog`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<CatalogServiceResponse[]>(
-      {url: `/api/v1/services/catalog`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetCatalogServicesApiV1ServicesCatalogGetQueryKey = (params?: GetCatalogServicesApiV1ServicesCatalogGetParams,) => {
-    return [
-    `/api/v1/services/catalog`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetCatalogServicesApiV1ServicesCatalogGetQueryOptions = <TData = Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetCatalogServicesApiV1ServicesCatalogGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError, TData>>, }
+export const getGetCatalogServicesApiV1ServicesCatalogGetQueryKey = (
+  params?: GetCatalogServicesApiV1ServicesCatalogGetParams
 ) => {
+  return [`/api/v1/services/catalog`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetCatalogServicesApiV1ServicesCatalogGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetCatalogServicesApiV1ServicesCatalogGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCatalogServicesApiV1ServicesCatalogGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCatalogServicesApiV1ServicesCatalogGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>
+  > = ({ signal }) => getCatalogServicesApiV1ServicesCatalogGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>> = ({ signal }) => getCatalogServicesApiV1ServicesCatalogGet(params, signal);
+export type GetCatalogServicesApiV1ServicesCatalogGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>
+>;
+export type GetCatalogServicesApiV1ServicesCatalogGetQueryError = ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetCatalogServicesApiV1ServicesCatalogGetQueryResult = NonNullable<Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>>
-export type GetCatalogServicesApiV1ServicesCatalogGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetCatalogServicesApiV1ServicesCatalogGet<TData = Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetCatalogServicesApiV1ServicesCatalogGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError, TData>> & Pick<
+export function useGetCatalogServicesApiV1ServicesCatalogGet<
+  TData = Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetCatalogServicesApiV1ServicesCatalogGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
           TError,
           Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCatalogServicesApiV1ServicesCatalogGet<TData = Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetCatalogServicesApiV1ServicesCatalogGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCatalogServicesApiV1ServicesCatalogGet<
+  TData = Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetCatalogServicesApiV1ServicesCatalogGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
           TError,
           Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCatalogServicesApiV1ServicesCatalogGet<TData = Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetCatalogServicesApiV1ServicesCatalogGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCatalogServicesApiV1ServicesCatalogGet<
+  TData = Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetCatalogServicesApiV1ServicesCatalogGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Catalog Services
  */
 
-export function useGetCatalogServicesApiV1ServicesCatalogGet<TData = Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetCatalogServicesApiV1ServicesCatalogGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetCatalogServicesApiV1ServicesCatalogGet<
+  TData = Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetCatalogServicesApiV1ServicesCatalogGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCatalogServicesApiV1ServicesCatalogGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCatalogServicesApiV1ServicesCatalogGetQueryOptions(params, options);
 
-  const queryOptions = getGetCatalogServicesApiV1ServicesCatalogGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get all catalog services organized by category with active instructor counts.
@@ -153,93 +206,191 @@ Returns:
  * @summary Get All Services With Instructors
  */
 export const getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet = (
-
- signal?: AbortSignal
+  signal?: AbortSignal
 ) => {
+  return customFetch<AllServicesWithInstructorsResponse>({
+    url: `/api/v1/services/catalog/all-with-instructors`,
+    method: 'GET',
+    signal,
+  });
+};
 
+export const getGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryKey =
+  () => {
+    return [`/api/v1/services/catalog/all-with-instructors`] as const;
+  };
 
-      return customFetch<AllServicesWithInstructorsResponse>(
-      {url: `/api/v1/services/catalog/all-with-instructors`, method: 'GET', signal
-    },
-      );
-    }
+export const getGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+    >,
+    TError = ErrorType<unknown>,
+  >(options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  }) => {
+    const { query: queryOptions } = options ?? {};
 
+    const queryKey =
+      queryOptions?.queryKey ??
+      getGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryKey();
 
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+      >
+    > = ({ signal }) =>
+      getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet(signal);
 
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
 
-export const getGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryKey = () => {
-    return [
-    `/api/v1/services/catalog/all-with-instructors`
-    ] as const;
-    }
+export type GetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+    >
+  >;
+export type GetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryError =
+  ErrorType<unknown>;
 
-
-export const getGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryOptions = <TData = Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError, TData>>, }
-) => {
-
-const {query: queryOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryKey();
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>> = ({ signal }) => getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>>
-export type GetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryError = ErrorType<unknown>
-
-
-export function useGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet<TData = Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError, TData>> & Pick<
+export function useGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet<
+  TData = Awaited<
+    ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+  >,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>,
+          Awaited<
+            ReturnType<
+              typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet
+            >
+          >,
           TError,
-          Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet<TData = Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError, TData>> & Pick<
+          Awaited<
+            ReturnType<
+              typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet<
+  TData = Awaited<
+    ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+  >,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>,
+          Awaited<
+            ReturnType<
+              typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet
+            >
+          >,
           TError,
-          Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet<TData = Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<
+            ReturnType<
+              typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet<
+  TData = Awaited<
+    ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+  >,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get All Services With Instructors
  */
 
-export function useGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet<TData = Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet<
+  TData = Awaited<
+    ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+  >,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryOptions(options);
 
-  const queryOptions = getGetAllServicesWithInstructorsApiV1ServicesCatalogAllWithInstructorsGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Return catalog services that have at least one active instructor who teaches kids.
@@ -248,93 +399,145 @@ Minimal payload: id, name, slug. Cached for 5 minutes.
  * @summary Get Kids Available Services
  */
 export const getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet = (
-
- signal?: AbortSignal
+  signal?: AbortSignal
 ) => {
-
-
-      return customFetch<CatalogServiceMinimalResponse[]>(
-      {url: `/api/v1/services/catalog/kids-available`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+  return customFetch<CatalogServiceMinimalResponse[]>({
+    url: `/api/v1/services/catalog/kids-available`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryKey = () => {
-    return [
-    `/api/v1/services/catalog/kids-available`
-    ] as const;
-    }
+  return [`/api/v1/services/catalog/kids-available`] as const;
+};
 
+export const getGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryOptions = <TData = Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>
+  > = ({ signal }) => getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>
+>;
+export type GetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryError =
+  ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>> = ({ signal }) => getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryResult = NonNullable<Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>>
-export type GetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryError = ErrorType<unknown>
-
-
-export function useGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet<TData = Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError, TData>> & Pick<
+export function useGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet<
+  TData = Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
           TError,
           Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet<TData = Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet<
+  TData = Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
           TError,
           Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet<TData = Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet<
+  TData = Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Kids Available Services
  */
 
-export function useGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet<TData = Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet<
+  TData = Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryOptions(options);
 
-  const queryOptions = getGetKidsAvailableServicesApiV1ServicesCatalogKidsAvailableGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get top N services per category for homepage capsules.
@@ -351,187 +554,311 @@ Returns:
  * @summary Get Top Services Per Category
  */
 export const getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet = (
-    params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,
- signal?: AbortSignal
+  params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<TopServicesPerCategoryResponse>({
+    url: `/api/v1/services/catalog/top-per-category`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<TopServicesPerCategoryResponse>(
-      {url: `/api/v1/services/catalog/top-per-category`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryKey = (params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,) => {
-    return [
-    `/api/v1/services/catalog/top-per-category`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryOptions = <TData = Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError, TData>>, }
+export const getGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryKey = (
+  params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams
 ) => {
+  return [`/api/v1/services/catalog/top-per-category`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>
+  > = ({ signal }) =>
+    getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>> = ({ signal }) => getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet(params, signal);
+export type GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>
+>;
+export type GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryResult = NonNullable<Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>>
-export type GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet<TData = Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError, TData>> & Pick<
+export function useGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet<
+  TData = Awaited<
+    ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>,
+          Awaited<
+            ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>
+          >,
           TError,
           Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet<TData = Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet<
+  TData = Awaited<
+    ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>,
+          Awaited<
+            ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>
+          >,
           TError,
           Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet<TData = Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet<
+  TData = Awaited<
+    ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Top Services Per Category
  */
 
-export function useGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet<TData = Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet<
+  TData = Awaited<
+    ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryOptions(params, options);
 
-  const queryOptions = getGetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
 
-
-
-
 /**
- * Get all service categories.
+ * Get all service categories (cached for 1 hour).
  * @summary Get Service Categories
  */
-export const getServiceCategoriesApiV1ServicesCategoriesGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<CategoryResponse[]>(
-      {url: `/api/v1/services/categories`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getServiceCategoriesApiV1ServicesCategoriesGet = (signal?: AbortSignal) => {
+  return customFetch<CategoryResponse[]>({
+    url: `/api/v1/services/categories`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetServiceCategoriesApiV1ServicesCategoriesGetQueryKey = () => {
-    return [
-    `/api/v1/services/categories`
-    ] as const;
-    }
+  return [`/api/v1/services/categories`] as const;
+};
 
+export const getGetServiceCategoriesApiV1ServicesCategoriesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetServiceCategoriesApiV1ServicesCategoriesGetQueryOptions = <TData = Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ?? getGetServiceCategoriesApiV1ServicesCategoriesGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>
+  > = ({ signal }) => getServiceCategoriesApiV1ServicesCategoriesGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetServiceCategoriesApiV1ServicesCategoriesGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetServiceCategoriesApiV1ServicesCategoriesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>
+>;
+export type GetServiceCategoriesApiV1ServicesCategoriesGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>> = ({ signal }) => getServiceCategoriesApiV1ServicesCategoriesGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetServiceCategoriesApiV1ServicesCategoriesGetQueryResult = NonNullable<Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>>
-export type GetServiceCategoriesApiV1ServicesCategoriesGetQueryError = ErrorType<unknown>
-
-
-export function useGetServiceCategoriesApiV1ServicesCategoriesGet<TData = Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError, TData>> & Pick<
+export function useGetServiceCategoriesApiV1ServicesCategoriesGet<
+  TData = Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
           TError,
           Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetServiceCategoriesApiV1ServicesCategoriesGet<TData = Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetServiceCategoriesApiV1ServicesCategoriesGet<
+  TData = Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
           TError,
           Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetServiceCategoriesApiV1ServicesCategoriesGet<TData = Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetServiceCategoriesApiV1ServicesCategoriesGet<
+  TData = Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Service Categories
  */
 
-export function useGetServiceCategoriesApiV1ServicesCategoriesGet<TData = Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetServiceCategoriesApiV1ServicesCategoriesGet<
+  TData = Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getServiceCategoriesApiV1ServicesCategoriesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetServiceCategoriesApiV1ServicesCategoriesGetQueryOptions(options);
 
-  const queryOptions = getGetServiceCategoriesApiV1ServicesCategoriesGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Add a service from the catalog to instructor's profile.
@@ -540,67 +867,88 @@ Requires INSTRUCTOR role.
  * @summary Add Service To Profile
  */
 export const addServiceToProfileApiV1ServicesInstructorAddPost = (
-    instructorServiceCreate: InstructorServiceCreate,
- signal?: AbortSignal
+  instructorServiceCreate: InstructorServiceCreate,
+  signal?: AbortSignal
 ) => {
+  return customFetch<InstructorServiceResponse>({
+    url: `/api/v1/services/instructor/add`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: instructorServiceCreate,
+    signal,
+  });
+};
 
+export const getAddServiceToProfileApiV1ServicesInstructorAddPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>,
+    TError,
+    { data: InstructorServiceCreate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>,
+  TError,
+  { data: InstructorServiceCreate },
+  TContext
+> => {
+  const mutationKey = ['addServiceToProfileApiV1ServicesInstructorAddPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<InstructorServiceResponse>(
-      {url: `/api/v1/services/instructor/add`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: instructorServiceCreate, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>,
+    { data: InstructorServiceCreate }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return addServiceToProfileApiV1ServicesInstructorAddPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getAddServiceToProfileApiV1ServicesInstructorAddPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>, TError,{data: InstructorServiceCreate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>, TError,{data: InstructorServiceCreate}, TContext> => {
+export type AddServiceToProfileApiV1ServicesInstructorAddPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>
+>;
+export type AddServiceToProfileApiV1ServicesInstructorAddPostMutationBody = InstructorServiceCreate;
+export type AddServiceToProfileApiV1ServicesInstructorAddPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['addServiceToProfileApiV1ServicesInstructorAddPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>, {data: InstructorServiceCreate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  addServiceToProfileApiV1ServicesInstructorAddPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type AddServiceToProfileApiV1ServicesInstructorAddPostMutationResult = NonNullable<Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>>
-    export type AddServiceToProfileApiV1ServicesInstructorAddPostMutationBody = InstructorServiceCreate
-    export type AddServiceToProfileApiV1ServicesInstructorAddPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Add Service To Profile
  */
-export const useAddServiceToProfileApiV1ServicesInstructorAddPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>, TError,{data: InstructorServiceCreate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>,
-        TError,
-        {data: InstructorServiceCreate},
-        TContext
-      > => {
+export const useAddServiceToProfileApiV1ServicesInstructorAddPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>,
+      TError,
+      { data: InstructorServiceCreate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof addServiceToProfileApiV1ServicesInstructorAddPost>>,
+  TError,
+  { data: InstructorServiceCreate },
+  TContext
+> => {
+  const mutationOptions =
+    getAddServiceToProfileApiV1ServicesInstructorAddPostMutationOptions(options);
 
-      const mutationOptions = getAddServiceToProfileApiV1ServicesInstructorAddPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Search for instructors by service.
 
 This is an alias for the instructor search endpoint that focuses on service matching.
@@ -608,88 +956,150 @@ Searches across service names, categories, and search terms.
  * @summary Search Services
  */
 export const searchServicesApiV1ServicesSearchGet = (
-    params: SearchServicesApiV1ServicesSearchGetParams,
- signal?: AbortSignal
+  params: SearchServicesApiV1ServicesSearchGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<ServiceSearchResponse>({
+    url: `/api/v1/services/search`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<ServiceSearchResponse>(
-      {url: `/api/v1/services/search`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getSearchServicesApiV1ServicesSearchGetQueryKey = (params?: SearchServicesApiV1ServicesSearchGetParams,) => {
-    return [
-    `/api/v1/services/search`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getSearchServicesApiV1ServicesSearchGetQueryOptions = <TData = Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError = ErrorType<HTTPValidationError>>(params: SearchServicesApiV1ServicesSearchGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError, TData>>, }
+export const getSearchServicesApiV1ServicesSearchGetQueryKey = (
+  params?: SearchServicesApiV1ServicesSearchGetParams
 ) => {
+  return [`/api/v1/services/search`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getSearchServicesApiV1ServicesSearchGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: SearchServicesApiV1ServicesSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getSearchServicesApiV1ServicesSearchGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getSearchServicesApiV1ServicesSearchGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>
+  > = ({ signal }) => searchServicesApiV1ServicesSearchGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>> = ({ signal }) => searchServicesApiV1ServicesSearchGet(params, signal);
+export type SearchServicesApiV1ServicesSearchGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>
+>;
+export type SearchServicesApiV1ServicesSearchGetQueryError = ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type SearchServicesApiV1ServicesSearchGetQueryResult = NonNullable<Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>>
-export type SearchServicesApiV1ServicesSearchGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useSearchServicesApiV1ServicesSearchGet<TData = Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError = ErrorType<HTTPValidationError>>(
- params: SearchServicesApiV1ServicesSearchGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError, TData>> & Pick<
+export function useSearchServicesApiV1ServicesSearchGet<
+  TData = Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: SearchServicesApiV1ServicesSearchGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
           TError,
           Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useSearchServicesApiV1ServicesSearchGet<TData = Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError = ErrorType<HTTPValidationError>>(
- params: SearchServicesApiV1ServicesSearchGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchServicesApiV1ServicesSearchGet<
+  TData = Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: SearchServicesApiV1ServicesSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
           TError,
           Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useSearchServicesApiV1ServicesSearchGet<TData = Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError = ErrorType<HTTPValidationError>>(
- params: SearchServicesApiV1ServicesSearchGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchServicesApiV1ServicesSearchGet<
+  TData = Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: SearchServicesApiV1ServicesSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Search Services
  */
 
-export function useSearchServicesApiV1ServicesSearchGet<TData = Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError = ErrorType<HTTPValidationError>>(
- params: SearchServicesApiV1ServicesSearchGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useSearchServicesApiV1ServicesSearchGet<
+  TData = Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: SearchServicesApiV1ServicesSearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchServicesApiV1ServicesSearchGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getSearchServicesApiV1ServicesSearchGetQueryOptions(params, options);
 
-  const queryOptions = getSearchServicesApiV1ServicesSearchGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

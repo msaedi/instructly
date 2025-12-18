@@ -238,7 +238,11 @@ async def test_midnight_window_round_trip(
     test_instructor: User,
     auth_headers_instructor: dict,
 ) -> None:
-    monday = date(2025, 11, 17)
+    today = date.today()
+    days_until_monday = (7 - today.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7
+    monday = today + timedelta(days=days_until_monday)
     payload = {
         "week_start": monday.isoformat(),
         "clear_existing": True,

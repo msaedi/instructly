@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -31,324 +28,440 @@ import type {
   HTTPValidationError,
   ReferralClaimRequest,
   ReferralLedgerResponse,
-  ReferralResolveResponse
+  ReferralResolveResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Apply referral credit to a checkout order.
  * @summary Apply Referral Credit
  */
 export const applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost = (
-    checkoutApplyRequest: CheckoutApplyRequest,
- signal?: AbortSignal
+  checkoutApplyRequest: CheckoutApplyRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPost200>({
+    url: `/api/v1/referrals/checkout/apply-referral`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: checkoutApplyRequest,
+    signal,
+  });
+};
 
+export const getApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>,
+    TError,
+    { data: CheckoutApplyRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>,
+  TError,
+  { data: CheckoutApplyRequest },
+  TContext
+> => {
+  const mutationKey = ['applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPost200>(
-      {url: `/api/v1/referrals/checkout/apply-referral`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: checkoutApplyRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>,
+    { data: CheckoutApplyRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>, TError,{data: CheckoutApplyRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>, TError,{data: CheckoutApplyRequest}, TContext> => {
+export type ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>
+>;
+export type ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPostMutationBody =
+  CheckoutApplyRequest;
+export type ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>, {data: CheckoutApplyRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPostMutationResult = NonNullable<Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>>
-    export type ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPostMutationBody = CheckoutApplyRequest
-    export type ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Apply Referral Credit
  */
-export const useApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>, TError,{data: CheckoutApplyRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>,
-        TError,
-        {data: CheckoutApplyRequest},
-        TContext
-      > => {
+export const useApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>,
+      TError,
+      { data: CheckoutApplyRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof applyReferralCreditApiV1ReferralsCheckoutApplyReferralPost>>,
+  TError,
+  { data: CheckoutApplyRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPostMutationOptions(options);
 
-      const mutationOptions = getApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Claim a referral code.
  * @summary Claim Referral Code
  */
 export const claimReferralCodeApiV1ReferralsClaimPost = (
-    referralClaimRequest: ReferralClaimRequest,
- signal?: AbortSignal
+  referralClaimRequest: ReferralClaimRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<ClaimReferralCodeApiV1ReferralsClaimPost200>({
+    url: `/api/v1/referrals/claim`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: referralClaimRequest,
+    signal,
+  });
+};
 
+export const getClaimReferralCodeApiV1ReferralsClaimPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>,
+    TError,
+    { data: ReferralClaimRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>,
+  TError,
+  { data: ReferralClaimRequest },
+  TContext
+> => {
+  const mutationKey = ['claimReferralCodeApiV1ReferralsClaimPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<ClaimReferralCodeApiV1ReferralsClaimPost200>(
-      {url: `/api/v1/referrals/claim`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: referralClaimRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>,
+    { data: ReferralClaimRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return claimReferralCodeApiV1ReferralsClaimPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getClaimReferralCodeApiV1ReferralsClaimPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>, TError,{data: ReferralClaimRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>, TError,{data: ReferralClaimRequest}, TContext> => {
+export type ClaimReferralCodeApiV1ReferralsClaimPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>
+>;
+export type ClaimReferralCodeApiV1ReferralsClaimPostMutationBody = ReferralClaimRequest;
+export type ClaimReferralCodeApiV1ReferralsClaimPostMutationError = ErrorType<HTTPValidationError>;
 
-const mutationKey = ['claimReferralCodeApiV1ReferralsClaimPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>, {data: ReferralClaimRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  claimReferralCodeApiV1ReferralsClaimPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ClaimReferralCodeApiV1ReferralsClaimPostMutationResult = NonNullable<Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>>
-    export type ClaimReferralCodeApiV1ReferralsClaimPostMutationBody = ReferralClaimRequest
-    export type ClaimReferralCodeApiV1ReferralsClaimPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Claim Referral Code
  */
-export const useClaimReferralCodeApiV1ReferralsClaimPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>, TError,{data: ReferralClaimRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>,
-        TError,
-        {data: ReferralClaimRequest},
-        TContext
-      > => {
+export const useClaimReferralCodeApiV1ReferralsClaimPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>,
+      TError,
+      { data: ReferralClaimRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof claimReferralCodeApiV1ReferralsClaimPost>>,
+  TError,
+  { data: ReferralClaimRequest },
+  TContext
+> => {
+  const mutationOptions = getClaimReferralCodeApiV1ReferralsClaimPostMutationOptions(options);
 
-      const mutationOptions = getClaimReferralCodeApiV1ReferralsClaimPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get current user's referral ledger with code, rewards, and share URL.
  * @summary Get My Referral Ledger
  */
-export const getMyReferralLedgerApiV1ReferralsMeGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<ReferralLedgerResponse>(
-      {url: `/api/v1/referrals/me`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getMyReferralLedgerApiV1ReferralsMeGet = (signal?: AbortSignal) => {
+  return customFetch<ReferralLedgerResponse>({
+    url: `/api/v1/referrals/me`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetMyReferralLedgerApiV1ReferralsMeGetQueryKey = () => {
-    return [
-    `/api/v1/referrals/me`
-    ] as const;
-    }
+  return [`/api/v1/referrals/me`] as const;
+};
 
+export const getGetMyReferralLedgerApiV1ReferralsMeGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetMyReferralLedgerApiV1ReferralsMeGetQueryOptions = <TData = Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getGetMyReferralLedgerApiV1ReferralsMeGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>
+  > = ({ signal }) => getMyReferralLedgerApiV1ReferralsMeGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMyReferralLedgerApiV1ReferralsMeGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetMyReferralLedgerApiV1ReferralsMeGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>
+>;
+export type GetMyReferralLedgerApiV1ReferralsMeGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>> = ({ signal }) => getMyReferralLedgerApiV1ReferralsMeGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetMyReferralLedgerApiV1ReferralsMeGetQueryResult = NonNullable<Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>>
-export type GetMyReferralLedgerApiV1ReferralsMeGetQueryError = ErrorType<unknown>
-
-
-export function useGetMyReferralLedgerApiV1ReferralsMeGet<TData = Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError, TData>> & Pick<
+export function useGetMyReferralLedgerApiV1ReferralsMeGet<
+  TData = Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
           TError,
           Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMyReferralLedgerApiV1ReferralsMeGet<TData = Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetMyReferralLedgerApiV1ReferralsMeGet<
+  TData = Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
           TError,
           Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMyReferralLedgerApiV1ReferralsMeGet<TData = Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetMyReferralLedgerApiV1ReferralsMeGet<
+  TData = Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get My Referral Ledger
  */
 
-export function useGetMyReferralLedgerApiV1ReferralsMeGet<TData = Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetMyReferralLedgerApiV1ReferralsMeGet<
+  TData = Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMyReferralLedgerApiV1ReferralsMeGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetMyReferralLedgerApiV1ReferralsMeGetQueryOptions(options);
 
-  const queryOptions = getGetMyReferralLedgerApiV1ReferralsMeGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Resolve referral slug and redirect to landing page.
  * @summary Resolve Referral Slug
  */
-export const resolveReferralSlugRSlugGet = (
-    slug: string,
- signal?: AbortSignal
+export const resolveReferralSlugRSlugGet = (slug: string, signal?: AbortSignal) => {
+  return customFetch<ReferralResolveResponse>({ url: `/r/${slug}`, method: 'GET', signal });
+};
+
+export const getResolveReferralSlugRSlugGetQueryKey = (slug?: string) => {
+  return [`/r/${slug}`] as const;
+};
+
+export const getResolveReferralSlugRSlugGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>
+    >;
+  }
 ) => {
+  const { query: queryOptions } = options ?? {};
 
+  const queryKey = queryOptions?.queryKey ?? getResolveReferralSlugRSlugGetQueryKey(slug);
 
-      return customFetch<ReferralResolveResponse>(
-      {url: `/r/${slug}`, method: 'GET', signal
-    },
-      );
-    }
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>> = ({
+    signal,
+  }) => resolveReferralSlugRSlugGet(slug, signal);
 
+  return { queryKey, queryFn, enabled: !!slug, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type ResolveReferralSlugRSlugGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>
+>;
+export type ResolveReferralSlugRSlugGetQueryError = ErrorType<HTTPValidationError>;
 
-
-export const getResolveReferralSlugRSlugGetQueryKey = (slug?: string,) => {
-    return [
-    `/r/${slug}`
-    ] as const;
-    }
-
-
-export const getResolveReferralSlugRSlugGetQueryOptions = <TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError = ErrorType<HTTPValidationError>>(slug: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>>, }
-) => {
-
-const {query: queryOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getResolveReferralSlugRSlugGetQueryKey(slug);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>> = ({ signal }) => resolveReferralSlugRSlugGet(slug, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(slug), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ResolveReferralSlugRSlugGetQueryResult = NonNullable<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>>
-export type ResolveReferralSlugRSlugGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useResolveReferralSlugRSlugGet<TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError = ErrorType<HTTPValidationError>>(
- slug: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>> & Pick<
+export function useResolveReferralSlugRSlugGet<
+  TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  slug: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
           TError,
           Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useResolveReferralSlugRSlugGet<TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError = ErrorType<HTTPValidationError>>(
- slug: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useResolveReferralSlugRSlugGet<
+  TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
           TError,
           Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useResolveReferralSlugRSlugGet<TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError = ErrorType<HTTPValidationError>>(
- slug: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useResolveReferralSlugRSlugGet<
+  TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Resolve Referral Slug
  */
 
-export function useResolveReferralSlugRSlugGet<TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError = ErrorType<HTTPValidationError>>(
- slug: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useResolveReferralSlugRSlugGet<
+  TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getResolveReferralSlugRSlugGetQueryOptions(slug, options);
 
-  const queryOptions = getResolveReferralSlugRSlugGetQueryOptions(slug,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

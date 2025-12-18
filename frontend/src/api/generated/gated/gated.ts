@@ -5,9 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useQuery
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -17,104 +15,124 @@ import type {
   QueryKey,
   UndefinedInitialDataOptions,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
-import type {
-  GatedPingResponse
-} from '../instructly.schemas';
+import type { GatedPingResponse } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
 
-
-
-
 /**
  * @summary Gated Ping
  */
-export const gatedPingV1GatedPingGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<GatedPingResponse>(
-      {url: `/v1/gated/ping`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const gatedPingV1GatedPingGet = (signal?: AbortSignal) => {
+  return customFetch<GatedPingResponse>({ url: `/v1/gated/ping`, method: 'GET', signal });
+};
 
 export const getGatedPingV1GatedPingGetQueryKey = () => {
-    return [
-    `/v1/gated/ping`
-    ] as const;
-    }
+  return [`/v1/gated/ping`] as const;
+};
 
+export const getGatedPingV1GatedPingGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData>
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGatedPingV1GatedPingGetQueryOptions = <TData = Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getGatedPingV1GatedPingGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>> = ({
+    signal,
+  }) => gatedPingV1GatedPingGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGatedPingV1GatedPingGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GatedPingV1GatedPingGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>
+>;
+export type GatedPingV1GatedPingGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>> = ({ signal }) => gatedPingV1GatedPingGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GatedPingV1GatedPingGetQueryResult = NonNullable<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>>
-export type GatedPingV1GatedPingGetQueryError = ErrorType<unknown>
-
-
-export function useGatedPingV1GatedPingGet<TData = Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData>> & Pick<
+export function useGatedPingV1GatedPingGet<
+  TData = Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>,
           TError,
           Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGatedPingV1GatedPingGet<TData = Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGatedPingV1GatedPingGet<
+  TData = Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>,
           TError,
           Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGatedPingV1GatedPingGet<TData = Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGatedPingV1GatedPingGet<
+  TData = Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Gated Ping
  */
 
-export function useGatedPingV1GatedPingGet<TData = Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGatedPingV1GatedPingGet<
+  TData = Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof gatedPingV1GatedPingGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGatedPingV1GatedPingGetQueryOptions(options);
 
-  const queryOptions = getGatedPingV1GatedPingGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

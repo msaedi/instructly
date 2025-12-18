@@ -72,6 +72,8 @@ class MessageData:
     booking_id: Optional[str]
     booking_details: Optional[Dict[str, Any]]
     created_at: datetime
+    edited_at: Optional[datetime]
+    is_deleted: bool
     delivered_at: Optional[datetime]
     read_by: List[Dict[str, Any]]
     reactions: List[Dict[str, str]]
@@ -749,12 +751,14 @@ class ConversationService(BaseService):
             message_data_list.append(
                 MessageData(
                     id=msg.id,
-                    content=msg.content,
+                    content="This message was deleted" if msg.is_deleted else msg.content,
                     sender_id=msg.sender_id,
                     message_type=msg.message_type or "user",
                     booking_id=msg.booking_id,
                     booking_details=booking_details,
                     created_at=msg.created_at,
+                    edited_at=msg.edited_at,
+                    is_deleted=bool(msg.is_deleted),
                     delivered_at=msg.delivered_at,
                     read_by=read_by_entries,
                     reactions=reactions,

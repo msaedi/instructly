@@ -1,5 +1,4 @@
 import { mapMessageFromResponse } from '@/components/instructor/messages/utils/messages';
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import type { ConversationEntry } from '@/components/instructor/messages/types';
 
 describe('mapMessageFromResponse', () => {
@@ -21,19 +20,18 @@ describe('mapMessageFromResponse', () => {
     latestMessageAt: Date.now(),
   };
 
-  const baseMessage: MessageResponse = {
+  const baseMessage = {
     id: 'msg1',
     content: 'Hello',
     sender_id: studentId,
     conversation_id: 'conversation1',
     created_at: '2024-01-01T12:00:00Z',
     booking_id: 'booking1',
-    updated_at: '2024-01-01T12:00:00Z',
   };
 
   describe('delivered_at field preservation', () => {
     it('should preserve delivered_at field when present', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: currentUserId, // Instructor sending
         delivered_at: '2024-01-01T12:00:01Z',
@@ -45,7 +43,7 @@ describe('mapMessageFromResponse', () => {
     });
 
     it('should handle null delivered_at', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: currentUserId,
         delivered_at: null,
@@ -57,7 +55,7 @@ describe('mapMessageFromResponse', () => {
     });
 
     it('should handle missing delivered_at field', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: currentUserId,
       };
@@ -70,7 +68,7 @@ describe('mapMessageFromResponse', () => {
 
   describe('read_by field preservation', () => {
     it('should preserve read_by array when present', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: currentUserId,
         read_by: [
@@ -88,7 +86,7 @@ describe('mapMessageFromResponse', () => {
     });
 
     it('should handle empty read_by array', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: currentUserId,
         read_by: [],
@@ -100,7 +98,7 @@ describe('mapMessageFromResponse', () => {
     });
 
     it('should handle missing read_by field', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: currentUserId,
       };
@@ -113,7 +111,7 @@ describe('mapMessageFromResponse', () => {
 
   describe('delivery status calculation', () => {
     it('should set delivery status to "read" when message has been read by recipient', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: currentUserId,
         delivered_at: '2024-01-01T12:00:01Z',
@@ -126,7 +124,7 @@ describe('mapMessageFromResponse', () => {
     });
 
     it('should set delivery status to "delivered" when message has delivered_at but not read', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: currentUserId,
         delivered_at: '2024-01-01T12:00:01Z',
@@ -139,7 +137,7 @@ describe('mapMessageFromResponse', () => {
     });
 
     it('should default to "delivered" status when delivered_at is missing', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: currentUserId,
       };
@@ -152,7 +150,7 @@ describe('mapMessageFromResponse', () => {
 
   describe('sender type detection', () => {
     it('should identify instructor as sender when sender_id matches currentUserId', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: currentUserId,
       };
@@ -163,7 +161,7 @@ describe('mapMessageFromResponse', () => {
     });
 
     it('should identify student as sender when sender_id matches studentId', () => {
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: studentId,
       };
@@ -175,7 +173,7 @@ describe('mapMessageFromResponse', () => {
 
     it('should identify platform as sender for system messages', () => {
       const platformUserId = 'platform-system';
-      const message: MessageResponse = {
+      const message = {
         ...baseMessage,
         sender_id: platformUserId,
       };
@@ -188,13 +186,12 @@ describe('mapMessageFromResponse', () => {
 
   describe('message mapping completeness', () => {
     it('should map all essential message fields', () => {
-      const message: MessageResponse = {
+      const message = {
         id: 'msg1',
         content: 'Test message',
         sender_id: currentUserId,
         conversation_id: 'conversation1',
         created_at: '2024-01-01T12:00:00Z',
-        updated_at: '2024-01-01T12:00:00Z',
         booking_id: 'booking1',
         delivered_at: '2024-01-01T12:00:01Z',
         read_by: [{ user_id: studentId, read_at: '2024-01-01T12:00:05Z' }],

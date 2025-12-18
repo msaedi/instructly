@@ -188,10 +188,104 @@ export interface AddressUpdate {
   verification_status?: AddressUpdateVerificationStatus;
 }
 
-export type AdminReferralsConfigOutFlags = {[key: string]: boolean};
+export type AdminAwardBadgeSchemaCriteriaType = string | null;
 
-export type AdminReferralsConfigOutSource = typeof AdminReferralsConfigOutSource[keyof typeof AdminReferralsConfigOutSource];
+export interface AdminAwardBadgeSchema {
+  criteria_type?: AdminAwardBadgeSchemaCriteriaType;
+  name: string;
+  slug: string;
+}
 
+export type AdminAwardListResponseNextOffset = number | null;
+
+export interface AdminAwardListResponse {
+  items: AdminAwardSchema[];
+  next_offset?: AdminAwardListResponseNextOffset;
+  total: number;
+}
+
+export type AdminAwardSchemaConfirmedAt = string | null;
+
+export type AdminAwardSchemaHoldUntil = string | null;
+
+export type AdminAwardSchemaProgressSnapshotAnyOf = { [key: string]: unknown };
+
+export type AdminAwardSchemaProgressSnapshot = AdminAwardSchemaProgressSnapshotAnyOf | null;
+
+export type AdminAwardSchemaRevokedAt = string | null;
+
+export interface AdminAwardSchema {
+  award_id: string;
+  awarded_at: string;
+  badge: AdminAwardBadgeSchema;
+  confirmed_at?: AdminAwardSchemaConfirmedAt;
+  hold_until?: AdminAwardSchemaHoldUntil;
+  progress_snapshot?: AdminAwardSchemaProgressSnapshot;
+  revoked_at?: AdminAwardSchemaRevokedAt;
+  status: string;
+  student: AdminAwardStudentSchema;
+}
+
+export type AdminAwardStudentSchemaDisplayName = string | null;
+
+export type AdminAwardStudentSchemaEmail = string | null;
+
+export interface AdminAwardStudentSchema {
+  display_name?: AdminAwardStudentSchemaDisplayName;
+  email?: AdminAwardStudentSchemaEmail;
+  id: string;
+}
+
+export type AdminInstructorDetailResponseBgcCompletedAt = string | null;
+
+export type AdminInstructorDetailResponseBgcDisputeNote = string | null;
+
+export type AdminInstructorDetailResponseBgcDisputeOpenedAt = string | null;
+
+export type AdminInstructorDetailResponseBgcDisputeResolvedAt = string | null;
+
+export type AdminInstructorDetailResponseBgcExpiresInDays = number | null;
+
+export type AdminInstructorDetailResponseBgcReportId = string | null;
+
+export type AdminInstructorDetailResponseBgcStatus = string | null;
+
+export type AdminInstructorDetailResponseBgcValidUntil = string | null;
+
+export type AdminInstructorDetailResponseConsentRecentAt = string | null;
+
+export type AdminInstructorDetailResponseCreatedAt = string | null;
+
+export type AdminInstructorDetailResponseUpdatedAt = string | null;
+
+/**
+ * Detailed instructor metadata for administrative tooling.
+ */
+export interface AdminInstructorDetailResponse {
+  bgc_completed_at?: AdminInstructorDetailResponseBgcCompletedAt;
+  bgc_dispute_note?: AdminInstructorDetailResponseBgcDisputeNote;
+  bgc_dispute_opened_at?: AdminInstructorDetailResponseBgcDisputeOpenedAt;
+  bgc_dispute_resolved_at?: AdminInstructorDetailResponseBgcDisputeResolvedAt;
+  bgc_expires_in_days?: AdminInstructorDetailResponseBgcExpiresInDays;
+  bgc_in_dispute?: boolean;
+  bgc_includes_canceled?: boolean;
+  bgc_is_expired?: boolean;
+  bgc_report_id?: AdminInstructorDetailResponseBgcReportId;
+  bgc_status?: AdminInstructorDetailResponseBgcStatus;
+  bgc_valid_until?: AdminInstructorDetailResponseBgcValidUntil;
+  consent_recent_at?: AdminInstructorDetailResponseConsentRecentAt;
+  created_at?: AdminInstructorDetailResponseCreatedAt;
+  email: string;
+  id: string;
+  is_live: boolean;
+  name: string;
+  updated_at?: AdminInstructorDetailResponseUpdatedAt;
+}
+
+export type AdminReferralsConfigOutFlags = { [key: string]: boolean };
+
+export type AdminReferralsConfigOutSource =
+  (typeof AdminReferralsConfigOutSource)[keyof typeof AdminReferralsConfigOutSource];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const AdminReferralsConfigOutSource = {
@@ -231,7 +325,7 @@ export interface AdminReferralsHealthOut {
   workers_alive: number;
 }
 
-export type AdminReferralsSummaryOutCountsByStatus = {[key: string]: number};
+export type AdminReferralsSummaryOutCountsByStatus = { [key: string]: number };
 
 /**
  * Aggregate referral summary metrics for admins.
@@ -302,12 +396,12 @@ export interface AlertInfo {
 /**
  * Alert counts grouped by severity
  */
-export type AlertSummaryResponseBySeverity = {[key: string]: number};
+export type AlertSummaryResponseBySeverity = { [key: string]: number };
 
 /**
  * Alert counts grouped by type
  */
-export type AlertSummaryResponseByType = {[key: string]: number};
+export type AlertSummaryResponseByType = { [key: string]: number };
 
 /**
  * Response for alert summary endpoint.
@@ -374,6 +468,43 @@ export interface ApplyToDateRangeResponse {
   weeks_applied: number;
   windows_created: number;
   written_dates?: string[];
+}
+
+/**
+ * Paginated audit log response.
+ */
+export interface AuditLogListResponse {
+  items: AuditLogView[];
+  limit: number;
+  offset: number;
+  total: number;
+}
+
+export type AuditLogViewActorId = string | null;
+
+export type AuditLogViewActorRole = string | null;
+
+export type AuditLogViewAfterAnyOf = { [key: string]: unknown };
+
+export type AuditLogViewAfter = AuditLogViewAfterAnyOf | null;
+
+export type AuditLogViewBeforeAnyOf = { [key: string]: unknown };
+
+export type AuditLogViewBefore = AuditLogViewBeforeAnyOf | null;
+
+/**
+ * Single audit log entry.
+ */
+export interface AuditLogView {
+  action: string;
+  actor_id?: AuditLogViewActorId;
+  actor_role?: AuditLogViewActorRole;
+  after?: AuditLogViewAfter;
+  before?: AuditLogViewBefore;
+  entity_id: string;
+  entity_type: string;
+  id: string;
+  occurred_at: string;
 }
 
 export type AuthUserResponseHasProfilePicture = boolean | null;
@@ -457,7 +588,7 @@ export type AvailabilityCacheMetricsResponseAvailabilityCacheMetrics = { [key: s
 /**
  * Cache tier configuration
  */
-export type AvailabilityCacheMetricsResponseCacheTiersInfo = {[key: string]: string};
+export type AvailabilityCacheMetricsResponseCacheTiersInfo = { [key: string]: string };
 
 /**
  * Availability-specific cache metrics response.
@@ -494,7 +625,9 @@ export interface AvailabilityCheckRequest {
 
 export type AvailabilityCheckResponseConflictsWithAnyOfItem = { [key: string]: unknown };
 
-export type AvailabilityCheckResponseConflictsWith = AvailabilityCheckResponseConflictsWithAnyOfItem[] | null;
+export type AvailabilityCheckResponseConflictsWith =
+  | AvailabilityCheckResponseConflictsWithAnyOfItem[]
+  | null;
 
 export type AvailabilityCheckResponseMinAdvanceHours = number | null;
 
@@ -539,6 +672,345 @@ export interface AvailabilityWindowUpdate {
   start_time?: AvailabilityWindowUpdateStartTime;
 }
 
+export interface BGCCaseCountsResponse {
+  pending: number;
+  review: number;
+}
+
+export type BGCCaseItemModelBgcCompletedAt = string | null;
+
+export type BGCCaseItemModelBgcEta = string | null;
+
+export type BGCCaseItemModelBgcExpiresInDays = number | null;
+
+export type BGCCaseItemModelBgcReportId = string | null;
+
+export type BGCCaseItemModelBgcStatus = string | null;
+
+export type BGCCaseItemModelBgcValidUntil = string | null;
+
+export type BGCCaseItemModelCheckrReportUrl = string | null;
+
+export type BGCCaseItemModelConsentRecentAt = string | null;
+
+export type BGCCaseItemModelCreatedAt = string | null;
+
+export type BGCCaseItemModelDisputeNote = string | null;
+
+export type BGCCaseItemModelDisputeOpenedAt = string | null;
+
+export type BGCCaseItemModelDisputeResolvedAt = string | null;
+
+export type BGCCaseItemModelUpdatedAt = string | null;
+
+export interface BGCCaseItemModel {
+  bgc_completed_at?: BGCCaseItemModelBgcCompletedAt;
+  bgc_eta?: BGCCaseItemModelBgcEta;
+  bgc_expires_in_days?: BGCCaseItemModelBgcExpiresInDays;
+  bgc_includes_canceled?: boolean;
+  bgc_is_expired?: boolean;
+  bgc_report_id?: BGCCaseItemModelBgcReportId;
+  bgc_status?: BGCCaseItemModelBgcStatus;
+  bgc_valid_until?: BGCCaseItemModelBgcValidUntil;
+  checkr_report_url?: BGCCaseItemModelCheckrReportUrl;
+  consent_recent: boolean;
+  consent_recent_at?: BGCCaseItemModelConsentRecentAt;
+  created_at?: BGCCaseItemModelCreatedAt;
+  dispute_note?: BGCCaseItemModelDisputeNote;
+  dispute_opened_at?: BGCCaseItemModelDisputeOpenedAt;
+  dispute_resolved_at?: BGCCaseItemModelDisputeResolvedAt;
+  email: string;
+  in_dispute?: boolean;
+  instructor_id: string;
+  is_live: boolean;
+  name: string;
+  updated_at?: BGCCaseItemModelUpdatedAt;
+}
+
+export interface BGCCaseListResponse {
+  has_next: boolean;
+  has_prev: boolean;
+  items: BGCCaseItemModel[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+
+export type BGCDisputeResponseDisputeNote = string | null;
+
+export type BGCDisputeResponseDisputeOpenedAt = string | null;
+
+export type BGCDisputeResponseDisputeResolvedAt = string | null;
+
+export type BGCDisputeResponseScheduledFor = string | null;
+
+export interface BGCDisputeResponse {
+  dispute_note?: BGCDisputeResponseDisputeNote;
+  dispute_opened_at?: BGCDisputeResponseDisputeOpenedAt;
+  dispute_resolved_at?: BGCDisputeResponseDisputeResolvedAt;
+  in_dispute: boolean;
+  ok: boolean;
+  resumed?: boolean;
+  scheduled_for?: BGCDisputeResponseScheduledFor;
+}
+
+export type BGCExpiringItemBgcValidUntil = string | null;
+
+export type BGCExpiringItemEmail = string | null;
+
+export interface BGCExpiringItem {
+  bgc_valid_until?: BGCExpiringItemBgcValidUntil;
+  email?: BGCExpiringItemEmail;
+  instructor_id: string;
+}
+
+export type BGCHistoryItemPackage = string | null;
+
+export interface BGCHistoryItem {
+  completed_at: string;
+  created_at: string;
+  env: string;
+  id: string;
+  package?: BGCHistoryItemPackage;
+  report_id_present: boolean;
+  result: string;
+}
+
+export type BGCHistoryResponseNextCursor = string | null;
+
+export interface BGCHistoryResponse {
+  items: BGCHistoryItem[];
+  next_cursor?: BGCHistoryResponseNextCursor;
+}
+
+export type BGCLatestConsentResponseIpAddress = string | null;
+
+export interface BGCLatestConsentResponse {
+  consent_version: string;
+  consented_at: string;
+  instructor_id: string;
+  ip_address?: BGCLatestConsentResponseIpAddress;
+}
+
+export type BGCOverrideResponseNewStatus =
+  (typeof BGCOverrideResponseNewStatus)[keyof typeof BGCOverrideResponseNewStatus];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const BGCOverrideResponseNewStatus = {
+  passed: 'passed',
+  failed: 'failed',
+} as const;
+
+export interface BGCOverrideResponse {
+  new_status: BGCOverrideResponseNewStatus;
+  ok: boolean;
+}
+
+export interface BGCReviewCountResponse {
+  count: number;
+}
+
+export type BGCReviewItemModelBgcCompletedAt = string | null;
+
+export type BGCReviewItemModelBgcEta = string | null;
+
+export type BGCReviewItemModelBgcExpiresInDays = number | null;
+
+export type BGCReviewItemModelBgcReportId = string | null;
+
+export type BGCReviewItemModelBgcStatus = string | null;
+
+export type BGCReviewItemModelBgcValidUntil = string | null;
+
+export type BGCReviewItemModelCheckrReportUrl = string | null;
+
+export type BGCReviewItemModelConsentedAtRecentAt = string | null;
+
+export type BGCReviewItemModelCreatedAt = string | null;
+
+export type BGCReviewItemModelDisputeNote = string | null;
+
+export type BGCReviewItemModelDisputeOpenedAt = string | null;
+
+export type BGCReviewItemModelDisputeResolvedAt = string | null;
+
+export type BGCReviewItemModelUpdatedAt = string | null;
+
+export interface BGCReviewItemModel {
+  bgc_completed_at?: BGCReviewItemModelBgcCompletedAt;
+  bgc_eta?: BGCReviewItemModelBgcEta;
+  bgc_expires_in_days?: BGCReviewItemModelBgcExpiresInDays;
+  bgc_includes_canceled?: boolean;
+  bgc_is_expired?: boolean;
+  bgc_report_id?: BGCReviewItemModelBgcReportId;
+  bgc_status?: BGCReviewItemModelBgcStatus;
+  bgc_valid_until?: BGCReviewItemModelBgcValidUntil;
+  checkr_report_url?: BGCReviewItemModelCheckrReportUrl;
+  consented_at_recent: boolean;
+  consented_at_recent_at?: BGCReviewItemModelConsentedAtRecentAt;
+  created_at?: BGCReviewItemModelCreatedAt;
+  dispute_note?: BGCReviewItemModelDisputeNote;
+  dispute_opened_at?: BGCReviewItemModelDisputeOpenedAt;
+  dispute_resolved_at?: BGCReviewItemModelDisputeResolvedAt;
+  email: string;
+  in_dispute?: boolean;
+  instructor_id: string;
+  is_live: boolean;
+  name: string;
+  updated_at?: BGCReviewItemModelUpdatedAt;
+}
+
+export type BGCReviewListResponseNextCursor = string | null;
+
+export interface BGCReviewListResponse {
+  items: BGCReviewItemModel[];
+  next_cursor?: BGCReviewListResponseNextCursor;
+}
+
+export type BGCWebhookLogEntryCandidateId = string | null;
+
+export type BGCWebhookLogEntryDeliveryId = string | null;
+
+export type BGCWebhookLogEntryHttpStatus = number | null;
+
+export type BGCWebhookLogEntryInstructorId = string | null;
+
+export type BGCWebhookLogEntryInvitationId = string | null;
+
+export type BGCWebhookLogEntryPayload = { [key: string]: unknown };
+
+export type BGCWebhookLogEntryReportId = string | null;
+
+export type BGCWebhookLogEntryResourceId = string | null;
+
+export type BGCWebhookLogEntryResult = string | null;
+
+export type BGCWebhookLogEntrySignature = string | null;
+
+export interface BGCWebhookLogEntry {
+  candidate_id?: BGCWebhookLogEntryCandidateId;
+  created_at: string;
+  delivery_id?: BGCWebhookLogEntryDeliveryId;
+  event_type: string;
+  http_status?: BGCWebhookLogEntryHttpStatus;
+  id: string;
+  instructor_id?: BGCWebhookLogEntryInstructorId;
+  invitation_id?: BGCWebhookLogEntryInvitationId;
+  payload: BGCWebhookLogEntryPayload;
+  report_id?: BGCWebhookLogEntryReportId;
+  resource_id?: BGCWebhookLogEntryResourceId;
+  result?: BGCWebhookLogEntryResult;
+  signature?: BGCWebhookLogEntrySignature;
+}
+
+export type BGCWebhookLogListResponseNextCursor = string | null;
+
+export interface BGCWebhookLogListResponse {
+  error_count_24h: number;
+  items: BGCWebhookLogEntry[];
+  next_cursor?: BGCWebhookLogListResponseNextCursor;
+}
+
+export interface BGCWebhookStatsResponse {
+  error_count_24h: number;
+}
+
+/**
+ * Optional Checkr package slug override
+ */
+export type BackgroundCheckInviteRequestPackageSlug = string | null;
+
+/**
+ * Payload accepted by the background check invite endpoint.
+ */
+export interface BackgroundCheckInviteRequest {
+  /** Optional Checkr package slug override */
+  package_slug?: BackgroundCheckInviteRequestPackageSlug;
+}
+
+export type BackgroundCheckInviteResponseCandidateId = string | null;
+
+export type BackgroundCheckInviteResponseInvitationId = string | null;
+
+export type BackgroundCheckInviteResponseReportId = string | null;
+
+export type BackgroundCheckInviteResponseStatus =
+  (typeof BackgroundCheckInviteResponseStatus)[keyof typeof BackgroundCheckInviteResponseStatus];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const BackgroundCheckInviteResponseStatus = {
+  pending: 'pending',
+  review: 'review',
+  consider: 'consider',
+  passed: 'passed',
+  failed: 'failed',
+  canceled: 'canceled',
+} as const;
+
+/**
+ * Response returned after invoking a background check invitation.
+ */
+export interface BackgroundCheckInviteResponse {
+  already_in_progress?: boolean;
+  candidate_id?: BackgroundCheckInviteResponseCandidateId;
+  invitation_id?: BackgroundCheckInviteResponseInvitationId;
+  ok?: boolean;
+  report_id?: BackgroundCheckInviteResponseReportId;
+  status: BackgroundCheckInviteResponseStatus;
+}
+
+export type BackgroundCheckStatusResponseCompletedAt = string | null;
+
+export type BackgroundCheckStatusResponseConsentRecentAt = string | null;
+
+export type BackgroundCheckStatusResponseEnv =
+  (typeof BackgroundCheckStatusResponseEnv)[keyof typeof BackgroundCheckStatusResponseEnv];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const BackgroundCheckStatusResponseEnv = {
+  sandbox: 'sandbox',
+  production: 'production',
+} as const;
+
+export type BackgroundCheckStatusResponseEta = string | null;
+
+export type BackgroundCheckStatusResponseExpiresInDays = number | null;
+
+export type BackgroundCheckStatusResponseReportId = string | null;
+
+export type BackgroundCheckStatusResponseStatus =
+  (typeof BackgroundCheckStatusResponseStatus)[keyof typeof BackgroundCheckStatusResponseStatus];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const BackgroundCheckStatusResponseStatus = {
+  pending: 'pending',
+  review: 'review',
+  consider: 'consider',
+  passed: 'passed',
+  failed: 'failed',
+  canceled: 'canceled',
+} as const;
+
+export type BackgroundCheckStatusResponseValidUntil = string | null;
+
+/**
+ * Current background check status for an instructor.
+ */
+export interface BackgroundCheckStatusResponse {
+  bgc_includes_canceled?: boolean;
+  completed_at?: BackgroundCheckStatusResponseCompletedAt;
+  consent_recent?: boolean;
+  consent_recent_at?: BackgroundCheckStatusResponseConsentRecentAt;
+  env: BackgroundCheckStatusResponseEnv;
+  eta?: BackgroundCheckStatusResponseEta;
+  expires_in_days?: BackgroundCheckStatusResponseExpiresInDays;
+  is_expired?: boolean;
+  report_id?: BackgroundCheckStatusResponseReportId;
+  status: BackgroundCheckStatusResponseStatus;
+  valid_until?: BackgroundCheckStatusResponseValidUntil;
+}
+
 export interface BackupCodesResponse {
   backup_codes: string[];
 }
@@ -554,9 +1026,9 @@ export interface BadgeProgressView {
   goal?: BadgeProgressViewGoal;
   percent?: BadgeProgressViewPercent;
   [key: string]: unknown;
- }
+}
 
-export type BetaMetricsSummaryResponsePhaseCounts24h = {[key: string]: number};
+export type BetaMetricsSummaryResponsePhaseCounts24h = { [key: string]: number };
 
 export interface BetaMetricsSummaryResponse {
   invites_errors_24h: number;
@@ -669,7 +1141,13 @@ export type BookingCreateEndTime = string | null;
 /**
  * Type of meeting location
  */
-export type BookingCreateLocationType = 'student_home' | 'instructor_location' | 'neutral' | 'remote' | 'in_person' | null;
+export type BookingCreateLocationType =
+  | 'student_home'
+  | 'instructor_location'
+  | 'neutral'
+  | 'remote'
+  | 'in_person'
+  | null;
 
 /**
  * Specific meeting location if applicable
@@ -701,7 +1179,11 @@ export interface BookingCreate {
   location_type?: BookingCreateLocationType;
   /** Specific meeting location if applicable */
   meeting_location?: BookingCreateMeetingLocation;
-  /** Selected duration in minutes from service's duration_options */
+  /**
+   * Selected duration in minutes from service's duration_options
+   * @minimum 15
+   * @maximum 720
+   */
   selected_duration: number;
   /** Start time */
   start_time: string;
@@ -757,7 +1239,7 @@ export interface BookingCreateResponse {
   end_time: string;
   hourly_rate: number;
   id: string;
-  instructor: AppSchemasBookingInstructorInfo;
+  instructor: InstructorInfo;
   instructor_id: string;
   instructor_note: BookingCreateResponseInstructorNote;
   instructor_service: ServiceInfo;
@@ -836,7 +1318,11 @@ export interface BookingRescheduleRequest {
   booking_date: string;
   /** Override service if needed (defaults to old) */
   instructor_service_id?: BookingRescheduleRequestInstructorServiceId;
-  /** New selected duration in minutes */
+  /**
+   * New selected duration in minutes
+   * @minimum 15
+   * @maximum 720
+   */
   selected_duration: number;
   /** New start time (HH:MM) */
   start_time: string;
@@ -887,7 +1373,7 @@ export interface BookingResponse {
   end_time: string;
   hourly_rate: number;
   id: string;
-  instructor: AppSchemasBookingInstructorInfo;
+  instructor: InstructorInfo;
   instructor_id: string;
   instructor_note: BookingResponseInstructorNote;
   instructor_service: ServiceInfo;
@@ -924,9 +1410,10 @@ export interface BookingStatsResponse {
 
 /**
  * Booking lifecycle statuses.
- */
-export type BookingStatus = typeof BookingStatus[keyof typeof BookingStatus];
 
+Case-insensitive: accepts 'completed', 'COMPLETED', or 'Completed'.
+ */
+export type BookingStatus = (typeof BookingStatus)[keyof typeof BookingStatus];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const BookingStatus = {
@@ -936,6 +1423,16 @@ export const BookingStatus = {
   CANCELLED: 'CANCELLED',
   NO_SHOW: 'NO_SHOW',
 } as const;
+
+/**
+ * Minimal booking info shown in conversation context.
+ */
+export interface BookingSummary {
+  date: string;
+  id: string;
+  service_name: string;
+  start_time: string;
+}
 
 export type BookingUpdateInstructorNote = string | null;
 
@@ -1047,7 +1544,7 @@ export interface CandidateServiceQuery {
   source: CandidateServiceQuerySource;
 }
 
-export type CandidateSummaryResponseSourceBreakdown = {[key: string]: number};
+export type CandidateSummaryResponseSourceBreakdown = { [key: string]: number };
 
 export interface CandidateSummaryResponse {
   avg_candidates_per_event: number;
@@ -1233,7 +1730,9 @@ export interface CodebaseFileInfo {
   size_kb: number;
 }
 
-export type CodebaseHistoryEntryCategoriesAnyOf = {[key: string]: {[key: string]: CodebaseCategoryStats}};
+export type CodebaseHistoryEntryCategoriesAnyOf = {
+  [key: string]: { [key: string]: CodebaseCategoryStats };
+};
 
 export type CodebaseHistoryEntryCategories = CodebaseHistoryEntryCategoriesAnyOf | null;
 
@@ -1274,7 +1773,7 @@ export interface CodebaseMetricsSummary {
   total_lines: number;
 }
 
-export type CodebaseSectionCategories = {[key: string]: CodebaseCategoryStats};
+export type CodebaseSectionCategories = { [key: string]: CodebaseCategoryStats };
 
 export interface CodebaseSection {
   categories?: CodebaseSectionCategories;
@@ -1285,6 +1784,75 @@ export interface CodebaseSection {
   total_lines: number;
   /** @minimum 0 */
   total_lines_with_blanks: number;
+}
+
+export type ConsentPayloadUserAgent = string | null;
+
+/**
+ * Payload required to record FCRA consent.
+ */
+export interface ConsentPayload {
+  /**
+   * @minLength 1
+   * @maxLength 50
+   */
+  consent_version: string;
+  /**
+   * @minLength 1
+   * @maxLength 50
+   */
+  disclosure_version: string;
+  user_agent?: ConsentPayloadUserAgent;
+}
+
+/**
+ * Acknowledgement returned after recording consent.
+ */
+export interface ConsentResponse {
+  /** Whether the consent record was stored */
+  ok?: boolean;
+}
+
+export type ConversationDetailNextBooking = BookingSummary | null;
+
+/**
+ * Full conversation details.
+ */
+export interface ConversationDetail {
+  created_at: string;
+  id: string;
+  next_booking?: ConversationDetailNextBooking;
+  other_user: UserSummary;
+  state?: string;
+  upcoming_bookings?: BookingSummary[];
+}
+
+export type ConversationListItemLastMessage = LastMessage | null;
+
+export type ConversationListItemNextBooking = BookingSummary | null;
+
+/**
+ * Single conversation in the inbox list.
+ */
+export interface ConversationListItem {
+  id: string;
+  last_message?: ConversationListItemLastMessage;
+  next_booking?: ConversationListItemNextBooking;
+  other_user: UserSummary;
+  state?: string;
+  unread_count?: number;
+  upcoming_booking_count?: number;
+  upcoming_bookings?: BookingSummary[];
+}
+
+export type ConversationListResponseNextCursor = string | null;
+
+/**
+ * Response for GET /conversations.
+ */
+export interface ConversationListResponse {
+  conversations: ConversationListItem[];
+  next_cursor?: ConversationListResponseNextCursor;
 }
 
 /**
@@ -1359,8 +1927,27 @@ export interface CreateCheckoutRequest {
   save_payment_method?: boolean;
 }
 
-export type CreateSignedUploadRequestPurpose = typeof CreateSignedUploadRequestPurpose[keyof typeof CreateSignedUploadRequestPurpose];
+export type CreateConversationRequestInitialMessage = string | null;
 
+/**
+ * Request to create a pre-booking conversation.
+ */
+export interface CreateConversationRequest {
+  initial_message?: CreateConversationRequestInitialMessage;
+  /** @pattern ^[0-9A-HJKMNP-TV-Z]{26}$ */
+  instructor_id: string;
+}
+
+/**
+ * Response for POST /conversations.
+ */
+export interface CreateConversationResponse {
+  created: boolean;
+  id: string;
+}
+
+export type CreateSignedUploadRequestPurpose =
+  (typeof CreateSignedUploadRequestPurpose)[keyof typeof CreateSignedUploadRequestPurpose];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const CreateSignedUploadRequestPurpose = {
@@ -1583,6 +2170,11 @@ export interface EarningsResponse {
 }
 
 export interface EditMessageRequest {
+  /**
+   * New message content
+   * @minLength 1
+   * @maxLength 5000
+   */
   content: string;
 }
 
@@ -1614,7 +2206,7 @@ export interface ExportAnalyticsResponse {
  */
 export type ExtendedCacheStatsBasicStats = { [key: string]: unknown };
 
-export type ExtendedCacheStatsKeyPatternsAnyOf = {[key: string]: number};
+export type ExtendedCacheStatsKeyPatternsAnyOf = { [key: string]: number };
 
 /**
  * Cache key pattern counts
@@ -1805,7 +2397,7 @@ export interface HTTPValidationError {
 /**
  * Individual component health checks
  */
-export type HealthCheckResponseChecks = {[key: string]: boolean};
+export type HealthCheckResponseChecks = { [key: string]: boolean };
 
 /**
  * Standard health check response.
@@ -1857,6 +2449,18 @@ export interface InstantPayoutResponse {
   payout_id?: InstantPayoutResponsePayoutId;
   /** Stripe status of the payout (e.g., pending, paid) */
   status?: InstantPayoutResponseStatus;
+}
+
+/**
+ * Instructor information for booking display.
+
+Privacy-aware: Only shows last initial for privacy protection.
+Full last name never exposed to students.
+ */
+export interface InstructorInfo {
+  first_name: string;
+  id: string;
+  last_initial: string;
 }
 
 /**
@@ -2031,7 +2635,9 @@ export type InstructorProfileUpdateMinAdvanceBookingHours = number | null;
 
 export type InstructorProfileUpdatePreferredPublicSpaces = PreferredPublicSpaceIn[] | null;
 
-export type InstructorProfileUpdatePreferredTeachingLocations = PreferredTeachingLocationIn[] | null;
+export type InstructorProfileUpdatePreferredTeachingLocations =
+  | PreferredTeachingLocationIn[]
+  | null;
 
 export type InstructorProfileUpdateServices = ServiceCreate[] | null;
 
@@ -2063,27 +2669,6 @@ export interface InstructorRatingsResponse {
   /** @pattern ^(new|establishing|established|trusted)$ */
   confidence_level: string;
   overall: InstructorRatingsResponseOverall;
-}
-
-/**
- * Parsed query information
- */
-export type InstructorSearchResponseParsed = { [key: string]: unknown };
-
-/**
- * Response for instructor search endpoint.
- */
-export interface InstructorSearchResponse {
-  /** Parsed query information */
-  parsed: InstructorSearchResponseParsed;
-  /** Original search query */
-  query: string;
-  /** Search results */
-  results: SearchResult[];
-  /** Search metadata */
-  search_metadata: SearchMetadata;
-  /** Total number of results found */
-  total_found: number;
 }
 
 /**
@@ -2132,6 +2717,41 @@ export interface InstructorServiceResponse {
   is_active?: boolean;
   name: string;
   updated_at?: InstructorServiceResponseUpdatedAt;
+}
+
+/**
+ * First 150 chars of bio
+ */
+export type InstructorSummaryBioSnippet = string | null;
+
+/**
+ * Profile picture URL
+ */
+export type InstructorSummaryProfilePictureUrl = string | null;
+
+/**
+ * Years of experience
+ */
+export type InstructorSummaryYearsExperience = number | null;
+
+/**
+ * Embedded instructor info for search results.
+ */
+export interface InstructorSummary {
+  /** First 150 chars of bio */
+  bio_snippet?: InstructorSummaryBioSnippet;
+  /** Instructor first name */
+  first_name: string;
+  /** Instructor user ID */
+  id: string;
+  /** Last name initial for privacy (e.g., 'D') */
+  last_initial: string;
+  /** Profile picture URL */
+  profile_picture_url?: InstructorSummaryProfilePictureUrl;
+  /** Whether instructor is verified */
+  verified?: boolean;
+  /** Years of experience */
+  years_experience?: InstructorSummaryYearsExperience;
 }
 
 export interface InviteBatchAsyncStartResponse {
@@ -2259,6 +2879,15 @@ export interface InviteValidateResponse {
   valid: boolean;
 }
 
+/**
+ * Preview of the last message in a conversation.
+ */
+export interface LastMessage {
+  content: string;
+  created_at: string;
+  is_from_me: boolean;
+}
+
 export interface LineItem {
   /**
    * @minimum -1000000000
@@ -2308,6 +2937,11 @@ export interface LoginResponse {
 }
 
 /**
+ * Mark all messages in this conversation as read
+ */
+export type MarkMessagesReadRequestConversationId = string | null;
+
+/**
  * Specific message IDs to mark as read
  */
 export type MarkMessagesReadRequestMessageIds = string[] | null;
@@ -2317,7 +2951,7 @@ export type MarkMessagesReadRequestMessageIds = string[] | null;
  */
 export interface MarkMessagesReadRequest {
   /** Mark all messages in this conversation as read */
-  conversation_id?: string | null;
+  conversation_id?: MarkMessagesReadRequestConversationId;
   /** Specific message IDs to mark as read */
   message_ids?: MarkMessagesReadRequestMessageIds;
 }
@@ -2344,58 +2978,83 @@ export interface MessageConfigResponse {
   edit_window_minutes: number;
 }
 
+export type MessageResponseBookingDetails = BookingSummary | null;
+
+export type MessageResponseBookingId = string | null;
+
 export type MessageResponseDeliveredAt = string | null;
 
 export type MessageResponseEditedAt = string | null;
 
-export type MessageResponseMyReactions = string[] | null;
-
-export type MessageResponseReactionsAnyOf = { [key: string]: unknown };
-
-export type MessageResponseReactions = MessageResponseReactionsAnyOf | null;
-
-export type MessageResponseReadByAnyOfItem = { [key: string]: unknown };
-
-export type MessageResponseReadBy = MessageResponseReadByAnyOfItem[] | null;
-
-export type MessageResponseSender = MessageSenderResponse | null;
+export type MessageResponseSenderId = string | null;
 
 /**
- * Response schema for a single message.
+ * Single message in a conversation.
  */
 export interface MessageResponse {
-  conversation_id: string;
-  booking_id?: string | null;
+  booking_details?: MessageResponseBookingDetails;
+  booking_id?: MessageResponseBookingId;
   content: string;
+  conversation_id: string;
   created_at: string;
   delivered_at?: MessageResponseDeliveredAt;
   edited_at?: MessageResponseEditedAt;
   id: string;
   is_deleted?: boolean;
-  my_reactions?: MessageResponseMyReactions;
-  reactions?: MessageResponseReactions;
-  read_by?: MessageResponseReadBy;
-  sender?: MessageResponseSender;
-  sender_id?: string | null;
-  updated_at: string;
+  is_from_me: boolean;
+  message_type: string;
+  reactions?: ReactionInfo[];
+  read_by?: ReadReceiptEntry[];
+  sender_id?: MessageResponseSenderId;
+}
+
+export type MessagesResponseNextCursor = string | null;
+
+/**
+ * Response for GET /conversations/{id}/messages.
+ */
+export interface MessagesResponse {
+  has_more?: boolean;
+  messages: MessageResponse[];
+  next_cursor?: MessagesResponseNextCursor;
 }
 
 /**
- * Response schema for message sender info.
+ * Background check status after the mock update
  */
-export interface MessageSenderResponse {
-  email: string;
-  first_name: string;
-  id: string;
-  last_name: string;
+export type MockStatusResponseStatus =
+  (typeof MockStatusResponseStatus)[keyof typeof MockStatusResponseStatus];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const MockStatusResponseStatus = {
+  pending: 'pending',
+  review: 'review',
+  consider: 'consider',
+  passed: 'passed',
+  failed: 'failed',
+  canceled: 'canceled',
+} as const;
+
+/**
+ * Response returned by non-production mock status changers.
+ */
+export interface MockStatusResponse {
+  /** Whether the mock update succeeded */
+  ok?: boolean;
+  /** Background check status after the mock update */
+  status: MockStatusResponseStatus;
 }
 
-export interface MessagesHistoryResponse {
-  booking_id: string;
-  has_more: boolean;
-  limit: number;
-  messages: MessageResponse[];
-  offset: number;
+/**
+ * A selectable model option.
+ */
+export interface ModelOption {
+  /** Model description */
+  description: string;
+  /** Model identifier */
+  id: string;
+  /** Display name */
+  name: string;
 }
 
 /**
@@ -2423,6 +3082,135 @@ export interface MonitoringDashboardResponse {
   status: string;
   /** Dashboard snapshot timestamp */
   timestamp: string;
+}
+
+/**
+ * Typo-corrected query if different
+ */
+export type NLSearchMetaCorrectedQuery = string | null;
+
+export type NLSearchMetaFilterStatsAnyOf = { [key: string]: number };
+
+/**
+ * Filter stage counts for debugging (optional)
+ */
+export type NLSearchMetaFilterStats = NLSearchMetaFilterStatsAnyOf | null;
+
+/**
+ * Resolved location name for display (if available)
+ */
+export type NLSearchMetaLocationResolved = string | null;
+
+/**
+ * Search query ID for click tracking
+ */
+export type NLSearchMetaSearchQueryId = string | null;
+
+/**
+ * User-facing message when constraints are relaxed
+ */
+export type NLSearchMetaSoftFilterMessage = string | null;
+
+/**
+ * Search response metadata.
+ */
+export interface NLSearchMeta {
+  /** Whether response was from cache */
+  cache_hit?: boolean;
+  /** Typo-corrected query if different */
+  corrected_query?: NLSearchMetaCorrectedQuery;
+  /** Reasons for degradation */
+  degradation_reasons?: string[];
+  /** Whether search was degraded */
+  degraded?: boolean;
+  /** Filter stage counts for debugging (optional) */
+  filter_stats?: NLSearchMetaFilterStats;
+  /** Filters applied during constraint filtering */
+  filters_applied?: string[];
+  /**
+   * Total search latency in ms
+   * @minimum 0
+   */
+  latency_ms: number;
+  /**
+   * Requested limit
+   * @minimum 1
+   */
+  limit: number;
+  /** True if the location text could not be resolved */
+  location_not_found?: boolean;
+  /** Resolved location name for display (if available) */
+  location_resolved?: NLSearchMetaLocationResolved;
+  /** Parsed query details */
+  parsed: ParsedQueryInfo;
+  /** Parsing mode used (regex/llm) */
+  parsing_mode?: string;
+  /** Original search query */
+  query: string;
+  /** Search query ID for click tracking */
+  search_query_id?: NLSearchMetaSearchQueryId;
+  /** User-facing message when constraints are relaxed */
+  soft_filter_message?: NLSearchMetaSoftFilterMessage;
+  /** Whether soft filtering/relaxation was applied */
+  soft_filtering_used?: boolean;
+  /**
+   * Total results returned
+   * @minimum 0
+   */
+  total_results: number;
+}
+
+/**
+ * Complete NL search response with instructor-level results.
+ */
+export interface NLSearchResponse {
+  /** Search metadata */
+  meta: NLSearchMeta;
+  /** Instructor-level search results */
+  results: NLSearchResultItem[];
+}
+
+/**
+ * Distance from searched location in kilometers (optional)
+ */
+export type NLSearchResultItemDistanceKm = number | null;
+
+/**
+ * Distance from searched location in miles (optional)
+ */
+export type NLSearchResultItemDistanceMi = number | null;
+
+/**
+ * Single instructor result with all embedded data (eliminates N+1).
+ */
+export interface NLSearchResultItem {
+  /** Best matching service */
+  best_match: ServiceMatch;
+  /** Service area names */
+  coverage_areas?: string[];
+  /** Distance from searched location in kilometers (optional) */
+  distance_km?: NLSearchResultItemDistanceKm;
+  /** Distance from searched location in miles (optional) */
+  distance_mi?: NLSearchResultItemDistanceMi;
+  /** Instructor profile info */
+  instructor: InstructorSummary;
+  /** Instructor user ID */
+  instructor_id: string;
+  /** Other matching services (max 3) */
+  other_matches?: ServiceMatch[];
+  /** Aggregated rating info */
+  rating: RatingSummary;
+  /**
+   * Best match relevance score
+   * @minimum 0
+   * @maximum 1
+   */
+  relevance_score: number;
+  /**
+   * Total number of matching services
+   * @minimum 1
+   */
+  total_matching_services?: number;
 }
 
 export type NYCZipCheckResponseBorough = string | null;
@@ -2533,8 +3321,8 @@ export type OperationResultReason = string | null;
 
 export type OperationResultSlotId = string | null;
 
-export type OperationResultStatus = typeof OperationResultStatus[keyof typeof OperationResultStatus];
-
+export type OperationResultStatus =
+  (typeof OperationResultStatus)[keyof typeof OperationResultStatus];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const OperationResultStatus = {
@@ -2552,6 +3340,19 @@ export interface OperationResult {
   reason?: OperationResultReason;
   slot_id?: OperationResultSlotId;
   status: OperationResultStatus;
+}
+
+export type OverridePayloadAction =
+  (typeof OverridePayloadAction)[keyof typeof OverridePayloadAction];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const OverridePayloadAction = {
+  approve: 'approve',
+  reject: 'reject',
+} as const;
+
+export interface OverridePayload {
+  action: OverridePayloadAction;
 }
 
 export interface PaginatedResponseBookingResponse {
@@ -2620,6 +3421,70 @@ export interface PaginatedResponseUpcomingBookingResponse {
   total: number;
 }
 
+/**
+ * Detected audience hint
+ */
+export type ParsedQueryInfoAudienceHint = string | null;
+
+/**
+ * Extracted date
+ */
+export type ParsedQueryInfoDate = string | null;
+
+/**
+ * Extracted location
+ */
+export type ParsedQueryInfoLocation = string | null;
+
+/**
+ * Extracted max price
+ */
+export type ParsedQueryInfoMaxPrice = number | null;
+
+/**
+ * Detected skill level
+ */
+export type ParsedQueryInfoSkillLevel = string | null;
+
+/**
+ * Extracted time constraint
+ */
+export type ParsedQueryInfoTimeAfter = string | null;
+
+/**
+ * Extracted time constraint end
+ */
+export type ParsedQueryInfoTimeBefore = string | null;
+
+/**
+ * Detected urgency level
+ */
+export type ParsedQueryInfoUrgency = string | null;
+
+/**
+ * Parsed query details for response transparency.
+ */
+export interface ParsedQueryInfo {
+  /** Detected audience hint */
+  audience_hint?: ParsedQueryInfoAudienceHint;
+  /** Extracted date */
+  date?: ParsedQueryInfoDate;
+  /** Extracted location */
+  location?: ParsedQueryInfoLocation;
+  /** Extracted max price */
+  max_price?: ParsedQueryInfoMaxPrice;
+  /** Extracted service query */
+  service_query: string;
+  /** Detected skill level */
+  skill_level?: ParsedQueryInfoSkillLevel;
+  /** Extracted time constraint */
+  time_after?: ParsedQueryInfoTimeAfter;
+  /** Extracted time constraint end */
+  time_before?: ParsedQueryInfoTimeBefore;
+  /** Detected urgency level */
+  urgency?: ParsedQueryInfoUrgency;
+}
+
 export interface PasswordChangeRequest {
   /** @minLength 6 */
   current_password: string;
@@ -2651,7 +3516,9 @@ export interface PasswordResetResponse {
   message: string;
 }
 
-export interface PasswordResetVerifyResponse { [key: string]: unknown }
+export interface PasswordResetVerifyResponse {
+  [key: string]: unknown;
+}
 
 /**
  * Response for manually triggered payment health check.
@@ -2670,7 +3537,7 @@ export interface PaymentHealthCheckTriggerResponse {
 /**
  * Payment metrics breakdown
  */
-export type PaymentHealthResponseMetrics = {[key: string]: number};
+export type PaymentHealthResponseMetrics = { [key: string]: number };
 
 /**
  * Minutes since last successful auth
@@ -2680,12 +3547,12 @@ export type PaymentHealthResponseMinutesSinceLastAuth = number | null;
 /**
  * Payment status counts
  */
-export type PaymentHealthResponsePaymentStats = {[key: string]: number};
+export type PaymentHealthResponsePaymentStats = { [key: string]: number };
 
 /**
  * Recent payment event counts
  */
-export type PaymentHealthResponseRecentEvents = {[key: string]: number};
+export type PaymentHealthResponseRecentEvents = { [key: string]: number };
 
 /**
  * Payment system health monitoring response.
@@ -2790,7 +3657,7 @@ export type PerformanceMetricsResponseDatabase = { [key: string]: unknown };
 /**
  * System resource metrics
  */
-export type PerformanceMetricsResponseSystem = {[key: string]: number};
+export type PerformanceMetricsResponseSystem = { [key: string]: number };
 
 /**
  * Comprehensive performance metrics response.
@@ -2858,6 +3725,39 @@ export interface PlaceSuggestion {
 }
 
 /**
+ * List of popular search queries.
+ */
+export interface PopularQueriesResponse {
+  /** Popular queries */
+  queries: PopularQueryItem[];
+}
+
+/**
+ * Average latency in ms
+ */
+export type PopularQueryItemAvgLatencyMs = number | null;
+
+/**
+ * A popular search query.
+ */
+export interface PopularQueryItem {
+  /** Average latency in ms */
+  avg_latency_ms?: PopularQueryItemAvgLatencyMs;
+  /**
+   * Average results for this query
+   * @minimum 0
+   */
+  avg_results: number;
+  /**
+   * Number of times searched
+   * @minimum 1
+   */
+  count: number;
+  /** Search query text */
+  query: string;
+}
+
+/**
  * Popular search query data.
  */
 export interface PopularSearch {
@@ -2890,7 +3790,9 @@ export interface PreferredPublicSpaceIn {
   label?: PreferredPublicSpaceInLabel;
 }
 
-export interface PreferredPublicSpaceOut { [key: string]: unknown }
+export interface PreferredPublicSpaceOut {
+  [key: string]: unknown;
+}
 
 export type PreferredTeachingLocationInLabel = string | null;
 
@@ -2906,7 +3808,9 @@ export interface PreferredTeachingLocationIn {
   label?: PreferredTeachingLocationInLabel;
 }
 
-export interface PreferredTeachingLocationOut { [key: string]: unknown }
+export interface PreferredTeachingLocationOut {
+  [key: string]: unknown;
+}
 
 export interface PriceFloorConfig {
   /**
@@ -3051,7 +3955,7 @@ export interface ProblematicQuery {
   query: string;
 }
 
-export type ProfilePictureUrlsResponseUrls = {[key: string]: string | null};
+export type ProfilePictureUrlsResponseUrls = { [key: string]: string | null };
 
 export interface ProfilePictureUrlsResponse {
   urls: ProfilePictureUrlsResponseUrls;
@@ -3079,19 +3983,25 @@ export interface PublicDayAvailability {
   is_blackout?: boolean;
 }
 
-export type PublicInstructorAvailabilityAvailabilityByDateAnyOf = {[key: string]: PublicDayAvailability};
+export type PublicInstructorAvailabilityAvailabilityByDateAnyOf = {
+  [key: string]: PublicDayAvailability;
+};
 
 /**
  * Availability indexed by date string (YYYY-MM-DD) - only in full detail
  */
-export type PublicInstructorAvailabilityAvailabilityByDate = PublicInstructorAvailabilityAvailabilityByDateAnyOf | null;
+export type PublicInstructorAvailabilityAvailabilityByDate =
+  PublicInstructorAvailabilityAvailabilityByDateAnyOf | null;
 
-export type PublicInstructorAvailabilityAvailabilitySummaryAnyOf = {[key: string]: { [key: string]: unknown }};
+export type PublicInstructorAvailabilityAvailabilitySummaryAnyOf = {
+  [key: string]: { [key: string]: unknown };
+};
 
 /**
  * Summary of availability by date - only in summary detail
  */
-export type PublicInstructorAvailabilityAvailabilitySummary = PublicInstructorAvailabilityAvailabilitySummaryAnyOf | null;
+export type PublicInstructorAvailabilityAvailabilitySummary =
+  PublicInstructorAvailabilityAvailabilitySummaryAnyOf | null;
 
 /**
  * Earliest date with availability
@@ -3189,7 +4099,7 @@ export interface RateLimitResetResponse {
 /**
  * Breakdown by limit type
  */
-export type RateLimitStatsBreakdownByType = {[key: string]: number};
+export type RateLimitStatsBreakdownByType = { [key: string]: number };
 
 export type RateLimitStatsTopLimitedClientsItem = { [key: string]: unknown };
 
@@ -3217,6 +4127,24 @@ export interface RateLimitTestResponse {
   timestamp: string;
 }
 
+/**
+ * Average rating (None if no reviews)
+ */
+export type RatingSummaryAverage = number | null;
+
+/**
+ * Aggregated rating info for an instructor.
+ */
+export interface RatingSummary {
+  /** Average rating (None if no reviews) */
+  average?: RatingSummaryAverage;
+  /**
+   * Number of reviews
+   * @minimum 0
+   */
+  count?: number;
+}
+
 export type RatingsBatchItemRating = number | null;
 
 export interface RatingsBatchItem {
@@ -3234,8 +4162,24 @@ export interface RatingsBatchResponse {
   results: RatingsBatchItem[];
 }
 
+/**
+ * Reaction on a message.
+ */
+export interface ReactionInfo {
+  emoji: string;
+  user_id: string;
+}
+
 export interface ReactionRequest {
   emoji: string;
+}
+
+/**
+ * Read receipt entry showing who read and when.
+ */
+export interface ReadReceiptEntry {
+  read_at: string;
+  user_id: string;
 }
 
 /**
@@ -3542,8 +4486,7 @@ export interface RewardOut {
 /**
  * Which party receives the reward.
  */
-export type RewardSide = typeof RewardSide[keyof typeof RewardSide];
-
+export type RewardSide = (typeof RewardSide)[keyof typeof RewardSide];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const RewardSide = {
@@ -3554,8 +4497,7 @@ export const RewardSide = {
 /**
  * Lifecycle of a reward.
  */
-export type RewardStatus = typeof RewardStatus[keyof typeof RewardStatus];
-
+export type RewardStatus = (typeof RewardStatus)[keyof typeof RewardStatus];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const RewardStatus = {
@@ -3583,7 +4525,7 @@ export type SearchAnalyticsSummaryResponseConversions = { [key: string]: unknown
 /**
  * Breakdown by search type
  */
-export type SearchAnalyticsSummaryResponseSearchTypes = {[key: string]: SearchTypeMetrics};
+export type SearchAnalyticsSummaryResponseSearchTypes = { [key: string]: SearchTypeMetrics };
 
 /**
  * Comprehensive search analytics summary.
@@ -3604,6 +4546,108 @@ export interface SearchAnalyticsSummaryResponse {
 }
 
 /**
+ * Service ID that was clicked (instructor_service_id)
+ */
+export type SearchClickRequestServiceId = string | null;
+
+/**
+ * Request payload for logging a search click.
+ */
+export interface SearchClickRequest {
+  /** Action type: view, book, message, favorite */
+  action?: string;
+  /** Instructor user ID that was clicked */
+  instructor_id: string;
+  /**
+   * Position in search results (1-indexed)
+   * @minimum 1
+   */
+  position: number;
+  /** Search query ID from NL search */
+  search_query_id: string;
+  /** Service ID that was clicked (instructor_service_id) */
+  service_id?: SearchClickRequestServiceId;
+}
+
+/**
+ * Response for logging a search click.
+ */
+export interface SearchClickResponse {
+  /** ID of the logged click */
+  click_id: string;
+}
+
+/**
+ * Response after resetting configuration.
+ */
+export interface SearchConfigResetResponse {
+  /** Current config after reset */
+  config: SearchConfigResponse;
+  /** Reset status */
+  status: string;
+}
+
+/**
+ * Current search configuration.
+ */
+export interface SearchConfigResponse {
+  /** Available embedding models */
+  available_embedding_models: ModelOption[];
+  /** Available parsing models */
+  available_parsing_models: ModelOption[];
+  /** Current embedding model */
+  embedding_model: string;
+  /**
+   * Embedding timeout in ms
+   * @minimum 500
+   * @maximum 10000
+   */
+  embedding_timeout_ms: number;
+  /** Current parsing model */
+  parsing_model: string;
+  /**
+   * Parsing timeout in ms
+   * @minimum 500
+   * @maximum 10000
+   */
+  parsing_timeout_ms: number;
+}
+
+/**
+ * New embedding model
+ */
+export type SearchConfigUpdateEmbeddingModel = string | null;
+
+/**
+ * New embedding timeout in ms
+ */
+export type SearchConfigUpdateEmbeddingTimeoutMs = number | null;
+
+/**
+ * New parsing model
+ */
+export type SearchConfigUpdateParsingModel = string | null;
+
+/**
+ * New parsing timeout in ms
+ */
+export type SearchConfigUpdateParsingTimeoutMs = number | null;
+
+/**
+ * Request to update search configuration.
+ */
+export interface SearchConfigUpdate {
+  /** New embedding model */
+  embedding_model?: SearchConfigUpdateEmbeddingModel;
+  /** New embedding timeout in ms */
+  embedding_timeout_ms?: SearchConfigUpdateEmbeddingTimeoutMs;
+  /** New parsing model */
+  parsing_model?: SearchConfigUpdateParsingModel;
+  /** New parsing timeout in ms */
+  parsing_timeout_ms?: SearchConfigUpdateParsingTimeoutMs;
+}
+
+/**
  * Search effectiveness metrics.
  */
 export interface SearchEffectiveness {
@@ -3615,6 +4659,59 @@ export interface SearchEffectiveness {
   searches_with_results: number;
   /** Percentage of searches with zero results */
   zero_result_rate: number;
+}
+
+/**
+ * Error message if unavailable
+ */
+export type SearchHealthCacheError = string | null;
+
+/**
+ * Current cache version
+ */
+export type SearchHealthCacheResponseCacheVersion = number | null;
+
+export type SearchHealthCacheTtlsAnyOf = { [key: string]: number };
+
+/**
+ * Cache TTL settings
+ */
+export type SearchHealthCacheTtls = SearchHealthCacheTtlsAnyOf | null;
+
+/**
+ * Cache health status.
+ */
+export interface SearchHealthCache {
+  /** Whether cache is available */
+  available: boolean;
+  /** Error message if unavailable */
+  error?: SearchHealthCacheError;
+  /** Current cache version */
+  response_cache_version?: SearchHealthCacheResponseCacheVersion;
+  /** Cache TTL settings */
+  ttls?: SearchHealthCacheTtls;
+}
+
+/**
+ * Health status of search components.
+ */
+export interface SearchHealthComponents {
+  /** Cache health status */
+  cache: SearchHealthCache;
+  /** Embedding circuit breaker state */
+  embedding_circuit: string;
+  /** Parsing circuit breaker state */
+  parsing_circuit: string;
+}
+
+/**
+ * Health check response for search service.
+ */
+export interface SearchHealthResponse {
+  /** Component health details */
+  components: SearchHealthComponents;
+  /** Overall health status */
+  status: string;
 }
 
 export type SearchHistoryCreateDeviceContextAnyOf = { [key: string]: unknown };
@@ -3634,7 +4731,9 @@ export type SearchHistoryCreateObservabilityCandidatesAnyOfItem = { [key: string
 /**
  * Optional top-N candidate objects for observability. Each item may include: position, service_catalog_id (or id), score, vector_score, lexical_score, source.
  */
-export type SearchHistoryCreateObservabilityCandidates = SearchHistoryCreateObservabilityCandidatesAnyOfItem[] | null;
+export type SearchHistoryCreateObservabilityCandidates =
+  | SearchHistoryCreateObservabilityCandidatesAnyOfItem[]
+  | null;
 
 /**
  * Number of results returned
@@ -3723,25 +4822,53 @@ export interface SearchInteractionResponse {
   success: boolean;
 }
 
-export type SearchMetadataObservabilityCandidatesAnyOfItem = { [key: string]: unknown };
-
 /**
- * Optional top-N candidates considered during search for observability/analytics (position, service_catalog_id, name, score, vector_score, lexical_score, source).
+ * Aggregate search metrics response.
  */
-export type SearchMetadataObservabilityCandidates = SearchMetadataObservabilityCandidatesAnyOfItem[] | null;
-
-/**
- * Search metadata.
- */
-export interface SearchMetadata {
-  /** List of applied filters */
-  applied_filters: string[];
-  /** Optional top-N candidates considered during search for observability/analytics (position, service_catalog_id, name, score, vector_score, lexical_score, source). */
-  observability_candidates?: SearchMetadataObservabilityCandidates;
-  /** Search timestamp (ISO format) */
-  timestamp: string;
-  /** Whether semantic search was used */
-  used_semantic_search: boolean;
+export interface SearchMetricsResponse {
+  /**
+   * Average latency in ms
+   * @minimum 0
+   */
+  avg_latency_ms: number;
+  /**
+   * Average results per search
+   * @minimum 0
+   */
+  avg_results: number;
+  /**
+   * Cache hit rate
+   * @minimum 0
+   * @maximum 1
+   */
+  cache_hit_rate: number;
+  /**
+   * Search degradation rate
+   * @minimum 0
+   * @maximum 1
+   */
+  degradation_rate: number;
+  /**
+   * 50th percentile latency
+   * @minimum 0
+   */
+  p50_latency_ms: number;
+  /**
+   * 95th percentile latency
+   * @minimum 0
+   */
+  p95_latency_ms: number;
+  /**
+   * Total number of searches
+   * @minimum 0
+   */
+  total_searches: number;
+  /**
+   * Rate of zero-result searches
+   * @minimum 0
+   * @maximum 1
+   */
+  zero_result_rate: number;
 }
 
 /**
@@ -3784,41 +4911,6 @@ export interface SearchReferrer {
 export type SearchReferrersResponse = SearchReferrer[];
 
 /**
- * List of region IDs served by the instructor for quick FE mapping without extra calls
- */
-export type SearchResultCoverageRegionIds = string[] | null;
-
-export type SearchResultCoverageRegionsAnyOfItem = { [key: string]: unknown };
-
-/**
- * List of regions served with minimal fields: region_id, name, borough, coverage_type
- */
-export type SearchResultCoverageRegions = SearchResultCoverageRegionsAnyOfItem[] | null;
-
-/**
- * Service catalog information
- */
-export type SearchResultService = { [key: string]: unknown };
-
-/**
- * Individual search result.
- */
-export interface SearchResult {
-  /** List of region IDs served by the instructor for quick FE mapping without extra calls */
-  coverage_region_ids?: SearchResultCoverageRegionIds;
-  /** List of regions served with minimal fields: region_id, name, borough, coverage_type */
-  coverage_regions?: SearchResultCoverageRegions;
-  /** Instructor information */
-  instructor: AppSchemasSearchResponsesInstructorInfo;
-  /** Match score (0-100) */
-  match_score: number;
-  /** Service offering details */
-  offering: ServiceOffering;
-  /** Service catalog information */
-  service: SearchResultService;
-}
-
-/**
  * Search totals and deletion metrics.
  */
 export interface SearchTotals {
@@ -3851,23 +4943,26 @@ export interface SearchTypeMetrics {
   percentage: number;
 }
 
+export type SendMessageRequestBookingId = string | null;
+
 /**
  * Request to send a message.
  */
 export interface SendMessageRequest {
-  /** ID of the booking */
-  booking_id: string;
+  booking_id?: SendMessageRequestBookingId;
   /**
-   * Message content
    * @minLength 1
    * @maxLength 1000
    */
   content: string;
 }
 
+/**
+ * Response for POST /conversations/{id}/messages.
+ */
 export interface SendMessageResponse {
-  message: MessageResponse;
-  success?: boolean;
+  created_at: string;
+  id: string;
 }
 
 /**
@@ -3983,9 +5078,39 @@ export interface ServiceInfo {
 }
 
 /**
+ * Service description
+ */
+export type ServiceMatchDescription = string | null;
+
+/**
+ * A service that matched the search query.
+ */
+export interface ServiceMatch {
+  /** Service description */
+  description?: ServiceMatchDescription;
+  /** Service name */
+  name: string;
+  /**
+   * Hourly rate in dollars
+   * @minimum 0
+   */
+  price_per_hour: number;
+  /**
+   * Semantic match score
+   * @minimum 0
+   * @maximum 1
+   */
+  relevance_score: number;
+  /** Service catalog ID (for click tracking) */
+  service_catalog_id: string;
+  /** Instructor service ID (for booking) */
+  service_id: string;
+}
+
+/**
  * Operation counts by type
  */
-export type ServiceMetricsOperations = {[key: string]: number};
+export type ServiceMetricsOperations = { [key: string]: number };
 
 /**
  * Service-level performance metrics.
@@ -3999,67 +5124,6 @@ export interface ServiceMetrics {
   operations: ServiceMetricsOperations;
   /** Total operations performed */
   total_operations: number;
-}
-
-/**
- * Age groups served
- */
-export type ServiceOfferingAgeGroups = string[] | null;
-
-/**
- * Service description
- */
-export type ServiceOfferingDescription = string | null;
-
-/**
- * Required equipment
- */
-export type ServiceOfferingEquipmentRequired = string[] | null;
-
-/**
- * Experience level
- */
-export type ServiceOfferingExperienceLevel = string | null;
-
-/**
- * Levels taught
- */
-export type ServiceOfferingLevelsTaught = string[] | null;
-
-/**
- * Location types (online/in-person)
- */
-export type ServiceOfferingLocationTypes = string[] | null;
-
-/**
- * Maximum travel distance
- */
-export type ServiceOfferingMaxDistanceMiles = number | null;
-
-/**
- * Service offering details.
- */
-export interface ServiceOffering {
-  /** Age groups served */
-  age_groups?: ServiceOfferingAgeGroups;
-  /** Service description */
-  description?: ServiceOfferingDescription;
-  /** Available session durations in minutes */
-  duration_options: number[];
-  /** Required equipment */
-  equipment_required?: ServiceOfferingEquipmentRequired;
-  /** Experience level */
-  experience_level?: ServiceOfferingExperienceLevel;
-  /** Hourly rate for the service */
-  hourly_rate: number;
-  /** Instructor service ID */
-  id: string;
-  /** Levels taught */
-  levels_taught?: ServiceOfferingLevelsTaught;
-  /** Location types (online/in-person) */
-  location_types?: ServiceOfferingLocationTypes;
-  /** Maximum travel distance */
-  max_distance_miles?: ServiceOfferingMaxDistanceMiles;
 }
 
 /**
@@ -4180,7 +5244,7 @@ export interface ServiceSearchResponse {
   search_type?: 'service';
 }
 
-export type SignedUploadResponseHeaders = {[key: string]: string};
+export type SignedUploadResponseHeaders = { [key: string]: string };
 
 export type SignedUploadResponsePublicUrl = string | null;
 
@@ -4195,8 +5259,7 @@ export interface SignedUploadResponse {
   upload_url: string;
 }
 
-export type SlotOperationAction = typeof SlotOperationAction[keyof typeof SlotOperationAction];
-
+export type SlotOperationAction = (typeof SlotOperationAction)[keyof typeof SlotOperationAction];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const SlotOperationAction = {
@@ -4554,8 +5617,11 @@ export interface TransactionHistoryItem {
   total_paid: number;
 }
 
-export interface TypingStatusResponse {
-  success?: boolean;
+/**
+ * Typing indicator payload.
+ */
+export interface TypingRequest {
+  is_typing?: boolean;
 }
 
 export interface UnreadCountResponse {
@@ -4584,6 +5650,41 @@ export interface UpcomingBookingResponse {
   student_first_name: string;
   student_last_name: string;
   total_price: number;
+}
+
+export type UpdateConversationStateRequestState =
+  (typeof UpdateConversationStateRequestState)[keyof typeof UpdateConversationStateRequestState];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const UpdateConversationStateRequestState = {
+  active: 'active',
+  archived: 'archived',
+  trashed: 'trashed',
+} as const;
+
+/**
+ * Request to update a user's state for a conversation.
+ */
+export interface UpdateConversationStateRequest {
+  state: UpdateConversationStateRequestState;
+}
+
+export type UpdateConversationStateResponseState =
+  (typeof UpdateConversationStateResponseState)[keyof typeof UpdateConversationStateResponseState];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const UpdateConversationStateResponseState = {
+  active: 'active',
+  archived: 'archived',
+  trashed: 'trashed',
+} as const;
+
+/**
+ * Response for updating conversation state.
+ */
+export interface UpdateConversationStateResponse {
+  id: string;
+  state: UpdateConversationStateResponseState;
 }
 
 /**
@@ -4663,7 +5764,7 @@ export interface UserDataDeletionRequest {
 /**
  * Statistics of deleted records
  */
-export type UserDataDeletionResponseDeletionStats = {[key: string]: number};
+export type UserDataDeletionResponseDeletionStats = { [key: string]: number };
 
 export interface UserDataDeletionResponse {
   /** Whether the account was deleted */
@@ -4676,12 +5777,27 @@ export interface UserDataDeletionResponse {
   status: string;
 }
 
+export type UserLoginCaptchaToken = string | null;
+
 export type UserLoginGuestSessionId = string | null;
 
 export interface UserLogin {
+  captcha_token?: UserLoginCaptchaToken;
   email: string;
   guest_session_id?: UserLoginGuestSessionId;
   password: string;
+}
+
+export type UserSummaryProfilePhotoUrl = string | null;
+
+/**
+ * Minimal user info for conversation list.
+ */
+export interface UserSummary {
+  first_name: string;
+  id: string;
+  last_initial: string;
+  profile_photo_url?: UserSummaryProfilePhotoUrl;
 }
 
 export type UserUpdateFirstName = string | null;
@@ -4702,9 +5818,9 @@ export interface UserUpdate {
   zip_code?: UserUpdateZipCode;
 }
 
-export type ValidateWeekRequestCurrentWeek = {[key: string]: TimeSlot[]};
+export type ValidateWeekRequestCurrentWeek = { [key: string]: TimeSlot[] };
 
-export type ValidateWeekRequestSavedWeek = {[key: string]: TimeSlot[]};
+export type ValidateWeekRequestSavedWeek = { [key: string]: TimeSlot[] };
 
 /**
  * Request to validate week changes
@@ -4751,9 +5867,9 @@ export interface ValidationSlotDetail {
   start_time?: ValidationSlotDetailStartTime;
 }
 
-export type ValidationSummaryEstimatedChanges = {[key: string]: number};
+export type ValidationSummaryEstimatedChanges = { [key: string]: number };
 
-export type ValidationSummaryOperationsByType = {[key: string]: number};
+export type ValidationSummaryOperationsByType = { [key: string]: number };
 
 /**
  * Summary of validation results
@@ -4765,6 +5881,13 @@ export interface ValidationSummary {
   operations_by_type: ValidationSummaryOperationsByType;
   total_operations: number;
   valid_operations: number;
+}
+
+/**
+ * Standard acknowledgement payload returned by webhook endpoints.
+ */
+export interface WebhookAckResponse {
+  ok?: boolean;
 }
 
 /**
@@ -4784,7 +5907,9 @@ export interface WebhookResponse {
 /**
  * Week availability mapping keyed by ISO date string.
  */
-export interface WeekAvailabilityResponse {[key: string]: TimeRange[]}
+export interface WeekAvailabilityResponse {
+  [key: string]: TimeRange[];
+}
 
 export type WeekAvailabilityUpdateResponseVersion = string | null;
 
@@ -4851,6 +5976,29 @@ export interface WeekValidationResponse {
 }
 
 /**
+ * List of zero-result queries.
+ */
+export interface ZeroResultQueriesResponse {
+  /** Zero-result queries */
+  queries: ZeroResultQueryItem[];
+}
+
+/**
+ * A search query that returned zero results.
+ */
+export interface ZeroResultQueryItem {
+  /**
+   * Number of times searched
+   * @minimum 1
+   */
+  count: number;
+  /** Last search timestamp */
+  last_searched: string;
+  /** Search query text */
+  query: string;
+}
+
+/**
  * Standard delete acknowledgement for address resources.
  */
 export interface AppSchemasAddressResponsesDeleteResponse {
@@ -4870,542 +6018,718 @@ export interface AppSchemasBaseResponsesDeleteResponse {
   success?: boolean;
 }
 
-/**
- * Instructor information for booking display.
-
-Privacy-aware: Only shows last initial for privacy protection.
-Full last name never exposed to students.
- */
-export interface AppSchemasBookingInstructorInfo {
-  first_name: string;
-  id: string;
-  last_initial: string;
-}
-
 export interface AppSchemasPaymentSchemasDeleteResponse {
   /** Whether deletion was successful */
   success: boolean;
 }
 
-/**
- * Instructor bio
- */
-export type AppSchemasSearchResponsesInstructorInfoBio = string | null;
-
-/**
- * Summary of borough coverage (e.g., 'Manhattan, Queens')
- */
-export type AppSchemasSearchResponsesInstructorInfoServiceAreaSummary = string | null;
-
-/**
- * Years of experience
- */
-export type AppSchemasSearchResponsesInstructorInfoYearsExperience = number | null;
-
-/**
- * Instructor information in search results with privacy protection.
- */
-export interface AppSchemasSearchResponsesInstructorInfo {
-  /** Instructor bio */
-  bio?: AppSchemasSearchResponsesInstructorInfoBio;
-  /** Instructor first name */
-  first_name: string;
-  /** Instructor user ID */
-  id: string;
-  /** Instructor last name initial only */
-  last_initial: string;
-  /** List of borough names the instructor serves */
-  service_area_boroughs?: string[];
-  /** Detailed neighborhood coverage with keys: neighborhood_id, ntacode, name, borough */
-  service_area_neighborhoods?: ServiceAreaNeighborhood[];
-  /** Summary of borough coverage (e.g., 'Manhattan, Queens') */
-  service_area_summary?: AppSchemasSearchResponsesInstructorInfoServiceAreaSummary;
-  /** Years of experience */
-  years_experience?: AppSchemasSearchResponsesInstructorInfoYearsExperience;
-}
-
 export type ExportAnalyticsApiAnalyticsExportPostParams = {
-format?: string;
+  format?: string;
 };
 
 export type CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams = {
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
 };
 
 export type CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams = {
-service_catalog_id: string;
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
-/**
- * @minimum 1
- * @maximum 200
- */
-limit?: number;
+  service_catalog_id: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
 };
 
 export type CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams = {
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
 };
 
 export type CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams = {
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
 };
 
 export type CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams = {
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-limit?: number;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
 };
 
 export type GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams = {
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
 };
 
 export type GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams = {
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-limit?: number;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
 };
 
 export type GetSearchReferrersApiAnalyticsSearchReferrersGetParams = {
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
 };
 
 export type GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams = {
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
 };
 
 export type GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams = {
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
 };
 
 export type GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams = {
-/**
- * @minimum 1
- * @maximum 365
- */
-days?: number;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
 };
 
 export type GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetParams = {
-task_id: string;
+  task_id: string;
 };
 
 export type ValidateInviteApiBetaInvitesValidateGetParams = {
-code?: string | null;
-invite_code?: string | null;
-email?: string | null;
+  code?: string | null;
+  invite_code?: string | null;
+  email?: string | null;
 };
 
 export type GetLiveAlertsApiMonitoringAlertsLiveGetParams = {
-/**
- * Get alerts from last N minutes
- */
-minutes?: number;
+  /**
+   * Get alerts from last N minutes
+   */
+  minutes?: number;
 };
 
 export type GetRecentAlertsApiMonitoringAlertsRecentGetParams = {
-/**
- * Get alerts from last N hours
- */
-hours?: number;
-/**
- * Maximum number of alerts to return
- */
-limit?: number;
-/**
- * Filter by severity
- */
-severity?: string | null;
+  /**
+   * Get alerts from last N hours
+   */
+  hours?: number;
+  /**
+   * Maximum number of alerts to return
+   */
+  limit?: number;
+  /**
+   * Filter by severity
+   */
+  severity?: string | null;
 };
 
 export type GetAlertSummaryApiMonitoringAlertsSummaryGetParams = {
-/**
- * Number of days to summarize
- */
-days?: number;
+  /**
+   * Number of days to summarize
+   */
+  days?: number;
 };
 
 export type GetSlowQueriesApiMonitoringSlowQueriesGetParams = {
-limit?: number;
+  limit?: number;
 };
 
 export type GetSlowRequestsApiMonitoringSlowRequestsGetParams = {
-limit?: number;
+  limit?: number;
 };
 
 export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams = {
-ids: string;
+  ids: string;
 };
 
 export type PlacesAutocompleteApiV1AddressesPlacesAutocompleteGetParams = {
-q: string;
-provider?: string | null;
-scope?: string | null;
+  q: string;
+  provider?: string | null;
+  scope?: string | null;
 };
 
 export type PlaceDetailsApiV1AddressesPlacesDetailsGetParams = {
-place_id: string;
-provider?: string | null;
+  place_id: string;
+  provider?: string | null;
 };
 
 export type ListNeighborhoodsApiV1AddressesRegionsNeighborhoodsGetParams = {
-region_type?: string;
-borough?: string | null;
-page?: number;
-per_page?: number;
+  region_type?: string;
+  borough?: string | null;
+  page?: number;
+  per_page?: number;
 };
 
 export type IsNycZipApiV1AddressesZipIsNycGetParams = {
-zip: string;
+  zip: string;
+};
+
+export type ListAuditLogsApiV1AdminAuditGetParams = {
+  entity_type?: string | null;
+  entity_id?: string | null;
+  action?: string | null;
+  actor_id?: string | null;
+  actor_role?: string | null;
+  start?: string | null;
+  end?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
+};
+
+export type BgcCasesApiV1AdminBackgroundChecksCasesGetParams = {
+  /**
+   * review, pending, or all
+   */
+  status?: string;
+  /**
+   * Search by instructor id, name, or email
+   */
+  q?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+  /**
+   * Deprecated; use page_size instead.
+   */
+  limit?: number | null;
+};
+
+export type BgcExpiringApiV1AdminBackgroundChecksExpiringGetParams = {
+  /**
+   * Lookahead window in days
+   * @minimum 1
+   * @maximum 180
+   */
+  days?: number;
+  /**
+   * @minimum 1
+   * @maximum 1000
+   */
+  limit?: number;
+};
+
+export type BgcHistoryApiV1AdminBackgroundChecksHistoryInstructorIdGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * Opaque history ULID cursor
+   */
+  cursor?: string | null;
+};
+
+export type BgcReviewListApiV1AdminBackgroundChecksReviewGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * Opaque ULID cursor for pagination
+   */
+  cursor?: string | null;
+};
+
+export type BgcWebhookLogsApiV1AdminBackgroundChecksWebhooksGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * Opaque cursor for pagination
+   */
+  cursor?: string | null;
+  event?: string[];
+  status?: string[];
+  /**
+   * Search delivery id or signature
+   */
+  q?: string | null;
+};
+
+export type OpenBgcDisputeApiV1AdminBackgroundChecksInstructorIdDisputeOpenPostBody = {
+  [key: string]: unknown;
+};
+
+export type ResolveBgcDisputeApiV1AdminBackgroundChecksInstructorIdDisputeResolvePostBody = {
+  [key: string]: unknown;
+};
+
+export type ListPendingAwardsApiV1AdminBadgesPendingGetParams = {
+  before?: string | null;
+  status?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
 };
 
 export type GetBookingsApiV1BookingsGetParams = {
-status?: BookingStatus | null;
-upcoming_only?: boolean | null;
-upcoming?: boolean | null;
-exclude_future_confirmed?: boolean;
-include_past_confirmed?: boolean;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-per_page?: number;
+  status?: BookingStatus | null;
+  upcoming_only?: boolean | null;
+  upcoming?: boolean | null;
+  exclude_future_confirmed?: boolean;
+  include_past_confirmed?: boolean;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  per_page?: number;
 };
 
 export type GetUpcomingBookingsApiV1BookingsUpcomingGetParams = {
-/**
- * @minimum 1
- * @maximum 20
- */
-limit?: number;
+  /**
+   * @minimum 1
+   * @maximum 20
+   */
+  limit?: number;
 };
 
 export type GetBookingPricingApiV1BookingsBookingIdPricingGetParams = {
-/**
- * @minimum 0
- */
-applied_credit_cents?: number;
+  /**
+   * @minimum 0
+   */
+  applied_credit_cents?: number;
+};
+
+export type ListConversationsApiV1ConversationsGetParams = {
+  state?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  /**
+   * Pagination cursor (ISO timestamp)
+   */
+  cursor?: string | null;
+};
+
+export type GetMessagesApiV1ConversationsConversationIdMessagesGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  /**
+   * Cursor for pagination (message ID)
+   */
+  before?: string | null;
+  /**
+   * Filter by booking ID
+   */
+  booking_id?: string | null;
 };
 
 export type ListInstructorBookingsApiV1InstructorBookingsGetParams = {
-/**
- * Filter by booking status (COMPLETED, CONFIRMED, etc.)
- */
-status?: BookingStatus | null;
-/**
- * Only include upcoming confirmed bookings
- */
-upcoming?: boolean;
-/**
- * Page number
- * @minimum 1
- */
-page?: number;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: number;
-include_past_confirmed?: boolean;
+  /**
+   * Filter by booking status (COMPLETED, CONFIRMED, etc.)
+   */
+  status?: BookingStatus | null;
+  /**
+   * Only include upcoming confirmed bookings
+   */
+  upcoming?: boolean;
+  /**
+   * Page number
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * Items per page
+   * @minimum 1
+   * @maximum 100
+   */
+  per_page?: number;
+  include_past_confirmed?: boolean;
 };
 
 export type GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams = {
-/**
- * Page number
- * @minimum 1
- */
-page?: number;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: number;
+  /**
+   * Page number
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * Items per page
+   * @minimum 1
+   * @maximum 100
+   */
+  per_page?: number;
 };
 
 export type GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams = {
-/**
- * Page number
- * @minimum 1
- */
-page?: number;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: number;
+  /**
+   * Page number
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * Items per page
+   * @minimum 1
+   * @maximum 100
+   */
+  per_page?: number;
 };
 
 export type GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams = {
-/**
- * Page number
- * @minimum 1
- */
-page?: number;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: number;
+  /**
+   * Page number
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * Items per page
+   * @minimum 1
+   * @maximum 100
+   */
+  per_page?: number;
 };
 
 export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams = {
-notes?: string | null;
+  notes?: string | null;
 };
 
 export type ListInstructorsApiV1InstructorsGetParams = {
-/**
- * Service catalog ID (required)
- */
-service_catalog_id: string;
-/**
- * Minimum hourly rate
- * @minimum 0
- * @maximum 1000
- */
-min_price?: number;
-/**
- * Maximum hourly rate
- * @minimum 0
- * @maximum 1000
- */
-max_price?: number;
-/**
- * Filter by age group: 'kids' or 'adults'
- */
-age_group?: string;
-/**
- * Page number
- * @minimum 1
- */
-page?: number;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: number;
+  /**
+   * Service catalog ID (required)
+   */
+  service_catalog_id: string;
+  /**
+   * Minimum hourly rate
+   * @minimum 0
+   * @maximum 1000
+   */
+  min_price?: number;
+  /**
+   * Maximum hourly rate
+   * @minimum 0
+   * @maximum 1000
+   */
+  max_price?: number;
+  /**
+   * Filter by age group: 'kids' or 'adults'
+   */
+  age_group?: string;
+  /**
+   * Page number
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * Items per page
+   * @minimum 1
+   * @maximum 100
+   */
+  per_page?: number;
 };
 
-export type GetMessageHistoryApiV1MessagesHistoryBookingIdGetParams = {
-/**
- * @minimum 1
- * @maximum 100
- */
-limit?: number;
-/**
- * @minimum 0
- */
-offset?: number;
+export type GetAllAvailabilityApiV1InstructorsAvailabilityGetParams = {
+  start_date?: string | null;
+  end_date?: string | null;
 };
 
-export type StreamMessagesApiV1MessagesStreamBookingIdGetParams = {
-token?: string | null;
+export type GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetParams = {
+  /**
+   * Monday of the week
+   */
+  start_date: string;
+};
+
+export type SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams = {
+  /**
+   * Set to true to bypass version conflict checks when saving availability
+   */
+  override?: boolean;
+};
+
+export type GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetParams = {
+  /**
+   * Start date (Monday) of the week
+   */
+  start_date: string;
+};
+
+export type StreamUserMessagesApiV1MessagesStreamGetParams = {
+  token?: string | null;
 };
 
 export type StartOnboardingApiV1PaymentsConnectOnboardPostParams = {
-return_to?: string | null;
+  return_to?: string | null;
 };
 
 export type SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams = {
-interval?: string;
-weekly_anchor?: string;
+  interval?: string;
+  weekly_anchor?: string;
 };
 
 export type GetTransactionHistoryApiV1PaymentsTransactionsGetParams = {
-limit?: number;
-offset?: number;
+  limit?: number;
+  offset?: number;
 };
 
-export type GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams = {
-/**
- * Start date for availability search
- */
-start_date: string;
-/**
- * End date (defaults to configured days from start)
- */
-end_date?: string | null;
-};
+export type GetInstructorPublicAvailabilityApiV1PublicInstructorsInstructorIdAvailabilityGetParams =
+  {
+    /**
+     * Start date for availability search
+     */
+    start_date: string;
+    /**
+     * End date (defaults to configured days from start)
+     */
+    end_date?: string | null;
+  };
 
 export type GetNextAvailableSlotApiV1PublicInstructorsInstructorIdNextAvailableGetParams = {
-/**
- * Required duration in minutes
- */
-duration_minutes?: number;
+  /**
+   * Required duration in minutes
+   */
+  duration_minutes?: number;
 };
 
-export type ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPost200 = CheckoutApplyResponse | ReferralErrorResponse;
+export type ApplyReferralCreditApiV1ReferralsCheckoutApplyReferralPost200 =
+  | CheckoutApplyResponse
+  | ReferralErrorResponse;
 
-export type ClaimReferralCodeApiV1ReferralsClaimPost200 = ReferralClaimResponse | ReferralErrorResponse;
+export type ClaimReferralCodeApiV1ReferralsClaimPost200 =
+  | ReferralClaimResponse
+  | ReferralErrorResponse;
 
 export type GetReviewForBookingApiV1ReviewsBookingBookingIdGet200 = ReviewItem | null;
 
 export type GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams = {
-instructor_service_id?: string | null;
-/**
- * @minimum 1
- * @maximum 50
- */
-limit?: number;
-/**
- * @minimum 1
- */
-page?: number;
-min_rating?: number | null;
-rating?: number | null;
-with_text?: boolean | null;
+  instructor_service_id?: string | null;
+  /**
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  min_rating?: number | null;
+  rating?: number | null;
+  with_text?: boolean | null;
 };
 
 export type GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams = {
-instructor_service_id?: string | null;
+  instructor_service_id?: string | null;
+};
+
+export type NlSearchApiV1SearchGetParams = {
+  /**
+   * Natural language search query
+   * @minLength 1
+   * @maxLength 500
+   */
+  q: string;
+  /**
+   * User latitude
+   */
+  lat?: number | null;
+  /**
+   * User longitude
+   */
+  lng?: number | null;
+  /**
+   * Region code for location/price lookups
+   */
+  region?: string;
+  /**
+   * Maximum results to return
+   * @minimum 1
+   * @maximum 50
+   */
+  limit?: number;
 };
 
 export type GetRecentSearchesApiV1SearchHistoryGetParams = {
-limit?: number;
+  limit?: number;
 };
 
 export type TrackInteractionApiV1SearchHistoryInteractionPostBody = { [key: string]: unknown };
 
-export type SearchInstructorsApiV1SearchInstructorsGetParams = {
-/**
- * Search query
- * @minLength 1
- */
-q: string;
-/**
- * Maximum results to return
- */
-limit?: number | null;
+export type SearchMetricsApiV1SearchAnalyticsMetricsGetParams = {
+  /**
+   * Number of days to analyze
+   * @minimum 1
+   * @maximum 30
+   */
+  days?: number;
 };
 
-export type GetCatalogServicesApiV1ServicesCatalogGetParams = {
+export type PopularQueriesApiV1SearchAnalyticsPopularGetParams = {
+  /**
+   * Number of days to analyze
+   * @minimum 1
+   * @maximum 30
+   */
+  days?: number;
+  /**
+   * Maximum queries to return
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+};
+
+export type ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetParams = {
+  /**
+   * Number of days to analyze
+   * @minimum 1
+   * @maximum 30
+   */
+  days?: number;
+  /**
+   * Maximum queries to return
+   * @minimum 1
+   * @maximum 500
+   */
+  limit?: number;
+};
+
+export type LogSearchClickApiV1SearchClickPostParams = {
+  /**
+   * Search query ID from NL search
+   */
+  search_query_id?: string | null;
+  /**
+   * Service ID that was clicked (instructor_service_id)
+   */
+  service_id?: string | null;
+  /**
+   * Instructor user ID that was clicked
+   */
+  instructor_id?: string | null;
+  /**
+   * Position in search results (1-indexed)
+   */
+  position?: number | null;
+  /**
+   * Action type: view, book, message, favorite
+   */
+  action?: string;
+};
+
 /**
- * Filter by category slug
+ * JSON body payload for click tracking. If omitted, query parameters are accepted for backward compatibility.
  */
-category?: string | null;
+export type LogSearchClickApiV1SearchClickPostBody = SearchClickRequest | null;
+
+export type GetCatalogServicesApiV1ServicesCatalogGetParams = {
+  /**
+   * Filter by category slug
+   */
+  category?: string | null;
 };
 
 export type GetTopServicesPerCategoryApiV1ServicesCatalogTopPerCategoryGetParams = {
-/**
- * Number of top services per category
- * @minimum 1
- * @maximum 20
- */
-limit?: number;
+  /**
+   * Number of top services per category
+   * @minimum 1
+   * @maximum 20
+   */
+  limit?: number;
 };
 
 export type SearchServicesApiV1ServicesSearchGetParams = {
-/**
- * Search query
- * @minLength 2
- */
-q: string;
+  /**
+   * Search query
+   * @minLength 2
+   */
+  q: string;
 };
 
 export type GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams = {
-/**
- * Comma-separated list of user IDs (ids=1,2,3) or repeated ids parameters.
- */
-ids?: string[];
-variant?: 'original' | 'display' | 'thumb' | null;
+  /**
+   * Comma-separated list of user IDs (ids=1,2,3) or repeated ids parameters.
+   */
+  ids?: string[];
+  variant?: 'original' | 'display' | 'thumb' | null;
 };
 
 export type GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams = {
-variant?: 'original' | 'display' | 'thumb' | null;
-};
-
-export type GetAllAvailabilityInstructorsAvailabilityGetParams = {
-start_date?: string | null;
-end_date?: string | null;
-};
-
-export type GetWeekAvailabilityInstructorsAvailabilityWeekGetParams = {
-/**
- * Monday of the week
- */
-start_date: string;
-};
-
-export type SaveWeekAvailabilityInstructorsAvailabilityWeekPostParams = {
-/**
- * Set to true to bypass version conflict checks when saving availability
- */
-override?: boolean;
-};
-
-export type GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetParams = {
-/**
- * Start date (Monday) of the week
- */
-start_date: string;
+  variant?: 'original' | 'display' | 'thumb' | null;
 };
 
 export type ResetRateLimitsOpsRateLimitsResetPostParams = {
-/**
- * Pattern to match (e.g., 'email_*', 'ip_192.168.*')
- */
-pattern: string;
+  /**
+   * Pattern to match (e.g., 'email_*', 'ip_192.168.*')
+   */
+  pattern: string;
 };
 
 export type TestRateLimitOpsRateLimitsTestGetParams = {
-/**
- * Number of requests to simulate
- * @minimum 1
- * @maximum 20
- */
-requests?: number;
+  /**
+   * Number of requests to simulate
+   * @minimum 1
+   * @maximum 20
+   */
+  requests?: number;
 };

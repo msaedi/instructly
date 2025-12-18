@@ -99,6 +99,7 @@ class MessageResponse(BaseModel):
     """Single message in a conversation."""
 
     id: str
+    conversation_id: str
     content: str
     sender_id: Optional[str] = None  # None for system messages
     is_from_me: bool
@@ -106,6 +107,8 @@ class MessageResponse(BaseModel):
     booking_id: Optional[str] = None
     booking_details: Optional[BookingSummary] = None  # For system messages
     created_at: datetime
+    edited_at: Optional[datetime] = None
+    is_deleted: bool = False
     delivered_at: Optional[datetime] = None
     read_by: List[ReadReceiptEntry] = Field(default_factory=list)  # Full objects with read_at
     reactions: List[ReactionInfo] = Field(default_factory=list)

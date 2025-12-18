@@ -8,6 +8,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/api/queryKeys';
 import { withApiBase } from '@/lib/apiBase';
+import type { ConversationMessagesResponse } from '@/types/conversation';
 
 type EditMessageRequest = { content: string };
 type ReactionRequest = { emoji: string };
@@ -80,71 +81,6 @@ export function useUnreadCount(enabled: boolean = true) {
 }
 
 /**
- * Reaction info from API response.
- */
-interface ReactionInfo {
-  user_id: string;
-  emoji: string;
-}
-
-/**
- * Read receipt entry from API response.
- */
-interface ReadReceiptEntry {
-  user_id: string;
-  read_at: string;
-}
-
-/**
- * Raw response type from conversation messages endpoint (before transformation).
- */
-interface ConversationMessagesRawResponse {
-  messages: Array<{
-    id: string;
-    content: string;
-    sender_id: string | null;
-    is_from_me: boolean;
-    message_type: string | null;
-    booking_id: string | null;
-    booking_details?: unknown;
-    created_at: string;
-    delivered_at: string | null;
-    conversation_id?: string | null;
-    read_by: ReadReceiptEntry[];
-    reactions: ReactionInfo[];
-  }>;
-  has_more: boolean;
-  next_cursor: string | null;
-}
-
-/**
- * Response type for conversation messages endpoint.
- * Fetches ALL messages in a conversation (across all bookings).
- * Messages are transformed to match MessageResponse structure for compatibility.
- */
-interface ConversationMessagesResponse {
-  messages: Array<{
-    id: string;
-    content: string;
-    sender_id: string | null;
-    booking_id: string | null;
-    conversation_id: string;
-    created_at: string;
-    updated_at: string;
-    delivered_at?: string | null;
-    read_by?: ReadReceiptEntry[];
-    is_deleted?: boolean;
-    edited_at?: string;
-    reactions?: ReactionInfo[];
-    message_type: string;
-    is_from_me: boolean;
-    booking_details: unknown;
-  }>;
-  has_more: boolean;
-  next_cursor: string | null;
-}
-
-/**
  * Get message history for a conversation (Phase 7).
  *
  * Fetches ALL messages in a conversation across all bookings between the same
@@ -195,28 +131,7 @@ export function useConversationMessages(
       if (!response.ok) {
         throw new Error('Failed to fetch conversation messages');
       }
-      const raw = (await response.json()) as ConversationMessagesRawResponse;
-      // Transform messages to match MessageResponse structure for Chat.tsx compatibility
-      return {
-        messages: raw.messages.map((msg) => ({
-          id: msg.id,
-          content: msg.content,
-          sender_id: msg.sender_id ?? null,
-          booking_id: msg.booking_id ?? null,
-          conversation_id: msg.conversation_id ?? (conversationId as string),
-          created_at: msg.created_at,
-          updated_at: msg.created_at,
-          delivered_at: msg.delivered_at ?? null,
-          read_by: msg.read_by ?? [],
-          is_deleted: false,
-          reactions: msg.reactions ?? [],
-          message_type: msg.message_type ?? 'user',
-          is_from_me: msg.is_from_me ?? false,
-          booking_details: msg.booking_details ?? null,
-        })),
-        has_more: raw.has_more,
-        next_cursor: raw.next_cursor,
-      };
+      return (await response.json()) as ConversationMessagesResponse;
     },
     staleTime: 1000 * 60, // 1 minute
     enabled: enabled && !!conversationId,

@@ -2,7 +2,7 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Chat } from '../Chat';
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
+import type { ConversationMessage } from '@/types/conversation';
 
 const mockUseConversationMessages = jest.fn();
 const mockUseMarkMessagesAsRead = jest.fn();
@@ -58,7 +58,7 @@ const baseProps = {
   otherUserName: 'Student A',
 };
 
-const defaultHistoryResponse = (messages: MessageResponse[] = []) => ({
+const defaultHistoryResponse = (messages: ConversationMessage[] = []) => ({
   data: {
     messages,
     has_more: false,
@@ -68,19 +68,21 @@ const defaultHistoryResponse = (messages: MessageResponse[] = []) => ({
   error: null,
 });
 
-const buildMessage = (id: string, overrides: Partial<MessageResponse> = {}): MessageResponse => ({
+const buildMessage = (id: string, overrides: Partial<ConversationMessage> = {}): ConversationMessage => ({
   id,
-  booking_id: baseProps.bookingId,
   conversation_id: baseProps.conversationId,
-  sender_id: overrides.sender_id ?? 'student-1',
   content: overrides.content ?? 'Hello!',
+  sender_id: overrides.sender_id ?? 'student-1',
+  is_from_me: overrides.is_from_me ?? false,
+  message_type: overrides.message_type ?? 'user',
+  booking_id: overrides.booking_id ?? baseProps.bookingId,
+  booking_details: overrides.booking_details ?? null,
   created_at: overrides.created_at ?? new Date('2024-01-01T00:00:00Z').toISOString(),
-  updated_at: overrides.updated_at ?? new Date('2024-01-01T00:00:00Z').toISOString(),
+  edited_at: overrides.edited_at ?? null,
   is_deleted: overrides.is_deleted ?? false,
-  read_by: overrides.read_by,
-  delivered_at: overrides.delivered_at,
-  edited_at: overrides.edited_at,
-  sender: overrides.sender,
+  delivered_at: overrides.delivered_at ?? null,
+  read_by: overrides.read_by ?? [],
+  reactions: overrides.reactions ?? [],
 });
 
 beforeAll(() => {
@@ -114,7 +116,7 @@ describe('Chat mark-as-read behavior', () => {
     mockUseConversationMessages.mockImplementation(() => historyResponse);
   });
 
-  const setHistoryMessages = (messages: MessageResponse[]) => {
+  const setHistoryMessages = (messages: ConversationMessage[]) => {
     historyResponse = defaultHistoryResponse(messages);
   };
 

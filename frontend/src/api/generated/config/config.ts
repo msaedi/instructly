@@ -5,9 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useQuery
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -17,105 +15,150 @@ import type {
   QueryKey,
   UndefinedInitialDataOptions,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
-import type {
-  PricingConfigResponse
-} from '../instructly.schemas';
+import type { PricingConfigResponse } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Return the current pricing configuration for client consumption.
  * @summary Get Public Pricing Config
  */
-export const getPublicPricingConfigApiV1ConfigPricingGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<PricingConfigResponse>(
-      {url: `/api/v1/config/pricing`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getPublicPricingConfigApiV1ConfigPricingGet = (signal?: AbortSignal) => {
+  return customFetch<PricingConfigResponse>({
+    url: `/api/v1/config/pricing`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetPublicPricingConfigApiV1ConfigPricingGetQueryKey = () => {
-    return [
-    `/api/v1/config/pricing`
-    ] as const;
-    }
+  return [`/api/v1/config/pricing`] as const;
+};
 
+export const getGetPublicPricingConfigApiV1ConfigPricingGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetPublicPricingConfigApiV1ConfigPricingGetQueryOptions = <TData = Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPublicPricingConfigApiV1ConfigPricingGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>
+  > = ({ signal }) => getPublicPricingConfigApiV1ConfigPricingGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetPublicPricingConfigApiV1ConfigPricingGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetPublicPricingConfigApiV1ConfigPricingGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>
+>;
+export type GetPublicPricingConfigApiV1ConfigPricingGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>> = ({ signal }) => getPublicPricingConfigApiV1ConfigPricingGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetPublicPricingConfigApiV1ConfigPricingGetQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>>
-export type GetPublicPricingConfigApiV1ConfigPricingGetQueryError = ErrorType<unknown>
-
-
-export function useGetPublicPricingConfigApiV1ConfigPricingGet<TData = Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError, TData>> & Pick<
+export function useGetPublicPricingConfigApiV1ConfigPricingGet<
+  TData = Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
           TError,
           Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPublicPricingConfigApiV1ConfigPricingGet<TData = Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPublicPricingConfigApiV1ConfigPricingGet<
+  TData = Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
           TError,
           Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPublicPricingConfigApiV1ConfigPricingGet<TData = Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPublicPricingConfigApiV1ConfigPricingGet<
+  TData = Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Public Pricing Config
  */
 
-export function useGetPublicPricingConfigApiV1ConfigPricingGet<TData = Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetPublicPricingConfigApiV1ConfigPricingGet<
+  TData = Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPublicPricingConfigApiV1ConfigPricingGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPublicPricingConfigApiV1ConfigPricingGetQueryOptions(options);
 
-  const queryOptions = getGetPublicPricingConfigApiV1ConfigPricingGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

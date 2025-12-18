@@ -398,6 +398,7 @@ async def get_messages(
         items.append(
             MessageResponse(
                 id=msg_data.id,
+                conversation_id=conversation_id,
                 content=msg_data.content,
                 sender_id=msg_data.sender_id,
                 is_from_me=msg_data.sender_id == current_user.id,
@@ -405,6 +406,8 @@ async def get_messages(
                 booking_id=msg_data.booking_id,
                 booking_details=booking_details,
                 created_at=msg_data.created_at,
+                edited_at=msg_data.edited_at,
+                is_deleted=msg_data.is_deleted,
                 delivered_at=msg_data.delivered_at,
                 read_by=read_by_entries,
                 reactions=reaction_list,

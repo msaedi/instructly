@@ -30,10 +30,10 @@ import {
 } from '@/src/api/services/messages';
 import { useSendConversationMessage, useSendConversationTyping } from '@/src/api/services/conversations';
 import { queryKeys } from '@/src/api/queryKeys';
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
+import type { ConversationMessage } from '@/types/conversation';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
-import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, useReadReceipts, useLiveTimestamp, useSSEHandlers, type NormalizedMessage, type NormalizedReaction, type ReactionMutations, type ReadReceiptEntry } from '@/components/messaging';
+import { MessageBubble, normalizeStudentMessage, formatRelativeTimestamp, useReactions, useReadReceipts, useLiveTimestamp, useSSEHandlers, type NormalizedMessage, type NormalizedReaction, type ReactionMutations } from '@/components/messaging';
 
 // Connection status enum (internal to Chat component)
 enum ConnectionStatus {
@@ -44,37 +44,11 @@ enum ConnectionStatus {
   RECONNECTING = 'reconnecting',
 }
 
-// Reaction info from API
-interface ApiReactionInfo {
-  user_id: string;
-  emoji: string;
-}
-
-// Extended message type with reactions
-interface MessageWithReactions extends MessageResponse {
-  my_reactions?: string[];
-  reactions?: Record<string, number>;
-}
-
-// Read receipt from API (matches backend ReadReceiptEntry schema)
-interface ApiReadReceiptEntry {
-  user_id: string;
-  read_at: string;
-}
-
-// Raw message type from conversation messages API (before transformation)
-interface RawConversationMessage {
-  id: string;
-  content: string;
-  sender_id: string;
-  booking_id: string;
-  created_at: string;
-  updated_at?: string;
-  delivered_at?: string | null;
-  read_by?: ApiReadReceiptEntry[];
-  is_deleted?: boolean;
-  reactions?: ApiReactionInfo[];
-}
+type ChatMessage = Omit<ConversationMessage, 'reactions'> & {
+  my_reactions: string[];
+  reactions: Record<string, number>;
+  sender_name?: string | null;
+};
 
 interface ChatProps {
   conversationId: string;
@@ -139,7 +113,7 @@ export function Chat({
 
   // Real-time messages via SSE (Phase 4: per-user inbox)
   const { subscribe, isConnected, connectionError } = useMessageStream();
-  const [realtimeMessages, setRealtimeMessages] = useState<MessageResponse[]>([]);
+  const [realtimeMessages, setRealtimeMessages] = useState<ChatMessage[]>([]);
   const [reactionDeltas, setReactionDeltas] = useState<
     Record<string, Record<string, number>>
   >({});
@@ -180,48 +154,56 @@ export function Chat({
         prevLength: prev.length,
         messageId: message.id,
         timestamp: new Date().toISOString(),
-      });
-      const existingIndex = prev.findIndex((m) => m.id === message.id);
-      if (existingIndex !== -1) {
-        // Update existing message (e.g., to add delivered_at timestamp)
-        logger.debug('[MSG-DEBUG] Chat: Updating existing message', {
-          messageId: message.id,
-          existingIndex,
-        });
-        const updated = [...prev];
-          const deliveredAt = message.delivered_at ?? updated[existingIndex]!.delivered_at;
-          updated[existingIndex] = {
-            ...updated[existingIndex]!,
-            ...(deliveredAt ? { delivered_at: deliveredAt } : {}),
-          };
-          return updated;
-      }
-      logger.debug('[MSG-DEBUG] Chat: Adding NEW message to realtimeMessages', {
-        messageId: message.id,
-        content: message.content?.substring(0, 30),
-        newLength: prev.length + 1,
-        timestamp: new Date().toISOString(),
-      });
-          return [
-            ...prev,
-            {
-              id: message.id,
-              content: message.content,
-              sender_id: message.sender_id ?? '',
-              booking_id: message.booking_id,
-          created_at: message.created_at,
-          updated_at: message.created_at,
-          is_deleted: false,
-          ...(message.delivered_at ? { delivered_at: message.delivered_at } : {}),
-        } as MessageResponse,
-      ];
-    });
+	      });
+	      const existingIndex = prev.findIndex((m) => m.id === message.id);
+	      if (existingIndex !== -1) {
+	        // Update existing message (e.g., to add delivered_at timestamp)
+	        logger.debug('[MSG-DEBUG] Chat: Updating existing message', {
+	          messageId: message.id,
+	          existingIndex,
+	        });
+	        const updated = [...prev];
+	        const deliveredAt = message.delivered_at ?? updated[existingIndex]!.delivered_at;
+	        updated[existingIndex] = {
+	          ...updated[existingIndex]!,
+	          ...(deliveredAt ? { delivered_at: deliveredAt } : {}),
+	        };
+	        return updated;
+	      }
+	      logger.debug('[MSG-DEBUG] Chat: Adding NEW message to realtimeMessages', {
+	        messageId: message.id,
+	        content: message.content?.substring(0, 30),
+	        newLength: prev.length + 1,
+	        timestamp: new Date().toISOString(),
+	      });
+	      return [
+	        ...prev,
+	        {
+	          id: message.id,
+	          conversation_id: conversationId,
+	          content: message.content,
+	          sender_id: message.sender_id,
+	          is_from_me: isMine,
+	          message_type: 'user',
+	          booking_id: message.booking_id ?? null,
+	          booking_details: null,
+	          created_at: message.created_at,
+	          edited_at: null,
+	          is_deleted: false,
+	          delivered_at: message.delivered_at ?? null,
+	          read_by: [],
+	          reactions: {},
+	          my_reactions: [],
+	          sender_name: message.sender_name,
+	        },
+	      ];
+	    });
 
     // Mark message as read if it's from the other user
     if (!isMine && message.sender_id !== currentUserId) {
       markMessagesAsReadMutate({ message_ids: [message.id] });
     }
-  }, [bookingId, currentUserId, markMessagesAsReadMutate]);
+  }, [bookingId, conversationId, currentUserId, markMessagesAsReadMutate]);
 
   const handleReaction = useCallback((messageId: string, emoji: string, action: 'added' | 'removed', userId: string) => {
     // Skip SSE deltas for current user's own reactions - already handled optimistically
@@ -280,20 +262,19 @@ export function Chat({
       currentBookingId: bookingId,
     });
 
-    setRealtimeMessages((prev) => {
-      const messageIndex = prev.findIndex((m) => m.id === messageId);
-      if (messageIndex !== -1) {
-        const updated = [...prev];
-        updated[messageIndex] = {
-          ...updated[messageIndex]!,
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-          content: 'This message was deleted',
-        } as MessageResponse;
-        return updated;
-      }
-      return prev;
-    });
+	    setRealtimeMessages((prev) => {
+	      const messageIndex = prev.findIndex((m) => m.id === messageId);
+	      if (messageIndex !== -1) {
+	        const updated = [...prev];
+	        updated[messageIndex] = {
+	          ...updated[messageIndex]!,
+	          is_deleted: true,
+	          content: 'This message was deleted',
+	        };
+	        return updated;
+	      }
+	      return prev;
+	    });
 
     void queryClient.invalidateQueries({
       queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
@@ -358,51 +339,42 @@ export function Chat({
   }, [conversationId, bookingId, subscribe, handleSSEMessage, handleSSETyping, handleSSEReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted, queryClient]);
 
   // Combine history and real-time messages with deduplication
-  const allMessages = React.useMemo(() => {
-    logger.debug('[MSG-DEBUG] Chat: allMessages memo recalculating', {
-      historyCount: historyData?.messages?.length ?? 0,
-      realtimeCount: realtimeMessages.length,
-      realtimeIds: realtimeMessages.map(m => m.id),
-      timestamp: new Date().toISOString(),
-    });
+	  const allMessages = React.useMemo(() => {
+	    logger.debug('[MSG-DEBUG] Chat: allMessages memo recalculating', {
+	      historyCount: historyData?.messages?.length ?? 0,
+	      realtimeCount: realtimeMessages.length,
+	      realtimeIds: realtimeMessages.map(m => m.id),
+	      timestamp: new Date().toISOString(),
+	    });
 
-    // Transform raw API reactions to the format expected by the component
-    const transformReactions = (rawMsg: RawConversationMessage): MessageResponse => {
-      const apiReactions = rawMsg.reactions || [];
+	    // Transform raw API reactions to the format expected by the component
+	    const transformReactions = (rawMsg: ConversationMessage): ChatMessage => {
+	      const apiReactions = rawMsg.reactions ?? [];
 
-      // Extract current user's reactions
-      const my_reactions = apiReactions
-        .filter(r => r.user_id === currentUserId)
-        .map(r => r.emoji);
+	      // Extract current user's reactions
+	      const my_reactions = apiReactions
+	        .filter(r => r.user_id === currentUserId)
+	        .map(r => r.emoji);
 
-      // Count reactions by emoji
-      const reactions: Record<string, number> = {};
-      apiReactions.forEach(r => {
-        reactions[r.emoji] = (reactions[r.emoji] || 0) + 1;
-      });
+	      // Count reactions by emoji
+	      const reactions: Record<string, number> = {};
+	      apiReactions.forEach(r => {
+	        reactions[r.emoji] = (reactions[r.emoji] || 0) + 1;
+	      });
 
-      return {
-        ...rawMsg,
-        conversation_id: conversationId,
-        sender_id: rawMsg.sender_id ?? '',
-        booking_id: rawMsg.booking_id ?? '',
-        updated_at: rawMsg.updated_at ?? rawMsg.created_at,
-        is_deleted: rawMsg.is_deleted ?? false,
-        read_by: rawMsg.read_by as unknown as MessageResponse['read_by'],
-        my_reactions,
-        reactions,
-      } as MessageResponse;
-    };
+	      return {
+	        ...rawMsg,
+	        my_reactions,
+	        reactions,
+	      };
+	    };
 
-    // Use broader type since conversation messages have slightly different shape than MessageResponse
-    // The actual fields used by Chat.tsx are compatible
-    const messageMap = new Map<string, MessageResponse>();
+	    const messageMap = new Map<string, ChatMessage>();
 
-    // Add history messages with reactions transformation
-    (historyData?.messages || []).forEach(msg => {
-      const transformed = transformReactions(msg as unknown as RawConversationMessage);
-      messageMap.set(msg.id, transformed);
-    });
+	    // Add history messages with reactions transformation
+	    (historyData?.messages || []).forEach(msg => {
+	      messageMap.set(msg.id, transformReactions(msg));
+	    });
 
     // Add real-time messages (only if not already in history)
     // SSE now echoes messages to sender with is_mine flag; realtime always wins for freshness
@@ -424,8 +396,8 @@ export function Chat({
       lastMessageContent: result[result.length - 1]?.content?.substring(0, 30),
     });
 
-    return result;
-  }, [historyData?.messages, realtimeMessages, currentUserId, conversationId]);
+	    return result;
+	  }, [historyData?.messages, realtimeMessages, currentUserId]);
 
   // Shared reaction management hook
   const reactionMutations: ReactionMutations = React.useMemo(
@@ -441,27 +413,27 @@ export function Chat({
     processingReaction,
     handleReaction: handleAddReaction,
     hasReacted,
-  } = useReactions({
-    messages: allMessages as MessageWithReactions[],
-    mutations: reactionMutations,
-    onReactionComplete: () => {
-      void queryClient.invalidateQueries({
-      queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
-      exact: false,
-      });
-    },
-    debug: false,
-  });
+	  } = useReactions({
+	    messages: allMessages,
+	    mutations: reactionMutations,
+	    onReactionComplete: () => {
+	      void queryClient.invalidateQueries({
+	      queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
+	      exact: false,
+	      });
+	    },
+	    debug: false,
+	  });
 
-  // Shared read receipt management hook
-  const { mergedReadReceipts, lastReadMessageId: lastOwnReadMessageId } = useReadReceipts<MessageResponse>({
-    messages: allMessages,
-    sseReadReceipts,
-    currentUserId,
-    getReadBy: (m) => m.read_by as ReadReceiptEntry[] | null | undefined,
-    isOwnMessage: (m) => m.sender_id === currentUserId,
-    getCreatedAt: (m) => new Date(m.created_at),
-  });
+	  // Shared read receipt management hook
+	  const { mergedReadReceipts, lastReadMessageId: lastOwnReadMessageId } = useReadReceipts<ChatMessage>({
+	    messages: allMessages,
+	    sseReadReceipts,
+	    currentUserId,
+	    getReadBy: (m) => m.read_by,
+	    isOwnMessage: (m) => m.sender_id === currentUserId,
+	    getCreatedAt: (m) => new Date(m.created_at),
+	  });
 
   // Live timestamp ticker - triggers re-render every minute for relative timestamps
   const tick = useLiveTimestamp();
@@ -563,34 +535,36 @@ export function Chat({
         payload.bookingId = bookingId;
       }
       const result = await sendMessageMutation.mutateAsync(payload);
-      logger.debug('[MSG-DEBUG] Message SEND: Success', {
-        messageId: (result as { id?: string })?.id,
-        success: true,
-        timestamp: new Date().toISOString()
-      });
+	      logger.debug('[MSG-DEBUG] Message SEND: Success', {
+	        messageId: (result as { id?: string })?.id,
+	        success: true,
+	        timestamp: new Date().toISOString()
+	      });
 
-      // Use server response to set delivered_at immediately for own messages
-      const serverMessage = (
-        (result as { message?: MessageResponse })?.message ??
-        (result
-          ? {
-              id: (result as { id: string }).id,
-              content,
-              sender_id: currentUserId,
-              booking_id: bookingId,
-              conversation_id: conversationId,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              delivered_at: null,
-              is_deleted: false,
-            }
-          : undefined)
-      ) as MessageResponse | undefined;
-      if (serverMessage) {
-        setRealtimeMessages((prev) => {
-          const existingIndex = prev.findIndex((m) => m.id === serverMessage.id);
-          if (existingIndex !== -1) {
-            const updated = [...prev];
+	      const serverMessage: ChatMessage | undefined = result
+	        ? {
+	            id: (result as { id: string }).id,
+	            conversation_id: conversationId,
+	            content,
+	            sender_id: currentUserId,
+	            is_from_me: true,
+	            message_type: 'user',
+	            booking_id: bookingId ?? null,
+	            booking_details: null,
+	            created_at: (result as { created_at?: string }).created_at ?? new Date().toISOString(),
+	            edited_at: null,
+	            is_deleted: false,
+	            delivered_at: null,
+	            read_by: [],
+	            reactions: {},
+	            my_reactions: [],
+	          }
+	        : undefined;
+	      if (serverMessage) {
+	        setRealtimeMessages((prev) => {
+	          const existingIndex = prev.findIndex((m) => m.id === serverMessage.id);
+	          if (existingIndex !== -1) {
+	            const updated = [...prev];
             updated[existingIndex] = {
               ...updated[existingIndex]!,
               delivered_at:
@@ -599,23 +573,14 @@ export function Chat({
                 null,
             };
             return updated;
-          }
+	          }
 
-          return [
-            ...prev,
-            {
-              id: serverMessage.id,
-              content: serverMessage.content,
-              sender_id: serverMessage.sender_id,
-              booking_id: serverMessage.booking_id,
-              created_at: serverMessage.created_at,
-              updated_at: serverMessage.updated_at ?? serverMessage.created_at,
-              is_deleted: serverMessage.is_deleted ?? false,
-              delivered_at: serverMessage.delivered_at ?? null,
-            } as MessageResponse,
-          ];
-        });
-      }
+	          return [
+	            ...prev,
+	            serverMessage,
+	          ];
+	        });
+	      }
 
       // SSE echo will still arrive; dedup handled in allMessages
       scrollToBottom();
@@ -654,18 +619,17 @@ export function Chat({
     }, 300); // 300ms debounce for more responsive typing indicator
   };
 
-  // Quick reaction emojis
-  const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
+	  // Quick reaction emojis
+	  const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
 
-  const canEditMessage = (message: MessageResponse): boolean => {
-    if (message.sender_id !== currentUserId) return false;
-    const isDeleted = Boolean((message as { is_deleted?: boolean }).is_deleted);
-    if (isDeleted) return false;
-    const created = new Date(message.created_at).getTime();
-    const now = Date.now();
-    const diffMinutes = (now - created) / 60000;
-    return diffMinutes <= editWindowMinutes;
-  };
+	  const canEditMessage = (message: ChatMessage): boolean => {
+	    if (message.sender_id !== currentUserId) return false;
+	    if (message.is_deleted) return false;
+	    const created = new Date(message.created_at).getTime();
+	    const now = Date.now();
+	    const diffMinutes = (now - created) / 60000;
+	    return diffMinutes <= editWindowMinutes;
+	  };
 
   // Get date separator text
   const getDateSeparator = (date: string) => {
@@ -698,10 +662,9 @@ export function Chat({
         else readTimestampLabel = `Read on ${format(readAt, 'MMM d')} at ${format(readAt, 'h:mm a')}`;
       }
 
-      const baseReactions = (message as MessageWithReactions).reactions || {};
-      const displayReactions: Record<string, number> = { ...baseReactions };
-      const localReaction = userReactions[message.id];
-      const serverReaction = (message as MessageWithReactions).my_reactions?.[0];
+	      const displayReactions: Record<string, number> = { ...message.reactions };
+	      const localReaction = userReactions[message.id];
+	      const serverReaction = message.my_reactions[0];
 
       if (localReaction !== undefined && localReaction !== serverReaction) {
         if (serverReaction) {
@@ -729,10 +692,10 @@ export function Chat({
           isMine: hasReacted(message.id, emoji),
         }));
 
-      const currentReaction =
-        localReaction !== undefined
-          ? localReaction
-          : (message as MessageWithReactions).my_reactions?.[0] ?? null;
+	      const currentReaction =
+	        localReaction !== undefined
+	          ? localReaction
+	          : message.my_reactions[0] ?? null;
 
       return normalizeStudentMessage(message, currentUserId, {
         reactions,
@@ -856,12 +819,12 @@ export function Chat({
                   </div>
                 </div>
 
-                {/* Messages for this date */}
-                {messages.map((message, index) => {
-                  const raw = message._raw as MessageResponse | undefined;
-                  const prevRaw = messages[index - 1]?._raw as MessageResponse | undefined;
-                  const showSender = index === 0 || (raw && prevRaw && raw.sender_id !== prevRaw.sender_id);
-                  const senderLabel = message.isOwn ? currentUserName : otherUserName;
+	                {/* Messages for this date */}
+	                {messages.map((message, index) => {
+	                  const raw = message._raw as ChatMessage | undefined;
+	                  const prevRaw = messages[index - 1]?._raw as ChatMessage | undefined;
+	                  const showSender = index === 0 || (raw && prevRaw && raw.sender_id !== prevRaw.sender_id);
+	                  const senderLabel = message.isOwn ? currentUserName : otherUserName;
                   return (
                     <div
                       key={message.id}
@@ -891,27 +854,26 @@ export function Chat({
                               data: { content: newContent },
                             });
                           }}
-                          onDelete={async (messageId) => {
-                            const target = allMessages.find((m) => m.id === messageId);
-                            if (!target || !canEditMessage(target)) return;
-                            await deleteMessageMutation.mutateAsync({ messageId });
-                            setRealtimeMessages((prev) => {
-                              const idx = prev.findIndex((m) => m.id === messageId);
-                              if (idx === -1) return prev;
-                              const updated = [...prev];
-                              updated[idx] = {
-                                ...updated[idx]!,
-                                is_deleted: true,
-                                deleted_at: new Date().toISOString(),
-                                content: 'This message was deleted',
-                              } as MessageResponse;
-                              return updated;
-                            });
-                            void queryClient.invalidateQueries({
-      queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
-      exact: false,
-                            });
-                          }}
+	                          onDelete={async (messageId) => {
+	                            const target = allMessages.find((m) => m.id === messageId);
+	                            if (!target || !canEditMessage(target)) return;
+	                            await deleteMessageMutation.mutateAsync({ messageId });
+	                            setRealtimeMessages((prev) => {
+	                              const idx = prev.findIndex((m) => m.id === messageId);
+	                              if (idx === -1) return prev;
+	                              const updated = [...prev];
+	                              updated[idx] = {
+	                                ...updated[idx]!,
+	                                is_deleted: true,
+	                                content: 'This message was deleted',
+	                              };
+	                              return updated;
+	                            });
+	                            void queryClient.invalidateQueries({
+	      queryKey: queryKeys.messages.conversationMessages(conversationId ?? ''),
+	      exact: false,
+	                            });
+	                          }}
                           onReact={async (messageId, emoji) => {
                             if (processingReaction !== null) return;
                             await handleAddReaction(messageId, emoji);
