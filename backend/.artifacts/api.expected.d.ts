@@ -1,20 +1,4 @@
 export type paths = {
- "/api/admin/config/pricing": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_pricing_config_api_admin_config_pricing_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch: operations["update_pricing_config_api_admin_config_pricing_patch"];
- trace?: never;
- };
  "/api/analytics/codebase/history": {
  parameters: {
  query?: never;
@@ -1007,6 +991,294 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/audit": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_audit_logs_api_v1_admin_audit_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/cases": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["bgc_cases_api_v1_admin_background_checks_cases_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/consent/{instructor_id}/latest": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["admin_latest_consent_api_v1_admin_background_checks_consent__instructor_id__latest_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/counts": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["bgc_counts_api_v1_admin_background_checks_counts_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/expiring": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["bgc_expiring_api_v1_admin_background_checks_expiring_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/history/{instructor_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["bgc_history_api_v1_admin_background_checks_history__instructor_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/review": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["bgc_review_list_api_v1_admin_background_checks_review_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/review/count": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["bgc_review_count_api_v1_admin_background_checks_review_count_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/webhooks": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["bgc_webhook_logs_api_v1_admin_background_checks_webhooks_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/webhooks/stats": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["bgc_webhook_stats_api_v1_admin_background_checks_webhooks_stats_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/{instructor_id}/dispute/open": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["open_bgc_dispute_api_v1_admin_background_checks__instructor_id__dispute_open_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/{instructor_id}/dispute/resolve": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["resolve_bgc_dispute_api_v1_admin_background_checks__instructor_id__dispute_resolve_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/background-checks/{instructor_id}/override": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["bgc_review_override_api_v1_admin_background_checks__instructor_id__override_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/badges/pending": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_pending_awards_api_v1_admin_badges_pending_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/badges/{award_id}/confirm": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["confirm_award_api_v1_admin_badges__award_id__confirm_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/badges/{award_id}/revoke": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["revoke_award_api_v1_admin_badges__award_id__revoke_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/config/pricing": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_pricing_config_api_v1_admin_config_pricing_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch: operations["update_pricing_config_api_v1_admin_config_pricing_patch"];
+ trace?: never;
+ };
+ "/api/v1/admin/instructors/{instructor_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["admin_instructor_detail_api_v1_admin_instructors__instructor_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/referrals/config": {
  parameters: {
  query?: never;
@@ -1375,6 +1647,86 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/conversations": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["list_conversations_api_v1_conversations_get"];
+ put?: never;
+ post: operations["create_conversation_api_v1_conversations_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/conversations/{conversation_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_conversation_api_v1_conversations__conversation_id__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/conversations/{conversation_id}/messages": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_messages_api_v1_conversations__conversation_id__messages_get"];
+ put?: never;
+ post: operations["send_message_api_v1_conversations__conversation_id__messages_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/conversations/{conversation_id}/state": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put: operations["update_conversation_state_api_v1_conversations__conversation_id__state_put"];
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/conversations/{conversation_id}/typing": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_typing_indicator_api_v1_conversations__conversation_id__typing_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/favorites": {
  parameters: {
  query?: never;
@@ -1535,6 +1887,182 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/instructors/availability": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_all_availability_api_v1_instructors_availability_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/availability/apply-to-date-range": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["apply_to_date_range_api_v1_instructors_availability_apply_to_date_range_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/availability/blackout-dates": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_blackout_dates_api_v1_instructors_availability_blackout_dates_get"];
+ put?: never;
+ post: operations["add_blackout_date_api_v1_instructors_availability_blackout_dates_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/availability/blackout-dates/{blackout_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["delete_blackout_date_api_v1_instructors_availability_blackout_dates__blackout_id__delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/availability/bulk-update": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch: operations["bulk_update_availability_api_v1_instructors_availability_bulk_update_patch"];
+ trace?: never;
+ };
+ "/api/v1/instructors/availability/copy-week": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["copy_week_availability_api_v1_instructors_availability_copy_week_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/availability/specific-date": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["add_specific_date_availability_api_v1_instructors_availability_specific_date_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/availability/week": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_week_availability_api_v1_instructors_availability_week_get"];
+ put?: never;
+ post: operations["save_week_availability_api_v1_instructors_availability_week_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/availability/week/booked-slots": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_week_booked_slots_api_v1_instructors_availability_week_booked_slots_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/availability/week/validate-changes": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["validate_week_changes_api_v1_instructors_availability_week_validate_changes_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/availability/{window_id}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["delete_availability_window_api_v1_instructors_availability__window_id__delete"];
+ options?: never;
+ head?: never;
+ patch: operations["update_availability_window_api_v1_instructors_availability__window_id__patch"];
+ trace?: never;
+ };
  "/api/v1/instructors/me": {
  parameters: {
  query?: never;
@@ -1583,6 +2111,118 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/instructors/{instructor_id}/bgc/consent": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["record_background_check_consent_api_v1_instructors__instructor_id__bgc_consent_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/{instructor_id}/bgc/invite": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["trigger_background_check_invite_api_v1_instructors__instructor_id__bgc_invite_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/{instructor_id}/bgc/mock/pass": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["mock_background_check_pass_api_v1_instructors__instructor_id__bgc_mock_pass_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/{instructor_id}/bgc/mock/reset": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["mock_background_check_reset_api_v1_instructors__instructor_id__bgc_mock_reset_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/{instructor_id}/bgc/mock/review": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["mock_background_check_review_api_v1_instructors__instructor_id__bgc_mock_review_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/{instructor_id}/bgc/recheck": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["trigger_background_check_recheck_api_v1_instructors__instructor_id__bgc_recheck_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/instructors/{instructor_id}/bgc/status": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_background_check_status_api_v1_instructors__instructor_id__bgc_status_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/instructors/{instructor_id}/coverage": {
  parameters: {
  query?: never;
@@ -1615,22 +2255,6 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/v1/messages/history/{booking_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_message_history_api_v1_messages_history__booking_id__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
  "/api/v1/messages/mark-read": {
  parameters: {
  query?: never;
@@ -1647,48 +2271,16 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/v1/messages/send": {
+ "/api/v1/messages/stream": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get?: never;
- put?: never;
- post: operations["send_message_api_v1_messages_send_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/v1/messages/stream/{booking_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["stream_messages_api_v1_messages_stream__booking_id__get"];
+ get: operations["stream_user_messages_api_v1_messages_stream_get"];
  put?: never;
  post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/v1/messages/typing/{booking_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["send_typing_indicator_api_v1_messages_typing__booking_id__post"];
  delete?: never;
  options?: never;
  head?: never;
@@ -2383,6 +2975,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/search": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["nl_search_api_v1_search_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/search-history": {
  parameters: {
  query?: never;
@@ -2447,14 +3055,110 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/api/v1/search/instructors": {
+ "/api/v1/search/analytics/metrics": {
  parameters: {
  query?: never;
  header?: never;
  path?: never;
  cookie?: never;
  };
- get: operations["search_instructors_api_v1_search_instructors_get"];
+ get: operations["search_metrics_api_v1_search_analytics_metrics_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search/analytics/popular": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["popular_queries_api_v1_search_analytics_popular_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search/analytics/zero-results": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["zero_result_queries_api_v1_search_analytics_zero_results_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search/click": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["log_search_click_api_v1_search_click_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search/config": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_config_api_v1_search_config_get"];
+ put: operations["update_config_api_v1_search_config_put"];
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search/config/reset": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["reset_config_api_v1_search_config_reset_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/search/health": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["search_health_api_v1_search_health_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -2719,23 +3423,7 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/instructors/availability/": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_all_availability_instructors_availability__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/availability/apply-to-date-range": {
+ "/api/v1/webhooks/checkr": {
  parameters: {
  query?: never;
  header?: never;
@@ -2744,155 +3432,11 @@ export type paths = {
  };
  get?: never;
  put?: never;
- post: operations["apply_to_date_range_instructors_availability_apply_to_date_range_post"];
+ post: operations["handle_checkr_webhook_api_v1_webhooks_checkr_post"];
  delete?: never;
  options?: never;
  head?: never;
  patch?: never;
- trace?: never;
- };
- "/instructors/availability/blackout-dates": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_blackout_dates_instructors_availability_blackout_dates_get"];
- put?: never;
- post: operations["add_blackout_date_instructors_availability_blackout_dates_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/availability/blackout-dates/{blackout_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete: operations["delete_blackout_date_instructors_availability_blackout_dates__blackout_id__delete"];
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/availability/bulk-update": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch: operations["bulk_update_availability_instructors_availability_bulk_update_patch"];
- trace?: never;
- };
- "/instructors/availability/copy-week": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["copy_week_availability_instructors_availability_copy_week_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/availability/specific-date": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["add_specific_date_availability_instructors_availability_specific_date_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/availability/week": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_week_availability_instructors_availability_week_get"];
- put?: never;
- post: operations["save_week_availability_instructors_availability_week_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/availability/week/booked-slots": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_week_booked_slots_instructors_availability_week_booked_slots_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/availability/week/validate-changes": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["validate_week_changes_instructors_availability_week_validate_changes_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/instructors/availability/{window_id}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete: operations["delete_availability_window_instructors_availability__window_id__delete"];
- options?: never;
- head?: never;
- patch: operations["update_availability_window_instructors_availability__window_id__patch"];
  trace?: never;
  };
  "/ops/cache": {
@@ -3071,54 +3615,6 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
- "/webhooks/stripe/account-events": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["handle_account_events_webhooks_stripe_account_events_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/webhooks/stripe/payment-events": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["handle_payment_events_webhooks_stripe_payment_events_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/webhooks/stripe/test": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["test_webhook_endpoint_webhooks_stripe_test_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
 };
 export type webhooks = Record<string, never>;
 export type components = {
@@ -3210,6 +3706,54 @@ export type components = {
  street_line1?: string | null;
  street_line2?: string | null;
  verification_status?: string | null;
+ };
+ AdminAwardBadgeSchema: {
+ criteria_type?: string | null;
+ name: string;
+ slug: string;
+ };
+ AdminAwardListResponse: {
+ items: components["schemas"]["AdminAwardSchema"][];
+ next_offset?: number | null;
+ total: number;
+ };
+ AdminAwardSchema: {
+ award_id: string;
+ awarded_at: string;
+ badge: components["schemas"]["AdminAwardBadgeSchema"];
+ confirmed_at?: string | null;
+ hold_until?: string | null;
+ progress_snapshot?: {
+ [key: string]: unknown;
+ } | null;
+ revoked_at?: string | null;
+ status: string;
+ student: components["schemas"]["AdminAwardStudentSchema"];
+ };
+ AdminAwardStudentSchema: {
+ display_name?: string | null;
+ email?: string | null;
+ id: string;
+ };
+ AdminInstructorDetailResponse: {
+ bgc_completed_at?: string | null;
+ bgc_dispute_note?: string | null;
+ bgc_dispute_opened_at?: string | null;
+ bgc_dispute_resolved_at?: string | null;
+ bgc_expires_in_days?: number | null;
+ bgc_in_dispute: boolean;
+ bgc_includes_canceled: boolean;
+ bgc_is_expired: boolean;
+ bgc_report_id?: string | null;
+ bgc_status?: string | null;
+ bgc_valid_until?: string | null;
+ consent_recent_at?: string | null;
+ created_at?: string | null;
+ email: string;
+ id: string;
+ is_live: boolean;
+ name: string;
+ updated_at?: string | null;
  };
  AdminReferralsConfigOut: {
  expiry_months: number;
@@ -3310,6 +3854,27 @@ export type components = {
  windows_created: number;
  written_dates?: string[];
  };
+ AuditLogListResponse: {
+ items: components["schemas"]["AuditLogView"][];
+ limit: number;
+ offset: number;
+ total: number;
+ };
+ AuditLogView: {
+ action: string;
+ actor_id?: string | null;
+ actor_role?: string | null;
+ after?: {
+ [key: string]: unknown;
+ } | null;
+ before?: {
+ [key: string]: unknown;
+ } | null;
+ entity_id: string;
+ entity_type: string;
+ id: string;
+ occurred_at: string;
+ };
  AuthUserResponse: {
  email: string;
  first_name: string;
@@ -3384,6 +3949,158 @@ export type components = {
  AvailabilityWindowUpdate: {
  end_time?: string | null;
  start_time?: string | null;
+ };
+ BGCCaseCountsResponse: {
+ pending: number;
+ review: number;
+ };
+ BGCCaseItemModel: {
+ bgc_completed_at?: string | null;
+ bgc_eta?: string | null;
+ bgc_expires_in_days?: number | null;
+ bgc_includes_canceled: boolean;
+ bgc_is_expired: boolean;
+ bgc_report_id?: string | null;
+ bgc_status?: string | null;
+ bgc_valid_until?: string | null;
+ checkr_report_url?: string | null;
+ consent_recent: boolean;
+ consent_recent_at?: string | null;
+ created_at?: string | null;
+ dispute_note?: string | null;
+ dispute_opened_at?: string | null;
+ dispute_resolved_at?: string | null;
+ email: string;
+ in_dispute: boolean;
+ instructor_id: string;
+ is_live: boolean;
+ name: string;
+ updated_at?: string | null;
+ };
+ BGCCaseListResponse: {
+ has_next: boolean;
+ has_prev: boolean;
+ items: components["schemas"]["BGCCaseItemModel"][];
+ page: number;
+ page_size: number;
+ total: number;
+ total_pages: number;
+ };
+ BGCDisputeResponse: {
+ dispute_note?: string | null;
+ dispute_opened_at?: string | null;
+ dispute_resolved_at?: string | null;
+ in_dispute: boolean;
+ ok: boolean;
+ resumed: boolean;
+ scheduled_for?: string | null;
+ };
+ BGCExpiringItem: {
+ bgc_valid_until?: string | null;
+ email?: string | null;
+ instructor_id: string;
+ };
+ BGCHistoryItem: {
+ completed_at: string;
+ created_at: string;
+ env: string;
+ id: string;
+ package?: string | null;
+ report_id_present: boolean;
+ result: string;
+ };
+ BGCHistoryResponse: {
+ items: components["schemas"]["BGCHistoryItem"][];
+ next_cursor?: string | null;
+ };
+ BGCLatestConsentResponse: {
+ consent_version: string;
+ consented_at: string;
+ instructor_id: string;
+ ip_address?: string | null;
+ };
+ BGCOverrideResponse: {
+ new_status: "passed" | "failed";
+ ok: boolean;
+ };
+ BGCReviewCountResponse: {
+ count: number;
+ };
+ BGCReviewItemModel: {
+ bgc_completed_at?: string | null;
+ bgc_eta?: string | null;
+ bgc_expires_in_days?: number | null;
+ bgc_includes_canceled: boolean;
+ bgc_is_expired: boolean;
+ bgc_report_id?: string | null;
+ bgc_status?: string | null;
+ bgc_valid_until?: string | null;
+ checkr_report_url?: string | null;
+ consented_at_recent: boolean;
+ consented_at_recent_at?: string | null;
+ created_at?: string | null;
+ dispute_note?: string | null;
+ dispute_opened_at?: string | null;
+ dispute_resolved_at?: string | null;
+ email: string;
+ in_dispute: boolean;
+ instructor_id: string;
+ is_live: boolean;
+ name: string;
+ updated_at?: string | null;
+ };
+ BGCReviewListResponse: {
+ items: components["schemas"]["BGCReviewItemModel"][];
+ next_cursor?: string | null;
+ };
+ BGCWebhookLogEntry: {
+ candidate_id?: string | null;
+ created_at: string;
+ delivery_id?: string | null;
+ event_type: string;
+ http_status?: number | null;
+ id: string;
+ instructor_id?: string | null;
+ invitation_id?: string | null;
+ payload: {
+ [key: string]: unknown;
+ };
+ report_id?: string | null;
+ resource_id?: string | null;
+ result?: string | null;
+ signature?: string | null;
+ };
+ BGCWebhookLogListResponse: {
+ error_count_24h: number;
+ items: components["schemas"]["BGCWebhookLogEntry"][];
+ next_cursor?: string | null;
+ };
+ BGCWebhookStatsResponse: {
+ error_count_24h: number;
+ };
+ BackgroundCheckInviteRequest: {
+ package_slug?: string | null;
+ };
+ BackgroundCheckInviteResponse: {
+ already_in_progress: boolean;
+ candidate_id?: string | null;
+ invitation_id?: string | null;
+ ok: boolean;
+ report_id?: string | null;
+ status: "pending" | "review" | "consider" | "passed" | "failed" | "canceled";
+ };
+ BackgroundCheckStatusResponse: {
+ bgc_includes_canceled: boolean;
+ completed_at?: string | null;
+ consent_recent: boolean;
+ consent_recent_at?: string | null;
+ env: "sandbox" | "production";
+ eta?: string | null;
+ expires_in_days?: number | null;
+ is_expired: boolean;
+ report_id?: string | null;
+ status: "pending" | "review" | "consider" | "passed" | "failed" | "canceled";
+ valid_until?: string | null;
  };
  BackupCodesResponse: {
  backup_codes: string[];
@@ -3479,7 +4196,7 @@ export type components = {
  end_time: string;
  hourly_rate: number;
  id: string;
- instructor: components["schemas"]["app__schemas__booking__InstructorInfo"];
+ instructor: components["schemas"]["InstructorInfo"];
  instructor_id: string;
  instructor_note: string | null;
  instructor_service: components["schemas"]["ServiceInfo"];
@@ -3541,7 +4258,7 @@ export type components = {
  end_time: string;
  hourly_rate: number;
  id: string;
- instructor: components["schemas"]["app__schemas__booking__InstructorInfo"];
+ instructor: components["schemas"]["InstructorInfo"];
  instructor_id: string;
  instructor_note: string | null;
  instructor_service: components["schemas"]["ServiceInfo"];
@@ -3570,6 +4287,12 @@ export type components = {
  upcoming_bookings: number;
  };
  BookingStatus: "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+ BookingSummary: {
+ date: string;
+ id: string;
+ service_name: string;
+ start_time: string;
+ };
  BookingUpdate: {
  instructor_note?: string | null;
  meeting_location?: string | null;
@@ -3763,6 +4486,36 @@ export type components = {
  total_lines: number;
  total_lines_with_blanks: number;
  };
+ ConsentPayload: {
+ consent_version: string;
+ disclosure_version: string;
+ user_agent?: string | null;
+ };
+ ConsentResponse: {
+ ok: boolean;
+ };
+ ConversationDetail: {
+ created_at: string;
+ id: string;
+ next_booking?: components["schemas"]["BookingSummary"] | null;
+ other_user: components["schemas"]["UserSummary"];
+ state: string;
+ upcoming_bookings?: components["schemas"]["BookingSummary"][];
+ };
+ ConversationListItem: {
+ id: string;
+ last_message?: components["schemas"]["LastMessage"] | null;
+ next_booking?: components["schemas"]["BookingSummary"] | null;
+ other_user: components["schemas"]["UserSummary"];
+ state: string;
+ unread_count: number;
+ upcoming_booking_count: number;
+ upcoming_bookings?: components["schemas"]["BookingSummary"][];
+ };
+ ConversationListResponse: {
+ conversations: components["schemas"]["ConversationListItem"][];
+ next_cursor?: string | null;
+ };
  ConversionBehavior: {
  avg_days_to_conversion: number;
  avg_searches_before_conversion: number;
@@ -3795,6 +4548,14 @@ export type components = {
  payment_method_id?: string | null;
  requested_credit_cents?: number | null;
  save_payment_method: boolean;
+ };
+ CreateConversationRequest: {
+ initial_message?: string | null;
+ instructor_id: string;
+ };
+ CreateConversationResponse: {
+ created: boolean;
+ id: string;
  };
  CreateSignedUploadRequest: {
  content_type: string;
@@ -3993,6 +4754,11 @@ export type components = {
  payout_id?: string | null;
  status?: string | null;
  };
+ InstructorInfo: {
+ first_name: string;
+ id: string;
+ last_initial: string;
+ };
  InstructorInvoiceSummary: {
  booking_id: string;
  created_at: string;
@@ -4057,15 +4823,6 @@ export type components = {
  [key: string]: unknown;
  };
  };
- InstructorSearchResponse: {
- parsed: {
- [key: string]: unknown;
- };
- query: string;
- results: components["schemas"]["SearchResult"][];
- search_metadata: components["schemas"]["SearchMetadata"];
- total_found: number;
- };
  InstructorServiceCreate: {
  catalog_service_id: string;
  custom_description?: string | null;
@@ -4083,6 +4840,15 @@ export type components = {
  is_active: boolean;
  name: string;
  updated_at?: string | null;
+ };
+ InstructorSummary: {
+ bio_snippet?: string | null;
+ first_name: string;
+ id: string;
+ last_initial: string;
+ profile_picture_url?: string | null;
+ verified: boolean;
+ years_experience?: number | null;
  };
  InviteBatchAsyncStartResponse: {
  task_id: string;
@@ -4158,6 +4924,11 @@ export type components = {
  used_at?: string | null;
  valid: boolean;
  };
+ LastMessage: {
+ content: string;
+ created_at: string;
+ is_from_me: boolean;
+ };
  LineItem: {
  amount_cents: number;
  label: string;
@@ -4180,7 +4951,7 @@ export type components = {
  token_type?: string | null;
  };
  MarkMessagesReadRequest: {
- booking_id?: string | null;
+ conversation_id?: string | null;
  message_ids?: string[] | null;
  };
  MarkMessagesReadResponse: {
@@ -4196,36 +4967,34 @@ export type components = {
  edit_window_minutes: number;
  };
  MessageResponse: {
- booking_id: string;
+ booking_details?: components["schemas"]["BookingSummary"] | null;
+ booking_id?: string | null;
  content: string;
+ conversation_id: string;
  created_at: string;
  delivered_at?: string | null;
  edited_at?: string | null;
  id: string;
  is_deleted: boolean;
- my_reactions?: string[] | null;
- reactions?: {
- [key: string]: unknown;
- } | null;
- read_by?: {
- [key: string]: unknown;
- }[] | null;
- sender?: components["schemas"]["MessageSenderResponse"] | null;
- sender_id: string;
- updated_at: string;
+ is_from_me: boolean;
+ message_type: string;
+ reactions?: components["schemas"]["ReactionInfo"][];
+ read_by?: components["schemas"]["ReadReceiptEntry"][];
+ sender_id?: string | null;
  };
- MessageSenderResponse: {
- email: string;
- first_name: string;
- id: string;
- last_name: string;
- };
- MessagesHistoryResponse: {
- booking_id: string;
+ MessagesResponse: {
  has_more: boolean;
- limit: number;
  messages: components["schemas"]["MessageResponse"][];
- offset: number;
+ next_cursor?: string | null;
+ };
+ MockStatusResponse: {
+ ok: boolean;
+ status: "pending" | "review" | "consider" | "passed" | "failed" | "canceled";
+ };
+ ModelOption: {
+ description: string;
+ id: string;
+ name: string;
  };
  MonitoringDashboardResponse: {
  alerts: components["schemas"]["AlertInfo"][];
@@ -4238,6 +5007,43 @@ export type components = {
  requests: components["schemas"]["RequestMetrics"];
  status: string;
  timestamp: string;
+ };
+ NLSearchMeta: {
+ cache_hit: boolean;
+ corrected_query?: string | null;
+ degradation_reasons?: string[];
+ degraded: boolean;
+ filter_stats?: {
+ [key: string]: number;
+ } | null;
+ filters_applied?: string[];
+ latency_ms: number;
+ limit: number;
+ location_not_found: boolean;
+ location_resolved?: string | null;
+ parsed: components["schemas"]["ParsedQueryInfo"];
+ parsing_mode: string;
+ query: string;
+ search_query_id?: string | null;
+ soft_filter_message?: string | null;
+ soft_filtering_used: boolean;
+ total_results: number;
+ };
+ NLSearchResponse: {
+ meta: components["schemas"]["NLSearchMeta"];
+ results: components["schemas"]["NLSearchResultItem"][];
+ };
+ NLSearchResultItem: {
+ best_match: components["schemas"]["ServiceMatch"];
+ coverage_areas?: string[];
+ distance_km?: number | null;
+ distance_mi?: number | null;
+ instructor: components["schemas"]["InstructorSummary"];
+ instructor_id: string;
+ other_matches?: components["schemas"]["ServiceMatch"][];
+ rating: components["schemas"]["RatingSummary"];
+ relevance_score: number;
+ total_matching_services: number;
  };
  NYCZipCheckResponse: {
  borough?: string | null;
@@ -4283,6 +5089,9 @@ export type components = {
  slot_id?: string | null;
  status: "success" | "failed" | "skipped";
  };
+ OverridePayload: {
+ action: "approve" | "reject";
+ };
  PaginatedResponse_BookingResponse_: {
  has_next: boolean;
  has_prev: boolean;
@@ -4306,6 +5115,17 @@ export type components = {
  page: number;
  per_page: number;
  total: number;
+ };
+ ParsedQueryInfo: {
+ audience_hint?: string | null;
+ date?: string | null;
+ location?: string | null;
+ max_price?: number | null;
+ service_query: string;
+ skill_level?: string | null;
+ time_after?: string | null;
+ time_before?: string | null;
+ urgency?: string | null;
  };
  PasswordChangeRequest: {
  current_password: string;
@@ -4417,6 +5237,15 @@ export type components = {
  provider: string;
  text: string;
  types: string[];
+ };
+ PopularQueriesResponse: {
+ queries: components["schemas"]["PopularQueryItem"][];
+ };
+ PopularQueryItem: {
+ avg_latency_ms?: number | null;
+ avg_results: number;
+ count: number;
+ query: string;
  };
  PopularSearch: {
  average_results: number;
@@ -4555,6 +5384,10 @@ export type components = {
  note: string;
  timestamp: string;
  };
+ RatingSummary: {
+ average?: number | null;
+ count: number;
+ };
  RatingsBatchItem: {
  instructor_id: string;
  rating: number | null;
@@ -4566,8 +5399,16 @@ export type components = {
  RatingsBatchResponse: {
  results: components["schemas"]["RatingsBatchItem"][];
  };
+ ReactionInfo: {
+ emoji: string;
+ user_id: string;
+ };
  ReactionRequest: {
  emoji: string;
+ };
+ ReadReceiptEntry: {
+ read_at: string;
+ user_id: string;
  };
  RecentAlertsResponse: {
  alerts: components["schemas"]["AlertDetail"][];
@@ -4734,11 +5575,56 @@ export type components = {
  totals: components["schemas"]["SearchTotals"];
  users: components["schemas"]["UserBreakdown"];
  };
+ SearchClickRequest: {
+ action: string;
+ instructor_id: string;
+ position: number;
+ search_query_id: string;
+ service_id?: string | null;
+ };
+ SearchClickResponse: {
+ click_id: string;
+ };
+ SearchConfigResetResponse: {
+ config: components["schemas"]["SearchConfigResponse"];
+ status: string;
+ };
+ SearchConfigResponse: {
+ available_embedding_models: components["schemas"]["ModelOption"][];
+ available_parsing_models: components["schemas"]["ModelOption"][];
+ embedding_model: string;
+ embedding_timeout_ms: number;
+ parsing_model: string;
+ parsing_timeout_ms: number;
+ };
+ SearchConfigUpdate: {
+ embedding_model?: string | null;
+ embedding_timeout_ms?: number | null;
+ parsing_model?: string | null;
+ parsing_timeout_ms?: number | null;
+ };
  SearchEffectiveness: {
  avg_results_per_search: number;
  median_results: number;
  searches_with_results: number;
  zero_result_rate: number;
+ };
+ SearchHealthCache: {
+ available: boolean;
+ error?: string | null;
+ response_cache_version?: number | null;
+ ttls?: {
+ [key: string]: number;
+ } | null;
+ };
+ SearchHealthComponents: {
+ cache: components["schemas"]["SearchHealthCache"];
+ embedding_circuit: string;
+ parsing_circuit: string;
+ };
+ SearchHealthResponse: {
+ components: components["schemas"]["SearchHealthComponents"];
+ status: string;
  };
  SearchHistoryCreate: {
  device_context?: {
@@ -4772,13 +5658,15 @@ export type components = {
  status: string;
  success: boolean;
  };
- SearchMetadata: {
- applied_filters: string[];
- observability_candidates?: {
- [key: string]: unknown;
- }[] | null;
- timestamp: string;
- used_semantic_search: boolean;
+ SearchMetricsResponse: {
+ avg_latency_ms: number;
+ avg_results: number;
+ cache_hit_rate: number;
+ degradation_rate: number;
+ p50_latency_ms: number;
+ p95_latency_ms: number;
+ total_searches: number;
+ zero_result_rate: number;
  };
  SearchPerformanceResponse: {
  effectiveness: components["schemas"]["SearchEffectiveness"];
@@ -4797,18 +5685,6 @@ export type components = {
  unique_sessions: number;
  };
  SearchReferrersResponse: components["schemas"]["SearchReferrer"][];
- SearchResult: {
- coverage_region_ids?: string[] | null;
- coverage_regions?: {
- [key: string]: unknown;
- }[] | null;
- instructor: components["schemas"]["app__schemas__search_responses__InstructorInfo"];
- match_score: number;
- offering: components["schemas"]["ServiceOffering"];
- service: {
- [key: string]: unknown;
- };
- };
  SearchTotals: {
  deleted_searches: number;
  deletion_rate: number;
@@ -4823,12 +5699,12 @@ export type components = {
  percentage: number;
  };
  SendMessageRequest: {
- booking_id: string;
+ booking_id?: string | null;
  content: string;
  };
  SendMessageResponse: {
- message: components["schemas"]["MessageResponse"];
- success: boolean;
+ created_at: string;
+ id: string;
  };
  SendRemindersResponse: {
  failed_reminders: number;
@@ -4870,6 +5746,14 @@ export type components = {
  id: string;
  name: string;
  };
+ ServiceMatch: {
+ description?: string | null;
+ name: string;
+ price_per_hour: number;
+ relevance_score: number;
+ service_catalog_id: string;
+ service_id: string;
+ };
  ServiceMetrics: {
  cache_operations: number;
  db_operations: number;
@@ -4877,18 +5761,6 @@ export type components = {
  [key: string]: number;
  };
  total_operations: number;
- };
- ServiceOffering: {
- age_groups?: string[] | null;
- description?: string | null;
- duration_options: number[];
- equipment_required?: string[] | null;
- experience_level?: string | null;
- hourly_rate: number;
- id: string;
- levels_taught?: string[] | null;
- location_types?: string[] | null;
- max_distance_miles?: number | null;
  };
  ServiceResponse: {
  age_groups?: string[] | null;
@@ -5096,8 +5968,8 @@ export type components = {
  tip_status?: string | null;
  total_paid: number;
  };
- TypingStatusResponse: {
- success: boolean;
+ TypingRequest: {
+ is_typing: boolean;
  };
  UnreadCountResponse: {
  unread_count: number;
@@ -5116,6 +5988,13 @@ export type components = {
  student_first_name: string;
  student_last_name: string;
  total_price: number;
+ };
+ UpdateConversationStateRequest: {
+ state: "active" | "archived" | "trashed";
+ };
+ UpdateConversationStateResponse: {
+ id: string;
+ state: "active" | "archived" | "trashed";
  };
  UserBasicPrivacy: {
  first_name: string;
@@ -5156,9 +6035,16 @@ export type components = {
  status: string;
  };
  UserLogin: {
+ captcha_token?: string | null;
  email: string;
  guest_session_id?: string | null;
  password: string;
+ };
+ UserSummary: {
+ first_name: string;
+ id: string;
+ last_initial: string;
+ profile_photo_url?: string | null;
  };
  UserUpdate: {
  first_name?: string | null;
@@ -5205,6 +6091,9 @@ export type components = {
  total_operations: number;
  valid_operations: number;
  };
+ WebhookAckResponse: {
+ ok: boolean;
+ };
  WebhookResponse: {
  event_type: string;
  message?: string | null;
@@ -5244,6 +6133,14 @@ export type components = {
  valid: boolean;
  warnings: string[];
  };
+ ZeroResultQueriesResponse: {
+ queries: components["schemas"]["ZeroResultQueryItem"][];
+ };
+ ZeroResultQueryItem: {
+ count: number;
+ last_searched: string;
+ query: string;
+ };
  app__schemas__address_responses__DeleteResponse: {
  message: string;
  success: boolean;
@@ -5253,23 +6150,8 @@ export type components = {
  message: string;
  success: boolean;
  };
- app__schemas__booking__InstructorInfo: {
- first_name: string;
- id: string;
- last_initial: string;
- };
  app__schemas__payment_schemas__DeleteResponse: {
  success: boolean;
- };
- app__schemas__search_responses__InstructorInfo: {
- bio?: string | null;
- first_name: string;
- id: string;
- last_initial: string;
- service_area_boroughs?: string[];
- service_area_neighborhoods?: components["schemas"]["ServiceAreaNeighborhood"][];
- service_area_summary?: string | null;
- years_experience?: number | null;
  };
  };
  responses: never;
@@ -5280,56 +6162,6 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
- get_pricing_config_api_admin_config_pricing_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PricingConfigResponse"];
- };
- };
- };
- };
- update_pricing_config_api_admin_config_pricing_patch: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["PricingConfigPayload"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PricingConfigResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
  get_codebase_metrics_history_api_analytics_codebase_history_get: {
  parameters: {
  query?: never;
@@ -7168,6 +8000,559 @@ export interface operations {
  };
  };
  };
+ list_audit_logs_api_v1_admin_audit_get: {
+ parameters: {
+ query?: {
+ entity_type?: string | null;
+ entity_id?: string | null;
+ action?: string | null;
+ actor_id?: string | null;
+ actor_role?: string | null;
+ start?: string | null;
+ end?: string | null;
+ limit?: number;
+ offset?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AuditLogListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ bgc_cases_api_v1_admin_background_checks_cases_get: {
+ parameters: {
+ query?: {
+ status?: string;
+ q?: string | null;
+ page?: number;
+ page_size?: number;
+ limit?: number | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCCaseListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ admin_latest_consent_api_v1_admin_background_checks_consent__instructor_id__latest_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCLatestConsentResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ bgc_counts_api_v1_admin_background_checks_counts_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCCaseCountsResponse"];
+ };
+ };
+ };
+ };
+ bgc_expiring_api_v1_admin_background_checks_expiring_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCExpiringItem"][];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ bgc_history_api_v1_admin_background_checks_history__instructor_id__get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ cursor?: string | null;
+ };
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCHistoryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ bgc_review_list_api_v1_admin_background_checks_review_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ cursor?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCReviewListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ bgc_review_count_api_v1_admin_background_checks_review_count_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCReviewCountResponse"];
+ };
+ };
+ };
+ };
+ bgc_webhook_logs_api_v1_admin_background_checks_webhooks_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ cursor?: string | null;
+ event?: string[];
+ status?: string[];
+ q?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCWebhookLogListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ bgc_webhook_stats_api_v1_admin_background_checks_webhooks_stats_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCWebhookStatsResponse"];
+ };
+ };
+ };
+ };
+ open_bgc_dispute_api_v1_admin_background_checks__instructor_id__dispute_open_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": {
+ [key: string]: unknown;
+ };
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCDisputeResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ resolve_bgc_dispute_api_v1_admin_background_checks__instructor_id__dispute_resolve_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": {
+ [key: string]: unknown;
+ };
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCDisputeResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ bgc_review_override_api_v1_admin_background_checks__instructor_id__override_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["OverridePayload"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BGCOverrideResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ list_pending_awards_api_v1_admin_badges_pending_get: {
+ parameters: {
+ query?: {
+ before?: string | null;
+ status?: string | null;
+ limit?: number;
+ offset?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminAwardListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ confirm_award_api_v1_admin_badges__award_id__confirm_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ award_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminAwardSchema"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ revoke_award_api_v1_admin_badges__award_id__revoke_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ award_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminAwardSchema"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_pricing_config_api_v1_admin_config_pricing_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PricingConfigResponse"];
+ };
+ };
+ };
+ };
+ update_pricing_config_api_v1_admin_config_pricing_patch: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["PricingConfigPayload"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PricingConfigResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ admin_instructor_detail_api_v1_admin_instructors__instructor_id__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminInstructorDetailResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  get_referral_config_api_v1_admin_referrals_config_get: {
  parameters: {
  query?: never;
@@ -7455,13 +8840,23 @@ export interface operations {
  "application/json": components["schemas"]["BookingCreateResponse"];
  };
  };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 409: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
  422: {
  headers: {
  [name: string]: unknown;
  };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
+ content?: never;
  };
  };
  };
@@ -7582,6 +8977,12 @@ export interface operations {
  "application/json": components["schemas"]["BookingResponse"];
  };
  };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
  422: {
  headers: {
  [name: string]: unknown;
@@ -7614,6 +9015,12 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["BookingResponse"];
  };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
  };
  422: {
  headers: {
@@ -7648,6 +9055,12 @@ export interface operations {
  "application/json": components["schemas"]["BookingResponse"];
  };
  };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
  422: {
  headers: {
  [name: string]: unknown;
@@ -7676,6 +9089,18 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["BookingResponse"];
  };
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
  };
  422: {
  headers: {
@@ -7710,6 +9135,12 @@ export interface operations {
  "application/json": components["schemas"]["BookingResponse"];
  };
  };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
  422: {
  headers: {
  [name: string]: unknown;
@@ -7738,6 +9169,18 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["BookingResponse"];
  };
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
  };
  422: {
  headers: {
@@ -7772,6 +9215,12 @@ export interface operations {
  "application/json": components["schemas"]["BookingResponse"];
  };
  };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
  422: {
  headers: {
  [name: string]: unknown;
@@ -7800,6 +9249,12 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["BookingPreviewResponse"];
  };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
  };
  422: {
  headers: {
@@ -7831,6 +9286,18 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["PricingPreviewOut"];
  };
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
  };
  422: {
  headers: {
@@ -7865,6 +9332,18 @@ export interface operations {
  "application/json": components["schemas"]["BookingResponse"];
  };
  };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 409: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
  422: {
  headers: {
  [name: string]: unknown;
@@ -7890,6 +9369,229 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["PricingConfigResponse"];
+ };
+ };
+ };
+ };
+ list_conversations_api_v1_conversations_get: {
+ parameters: {
+ query?: {
+ state?: string | null;
+ limit?: number;
+ cursor?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ConversationListResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ create_conversation_api_v1_conversations_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["CreateConversationRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CreateConversationResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_conversation_api_v1_conversations__conversation_id__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ conversation_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ConversationDetail"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_messages_api_v1_conversations__conversation_id__messages_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ before?: string | null;
+ booking_id?: string | null;
+ };
+ header?: never;
+ path: {
+ conversation_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MessagesResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_message_api_v1_conversations__conversation_id__messages_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ conversation_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["SendMessageRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SendMessageResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ update_conversation_state_api_v1_conversations__conversation_id__state_put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ conversation_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["UpdateConversationStateRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["UpdateConversationStateResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_typing_indicator_api_v1_conversations__conversation_id__typing_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ conversation_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["TypingRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SuccessResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
  };
@@ -8144,6 +9846,12 @@ export interface operations {
  "application/json": components["schemas"]["BookingResponse"];
  };
  };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
  422: {
  headers: {
  [name: string]: unknown;
@@ -8176,6 +9884,12 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["BookingResponse"];
  };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
  };
  422: {
  headers: {
@@ -8211,6 +9925,12 @@ export interface operations {
  "application/json": components["schemas"]["PaginatedResponse_InstructorProfileResponse_"];
  };
  };
+ 400: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
  422: {
  headers: {
  [name: string]: unknown;
@@ -8218,6 +9938,615 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
  };
+ };
+ };
+ };
+ get_all_availability_api_v1_instructors_availability_get: {
+ parameters: {
+ query?: {
+ start_date?: string | null;
+ end_date?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AvailabilityWindowResponse"][];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ apply_to_date_range_api_v1_instructors_availability_apply_to_date_range_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["ApplyToDateRangeRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ApplyToDateRangeResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_blackout_dates_api_v1_instructors_availability_blackout_dates_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BlackoutDateResponse"][];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ add_blackout_date_api_v1_instructors_availability_blackout_dates_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BlackoutDateCreate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BlackoutDateResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ delete_blackout_date_api_v1_instructors_availability_blackout_dates__blackout_id__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ blackout_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["DeleteBlackoutResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ bulk_update_availability_api_v1_instructors_availability_bulk_update_patch: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BulkUpdateRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BulkUpdateResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 410: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ copy_week_availability_api_v1_instructors_availability_copy_week_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["CopyWeekRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CopyWeekResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ add_specific_date_availability_api_v1_instructors_availability_specific_date_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["SpecificDateAvailabilityCreate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AvailabilityWindowResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_week_availability_api_v1_instructors_availability_week_get: {
+ parameters: {
+ query: {
+ start_date: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["WeekAvailabilityResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ save_week_availability_api_v1_instructors_availability_week_post: {
+ parameters: {
+ query?: {
+ override?: boolean;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["WeekSpecificScheduleCreate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["WeekAvailabilityUpdateResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 409: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_week_booked_slots_api_v1_instructors_availability_week_booked_slots_get: {
+ parameters: {
+ query: {
+ start_date: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BookedSlotsResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ validate_week_changes_api_v1_instructors_availability_week_validate_changes_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["ValidateWeekRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["WeekValidationResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ delete_availability_window_api_v1_instructors_availability__window_id__delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ window_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["DeleteWindowResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ 501: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ update_availability_window_api_v1_instructors_availability__window_id__patch: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ window_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AvailabilityWindowUpdate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AvailabilityWindowResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ 501: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
  };
  };
  };
@@ -8463,6 +10792,343 @@ export interface operations {
  };
  };
  };
+ record_background_check_consent_api_v1_instructors__instructor_id__bgc_consent_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["ConsentPayload"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ConsentResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ trigger_background_check_invite_api_v1_instructors__instructor_id__bgc_invite_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: {
+ content: {
+ "application/json": components["schemas"]["BackgroundCheckInviteRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BackgroundCheckInviteResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ mock_background_check_pass_api_v1_instructors__instructor_id__bgc_mock_pass_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MockStatusResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ mock_background_check_reset_api_v1_instructors__instructor_id__bgc_mock_reset_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MockStatusResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ mock_background_check_review_api_v1_instructors__instructor_id__bgc_mock_review_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MockStatusResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ trigger_background_check_recheck_api_v1_instructors__instructor_id__bgc_recheck_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BackgroundCheckInviteResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_background_check_status_api_v1_instructors__instructor_id__bgc_status_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ instructor_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BackgroundCheckStatusResponse"];
+ };
+ };
+ 401: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 403: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  get_coverage_api_v1_instructors__instructor_id__coverage_get: {
  parameters: {
  query?: never;
@@ -8517,50 +11183,6 @@ export interface operations {
  };
  };
  };
- get_message_history_api_v1_messages_history__booking_id__get: {
- parameters: {
- query?: {
- limit?: number;
- offset?: number;
- };
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["MessagesHistoryResponse"];
- };
- };
- 401: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 403: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
  mark_messages_as_read_api_v1_messages_mark_read_post: {
  parameters: {
  query?: never;
@@ -8604,76 +11226,17 @@ export interface operations {
  headers: {
  [name: string]: unknown;
  };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- send_message_api_v1_messages_send_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["SendMessageRequest"];
- };
- };
- responses: {
- 201: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SendMessageResponse"];
- };
- };
- 400: {
- headers: {
- [name: string]: unknown;
- };
  content?: never;
  };
- 401: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 403: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
- };
- };
- stream_messages_api_v1_messages_stream__booking_id__get: {
+ stream_user_messages_api_v1_messages_stream_get: {
  parameters: {
  query?: {
  token?: string | null;
  };
  header?: never;
- path: {
- booking_id: string;
- };
+ path?: never;
  cookie?: never;
  };
  requestBody?: never;
@@ -8706,46 +11269,11 @@ export interface operations {
  "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
- };
- };
- send_typing_indicator_api_v1_messages_typing__booking_id__post: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- booking_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["TypingStatusResponse"];
- };
- };
- 401: {
+ 429: {
  headers: {
  [name: string]: unknown;
  };
  content?: never;
- };
- 403: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
  };
  };
  };
@@ -10061,6 +12589,39 @@ export interface operations {
  };
  };
  };
+ nl_search_api_v1_search_get: {
+ parameters: {
+ query: {
+ q: string;
+ lat?: number | null;
+ lng?: number | null;
+ region?: string;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["NLSearchResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  get_recent_searches_api_v1_search_history_get: {
  parameters: {
  query?: {
@@ -10230,11 +12791,10 @@ export interface operations {
  };
  };
  };
- search_instructors_api_v1_search_instructors_get: {
+ search_metrics_api_v1_search_analytics_metrics_get: {
  parameters: {
- query: {
- q: string;
- limit?: number | null;
+ query?: {
+ days?: number;
  };
  header?: never;
  path?: never;
@@ -10247,7 +12807,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["InstructorSearchResponse"];
+ "application/json": components["schemas"]["SearchMetricsResponse"];
  };
  };
  422: {
@@ -10256,6 +12816,191 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ popular_queries_api_v1_search_analytics_popular_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PopularQueriesResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ zero_result_queries_api_v1_search_analytics_zero_results_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ZeroResultQueriesResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ log_search_click_api_v1_search_click_post: {
+ parameters: {
+ query?: {
+ search_query_id?: string | null;
+ service_id?: string | null;
+ instructor_id?: string | null;
+ position?: number | null;
+ action?: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: {
+ content: {
+ "application/json": components["schemas"]["SearchClickRequest"] | null;
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SearchClickResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_config_api_v1_search_config_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SearchConfigResponse"];
+ };
+ };
+ };
+ };
+ update_config_api_v1_search_config_put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["SearchConfigUpdate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SearchConfigResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ reset_config_api_v1_search_config_reset_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SearchConfigResetResponse"];
+ };
+ };
+ };
+ };
+ search_health_api_v1_search_health_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SearchHealthResponse"];
  };
  };
  };
@@ -10696,68 +13441,7 @@ export interface operations {
  };
  };
  };
- get_all_availability_instructors_availability__get: {
- parameters: {
- query?: {
- start_date?: string | null;
- end_date?: string | null;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AvailabilityWindowResponse"][];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- apply_to_date_range_instructors_availability_apply_to_date_range_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["ApplyToDateRangeRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["ApplyToDateRangeResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_blackout_dates_instructors_availability_blackout_dates_get: {
+ handle_checkr_webhook_api_v1_webhooks_checkr_post: {
  parameters: {
  query?: never;
  header?: never;
@@ -10771,344 +13455,7 @@ export interface operations {
  [name: string]: unknown;
  };
  content: {
- "application/json": components["schemas"]["BlackoutDateResponse"][];
- };
- };
- };
- };
- add_blackout_date_instructors_availability_blackout_dates_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["BlackoutDateCreate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BlackoutDateResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- delete_blackout_date_instructors_availability_blackout_dates__blackout_id__delete: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- blackout_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["DeleteBlackoutResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- bulk_update_availability_instructors_availability_bulk_update_patch: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["BulkUpdateRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BulkUpdateResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- copy_week_availability_instructors_availability_copy_week_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["CopyWeekRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CopyWeekResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- add_specific_date_availability_instructors_availability_specific_date_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["SpecificDateAvailabilityCreate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AvailabilityWindowResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_week_availability_instructors_availability_week_get: {
- parameters: {
- query: {
- start_date: string;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["WeekAvailabilityResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- save_week_availability_instructors_availability_week_post: {
- parameters: {
- query?: {
- override?: boolean;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["WeekSpecificScheduleCreate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["WeekAvailabilityUpdateResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_week_booked_slots_instructors_availability_week_booked_slots_get: {
- parameters: {
- query: {
- start_date: string;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BookedSlotsResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- validate_week_changes_instructors_availability_week_validate_changes_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["ValidateWeekRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["WeekValidationResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- delete_availability_window_instructors_availability__window_id__delete: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- window_id: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["DeleteWindowResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- update_availability_window_instructors_availability__window_id__patch: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- window_id: string;
- };
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["AvailabilityWindowUpdate"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AvailabilityWindowResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
+ "application/json": components["schemas"]["WebhookAckResponse"];
  };
  };
  };
@@ -11348,63 +13695,6 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["GatedPingResponse"];
- };
- };
- };
- };
- handle_account_events_webhooks_stripe_account_events_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["WebhookResponse"];
- };
- };
- };
- };
- handle_payment_events_webhooks_stripe_payment_events_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["WebhookResponse"];
- };
- };
- };
- };
- test_webhook_endpoint_webhooks_stripe_test_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["WebhookResponse"];
  };
  };
  };
