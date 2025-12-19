@@ -15,6 +15,7 @@ Endpoints:
 
 import asyncio
 import logging
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
@@ -48,9 +49,12 @@ from ...schemas.nl_search import (
 )
 from ...services.cache_service import CacheService
 from ...services.permission_service import PermissionService
-from ...services.search.nl_search_service import NLSearchService
+from ...services.search.config import get_search_config
+from ...services.search.nl_search_service import NLSearchService, get_search_inflight_count
 
 logger = logging.getLogger(__name__)
+
+SEARCH_ANALYTICS_TIMEOUT_S = float(os.getenv("SEARCH_ANALYTICS_TIMEOUT_S", "0.5"))
 
 # V1 router - no prefix here, will be added when mounting in main.py
 router = APIRouter(tags=["search-v1"])
@@ -202,35 +206,45 @@ async def nl_search(
         _search_query_id = search_query_id
 
         def _log_search_query_background() -> None:
-            """Fire-and-forget analytics logging. Exceptions are caught internally."""
-            try:
-                with get_db_session() as db:
-                    analytics_repo = SearchAnalyticsRepository(db)
-                    analytics_repo.nl_log_search_query(
-                        original_query=_q,
-                        normalized_query=_normalized_query,
-                        parsing_mode=_parsing_mode,
-                        parsing_latency_ms=0,
-                        result_count=_result_count,
-                        top_result_ids=_top_result_ids,
-                        total_latency_ms=_latency_ms,
-                        cache_hit=_cache_hit,
-                        degraded=_degraded,
-                        query_id=_search_query_id,
-                    )
-            except Exception as e:
-                logger.warning(f"Background analytics logging failed: {e}")
+            """Log analytics synchronously using its own session."""
+            with get_db_session() as db:
+                analytics_repo = SearchAnalyticsRepository(db)
+                analytics_repo.nl_log_search_query(
+                    original_query=_q,
+                    normalized_query=_normalized_query,
+                    parsing_mode=_parsing_mode,
+                    parsing_latency_ms=0,
+                    result_count=_result_count,
+                    top_result_ids=_top_result_ids,
+                    total_latency_ms=_latency_ms,
+                    cache_hit=_cache_hit,
+                    degraded=_degraded,
+                    query_id=_search_query_id,
+                )
 
-        def _handle_task_exception(task: asyncio.Task[None]) -> None:
-            """Suppress exceptions from fire-and-forget task to avoid warnings."""
-            if task.done() and not task.cancelled():
-                exc = task.exception()
-                if exc:
-                    logger.warning(f"Analytics task exception: {exc}")
+        async def _log_search_query_safe() -> None:
+            """Skip analytics under load and enforce a short timeout."""
+            try:
+                inflight = await get_search_inflight_count()
+                high_load_threshold = int(get_search_config().high_load_threshold)
+                if inflight >= high_load_threshold:
+                    logger.debug(
+                        "Skipping analytics - high load (inflight=%s threshold=%s)",
+                        inflight,
+                        high_load_threshold,
+                    )
+                    return
+                await asyncio.wait_for(
+                    asyncio.to_thread(_log_search_query_background),
+                    timeout=SEARCH_ANALYTICS_TIMEOUT_S,
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Background analytics logging timed out")
+            except Exception as exc:
+                logger.warning("Background analytics logging failed: %s", exc)
 
         # Fire-and-forget: create task but don't await it
-        task = asyncio.create_task(asyncio.to_thread(_log_search_query_background))
-        task.add_done_callback(_handle_task_exception)
+        asyncio.create_task(_log_search_query_safe())
 
         return result
 
