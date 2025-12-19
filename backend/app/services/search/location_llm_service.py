@@ -5,6 +5,7 @@ Use GPT to interpret complex/semantic location strings (e.g., landmarks),
 mapping them onto known `region_boundaries.region_name` values.
 
 This is intentionally the last-resort tier due to latency and cost.
+Uses strict timeouts to fail fast under load (no retries).
 """
 
 from __future__ import annotations
@@ -19,6 +20,11 @@ from openai import OpenAI
 from app.services.search.config import get_search_config
 
 logger = logging.getLogger(__name__)
+
+# Strict OpenAI timeouts for blocking sync calls.
+# Fail fast rather than block threads for 5+ seconds with retries.
+OPENAI_TIMEOUT_S = float(os.getenv("OPENAI_TIMEOUT_S", "2.0"))
+OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
 
 
 _SYSTEM_PROMPT_TEMPLATE = """You resolve NYC location queries to known NYC neighborhoods.
@@ -52,7 +58,10 @@ class LocationLLMService:
     @property
     def client(self) -> OpenAI:
         if self._client is None:
-            self._client = OpenAI()
+            self._client = OpenAI(
+                timeout=OPENAI_TIMEOUT_S,
+                max_retries=OPENAI_MAX_RETRIES,
+            )
         return self._client
 
     def resolve(
@@ -85,16 +94,23 @@ class LocationLLMService:
         system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(neighborhoods=neighborhoods_block)
 
         try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=[
+            request_kwargs: Dict[str, Any] = {
+                "model": model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Location query: {normalized}"},
                 ],
-                response_format={"type": "json_object"},
-                temperature=0.1,
-                max_tokens=250,
-            )
+                "response_format": {"type": "json_object"},
+            }
+            # GPT-5 models require `max_completion_tokens` (not `max_tokens`) and currently only
+            # support default temperature.
+            if not str(model).startswith("gpt-5"):
+                request_kwargs["temperature"] = 0.1
+                request_kwargs["max_tokens"] = 250
+            else:
+                request_kwargs["max_completion_tokens"] = 250
+
+            response = self.client.chat.completions.create(**request_kwargs)
             content = response.choices[0].message.content
             if not content:
                 return None

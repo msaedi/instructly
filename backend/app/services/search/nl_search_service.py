@@ -20,6 +20,8 @@ import os
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+from fastapi import HTTPException
+
 from app.core.config import settings
 from app.database import get_db_session
 from app.schemas.nl_search import (
@@ -49,6 +51,15 @@ logger = logging.getLogger(__name__)
 # Optional perf logging for profiling in staging/dev.
 _PERF_LOG_ENABLED = os.getenv("NL_SEARCH_PERF_LOG") == "1"
 _PERF_LOG_SLOW_MS = int(os.getenv("NL_SEARCH_PERF_LOG_SLOW_MS", "0"))
+
+# Concurrency control for expensive uncached searches.
+# Limits how many concurrent full-pipeline searches can run per worker.
+# When limit is hit, return 503 instead of piling up requests.
+UNCACHED_SEARCH_CONCURRENCY = int(os.getenv("UNCACHED_SEARCH_CONCURRENCY", "4"))
+UNCACHED_SEARCH_ACQUIRE_TIMEOUT_S = float(os.getenv("UNCACHED_SEARCH_ACQUIRE_TIMEOUT_S", "0.02"))
+
+# Per-worker semaphore (each Gunicorn worker has its own Python process)
+_uncached_search_semaphore = asyncio.Semaphore(UNCACHED_SEARCH_CONCURRENCY)
 
 
 @dataclass
@@ -173,119 +184,148 @@ class NLSearchService:
 
             return NLSearchResponse(**cached)
 
-        # Stage 1: Parse query
-        parsed_query = await self._parse_query(query, metrics, user_id)
-
-        # Stage 2: Retrieve candidates (vector+text hybrid; degraded fallback)
-        retrieval_result = await self._retrieve_candidates(parsed_query, metrics)
-
-        # Stage 3: Apply constraint filters (price, location, availability)
-        filter_result = await self._filter_candidates(
-            retrieval_result,
-            parsed_query,
-            user_location,
-            metrics,
-        )
-
-        # Stage 4: Rank candidates (multi-signal scoring)
-        rank_start = time.time()
+        # Concurrency control for expensive uncached searches.
+        # Limit concurrent full-pipeline searches to prevent system overload.
+        # If semaphore is full, return 503 immediately instead of piling up.
+        acquired = False
         try:
-            ranking_result = await asyncio.to_thread(
-                self.ranking_service.rank_candidates,
-                filter_result.candidates,
+            await asyncio.wait_for(
+                _uncached_search_semaphore.acquire(),
+                timeout=UNCACHED_SEARCH_ACQUIRE_TIMEOUT_S,
+            )
+            acquired = True
+        except asyncio.TimeoutError:
+            logger.warning(
+                "[SEARCH] Semaphore full, returning 503: query=%s",
+                query[:50] if query else "",
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Search temporarily overloaded. Please retry in a few seconds.",
+                headers={"Retry-After": "2"},
+            )
+
+        try:
+            # Stage 1: Parse query
+            parsed_query = await self._parse_query(query, metrics, user_id)
+
+            # Stage 2: Retrieve candidates (vector+text hybrid; degraded fallback)
+            retrieval_result = await self._retrieve_candidates(parsed_query, metrics)
+
+            # Stage 3: Apply constraint filters (price, location, availability)
+            filter_result = await self._filter_candidates(
+                retrieval_result,
                 parsed_query,
                 user_location,
+                metrics,
             )
-        except Exception as e:
-            logger.error(f"Ranking failed: {e}")
-            ranking_result = RankingResult(results=[], total_results=0)
-            metrics.degraded = True
-            metrics.degradation_reasons.append("ranking_error")
-        metrics.rank_latency_ms = int((time.time() - rank_start) * 1000)
 
-        # Stage 5: Build instructor-level results with embedded data
-        hydrate_start = time.perf_counter()
-        try:
-            results = await self._hydrate_instructor_results(
-                ranking_result.results,
-                limit=limit,
-                location_resolution=filter_result.location_resolution if filter_result else None,
+            # Stage 4: Rank candidates (multi-signal scoring)
+            rank_start = time.time()
+            try:
+                ranking_result = await asyncio.to_thread(
+                    self.ranking_service.rank_candidates,
+                    filter_result.candidates,
+                    parsed_query,
+                    user_location,
+                )
+            except Exception as e:
+                logger.error(f"Ranking failed: {e}")
+                ranking_result = RankingResult(results=[], total_results=0)
+                metrics.degraded = True
+                metrics.degradation_reasons.append("ranking_error")
+            metrics.rank_latency_ms = int((time.time() - rank_start) * 1000)
+
+            # Stage 5: Build instructor-level results with embedded data
+            hydrate_start = time.perf_counter()
+            try:
+                results = await self._hydrate_instructor_results(
+                    ranking_result.results,
+                    limit=limit,
+                    location_resolution=filter_result.location_resolution
+                    if filter_result
+                    else None,
+                )
+            except Exception as e:
+                logger.error(f"Hydration failed: {e}")
+                results = []
+                metrics.degraded = True
+                metrics.degradation_reasons.append("hydration_error")
+            hydrate_ms = int((time.perf_counter() - hydrate_start) * 1000)
+
+            # Build response
+            metrics.total_latency_ms = int((time.time() - metrics.total_start) * 1000)
+
+            response_build_start = time.perf_counter()
+            response = self._build_instructor_response(
+                query, parsed_query, results, limit, metrics, filter_result=filter_result
             )
-        except Exception as e:
-            logger.error(f"Hydration failed: {e}")
-            results = []
-            metrics.degraded = True
-            metrics.degradation_reasons.append("hydration_error")
-        hydrate_ms = int((time.perf_counter() - hydrate_start) * 1000)
+            response_build_ms = int((time.perf_counter() - response_build_start) * 1000)
 
-        # Build response
-        metrics.total_latency_ms = int((time.time() - metrics.total_start) * 1000)
-
-        response_build_start = time.perf_counter()
-        response = self._build_instructor_response(
-            query, parsed_query, results, limit, metrics, filter_result=filter_result
-        )
-        response_build_ms = int((time.perf_counter() - response_build_start) * 1000)
-
-        # Record Prometheus metrics
-        record_search_metrics(
-            total_latency_ms=metrics.total_latency_ms,
-            stage_latencies={
-                "cache_check": cache_check_ms,
-                "parsing": metrics.parse_latency_ms,
-                "embedding": metrics.embed_latency_ms,
-                "retrieval": metrics.retrieve_latency_ms,
-                "filtering": metrics.filter_latency_ms,
-                "ranking": metrics.rank_latency_ms,
-                "hydration": hydrate_ms,
-                "response_build": response_build_ms,
-            },
-            cache_hit=metrics.cache_hit,
-            parsing_mode=parsed_query.parsing_mode,
-            result_count=len(response.results),
-            degraded=metrics.degraded,
-            degradation_reasons=metrics.degradation_reasons,
-        )
-
-        # Cache response.
-        # Degraded responses get a short TTL to avoid "sticky" outages while still
-        # preventing repeated expensive cache misses during provider instability.
-        degraded_ttl = 30 if metrics.degraded else None
-        cache_write_start = time.perf_counter()
-        await self._cache_response(query, user_location, response, limit, ttl=degraded_ttl)
-        cache_write_ms = int((time.perf_counter() - cache_write_start) * 1000)
-
-        if _PERF_LOG_ENABLED and (metrics.total_latency_ms >= _PERF_LOG_SLOW_MS):
-            retrieval_stats = {
-                "text_search_ms": int(getattr(retrieval_result, "text_search_latency_ms", 0) or 0),
-                "vector_search_ms": int(
-                    getattr(retrieval_result, "vector_search_latency_ms", 0) or 0
-                ),
-                "vector_used": bool(getattr(retrieval_result, "vector_search_used", False)),
-                "candidates": int(getattr(retrieval_result, "total_candidates", 0) or 0),
-            }
-            logger.info(
-                "NL search timings: %s",
-                {
-                    "cache_check_ms": cache_check_ms,
-                    "parse_ms": metrics.parse_latency_ms,
-                    "embed_ms": metrics.embed_latency_ms,
-                    "retrieve_db_ms": metrics.retrieve_latency_ms,
-                    "retrieve": retrieval_stats,
-                    "filter_ms": metrics.filter_latency_ms,
-                    "rank_ms": metrics.rank_latency_ms,
-                    "hydrate_ms": hydrate_ms,
-                    "response_build_ms": response_build_ms,
-                    "cache_write_ms": cache_write_ms,
-                    "total_ms": metrics.total_latency_ms,
-                    "degraded": metrics.degraded,
-                    "reasons": list(metrics.degradation_reasons),
-                    "limit": limit,
-                    "region": self._region_code,
+            # Record Prometheus metrics
+            record_search_metrics(
+                total_latency_ms=metrics.total_latency_ms,
+                stage_latencies={
+                    "cache_check": cache_check_ms,
+                    "parsing": metrics.parse_latency_ms,
+                    "embedding": metrics.embed_latency_ms,
+                    "retrieval": metrics.retrieve_latency_ms,
+                    "filtering": metrics.filter_latency_ms,
+                    "ranking": metrics.rank_latency_ms,
+                    "hydration": hydrate_ms,
+                    "response_build": response_build_ms,
                 },
+                cache_hit=metrics.cache_hit,
+                parsing_mode=parsed_query.parsing_mode,
+                result_count=len(response.results),
+                degraded=metrics.degraded,
+                degradation_reasons=metrics.degradation_reasons,
             )
 
-        return response
+            # Cache response.
+            # Degraded responses get a short TTL to avoid "sticky" outages while still
+            # preventing repeated expensive cache misses during provider instability.
+            degraded_ttl = 30 if metrics.degraded else None
+            cache_write_start = time.perf_counter()
+            await self._cache_response(query, user_location, response, limit, ttl=degraded_ttl)
+            cache_write_ms = int((time.perf_counter() - cache_write_start) * 1000)
+
+            if _PERF_LOG_ENABLED and (metrics.total_latency_ms >= _PERF_LOG_SLOW_MS):
+                retrieval_stats = {
+                    "text_search_ms": int(
+                        getattr(retrieval_result, "text_search_latency_ms", 0) or 0
+                    ),
+                    "vector_search_ms": int(
+                        getattr(retrieval_result, "vector_search_latency_ms", 0) or 0
+                    ),
+                    "vector_used": bool(getattr(retrieval_result, "vector_search_used", False)),
+                    "candidates": int(getattr(retrieval_result, "total_candidates", 0) or 0),
+                }
+                logger.info(
+                    "NL search timings: %s",
+                    {
+                        "cache_check_ms": cache_check_ms,
+                        "parse_ms": metrics.parse_latency_ms,
+                        "embed_ms": metrics.embed_latency_ms,
+                        "retrieve_db_ms": metrics.retrieve_latency_ms,
+                        "retrieve": retrieval_stats,
+                        "filter_ms": metrics.filter_latency_ms,
+                        "rank_ms": metrics.rank_latency_ms,
+                        "hydrate_ms": hydrate_ms,
+                        "response_build_ms": response_build_ms,
+                        "cache_write_ms": cache_write_ms,
+                        "total_ms": metrics.total_latency_ms,
+                        "degraded": metrics.degraded,
+                        "reasons": list(metrics.degradation_reasons),
+                        "limit": limit,
+                        "region": self._region_code,
+                    },
+                )
+
+            return response
+        finally:
+            if acquired:
+                _uncached_search_semaphore.release()
 
     async def _hydrate_instructor_results(
         self,

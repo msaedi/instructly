@@ -2,6 +2,7 @@
 """
 Embedding provider abstraction for semantic search.
 Supports OpenAI (production) and mock (testing) providers.
+Uses strict timeouts to fail fast under load (no retries).
 """
 from __future__ import annotations
 
@@ -14,6 +15,11 @@ from typing import List, Optional, Protocol
 from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
+
+# Strict OpenAI timeouts for async embedding calls.
+# Fail fast rather than block for 5+ seconds with retries.
+OPENAI_TIMEOUT_S = float(os.getenv("OPENAI_TIMEOUT_S", "2.0"))
+OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
 
 
 class EmbeddingProvider(Protocol):
@@ -54,9 +60,12 @@ class OpenAIEmbeddingProvider:
 
     @property
     def client(self) -> AsyncOpenAI:
-        """Lazy initialization of OpenAI client."""
+        """Lazy initialization of OpenAI client with strict timeouts."""
         if self._client is None:
-            self._client = AsyncOpenAI()
+            self._client = AsyncOpenAI(
+                timeout=OPENAI_TIMEOUT_S,
+                max_retries=OPENAI_MAX_RETRIES,
+            )
         return self._client
 
     async def embed(self, text: str) -> List[float]:

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from app.database import get_db_session
 from app.repositories.filter_repository import FilterRepository
+from app.services.search.executors import OPENAI_EXECUTOR
 from app.services.search.location_resolver import LocationResolver, ResolvedLocation
 from app.services.search.retriever import ServiceCandidate
 
@@ -109,6 +110,11 @@ class FilterService:
         """
         Apply all constraint filters to candidates.
 
+        Uses dedicated OPENAI_EXECUTOR to isolate blocking location resolution
+        (Tier 4/5 OpenAI calls) from the default asyncio thread pool. This
+        prevents search load from saturating the runtime and degrading
+        non-search endpoints.
+
         Args:
             candidates: Candidates from retrieval phase
             parsed_query: Parsed query with constraints
@@ -118,7 +124,9 @@ class FilterService:
         Returns:
             FilterResult with filtered candidates
         """
-        return await asyncio.to_thread(
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            OPENAI_EXECUTOR,
             self._filter_candidates_sync,
             candidates,
             parsed_query,

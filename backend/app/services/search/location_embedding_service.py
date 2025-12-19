@@ -8,6 +8,7 @@ This service:
 Notes:
 - Only runs when `region_boundaries.name_embedding` is populated (otherwise returns []).
 - Designed to be called from background threads (FilterService uses `asyncio.to_thread`).
+- Uses strict timeouts to fail fast under load (no retries).
 """
 
 from __future__ import annotations
@@ -21,6 +22,11 @@ from openai import OpenAI
 from app.services.search.config import get_search_config
 
 logger = logging.getLogger(__name__)
+
+# Strict OpenAI timeouts for blocking sync calls.
+# Fail fast rather than block threads for 5+ seconds with retries.
+OPENAI_TIMEOUT_S = float(os.getenv("OPENAI_TIMEOUT_S", "2.0"))
+OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
 
 
 class LocationEmbeddingService:
@@ -40,7 +46,10 @@ class LocationEmbeddingService:
     @property
     def client(self) -> OpenAI:
         if self._client is None:
-            self._client = OpenAI()
+            self._client = OpenAI(
+                timeout=OPENAI_TIMEOUT_S,
+                max_retries=OPENAI_MAX_RETRIES,
+            )
         return self._client
 
     def get_candidates(
