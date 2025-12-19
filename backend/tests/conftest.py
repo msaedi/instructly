@@ -27,6 +27,7 @@ import importlib
 import os
 import secrets
 import sys
+import threading
 from typing import Dict, List, Sequence, Tuple
 
 from fastapi.testclient import TestClient
@@ -438,6 +439,9 @@ except Exception as e:
 # Create test session factory with expire_on_commit=False to prevent stale ORM objects
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine, expire_on_commit=False)
 
+_DB_PREPARED = False
+_DB_PREPARE_LOCK = threading.Lock()
+
 
 def ensure_outbox_table() -> None:
     """Ensure event_outbox table exists (guard DDL to prevent conflicts)."""
@@ -497,13 +501,15 @@ def _prepare_database() -> None:
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":
             insp = inspect(test_engine)
-            if insp.has_table("notification_delivery"):
-                conn.execute(text("DROP TABLE IF EXISTS notification_delivery CASCADE"))
-            if insp.has_table("event_outbox"):
-                conn.execute(text("DROP TABLE IF EXISTS event_outbox CASCADE"))
-            # Postgres can rarely leave behind an orphaned composite type for a dropped/failed table
-            # create, which then breaks subsequent CREATE TABLE with pg_type_typname_nsp_index errors.
-            conn.execute(text("DROP TYPE IF EXISTS event_outbox CASCADE"))
+            reset_outbox = os.getenv("RESET_OUTBOX_SCHEMA", "0") == "1"
+            if reset_outbox:
+                if insp.has_table("notification_delivery"):
+                    conn.execute(text("DROP TABLE IF EXISTS notification_delivery CASCADE"))
+                if insp.has_table("event_outbox"):
+                    conn.execute(text("DROP TABLE IF EXISTS event_outbox CASCADE"))
+                # Postgres can rarely leave behind an orphaned composite type for a dropped/failed table
+                # create, which then breaks subsequent CREATE TABLE with pg_type_typname_nsp_index errors.
+                conn.execute(text("DROP TYPE IF EXISTS event_outbox CASCADE"))
             # These schemas evolve quickly during search/location work; drop so create_all
             # recreates them with the latest SQLAlchemy models for this test run.
             if insp.has_table("location_aliases"):
@@ -628,6 +634,34 @@ def _prepare_database() -> None:
             )
         )
         conn.commit()
+
+# ============================================================================
+# Database Prep Guard
+# ============================================================================
+
+def ensure_test_database_ready() -> None:
+    """Prepare test schema once per process, with a cross-process advisory lock."""
+    global _DB_PREPARED
+    if _DB_PREPARED:
+        return
+
+    with _DB_PREPARE_LOCK:
+        if _DB_PREPARED:
+            return
+
+        if test_engine.dialect.name != "sqlite":
+            with test_engine.connect() as conn:
+                conn.execute(text("SELECT pg_advisory_lock(:key)"), {"key": 987654321})
+                conn.commit()
+                try:
+                    _prepare_database()
+                finally:
+                    conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": 987654321})
+                    conn.commit()
+        else:
+            _prepare_database()
+
+        _DB_PREPARED = True
 
 # ============================================================================
 # Helper Functions
@@ -779,7 +813,7 @@ def create_test_session() -> Session:
     if settings.is_production_database(TEST_DATABASE_URL):
         raise RuntimeError("CRITICAL: Refusing to create tables in what appears to be a production database!")
 
-    _prepare_database()
+    ensure_test_database_ready()
     _ensure_catalog_data()
     _ensure_rbac_roles()
     return TestSessionLocal()
@@ -938,7 +972,7 @@ def unique_nyc_region_code(db: Session):
 @pytest.fixture
 def enable_price_floors():
     """Enable production-like price floors for the duration of a test."""
-    _prepare_database()
+    ensure_test_database_ready()
     session = TestSessionLocal()
     config_service = ConfigService(session)
     original_config, _ = config_service.get_pricing_config()
@@ -962,7 +996,7 @@ def enable_price_floors():
 @pytest.fixture
 def disable_price_floors():
     """Disable price floors for tests that assume low-price bookings."""
-    _prepare_database()
+    ensure_test_database_ready()
     session = TestSessionLocal()
     config_service = ConfigService(session)
     original_config, _ = config_service.get_pricing_config()

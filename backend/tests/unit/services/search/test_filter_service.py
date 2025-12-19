@@ -3,7 +3,7 @@
 Unit tests for constraint filtering service.
 """
 from datetime import date, time, timedelta
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -90,7 +90,7 @@ def mock_repository() -> Mock:
 def mock_location_resolver() -> Mock:
     """Create mock location resolver."""
     resolver = Mock()
-    resolver.resolve.return_value = ResolvedLocation.from_not_found()
+    resolver.resolve = AsyncMock(return_value=ResolvedLocation.from_not_found())
     resolver.region_code = "nyc"
     return resolver
 

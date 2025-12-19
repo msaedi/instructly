@@ -5,7 +5,6 @@ Applies price, location, and availability filters to candidates.
 """
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass, field, replace
 from datetime import date, time
 import logging
@@ -15,7 +14,6 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from app.database import get_db_session
 from app.repositories.filter_repository import FilterRepository
-from app.services.search.executors import OPENAI_EXECUTOR
 from app.services.search.location_resolver import LocationResolver, ResolvedLocation
 from app.services.search.retriever import ServiceCandidate
 
@@ -110,11 +108,6 @@ class FilterService:
         """
         Apply all constraint filters to candidates.
 
-        Uses dedicated OPENAI_EXECUTOR to isolate blocking location resolution
-        (Tier 4/5 OpenAI calls) from the default asyncio thread pool. This
-        prevents search load from saturating the runtime and degrading
-        non-search endpoints.
-
         Args:
             candidates: Candidates from retrieval phase
             parsed_query: Parsed query with constraints
@@ -124,50 +117,30 @@ class FilterService:
         Returns:
             FilterResult with filtered candidates
         """
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            OPENAI_EXECUTOR,
-            self._filter_candidates_sync,
-            candidates,
-            parsed_query,
-            user_location,
-            default_duration,
-        )
-
-    def _filter_candidates_sync(
-        self,
-        candidates: List[ServiceCandidate],
-        parsed_query: "ParsedQuery",
-        user_location: Optional[tuple[float, float]],
-        default_duration: int,
-    ) -> FilterResult:
         if self._repository_override is not None and self._location_resolver_override is not None:
             # Unit tests can inject mocks to avoid DB access.
             self.repository = self._repository_override
             self.location_resolver = self._location_resolver_override
-            return self._filter_candidates_sync_impl(
+            return await self._filter_candidates_impl(
                 candidates,
                 parsed_query,
                 user_location,
                 default_duration,
             )
 
-        def _inner() -> FilterResult:
-            with get_db_session() as db:
-                self.repository = self._repository_override or FilterRepository(db)
-                self.location_resolver = self._location_resolver_override or LocationResolver(
-                    db, region_code=self._region_code
-                )
-                return self._filter_candidates_sync_impl(
-                    candidates,
-                    parsed_query,
-                    user_location,
-                    default_duration,
-                )
+        with get_db_session() as db:
+            self.repository = self._repository_override or FilterRepository(db)
+            self.location_resolver = self._location_resolver_override or LocationResolver(
+                db, region_code=self._region_code
+            )
+            return await self._filter_candidates_impl(
+                candidates,
+                parsed_query,
+                user_location,
+                default_duration,
+            )
 
-        return _inner()
-
-    def _filter_candidates_sync_impl(
+    async def _filter_candidates_impl(
         self,
         candidates: List[ServiceCandidate],
         parsed_query: "ParsedQuery",
@@ -218,7 +191,7 @@ class FilterService:
             filter_stats.setdefault("after_location", before_location_count)
 
             location_resolve_start = time_module.perf_counter()
-            location_resolution = self.location_resolver.resolve(
+            location_resolution = await self.location_resolver.resolve(
                 parsed_query.location_text,
                 original_query=parsed_query.original_query,
                 track_unresolved=True,

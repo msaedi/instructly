@@ -1,11 +1,13 @@
 """
 Location resolver for NL search.
 
-Phase 1 supports a 3-tier pipeline:
+Phase 1 supports a 5-tier pipeline (Tier 4/5 are optional):
 1) Exact match on `region_boundaries.region_name`
 2) Alias lookup in `location_aliases` (trust + ambiguity model)
 2.5) Substring match on `region_boundaries.region_name`
 3) Fuzzy match via pg_trgm `similarity()` on `region_boundaries.region_name`
+4) Embedding similarity (OpenAI + pgvector)
+5) LLM mapping (OpenAI)
 
 Notes:
 - `region_boundaries` is the source of truth for neighborhood names.
@@ -14,6 +16,7 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
@@ -94,8 +97,8 @@ class ResolutionTier(Enum):
     EXACT = 1
     ALIAS = 2
     FUZZY = 3
-    EMBEDDING = 4  # Future
-    LLM = 5  # Future
+    EMBEDDING = 4
+    LLM = 5
     NOT_FOUND = 0
 
 
@@ -199,10 +202,7 @@ class LocationResolver:
     """
     Resolves user location input to `region_boundaries` or a borough filter.
 
-    Tier 1-3 implemented:
-    - exact
-    - alias (trust + ambiguity)
-    - fuzzy
+    Tier 1-3 are synchronous and fast; Tier 4/5 are async OpenAI calls.
     """
 
     # Thresholds (calibrate via eval harness)
@@ -251,7 +251,7 @@ class LocationResolver:
         self.embedding_service = LocationEmbeddingService(self.repository)
         self.llm_service = LocationLLMService()
 
-    def resolve(
+    async def resolve(
         self,
         location_text: str,
         *,
@@ -295,48 +295,9 @@ class LocationResolver:
         if not normalized or len(normalized) < 2:
             return ResolvedLocation.from_not_found()
 
-        # Tier 0: Borough aliases (no DB dependency)
-        borough_key = self._BOROUGH_ALIASES.get(normalized)
-        if borough_key:
-            return _finalize(
-                ResolvedLocation.from_borough(
-                    borough=self._BOROUGH_CANONICAL[borough_key],
-                    tier=ResolutionTier.ALIAS,
-                    confidence=1.0,
-                )
-            )
-
-        # Tier 1: Exact match (includes borough names)
-        tier_start = time_module.perf_counter()
-        exact = self._tier1_exact_match(normalized)
-        if _PERF_LOG_ENABLED:
-            perf["tier1_exact_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
-        if exact.resolved:
-            return _finalize(exact)
-
-        # Tier 2: Alias lookup (trust + ambiguity)
-        tier_start = time_module.perf_counter()
-        alias_result = self._tier2_alias_lookup(normalized)
-        if _PERF_LOG_ENABLED:
-            perf["tier2_alias_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
-        if alias_result.resolved or alias_result.requires_clarification:
-            return _finalize(alias_result)
-
-        # Tier 2.5: Substring match on region_boundaries (e.g., "carnegie" -> "Upper East Side-Carnegie Hill")
-        tier_start = time_module.perf_counter()
-        substring = self._tier2_5_region_name_substring(normalized)
-        if _PERF_LOG_ENABLED:
-            perf["tier2_5_substring_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
-        if substring.resolved or substring.requires_clarification:
-            return _finalize(substring)
-
-        # Tier 3: Fuzzy match (pg_trgm similarity)
-        tier_start = time_module.perf_counter()
-        fuzzy = self._tier3_fuzzy_match(normalized)
-        if _PERF_LOG_ENABLED:
-            perf["tier3_fuzzy_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
-        if fuzzy.resolved:
-            return _finalize(fuzzy)
+        result = await asyncio.to_thread(self._resolve_non_semantic, normalized, perf)
+        if result is not None:
+            return _finalize(result)
 
         if enable_semantic:
             tokens = normalized.split()
@@ -352,7 +313,9 @@ class LocationResolver:
 
             if not should_try_embedding:
                 fuzzy_gate_start = time_module.perf_counter()
-                best_fuzzy_score = self.repository.get_best_fuzzy_score(normalized)
+                best_fuzzy_score = await asyncio.to_thread(
+                    self.repository.get_best_fuzzy_score, normalized
+                )
                 if _PERF_LOG_ENABLED:
                     perf["fuzzy_gate_ms"] = int(
                         (time_module.perf_counter() - fuzzy_gate_start) * 1000
@@ -361,7 +324,7 @@ class LocationResolver:
 
             if should_try_embedding:
                 tier_start = time_module.perf_counter()
-                tier4 = self._tier4_embedding_match(normalized)
+                tier4 = await self._tier4_embedding_match(normalized)
                 if _PERF_LOG_ENABLED:
                     perf["tier4_embedding_ms"] = int(
                         (time_module.perf_counter() - tier_start) * 1000
@@ -377,7 +340,7 @@ class LocationResolver:
                 )
 
             tier_start = time_module.perf_counter()
-            tier5 = self._tier5_llm_match(
+            tier5 = await self._tier5_llm_match(
                 normalized, original_query=original_query or location_text
             )
             if _PERF_LOG_ENABLED:
@@ -386,12 +349,114 @@ class LocationResolver:
                 return _finalize(tier5)
 
         if track_unresolved:
+            await asyncio.to_thread(
+                self.unresolved_repository.track_unresolved,
+                normalized,
+                original_query=original_query or location_text,
+            )
+            logger.info("Tracked unresolved location '%s' (city_id=%s)", normalized, self.city_id)
+
+        return _finalize(ResolvedLocation.from_not_found())
+
+    def resolve_sync(
+        self,
+        location_text: str,
+        *,
+        original_query: Optional[str] = None,
+        track_unresolved: bool = False,
+    ) -> ResolvedLocation:
+        """
+        Resolve a location string using only Tier 0-3 logic (no OpenAI calls).
+        """
+        perf_start = time_module.perf_counter() if _PERF_LOG_ENABLED else 0.0
+        perf: dict[str, int] = {} if _PERF_LOG_ENABLED else {}
+
+        def _finalize(result: ResolvedLocation) -> ResolvedLocation:
+            if not _PERF_LOG_ENABLED:
+                return result
+            total_ms = int((time_module.perf_counter() - perf_start) * 1000)
+            if total_ms < _PERF_LOG_SLOW_MS:
+                return result
+            logger.info(
+                "NL location resolution timings: %s",
+                {
+                    **perf,
+                    "total_ms": total_ms,
+                    "method": result.method,
+                    "resolved": bool(result.resolved),
+                    "ambiguous": bool(result.requires_clarification),
+                    "not_found": bool(result.not_found),
+                    "region_code": self.region_code,
+                },
+            )
+            return result
+
+        if not location_text:
+            return ResolvedLocation.from_not_found()
+
+        normalized = self._normalize(location_text)
+        if not normalized or len(normalized) < 2:
+            return ResolvedLocation.from_not_found()
+
+        result = self._resolve_non_semantic(normalized, perf)
+        if result is not None:
+            return _finalize(result)
+
+        if track_unresolved:
             self.unresolved_repository.track_unresolved(
                 normalized, original_query=original_query or location_text
             )
             logger.info("Tracked unresolved location '%s' (city_id=%s)", normalized, self.city_id)
 
         return _finalize(ResolvedLocation.from_not_found())
+
+    def _resolve_non_semantic(
+        self,
+        normalized: str,
+        perf: dict[str, int],
+    ) -> Optional[ResolvedLocation]:
+        # Tier 0: Borough aliases (no DB dependency)
+        borough_key = self._BOROUGH_ALIASES.get(normalized)
+        if borough_key:
+            return ResolvedLocation.from_borough(
+                borough=self._BOROUGH_CANONICAL[borough_key],
+                tier=ResolutionTier.ALIAS,
+                confidence=1.0,
+            )
+
+        # Tier 1: Exact match (includes borough names)
+        tier_start = time_module.perf_counter()
+        exact = self._tier1_exact_match(normalized)
+        if _PERF_LOG_ENABLED:
+            perf["tier1_exact_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
+        if exact.resolved:
+            return exact
+
+        # Tier 2: Alias lookup (trust + ambiguity)
+        tier_start = time_module.perf_counter()
+        alias_result = self._tier2_alias_lookup(normalized)
+        if _PERF_LOG_ENABLED:
+            perf["tier2_alias_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
+        if alias_result.resolved or alias_result.requires_clarification:
+            return alias_result
+
+        # Tier 2.5: Substring match on region_boundaries (e.g., "carnegie" -> "Upper East Side-Carnegie Hill")
+        tier_start = time_module.perf_counter()
+        substring = self._tier2_5_region_name_substring(normalized)
+        if _PERF_LOG_ENABLED:
+            perf["tier2_5_substring_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
+        if substring.resolved or substring.requires_clarification:
+            return substring
+
+        # Tier 3: Fuzzy match (pg_trgm similarity)
+        tier_start = time_module.perf_counter()
+        fuzzy = self._tier3_fuzzy_match(normalized)
+        if _PERF_LOG_ENABLED:
+            perf["tier3_fuzzy_ms"] = int((time_module.perf_counter() - tier_start) * 1000)
+        if fuzzy.resolved:
+            return fuzzy
+
+        return None
 
     def _normalize(self, text_value: str) -> str:
         normalized = " ".join(str(text_value).lower().strip().split())
@@ -601,9 +666,9 @@ class LocationResolver:
             )
         return ResolvedLocation.from_not_found()
 
-    def _tier4_embedding_match(self, normalized: str) -> ResolvedLocation:
+    async def _tier4_embedding_match(self, normalized: str) -> ResolvedLocation:
         """Tier 4: Semantic match using OpenAI embeddings + pgvector on region_boundaries."""
-        candidates = self.embedding_service.get_candidates(normalized, limit=5)
+        candidates = await self.embedding_service.get_candidates(normalized, limit=5)
         best, ambiguous = self.embedding_service.pick_best_or_ambiguous(candidates)
 
         if best and best.get("region_id") and best.get("region_name"):
@@ -637,7 +702,7 @@ class LocationResolver:
 
         return ResolvedLocation.from_not_found()
 
-    def _tier5_llm_match(
+    async def _tier5_llm_match(
         self,
         normalized: str,
         *,
@@ -648,33 +713,54 @@ class LocationResolver:
 
         This tier is designed for landmark-style inputs that don't match well via substring/fuzzy/embeddings.
         """
-        cached = self.repository.find_cached_alias(normalized, source="llm")
-        if cached:
+
+        def _load_cached() -> (
+            tuple[
+                Optional[LocationAlias],
+                Optional[list[RegionBoundary]],
+                Optional[str],
+            ]
+        ):
+            cached = self.repository.find_cached_alias(normalized, source="llm")
+            if not cached:
+                return None, None, None
+
             self.repository.increment_alias_user_count(cached)
+
             if cached.is_ambiguous and cached.candidate_region_ids:
                 candidate_regions = self.repository.get_regions_by_ids(
                     list(cached.candidate_region_ids)
                 )
-                candidates = self._format_candidates(candidate_regions)
-                if len(candidates) >= 2:
-                    return ResolvedLocation.from_ambiguous(
-                        candidates=candidates,
-                        tier=ResolutionTier.LLM,
-                        confidence=float(cached.confidence or 0.5),
-                    )
+                return cached, candidate_regions, "ambiguous"
+
             if cached.is_resolved and cached.region_boundary_id:
                 region = self.repository.get_region_by_id(str(cached.region_boundary_id))
-                if region and getattr(region, "id", None) and getattr(region, "region_name", None):
-                    return ResolvedLocation.from_region(
-                        region_id=region.id,
-                        region_name=region.region_name,
-                        borough=getattr(region, "parent_region", None),
-                        tier=ResolutionTier.LLM,
-                        confidence=float(cached.confidence or 0.5),
-                    )
+                return cached, [region] if region else [], "resolved"
 
-        allowed_names = self.repository.list_region_names()
-        llm_result = self.llm_service.resolve(
+            return cached, [], None
+
+        cached, cached_regions, cached_kind = await asyncio.to_thread(_load_cached)
+        if cached and cached_kind == "ambiguous":
+            candidates = self._format_candidates(cached_regions or [])
+            if len(candidates) >= 2:
+                return ResolvedLocation.from_ambiguous(
+                    candidates=candidates,
+                    tier=ResolutionTier.LLM,
+                    confidence=float(cached.confidence or 0.5),
+                )
+        if cached and cached_kind == "resolved":
+            region = cached_regions[0] if cached_regions else None
+            if region and getattr(region, "id", None) and getattr(region, "region_name", None):
+                return ResolvedLocation.from_region(
+                    region_id=region.id,
+                    region_name=region.region_name,
+                    borough=getattr(region, "parent_region", None),
+                    tier=ResolutionTier.LLM,
+                    confidence=float(cached.confidence or 0.5),
+                )
+
+        allowed_names = await asyncio.to_thread(self.repository.list_region_names)
+        llm_result = await self.llm_service.resolve(
             location_text=original_query,
             allowed_region_names=allowed_names,
         )
@@ -685,23 +771,26 @@ class LocationResolver:
         if not isinstance(neighborhoods, list) or not neighborhoods:
             return ResolvedLocation.from_not_found()
 
-        regions: list[RegionBoundary] = []
-        for name in neighborhoods:
-            if not isinstance(name, str) or not name.strip():
-                continue
-            name_norm = " ".join(name.strip().lower().split())
-            exact = self.repository.find_exact_region_by_name(name_norm)
-            if exact:
-                regions.append(exact)
-                continue
-            # Best-effort fallback (should be rare because LLM is constrained to allowed list).
-            regions.extend(self.repository.find_regions_by_name_fragment(name_norm))
+        def _load_llm_regions() -> list[RegionBoundary]:
+            regions: list[RegionBoundary] = []
+            for name in neighborhoods:
+                if not isinstance(name, str) or not name.strip():
+                    continue
+                name_norm = " ".join(name.strip().lower().split())
+                exact = self.repository.find_exact_region_by_name(name_norm)
+                if exact:
+                    regions.append(exact)
+                    continue
+                # Best-effort fallback (should be rare because LLM is constrained to allowed list).
+                regions.extend(self.repository.find_regions_by_name_fragment(name_norm))
 
-        by_id: dict[str, RegionBoundary] = {}
-        for region in regions:
-            if getattr(region, "id", None):
-                by_id[str(region.id)] = region
-        resolved_regions = list(by_id.values())
+            by_id: dict[str, RegionBoundary] = {}
+            for region in regions:
+                if getattr(region, "id", None):
+                    by_id[str(region.id)] = region
+            return list(by_id.values())
+
+        resolved_regions = await asyncio.to_thread(_load_llm_regions)
 
         if not resolved_regions:
             return ResolvedLocation.from_not_found()
@@ -709,45 +798,48 @@ class LocationResolver:
         confidence_val = float(llm_result.get("confidence") or 0.5)
 
         # Cache as pending_review (best-effort).
-        try:
-            existing_any = self.repository.find_cached_alias(normalized)
-            if existing_any and isinstance(existing_any, LocationAlias):
-                alias_row = existing_any
-                alias_row.source = "llm"
-                alias_row.status = "pending_review"
-                alias_row.confidence = confidence_val
-                alias_row.alias_type = "landmark"
-                alias_row.deprecated_at = None
-                alias_row.user_count = int(alias_row.user_count or 0) + 1
-            else:
-                alias_row = LocationAlias(
-                    id=generate_ulid(),
-                    city_id=self.city_id,
-                    alias_normalized=normalized,
-                    source="llm",
-                    status="pending_review",
-                    confidence=confidence_val,
-                    user_count=1,
-                    alias_type="landmark",
-                )
-                self.repository.db.add(alias_row)
-
-            if len(resolved_regions) == 1:
-                alias_row.region_boundary_id = resolved_regions[0].id
-                alias_row.requires_clarification = False
-                alias_row.candidate_region_ids = None
-            else:
-                alias_row.region_boundary_id = None
-                alias_row.requires_clarification = True
-                alias_row.candidate_region_ids = [str(r.id) for r in resolved_regions]
-
-            self.repository.db.flush()
-        except Exception as exc:
-            logger.debug("Failed to cache LLM alias '%s': %s", normalized, str(exc))
+        def _cache_llm_alias() -> None:
             try:
-                self.repository.db.rollback()
-            except Exception:
-                pass
+                existing_any = self.repository.find_cached_alias(normalized)
+                if existing_any and isinstance(existing_any, LocationAlias):
+                    alias_row = existing_any
+                    alias_row.source = "llm"
+                    alias_row.status = "pending_review"
+                    alias_row.confidence = confidence_val
+                    alias_row.alias_type = "landmark"
+                    alias_row.deprecated_at = None
+                    alias_row.user_count = int(alias_row.user_count or 0) + 1
+                else:
+                    alias_row = LocationAlias(
+                        id=generate_ulid(),
+                        city_id=self.city_id,
+                        alias_normalized=normalized,
+                        source="llm",
+                        status="pending_review",
+                        confidence=confidence_val,
+                        user_count=1,
+                        alias_type="landmark",
+                    )
+                    self.repository.db.add(alias_row)
+
+                if len(resolved_regions) == 1:
+                    alias_row.region_boundary_id = resolved_regions[0].id
+                    alias_row.requires_clarification = False
+                    alias_row.candidate_region_ids = None
+                else:
+                    alias_row.region_boundary_id = None
+                    alias_row.requires_clarification = True
+                    alias_row.candidate_region_ids = [str(r.id) for r in resolved_regions]
+
+                self.repository.db.flush()
+            except Exception as exc:
+                logger.debug("Failed to cache LLM alias '%s': %s", normalized, str(exc))
+                try:
+                    self.repository.db.rollback()
+                except Exception:
+                    pass
+
+        await asyncio.to_thread(_cache_llm_alias)
 
         candidates = self._format_candidates(resolved_regions)
         if len(candidates) == 1:

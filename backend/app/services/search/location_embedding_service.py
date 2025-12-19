@@ -7,24 +7,25 @@ This service:
 
 Notes:
 - Only runs when `region_boundaries.name_embedding` is populated (otherwise returns []).
-- Designed to be called from background threads (FilterService uses `asyncio.to_thread`).
+- Designed to be awaited from async contexts (no blocking OpenAI calls).
 - Uses strict timeouts to fail fast under load (no retries).
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from app.services.search.config import get_search_config
 
 logger = logging.getLogger(__name__)
 
-# Strict OpenAI timeouts for blocking sync calls.
-# Fail fast rather than block threads for 5+ seconds with retries.
+# Strict OpenAI timeouts for async calls.
+# Fail fast rather than block the event loop with retries.
 OPENAI_TIMEOUT_S = float(os.getenv("OPENAI_TIMEOUT_S", "2.0"))
 OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
 
@@ -41,18 +42,18 @@ class LocationEmbeddingService:
 
     def __init__(self, repository: Any) -> None:
         self._repository = repository
-        self._client: Optional[OpenAI] = None
+        self._client: Optional[AsyncOpenAI] = None
 
     @property
-    def client(self) -> OpenAI:
+    def client(self) -> AsyncOpenAI:
         if self._client is None:
-            self._client = OpenAI(
+            self._client = AsyncOpenAI(
                 timeout=OPENAI_TIMEOUT_S,
                 max_retries=OPENAI_MAX_RETRIES,
             )
         return self._client
 
-    def get_candidates(
+    async def get_candidates(
         self,
         query: str,
         *,
@@ -70,17 +71,22 @@ class LocationEmbeddingService:
             return []
 
         # Only attempt when embeddings are populated (avoid unnecessary OpenAI calls).
-        if not self._repository.has_region_name_embeddings():
+        has_embeddings = await asyncio.to_thread(self._repository.has_region_name_embeddings)
+        if not has_embeddings:
             return []
 
         if not os.getenv("OPENAI_API_KEY"):
             return []
 
-        embedding = self._embed_location_text(normalized)
+        embedding = await self._embed_location_text(normalized)
         if not embedding:
             return []
 
-        pairs = self._repository.find_regions_by_name_embedding(embedding, limit=limit)
+        pairs = await asyncio.to_thread(
+            self._repository.find_regions_by_name_embedding,
+            embedding,
+            limit=limit,
+        )
         if not pairs:
             return []
 
@@ -131,7 +137,7 @@ class LocationEmbeddingService:
         # Ambiguous: return a small candidate set.
         return None, ordered[:5]
 
-    def _embed_location_text(self, query: str) -> Optional[List[float]]:
+    async def _embed_location_text(self, query: str) -> Optional[List[float]]:
         """Embed a location query string using the configured OpenAI embedding model."""
         config = get_search_config()
         model = config.embedding_model
@@ -139,7 +145,7 @@ class LocationEmbeddingService:
         try:
             # Provide a small hint to steer embeddings toward place semantics.
             embed_text = f"{query}, NYC location"
-            response = self.client.embeddings.create(
+            response = await self.client.embeddings.create(
                 model=model,
                 input=embed_text,
                 dimensions=1536,

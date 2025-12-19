@@ -15,14 +15,14 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from app.services.search.config import get_search_config
 
 logger = logging.getLogger(__name__)
 
-# Strict OpenAI timeouts for blocking sync calls.
-# Fail fast rather than block threads for 5+ seconds with retries.
+# Strict OpenAI timeouts for async calls.
+# Fail fast rather than block the event loop with retries.
 OPENAI_TIMEOUT_S = float(os.getenv("OPENAI_TIMEOUT_S", "2.0"))
 OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
 
@@ -53,18 +53,18 @@ class LocationLLMService:
     """LLM helper to map freeform location text to region_boundaries names."""
 
     def __init__(self) -> None:
-        self._client: Optional[OpenAI] = None
+        self._client: Optional[AsyncOpenAI] = None
 
     @property
-    def client(self) -> OpenAI:
+    def client(self) -> AsyncOpenAI:
         if self._client is None:
-            self._client = OpenAI(
+            self._client = AsyncOpenAI(
                 timeout=OPENAI_TIMEOUT_S,
                 max_retries=OPENAI_MAX_RETRIES,
             )
         return self._client
 
-    def resolve(
+    async def resolve(
         self,
         *,
         location_text: str,
@@ -110,7 +110,7 @@ class LocationLLMService:
             else:
                 request_kwargs["max_completion_tokens"] = 250
 
-            response = self.client.chat.completions.create(**request_kwargs)
+            response = await self.client.chat.completions.create(**request_kwargs)
             content = response.choices[0].message.content
             if not content:
                 return None

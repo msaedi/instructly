@@ -578,7 +578,7 @@ class QueryParser:
                 if candidate in {"person", "online", "remote"}:
                     continue
 
-                resolution = self._location_resolver.resolve(candidate)
+                resolution = self._location_resolver.resolve_sync(candidate)
                 looks_like_location = bool(
                     (set(candidate.split()) & location_hint_words)
                     or (set(candidate.split()) & direction_words)
@@ -594,7 +594,7 @@ class QueryParser:
             # Abbreviation suffix (single token), only for short alphabetic tokens.
             last = tokens[-1]
             if len(last) <= 5 and last.isalpha():
-                resolution = self._location_resolver.resolve(last)
+                resolution = self._location_resolver.resolve_sync(last)
                 if resolution.kind != "none":
                     result.location_text = last
                     result.location_type = (
