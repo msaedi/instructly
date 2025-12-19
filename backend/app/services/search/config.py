@@ -43,7 +43,7 @@ class SearchConfig:
     search_budget_ms: int = 500
     high_load_budget_ms: int = 300
     high_load_threshold: int = 10
-    uncached_concurrency: int = 10
+    uncached_concurrency: int = 6
 
     @classmethod
     def from_env(cls) -> "SearchConfig":
@@ -64,7 +64,7 @@ class SearchConfig:
             search_budget_ms=int(os.getenv("SEARCH_BUDGET_MS", "500")),
             high_load_budget_ms=int(os.getenv("SEARCH_HIGH_LOAD_BUDGET_MS", "300")),
             high_load_threshold=int(os.getenv("SEARCH_HIGH_LOAD_THRESHOLD", "10")),
-            uncached_concurrency=int(os.getenv("UNCACHED_SEARCH_CONCURRENCY", "10")),
+            uncached_concurrency=int(os.getenv("UNCACHED_SEARCH_CONCURRENCY", "6")),
         )
 
     def to_dict(self) -> Dict[str, Any]:

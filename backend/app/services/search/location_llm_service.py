@@ -20,6 +20,7 @@ from openai import AsyncOpenAI, OpenAIError
 
 from app.core.config import settings
 from app.services.search.config import get_search_config
+from app.services.search.openai_semaphore import OPENAI_CALL_SEMAPHORE
 
 logger = logging.getLogger(__name__)
 
@@ -199,13 +200,16 @@ class LocationLLMService:
             else:
                 request_kwargs["max_completion_tokens"] = 250
 
-            if effective_timeout_s and effective_timeout_s > 0:
-                response = await asyncio.wait_for(
-                    client.chat.completions.create(**request_kwargs),
-                    timeout=effective_timeout_s,
-                )
-            else:
-                response = await client.chat.completions.create(**request_kwargs)
+            async def _send_request() -> Any:
+                if effective_timeout_s and effective_timeout_s > 0:
+                    return await asyncio.wait_for(
+                        client.chat.completions.create(**request_kwargs),
+                        timeout=effective_timeout_s,
+                    )
+                return await client.chat.completions.create(**request_kwargs)
+
+            async with OPENAI_CALL_SEMAPHORE:
+                response = await _send_request()
             content = response.choices[0].message.content
             debug_info["raw_response"] = content
             logger.debug("[LOCATION LLM] Raw response: %s", content)

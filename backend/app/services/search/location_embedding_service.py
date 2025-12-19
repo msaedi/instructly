@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional
 from openai import AsyncOpenAI
 
 from app.services.search.config import get_search_config
+from app.services.search.openai_semaphore import OPENAI_CALL_SEMAPHORE
 
 logger = logging.getLogger(__name__)
 
@@ -211,11 +212,12 @@ class LocationEmbeddingService:
 
         try:
             embed_text = f"{query}, NYC location"
-            response = await self.client.embeddings.create(
-                model=model,
-                input=embed_text,
-                dimensions=1536,
-            )
+            async with OPENAI_CALL_SEMAPHORE:
+                response = await self.client.embeddings.create(
+                    model=model,
+                    input=embed_text,
+                    dimensions=1536,
+                )
             return list(response.data[0].embedding)
         except Exception as exc:
             logger.debug("Location embedding failed for '%s': %s", query, str(exc))

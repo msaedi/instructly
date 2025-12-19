@@ -493,6 +493,12 @@ class Settings(BaseSettings):
         ge=500,
         description="Timeout (ms) for Tier 5 location resolution",
     )
+    openai_call_concurrency: int = Field(
+        default=3,
+        alias="OPENAI_CALL_CONCURRENCY",
+        ge=1,
+        description="Max concurrent OpenAI calls per worker",
+    )
 
     # Privacy and Data Retention Configuration (GDPR compliance)
     search_event_retention_days: int = 365  # Keep detailed search events for 1 year

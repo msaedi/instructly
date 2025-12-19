@@ -80,16 +80,8 @@ logger = logging.getLogger(__name__)
 _PERF_LOG_ENABLED = os.getenv("NL_SEARCH_PERF_LOG") == "1"
 _PERF_LOG_SLOW_MS = int(os.getenv("NL_SEARCH_PERF_LOG_SLOW_MS", "0"))
 
-# Concurrency control for expensive uncached searches.
-# Limits how many concurrent full-pipeline searches can run per worker.
-# When limit is hit, return 503 instead of piling up requests.
-UNCACHED_SEARCH_CONCURRENCY = int(os.getenv("UNCACHED_SEARCH_CONCURRENCY", "10"))
-UNCACHED_SEARCH_ACQUIRE_TIMEOUT_S = float(os.getenv("UNCACHED_SEARCH_ACQUIRE_TIMEOUT_S", "0.02"))
-
-# Per-worker semaphore (each Gunicorn worker has its own Python process)
-_uncached_search_semaphore = asyncio.Semaphore(UNCACHED_SEARCH_CONCURRENCY)
-_uncached_search_semaphore_limit = UNCACHED_SEARCH_CONCURRENCY
-_uncached_search_limit_lock = asyncio.Lock()
+# Concurrency control for uncached searches.
+# Soft limit only; expensive OpenAI calls are gated separately.
 
 _search_inflight_lock = asyncio.Lock()
 _search_inflight_requests = 0
@@ -121,19 +113,8 @@ async def get_search_inflight_count() -> int:
 
 
 async def set_uncached_search_concurrency_limit(limit: int) -> int:
-    """
-    Increase the semaphore capacity when raising the limit.
-
-    Lower limits are enforced via a soft check in the search handler.
-    """
-    global _uncached_search_semaphore_limit
-    new_limit = max(1, int(limit))
-    async with _uncached_search_limit_lock:
-        if new_limit > _uncached_search_semaphore_limit:
-            for _ in range(new_limit - _uncached_search_semaphore_limit):
-                _uncached_search_semaphore.release()
-            _uncached_search_semaphore_limit = new_limit
-    return new_limit
+    """Return the normalized soft concurrency limit."""
+    return max(1, int(limit))
 
 
 # Location resolution tuning.
@@ -450,26 +431,9 @@ class NLSearchService:
         # Concurrency control for expensive uncached searches.
         # Limit concurrent full-pipeline searches to prevent system overload.
         # If semaphore is full, return 503 immediately instead of piling up.
-        acquired = False
         inflight_incremented = False
         budget: Optional[RequestBudget] = None
         soft_limit = max(1, int(get_search_config().uncached_concurrency))
-        try:
-            await asyncio.wait_for(
-                _uncached_search_semaphore.acquire(),
-                timeout=UNCACHED_SEARCH_ACQUIRE_TIMEOUT_S,
-            )
-            acquired = True
-        except asyncio.TimeoutError:
-            logger.warning(
-                "[SEARCH] Semaphore full, returning 503: query=%s",
-                query[:50] if query else "",
-            )
-            raise HTTPException(
-                status_code=503,
-                detail="Search temporarily overloaded. Please retry in a few seconds.",
-                headers={"Retry-After": "2"},
-            )
 
         try:
             inflight = await _increment_search_inflight()
@@ -477,9 +441,6 @@ class NLSearchService:
             if inflight > soft_limit:
                 await _decrement_search_inflight()
                 inflight_incremented = False
-                if acquired:
-                    _uncached_search_semaphore.release()
-                    acquired = False
                 logger.warning(
                     "[SEARCH] Soft concurrency limit reached, returning 503: query=%s",
                     query[:50] if query else "",
@@ -1050,8 +1011,6 @@ class NLSearchService:
         finally:
             if inflight_incremented:
                 await _decrement_search_inflight()
-            if acquired:
-                _uncached_search_semaphore.release()
 
     @staticmethod
     def _normalize_location_text(text_value: str) -> str:
