@@ -67,7 +67,7 @@
     "audit:lhci": "cross-env NEXT_PUBLIC_API_BASE=https://example.invalid next build && lhci autorun || true",
     "lhci": "lhci autorun --config=lhci.config.js || true",
     "api:schema": "python ../backend/scripts/export_openapi.py",
-    "api:generate": "orval --config orval.config.ts",
+    "api:generate": "orval --config orval.config.ts && prettier --write src/api/generated",
     "api:sync": "npm run api:schema && npm run api:generate",
     "api:lint": "spectral lint ../backend/openapi/openapi.json -r ../backend/openapi/spectral.yaml"
   },
