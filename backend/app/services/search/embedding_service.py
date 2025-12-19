@@ -6,12 +6,15 @@ Handles query embedding (search-time) and service embedding (index-time).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+import uuid
 import weakref
 
 from app.repositories.service_catalog_repository import ServiceCatalogRepository
+from app.services.cache_service import CacheService, CircuitState
 from app.services.search.circuit_breaker import EMBEDDING_CIRCUIT, CircuitOpenError
 from app.services.search.config import get_search_config
 from app.services.search.embedding_provider import (
@@ -28,6 +31,16 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 EMBEDDING_CACHE_TTL = 60 * 60 * 24  # 24 hours
+
+_SINGLEFLIGHT_LOCK_TTL_S = 30
+_SINGLEFLIGHT_POLL_INTERVAL_S = 0.5
+_SINGLEFLIGHT_POLL_TIMEOUT_S = 30.0
+_SINGLEFLIGHT_RELEASE_LOCK_LUA = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("del", KEYS[1])
+end
+return 0
+"""
 
 _pending_by_loop: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, Dict[str, asyncio.Future[Optional[List[float]]]]]" = (
     weakref.WeakKeyDictionary()
@@ -137,6 +150,92 @@ class EmbeddingService:
 
         embedding: Optional[List[float]] = None
         try:
+            redis_client = None
+            if isinstance(self.cache, CacheService):
+                if self.cache.circuit_breaker.state != CircuitState.OPEN:
+                    redis_client = await self.cache.get_redis_client()
+
+            if redis_client is not None:
+                computing_key = f"{cache_key}:computing"
+                token = uuid.uuid4().hex
+                acquired = False
+
+                try:
+                    acquired = bool(
+                        await redis_client.set(
+                            computing_key,
+                            token,
+                            nx=True,
+                            ex=_SINGLEFLIGHT_LOCK_TTL_S,
+                        )
+                    )
+                except Exception as lock_error:
+                    logger.warning(f"[EMBED] Redis singleflight lock failed: {lock_error}")
+
+                if acquired:
+                    logger.info("[EMBED] Leader for: %s", normalized[:50])
+                    try:
+                        try:
+                            embedding = await EMBEDDING_CIRCUIT.call(
+                                self.provider.embed, normalized
+                            )
+                        except CircuitOpenError:
+                            logger.warning("Embedding circuit opened during call")
+                            embedding = None
+                        except Exception as e:
+                            # Don't record_failure here - CircuitBreaker.call() already did
+                            logger.error(f"Embedding generation failed: {e}")
+                            embedding = None
+
+                        if embedding is not None and self.cache:
+                            try:
+                                await self.cache.set(
+                                    cache_key,
+                                    embedding,
+                                    ttl=EMBEDDING_CACHE_TTL,
+                                )
+                            except Exception as cache_error:
+                                logger.warning(f"Failed to cache embedding: {cache_error}")
+
+                        return embedding
+                    finally:
+                        with contextlib.suppress(Exception):
+                            await redis_client.eval(
+                                _SINGLEFLIGHT_RELEASE_LOCK_LUA,
+                                1,
+                                computing_key,
+                                token,
+                            )
+                else:
+                    logger.info("[EMBED] Waiting for leader: %s", normalized[:50])
+                    if self.cache:
+                        cached = await self.cache.get(cache_key)
+                        if cached is not None and isinstance(cached, list):
+                            embedding = cast(List[float], cached)
+                            return embedding
+
+                    poll_attempts = int(
+                        _SINGLEFLIGHT_POLL_TIMEOUT_S / _SINGLEFLIGHT_POLL_INTERVAL_S
+                    )
+                    for _ in range(max(1, poll_attempts)):
+                        await asyncio.sleep(_SINGLEFLIGHT_POLL_INTERVAL_S)
+                        if self.cache:
+                            cached = await self.cache.get(cache_key)
+                            if cached is not None and isinstance(cached, list):
+                                embedding = cast(List[float], cached)
+                                return embedding
+                        with contextlib.suppress(Exception):
+                            if not await redis_client.exists(computing_key):
+                                break
+                    if self.cache:
+                        cached = await self.cache.get(cache_key)
+                        if cached is not None and isinstance(cached, list):
+                            logger.debug(
+                                "[EMBED] Cache hit after leader released lock: %s", normalized[:50]
+                            )
+                            embedding = cast(List[float], cached)
+                            return embedding
+
             try:
                 embedding = await EMBEDDING_CIRCUIT.call(self.provider.embed, normalized)
             except CircuitOpenError:

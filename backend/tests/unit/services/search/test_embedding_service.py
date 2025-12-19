@@ -6,11 +6,14 @@ Uses mock provider to avoid API calls.
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from app.services.cache_service import CacheService
 from app.services.search.circuit_breaker import EMBEDDING_CIRCUIT
 from app.services.search.config import get_search_config
 from app.services.search.embedding_provider import (
@@ -224,6 +227,102 @@ class TestEmbeddingService:
 
         assert provider.calls == 1
         assert results == [None, None]
+
+    @pytest.mark.asyncio
+    async def test_embed_query_cross_worker_singleflight(
+        self,
+    ) -> None:
+        """Identical queries on different event loops should share one provider call via Redis."""
+
+        class FakeAsyncRedis:
+            def __init__(self) -> None:
+                self._lock = threading.Lock()
+                self._data: dict[str, str] = {}
+                self._expires_at: dict[str, float] = {}
+
+            def _purge_expired(self) -> None:
+                now = time.monotonic()
+                expired = [k for k, exp in self._expires_at.items() if exp <= now]
+                for k in expired:
+                    self._data.pop(k, None)
+                    self._expires_at.pop(k, None)
+
+            async def get(self, key: str) -> str | None:
+                with self._lock:
+                    self._purge_expired()
+                    return self._data.get(key)
+
+            async def setex(self, key: str, ttl: int, value: str) -> bool:
+                with self._lock:
+                    self._purge_expired()
+                    self._data[key] = value
+                    self._expires_at[key] = time.monotonic() + ttl
+                    return True
+
+            async def set(
+                self, key: str, value: str, *, nx: bool = False, ex: int | None = None
+            ) -> bool | None:
+                with self._lock:
+                    self._purge_expired()
+                    if nx and key in self._data:
+                        return None
+                    self._data[key] = value
+                    if ex is not None:
+                        self._expires_at[key] = time.monotonic() + ex
+                    else:
+                        self._expires_at.pop(key, None)
+                    return True
+
+            async def exists(self, key: str) -> int:
+                with self._lock:
+                    self._purge_expired()
+                    return 1 if key in self._data else 0
+
+            async def eval(self, script: str, numkeys: int, key: str, token: str) -> int:
+                with self._lock:
+                    self._purge_expired()
+                    if self._data.get(key) != token:
+                        return 0
+                    self._data.pop(key, None)
+                    self._expires_at.pop(key, None)
+                    return 1
+
+        class SlowThreadSafeProvider(MockEmbeddingProvider):
+            def __init__(self) -> None:
+                super().__init__(dimensions=1536)
+                self._calls = 0
+                self._calls_lock = threading.Lock()
+
+            @property
+            def calls(self) -> int:
+                with self._calls_lock:
+                    return self._calls
+
+            async def embed(self, text: str) -> list[float]:
+                with self._calls_lock:
+                    self._calls += 1
+                await asyncio.sleep(0.2)
+                return await super().embed(text)
+
+        def _run_in_new_loop(coro: Any) -> Any:
+            return asyncio.run(coro)
+
+        redis = FakeAsyncRedis()
+        provider = SlowThreadSafeProvider()
+
+        with patch.dict("os.environ", {"AVAILABILITY_TEST_MEMORY_CACHE": "0"}):
+            cache_a = CacheService(db=None, redis_client=redis)  # type: ignore[arg-type]
+            cache_b = CacheService(db=None, redis_client=redis)  # type: ignore[arg-type]
+            service_a = EmbeddingService(cache_service=cache_a, provider=provider)
+            service_b = EmbeddingService(cache_service=cache_b, provider=provider)
+
+            results = await asyncio.gather(
+                asyncio.to_thread(_run_in_new_loop, service_a.embed_query("piano lessons")),
+                asyncio.to_thread(_run_in_new_loop, service_b.embed_query("piano lessons")),
+            )
+
+        assert provider.calls == 1
+        assert results[0] == results[1]
 
 
 class TestEmbeddingTextGeneration:
