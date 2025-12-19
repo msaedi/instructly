@@ -25,7 +25,7 @@ from fastapi.params import Path
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import get_current_active_user, get_current_student
-from ...core.exceptions import DomainException
+from ...core.exceptions import DomainException, RepositoryException, raise_503_if_pool_exhaustion
 from ...database import get_db
 from ...models.user import User
 from ...ratelimit.dependency import rate_limit as new_rate_limit
@@ -203,7 +203,11 @@ def get_instructor_ratings(
     Public endpoint - no authentication required.
     Returns overall rating, per-service ratings, and rating distribution.
     """
-    return InstructorRatingsResponse(**service.get_instructor_ratings(instructor_id))
+    try:
+        return InstructorRatingsResponse(**service.get_instructor_ratings(instructor_id))
+    except RepositoryException as e:
+        raise_503_if_pool_exhaustion(e)
+        raise
 
 
 @router.get(

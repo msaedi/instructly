@@ -33,7 +33,12 @@ from ...api.dependencies.services import (
     get_favorites_service,
     get_instructor_service,
 )
-from ...core.exceptions import BusinessRuleException, DomainException, NotFoundException
+from ...core.exceptions import (
+    BusinessRuleException,
+    DomainException,
+    NotFoundException,
+    raise_503_if_pool_exhaustion,
+)
 from ...core.ulid_helper import is_valid_ulid
 from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit as legacy_rate_limit
@@ -377,7 +382,10 @@ async def get_instructor(
             response.headers["Cache-Control"] = "public, max-age=300"
 
         return result
+    except HTTPException:
+        raise
     except Exception as e:
+        raise_503_if_pool_exhaustion(e)
         if "not found" in str(e).lower():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"

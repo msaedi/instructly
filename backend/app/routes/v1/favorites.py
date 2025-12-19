@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from ...api.dependencies import get_current_user
 from ...core.enums import PermissionName
+from ...core.exceptions import raise_503_if_pool_exhaustion
 from ...database import get_db
 from ...dependencies.permissions import require_permission
 from ...models.user import User
@@ -85,6 +86,7 @@ async def add_favorite(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        raise_503_if_pool_exhaustion(e)
         logger.error(f"Error adding favorite: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add favorite"
@@ -127,6 +129,7 @@ async def remove_favorite(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        raise_503_if_pool_exhaustion(e)
         logger.error(f"Error removing favorite: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to remove favorite"
@@ -179,6 +182,7 @@ async def get_favorites(
         return FavoritesList(favorites=favorited_instructors, total=len(favorited_instructors))
 
     except Exception as e:
+        raise_503_if_pool_exhaustion(e)
         logger.error(f"Error getting favorites: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get favorites"
@@ -216,6 +220,7 @@ async def check_favorite_status(
         return FavoriteStatusResponse(is_favorited=is_favorited)
 
     except Exception as e:
+        raise_503_if_pool_exhaustion(e)
         logger.error(f"Error checking favorite status: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
