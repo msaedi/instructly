@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.exceptions import raise_503_if_pool_exhaustion
 from app.database import get_db_session
 from app.repositories.search_batch_repository import (
     CachedAliasInfo,
@@ -1008,6 +1009,10 @@ class NLSearchService:
                 )
 
             return response
+        except Exception as e:
+            # Convert DB pool exhaustion to 503 (retry later) instead of 500 (server error)
+            raise_503_if_pool_exhaustion(e)
+            raise
         finally:
             if inflight_incremented:
                 await _decrement_search_inflight()
