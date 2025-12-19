@@ -129,45 +129,71 @@ async def nl_search(
             cache_ttl = 60 if not result.meta.cache_hit else 300
             response.headers["Cache-Control"] = f"public, max-age={cache_ttl}"
 
-        # Log search for analytics (non-blocking, don't fail search on logging error)
-        try:
-            # Build normalized query from parsed info
-            parsed = result.meta.parsed
-            normalized_query = {
-                "service_query": parsed.service_query,
-                "location": parsed.location,
-                "location_resolved": result.meta.location_resolved,
-                "location_not_found": result.meta.location_not_found,
-                "max_price": parsed.max_price,
-                "date": parsed.date,
-                "time_after": parsed.time_after,
-                "time_before": parsed.time_before,
-                "audience_hint": parsed.audience_hint,
-                "skill_level": parsed.skill_level,
-                "urgency": parsed.urgency,
-            }
-            top_result_ids = [r.best_match.service_catalog_id for r in result.results[:10]]
+        # Log search for analytics (TRULY non-blocking, fire-and-forget)
+        # Generate ID upfront so we can return it immediately without waiting for DB
+        from app.core.ulid_helper import generate_ulid
 
-            def _log_search_query() -> str:
+        search_query_id = generate_ulid()
+        result.meta.search_query_id = search_query_id
+
+        # Build normalized query from parsed info
+        parsed = result.meta.parsed
+        normalized_query = {
+            "service_query": parsed.service_query,
+            "location": parsed.location,
+            "location_resolved": result.meta.location_resolved,
+            "location_not_found": result.meta.location_not_found,
+            "max_price": parsed.max_price,
+            "date": parsed.date,
+            "time_after": parsed.time_after,
+            "time_before": parsed.time_before,
+            "audience_hint": parsed.audience_hint,
+            "skill_level": parsed.skill_level,
+            "urgency": parsed.urgency,
+        }
+        top_result_ids = [r.best_match.service_catalog_id for r in result.results[:10]]
+
+        # Capture values for closure
+        _q = q
+        _normalized_query = normalized_query
+        _parsing_mode = result.meta.parsing_mode
+        _result_count = result.meta.total_results
+        _top_result_ids = top_result_ids
+        _latency_ms = result.meta.latency_ms
+        _cache_hit = result.meta.cache_hit
+        _degraded = result.meta.degraded
+        _search_query_id = search_query_id
+
+        def _log_search_query_background() -> None:
+            """Fire-and-forget analytics logging. Exceptions are caught internally."""
+            try:
                 with get_db_session() as db:
                     analytics_repo = SearchAnalyticsRepository(db)
-                    return analytics_repo.nl_log_search_query(
-                        original_query=q,
-                        normalized_query=normalized_query,
-                        parsing_mode=result.meta.parsing_mode,
-                        parsing_latency_ms=0,  # Not tracked separately in response
-                        result_count=result.meta.total_results,
-                        top_result_ids=top_result_ids,
-                        total_latency_ms=result.meta.latency_ms,
-                        cache_hit=result.meta.cache_hit,
-                        degraded=result.meta.degraded,
+                    analytics_repo.nl_log_search_query(
+                        original_query=_q,
+                        normalized_query=_normalized_query,
+                        parsing_mode=_parsing_mode,
+                        parsing_latency_ms=0,
+                        result_count=_result_count,
+                        top_result_ids=_top_result_ids,
+                        total_latency_ms=_latency_ms,
+                        cache_hit=_cache_hit,
+                        degraded=_degraded,
+                        query_id=_search_query_id,
                     )
+            except Exception as e:
+                logger.warning(f"Background analytics logging failed: {e}")
 
-            search_query_id = await asyncio.to_thread(_log_search_query)
-            # Update result with search_query_id for click tracking
-            result.meta.search_query_id = search_query_id
-        except Exception as log_err:
-            logger.warning(f"Failed to log search analytics: {log_err}")
+        def _handle_task_exception(task: asyncio.Task[None]) -> None:
+            """Suppress exceptions from fire-and-forget task to avoid warnings."""
+            if task.done() and not task.cancelled():
+                exc = task.exception()
+                if exc:
+                    logger.warning(f"Analytics task exception: {exc}")
+
+        # Fire-and-forget: create task but don't await it
+        task = asyncio.create_task(asyncio.to_thread(_log_search_query_background))
+        task.add_done_callback(_handle_task_exception)
 
         return result
 

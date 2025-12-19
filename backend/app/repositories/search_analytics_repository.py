@@ -956,9 +956,14 @@ class SearchAnalyticsRepository:
         degraded: bool = False,
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
+        query_id: Optional[str] = None,
     ) -> str:
         """
         Log a NL search query for analytics.
+
+        Args:
+            query_id: Optional pre-generated ID. If None, generates a new one.
+                      Pass a pre-generated ID for fire-and-forget logging patterns.
 
         Returns the search_query_id for click tracking.
         """
@@ -968,7 +973,8 @@ class SearchAnalyticsRepository:
 
         from app.core.ulid_helper import generate_ulid
 
-        query_id: str = generate_ulid()
+        if query_id is None:
+            query_id = generate_ulid()
 
         query = sql_text(
             """
