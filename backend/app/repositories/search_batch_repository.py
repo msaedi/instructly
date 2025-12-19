@@ -115,6 +115,9 @@ class SearchBatchRepository:
     def get_best_fuzzy_score(self, normalized: str) -> float:
         return self._location_repo.get_best_fuzzy_score(normalized)
 
+    def get_fuzzy_candidate_names(self, normalized: str, *, limit: int = 5) -> List[str]:
+        return self._location_repo.list_fuzzy_region_names(normalized, limit=limit)
+
     def get_cached_llm_alias(self, normalized: str) -> Optional[CachedAliasInfo]:
         row = self._location_repo.find_cached_alias(normalized, source="llm")
         if not row or not isinstance(row, LocationAlias):

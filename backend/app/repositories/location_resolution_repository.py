@@ -267,6 +267,56 @@ class LocationResolutionRepository:
                 pass
             return 0.0
 
+    def list_fuzzy_region_names(self, normalized: str, *, limit: int = 5) -> list[str]:
+        """
+        Return top fuzzy region_name candidates ordered by similarity.
+
+        Uses pg_trgm similarity() without threshold filtering to support Tier 5 prompts.
+        """
+        normalized = " ".join(str(normalized or "").strip().lower().split())
+        if not normalized:
+            return []
+
+        try:
+            rows = self.db.execute(
+                text(
+                    """
+                    SELECT region_name, similarity(LOWER(region_name), :query) AS sim
+                    FROM region_boundaries
+                    WHERE region_type = :rtype
+                      AND region_name IS NOT NULL
+                    ORDER BY sim DESC
+                    LIMIT :limit
+                    """
+                ),
+                {"query": normalized, "rtype": self.region_code, "limit": int(limit)},
+            ).fetchall()
+        except Exception as exc:
+            logger.debug("Fuzzy candidate lookup failed for '%s': %s", normalized, str(exc))
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return []
+
+        out: list[str] = []
+        seen: set[str] = set()
+        for row in rows or []:
+            name = getattr(row, "region_name", None)
+            if not name and row:
+                try:
+                    name = row[0]
+                except Exception:
+                    name = None
+            if not name:
+                continue
+            key = str(name).strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append(str(name).strip())
+        return out
+
     def find_regions_by_name_fragment(self, fragment: str) -> list[RegionBoundary]:
         """
         Find regions whose region_name contains the given fragment (case-insensitive).

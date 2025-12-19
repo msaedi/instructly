@@ -82,6 +82,11 @@ UNCACHED_SEARCH_ACQUIRE_TIMEOUT_S = float(os.getenv("UNCACHED_SEARCH_ACQUIRE_TIM
 # Per-worker semaphore (each Gunicorn worker has its own Python process)
 _uncached_search_semaphore = asyncio.Semaphore(UNCACHED_SEARCH_CONCURRENCY)
 
+# Location resolution tuning.
+LOCATION_LLM_TOP_K = int(os.getenv("LOCATION_LLM_TOP_K", "5"))
+LOCATION_TIER4_HIGH_CONFIDENCE = float(os.getenv("LOCATION_TIER4_HIGH_CONFIDENCE", "0.85"))
+LOCATION_LLM_CONFIDENCE_THRESHOLD = float(os.getenv("LOCATION_LLM_CONFIDENCE_THRESHOLD", "0.7"))
+
 
 @dataclass
 class SearchMetrics:
@@ -116,6 +121,7 @@ class PreOpenAIData:
     location_normalized: Optional[str]
     cached_alias_normalized: Optional[str]
     fuzzy_score: Optional[float]
+    location_llm_candidates: List[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -338,6 +344,34 @@ class NLSearchService:
             parsed_query = pre_data.parsed_query
             metrics.parse_latency_ms = pre_data.parse_latency_ms
 
+            tier5_task: Optional[
+                asyncio.Task[
+                    tuple[
+                        Optional["ResolvedLocation"],
+                        Optional[LocationLLMCache],
+                        Optional[UnresolvedLocationInfo],
+                    ]
+                ]
+            ] = None
+
+            if (
+                not parsed_query.needs_llm
+                and pre_data.location_resolution is None
+                and pre_data.region_lookup
+                and pre_data.location_llm_candidates
+                and parsed_query.location_text
+                and parsed_query.location_type != "near_me"
+                and user_location is None
+            ):
+                tier5_task = asyncio.create_task(
+                    self._resolve_location_llm(
+                        location_text=parsed_query.location_text,
+                        original_query=parsed_query.original_query,
+                        region_lookup=pre_data.region_lookup,
+                        candidate_names=pre_data.location_llm_candidates,
+                    )
+                )
+
             if parsed_query_cached is None and not parsed_query.needs_llm:
                 try:
                     await self.search_cache.cache_parsed_query(
@@ -446,6 +480,8 @@ class NLSearchService:
                         region_lookup=pre_data.region_lookup,
                         fuzzy_score=pre_data.fuzzy_score,
                         original_query=parsed_query.original_query,
+                        llm_candidates=pre_data.location_llm_candidates,
+                        tier5_task=tier5_task,
                     )
                 if location_resolution is None:
                     from app.services.search.location_resolver import ResolvedLocation
@@ -695,6 +731,168 @@ class NLSearchService:
             return list(dict.fromkeys(candidate_ids)) or None
         return None
 
+    @staticmethod
+    def _consume_task_result(task: asyncio.Task[Any], *, label: str) -> None:
+        """Ensure background task exceptions are surfaced without blocking."""
+
+        def _done(finished: asyncio.Task[Any]) -> None:
+            try:
+                finished.result()
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:
+                logger.debug("[SEARCH] %s task failed: %s", label, exc)
+
+        task.add_done_callback(_done)
+
+    @staticmethod
+    def _pick_best_location(
+        tier4_result: Optional["ResolvedLocation"],
+        tier5_result: Optional["ResolvedLocation"],
+    ) -> Optional["ResolvedLocation"]:
+        if (
+            tier4_result
+            and tier4_result.resolved
+            and tier4_result.confidence >= LOCATION_TIER4_HIGH_CONFIDENCE
+        ):
+            return tier4_result
+        if tier5_result and (
+            tier5_result.confidence >= LOCATION_LLM_CONFIDENCE_THRESHOLD or not tier4_result
+        ):
+            return tier5_result
+        if tier4_result:
+            return tier4_result
+        return None
+
+    async def _resolve_location_llm(
+        self,
+        *,
+        location_text: str,
+        original_query: Optional[str],
+        region_lookup: RegionLookup,
+        candidate_names: List[str],
+        normalized: Optional[str] = None,
+    ) -> tuple[
+        Optional["ResolvedLocation"], Optional[LocationLLMCache], Optional[UnresolvedLocationInfo]
+    ]:
+        from app.services.search.location_resolver import (
+            LocationCandidate,
+            ResolutionTier,
+            ResolvedLocation,
+        )
+
+        normalized_value = normalized or self._normalize_location_text(location_text)
+        if not normalized_value:
+            return None, None, None
+
+        allowed_names: List[str] = []
+        seen: set[str] = set()
+        for name in candidate_names:
+            if not name:
+                continue
+            key = str(name).strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            allowed_names.append(str(name).strip())
+
+        if not allowed_names:
+            return (
+                None,
+                None,
+                UnresolvedLocationInfo(
+                    normalized=normalized_value,
+                    original_query=original_query or location_text,
+                ),
+            )
+
+        llm_result = await self.location_llm_service.resolve(
+            location_text=original_query or location_text,
+            allowed_region_names=allowed_names,
+        )
+        if not llm_result:
+            return (
+                None,
+                None,
+                UnresolvedLocationInfo(
+                    normalized=normalized_value,
+                    original_query=original_query or location_text,
+                ),
+            )
+
+        neighborhoods = llm_result.get("neighborhoods") or []
+        if not isinstance(neighborhoods, list) or not neighborhoods:
+            return (
+                None,
+                None,
+                UnresolvedLocationInfo(
+                    normalized=normalized_value,
+                    original_query=original_query or location_text,
+                ),
+            )
+
+        regions: List[RegionInfo] = []
+        seen_ids: set[str] = set()
+        for name in neighborhoods:
+            if not isinstance(name, str):
+                continue
+            key = name.strip().lower()
+            info = region_lookup.by_name.get(key)
+            if not info or info.region_id in seen_ids:
+                continue
+            seen_ids.add(info.region_id)
+            regions.append(info)
+
+        if not regions:
+            return (
+                None,
+                None,
+                UnresolvedLocationInfo(
+                    normalized=normalized_value,
+                    original_query=original_query or location_text,
+                ),
+            )
+
+        confidence_val = float(llm_result.get("confidence") or 0.5)
+        region_ids = [r.region_id for r in regions]
+        llm_cache = LocationLLMCache(
+            normalized=normalized_value,
+            confidence=confidence_val,
+            region_ids=region_ids,
+        )
+
+        if len(regions) == 1:
+            only = regions[0]
+            return (
+                ResolvedLocation.from_region(
+                    region_id=only.region_id,
+                    region_name=only.region_name,
+                    borough=only.borough,
+                    tier=ResolutionTier.LLM,
+                    confidence=confidence_val,
+                ),
+                llm_cache,
+                None,
+            )
+
+        llm_candidates: List[LocationCandidate] = [
+            {
+                "region_id": r.region_id,
+                "region_name": r.region_name,
+                "borough": r.borough,
+            }
+            for r in regions
+        ]
+        return (
+            ResolvedLocation.from_ambiguous(
+                candidates=llm_candidates,
+                tier=ResolutionTier.LLM,
+                confidence=confidence_val,
+            ),
+            llm_cache,
+            None,
+        )
+
     async def _embed_query_with_timeout(
         self,
         query: str,
@@ -780,6 +978,7 @@ class NLSearchService:
             location_normalized: Optional[str] = None
             cached_alias_normalized: Optional[str] = None
             fuzzy_score: Optional[float] = None
+            location_llm_candidates: List[str] = []
 
             should_load_regions = bool(parsed_query.needs_llm or parsed_query.location_text)
             if should_load_regions:
@@ -818,6 +1017,11 @@ class NLSearchService:
                 ):
                     fuzzy_score = batch.get_best_fuzzy_score(location_normalized)
 
+                if location_resolution is None and location_normalized:
+                    location_llm_candidates = batch.get_fuzzy_candidate_names(
+                        location_normalized, limit=LOCATION_LLM_TOP_K
+                    )
+
             return PreOpenAIData(
                 parsed_query=parsed_query,
                 parse_latency_ms=parse_latency_ms,
@@ -832,6 +1036,7 @@ class NLSearchService:
                 location_normalized=location_normalized,
                 cached_alias_normalized=cached_alias_normalized,
                 fuzzy_score=fuzzy_score,
+                location_llm_candidates=location_llm_candidates,
             )
 
     async def _resolve_location_openai(
@@ -841,6 +1046,16 @@ class NLSearchService:
         region_lookup: Optional[RegionLookup],
         fuzzy_score: Optional[float],
         original_query: Optional[str],
+        llm_candidates: Optional[List[str]] = None,
+        tier5_task: Optional[
+            asyncio.Task[
+                tuple[
+                    Optional["ResolvedLocation"],
+                    Optional[LocationLLMCache],
+                    Optional[UnresolvedLocationInfo],
+                ]
+            ]
+        ] = None,
     ) -> tuple[ResolvedLocation, Optional[LocationLLMCache], Optional[UnresolvedLocationInfo]]:
         from app.services.search.location_resolver import (
             LocationCandidate,
@@ -851,6 +1066,8 @@ class NLSearchService:
 
         normalized = self._normalize_location_text(location_text)
         if not normalized or not region_lookup:
+            if tier5_task:
+                self._consume_task_result(tier5_task, label="location_llm")
             unresolved = (
                 UnresolvedLocationInfo(
                     normalized=normalized,
@@ -867,6 +1084,7 @@ class NLSearchService:
             len(tokens) >= 2 or fuzzy_score is None or (fuzzy_score >= threshold)
         )
 
+        tier4_result: Optional[ResolvedLocation] = None
         if should_try_embedding:
             embedding = await self.location_embedding_service.embed_location_text(normalized)
             if embedding:
@@ -885,20 +1103,20 @@ class NLSearchService:
                     embedding_rows,
                     limit=5,
                 )
-                best, ambiguous = LocationEmbeddingService.pick_best_or_ambiguous(
+                best_candidate, ambiguous = LocationEmbeddingService.pick_best_or_ambiguous(
                     embedding_candidates
                 )
-                if best and best.get("region_id") and best.get("region_name"):
-                    return (
-                        ResolvedLocation.from_region(
-                            region_id=str(best["region_id"]),
-                            region_name=str(best["region_name"]),
-                            borough=best.get("borough"),
-                            tier=ResolutionTier.EMBEDDING,
-                            confidence=float(best.get("similarity") or 0.0),
-                        ),
-                        None,
-                        None,
+                if (
+                    best_candidate
+                    and best_candidate.get("region_id")
+                    and best_candidate.get("region_name")
+                ):
+                    tier4_result = ResolvedLocation.from_region(
+                        region_id=str(best_candidate["region_id"]),
+                        region_name=str(best_candidate["region_name"]),
+                        borough=best_candidate.get("borough"),
+                        tier=ResolutionTier.EMBEDDING,
+                        confidence=float(best_candidate.get("similarity") or 0.0),
                     )
                 if ambiguous:
                     formatted: List[LocationCandidate] = []
@@ -914,102 +1132,61 @@ class NLSearchService:
                         )
                     if len(formatted) >= 2:
                         top_sim = float(ambiguous[0].get("similarity") or 0.0)
-                        return (
-                            ResolvedLocation.from_ambiguous(
-                                candidates=formatted,
-                                tier=ResolutionTier.EMBEDDING,
-                                confidence=top_sim,
-                            ),
-                            None,
-                            None,
+                        tier4_result = ResolvedLocation.from_ambiguous(
+                            candidates=formatted,
+                            tier=ResolutionTier.EMBEDDING,
+                            confidence=top_sim,
                         )
 
-        llm_result = await self.location_llm_service.resolve(
-            location_text=original_query or location_text,
-            allowed_region_names=region_lookup.region_names,
-        )
-        if not llm_result:
-            return (
-                ResolvedLocation.from_not_found(),
-                None,
-                UnresolvedLocationInfo(
+        if (
+            tier4_result
+            and tier4_result.resolved
+            and tier4_result.confidence >= LOCATION_TIER4_HIGH_CONFIDENCE
+        ):
+            if tier5_task:
+                self._consume_task_result(tier5_task, label="location_llm")
+            return tier4_result, None, None
+
+        llm_result: Optional[ResolvedLocation] = None
+        llm_cache: Optional[LocationLLMCache] = None
+        llm_unresolved: Optional[UnresolvedLocationInfo] = None
+
+        if tier5_task is not None:
+            try:
+                llm_result, llm_cache, llm_unresolved = await tier5_task
+            except asyncio.CancelledError:
+                llm_result = None
+            except Exception as exc:
+                logger.warning("[LOCATION] Tier 5 failed: %s", exc)
+        else:
+            allowed_names = list(llm_candidates or [])
+            if not allowed_names:
+                allowed_names = region_lookup.region_names
+            if allowed_names:
+                try:
+                    llm_result, llm_cache, llm_unresolved = await self._resolve_location_llm(
+                        location_text=location_text,
+                        original_query=original_query,
+                        region_lookup=region_lookup,
+                        candidate_names=allowed_names,
+                        normalized=normalized,
+                    )
+                except Exception as exc:
+                    logger.warning("[LOCATION] Tier 5 failed: %s", exc)
+
+        best = self._pick_best_location(tier4_result, llm_result)
+        if not best:
+            if llm_unresolved is None:
+                llm_unresolved = UnresolvedLocationInfo(
                     normalized=normalized,
                     original_query=original_query or location_text,
-                ),
-            )
+                )
+            return ResolvedLocation.from_not_found(), None, llm_unresolved
 
-        neighborhoods = llm_result.get("neighborhoods") or []
-        if not isinstance(neighborhoods, list) or not neighborhoods:
-            return (
-                ResolvedLocation.from_not_found(),
-                None,
-                UnresolvedLocationInfo(
-                    normalized=normalized,
-                    original_query=original_query or location_text,
-                ),
-            )
+        if best is llm_result:
+            return best, llm_cache, None
 
-        regions: List[RegionInfo] = []
-        seen: set[str] = set()
-        for name in neighborhoods:
-            if not isinstance(name, str):
-                continue
-            key = name.strip().lower()
-            info = region_lookup.by_name.get(key)
-            if not info or info.region_id in seen:
-                continue
-            seen.add(info.region_id)
-            regions.append(info)
-
-        if not regions:
-            return (
-                ResolvedLocation.from_not_found(),
-                None,
-                UnresolvedLocationInfo(
-                    normalized=normalized,
-                    original_query=original_query or location_text,
-                ),
-            )
-
-        confidence_val = float(llm_result.get("confidence") or 0.5)
-        region_ids = [r.region_id for r in regions]
-        llm_cache = LocationLLMCache(
-            normalized=normalized,
-            confidence=confidence_val,
-            region_ids=region_ids,
-        )
-
-        if len(regions) == 1:
-            only = regions[0]
-            return (
-                ResolvedLocation.from_region(
-                    region_id=only.region_id,
-                    region_name=only.region_name,
-                    borough=only.borough,
-                    tier=ResolutionTier.LLM,
-                    confidence=confidence_val,
-                ),
-                llm_cache,
-                None,
-            )
-
-        llm_candidates: List[LocationCandidate] = [
-            {
-                "region_id": r.region_id,
-                "region_name": r.region_name,
-                "borough": r.borough,
-            }
-            for r in regions
-        ]
-        return (
-            ResolvedLocation.from_ambiguous(
-                candidates=llm_candidates,
-                tier=ResolutionTier.LLM,
-                confidence=confidence_val,
-            ),
-            llm_cache,
-            None,
-        )
+        return best, None, None
 
     def _run_post_openai_burst(
         self,
