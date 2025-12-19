@@ -13,6 +13,7 @@ from . import (
     config,
     instructors,
     location_learning,
+    search_config,
 )
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "config",
     "instructors",
     "location_learning",
+    "search_config",
 ]

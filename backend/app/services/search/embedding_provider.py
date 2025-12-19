@@ -14,12 +14,13 @@ from typing import List, Optional, Protocol
 
 from openai import AsyncOpenAI
 
+from app.services.search.config import get_search_config
+
 logger = logging.getLogger(__name__)
 
 # Strict OpenAI timeouts for async embedding calls.
 # Fail fast rather than block for 5+ seconds with retries.
 OPENAI_TIMEOUT_S = float(os.getenv("OPENAI_TIMEOUT_S", "2.0"))
-OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
 
 
 class EmbeddingProvider(Protocol):
@@ -57,15 +58,18 @@ class OpenAIEmbeddingProvider:
         self.model = model
         self.dimensions = dimensions
         self._client: Optional[AsyncOpenAI] = None
+        self._client_max_retries: Optional[int] = None
 
     @property
     def client(self) -> AsyncOpenAI:
         """Lazy initialization of OpenAI client with strict timeouts."""
-        if self._client is None:
+        max_retries = int(get_search_config().max_retries)
+        if self._client is None or self._client_max_retries != max_retries:
             self._client = AsyncOpenAI(
                 timeout=OPENAI_TIMEOUT_S,
-                max_retries=OPENAI_MAX_RETRIES,
+                max_retries=max_retries,
             )
+            self._client_max_retries = max_retries
         return self._client
 
     async def embed(self, text: str) -> List[float]:

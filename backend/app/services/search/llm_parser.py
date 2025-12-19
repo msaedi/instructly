@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 # Strict OpenAI timeouts for async calls.
 # Fail fast rather than block for 5+ seconds with retries.
 OPENAI_TIMEOUT_S = float(os.getenv("OPENAI_TIMEOUT_S", "2.0"))
-OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
 
 # Legacy environment variable support (deprecated - use OPENAI_PARSING_MODEL)
 # Configuration is now managed via app.services.search.config module
@@ -80,15 +79,29 @@ class LLMParser:
         self._user_id = user_id
         self._region_code = region_code
         self._client: Optional[AsyncOpenAI] = None
+        self._client_max_retries: Optional[int] = None
 
     @property
     def client(self) -> AsyncOpenAI:
         """Lazy initialization of OpenAI client with strict timeouts."""
+        max_retries_raw = getattr(get_search_config(), "max_retries", 2)
+        try:
+            max_retries = int(max_retries_raw)
+        except (TypeError, ValueError):
+            max_retries = 2
+        max_retries = max(0, max_retries)
         if self._client is None:
             self._client = AsyncOpenAI(
                 timeout=OPENAI_TIMEOUT_S,
-                max_retries=OPENAI_MAX_RETRIES,
+                max_retries=max_retries,
             )
+            self._client_max_retries = max_retries
+        elif self._client_max_retries is not None and self._client_max_retries != max_retries:
+            self._client = AsyncOpenAI(
+                timeout=OPENAI_TIMEOUT_S,
+                max_retries=max_retries,
+            )
+            self._client_max_retries = max_retries
         return self._client
 
     async def _get_current_date(self) -> datetime.date:

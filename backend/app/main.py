@@ -135,6 +135,7 @@ from .routes.v1.admin import (
     config as admin_config_v1,
     instructors as admin_instructors_v1,
     location_learning as admin_location_learning_v1,
+    search_config as admin_search_config_v1,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
 from .services.background_check_workflow_service import (
@@ -1037,6 +1038,7 @@ api_v1.include_router(config_v1.router, prefix="/config")  # type: ignore[attr-d
 api_v1.include_router(student_badges_v1.router, prefix="/students/badges")  # type: ignore[attr-defined]
 # Phase 19 v1 admin routers
 api_v1.include_router(admin_config_v1.router, prefix="/admin/config")  # type: ignore[attr-defined]
+api_v1.include_router(admin_search_config_v1.router, prefix="/admin")  # type: ignore[attr-defined]
 api_v1.include_router(admin_audit_v1.router, prefix="/admin/audit")  # type: ignore[attr-defined]
 api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
 api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]

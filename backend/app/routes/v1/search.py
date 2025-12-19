@@ -47,6 +47,7 @@ from ...schemas.nl_search import (
     ZeroResultQueryItem,
 )
 from ...services.cache_service import CacheService
+from ...services.permission_service import PermissionService
 from ...services.search.nl_search_service import NLSearchService
 
 logger = logging.getLogger(__name__)
@@ -66,8 +67,15 @@ async def nl_search(
     lng: Optional[float] = Query(None, ge=-180, le=180, description="User longitude"),
     region: str = Query("nyc", description="Region code for location/price lookups"),
     limit: int = Query(20, ge=1, le=50, description="Maximum results to return"),
+    diagnostics: bool = Query(False, description="Include detailed diagnostics (admin only)"),
+    force_skip_tier5: bool = Query(False, description="Force skip Tier 5 LLM (admin only)"),
+    force_skip_tier4: bool = Query(False, description="Force skip Tier 4 embedding (admin only)"),
+    force_skip_vector: bool = Query(False, description="Force skip vector search (admin only)"),
+    force_skip_embedding: bool = Query(False, description="Force skip embeddings (admin only)"),
+    force_high_load: bool = Query(False, description="Force high-load budget (admin only)"),
     response: Response = None,
     cache_service: CacheService = Depends(get_cache_service_dep),
+    current_user: Optional[User] = Depends(get_current_active_user_optional),
 ) -> NLSearchResponse:
     """
     Natural language search for instructors and services.
@@ -117,11 +125,40 @@ async def nl_search(
         )
 
     try:
+        admin_flags = any(
+            [
+                diagnostics,
+                force_skip_tier5,
+                force_skip_tier4,
+                force_skip_vector,
+                force_skip_embedding,
+                force_high_load,
+            ]
+        )
+        if admin_flags:
+            if current_user is None:
+                raise HTTPException(status_code=403, detail="Admin access required")
+
+            def _check_permission() -> bool:
+                with get_db_session() as db:
+                    service = PermissionService(db)
+                    return service.user_has_permission(current_user.id, "admin:read")
+
+            has_permission = await asyncio.to_thread(_check_permission)
+            if not has_permission:
+                raise HTTPException(status_code=403, detail="Admin access required")
+
         service = NLSearchService(cache_service=cache_service, region_code=region)
         result = await service.search(
             query=q,
             user_location=user_location,
             limit=limit,
+            include_diagnostics=diagnostics,
+            force_skip_tier5=force_skip_tier5,
+            force_skip_tier4=force_skip_tier4,
+            force_skip_vector=force_skip_vector,
+            force_skip_embedding=force_skip_embedding,
+            force_high_load=force_high_load,
         )
 
         # Set Cache-Control header

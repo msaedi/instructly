@@ -17,6 +17,8 @@ import os
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
+from app.core.config import settings
+
 
 @dataclass
 class SearchConfig:
@@ -30,8 +32,18 @@ class SearchConfig:
     embedding_model: str = "text-embedding-3-small"
     embedding_timeout_ms: int = 2000
 
+    # Location model (for Tier 5 location resolution)
+    location_model: str = "gpt-4o-mini"
+
+    # Location LLM timeout (for Tier 5 location resolution)
+    location_timeout_ms: int = 3000
+
     # General settings
     max_retries: int = 2
+    search_budget_ms: int = 500
+    high_load_budget_ms: int = 300
+    high_load_threshold: int = 10
+    uncached_concurrency: int = 10
 
     @classmethod
     def from_env(cls) -> "SearchConfig":
@@ -41,7 +53,18 @@ class SearchConfig:
             parsing_timeout_ms=int(os.getenv("OPENAI_PARSING_TIMEOUT_MS", "1000")),
             embedding_model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
             embedding_timeout_ms=int(os.getenv("OPENAI_EMBEDDING_TIMEOUT_MS", "2000")),
+            location_model=os.getenv("OPENAI_LOCATION_MODEL", settings.openai_location_model),
+            location_timeout_ms=int(
+                os.getenv(
+                    "OPENAI_LOCATION_TIMEOUT_MS",
+                    str(settings.openai_location_timeout_ms),
+                )
+            ),
             max_retries=int(os.getenv("OPENAI_MAX_RETRIES", "2")),
+            search_budget_ms=int(os.getenv("SEARCH_BUDGET_MS", "500")),
+            high_load_budget_ms=int(os.getenv("SEARCH_HIGH_LOAD_BUDGET_MS", "300")),
+            high_load_threshold=int(os.getenv("SEARCH_HIGH_LOAD_THRESHOLD", "10")),
+            uncached_concurrency=int(os.getenv("UNCACHED_SEARCH_CONCURRENCY", "10")),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -51,7 +74,13 @@ class SearchConfig:
             "parsing_timeout_ms": self.parsing_timeout_ms,
             "embedding_model": self.embedding_model,
             "embedding_timeout_ms": self.embedding_timeout_ms,
+            "location_model": self.location_model,
+            "location_timeout_ms": self.location_timeout_ms,
             "max_retries": self.max_retries,
+            "search_budget_ms": self.search_budget_ms,
+            "high_load_budget_ms": self.high_load_budget_ms,
+            "high_load_threshold": self.high_load_threshold,
+            "uncached_concurrency": self.uncached_concurrency,
         }
 
 
@@ -79,6 +108,13 @@ def update_search_config(
     parsing_timeout_ms: Optional[int] = None,
     embedding_model: Optional[str] = None,
     embedding_timeout_ms: Optional[int] = None,
+    location_model: Optional[str] = None,
+    location_timeout_ms: Optional[int] = None,
+    max_retries: Optional[int] = None,
+    search_budget_ms: Optional[int] = None,
+    high_load_budget_ms: Optional[int] = None,
+    high_load_threshold: Optional[int] = None,
+    uncached_concurrency: Optional[int] = None,
 ) -> SearchConfig:
     """
     Update search configuration at runtime.
@@ -91,6 +127,13 @@ def update_search_config(
         parsing_timeout_ms: New parsing timeout in milliseconds
         embedding_model: New embedding model (e.g., "text-embedding-3-small")
         embedding_timeout_ms: New embedding timeout in milliseconds
+        location_model: New location model (e.g., "gpt-4o-mini")
+        location_timeout_ms: New location LLM timeout in milliseconds
+        max_retries: OpenAI max retries for API calls
+        search_budget_ms: Default request budget in milliseconds
+        high_load_budget_ms: Budget used under high load
+        high_load_threshold: Concurrent request threshold for high load
+        uncached_concurrency: Max concurrent uncached searches per worker
 
     Returns:
         Updated SearchConfig
@@ -108,6 +151,22 @@ def update_search_config(
             _config.embedding_model = embedding_model
         if embedding_timeout_ms is not None:
             _config.embedding_timeout_ms = embedding_timeout_ms
+        if location_model is not None:
+            _config.location_model = location_model
+            settings.openai_location_model = location_model
+        if location_timeout_ms is not None:
+            _config.location_timeout_ms = location_timeout_ms
+            settings.openai_location_timeout_ms = location_timeout_ms
+        if max_retries is not None:
+            _config.max_retries = max_retries
+        if search_budget_ms is not None:
+            _config.search_budget_ms = search_budget_ms
+        if high_load_budget_ms is not None:
+            _config.high_load_budget_ms = high_load_budget_ms
+        if high_load_threshold is not None:
+            _config.high_load_threshold = high_load_threshold
+        if uncached_concurrency is not None:
+            _config.uncached_concurrency = uncached_concurrency
 
         return _config
 
@@ -121,6 +180,8 @@ def reset_search_config() -> SearchConfig:
     global _config
     with _config_lock:
         _config = SearchConfig.from_env()
+        settings.openai_location_model = _config.location_model
+        settings.openai_location_timeout_ms = _config.location_timeout_ms
         return _config
 
 

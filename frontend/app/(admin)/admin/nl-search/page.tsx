@@ -34,8 +34,69 @@ interface SearchConfig {
   parsing_timeout_ms: number;
   embedding_model: string;
   embedding_timeout_ms: number;
+  location_model: string;
+  location_timeout_ms: number;
+  search_budget_ms: number;
+  high_load_budget_ms: number;
+  high_load_threshold: number;
+  uncached_concurrency: number;
+  openai_max_retries: number;
+  current_in_flight_requests: number;
   available_parsing_models: ModelOption[];
   available_embedding_models: ModelOption[];
+}
+
+type StageStatus = 'success' | 'skipped' | 'timeout' | 'error' | 'cache_hit' | 'miss' | 'cancelled';
+
+interface PipelineStage {
+  name: string;
+  duration_ms: number;
+  status: StageStatus;
+  details?: Record<string, unknown>;
+}
+
+interface LocationTierResult {
+  tier: number;
+  attempted: boolean;
+  status: StageStatus;
+  duration_ms: number;
+  result?: string | null;
+  confidence?: number | null;
+  details?: string | null;
+}
+
+interface BudgetInfo {
+  initial_ms: number;
+  remaining_ms: number;
+  over_budget: boolean;
+  skipped_operations: string[];
+  degradation_level: string;
+}
+
+interface LocationResolutionInfo {
+  query: string;
+  resolved_name?: string | null;
+  resolved_regions?: string[] | null;
+  successful_tier?: number | null;
+  tiers: LocationTierResult[];
+}
+
+interface SearchDiagnostics {
+  total_latency_ms: number;
+  pipeline_stages: PipelineStage[];
+  budget: BudgetInfo;
+  location_resolution?: LocationResolutionInfo | null;
+  initial_candidates: number;
+  after_text_search: number;
+  after_vector_search: number;
+  after_location_filter: number;
+  after_price_filter: number;
+  after_availability_filter: number;
+  final_results: number;
+  cache_hit: boolean;
+  parsing_mode: string;
+  embedding_used: boolean;
+  vector_search_used: boolean;
 }
 
 interface InstructorInfo {
@@ -97,6 +158,7 @@ interface SearchMeta {
   cache_hit: boolean;
   degraded: boolean;
   degradation_reasons: string[];
+  skipped_operations?: string[];
   parsing_mode: string;
   filters_applied?: string[];
   soft_filtering_used?: boolean;
@@ -104,6 +166,7 @@ interface SearchMeta {
   soft_filter_message?: string | null;
   location_resolved?: string | null;
   location_not_found?: boolean;
+  diagnostics?: SearchDiagnostics | null;
 }
 
 interface SearchResponse {
@@ -122,14 +185,14 @@ interface FilterStats {
 
 // API functions
 async function fetchConfig(): Promise<SearchConfig> {
-  const res = await fetchWithAuth('/api/v1/search/config');
+  const res = await fetchWithAuth('/api/v1/admin/search-config');
   if (!res.ok) throw new Error('Failed to fetch config');
   return res.json() as Promise<SearchConfig>;
 }
 
 async function updateConfig(config: Partial<SearchConfig>): Promise<SearchConfig> {
-  const res = await fetchWithAuth('/api/v1/search/config', {
-    method: 'PUT',
+  const res = await fetchWithAuth('/api/v1/admin/search-config', {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),
   });
@@ -138,16 +201,32 @@ async function updateConfig(config: Partial<SearchConfig>): Promise<SearchConfig
 }
 
 async function resetConfig(): Promise<SearchConfig> {
-  const res = await fetchWithAuth('/api/v1/search/config/reset', {
+  const res = await fetchWithAuth('/api/v1/admin/search-config/reset', {
     method: 'POST',
   });
   if (!res.ok) throw new Error('Failed to reset config');
-  const data = (await res.json()) as { config: SearchConfig };
-  return data.config;
+  return res.json() as Promise<SearchConfig>;
 }
 
-async function executeSearch(query: string): Promise<SearchResponse> {
-  const res = await fetchWithAuth(`/api/v1/search?q=${encodeURIComponent(query)}`);
+interface SearchOverrides {
+  forceSkipTier5: boolean;
+  forceSkipTier4: boolean;
+  forceSkipVector: boolean;
+  forceSkipEmbedding: boolean;
+  forceHighLoad: boolean;
+}
+
+async function executeSearch(query: string, overrides: SearchOverrides): Promise<SearchResponse> {
+  const params = new URLSearchParams({
+    q: query,
+    diagnostics: 'true',
+    force_skip_tier5: String(overrides.forceSkipTier5),
+    force_skip_tier4: String(overrides.forceSkipTier4),
+    force_skip_vector: String(overrides.forceSkipVector),
+    force_skip_embedding: String(overrides.forceSkipEmbedding),
+    force_high_load: String(overrides.forceHighLoad),
+  });
+  const res = await fetchWithAuth(`/api/v1/search?${params.toString()}`);
   if (!res.ok) throw new Error('Search failed');
   return res.json() as Promise<SearchResponse>;
 }
@@ -163,6 +242,12 @@ const EXAMPLE_QUERIES = [
   'SAT prep in brooklyn',
 ] as const;
 
+const LOCATION_MODELS = [
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+  { id: 'gpt-4o', name: 'GPT-4o' },
+  { id: 'gpt-5-nano', name: 'GPT-5 Nano' },
+];
+
 export default function NLSearchAdminPage() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
   const { logout } = useAuth();
@@ -174,6 +259,13 @@ export default function NLSearchAdminPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
+  const [overrides, setOverrides] = useState<SearchOverrides>({
+    forceSkipTier5: false,
+    forceSkipTier4: false,
+    forceSkipVector: false,
+    forceSkipEmbedding: false,
+    forceHighLoad: false,
+  });
 
   // Fetch config
   const { data: config, isLoading: configLoading, error: configError } = useQuery({
@@ -207,7 +299,7 @@ export default function NLSearchAdminPage() {
     setIsSearching(true);
     setSearchError(null);
     try {
-      const results = await executeSearch(searchQuery);
+      const results = await executeSearch(searchQuery, overrides);
       setSearchResults(results);
     } catch (error) {
       logger.error('Search failed', error);
@@ -405,6 +497,134 @@ export default function NLSearchAdminPage() {
                       className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
                     />
                   </div>
+
+                  {/* Location Model */}
+                  <div className="space-y-2">
+                    <Label>Location Model</Label>
+                    <Select
+                      value={config.location_model}
+                      onValueChange={(value) => handleConfigChange('location_model', value)}
+                      disabled={configMutation.isPending}
+                    >
+                      <SelectTrigger className="w-full min-w-[280px] px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                        <SelectValue>
+                          {LOCATION_MODELS.find((model) => model.id === config.location_model)?.name ??
+                            config.location_model}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="min-w-[320px]">
+                        {LOCATION_MODELS.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Location LLM Timeout */}
+                  <div className="space-y-2">
+                    <Label htmlFor="location-timeout">Location LLM Timeout (ms)</Label>
+                    <input
+                      id="location-timeout"
+                      type="number"
+                      value={config.location_timeout_ms}
+                      onChange={(e) => handleConfigChange('location_timeout_ms', parseInt(e.target.value, 10))}
+                      disabled={configMutation.isPending}
+                      min={500}
+                      max={10000}
+                      step={100}
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    />
+                  </div>
+
+                  {/* Search Budget */}
+                  <div className="space-y-2">
+                    <Label htmlFor="search-budget">Search Budget (ms)</Label>
+                    <input
+                      id="search-budget"
+                      type="number"
+                      value={config.search_budget_ms}
+                      onChange={(e) => handleConfigChange('search_budget_ms', parseInt(e.target.value, 10))}
+                      disabled={configMutation.isPending}
+                      min={50}
+                      max={5000}
+                      step={50}
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    />
+                  </div>
+
+                  {/* High Load Budget */}
+                  <div className="space-y-2">
+                    <Label htmlFor="high-load-budget">High Load Budget (ms)</Label>
+                    <input
+                      id="high-load-budget"
+                      type="number"
+                      value={config.high_load_budget_ms}
+                      onChange={(e) => handleConfigChange('high_load_budget_ms', parseInt(e.target.value, 10))}
+                      disabled={configMutation.isPending}
+                      min={50}
+                      max={5000}
+                      step={50}
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    />
+                  </div>
+
+                  {/* High Load Threshold */}
+                  <div className="space-y-2">
+                    <Label htmlFor="high-load-threshold">High Load Threshold</Label>
+                    <input
+                      id="high-load-threshold"
+                      type="number"
+                      value={config.high_load_threshold}
+                      onChange={(e) => handleConfigChange('high_load_threshold', parseInt(e.target.value, 10))}
+                      disabled={configMutation.isPending}
+                      min={1}
+                      max={100}
+                      step={1}
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    />
+                  </div>
+
+                  {/* Uncached Concurrency */}
+                  <div className="space-y-2">
+                    <Label htmlFor="uncached-concurrency">Uncached Concurrency</Label>
+                    <input
+                      id="uncached-concurrency"
+                      type="number"
+                      value={config.uncached_concurrency}
+                      onChange={(e) => handleConfigChange('uncached_concurrency', parseInt(e.target.value, 10))}
+                      disabled={configMutation.isPending}
+                      min={1}
+                      max={100}
+                      step={1}
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    />
+                  </div>
+
+                  {/* OpenAI Max Retries */}
+                  <div className="space-y-2">
+                    <Label htmlFor="openai-max-retries">OpenAI Max Retries</Label>
+                    <input
+                      id="openai-max-retries"
+                      type="number"
+                      value={config.openai_max_retries}
+                      onChange={(e) => handleConfigChange('openai_max_retries', parseInt(e.target.value, 10))}
+                      disabled={configMutation.isPending}
+                      min={0}
+                      max={10}
+                      step={1}
+                      className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    />
+                  </div>
+
+                  {/* In-flight Requests */}
+                  <div className="space-y-2">
+                    <Label>In-Flight Requests</Label>
+                    <div className="px-3 py-2 rounded-lg ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-gray-50 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300">
+                      {config.current_in_flight_requests}
+                    </div>
+                  </div>
                 </div>
 
                 <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
@@ -413,6 +633,11 @@ export default function NLSearchAdminPage() {
                 </p>
               </div>
             )}
+
+            <TestingOverrides
+              overrides={overrides}
+              onChange={(key, value) => setOverrides((prev) => ({ ...prev, [key]: value }))}
+            />
 
             {/* Search Input */}
             <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
@@ -475,6 +700,7 @@ export default function NLSearchAdminPage() {
               <>
                 {/* Diagnostics */}
                 <DiagnosticsPanel meta={searchResults.meta} />
+                {searchResults.meta.diagnostics && <PipelineTimeline diagnostics={searchResults.meta.diagnostics} />}
 
                 {/* Soft Filter Message */}
                 {searchResults.meta.soft_filtering_used && searchResults.meta.soft_filter_message && (
@@ -524,6 +750,51 @@ function StatsCard({
   );
 }
 
+function TestingOverrides({
+  overrides,
+  onChange,
+}: {
+  overrides: SearchOverrides;
+  onChange: (key: keyof SearchOverrides, value: boolean) => void;
+}) {
+  const toggles: Array<{
+    key: keyof SearchOverrides;
+    label: string;
+    description: string;
+  }> = [
+    { key: 'forceSkipTier5', label: 'Skip Tier 5 (LLM)', description: 'Force skip LLM location resolution' },
+    { key: 'forceSkipTier4', label: 'Skip Tier 4 (Embedding)', description: 'Force skip embedding location match' },
+    { key: 'forceSkipVector', label: 'Skip Vector Search', description: 'Text-only retrieval mode' },
+    { key: 'forceSkipEmbedding', label: 'Skip Embedding', description: 'Skip query embeddings entirely' },
+    { key: 'forceHighLoad', label: 'Simulate High Load', description: 'Use reduced budget for testing' },
+  ];
+
+  return (
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-amber-200/70 dark:ring-amber-700/60 bg-amber-50/60 dark:bg-amber-900/20 backdrop-blur">
+      <h2 className="text-lg font-semibold text-amber-900 dark:text-amber-200 mb-2">Testing Overrides</h2>
+      <p className="text-sm text-amber-700 dark:text-amber-300 mb-4">
+        These toggles apply only to admin test searches and reset on refresh.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {toggles.map((toggle) => (
+          <label key={toggle.key} className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={overrides[toggle.key]}
+              onChange={(e) => onChange(toggle.key, e.target.checked)}
+              className="mt-1"
+            />
+            <div>
+              <div className="text-sm font-medium text-amber-900 dark:text-amber-100">{toggle.label}</div>
+              <div className="text-xs text-amber-700 dark:text-amber-300">{toggle.description}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Diagnostics Panel Component
 function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
   const latencyStatus = meta.latency_ms < 200 ? 'good' : meta.latency_ms < 500 ? 'warning' : 'error';
@@ -551,9 +822,14 @@ function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
       {meta.degraded && (
         <div className="p-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-          <span className="text-sm text-amber-800 dark:text-amber-200">
-            Degraded mode: {meta.degradation_reasons.join(', ')}
-          </span>
+          <div className="text-sm text-amber-800 dark:text-amber-200">
+            <div>Degraded mode: {meta.degradation_reasons.join(', ')}</div>
+            {meta.skipped_operations && meta.skipped_operations.length > 0 && (
+              <div className="text-xs text-amber-700 dark:text-amber-300">
+                Skipped: {meta.skipped_operations.join(', ')}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -600,6 +876,200 @@ function DiagnosticsPanel({ meta }: { meta: SearchMeta }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PipelineTimeline({ diagnostics }: { diagnostics: SearchDiagnostics }) {
+  const maxDuration = Math.max(
+    ...diagnostics.pipeline_stages.map((stage) => stage.duration_ms),
+    1,
+  );
+
+  const statusColor: Record<StageStatus, string> = {
+    success: 'bg-green-500',
+    skipped: 'bg-gray-300',
+    timeout: 'bg-red-500',
+    error: 'bg-red-600',
+    cache_hit: 'bg-blue-500',
+    miss: 'bg-amber-400',
+    cancelled: 'bg-orange-400',
+  };
+
+  const statusText: Record<StageStatus, string> = {
+    success: 'text-green-700 dark:text-green-300',
+    skipped: 'text-gray-500 dark:text-gray-400',
+    timeout: 'text-red-700 dark:text-red-300',
+    error: 'text-red-700 dark:text-red-300',
+    cache_hit: 'text-blue-700 dark:text-blue-300',
+    miss: 'text-amber-700 dark:text-amber-300',
+    cancelled: 'text-orange-700 dark:text-orange-300',
+  };
+
+  const formatDetails = (details?: Record<string, unknown>) => {
+    if (!details) return '';
+    return Object.entries(details)
+      .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+      .join(', ');
+  };
+
+  const location = diagnostics.location_resolution;
+
+  return (
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pipeline Timeline</h2>
+        <span
+          className={`text-xs px-2 py-1 rounded-full ${
+            diagnostics.budget.over_budget
+              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+              : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+          }`}
+        >
+          {diagnostics.total_latency_ms}ms total
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {diagnostics.pipeline_stages.map((stage) => (
+          <div key={stage.name} className="space-y-1">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium capitalize text-gray-700 dark:text-gray-200">
+                {stage.name.replace(/_/g, ' ')}
+              </span>
+              <span className={statusText[stage.status]}>
+                {stage.duration_ms}ms - {stage.status}
+              </span>
+            </div>
+            <div className="h-6 bg-gray-100 dark:bg-gray-800 rounded relative overflow-hidden">
+              <div
+                className={`h-full ${statusColor[stage.status]}`}
+                style={{ width: `${Math.max((stage.duration_ms / maxDuration) * 100, 2)}%` }}
+              />
+              {stage.details && (
+                <div className="absolute inset-0 flex items-center px-2 text-[11px] text-gray-700 dark:text-gray-200 truncate">
+                  {formatDetails(stage.details)}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {location && (
+        <div className="border-t border-gray-200/70 dark:border-gray-700/60 mt-6 pt-4">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            Location Resolution: &quot;{location.query}&quot;
+            {location.resolved_name && (
+              <span className="text-green-600 dark:text-green-300 ml-2">-&gt; {location.resolved_name}</span>
+            )}
+          </h3>
+          <div className="grid grid-cols-5 gap-2">
+            {[1, 2, 3, 4, 5].map((tier) => {
+              const tierResult = location.tiers.find((t) => t.tier === tier);
+              const isSuccessful = location.successful_tier === tier;
+              const status = tierResult?.status ?? 'skipped';
+              return (
+                <div
+                  key={tier}
+                  className={`p-2 rounded text-center text-xs border ${
+                    isSuccessful
+                      ? 'bg-green-100 border-green-500 dark:bg-green-900/20'
+                      : status === 'skipped'
+                      ? 'bg-gray-50 border-gray-200 dark:bg-gray-800/50'
+                      : status === 'miss'
+                      ? 'bg-amber-50 border-amber-300 dark:bg-amber-900/20'
+                      : status === 'timeout' || status === 'error'
+                      ? 'bg-red-50 border-red-300 dark:bg-red-900/20'
+                      : 'bg-gray-50 border-gray-200 dark:bg-gray-800/50'
+                  }`}
+                >
+                  <div className="font-medium">Tier {tier}</div>
+                  <div className="text-[10px] text-gray-500 dark:text-gray-400">
+                    {tier === 1 && 'Exact'}
+                    {tier === 2 && 'Alias'}
+                    {tier === 3 && 'Fuzzy'}
+                    {tier === 4 && 'Embed'}
+                    {tier === 5 && 'LLM'}
+                  </div>
+                  {tierResult && (
+                    <>
+                      <div className={statusText[tierResult.status] ?? 'text-gray-500'}>
+                        {tierResult.status}
+                      </div>
+                      {tierResult.duration_ms > 0 && (
+                        <div className="text-[10px] text-gray-400">{tierResult.duration_ms}ms</div>
+                      )}
+                      {tierResult.confidence !== null && tierResult.confidence !== undefined && (
+                        <div className="text-[10px] text-blue-600 dark:text-blue-300">
+                          {(tierResult.confidence * 100).toFixed(0)}%
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {location.resolved_regions && location.resolved_regions.length > 0 && (
+            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              Regions: {location.resolved_regions.join(', ')}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="border-t border-gray-200/70 dark:border-gray-700/60 mt-6 pt-4">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Request Budget</h3>
+        <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded overflow-hidden">
+          <div
+            className={`h-full ${
+              diagnostics.budget.over_budget ? 'bg-red-500' : 'bg-green-500'
+            }`}
+            style={{
+              width: `${Math.min(
+                ((diagnostics.budget.initial_ms - diagnostics.budget.remaining_ms) /
+                  diagnostics.budget.initial_ms) *
+                  100,
+                100,
+              )}%`,
+            }}
+          />
+        </div>
+        <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <span>0ms</span>
+          <span>
+            Used: {diagnostics.budget.initial_ms - diagnostics.budget.remaining_ms}ms /{' '}
+            {diagnostics.budget.initial_ms}ms
+          </span>
+          <span>{diagnostics.budget.initial_ms}ms</span>
+        </div>
+        {diagnostics.budget.skipped_operations.length > 0 && (
+          <div className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+            Skipped: {diagnostics.budget.skipped_operations.join(', ')}
+          </div>
+        )}
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Degradation: <span className="text-amber-700 dark:text-amber-300">{diagnostics.budget.degradation_level}</span>
+        </div>
+      </div>
+
+      <div className="border-t border-gray-200/70 dark:border-gray-700/60 mt-6 pt-4">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Candidates Funnel</h3>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <FunnelChip label="Text" value={diagnostics.after_text_search} color="blue" />
+          <span className="text-gray-400">→</span>
+          <FunnelChip label="Vector" value={diagnostics.after_vector_search} color="purple" />
+          <span className="text-gray-400">→</span>
+          <FunnelChip label="Location" value={diagnostics.after_location_filter} color="green" />
+          <span className="text-gray-400">→</span>
+          <FunnelChip label="Price" value={diagnostics.after_price_filter} color="yellow" />
+          <span className="text-gray-400">→</span>
+          <FunnelChip label="Availability" value={diagnostics.after_availability_filter} color="orange" />
+          <span className="text-gray-400">→</span>
+          <FunnelChip label="Final" value={diagnostics.final_results} color="emerald" />
+        </div>
+      </div>
     </div>
   );
 }

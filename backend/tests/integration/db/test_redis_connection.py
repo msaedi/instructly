@@ -68,9 +68,12 @@ def test_redis_performance():
 
     print(f"✅ Redis Performance: 100 writes in {write_time:.3f}s, 100 reads in {read_time:.3f}s")
 
-    # Assert reasonable performance (should be < 100ms for 100 operations)
-    assert write_time < 0.1
-    assert read_time < 0.1
+    # Assert reasonable performance (default < 100ms in CI; allow slower local runs).
+    threshold_s = float(
+        os.getenv("REDIS_PERF_THRESHOLD_S", "0.1" if os.getenv("CI") else "0.2")
+    )
+    assert write_time < threshold_s
+    assert read_time < threshold_s
 
 
 if __name__ == "__main__":

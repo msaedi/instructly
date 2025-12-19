@@ -10,7 +10,8 @@ embedded data to eliminate N+1 queries from the frontend.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -143,6 +144,91 @@ class ParsedQueryInfo(BaseModel):
     urgency: Optional[str] = Field(None, description="Detected urgency level")
 
 
+class StageStatus(str, Enum):
+    """Status for pipeline stages and location tiers."""
+
+    SUCCESS = "success"
+    SKIPPED = "skipped"
+    TIMEOUT = "timeout"
+    ERROR = "error"
+    CACHE_HIT = "cache_hit"
+    MISS = "miss"
+    CANCELLED = "cancelled"
+
+
+class LocationTierResult(BaseModel):
+    """Result of a location resolution tier attempt."""
+
+    tier: int = Field(..., ge=0, le=5, description="Location tier (0-5)")
+    attempted: bool = Field(..., description="Whether the tier was attempted")
+    status: StageStatus = Field(..., description="Tier status")
+    duration_ms: int = Field(..., ge=0, description="Tier duration in ms")
+    result: Optional[str] = Field(None, description="Resolved location name if any")
+    confidence: Optional[float] = Field(None, description="Confidence score when available")
+    details: Optional[str] = Field(None, description="Additional tier details")
+
+
+class PipelineStage(BaseModel):
+    """Timing and status for a pipeline stage."""
+
+    name: str = Field(..., description="Stage name")
+    duration_ms: int = Field(..., ge=0, description="Stage duration in ms")
+    status: StageStatus = Field(..., description="Stage status")
+    details: Optional[Dict[str, Any]] = Field(None, description="Stage details")
+
+
+class BudgetInfo(BaseModel):
+    """Request budget tracking."""
+
+    initial_ms: int = Field(..., ge=0, description="Initial request budget in ms")
+    remaining_ms: int = Field(..., ge=0, description="Remaining budget in ms")
+    over_budget: bool = Field(..., description="Whether the budget was exceeded")
+    skipped_operations: List[str] = Field(
+        default_factory=list, description="Skipped operations due to budget"
+    )
+    degradation_level: str = Field(..., description="Degradation level label")
+
+
+class LocationResolutionInfo(BaseModel):
+    """Detailed location resolution breakdown."""
+
+    query: str = Field(..., description="Original location query")
+    resolved_name: Optional[str] = Field(None, description="Resolved location name")
+    resolved_regions: Optional[List[str]] = Field(
+        None, description="Resolved sub-regions if applicable"
+    )
+    successful_tier: Optional[int] = Field(
+        None, ge=0, le=5, description="Successful tier number if any"
+    )
+    tiers: List[LocationTierResult] = Field(default_factory=list, description="Per-tier results")
+
+
+class SearchDiagnostics(BaseModel):
+    """Full diagnostics for admin tooling."""
+
+    total_latency_ms: int = Field(..., ge=0, description="Total latency in ms")
+    pipeline_stages: List[PipelineStage] = Field(
+        default_factory=list, description="Pipeline stage timings"
+    )
+    budget: BudgetInfo = Field(..., description="Budget tracking info")
+    location_resolution: Optional[LocationResolutionInfo] = Field(
+        None, description="Location resolution details"
+    )
+    initial_candidates: int = Field(..., ge=0, description="Initial candidate count")
+    after_text_search: int = Field(..., ge=0, description="Candidates after text search")
+    after_vector_search: int = Field(..., ge=0, description="Candidates after vector search")
+    after_location_filter: int = Field(..., ge=0, description="Candidates after location filter")
+    after_price_filter: int = Field(..., ge=0, description="Candidates after price filter")
+    after_availability_filter: int = Field(
+        ..., ge=0, description="Candidates after availability filter"
+    )
+    final_results: int = Field(..., ge=0, description="Final result count")
+    cache_hit: bool = Field(..., description="Whether cache was hit")
+    parsing_mode: str = Field(..., description="Parsing mode used")
+    embedding_used: bool = Field(..., description="Whether query embedding was used")
+    vector_search_used: bool = Field(..., description="Whether vector search was used")
+
+
 class NLSearchMeta(BaseModel):
     """Search response metadata."""
 
@@ -179,6 +265,9 @@ class NLSearchMeta(BaseModel):
     )
     location_not_found: bool = Field(
         False, description="True if the location text could not be resolved"
+    )
+    diagnostics: Optional[SearchDiagnostics] = Field(
+        None, description="Detailed diagnostics for admin tooling"
     )
 
 
@@ -317,3 +406,57 @@ class SearchConfigResetResponse(BaseModel):
 
     status: str = Field(..., description="Reset status")
     config: SearchConfigResponse = Field(..., description="Current config after reset")
+
+
+class AdminSearchConfigResponse(BaseModel):
+    """Admin search configuration with runtime controls."""
+
+    parsing_model: str = Field(..., description="Current parsing model")
+    parsing_timeout_ms: int = Field(..., ge=500, le=10000, description="Parsing timeout in ms")
+    embedding_model: str = Field(..., description="Current embedding model")
+    embedding_timeout_ms: int = Field(..., ge=500, le=10000, description="Embedding timeout in ms")
+    location_model: str = Field(..., description="Current location model")
+    location_timeout_ms: int = Field(
+        ..., ge=500, le=10000, description="Location LLM timeout in ms"
+    )
+    search_budget_ms: int = Field(..., ge=50, description="Default request budget in ms")
+    high_load_budget_ms: int = Field(..., ge=50, description="High load budget in ms")
+    high_load_threshold: int = Field(
+        ..., ge=1, description="Concurrent requests to trigger high load"
+    )
+    uncached_concurrency: int = Field(
+        ..., ge=1, description="Max concurrent uncached searches per worker"
+    )
+    openai_max_retries: int = Field(..., ge=0, description="OpenAI max retries")
+    current_in_flight_requests: int = Field(
+        ..., ge=0, description="Current in-flight uncached searches"
+    )
+    available_parsing_models: List[ModelOption] = Field(..., description="Available parsing models")
+    available_embedding_models: List[ModelOption] = Field(
+        ..., description="Available embedding models"
+    )
+
+
+class AdminSearchConfigUpdate(BaseModel):
+    """Admin update payload for search runtime settings."""
+
+    parsing_model: Optional[str] = Field(None, description="New parsing model")
+    parsing_timeout_ms: Optional[int] = Field(
+        None, ge=500, le=10000, description="New parsing timeout in ms"
+    )
+    embedding_timeout_ms: Optional[int] = Field(
+        None, ge=500, le=10000, description="New embedding timeout in ms"
+    )
+    location_model: Optional[str] = Field(None, description="New location model")
+    location_timeout_ms: Optional[int] = Field(
+        None, ge=500, le=10000, description="New location LLM timeout in ms"
+    )
+    search_budget_ms: Optional[int] = Field(None, ge=50, description="New request budget in ms")
+    high_load_budget_ms: Optional[int] = Field(
+        None, ge=50, description="New high load budget in ms"
+    )
+    high_load_threshold: Optional[int] = Field(None, ge=1, description="New high load threshold")
+    uncached_concurrency: Optional[int] = Field(
+        None, ge=1, description="New uncached concurrency limit"
+    )
+    openai_max_retries: Optional[int] = Field(None, ge=0, description="New OpenAI max retries")

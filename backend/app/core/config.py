@@ -481,6 +481,19 @@ class Settings(BaseSettings):
     )
     search_analytics_enabled: bool = True  # Enable/disable analytics tracking
 
+    # OpenAI Location Resolution (Tier 5)
+    openai_location_model: str = Field(
+        default="gpt-4o-mini",
+        alias="OPENAI_LOCATION_MODEL",
+        description="Model used for Tier 5 location resolution",
+    )
+    openai_location_timeout_ms: int = Field(
+        default=3000,
+        alias="OPENAI_LOCATION_TIMEOUT_MS",
+        ge=500,
+        description="Timeout (ms) for Tier 5 location resolution",
+    )
+
     # Privacy and Data Retention Configuration (GDPR compliance)
     search_event_retention_days: int = 365  # Keep detailed search events for 1 year
     booking_pii_retention_days: int = 2555  # Keep booking PII for 7 years (business requirement)

@@ -41,6 +41,10 @@ class RequestBudget:
     def elapsed_ms(self) -> int:
         return int((time.perf_counter() - self.start_time) * 1000)
 
+    @property
+    def is_over_budget(self) -> bool:
+        return self.elapsed_ms > self.total_ms
+
     def can_afford(self, cost_ms: int, *, buffer_ms: int = 20) -> bool:
         return self.remaining_ms >= (cost_ms + buffer_ms)
 
@@ -68,6 +72,8 @@ class RequestBudget:
 
     @property
     def degradation_level(self) -> DegradationLevel:
+        if self.is_over_budget:
+            return DegradationLevel.CRITICAL
         if not self.skipped_operations:
             return DegradationLevel.NONE
         if "vector_search" in self.skipped_operations or "embedding" in self.skipped_operations:
@@ -80,8 +86,11 @@ class RequestBudget:
 
     @property
     def is_degraded(self) -> bool:
-        return bool(self.skipped_operations)
+        return bool(self.skipped_operations) or self.is_over_budget
 
     @property
     def degradation_reasons(self) -> List[str]:
-        return [f"budget_skip_{op}" for op in self.skipped_operations]
+        reasons = [f"budget_skip_{op}" for op in self.skipped_operations]
+        if self.is_over_budget:
+            reasons.append("budget_overrun")
+        return reasons
