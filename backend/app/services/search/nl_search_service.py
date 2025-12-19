@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 import logging
 import os
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
 
@@ -293,13 +293,48 @@ class NLSearchService:
             except Exception as e:
                 logger.warning(f"Parsed query cache lookup failed: {e}")
 
-            pre_data = await asyncio.to_thread(
-                self._run_pre_openai_burst,
-                query,
-                parsed_query=parsed_query_cached,
-                user_id=user_id,
-                user_location=user_location,
-            )
+            loop = asyncio.get_running_loop()
+            parsed_query_future: asyncio.Future[ParsedQuery] = loop.create_future()
+            if parsed_query_cached is not None:
+                parsed_query_future.set_result(parsed_query_cached)
+
+            def _notify_parsed_query(parsed_query: ParsedQuery) -> None:
+                if parsed_query_future.done():
+                    return
+                loop.call_soon_threadsafe(parsed_query_future.set_result, parsed_query)
+
+            async def _maybe_embed_query() -> tuple[Optional[List[float]], int, Optional[str]]:
+                parsed_query = await parsed_query_future
+                if parsed_query.needs_llm:
+                    return None, 0, None
+                return await self._embed_query_with_timeout(parsed_query.service_query)
+
+            embedding_task: Optional[
+                asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]
+            ] = asyncio.create_task(_maybe_embed_query())
+
+            try:
+                pre_data = await asyncio.to_thread(
+                    self._run_pre_openai_burst,
+                    query,
+                    parsed_query=parsed_query_cached,
+                    user_id=user_id,
+                    user_location=user_location,
+                    notify_parsed=_notify_parsed_query,
+                )
+            except Exception:
+                if embedding_task:
+                    embedding_task.cancel()
+                    try:
+                        await embedding_task
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as exc:
+                        logger.debug("Embedding task failed after cancel: %s", exc)
+                raise
+
+            if not parsed_query_future.done():
+                parsed_query_future.set_result(pre_data.parsed_query)
             parsed_query = pre_data.parsed_query
             metrics.parse_latency_ms = pre_data.parse_latency_ms
 
@@ -312,6 +347,15 @@ class NLSearchService:
                     logger.warning(f"Failed to cache parsed query: {e}")
 
             if parsed_query.needs_llm:
+                if embedding_task:
+                    embedding_task.cancel()
+                    try:
+                        await embedding_task
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as exc:
+                        logger.debug("Embedding task failed after cancel: %s", exc)
+                    embedding_task = None
                 from app.services.search.llm_parser import LLMParser
 
                 llm_start = time.perf_counter()
@@ -334,15 +378,49 @@ class NLSearchService:
             embed_latency_ms = 0
             embedding_reason: Optional[str] = None
             query_embedding: Optional[List[float]] = None
-            if not pre_data.skip_vector:
-                if pre_data.has_service_embeddings:
+            if pre_data.skip_vector:
+                if embedding_task:
+                    embedding_task.cancel()
+                    try:
+                        await embedding_task
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as exc:
+                        logger.debug("Embedding task failed after cancel: %s", exc)
+                    embedding_task = None
+            elif not pre_data.has_service_embeddings:
+                if embedding_task:
+                    embedding_task.cancel()
+                    try:
+                        await embedding_task
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as exc:
+                        logger.debug("Embedding task failed after cancel: %s", exc)
+                    embedding_task = None
+                embedding_reason = "no_embeddings_in_database"
+            else:
+                if embedding_task is not None:
+                    try:
+                        (
+                            query_embedding,
+                            embed_latency_ms,
+                            embedding_reason,
+                        ) = await embedding_task
+                    except Exception as exc:
+                        logger.warning(
+                            "[SEARCH] Embedding failed, falling back to text-only: %s",
+                            exc,
+                        )
+                        query_embedding = None
+                        embed_latency_ms = 0
+                        embedding_reason = "embedding_service_unavailable"
+                else:
                     (
                         query_embedding,
                         embed_latency_ms,
                         embedding_reason,
                     ) = await self._embed_query_with_timeout(parsed_query.service_query)
-                else:
-                    embedding_reason = "no_embeddings_in_database"
 
             metrics.embed_latency_ms = embed_latency_ms
             if embedding_reason:
@@ -656,6 +734,7 @@ class NLSearchService:
         parsed_query: Optional[ParsedQuery],
         user_id: Optional[str],
         user_location: Optional[Tuple[float, float]],
+        notify_parsed: Optional[Callable[[ParsedQuery], None]] = None,
     ) -> PreOpenAIData:
         from app.services.search.location_resolver import LocationResolver
 
@@ -667,6 +746,12 @@ class NLSearchService:
                 parser = QueryParser(db, user_id=user_id, region_code=self._region_code)
                 parsed_query = parser.parse(query)
                 parse_latency_ms = int((time.perf_counter() - parse_start) * 1000)
+
+            if notify_parsed and parsed_query is not None:
+                try:
+                    notify_parsed(parsed_query)
+                except Exception as exc:
+                    logger.debug("Failed to notify parsed query: %s", exc)
 
             has_service_embeddings = batch.has_service_embeddings()
             text_results: Optional[Dict[str, Tuple[float, Dict[str, Any]]]] = None
