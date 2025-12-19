@@ -48,6 +48,7 @@ from app.services.search.location_llm_service import LocationLLMService
 from app.services.search.metrics import record_search_metrics
 from app.services.search.query_parser import ParsedQuery, QueryParser
 from app.services.search.ranking_service import RankedResult, RankingResult, RankingService
+from app.services.search.request_budget import RequestBudget
 from app.services.search.retriever import (
     EMBEDDING_SOFT_TIMEOUT_MS,
     MAX_CANDIDATES,
@@ -76,11 +77,39 @@ _PERF_LOG_SLOW_MS = int(os.getenv("NL_SEARCH_PERF_LOG_SLOW_MS", "0"))
 # Concurrency control for expensive uncached searches.
 # Limits how many concurrent full-pipeline searches can run per worker.
 # When limit is hit, return 503 instead of piling up requests.
-UNCACHED_SEARCH_CONCURRENCY = int(os.getenv("UNCACHED_SEARCH_CONCURRENCY", "4"))
+UNCACHED_SEARCH_CONCURRENCY = int(os.getenv("UNCACHED_SEARCH_CONCURRENCY", "10"))
 UNCACHED_SEARCH_ACQUIRE_TIMEOUT_S = float(os.getenv("UNCACHED_SEARCH_ACQUIRE_TIMEOUT_S", "0.02"))
 
 # Per-worker semaphore (each Gunicorn worker has its own Python process)
 _uncached_search_semaphore = asyncio.Semaphore(UNCACHED_SEARCH_CONCURRENCY)
+
+# Request budget settings for progressive degradation.
+DEFAULT_SEARCH_BUDGET_MS = int(os.getenv("SEARCH_BUDGET_MS", "500"))
+HIGH_LOAD_SEARCH_BUDGET_MS = int(os.getenv("SEARCH_HIGH_LOAD_BUDGET_MS", "300"))
+HIGH_LOAD_THRESHOLD = int(os.getenv("SEARCH_HIGH_LOAD_THRESHOLD", "10"))
+
+_search_inflight_lock = asyncio.Lock()
+_search_inflight_requests = 0
+
+
+async def _increment_search_inflight() -> int:
+    global _search_inflight_requests
+    async with _search_inflight_lock:
+        _search_inflight_requests += 1
+        return _search_inflight_requests
+
+
+async def _decrement_search_inflight() -> None:
+    global _search_inflight_requests
+    async with _search_inflight_lock:
+        _search_inflight_requests = max(0, _search_inflight_requests - 1)
+
+
+def _get_adaptive_budget(inflight: int) -> int:
+    if inflight >= HIGH_LOAD_THRESHOLD:
+        return HIGH_LOAD_SEARCH_BUDGET_MS
+    return DEFAULT_SEARCH_BUDGET_MS
+
 
 # Location resolution tuning.
 LOCATION_LLM_TOP_K = int(os.getenv("LOCATION_LLM_TOP_K", "5"))
@@ -212,6 +241,7 @@ class NLSearchService:
         user_location: Optional[Tuple[float, float]] = None,
         limit: int = 20,
         user_id: Optional[str] = None,
+        budget_ms: Optional[int] = None,
     ) -> NLSearchResponse:
         """
         Execute full NL search pipeline and return instructor-level results.
@@ -229,6 +259,7 @@ class NLSearchService:
             user_location: (lng, lat) tuple or None
             limit: Maximum instructors to return
             user_id: Optional user ID for timezone-aware parsing
+            budget_ms: Optional request budget override in milliseconds
 
         Returns:
             NLSearchResponse with instructor-level results and metadata
@@ -273,6 +304,8 @@ class NLSearchService:
         # Limit concurrent full-pipeline searches to prevent system overload.
         # If semaphore is full, return 503 immediately instead of piling up.
         acquired = False
+        inflight_incremented = False
+        budget: Optional[RequestBudget] = None
         try:
             await asyncio.wait_for(
                 _uncached_search_semaphore.acquire(),
@@ -291,6 +324,13 @@ class NLSearchService:
             )
 
         try:
+            inflight = await _increment_search_inflight()
+            inflight_incremented = True
+            effective_budget_ms = (
+                budget_ms if budget_ms is not None else _get_adaptive_budget(inflight)
+            )
+            budget = RequestBudget(total_ms=effective_budget_ms)
+
             parsed_query_cached = None
             try:
                 parsed_query_cached = await self.search_cache.get_cached_parsed_query(
@@ -317,7 +357,12 @@ class NLSearchService:
 
             embedding_task: Optional[
                 asyncio.Task[tuple[Optional[List[float]], int, Optional[str]]]
-            ] = asyncio.create_task(_maybe_embed_query())
+            ] = None
+            if budget and budget.can_afford_vector_search():
+                embedding_task = asyncio.create_task(_maybe_embed_query())
+            elif budget:
+                budget.skip("embedding")
+                budget.skip("vector_search")
 
             try:
                 pre_data = await asyncio.to_thread(
@@ -363,14 +408,18 @@ class NLSearchService:
                 and parsed_query.location_type != "near_me"
                 and user_location is None
             ):
-                tier5_task = asyncio.create_task(
-                    self._resolve_location_llm(
-                        location_text=parsed_query.location_text,
-                        original_query=parsed_query.original_query,
-                        region_lookup=pre_data.region_lookup,
-                        candidate_names=pre_data.location_llm_candidates,
+                allow_tier5_start = bool(budget and budget.can_afford_tier5())
+                if allow_tier5_start:
+                    tier5_task = asyncio.create_task(
+                        self._resolve_location_llm(
+                            location_text=parsed_query.location_text,
+                            original_query=parsed_query.original_query,
+                            region_lookup=pre_data.region_lookup,
+                            candidate_names=pre_data.location_llm_candidates,
+                        )
                     )
-                )
+                elif budget:
+                    budget.skip("tier5_llm")
 
             if parsed_query_cached is None and not parsed_query.needs_llm:
                 try:
@@ -412,6 +461,12 @@ class NLSearchService:
             embed_latency_ms = 0
             embedding_reason: Optional[str] = None
             query_embedding: Optional[List[float]] = None
+            budget_skip_vector = False
+            if budget and not budget.can_afford_vector_search():
+                budget.skip("vector_search")
+                budget.skip("embedding")
+                pre_data.skip_vector = True
+                budget_skip_vector = True
             if pre_data.skip_vector:
                 if embedding_task:
                     embedding_task.cancel()
@@ -422,6 +477,8 @@ class NLSearchService:
                     except Exception as exc:
                         logger.debug("Embedding task failed after cancel: %s", exc)
                     embedding_task = None
+                if embedding_reason is None and budget_skip_vector:
+                    embedding_reason = "budget_skip_vector_search"
             elif not pre_data.has_service_embeddings:
                 if embedding_task:
                     embedding_task.cancel()
@@ -471,6 +528,15 @@ class NLSearchService:
                 and parsed_query.location_type != "near_me"
             ):
                 if location_resolution is None:
+                    allow_tier4 = bool(budget and budget.can_afford_tier4())
+                    allow_tier5 = bool(budget and budget.can_afford_tier5())
+                    if budget and not allow_tier4:
+                        budget.skip("tier4_embedding")
+                    if budget and not allow_tier5:
+                        budget.skip("tier5_llm")
+                    if not allow_tier5 and tier5_task:
+                        self._consume_task_result(tier5_task, label="location_llm")
+                        tier5_task = None
                     (
                         location_resolution,
                         location_llm_cache,
@@ -481,7 +547,9 @@ class NLSearchService:
                         fuzzy_score=pre_data.fuzzy_score,
                         original_query=parsed_query.original_query,
                         llm_candidates=pre_data.location_llm_candidates,
-                        tier5_task=tier5_task,
+                        tier5_task=tier5_task if allow_tier5 else None,
+                        allow_tier4=allow_tier4,
+                        allow_tier5=allow_tier5,
                     )
                 if location_resolution is None:
                     from app.services.search.location_resolver import ResolvedLocation
@@ -508,6 +576,14 @@ class NLSearchService:
                 ]
                 if not metrics.degradation_reasons:
                     metrics.degraded = False
+
+            if budget and budget.is_degraded:
+                metrics.degraded = True
+                for reason in budget.degradation_reasons:
+                    if reason not in metrics.degradation_reasons:
+                        metrics.degradation_reasons.append(reason)
+                if budget.is_exhausted() and "budget_exhausted" not in metrics.degradation_reasons:
+                    metrics.degradation_reasons.append("budget_exhausted")
 
             # Retrieval metrics
             metrics.retrieve_latency_ms = post_data.text_latency_ms + post_data.vector_latency_ms
@@ -556,7 +632,13 @@ class NLSearchService:
 
             response_build_start = time.perf_counter()
             response = self._build_instructor_response(
-                query, parsed_query, results, limit, metrics, filter_result=post_data.filter_result
+                query,
+                parsed_query,
+                results,
+                limit,
+                metrics,
+                filter_result=post_data.filter_result,
+                budget=budget,
             )
             response_build_ms = int((time.perf_counter() - response_build_start) * 1000)
 
@@ -622,6 +704,8 @@ class NLSearchService:
 
             return response
         finally:
+            if inflight_incremented:
+                await _decrement_search_inflight()
             if acquired:
                 _uncached_search_semaphore.release()
 
@@ -1056,6 +1140,8 @@ class NLSearchService:
                 ]
             ]
         ] = None,
+        allow_tier4: bool = True,
+        allow_tier5: bool = True,
     ) -> tuple[ResolvedLocation, Optional[LocationLLMCache], Optional[UnresolvedLocationInfo]]:
         from app.services.search.location_resolver import (
             LocationCandidate,
@@ -1085,7 +1171,7 @@ class NLSearchService:
         )
 
         tier4_result: Optional[ResolvedLocation] = None
-        if should_try_embedding:
+        if allow_tier4 and should_try_embedding:
             embedding = await self.location_embedding_service.embed_location_text(normalized)
             if embedding:
                 embedding_rows = [
@@ -1151,14 +1237,16 @@ class NLSearchService:
         llm_cache: Optional[LocationLLMCache] = None
         llm_unresolved: Optional[UnresolvedLocationInfo] = None
 
-        if tier5_task is not None:
+        if not allow_tier5 and tier5_task is not None:
+            self._consume_task_result(tier5_task, label="location_llm")
+        elif tier5_task is not None:
             try:
                 llm_result, llm_cache, llm_unresolved = await tier5_task
             except asyncio.CancelledError:
                 llm_result = None
             except Exception as exc:
                 logger.warning("[LOCATION] Tier 5 failed: %s", exc)
-        else:
+        elif allow_tier5:
             allowed_names = list(llm_candidates or [])
             if not allowed_names:
                 allowed_names = region_lookup.region_names
@@ -1826,6 +1914,7 @@ class NLSearchService:
         metrics: SearchMetrics,
         *,
         filter_result: Optional[FilterResult] = None,
+        budget: Optional[RequestBudget] = None,
     ) -> NLSearchResponse:
         """
         Build the final instructor-level response.
@@ -1880,6 +1969,7 @@ class NLSearchService:
             cache_hit=metrics.cache_hit,
             degraded=metrics.degraded,
             degradation_reasons=metrics.degradation_reasons,
+            skipped_operations=list(budget.skipped_operations) if budget else [],
             parsing_mode=parsed_query.parsing_mode,
             filters_applied=filter_result.filters_applied if filter_result else [],
             soft_filtering_used=filter_result.soft_filtering_used if filter_result else False,

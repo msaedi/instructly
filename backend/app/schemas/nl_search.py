@@ -157,6 +157,9 @@ class NLSearchMeta(BaseModel):
     degradation_reasons: List[str] = Field(
         default_factory=list, description="Reasons for degradation"
     )
+    skipped_operations: List[str] = Field(
+        default_factory=list, description="Operations skipped during degradation"
+    )
     parsing_mode: str = Field("regex", description="Parsing mode used (regex/llm)")
     search_query_id: Optional[str] = Field(None, description="Search query ID for click tracking")
     filters_applied: List[str] = Field(
