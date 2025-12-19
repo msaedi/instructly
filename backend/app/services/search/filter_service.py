@@ -104,6 +104,8 @@ class FilterService:
         parsed_query: "ParsedQuery",
         user_location: Optional[tuple[float, float]] = None,
         default_duration: int = 60,
+        *,
+        location_resolution: Optional[ResolvedLocation] = None,
     ) -> FilterResult:
         """
         Apply all constraint filters to candidates.
@@ -121,11 +123,24 @@ class FilterService:
             # Unit tests can inject mocks to avoid DB access.
             self.repository = self._repository_override
             self.location_resolver = self._location_resolver_override
-            return await self._filter_candidates_impl(
+            if (
+                location_resolution is None
+                and parsed_query.location_text
+                and parsed_query.location_type != "near_me"
+                and user_location is None
+            ):
+                location_resolution = await self.location_resolver.resolve(
+                    parsed_query.location_text,
+                    original_query=parsed_query.original_query,
+                    track_unresolved=True,
+                    enable_semantic=True,
+                )
+            return self._filter_candidates_core(
                 candidates,
                 parsed_query,
                 user_location,
                 default_duration,
+                location_resolution=location_resolution,
             )
 
         with get_db_session() as db:
@@ -133,19 +148,75 @@ class FilterService:
             self.location_resolver = self._location_resolver_override or LocationResolver(
                 db, region_code=self._region_code
             )
-            return await self._filter_candidates_impl(
+            if (
+                location_resolution is None
+                and parsed_query.location_text
+                and parsed_query.location_type != "near_me"
+                and user_location is None
+            ):
+                location_resolution = await self.location_resolver.resolve(
+                    parsed_query.location_text,
+                    original_query=parsed_query.original_query,
+                    track_unresolved=True,
+                    enable_semantic=True,
+                )
+
+            return self._filter_candidates_core(
                 candidates,
                 parsed_query,
                 user_location,
                 default_duration,
+                location_resolution=location_resolution,
             )
 
-    async def _filter_candidates_impl(
+    def filter_candidates_sync(
+        self,
+        candidates: List[ServiceCandidate],
+        parsed_query: "ParsedQuery",
+        user_location: Optional[tuple[float, float]] = None,
+        default_duration: int = 60,
+        *,
+        location_resolution: Optional[ResolvedLocation] = None,
+    ) -> FilterResult:
+        """
+        Sync filtering variant for use inside batched DB bursts.
+
+        Avoids OpenAI calls; resolves location with sync tiers only when needed.
+        """
+        if self._repository_override is None or self._location_resolver_override is None:
+            raise RuntimeError("filter_candidates_sync requires repository and resolver overrides")
+
+        self.repository = self._repository_override
+        self.location_resolver = self._location_resolver_override
+
+        if (
+            location_resolution is None
+            and parsed_query.location_text
+            and parsed_query.location_type != "near_me"
+            and user_location is None
+        ):
+            location_resolution = self.location_resolver.resolve_sync(
+                parsed_query.location_text,
+                original_query=parsed_query.original_query,
+                track_unresolved=False,
+            )
+
+        return self._filter_candidates_core(
+            candidates,
+            parsed_query,
+            user_location,
+            default_duration,
+            location_resolution=location_resolution,
+        )
+
+    def _filter_candidates_core(
         self,
         candidates: List[ServiceCandidate],
         parsed_query: "ParsedQuery",
         user_location: Optional[tuple[float, float]],
         default_duration: int,
+        *,
+        location_resolution: Optional[ResolvedLocation],
     ) -> FilterResult:
         perf_start = time_module.perf_counter()
         perf: Dict[str, int] = {}
@@ -177,7 +248,6 @@ class FilterService:
         perf["price_ms"] = int((time_module.perf_counter() - price_start) * 1000)
 
         # Step 2: Location filter
-        location_resolution: Optional[ResolvedLocation] = None
         resolved_location = user_location
         location_start = time_module.perf_counter()
         if resolved_location:
@@ -189,17 +259,8 @@ class FilterService:
             # Even if we end up skipping the filter (unresolved/ambiguous), we want observability.
             before_location_count = len(working)
             filter_stats.setdefault("after_location", before_location_count)
-
-            location_resolve_start = time_module.perf_counter()
-            location_resolution = await self.location_resolver.resolve(
-                parsed_query.location_text,
-                original_query=parsed_query.original_query,
-                track_unresolved=True,
-                enable_semantic=True,
-            )
-            perf["location_resolve_ms"] = int(
-                (time_module.perf_counter() - location_resolve_start) * 1000
-            )
+            if location_resolution is None:
+                location_resolution = ResolvedLocation.from_not_found()
             if location_resolution.requires_clarification:
                 # In practice, "ambiguous" often means one user-facing neighborhood maps to multiple
                 # region_boundaries rows (e.g., "Upper East Side" -> multiple UES subregions).

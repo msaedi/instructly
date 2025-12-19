@@ -859,6 +859,57 @@ class LocationResolver:
             )
         return ResolvedLocation.from_not_found()
 
+    def cache_llm_alias(
+        self,
+        normalized: str,
+        resolved_region_ids: List[str],
+        *,
+        confidence: float,
+    ) -> None:
+        """Cache an LLM-derived alias as pending_review (best-effort)."""
+        if not normalized or not resolved_region_ids:
+            return
+
+        try:
+            existing_any = self.repository.find_cached_alias(normalized)
+            if existing_any and isinstance(existing_any, LocationAlias):
+                alias_row = existing_any
+                alias_row.source = "llm"
+                alias_row.status = "pending_review"
+                alias_row.confidence = confidence
+                alias_row.alias_type = "landmark"
+                alias_row.deprecated_at = None
+                alias_row.user_count = int(alias_row.user_count or 0) + 1
+            else:
+                alias_row = LocationAlias(
+                    id=generate_ulid(),
+                    city_id=self.city_id,
+                    alias_normalized=normalized,
+                    source="llm",
+                    status="pending_review",
+                    confidence=confidence,
+                    user_count=1,
+                    alias_type="landmark",
+                )
+                self.repository.db.add(alias_row)
+
+            if len(resolved_region_ids) == 1:
+                alias_row.region_boundary_id = resolved_region_ids[0]
+                alias_row.requires_clarification = False
+                alias_row.candidate_region_ids = None
+            else:
+                alias_row.region_boundary_id = None
+                alias_row.requires_clarification = True
+                alias_row.candidate_region_ids = [str(rid) for rid in resolved_region_ids]
+
+            self.repository.db.flush()
+        except Exception as exc:
+            logger.debug("Failed to cache LLM alias '%s': %s", normalized, str(exc))
+            try:
+                self.repository.db.rollback()
+            except Exception:
+                pass
+
     @staticmethod
     def _format_candidates(regions: Sequence[RegionBoundary]) -> List[LocationCandidate]:
         out: List[LocationCandidate] = []

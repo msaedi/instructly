@@ -24,10 +24,15 @@ from app.schemas.nl_search import (
     ServiceMatch,
 )
 from app.services.search.filter_service import FilterResult
-from app.services.search.nl_search_service import NLSearchService, SearchMetrics
+from app.services.search.location_resolver import ResolvedLocation
+from app.services.search.nl_search_service import (
+    NLSearchService,
+    PostOpenAIData,
+    PreOpenAIData,
+    SearchMetrics,
+)
 from app.services.search.query_parser import ParsedQuery
 from app.services.search.ranking_service import RankedResult, RankingResult
-from app.services.search.retriever import RetrievalResult, ServiceCandidate
 
 
 @pytest.fixture
@@ -612,46 +617,58 @@ class TestSearchPipeline:
 
         service = NLSearchService(search_cache=mock_search_cache)
 
-        retrieval_result = RetrievalResult(
-            candidates=[
-                ServiceCandidate(
-                    service_id="svc_001",
-                    service_catalog_id="cat_001",
-                    hybrid_score=0.9,
-                    vector_score=0.9,
-                    text_score=0.8,
-                    name="Piano Lessons",
-                    description=None,
-                    price_per_hour=50,
-                    instructor_id="usr_001",
-                )
-            ],
-            total_candidates=1,
-            vector_search_used=True,
-            degraded=False,
-            degradation_reason=None,
+        pre_data = PreOpenAIData(
+            parsed_query=sample_parsed_query,
+            parse_latency_ms=5,
+            text_results={},
+            text_latency_ms=0,
+            has_service_embeddings=True,
+            best_text_score=0.0,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=ResolvedLocation.from_not_found(),
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
         )
-
-        with (
-            patch.object(service, "_parse_query", new_callable=AsyncMock) as mock_parse,
-            patch.object(service.retriever, "search", new_callable=AsyncMock) as mock_retrieve,
-            patch.object(service.filter_service, "filter_candidates", new_callable=AsyncMock) as mock_filter,
-            patch.object(service.ranking_service, "rank_candidates") as mock_rank,
-            patch.object(
-                service, "_hydrate_instructor_results", new_callable=AsyncMock
-            ) as mock_hydrate,
-            patch("app.services.search.nl_search_service.record_search_metrics") as mock_metrics,
-        ):
-            mock_parse.return_value = sample_parsed_query
-            mock_retrieve.return_value = retrieval_result
-            mock_filter.return_value = FilterResult(
+        post_data = PostOpenAIData(
+            filter_result=FilterResult(
                 candidates=[],
                 total_before_filter=1,
                 total_after_filter=0,
                 filters_applied=[],
                 soft_filtering_used=False,
-            )
-            mock_rank.return_value = RankingResult(results=[], total_results=0)
+            ),
+            ranking_result=RankingResult(results=[], total_results=0),
+            retrieval_candidates=[],
+            instructor_rows=[],
+            distance_meters={},
+            text_latency_ms=0,
+            vector_latency_ms=0,
+            filter_latency_ms=0,
+            rank_latency_ms=0,
+            vector_search_used=True,
+            total_candidates=1,
+            filter_failed=False,
+            ranking_failed=False,
+            skip_vector=False,
+        )
+
+        with (
+            patch.object(service, "_run_pre_openai_burst", return_value=pre_data) as mock_pre,
+            patch.object(
+                service,
+                "_embed_query_with_timeout",
+                new_callable=AsyncMock,
+                return_value=([0.1], 5, None),
+            ) as mock_embed,
+            patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
+            patch.object(
+                service, "_hydrate_instructor_results", new_callable=AsyncMock
+            ) as mock_hydrate,
+            patch("app.services.search.nl_search_service.record_search_metrics") as mock_metrics,
+        ):
             mock_hydrate.return_value = sample_instructor_results
 
             response = await service.search("piano lessons", user_location=(-73.95, 40.68))
@@ -659,10 +676,9 @@ class TestSearchPipeline:
             assert isinstance(response, NLSearchResponse)
             assert len(response.results) == 2
             assert response.meta.degraded is False
-            mock_parse.assert_awaited_once()
-            mock_retrieve.assert_awaited_once()
-            mock_filter.assert_awaited_once()
-            mock_rank.assert_called_once()
+            mock_pre.assert_called_once()
+            mock_embed.assert_awaited_once()
+            mock_post.assert_called_once()
             mock_hydrate.assert_awaited_once()
             mock_search_cache.cache_response.assert_awaited_once()
             mock_metrics.assert_called_once()
@@ -679,34 +695,58 @@ class TestSearchPipeline:
         mock_search_cache.get_cached_parsed_query.return_value = None
 
         service = NLSearchService(search_cache=mock_search_cache)
-        retrieval_result = RetrievalResult(
-            candidates=[],
-            total_candidates=0,
-            vector_search_used=False,
-            degraded=True,
-            degradation_reason="embedding_service_unavailable",
+        pre_data = PreOpenAIData(
+            parsed_query=sample_parsed_query,
+            parse_latency_ms=5,
+            text_results={},
+            text_latency_ms=0,
+            has_service_embeddings=True,
+            best_text_score=0.0,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=ResolvedLocation.from_not_found(),
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
         )
-
-        with (
-            patch.object(service, "_parse_query", new_callable=AsyncMock) as mock_parse,
-            patch.object(service.retriever, "search", new_callable=AsyncMock) as mock_retrieve,
-            patch.object(service.filter_service, "filter_candidates", new_callable=AsyncMock) as mock_filter,
-            patch.object(service.ranking_service, "rank_candidates") as mock_rank,
-            patch.object(
-                service, "_hydrate_instructor_results", new_callable=AsyncMock
-            ) as mock_hydrate,
-            patch("app.services.search.nl_search_service.record_search_metrics"),
-        ):
-            mock_parse.return_value = sample_parsed_query
-            mock_retrieve.return_value = retrieval_result
-            mock_filter.return_value = FilterResult(
+        post_data = PostOpenAIData(
+            filter_result=FilterResult(
                 candidates=[],
                 total_before_filter=0,
                 total_after_filter=0,
                 filters_applied=[],
                 soft_filtering_used=False,
-            )
-            mock_rank.return_value = RankingResult(results=[], total_results=0)
+            ),
+            ranking_result=RankingResult(results=[], total_results=0),
+            retrieval_candidates=[],
+            instructor_rows=[],
+            distance_meters={},
+            text_latency_ms=0,
+            vector_latency_ms=0,
+            filter_latency_ms=0,
+            rank_latency_ms=0,
+            vector_search_used=False,
+            total_candidates=0,
+            filter_failed=False,
+            ranking_failed=False,
+            skip_vector=False,
+        )
+
+        with (
+            patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
+            patch.object(
+                service,
+                "_embed_query_with_timeout",
+                new_callable=AsyncMock,
+                return_value=(None, 5, "embedding_service_unavailable"),
+            ),
+            patch.object(service, "_run_post_openai_burst", return_value=post_data),
+            patch.object(
+                service, "_hydrate_instructor_results", new_callable=AsyncMock
+            ) as mock_hydrate,
+            patch("app.services.search.nl_search_service.record_search_metrics"),
+        ):
             mock_hydrate.return_value = sample_instructor_results
 
             response = await service.search("piano lessons", user_location=(-73.95, 40.68))
@@ -760,40 +800,59 @@ class TestLocationHandling:
         mock_search_cache.get_cached_parsed_query.return_value = None
 
         service = NLSearchService(search_cache=mock_search_cache)
-        retrieval_result = RetrievalResult(
-            candidates=[],
-            total_candidates=0,
-            vector_search_used=True,
-            degraded=False,
-            degradation_reason=None,
+        pre_data = PreOpenAIData(
+            parsed_query=sample_parsed_query,
+            parse_latency_ms=5,
+            text_results={},
+            text_latency_ms=0,
+            has_service_embeddings=True,
+            best_text_score=0.0,
+            require_text_match=False,
+            skip_vector=False,
+            region_lookup=None,
+            location_resolution=ResolvedLocation.from_not_found(),
+            location_normalized=None,
+            cached_alias_normalized=None,
+            fuzzy_score=None,
         )
-
-        with (
-            patch.object(service, "_parse_query", new_callable=AsyncMock) as mock_parse,
-            patch.object(service.retriever, "search", new_callable=AsyncMock) as mock_retrieve,
-            patch.object(service.filter_service, "filter_candidates", new_callable=AsyncMock) as mock_filter,
-            patch.object(service.ranking_service, "rank_candidates") as mock_rank,
-            patch.object(
-                service, "_hydrate_instructor_results", new_callable=AsyncMock
-            ) as mock_hydrate,
-            patch("app.services.search.nl_search_service.record_search_metrics"),
-        ):
-            mock_parse.return_value = sample_parsed_query
-            mock_retrieve.return_value = retrieval_result
-            mock_filter.return_value = FilterResult(
+        post_data = PostOpenAIData(
+            filter_result=FilterResult(
                 candidates=[],
                 total_before_filter=0,
                 total_after_filter=0,
                 filters_applied=[],
                 soft_filtering_used=False,
-            )
-            mock_rank.return_value = RankingResult(results=[], total_results=0)
+            ),
+            ranking_result=RankingResult(results=[], total_results=0),
+            retrieval_candidates=[],
+            instructor_rows=[],
+            distance_meters={},
+            text_latency_ms=0,
+            vector_latency_ms=0,
+            filter_latency_ms=0,
+            rank_latency_ms=0,
+            vector_search_used=True,
+            total_candidates=0,
+            filter_failed=False,
+            ranking_failed=False,
+            skip_vector=False,
+        )
+
+        with (
+            patch.object(service, "_run_pre_openai_burst", return_value=pre_data),
+            patch.object(service, "_embed_query_with_timeout", new_callable=AsyncMock, return_value=([0.1], 5, None)),
+            patch.object(service, "_run_post_openai_burst", return_value=post_data) as mock_post,
+            patch.object(
+                service, "_hydrate_instructor_results", new_callable=AsyncMock
+            ) as mock_hydrate,
+            patch("app.services.search.nl_search_service.record_search_metrics"),
+        ):
             mock_hydrate.return_value = []
 
             user_location = (-73.95, 40.68)  # Brooklyn
             await service.search("piano", user_location=user_location)
 
-            assert mock_filter.call_args.kwargs["user_location"] == user_location
+            assert mock_post.call_args.args[6] == user_location
 
 
 class TestResponseCaching:

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 from typing import Any, Dict, List, Optional
 
@@ -109,8 +110,9 @@ class LocationEmbeddingService:
             )
         return out
 
+    @classmethod
     def pick_best_or_ambiguous(
-        self, candidates: List[Dict[str, Any]]
+        cls, candidates: List[Dict[str, Any]]
     ) -> tuple[Optional[Dict[str, Any]], Optional[List[Dict[str, Any]]]]:
         """
         Decide whether candidates resolve to a single best match or remain ambiguous.
@@ -130,20 +132,71 @@ class LocationEmbeddingService:
         second = ordered[1]
         if (
             float(best.get("similarity") or 0.0) - float(second.get("similarity") or 0.0)
-            >= self.AMBIGUITY_MARGIN
+            >= cls.AMBIGUITY_MARGIN
         ):
             return best, None
 
         # Ambiguous: return a small candidate set.
         return None, ordered[:5]
 
-    async def _embed_location_text(self, query: str) -> Optional[List[float]]:
+    @classmethod
+    def build_candidates_from_embeddings(
+        cls,
+        query_embedding: List[float],
+        region_embeddings: List[Dict[str, Any]],
+        *,
+        limit: int = 5,
+        threshold: Optional[float] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Build region candidates from preloaded embeddings without DB access.
+
+        region_embeddings expects entries with:
+        - region_id, region_name, borough, embedding, norm
+        """
+        if not query_embedding or not region_embeddings:
+            return []
+
+        query_norm = math.sqrt(sum(x * x for x in query_embedding))
+        if query_norm <= 0:
+            return []
+
+        min_similarity = float(threshold if threshold is not None else cls.SIMILARITY_THRESHOLD)
+
+        candidates: List[Dict[str, Any]] = []
+        for row in region_embeddings:
+            embedding = row.get("embedding")
+            norm = float(row.get("norm") or 0.0)
+            if not embedding or norm <= 0:
+                continue
+
+            dot = 0.0
+            for a, b in zip(query_embedding, embedding):
+                dot += float(a) * float(b)
+
+            cosine_sim = dot / (query_norm * norm) if (query_norm * norm) else 0.0
+            similarity = (cosine_sim + 1.0) / 2.0
+            if similarity < min_similarity:
+                continue
+
+            candidates.append(
+                {
+                    "region_id": str(row.get("region_id") or ""),
+                    "region_name": str(row.get("region_name") or ""),
+                    "borough": row.get("borough"),
+                    "similarity": similarity,
+                }
+            )
+
+        candidates.sort(key=lambda c: float(c.get("similarity") or 0.0), reverse=True)
+        return candidates[:limit]
+
+    async def embed_location_text(self, query: str) -> Optional[List[float]]:
         """Embed a location query string using the configured OpenAI embedding model."""
         config = get_search_config()
         model = config.embedding_model
 
         try:
-            # Provide a small hint to steer embeddings toward place semantics.
             embed_text = f"{query}, NYC location"
             response = await self.client.embeddings.create(
                 model=model,
@@ -154,3 +207,7 @@ class LocationEmbeddingService:
         except Exception as exc:
             logger.debug("Location embedding failed for '%s': %s", query, str(exc))
             return None
+
+    async def _embed_location_text(self, query: str) -> Optional[List[float]]:
+        """Embed a location query string using the configured OpenAI embedding model."""
+        return await self.embed_location_text(query)

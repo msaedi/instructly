@@ -24,6 +24,12 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.database import get_db_session
+from app.repositories.search_batch_repository import (
+    CachedAliasInfo,
+    RegionInfo,
+    RegionLookup,
+    SearchBatchRepository,
+)
 from app.schemas.nl_search import (
     InstructorSummary,
     NLSearchMeta,
@@ -33,13 +39,28 @@ from app.schemas.nl_search import (
     RatingSummary,
     ServiceMatch,
 )
+from app.services.search.config import get_search_config
 from app.services.search.embedding_service import EmbeddingService
 from app.services.search.filter_service import FilteredCandidate, FilterResult, FilterService
 from app.services.search.llm_parser import hybrid_parse
+from app.services.search.location_embedding_service import LocationEmbeddingService
+from app.services.search.location_llm_service import LocationLLMService
 from app.services.search.metrics import record_search_metrics
 from app.services.search.query_parser import ParsedQuery, QueryParser
 from app.services.search.ranking_service import RankedResult, RankingResult, RankingService
-from app.services.search.retriever import PostgresRetriever, RetrievalResult
+from app.services.search.retriever import (
+    EMBEDDING_SOFT_TIMEOUT_MS,
+    MAX_CANDIDATES,
+    TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD,
+    TEXT_SKIP_VECTOR_MIN_RESULTS,
+    TEXT_SKIP_VECTOR_SCORE_THRESHOLD,
+    TEXT_TOP_K,
+    TRIGRAM_GENERIC_TOKENS,
+    VECTOR_TOP_K,
+    PostgresRetriever,
+    RetrievalResult,
+    ServiceCandidate,
+)
 from app.services.search.search_cache import SearchCacheService
 
 if TYPE_CHECKING:
@@ -76,6 +97,62 @@ class SearchMetrics:
     cache_hit: bool = False
     degraded: bool = False
     degradation_reasons: List[str] = field(default_factory=list)
+
+
+@dataclass
+class PreOpenAIData:
+    """DB-backed data collected before OpenAI calls."""
+
+    parsed_query: ParsedQuery
+    parse_latency_ms: int
+    text_results: Optional[Dict[str, Tuple[float, Dict[str, Any]]]]
+    text_latency_ms: int
+    has_service_embeddings: bool
+    best_text_score: float
+    require_text_match: bool
+    skip_vector: bool
+    region_lookup: Optional[RegionLookup]
+    location_resolution: Optional["ResolvedLocation"]
+    location_normalized: Optional[str]
+    cached_alias_normalized: Optional[str]
+    fuzzy_score: Optional[float]
+
+
+@dataclass(frozen=True)
+class LocationLLMCache:
+    """LLM-derived alias cache payload to persist in DB burst."""
+
+    normalized: str
+    confidence: float
+    region_ids: List[str]
+
+
+@dataclass(frozen=True)
+class UnresolvedLocationInfo:
+    """Unresolved location payload to persist in DB burst."""
+
+    normalized: str
+    original_query: str
+
+
+@dataclass
+class PostOpenAIData:
+    """DB-backed data collected after OpenAI calls."""
+
+    filter_result: FilterResult
+    ranking_result: RankingResult
+    retrieval_candidates: List[ServiceCandidate]
+    instructor_rows: List[Dict[str, Any]]
+    distance_meters: Dict[str, float]
+    text_latency_ms: int
+    vector_latency_ms: int
+    filter_latency_ms: int
+    rank_latency_ms: int
+    vector_search_used: bool
+    total_candidates: int
+    filter_failed: bool
+    ranking_failed: bool
+    skip_vector: bool
 
 
 class NLSearchService:
@@ -120,6 +197,8 @@ class NLSearchService:
         self.retriever = retriever or PostgresRetriever(self.embedding_service)
         self.filter_service = filter_service or FilterService(region_code=region_code)
         self.ranking_service = ranking_service or RankingService()
+        self.location_embedding_service = LocationEmbeddingService(repository=None)
+        self.location_llm_service = LocationLLMService()
 
     async def search(
         self,
@@ -206,45 +285,150 @@ class NLSearchService:
             )
 
         try:
-            # Stage 1: Parse query
-            parsed_query = await self._parse_query(query, metrics, user_id)
-
-            # Stage 2: Retrieve candidates (vector+text hybrid; degraded fallback)
-            retrieval_result = await self._retrieve_candidates(parsed_query, metrics)
-
-            # Stage 3: Apply constraint filters (price, location, availability)
-            filter_result = await self._filter_candidates(
-                retrieval_result,
-                parsed_query,
-                user_location,
-                metrics,
-            )
-
-            # Stage 4: Rank candidates (multi-signal scoring)
-            rank_start = time.time()
+            parsed_query_cached = None
             try:
-                ranking_result = await asyncio.to_thread(
-                    self.ranking_service.rank_candidates,
-                    filter_result.candidates,
-                    parsed_query,
-                    user_location,
+                parsed_query_cached = await self.search_cache.get_cached_parsed_query(
+                    query, region_code=self._region_code
                 )
             except Exception as e:
-                logger.error(f"Ranking failed: {e}")
-                ranking_result = RankingResult(results=[], total_results=0)
+                logger.warning(f"Parsed query cache lookup failed: {e}")
+
+            pre_data = await asyncio.to_thread(
+                self._run_pre_openai_burst,
+                query,
+                parsed_query=parsed_query_cached,
+                user_id=user_id,
+                user_location=user_location,
+            )
+            parsed_query = pre_data.parsed_query
+            metrics.parse_latency_ms = pre_data.parse_latency_ms
+
+            if parsed_query_cached is None and not parsed_query.needs_llm:
+                try:
+                    await self.search_cache.cache_parsed_query(
+                        query, parsed_query, region_code=self._region_code
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to cache parsed query: {e}")
+
+            if parsed_query.needs_llm:
+                from app.services.search.llm_parser import LLMParser
+
+                llm_start = time.perf_counter()
+                llm_parser = LLMParser(user_id=user_id, region_code=self._region_code)
+                parsed_query = await llm_parser.parse(query, parsed_query)
+                metrics.parse_latency_ms += int((time.perf_counter() - llm_start) * 1000)
+
+                if parsed_query.parsing_mode != "llm":
+                    metrics.degraded = True
+                    metrics.degradation_reasons.append("parsing_error")
+
+                try:
+                    await self.search_cache.cache_parsed_query(
+                        query, parsed_query, region_code=self._region_code
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to cache parsed query: {e}")
+
+            # Stage 2: Embed service query (OpenAI)
+            embed_latency_ms = 0
+            embedding_reason: Optional[str] = None
+            query_embedding: Optional[List[float]] = None
+            if not pre_data.skip_vector:
+                if pre_data.has_service_embeddings:
+                    (
+                        query_embedding,
+                        embed_latency_ms,
+                        embedding_reason,
+                    ) = await self._embed_query_with_timeout(parsed_query.service_query)
+                else:
+                    embedding_reason = "no_embeddings_in_database"
+
+            metrics.embed_latency_ms = embed_latency_ms
+            if embedding_reason:
+                metrics.degraded = True
+                metrics.degradation_reasons.append(embedding_reason)
+
+            # Stage 3: Resolve location with OpenAI (no DB)
+            location_resolution = pre_data.location_resolution
+            location_llm_cache: Optional[LocationLLMCache] = None
+            unresolved_info: Optional[UnresolvedLocationInfo] = None
+            if (
+                user_location is None
+                and parsed_query.location_text
+                and parsed_query.location_type != "near_me"
+            ):
+                if location_resolution is None:
+                    (
+                        location_resolution,
+                        location_llm_cache,
+                        unresolved_info,
+                    ) = await self._resolve_location_openai(
+                        parsed_query.location_text,
+                        region_lookup=pre_data.region_lookup,
+                        fuzzy_score=pre_data.fuzzy_score,
+                        original_query=parsed_query.original_query,
+                    )
+                if location_resolution is None:
+                    from app.services.search.location_resolver import ResolvedLocation
+
+                    location_resolution = ResolvedLocation.from_not_found()
+
+            # Stage 4: Post-OpenAI DB burst (vector search, filtering, ranking, hydration data)
+            post_data = await asyncio.to_thread(
+                self._run_post_openai_burst,
+                pre_data,
+                parsed_query,
+                query_embedding,
+                location_resolution,
+                location_llm_cache,
+                unresolved_info,
+                user_location,
+                limit,
+            )
+
+            if embedding_reason == "no_embeddings_in_database" and post_data.skip_vector:
+                embedding_reason = None
+                metrics.degradation_reasons = [
+                    r for r in metrics.degradation_reasons if r != "no_embeddings_in_database"
+                ]
+                if not metrics.degradation_reasons:
+                    metrics.degraded = False
+
+            # Retrieval metrics
+            metrics.retrieve_latency_ms = post_data.text_latency_ms + post_data.vector_latency_ms
+
+            retrieval_result = RetrievalResult(
+                candidates=post_data.retrieval_candidates,
+                total_candidates=post_data.total_candidates,
+                vector_search_used=post_data.vector_search_used,
+                degraded=bool(embedding_reason),
+                degradation_reason=embedding_reason,
+                embed_latency_ms=metrics.embed_latency_ms,
+                db_latency_ms=metrics.retrieve_latency_ms,
+                text_search_latency_ms=post_data.text_latency_ms,
+                vector_search_latency_ms=post_data.vector_latency_ms,
+            )
+
+            metrics.filter_latency_ms = post_data.filter_latency_ms
+            metrics.rank_latency_ms = post_data.rank_latency_ms
+
+            if post_data.filter_failed:
+                metrics.degraded = True
+                metrics.degradation_reasons.append("filtering_error")
+            if post_data.ranking_failed:
                 metrics.degraded = True
                 metrics.degradation_reasons.append("ranking_error")
-            metrics.rank_latency_ms = int((time.time() - rank_start) * 1000)
 
             # Stage 5: Build instructor-level results with embedded data
             hydrate_start = time.perf_counter()
             try:
                 results = await self._hydrate_instructor_results(
-                    ranking_result.results,
+                    post_data.ranking_result.results,
                     limit=limit,
-                    location_resolution=filter_result.location_resolution
-                    if filter_result
-                    else None,
+                    location_resolution=post_data.filter_result.location_resolution,
+                    instructor_rows=post_data.instructor_rows,
+                    distance_meters=post_data.distance_meters,
                 )
             except Exception as e:
                 logger.error(f"Hydration failed: {e}")
@@ -258,7 +442,7 @@ class NLSearchService:
 
             response_build_start = time.perf_counter()
             response = self._build_instructor_response(
-                query, parsed_query, results, limit, metrics, filter_result=filter_result
+                query, parsed_query, results, limit, metrics, filter_result=post_data.filter_result
             )
             response_build_ms = int((time.perf_counter() - response_build_start) * 1000)
 
@@ -327,12 +511,599 @@ class NLSearchService:
             if acquired:
                 _uncached_search_semaphore.release()
 
+    @staticmethod
+    def _normalize_location_text(text_value: str) -> str:
+        normalized = " ".join(str(text_value).lower().strip().split())
+        wrappers = ("near ", "by ", "in ", "around ", "close to ", "at ")
+        for wrapper in wrappers:
+            if normalized.startswith(wrapper):
+                normalized = normalized[len(wrapper) :]
+        if normalized.endswith(" area"):
+            normalized = normalized[:-5]
+        tokens = normalized.split()
+        if len(tokens) >= 3 and tokens[-1] in {"north", "south", "east", "west"}:
+            normalized = " ".join(tokens[:-1])
+        return " ".join(normalized.strip().split())
+
+    @staticmethod
+    def _compute_text_match_flags(
+        service_query: str,
+        text_results: Dict[str, Tuple[float, Dict[str, Any]]],
+    ) -> tuple[float, bool, bool]:
+        best_text_score = max((score for score, _ in text_results.values()), default=0.0)
+        raw_tokens = [t for t in str(service_query or "").strip().split() if t]
+        non_generic_tokens = [t for t in raw_tokens if t.lower() not in TRIGRAM_GENERIC_TOKENS]
+        require_text_match = (
+            bool(text_results)
+            and (0 < len(non_generic_tokens) <= 2)
+            and best_text_score >= TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD
+        )
+        skip_vector = (
+            len(text_results) >= TEXT_SKIP_VECTOR_MIN_RESULTS
+            and best_text_score >= TEXT_SKIP_VECTOR_SCORE_THRESHOLD
+        )
+        return best_text_score, require_text_match, skip_vector
+
+    @staticmethod
+    def _resolve_cached_alias(
+        cached_alias: "CachedAliasInfo",
+        region_lookup: RegionLookup,
+    ) -> Optional["ResolvedLocation"]:
+        from app.services.search.location_resolver import (
+            LocationCandidate,
+            ResolutionTier,
+            ResolvedLocation,
+        )
+
+        if cached_alias.is_ambiguous and cached_alias.candidate_region_ids:
+            candidates: List[LocationCandidate] = []
+            for region_id in cached_alias.candidate_region_ids:
+                info = region_lookup.by_id.get(region_id)
+                if not info:
+                    continue
+                candidates.append(
+                    {
+                        "region_id": info.region_id,
+                        "region_name": info.region_name,
+                        "borough": info.borough,
+                    }
+                )
+            if len(candidates) >= 2:
+                return ResolvedLocation.from_ambiguous(
+                    candidates=candidates,
+                    tier=ResolutionTier.LLM,
+                    confidence=cached_alias.confidence,
+                )
+
+        if cached_alias.is_resolved and cached_alias.region_id:
+            info = region_lookup.by_id.get(cached_alias.region_id)
+            if info:
+                return ResolvedLocation.from_region(
+                    region_id=info.region_id,
+                    region_name=info.region_name,
+                    borough=info.borough,
+                    tier=ResolutionTier.LLM,
+                    confidence=cached_alias.confidence,
+                )
+        return None
+
+    @staticmethod
+    def _select_instructor_ids(ranked: List[RankedResult], limit: int) -> List[str]:
+        ordered: List[str] = []
+        seen: set[str] = set()
+        for r in ranked:
+            if r.instructor_id in seen:
+                continue
+            seen.add(r.instructor_id)
+            ordered.append(r.instructor_id)
+            if len(ordered) >= limit:
+                break
+        return ordered
+
+    @staticmethod
+    def _distance_region_ids(
+        location_resolution: Optional["ResolvedLocation"],
+    ) -> Optional[List[str]]:
+        if not location_resolution:
+            return None
+        if location_resolution.region_id:
+            return [str(location_resolution.region_id)]
+        if location_resolution.requires_clarification and location_resolution.candidates:
+            candidate_ids = [
+                str(c.get("region_id"))
+                for c in location_resolution.candidates
+                if isinstance(c, dict) and c.get("region_id")
+            ]
+            return list(dict.fromkeys(candidate_ids)) or None
+        return None
+
+    async def _embed_query_with_timeout(
+        self,
+        query: str,
+    ) -> tuple[Optional[List[float]], int, Optional[str]]:
+        embed_start = time.perf_counter()
+        degradation_reason: Optional[str] = None
+        embedding: Optional[List[float]] = None
+
+        try:
+            config_timeout_ms = max(0, int(get_search_config().embedding_timeout_ms))
+            soft_timeout_ms = max(0, EMBEDDING_SOFT_TIMEOUT_MS)
+            timeout_ms = (
+                min(config_timeout_ms, soft_timeout_ms) if soft_timeout_ms else config_timeout_ms
+            )
+            timeout_s = (timeout_ms / 1000.0) if timeout_ms else None
+
+            if timeout_s:
+                embedding = await asyncio.wait_for(
+                    self.embedding_service.embed_query(query), timeout=timeout_s
+                )
+            else:
+                embedding = await self.embedding_service.embed_query(query)
+        except asyncio.TimeoutError:
+            degradation_reason = "embedding_timeout"
+            embedding = None
+
+        if embedding is None and degradation_reason is None:
+            degradation_reason = "embedding_service_unavailable"
+
+        embed_latency_ms = int((time.perf_counter() - embed_start) * 1000)
+        return embedding, embed_latency_ms, degradation_reason
+
+    def _run_pre_openai_burst(
+        self,
+        query: str,
+        *,
+        parsed_query: Optional[ParsedQuery],
+        user_id: Optional[str],
+        user_location: Optional[Tuple[float, float]],
+    ) -> PreOpenAIData:
+        from app.services.search.location_resolver import LocationResolver
+
+        with get_db_session() as db:
+            batch = SearchBatchRepository(db, region_code=self._region_code)
+            parse_latency_ms = 0
+            if parsed_query is None:
+                parse_start = time.perf_counter()
+                parser = QueryParser(db, user_id=user_id, region_code=self._region_code)
+                parsed_query = parser.parse(query)
+                parse_latency_ms = int((time.perf_counter() - parse_start) * 1000)
+
+            has_service_embeddings = batch.has_service_embeddings()
+            text_results: Optional[Dict[str, Tuple[float, Dict[str, Any]]]] = None
+            text_latency_ms = 0
+            best_text_score = 0.0
+            require_text_match = False
+            skip_vector = False
+
+            if not parsed_query.needs_llm:
+                text_query = self.retriever._normalize_query_for_trigram(parsed_query.service_query)
+                text_start = time.perf_counter()
+                text_results = batch.text_search(
+                    text_query,
+                    text_query,
+                    limit=min(TEXT_TOP_K, MAX_CANDIDATES),
+                )
+                text_latency_ms = int((time.perf_counter() - text_start) * 1000)
+                (
+                    best_text_score,
+                    require_text_match,
+                    skip_vector,
+                ) = self._compute_text_match_flags(parsed_query.service_query, text_results)
+
+            region_lookup: Optional[RegionLookup] = None
+            location_resolution: Optional["ResolvedLocation"] = None
+            location_normalized: Optional[str] = None
+            cached_alias_normalized: Optional[str] = None
+            fuzzy_score: Optional[float] = None
+
+            should_load_regions = bool(parsed_query.needs_llm or parsed_query.location_text)
+            if should_load_regions:
+                region_lookup = batch.load_region_lookup()
+
+            if (
+                region_lookup
+                and parsed_query.location_text
+                and parsed_query.location_type != "near_me"
+                and user_location is None
+                and not parsed_query.needs_llm
+            ):
+                location_normalized = self._normalize_location_text(parsed_query.location_text)
+                resolver = LocationResolver(db, region_code=self._region_code)
+                non_semantic = resolver.resolve_sync(
+                    parsed_query.location_text,
+                    original_query=parsed_query.original_query,
+                    track_unresolved=False,
+                )
+                if non_semantic.resolved or non_semantic.requires_clarification:
+                    location_resolution = non_semantic
+                else:
+                    cached_alias = batch.get_cached_llm_alias(location_normalized)
+                    if cached_alias:
+                        location_resolution = self._resolve_cached_alias(
+                            cached_alias, region_lookup
+                        )
+                        if location_resolution:
+                            cached_alias_normalized = location_normalized
+
+                if (
+                    location_resolution is None
+                    and region_lookup.embeddings
+                    and location_normalized
+                    and len(location_normalized.split()) == 1
+                ):
+                    fuzzy_score = batch.get_best_fuzzy_score(location_normalized)
+
+            return PreOpenAIData(
+                parsed_query=parsed_query,
+                parse_latency_ms=parse_latency_ms,
+                text_results=text_results,
+                text_latency_ms=text_latency_ms,
+                has_service_embeddings=has_service_embeddings,
+                best_text_score=best_text_score,
+                require_text_match=require_text_match,
+                skip_vector=skip_vector,
+                region_lookup=region_lookup,
+                location_resolution=location_resolution,
+                location_normalized=location_normalized,
+                cached_alias_normalized=cached_alias_normalized,
+                fuzzy_score=fuzzy_score,
+            )
+
+    async def _resolve_location_openai(
+        self,
+        location_text: str,
+        *,
+        region_lookup: Optional[RegionLookup],
+        fuzzy_score: Optional[float],
+        original_query: Optional[str],
+    ) -> tuple[ResolvedLocation, Optional[LocationLLMCache], Optional[UnresolvedLocationInfo]]:
+        from app.services.search.location_resolver import (
+            LocationCandidate,
+            LocationResolver,
+            ResolutionTier,
+            ResolvedLocation,
+        )
+
+        normalized = self._normalize_location_text(location_text)
+        if not normalized or not region_lookup:
+            unresolved = (
+                UnresolvedLocationInfo(
+                    normalized=normalized,
+                    original_query=original_query or location_text,
+                )
+                if normalized
+                else None
+            )
+            return ResolvedLocation.from_not_found(), None, unresolved
+
+        tokens = normalized.split()
+        threshold = LocationResolver.MIN_FUZZY_FOR_EMBEDDING
+        should_try_embedding = bool(region_lookup.embeddings) and (
+            len(tokens) >= 2 or fuzzy_score is None or (fuzzy_score >= threshold)
+        )
+
+        if should_try_embedding:
+            embedding = await self.location_embedding_service.embed_location_text(normalized)
+            if embedding:
+                embedding_rows = [
+                    {
+                        "region_id": row.region_id,
+                        "region_name": row.region_name,
+                        "borough": row.borough,
+                        "embedding": row.embedding,
+                        "norm": row.norm,
+                    }
+                    for row in region_lookup.embeddings
+                ]
+                embedding_candidates = LocationEmbeddingService.build_candidates_from_embeddings(
+                    embedding,
+                    embedding_rows,
+                    limit=5,
+                )
+                best, ambiguous = LocationEmbeddingService.pick_best_or_ambiguous(
+                    embedding_candidates
+                )
+                if best and best.get("region_id") and best.get("region_name"):
+                    return (
+                        ResolvedLocation.from_region(
+                            region_id=str(best["region_id"]),
+                            region_name=str(best["region_name"]),
+                            borough=best.get("borough"),
+                            tier=ResolutionTier.EMBEDDING,
+                            confidence=float(best.get("similarity") or 0.0),
+                        ),
+                        None,
+                        None,
+                    )
+                if ambiguous:
+                    formatted: List[LocationCandidate] = []
+                    for row in ambiguous:
+                        if not row.get("region_id") or not row.get("region_name"):
+                            continue
+                        formatted.append(
+                            {
+                                "region_id": str(row["region_id"]),
+                                "region_name": str(row["region_name"]),
+                                "borough": row.get("borough"),
+                            }
+                        )
+                    if len(formatted) >= 2:
+                        top_sim = float(ambiguous[0].get("similarity") or 0.0)
+                        return (
+                            ResolvedLocation.from_ambiguous(
+                                candidates=formatted,
+                                tier=ResolutionTier.EMBEDDING,
+                                confidence=top_sim,
+                            ),
+                            None,
+                            None,
+                        )
+
+        llm_result = await self.location_llm_service.resolve(
+            location_text=original_query or location_text,
+            allowed_region_names=region_lookup.region_names,
+        )
+        if not llm_result:
+            return (
+                ResolvedLocation.from_not_found(),
+                None,
+                UnresolvedLocationInfo(
+                    normalized=normalized,
+                    original_query=original_query or location_text,
+                ),
+            )
+
+        neighborhoods = llm_result.get("neighborhoods") or []
+        if not isinstance(neighborhoods, list) or not neighborhoods:
+            return (
+                ResolvedLocation.from_not_found(),
+                None,
+                UnresolvedLocationInfo(
+                    normalized=normalized,
+                    original_query=original_query or location_text,
+                ),
+            )
+
+        regions: List[RegionInfo] = []
+        seen: set[str] = set()
+        for name in neighborhoods:
+            if not isinstance(name, str):
+                continue
+            key = name.strip().lower()
+            info = region_lookup.by_name.get(key)
+            if not info or info.region_id in seen:
+                continue
+            seen.add(info.region_id)
+            regions.append(info)
+
+        if not regions:
+            return (
+                ResolvedLocation.from_not_found(),
+                None,
+                UnresolvedLocationInfo(
+                    normalized=normalized,
+                    original_query=original_query or location_text,
+                ),
+            )
+
+        confidence_val = float(llm_result.get("confidence") or 0.5)
+        region_ids = [r.region_id for r in regions]
+        llm_cache = LocationLLMCache(
+            normalized=normalized,
+            confidence=confidence_val,
+            region_ids=region_ids,
+        )
+
+        if len(regions) == 1:
+            only = regions[0]
+            return (
+                ResolvedLocation.from_region(
+                    region_id=only.region_id,
+                    region_name=only.region_name,
+                    borough=only.borough,
+                    tier=ResolutionTier.LLM,
+                    confidence=confidence_val,
+                ),
+                llm_cache,
+                None,
+            )
+
+        llm_candidates: List[LocationCandidate] = [
+            {
+                "region_id": r.region_id,
+                "region_name": r.region_name,
+                "borough": r.borough,
+            }
+            for r in regions
+        ]
+        return (
+            ResolvedLocation.from_ambiguous(
+                candidates=llm_candidates,
+                tier=ResolutionTier.LLM,
+                confidence=confidence_val,
+            ),
+            llm_cache,
+            None,
+        )
+
+    def _run_post_openai_burst(
+        self,
+        pre_data: PreOpenAIData,
+        parsed_query: ParsedQuery,
+        query_embedding: Optional[List[float]],
+        location_resolution: Optional["ResolvedLocation"],
+        location_llm_cache: Optional[LocationLLMCache],
+        unresolved_info: Optional[UnresolvedLocationInfo],
+        user_location: Optional[Tuple[float, float]],
+        limit: int,
+    ) -> PostOpenAIData:
+        from app.repositories.filter_repository import FilterRepository
+        from app.repositories.ranking_repository import RankingRepository
+        from app.repositories.retriever_repository import RetrieverRepository
+        from app.repositories.unresolved_location_query_repository import (
+            UnresolvedLocationQueryRepository,
+        )
+        from app.services.search.location_resolver import LocationResolver
+
+        with get_db_session() as db:
+            batch = SearchBatchRepository(db, region_code=self._region_code)
+            retriever_repo = RetrieverRepository(db)
+            filter_repo = FilterRepository(db)
+            ranking_repo = RankingRepository(db)
+            resolver = LocationResolver(db, region_code=self._region_code)
+
+            text_results = pre_data.text_results
+            text_latency_ms = pre_data.text_latency_ms
+            require_text_match = pre_data.require_text_match
+            skip_vector = pre_data.skip_vector
+
+            if text_results is None:
+                text_query = self.retriever._normalize_query_for_trigram(parsed_query.service_query)
+                text_start = time.perf_counter()
+                text_results = batch.text_search(
+                    text_query,
+                    text_query,
+                    limit=min(TEXT_TOP_K, MAX_CANDIDATES),
+                )
+                text_latency_ms = int((time.perf_counter() - text_start) * 1000)
+                (
+                    _,
+                    require_text_match,
+                    skip_vector,
+                ) = self._compute_text_match_flags(parsed_query.service_query, text_results)
+
+            vector_results: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+            vector_latency_ms = 0
+            vector_search_used = False
+            if query_embedding and not skip_vector:
+                vector_start = time.perf_counter()
+                vector_results = batch.vector_search(
+                    query_embedding,
+                    limit=min(VECTOR_TOP_K, MAX_CANDIDATES),
+                )
+                vector_latency_ms = int((time.perf_counter() - vector_start) * 1000)
+                vector_search_used = True
+
+            candidates = self.retriever.fuse_results(
+                vector_results,
+                text_results or {},
+                MAX_CANDIDATES,
+                require_text_match=require_text_match,
+            )
+
+            # Filtering (sync, DB-only)
+            filter_start = time.perf_counter()
+            filter_service = FilterService(
+                repository=filter_repo,
+                location_resolver=resolver,
+                region_code=self._region_code,
+            )
+            filter_failed = False
+            try:
+                filter_result = filter_service.filter_candidates_sync(
+                    candidates,
+                    parsed_query,
+                    user_location=user_location,
+                    location_resolution=location_resolution,
+                )
+            except Exception as exc:
+                logger.error(f"Filtering failed: {exc}")
+                filter_failed = True
+                filter_result = FilterResult(
+                    candidates=[
+                        FilteredCandidate(
+                            service_id=c.service_id,
+                            service_catalog_id=c.service_catalog_id,
+                            instructor_id=c.instructor_id,
+                            hybrid_score=c.hybrid_score,
+                            name=c.name,
+                            description=c.description,
+                            price_per_hour=c.price_per_hour,
+                        )
+                        for c in candidates
+                    ],
+                    total_before_filter=len(candidates),
+                    total_after_filter=len(candidates),
+                    filters_applied=[],
+                    soft_filtering_used=False,
+                    location_resolution=location_resolution,
+                )
+            filter_latency_ms = int((time.perf_counter() - filter_start) * 1000)
+
+            # Ranking
+            rank_start = time.perf_counter()
+            ranking_service = RankingService(repository=ranking_repo)
+            ranking_failed = False
+            try:
+                ranking_result = ranking_service.rank_candidates(
+                    filter_result.candidates,
+                    parsed_query,
+                    user_location=user_location,
+                )
+            except Exception as exc:
+                logger.error(f"Ranking failed: {exc}")
+                ranking_failed = True
+                ranking_result = RankingResult(results=[], total_results=0)
+            rank_latency_ms = int((time.perf_counter() - rank_start) * 1000)
+
+            ordered_instructor_ids = self._select_instructor_ids(ranking_result.results, limit)
+            instructor_rows = retriever_repo.get_instructor_cards(ordered_instructor_ids)
+
+            distance_meters: Dict[str, float] = {}
+            distance_region_ids = self._distance_region_ids(location_resolution)
+            if distance_region_ids:
+                distance_meters = filter_repo.get_instructor_min_distance_to_regions(
+                    ordered_instructor_ids,
+                    distance_region_ids,
+                )
+
+            # Location cache updates (best-effort)
+            if location_llm_cache:
+                resolver.cache_llm_alias(
+                    location_llm_cache.normalized,
+                    location_llm_cache.region_ids,
+                    confidence=location_llm_cache.confidence,
+                )
+
+            if pre_data.cached_alias_normalized:
+                cached_alias = resolver.repository.find_cached_alias(
+                    pre_data.cached_alias_normalized, source="llm"
+                )
+                if cached_alias:
+                    resolver.repository.increment_alias_user_count(cached_alias)
+
+            if unresolved_info:
+                unresolved_repo = UnresolvedLocationQueryRepository(db)
+                unresolved_repo.track_unresolved(
+                    unresolved_info.normalized,
+                    original_query=unresolved_info.original_query,
+                )
+
+            return PostOpenAIData(
+                filter_result=filter_result,
+                ranking_result=ranking_result,
+                retrieval_candidates=candidates,
+                instructor_rows=instructor_rows,
+                distance_meters=distance_meters,
+                text_latency_ms=text_latency_ms,
+                vector_latency_ms=vector_latency_ms,
+                filter_latency_ms=filter_latency_ms,
+                rank_latency_ms=rank_latency_ms,
+                vector_search_used=vector_search_used,
+                total_candidates=len(candidates),
+                filter_failed=filter_failed,
+                ranking_failed=ranking_failed,
+                skip_vector=skip_vector,
+            )
+
     async def _hydrate_instructor_results(
         self,
         ranked: List[RankedResult],
         limit: int,
         *,
         location_resolution: Optional["ResolvedLocation"] = None,
+        instructor_rows: Optional[List[Dict[str, Any]]] = None,
+        distance_meters: Optional[Dict[str, float]] = None,
     ) -> List[NLSearchResultItem]:
         """
         Convert ranked service-level candidates into instructor-level results.
@@ -393,24 +1164,31 @@ class NLSearchService:
             # De-dupe while preserving order
             distance_region_ids = list(dict.fromkeys(candidate_ids)) or None
 
-        def _load_hydration_data() -> tuple[List[Dict[str, Any]], Dict[str, float]]:
-            from app.repositories.filter_repository import FilterRepository
-            from app.repositories.retriever_repository import RetrieverRepository
+        if instructor_rows is None:
 
-            with get_db_session() as db:
-                retriever_repo = RetrieverRepository(db)
-                instructor_rows = retriever_repo.get_instructor_cards(ordered_instructor_ids)
+            def _load_hydration_data() -> tuple[List[Dict[str, Any]], Dict[str, float]]:
+                from app.repositories.filter_repository import FilterRepository
+                from app.repositories.retriever_repository import RetrieverRepository
 
-                distance_meters: Dict[str, float] = {}
-                if distance_region_ids:
-                    filter_repo = FilterRepository(db)
-                    distance_meters = filter_repo.get_instructor_min_distance_to_regions(
-                        ordered_instructor_ids,
-                        distance_region_ids,
-                    )
-                return instructor_rows, distance_meters
+                with get_db_session() as db:
+                    retriever_repo = RetrieverRepository(db)
+                    rows = retriever_repo.get_instructor_cards(ordered_instructor_ids)
 
-        instructor_rows, distance_meters = await asyncio.to_thread(_load_hydration_data)
+                    distance_map: Dict[str, float] = {}
+                    if distance_region_ids:
+                        filter_repo = FilterRepository(db)
+                        distance_map = filter_repo.get_instructor_min_distance_to_regions(
+                            ordered_instructor_ids,
+                            distance_region_ids,
+                        )
+                    return rows, distance_map
+
+            instructor_rows, distance_meters = await asyncio.to_thread(_load_hydration_data)
+
+        if distance_meters is None:
+            distance_meters = {}
+
+        assert instructor_rows is not None
         instructor_by_id: Dict[str, Dict[str, Any]] = {
             row["instructor_id"]: row for row in instructor_rows
         }

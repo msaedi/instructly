@@ -334,6 +334,15 @@ class PostgresRetriever:
             for row in rows
         }
 
+    def vector_search_repo(
+        self,
+        repo: RetrieverRepository,
+        query_embedding: List[float],
+        top_k: int,
+    ) -> Dict[str, Tuple[float, ServiceData]]:
+        """Public wrapper for vector search using an existing repository."""
+        return self._vector_search(repo, query_embedding, top_k)
+
     def _text_search(
         self,
         repo: RetrieverRepository,
@@ -361,6 +370,33 @@ class PostgresRetriever:
             )
             for row in rows
         }
+
+    def text_search_repo(
+        self,
+        repo: RetrieverRepository,
+        corrected_query: str,
+        original_query: str,
+        top_k: int,
+    ) -> Dict[str, Tuple[float, ServiceData]]:
+        """Public wrapper for text search using an existing repository."""
+        return self._text_search(repo, corrected_query, original_query, top_k)
+
+    def fuse_results(
+        self,
+        vector_results: Dict[str, Tuple[float, ServiceData]],
+        text_results: Dict[str, Tuple[float, ServiceData]],
+        top_k: int,
+        *,
+        require_text_match: bool = False,
+    ) -> List[ServiceCandidate]:
+        """Fuse vector + text results with optional lexical gating."""
+        if require_text_match and vector_results:
+            vector_results = {
+                service_id: entry
+                for service_id, entry in vector_results.items()
+                if service_id in text_results
+            }
+        return self._fuse_scores(vector_results, text_results, top_k)
 
     @staticmethod
     def _normalize_query_for_trigram(service_query: str) -> str:
