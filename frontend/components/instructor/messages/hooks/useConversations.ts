@@ -102,7 +102,7 @@ export function useConversations({
   typeFilter,
 }: UseConversationsOptions): UseConversationsResult {
   const queryClient = useQueryClient();
-  const { subscribe } = useMessageStream();
+  const { subscribe, isConnected } = useMessageStream();
 
   // Map state filter for API
   const apiStateFilter = stateFilter === 'archived' ? 'archived'
@@ -117,7 +117,7 @@ export function useConversations({
     queryKey,
     queryFn: () => fetchConversations(apiStateFilter),
     staleTime: STALE_TIME,
-    refetchInterval: REFETCH_INTERVAL,
+    refetchInterval: isConnected ? false : REFETCH_INTERVAL,
     enabled: !isLoadingUser,
   });
 

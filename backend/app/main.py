@@ -121,6 +121,7 @@ from .routes.v1 import (
     search as search_v1,
     search_history as search_history_v1,
     services as services_v1,
+    sse as sse_v1,
     student_badges as student_badges_v1,
     two_factor_auth as two_factor_auth_v1,
     uploads as uploads_v1,
@@ -1015,6 +1016,7 @@ api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ign
 api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
 api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
 api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
+api_v1.include_router(sse_v1.router, prefix="/sse")  # type: ignore[attr-defined]
 api_v1.include_router(conversations_v1.router, prefix="/conversations")  # type: ignore[attr-defined]
 api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
 api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]

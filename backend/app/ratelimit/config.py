@@ -35,6 +35,8 @@ BUCKETS: Dict[str, Dict[str, Any]] = {
     "read": dict(rate_per_min=60, burst=10, window_s=60),
     # Messaging uses the "write" bucket; relax to 30/min with a burst of 5 to prevent 429s during normal chat use
     "write": dict(rate_per_min=30, burst=10, window_s=60),
+    # Conversation-scoped messaging limit (per user+conversation)
+    "conv_msg": dict(rate_per_min=10, burst=0, window_s=60),
     "financial": dict(rate_per_min=5, burst=0, window_s=60),
 }
 
@@ -44,6 +46,7 @@ BUCKET_SHADOW_OVERRIDES: dict[str, bool] = {
     "financial": os.getenv("RATE_LIMIT_SHADOW_FINANCIAL", "").lower() == "true",
     # PR-4: enable enforcement for write by default; allow shadow via env
     "write": os.getenv("RATE_LIMIT_SHADOW_WRITE", "").lower() == "true",
+    "conv_msg": os.getenv("RATE_LIMIT_SHADOW_CONV_MSG", "").lower() == "true",
     # Additional per-bucket toggles for PR-7
     "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
     "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
@@ -110,6 +113,7 @@ def reload_config(cache_ttl_s: int = 30) -> Dict[str, Any]:
     BUCKET_SHADOW_OVERRIDES = {
         "financial": os.getenv("RATE_LIMIT_SHADOW_FINANCIAL", "").lower() == "true",
         "write": os.getenv("RATE_LIMIT_SHADOW_WRITE", "").lower() == "true",
+        "conv_msg": os.getenv("RATE_LIMIT_SHADOW_CONV_MSG", "").lower() == "true",
         "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
         "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
     }
@@ -145,6 +149,7 @@ async def reload_config_async(cache_ttl_s: int = 30) -> Dict[str, Any]:
     BUCKET_SHADOW_OVERRIDES = {
         "financial": os.getenv("RATE_LIMIT_SHADOW_FINANCIAL", "").lower() == "true",
         "write": os.getenv("RATE_LIMIT_SHADOW_WRITE", "").lower() == "true",
+        "conv_msg": os.getenv("RATE_LIMIT_SHADOW_CONV_MSG", "").lower() == "true",
         "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
         "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
     }

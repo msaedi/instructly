@@ -14,7 +14,7 @@ References:
 
 AUTHENTICATION METHODS SUPPORTED:
 ---------------------------------
-1. Query parameter (?token=xxx) - Primary method for browser EventSource
+1. Query parameter (?sse_token=xxx) - Short-lived SSE token for EventSource
 2. Authorization header - For non-browser clients and testing
 3. Cookie - Fallback for browsers with withCredentials support
 
@@ -39,19 +39,52 @@ from jwt import InvalidIssuerError, PyJWTError
 from .auth import decode_access_token, oauth2_scheme_optional
 from .core.auth_cache import (
     create_transient_user,
+    lookup_user_by_id_nonblocking,
     lookup_user_nonblocking,
 )
+from .core.cache_redis import get_async_cache_redis_client
 from .core.config import settings
 from .models.user import User
 from .utils.cookies import session_cookie_candidates
 
 logger = logging.getLogger(__name__)
 
+SSE_TOKEN_PREFIX = "sse_token:"
+SSE_TOKEN_TTL_SECONDS = 30
+
+
+async def _get_user_from_sse_token(token: str) -> Optional[User]:
+    """Resolve a short-lived SSE token to a transient user."""
+    redis = await get_async_cache_redis_client()
+    if redis is None:
+        logger.warning("[SSE] Redis unavailable for SSE token lookup")
+        return None
+
+    key = f"{SSE_TOKEN_PREFIX}{token}"
+    user_id_raw = await redis.get(key)
+    if not user_id_raw:
+        return None
+
+    # One-time token - delete after use
+    await redis.delete(key)
+
+    user_id = (
+        user_id_raw.decode() if isinstance(user_id_raw, (bytes, bytearray)) else str(user_id_raw)
+    )
+    user_data = await lookup_user_by_id_nonblocking(user_id)
+    if not user_data:
+        return None
+
+    if not user_data.get("is_active", True):
+        return None
+
+    return create_transient_user(user_data)
+
 
 async def get_current_user_sse(
     request: Request,
     token_header: Optional[str] = Depends(oauth2_scheme_optional),
-    token_query: Optional[str] = Query(None, alias="token"),
+    token_query: Optional[str] = Query(None, alias="sse_token"),
 ) -> User:
     """
     Get current user for SSE endpoints.
@@ -63,7 +96,7 @@ async def get_current_user_sse(
 
     Checks for authentication in this order:
     1. Authorization header (for testing/non-browser clients)
-    2. Query parameter (for EventSource)
+    2. Short-lived SSE token in query parameter (for EventSource)
     3. Cookie (for browser-based EventSource with withCredentials)
 
     Args:
@@ -91,7 +124,17 @@ async def get_current_user_sse(
                 logger.debug("Using %s cookie for SSE authentication", cookie_name)
                 break
 
-    token = token_header or token_query or token_cookie
+    if token_query:
+        sse_user = await _get_user_from_sse_token(token_query)
+        if sse_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired SSE token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return sse_user
+
+    token = token_header or token_cookie
 
     if not token:
         raise HTTPException(

@@ -19,7 +19,7 @@ import asyncio
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.params import Path
 from sqlalchemy.orm import Session
 
@@ -73,6 +73,22 @@ router = APIRouter(tags=["conversations-v1"])
 ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 WRITE_DEP = Depends(new_rate_limit("write"))
 READ_DEP = Depends(new_rate_limit("read"))
+
+
+async def enforce_conversation_rate_limit(
+    request: Request,
+    response: Response,
+    conversation_id: str = Path(..., pattern=ULID_PATH_PATTERN),
+    current_user: User = Depends(get_current_active_user),
+) -> None:
+    """Apply conversation-scoped rate limiting for message sends."""
+    original_identity = getattr(request.state, "rate_identity", None)
+    request.state.rate_identity = f"user:{current_user.id}:conv:{conversation_id}"
+    try:
+        await new_rate_limit("conv_msg")(request, response)
+    finally:
+        if original_identity is not None:
+            request.state.rate_identity = original_identity
 
 
 def get_conversation_service(db: Session = Depends(get_db)) -> ConversationService:
@@ -424,7 +440,7 @@ async def get_messages(
 @router.post(
     "/{conversation_id}/messages",
     response_model=SendMessageResponse,
-    dependencies=[WRITE_DEP],
+    dependencies=[WRITE_DEP, Depends(enforce_conversation_rate_limit)],
 )
 async def send_message(
     request: SendMessageRequest,

@@ -1309,6 +1309,21 @@ def upgrade() -> None:
           AND cus.conversation_id IS NULL
         """
     )
+    conn = op.get_bind()
+    orphan_count = conn.execute(
+        sa.text(
+            """
+            SELECT COUNT(*)
+            FROM conversation_user_state
+            WHERE conversation_id IS NULL
+            """
+        )
+    ).scalar()
+    if orphan_count and orphan_count > 0:
+        raise RuntimeError(
+            "Found orphaned conversation_user_state records with conversation_id NULL. "
+            "Run `python scripts/fix_orphaned_conversation_states.py` before migrating."
+        )
     # Delete orphaned records that couldn't be migrated (no matching conversation)
     op.execute(
         """
@@ -1977,6 +1992,19 @@ def upgrade() -> None:
 
     print("NL Search Phase 1 schema complete!")
 
+    # Missing indexes for performance (from PR review)
+    op.create_index("ix_reviews_student_id", "reviews", ["student_id"])
+    op.create_index(
+        "ix_message_reactions_message_id",
+        "message_reactions",
+        ["message_id"],
+    )
+    op.create_index(
+        "ix_search_clicks_instructor_id",
+        "search_clicks",
+        ["instructor_id"],
+    )
+
     # Add schema documentation
     print("Schema finalization complete!")
     print("")
@@ -2018,6 +2046,13 @@ def downgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name if bind is not None else "postgresql"
     is_postgres = dialect_name == "postgresql"
+
+    op.drop_index("ix_search_clicks_instructor_id", table_name="search_clicks")
+    op.drop_index(
+        "ix_message_reactions_message_id",
+        table_name="message_reactions",
+    )
+    op.drop_index("ix_reviews_student_id", table_name="reviews")
 
     # ======================================================================
     # NL SEARCH PHASE 1: Drop search schema (reverse order)

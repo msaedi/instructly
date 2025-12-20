@@ -25,6 +25,8 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional
 
+from fastapi import HTTPException, status
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.broadcast import get_broadcast
@@ -39,6 +41,21 @@ logger = logging.getLogger(__name__)
 
 # Configurable via settings.sse_heartbeat_interval
 HEARTBEAT_INTERVAL = settings.sse_heartbeat_interval
+
+
+async def ensure_db_health(db: Session) -> None:
+    """Verify database connectivity before starting SSE stream."""
+    try:
+        await asyncio.wait_for(
+            asyncio.to_thread(lambda: db.execute(text("SELECT 1"))),
+            timeout=2.0,
+        )
+    except Exception as exc:
+        logger.warning("[SSE] DB health check failed before stream: %s", str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable",
+        ) from exc
 
 
 async def create_sse_stream(

@@ -216,7 +216,8 @@ export function useMessageThread({
     const messages = historyData.messages || [];
 
     // Guard against re-processing identical history payloads (prevents render loops in tests)
-    const lastMessageId = messages[messages.length - 1]?.id ?? 'none';
+    const lastMessage = messages.at(-1);
+    const lastMessageId = lastMessage?.id ?? 'none';
     const dedupeKey = `${threadId}:${messages.length}:${lastMessageId}`;
     if (lastHistoryAppliedRef.current === dedupeKey) {
       return;
@@ -242,8 +243,9 @@ export function useMessageThread({
     setThreadMessages(mergedMessages);
 
     // Track last seen message timestamp for staleness checks
-    const lastTimestamp = mergedMessages.length > 0
-      ? new Date(mergedMessages[mergedMessages.length - 1]?.createdAt || '').getTime()
+    const lastMergedMessage = mergedMessages.at(-1);
+    const lastTimestamp = lastMergedMessage?.createdAt
+      ? new Date(lastMergedMessage.createdAt).getTime()
       : (conversation.latestMessageAt ?? undefined);
     updateLastSeenTimestamp(threadId, lastTimestamp);
 

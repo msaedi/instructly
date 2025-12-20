@@ -6,11 +6,12 @@ Implements all data access operations for message management
 following the TRUE 100% repository pattern.
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, List, Optional, Sequence, Tuple, cast
 
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, text
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import NotFoundException, RepositoryException
@@ -25,6 +26,15 @@ logger = logging.getLogger(__name__)
 # then triggers a "cancel" for the old booking. This window prevents duplicate messages.
 # 1 minute is sufficient since both operations happen in the same request cycle.
 RESCHEDULE_DETECTION_WINDOW_MINUTES = 1
+
+
+@dataclass(frozen=True)
+class AtomicMarkResult:
+    """Result of an atomic mark-read operation."""
+
+    rowcount: int
+    message_ids: List[str]
+    timestamp: Optional[datetime]
 
 
 class MessageRepository(BaseRepository[Message]):
@@ -79,6 +89,24 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching unread messages by conversation: {str(e)}")
             raise RepositoryException(f"Failed to fetch unread messages: {str(e)}")
 
+    def _update_message_read_by(self, message_ids: List[str], user_id: str) -> None:
+        """Append read_by entries for messages (best-effort)."""
+        if not message_ids:
+            return
+
+        read_at = datetime.now(timezone.utc).isoformat()
+        messages = self.db.query(Message).filter(Message.id.in_(message_ids)).all()
+
+        for message in messages:
+            read_by = message.read_by if message.read_by else []
+            if any(r.get("user_id") == user_id for r in read_by):
+                continue
+            read_by.append({"user_id": user_id, "read_at": read_at})
+            message.read_by = read_by
+            from sqlalchemy.orm.attributes import flag_modified
+
+            flag_modified(message, "read_by")
+
     def mark_messages_as_read(self, message_ids: List[str], user_id: str) -> int:
         """
         Mark messages as read for a user.
@@ -115,21 +143,7 @@ class MessageRepository(BaseRepository[Message]):
 
             # Update Message.read_by field for persistence
             if count > 0:
-                read_at = datetime.now(timezone.utc).isoformat()
-                messages = self.db.query(Message).filter(Message.id.in_(message_ids)).all()
-
-                for message in messages:
-                    # Get existing read_by array or initialize empty list
-                    read_by = message.read_by if message.read_by else []
-
-                    # Check if user hasn't already read this message
-                    if not any(r.get("user_id") == user_id for r in read_by):
-                        read_by.append({"user_id": user_id, "read_at": read_at})
-                        message.read_by = read_by
-                        # Force SQLAlchemy to detect the change
-                        from sqlalchemy.orm.attributes import flag_modified
-
-                        flag_modified(message, "read_by")
+                self._update_message_read_by(message_ids, user_id)
 
             self.logger.info(f"Marked {count} messages as read for user {user_id}")
             return count
@@ -137,6 +151,43 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             self.logger.error(f"Error marking messages as read: {str(e)}")
             raise RepositoryException(f"Failed to mark messages as read: {str(e)}")
+
+    def mark_unread_messages_read_atomic(
+        self, conversation_id: str, user_id: str
+    ) -> AtomicMarkResult:
+        """Atomically mark unread messages as read and return message IDs."""
+        try:
+            result = self.db.execute(
+                text(
+                    """
+                    UPDATE message_notifications AS mn
+                    SET is_read = TRUE,
+                        read_at = NOW()
+                    FROM messages AS m
+                    WHERE mn.message_id = m.id
+                      AND m.conversation_id = :conversation_id
+                      AND mn.user_id = :user_id
+                      AND mn.is_read = FALSE
+                      AND m.is_deleted = FALSE
+                      AND m.deleted_at IS NULL
+                    RETURNING mn.message_id, mn.read_at
+                    """
+                ),
+                {"conversation_id": conversation_id, "user_id": user_id},
+            )
+            rows = result.fetchall()
+            message_ids = [str(row.message_id) for row in rows]
+            timestamp = rows[0].read_at if rows else None
+            if message_ids:
+                self._update_message_read_by(message_ids, user_id)
+            return AtomicMarkResult(
+                rowcount=len(rows),
+                message_ids=message_ids,
+                timestamp=timestamp,
+            )
+        except Exception as e:
+            self.logger.error(f"Error marking messages as read atomically: {str(e)}")
+            raise RepositoryException(f"Failed to mark messages as read atomically: {str(e)}")
 
     def get_unread_count_for_user(self, user_id: str) -> int:
         """

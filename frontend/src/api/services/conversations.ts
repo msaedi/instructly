@@ -9,9 +9,12 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { withApiBase } from '@/lib/apiBase';
+import { logger } from '@/lib/logger';
+import { toast } from 'sonner';
 import type {
   ConversationListResponse,
   ConversationDetail,
+  ConversationMessage,
   ConversationMessagesResponse,
   CreateConversationResponse,
   SendMessageResponse,
@@ -277,8 +280,11 @@ export function useCreateConversation() {
       instructorId: string;
       initialMessage?: string;
     }) => createConversation(instructorId, initialMessage),
-    onSuccess: () => {
-      // Invalidate conversation list to include the new conversation
+    onError: (error) => {
+      logger.warn('Failed to create conversation', { error });
+      toast.error('Failed to start conversation. Please try again.');
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
     },
   });
@@ -300,12 +306,61 @@ export function useSendConversationMessage() {
       content: string;
       bookingId?: string;
     }) => sendMessage(conversationId, content, bookingId),
-    onSuccess: (_data, variables) => {
-      // Invalidate messages for the conversation
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({
+        queryKey: conversationQueryKeys.messages(variables.conversationId),
+      });
+
+      const previousMessages = queryClient.getQueriesData<ConversationMessagesResponse>({
+        queryKey: conversationQueryKeys.messages(variables.conversationId),
+      });
+
+      const optimisticMessage: ConversationMessage = {
+        id: `temp-${Date.now()}`,
+        conversation_id: variables.conversationId,
+        content: variables.content,
+        sender_id: null,
+        is_from_me: true,
+        message_type: 'user',
+        booking_id: variables.bookingId ?? null,
+        booking_details: null,
+        created_at: new Date().toISOString(),
+        edited_at: null,
+        is_deleted: false,
+        delivered_at: null,
+        read_by: [],
+        reactions: [],
+      };
+
+      queryClient.setQueriesData<ConversationMessagesResponse>(
+        { queryKey: conversationQueryKeys.messages(variables.conversationId) },
+        (old) => {
+          if (!old) return old;
+          if (old.messages.some((msg) => msg.id === optimisticMessage.id)) {
+            return old;
+          }
+          return {
+            ...old,
+            messages: [...old.messages, optimisticMessage],
+          };
+        }
+      );
+
+      return { previousMessages };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousMessages) {
+        context.previousMessages.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+      logger.warn('Failed to send message', { error });
+      toast.error('Failed to send message. Please try again.');
+    },
+    onSettled: (_data, _error, variables) => {
       void queryClient.invalidateQueries({
         queryKey: conversationQueryKeys.messages(variables.conversationId),
       });
-      // Also invalidate list to update last_message preview
       void queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
     },
   });
@@ -323,6 +378,9 @@ export function useSendConversationTyping() {
       conversationId: string;
       isTyping?: boolean;
     }) => sendTypingIndicator(conversationId, isTyping ?? true),
+    onError: (error) => {
+      logger.warn('Failed to send typing indicator', { error });
+    },
   });
 }
 
@@ -340,9 +398,15 @@ export function useUpdateConversationState() {
       conversationId: string;
       state: ConversationStateFilter;
     }) => updateConversationState(conversationId, state),
-    onSuccess: (_data, variables) => {
-      // Use targeted setQueryData to update just the affected conversation (M2 fix)
-      // instead of invalidating all queries
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: conversationQueryKeys.lists() });
+      const previousLists = queryClient.getQueriesData<ConversationListResponse>({
+        queryKey: conversationQueryKeys.lists(),
+      });
+      const previousDetail = queryClient.getQueryData<ConversationDetail>(
+        conversationQueryKeys.detail(variables.conversationId)
+      );
+
       queryClient.setQueriesData<ConversationListResponse>(
         { queryKey: conversationQueryKeys.lists() },
         (oldData) => {
@@ -357,7 +421,6 @@ export function useUpdateConversationState() {
           };
         }
       );
-      // Also update detail cache if it exists
       queryClient.setQueryData<ConversationDetail>(
         conversationQueryKeys.detail(variables.conversationId),
         (oldData) => {
@@ -365,6 +428,31 @@ export function useUpdateConversationState() {
           return { ...oldData, state: variables.state };
         }
       );
+
+      return { previousLists, previousDetail };
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousLists) {
+        context.previousLists.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+      if (context?.previousDetail) {
+        queryClient.setQueryData(
+          conversationQueryKeys.detail(variables.conversationId),
+          context.previousDetail
+        );
+      }
+      logger.warn('Failed to update conversation state', { error });
+      toast.error('Failed to update conversation. Please try again.');
+    },
+    onSettled: (_data, _error, variables) => {
+      void queryClient.invalidateQueries({ queryKey: conversationQueryKeys.lists() });
+      if (variables?.conversationId) {
+        void queryClient.invalidateQueries({
+          queryKey: conversationQueryKeys.detail(variables.conversationId),
+        });
+      }
     },
   });
 }

@@ -312,7 +312,7 @@ async def get_current_user(
                 site_mode = ""
 
             if hasattr(request, "cookies"):
-                # TODO: remove legacy cookie fallback once __Host- migration is complete.
+                # Legacy cookie fallback for __Host- migration compatibility.
                 for cookie_name in session_cookie_candidates(site_mode):
                     cookie_token = request.cookies.get(cookie_name)
                     if cookie_token:
@@ -376,7 +376,7 @@ async def get_current_user_optional(
             site_mode = ""
 
         if hasattr(request, "cookies"):
-            # TODO: remove legacy cookie fallback once __Host- migration is complete.
+            # Legacy cookie fallback for __Host- migration compatibility.
             for cookie_name in session_cookie_candidates(site_mode):
                 cookie_token = request.cookies.get(cookie_name)
                 if cookie_token:

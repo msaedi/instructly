@@ -3,6 +3,7 @@ import pytest
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
+from app import auth_sse
 from app.auth import create_access_token
 from app.auth_sse import get_current_user_sse
 from app.core import auth_cache
@@ -78,7 +79,7 @@ async def test_get_current_user_sse_accepts_configured_session_cookie(unit_db, m
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypatch):
+async def test_get_current_user_sse_accepts_sse_query_token(unit_db, monkeypatch):
     monkeypatch.setenv("SITE_MODE", "preview")
     # Patch SessionLocal in the shared auth_cache module to return our test db session
     monkeypatch.setattr(auth_cache, "SessionLocal", lambda: unit_db)
@@ -89,7 +90,33 @@ async def test_get_current_user_sse_falls_back_to_query_param(unit_db, monkeypat
     # Capture user attributes BEFORE calling get_current_user_sse
     # because it calls db.rollback() which expires all objects in the session
     expected_email = user.email
-    token = create_access_token({"sub": expected_email})
+
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.store: dict[str, str] = {}
+
+        async def setex(self, key: str, _ttl: int, value: str) -> None:
+            self.store[key] = value
+
+        async def get(self, key: str) -> str | None:
+            return self.store.get(key)
+
+        async def delete(self, key: str) -> None:
+            self.store.pop(key, None)
+
+    fake_redis = FakeRedis()
+
+    async def _get_redis():
+        return fake_redis
+
+    monkeypatch.setattr(auth_sse, "get_async_cache_redis_client", _get_redis)
+
+    token = "sse-token-123"
+    await fake_redis.setex(
+        f"{auth_sse.SSE_TOKEN_PREFIX}{token}",
+        auth_sse.SSE_TOKEN_TTL_SECONDS,
+        str(user.id),
+    )
 
     # No cookie in the request; rely on Query parameter injection
     request = _build_request()

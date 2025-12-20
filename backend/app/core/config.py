@@ -497,7 +497,15 @@ class Settings(BaseSettings):
         default=3,
         alias="OPENAI_CALL_CONCURRENCY",
         ge=1,
-        description="Max concurrent OpenAI calls per worker",
+        description=(
+            "Maximum concurrent OpenAI API calls per worker.\n\n"
+            "Tuning guidelines:\n"
+            "- Free tier: 3 (default)\n"
+            "- Tier 1 ($5/mo): 5-8\n"
+            "- Tier 2 ($50/mo): 10-15\n"
+            "- Tier 3+ ($100/mo+): 15-25\n"
+            "Higher values reduce latency but risk rate limits; monitor 429s."
+        ),
     )
 
     # Privacy and Data Retention Configuration (GDPR compliance)

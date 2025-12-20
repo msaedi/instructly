@@ -89,28 +89,33 @@ class ConversationRepository(BaseRepository[Conversation]):
         Returns:
             Tuple of (conversation, created) where created is True if new
         """
-        existing = self.find_by_pair(student_id, instructor_id)
-        if existing:
-            return existing, False
+        MAX_RETRIES = 3
 
-        try:
-            # Use savepoint (nested transaction) to avoid rolling back the entire transaction
-            # This is safer when called within a larger transaction context
-            with self.db.begin_nested():
-                # Create new conversation using inherited create() method
-                conversation = self.create(
-                    student_id=student_id,
-                    instructor_id=instructor_id,
-                )
-                self.db.flush()  # Force the INSERT to happen now
-            return conversation, True
-        except IntegrityError:
-            # Race condition - another transaction created it first
-            # Savepoint is automatically rolled back, main transaction is preserved
+        for attempt in range(MAX_RETRIES):
             existing = self.find_by_pair(student_id, instructor_id)
             if existing:
                 return existing, False
-            raise  # Re-raise if still not found (unexpected)
+
+            try:
+                # Use savepoint (nested transaction) to avoid rolling back the entire transaction
+                # This is safer when called within a larger transaction context
+                with self.db.begin_nested():
+                    # Create new conversation using inherited create() method
+                    conversation = self.create(
+                        student_id=student_id,
+                        instructor_id=instructor_id,
+                    )
+                    self.db.flush()  # Force the INSERT to happen now
+                return conversation, True
+            except IntegrityError:
+                if attempt == MAX_RETRIES - 1:
+                    existing = self.find_by_pair(student_id, instructor_id)
+                    if existing:
+                        return existing, False
+                    raise
+                continue
+
+        raise RuntimeError("Failed to create conversation after max retries")
 
     def find_for_user(
         self,

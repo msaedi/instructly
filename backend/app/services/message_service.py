@@ -417,14 +417,13 @@ class MessageService(BaseService):
 
         if conversation_id:
             actual_conversation_id = conversation_id
-            unread_messages = self.repository.get_unread_messages_by_conversation(
-                conversation_id, user_id
-            )
-            marked_message_ids = [msg.id for msg in unread_messages]
-
-            if marked_message_ids:
-                with self.transaction():
-                    count = self.repository.mark_messages_as_read(marked_message_ids, user_id)
+            with self.transaction():
+                atomic_result = self.repository.mark_unread_messages_read_atomic(
+                    conversation_id, user_id
+                )
+                count = atomic_result.rowcount
+                marked_message_ids = atomic_result.message_ids
+                if marked_message_ids:
                     self.logger.info(f"Marked {count} messages as read for user {user_id}")
 
             # Pre-fetch participants

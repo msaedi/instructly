@@ -61,6 +61,7 @@ from ...services.message_service import MessageService, SSEStreamContext
 # NOTE: Using *_direct versions for proper architecture - routes don't need DB access
 from ...services.messaging import (
     create_sse_stream,
+    ensure_db_health,
     publish_message_deleted_direct,
     publish_message_edited_direct,
     publish_reaction_update_direct,
@@ -170,6 +171,7 @@ async def stream_user_messages(
     # Service layer handles missed message fetch (permission pre-checked above)
     db = SessionLocal()
     try:
+        await ensure_db_health(db)
         message_service = MessageService(db)
         context: SSEStreamContext = await asyncio.to_thread(
             message_service.get_stream_context,
