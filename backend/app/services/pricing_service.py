@@ -229,16 +229,16 @@ class PricingService(BaseService):
         tier_pct_decimal = tier_pct if tier_pct is not None else fallback_tier_pct
 
         student_fee_cents = self._round_to_int(Decimal(base_price_cents) * student_fee_pct)
-        instructor_commission_cents = self._round_to_int(
+        instructor_platform_fee_cents = self._round_to_int(
             Decimal(base_price_cents) * tier_pct_decimal
         )
-        target_payout_cents = base_price_cents - instructor_commission_cents
+        target_payout_cents = base_price_cents - instructor_platform_fee_cents
 
         credit_cents = int(applied_credit_cents)
         subtotal_with_fee = base_price_cents + student_fee_cents
 
         student_pay_cents = max(0, subtotal_with_fee - credit_cents)
-        application_fee_raw = student_fee_cents + instructor_commission_cents - credit_cents
+        application_fee_raw = student_fee_cents + instructor_platform_fee_cents - credit_cents
         application_fee_cents = max(0, application_fee_raw)
 
         top_up_transfer_cents = 0
@@ -254,7 +254,7 @@ class PricingService(BaseService):
         pricing_data: PricingPreviewData = {
             "base_price_cents": base_price_cents,
             "student_fee_cents": student_fee_cents,
-            "instructor_commission_cents": instructor_commission_cents,
+            "instructor_platform_fee_cents": instructor_platform_fee_cents,
             "target_instructor_payout_cents": target_payout_cents,
             "credit_applied_cents": credit_cents,
             "student_pay_cents": student_pay_cents,

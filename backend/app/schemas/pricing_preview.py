@@ -20,7 +20,7 @@ class LineItemData(TypedDict):
 class PricingPreviewOut(BaseModel):
     base_price_cents: int = Field(ge=0)
     student_fee_cents: int = Field(ge=0)
-    instructor_commission_cents: int = Field(ge=0)
+    instructor_platform_fee_cents: int = Field(ge=0)
     target_instructor_payout_cents: int = Field(ge=0)
     credit_applied_cents: int = Field(ge=0)
     student_pay_cents: int = Field(ge=0)
@@ -33,7 +33,7 @@ class PricingPreviewOut(BaseModel):
 class PricingPreviewData(TypedDict):
     base_price_cents: int
     student_fee_cents: int
-    instructor_commission_cents: int
+    instructor_platform_fee_cents: int
     target_instructor_payout_cents: int
     credit_applied_cents: int
     student_pay_cents: int

@@ -417,15 +417,15 @@ class TestStripeService:
         student_fee_pct = Decimal(str(config["student_fee_pct"]))
         credit_locked = 7 * 100
         student_fee_cents = int(Decimal(base_price_cents) * student_fee_pct)
-        instructor_commission_cents = int(Decimal(base_price_cents) * tier_pct)
+        instructor_platform_fee_cents = int(Decimal(base_price_cents) * tier_pct)
         mock_pricing.return_value = {
             "base_price_cents": base_price_cents,
             "student_fee_cents": student_fee_cents,
-            "instructor_commission_cents": instructor_commission_cents,
-            "target_instructor_payout_cents": base_price_cents - instructor_commission_cents,
+            "instructor_platform_fee_cents": instructor_platform_fee_cents,
+            "target_instructor_payout_cents": base_price_cents - instructor_platform_fee_cents,
             "credit_applied_cents": credit_locked,
             "student_pay_cents": base_price_cents + student_fee_cents - credit_locked,
-            "application_fee_cents": student_fee_cents + instructor_commission_cents - credit_locked,
+            "application_fee_cents": student_fee_cents + instructor_platform_fee_cents - credit_locked,
             "top_up_transfer_cents": 0,
             "instructor_tier_pct": float(tier_pct),
         }
@@ -456,7 +456,7 @@ class TestStripeService:
 
         assert context.applied_credit_cents == credit_locked
         assert context.application_fee_cents == (
-            student_fee_cents + instructor_commission_cents - credit_locked
+            student_fee_cents + instructor_platform_fee_cents - credit_locked
         )
         assert context.student_pay_cents == (
             base_price_cents + student_fee_cents - credit_locked
@@ -478,15 +478,15 @@ class TestStripeService:
         student_fee_pct = Decimal(str(config["student_fee_pct"]))
         locked_credit = 5 * 100
         student_fee_cents = int(Decimal(base_price_cents) * student_fee_pct)
-        instructor_commission_cents = int(Decimal(base_price_cents) * tier_pct)
+        instructor_platform_fee_cents = int(Decimal(base_price_cents) * tier_pct)
         mock_pricing.return_value = {
             "base_price_cents": base_price_cents,
             "student_fee_cents": student_fee_cents,
-            "instructor_commission_cents": instructor_commission_cents,
-            "target_instructor_payout_cents": base_price_cents - instructor_commission_cents,
+            "instructor_platform_fee_cents": instructor_platform_fee_cents,
+            "target_instructor_payout_cents": base_price_cents - instructor_platform_fee_cents,
             "credit_applied_cents": locked_credit,
             "student_pay_cents": base_price_cents + student_fee_cents - locked_credit,
-            "application_fee_cents": student_fee_cents + instructor_commission_cents - locked_credit,
+            "application_fee_cents": student_fee_cents + instructor_platform_fee_cents - locked_credit,
             "top_up_transfer_cents": 0,
             "instructor_tier_pct": float(tier_pct),
         }
@@ -530,16 +530,16 @@ class TestStripeService:
         student_fee_pct = Decimal(str(config["student_fee_pct"]))
         tier_pct = Decimal(str(config["instructor_tiers"][-1]["pct"]))
         student_fee_cents = int(Decimal(base_price_cents) * student_fee_pct)
-        instructor_commission_cents = int(Decimal(base_price_cents) * tier_pct)
+        instructor_platform_fee_cents = int(Decimal(base_price_cents) * tier_pct)
         locked_credit_cents = 12 * 100
         mock_pricing.return_value = {
             "base_price_cents": base_price_cents,
             "student_fee_cents": student_fee_cents,
-            "instructor_commission_cents": instructor_commission_cents,
-            "target_instructor_payout_cents": base_price_cents - instructor_commission_cents,
+            "instructor_platform_fee_cents": instructor_platform_fee_cents,
+            "target_instructor_payout_cents": base_price_cents - instructor_platform_fee_cents,
             "credit_applied_cents": locked_credit_cents,
             "student_pay_cents": base_price_cents + student_fee_cents - locked_credit_cents,
-            "application_fee_cents": student_fee_cents + instructor_commission_cents - locked_credit_cents,
+            "application_fee_cents": student_fee_cents + instructor_platform_fee_cents - locked_credit_cents,
             "top_up_transfer_cents": 0,
             "instructor_tier_pct": float(tier_pct),
         }
@@ -603,16 +603,16 @@ class TestStripeService:
         base_price_cents = 10000
         credit_applied = 20 * 100
         student_fee_cents = int(Decimal(base_price_cents) * student_fee_pct)
-        instructor_commission_cents = int(Decimal(base_price_cents) * tier_pct)
-        target_payout_cents = base_price_cents - instructor_commission_cents
+        instructor_platform_fee_cents = int(Decimal(base_price_cents) * tier_pct)
+        target_payout_cents = base_price_cents - instructor_platform_fee_cents
         student_pay_cents = base_price_cents + student_fee_cents - credit_applied
-        application_fee_cents = student_fee_cents + instructor_commission_cents - credit_applied
+        application_fee_cents = student_fee_cents + instructor_platform_fee_cents - credit_applied
         context = ChargeContext(
             booking_id=test_booking.id,
             applied_credit_cents=credit_applied,
             base_price_cents=base_price_cents,
             student_fee_cents=student_fee_cents,
-            instructor_commission_cents=instructor_commission_cents,
+            instructor_platform_fee_cents=instructor_platform_fee_cents,
             target_instructor_payout_cents=target_payout_cents,
             student_pay_cents=student_pay_cents,
             application_fee_cents=application_fee_cents,
@@ -648,7 +648,7 @@ class TestStripeService:
         assert metadata["instructor_tier_pct"] == str(tier_pct)
         assert metadata["base_price_cents"] == str(base_price_cents)
         assert metadata["student_fee_cents"] == str(student_fee_cents)
-        assert metadata["commission_cents"] == str(instructor_commission_cents)
+        assert metadata["platform_fee_cents"] == str(instructor_platform_fee_cents)
         assert metadata["applied_credit_cents"] == str(credit_applied)
         assert metadata["student_pay_cents"] == str(student_pay_cents)
         assert metadata["application_fee_cents"] == str(application_fee_cents)
@@ -678,17 +678,17 @@ class TestStripeService:
         tier_pct = Decimal("0.12")
         student_fee_pct = Decimal("0.12")
         student_fee_cents = _round_cents(Decimal(base_price_cents) * student_fee_pct)
-        instructor_commission_cents = _round_cents(Decimal(base_price_cents) * tier_pct)
+        instructor_platform_fee_cents = _round_cents(Decimal(base_price_cents) * tier_pct)
         credit_applied = 0
         student_pay_cents = base_price_cents + student_fee_cents - credit_applied
-        application_fee_cents = student_fee_cents + instructor_commission_cents - credit_applied
+        application_fee_cents = student_fee_cents + instructor_platform_fee_cents - credit_applied
         context = ChargeContext(
             booking_id=test_booking.id,
             applied_credit_cents=credit_applied,
             base_price_cents=base_price_cents,
             student_fee_cents=student_fee_cents,
-            instructor_commission_cents=instructor_commission_cents,
-            target_instructor_payout_cents=base_price_cents - instructor_commission_cents,
+            instructor_platform_fee_cents=instructor_platform_fee_cents,
+            target_instructor_payout_cents=base_price_cents - instructor_platform_fee_cents,
             student_pay_cents=student_pay_cents,
             application_fee_cents=application_fee_cents,
             top_up_transfer_cents=0,
@@ -736,16 +736,16 @@ class TestStripeService:
         base_price_cents = 10000
         credit_applied = 15 * 100
         student_fee_cents = int(Decimal(base_price_cents) * student_fee_pct)
-        instructor_commission_cents = int(Decimal(base_price_cents) * tier_pct)
-        target_payout_cents = base_price_cents - instructor_commission_cents
+        instructor_platform_fee_cents = int(Decimal(base_price_cents) * tier_pct)
+        target_payout_cents = base_price_cents - instructor_platform_fee_cents
         student_pay_cents = base_price_cents + student_fee_cents - credit_applied
-        application_fee_cents = student_fee_cents + instructor_commission_cents - credit_applied
+        application_fee_cents = student_fee_cents + instructor_platform_fee_cents - credit_applied
         context = ChargeContext(
             booking_id=test_booking.id,
             applied_credit_cents=credit_applied,
             base_price_cents=base_price_cents,
             student_fee_cents=student_fee_cents,
-            instructor_commission_cents=instructor_commission_cents,
+            instructor_platform_fee_cents=instructor_platform_fee_cents,
             target_instructor_payout_cents=target_payout_cents,
             student_pay_cents=student_pay_cents,
             application_fee_cents=application_fee_cents,
@@ -808,11 +808,11 @@ class TestStripeService:
         instructor_pct = _default_instructor_pct(stripe_service)
         student_fee_pct = _student_fee_pct(stripe_service)
         student_fee_cents = _round_cents(Decimal(base_price_cents) * student_fee_pct)
-        instructor_commission_cents = _round_cents(Decimal(base_price_cents) * instructor_pct)
-        target_instructor_payout_cents = base_price_cents - instructor_commission_cents
+        instructor_platform_fee_cents = _round_cents(Decimal(base_price_cents) * instructor_pct)
+        target_instructor_payout_cents = base_price_cents - instructor_platform_fee_cents
         subtotal_cents = base_price_cents + student_fee_cents
         student_pay_cents = max(0, subtotal_cents - applied_credit_cents)
-        application_fee_cents = max(0, student_fee_cents + instructor_commission_cents - applied_credit_cents)
+        application_fee_cents = max(0, student_fee_cents + instructor_platform_fee_cents - applied_credit_cents)
         top_up_transfer_cents = (
             target_instructor_payout_cents - student_pay_cents
             if application_fee_cents == 0 and student_pay_cents < target_instructor_payout_cents
@@ -824,7 +824,7 @@ class TestStripeService:
             applied_credit_cents=applied_credit_cents,
             base_price_cents=base_price_cents,
             student_fee_cents=student_fee_cents,
-            instructor_commission_cents=instructor_commission_cents,
+            instructor_platform_fee_cents=instructor_platform_fee_cents,
             target_instructor_payout_cents=target_instructor_payout_cents,
             student_pay_cents=student_pay_cents,
             application_fee_cents=application_fee_cents,
@@ -895,7 +895,7 @@ class TestStripeService:
             "booking_id": test_booking.id,
             "base_price_cents": "8000",
             "student_fee_cents": "960",
-            "commission_cents": "800",
+            "platform_fee_cents": "800",
             "applied_credit_cents": "2000",
             "student_pay_cents": "6960",
             "application_fee_cents": "0",
@@ -923,7 +923,7 @@ class TestStripeService:
             applied_credit_cents=2000,
             base_price_cents=8000,
             student_fee_cents=1120,
-            instructor_commission_cents=800,
+            instructor_platform_fee_cents=800,
             target_instructor_payout_cents=7200,
             student_pay_cents=7120,
             application_fee_cents=80,
@@ -1018,16 +1018,16 @@ class TestStripeService:
         applied_credit_cents = 0
         instructor_pct = _default_instructor_pct(stripe_service)
         student_fee_cents = 0
-        instructor_commission_cents = _round_cents(Decimal(base_price_cents) * instructor_pct)
-        target_instructor_payout_cents = base_price_cents - instructor_commission_cents
+        instructor_platform_fee_cents = _round_cents(Decimal(base_price_cents) * instructor_pct)
+        target_instructor_payout_cents = base_price_cents - instructor_platform_fee_cents
         student_pay_cents = base_price_cents
-        application_fee_cents = instructor_commission_cents
+        application_fee_cents = instructor_platform_fee_cents
         charge_context = ChargeContext(
             booking_id=test_booking.id,
             applied_credit_cents=applied_credit_cents,
             base_price_cents=base_price_cents,
             student_fee_cents=student_fee_cents,
-            instructor_commission_cents=instructor_commission_cents,
+            instructor_platform_fee_cents=instructor_platform_fee_cents,
             target_instructor_payout_cents=target_instructor_payout_cents,
             student_pay_cents=student_pay_cents,
             application_fee_cents=application_fee_cents,

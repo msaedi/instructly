@@ -9,7 +9,7 @@ import pytest
 
 from app.models.booking import Booking, BookingStatus
 from tests.helpers.pricing import (
-    instructor_commission_cents,
+    instructor_platform_fee_cents,
     instructor_tier_pct,
     student_fee_cents,
 )
@@ -97,14 +97,14 @@ def test_pricing_preview_returns_expected_totals(
 
     base_price_cents = 10000
     expected_student_fee = student_fee_cents(db, base_price_cents)
-    expected_instructor_commission = instructor_commission_cents(db, base_price_cents)
+    expected_platform_fee = instructor_platform_fee_cents(db, base_price_cents)
     assert payload["base_price_cents"] == base_price_cents
     assert payload["student_fee_cents"] == expected_student_fee
-    assert payload["instructor_commission_cents"] == expected_instructor_commission
+    assert payload["instructor_platform_fee_cents"] == expected_platform_fee
     assert payload["credit_applied_cents"] == 500
     expected_student_pay = max(0, base_price_cents + expected_student_fee - 500)
     expected_application_fee = max(
-        0, expected_student_fee + expected_instructor_commission - 500
+        0, expected_student_fee + expected_platform_fee - 500
     )
     assert payload["student_pay_cents"] == expected_student_pay
     assert payload["application_fee_cents"] == expected_application_fee

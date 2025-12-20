@@ -169,7 +169,7 @@ const fetchPricingPreviewQuoteMock = fetchPricingPreviewQuote as jest.MockedFunc
 const BASE_PREVIEW_WITH_CREDIT: PricingPreviewResponse = {
   base_price_cents: 22500,
   student_fee_cents: 2700,
-  instructor_commission_cents: 0,
+  instructor_platform_fee_cents: 0,
   credit_applied_cents: 4500,
   student_pay_cents: 20700,
   application_fee_cents: 0,

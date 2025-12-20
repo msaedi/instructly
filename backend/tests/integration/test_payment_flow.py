@@ -242,7 +242,7 @@ class TestPaymentIntegration:
         assert payment_result["payment_intent_id"] == "pi_test123"
         assert payment_result["status"] == "succeeded"
         assert payment_result["amount"] == 8960  # $80 base + 12% student fee
-        assert payment_result["application_fee"] == 2160  # 12% fee + 15% commission
+        assert payment_result["application_fee"] == 2160  # 12% student fee + 15% platform fee
 
         # Step 6: Verify database records
         payment_record = stripe_service.payment_repository.get_payment_by_booking_id(test_booking.id)

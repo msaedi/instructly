@@ -339,6 +339,146 @@ export interface AdminReferralsSummaryOut {
 }
 
 /**
+ * Admin search configuration with runtime controls.
+ */
+export interface AdminSearchConfigResponse {
+  /** Available embedding models */
+  available_embedding_models: ModelOption[];
+  /** Available parsing models */
+  available_parsing_models: ModelOption[];
+  /**
+   * Current in-flight uncached searches
+   * @minimum 0
+   */
+  current_in_flight_requests: number;
+  /** Current embedding model */
+  embedding_model: string;
+  /**
+   * Embedding timeout in ms
+   * @minimum 500
+   * @maximum 10000
+   */
+  embedding_timeout_ms: number;
+  /**
+   * High load budget in ms
+   * @minimum 50
+   */
+  high_load_budget_ms: number;
+  /**
+   * Concurrent requests to trigger high load
+   * @minimum 1
+   */
+  high_load_threshold: number;
+  /** Current location model */
+  location_model: string;
+  /**
+   * Location LLM timeout in ms
+   * @minimum 500
+   * @maximum 10000
+   */
+  location_timeout_ms: number;
+  /**
+   * OpenAI max retries
+   * @minimum 0
+   */
+  openai_max_retries: number;
+  /** Current parsing model */
+  parsing_model: string;
+  /**
+   * Parsing timeout in ms
+   * @minimum 500
+   * @maximum 10000
+   */
+  parsing_timeout_ms: number;
+  /**
+   * Default request budget in ms
+   * @minimum 50
+   */
+  search_budget_ms: number;
+  /**
+   * Max concurrent uncached searches per worker
+   * @minimum 1
+   */
+  uncached_concurrency: number;
+}
+
+/**
+ * New embedding timeout in ms
+ */
+export type AdminSearchConfigUpdateEmbeddingTimeoutMs = number | null;
+
+/**
+ * New high load budget in ms
+ */
+export type AdminSearchConfigUpdateHighLoadBudgetMs = number | null;
+
+/**
+ * New high load threshold
+ */
+export type AdminSearchConfigUpdateHighLoadThreshold = number | null;
+
+/**
+ * New location model
+ */
+export type AdminSearchConfigUpdateLocationModel = string | null;
+
+/**
+ * New location LLM timeout in ms
+ */
+export type AdminSearchConfigUpdateLocationTimeoutMs = number | null;
+
+/**
+ * New OpenAI max retries
+ */
+export type AdminSearchConfigUpdateOpenaiMaxRetries = number | null;
+
+/**
+ * New parsing model
+ */
+export type AdminSearchConfigUpdateParsingModel = string | null;
+
+/**
+ * New parsing timeout in ms
+ */
+export type AdminSearchConfigUpdateParsingTimeoutMs = number | null;
+
+/**
+ * New request budget in ms
+ */
+export type AdminSearchConfigUpdateSearchBudgetMs = number | null;
+
+/**
+ * New uncached concurrency limit
+ */
+export type AdminSearchConfigUpdateUncachedConcurrency = number | null;
+
+/**
+ * Admin update payload for search runtime settings.
+ */
+export interface AdminSearchConfigUpdate {
+  /** New embedding timeout in ms */
+  embedding_timeout_ms?: AdminSearchConfigUpdateEmbeddingTimeoutMs;
+  /** New high load budget in ms */
+  high_load_budget_ms?: AdminSearchConfigUpdateHighLoadBudgetMs;
+  /** New high load threshold */
+  high_load_threshold?: AdminSearchConfigUpdateHighLoadThreshold;
+  /** New location model */
+  location_model?: AdminSearchConfigUpdateLocationModel;
+  /** New location LLM timeout in ms */
+  location_timeout_ms?: AdminSearchConfigUpdateLocationTimeoutMs;
+  /** New OpenAI max retries */
+  openai_max_retries?: AdminSearchConfigUpdateOpenaiMaxRetries;
+  /** New parsing model */
+  parsing_model?: AdminSearchConfigUpdateParsingModel;
+  /** New parsing timeout in ms */
+  parsing_timeout_ms?: AdminSearchConfigUpdateParsingTimeoutMs;
+  /** New request budget in ms */
+  search_budget_ms?: AdminSearchConfigUpdateSearchBudgetMs;
+  /** New uncached concurrency limit */
+  uncached_concurrency?: AdminSearchConfigUpdateUncachedConcurrency;
+}
+
+/**
  * Alert acknowledgement response.
  */
 export interface AlertAcknowledgeResponse {
@@ -1449,6 +1589,28 @@ export interface BookingUpdate {
 }
 
 /**
+ * Request budget tracking.
+ */
+export interface BudgetInfo {
+  /** Degradation level label */
+  degradation_level: string;
+  /**
+   * Initial request budget in ms
+   * @minimum 0
+   */
+  initial_ms: number;
+  /** Whether the budget was exceeded */
+  over_budget: boolean;
+  /**
+   * Remaining budget in ms
+   * @minimum 0
+   */
+  remaining_ms: number;
+  /** Skipped operations due to budget */
+  skipped_operations?: string[];
+}
+
+/**
  * Request schema for bulk availability update.
  */
 export interface BulkUpdateRequest {
@@ -2139,6 +2301,11 @@ export type EarningsResponsePeriodStart = string | null;
 export type EarningsResponseServiceCount = number | null;
 
 /**
+ * Total commission deducted from instructor earnings
+ */
+export type EarningsResponseTotalCommission = number | null;
+
+/**
  * Total earnings in cents
  */
 export type EarningsResponseTotalEarned = number | null;
@@ -2147,6 +2314,16 @@ export type EarningsResponseTotalEarned = number | null;
  * Total fees in cents
  */
 export type EarningsResponseTotalFees = number | null;
+
+/**
+ * Total value of all lessons (before any fees)
+ */
+export type EarningsResponseTotalLessonValue = number | null;
+
+/**
+ * Total tips received
+ */
+export type EarningsResponseTotalTips = number | null;
 
 export interface EarningsResponse {
   /** Average earning per booking */
@@ -2163,10 +2340,16 @@ export interface EarningsResponse {
   period_start?: EarningsResponsePeriodStart;
   /** Number of completed services contributing to earnings */
   service_count?: EarningsResponseServiceCount;
+  /** Total commission deducted from instructor earnings */
+  total_commission?: EarningsResponseTotalCommission;
   /** Total earnings in cents */
   total_earned?: EarningsResponseTotalEarned;
   /** Total fees in cents */
   total_fees?: EarningsResponseTotalFees;
+  /** Total value of all lessons (before any fees) */
+  total_lesson_value?: EarningsResponseTotalLessonValue;
+  /** Total tips received */
+  total_tips?: EarningsResponseTotalTips;
 }
 
 export interface EditMessageRequest {
@@ -2486,6 +2669,10 @@ export type InstructorInvoiceSummaryStudentName = string | null;
 export interface InstructorInvoiceSummary {
   /** Associated booking ID */
   booking_id: string;
+  /** Platform commission deducted from instructor earnings */
+  commission_cents: number;
+  /** Commission rate applied (e.g., 0.12 for 12%) */
+  commission_rate: number;
   /** When the payment was completed */
   created_at: string;
   /** Duration of the lesson in minutes */
@@ -2494,12 +2681,16 @@ export interface InstructorInvoiceSummary {
   instructor_share_cents: number;
   /** Date of the lesson */
   lesson_date: string;
+  /** Base lesson price (instructor's rate × duration) */
+  lesson_price_cents: number;
   /** Name of the service taught */
   service_name?: InstructorInvoiceSummaryServiceName;
   /** Lesson start time */
   start_time?: InstructorInvoiceSummaryStartTime;
   /** Invoice/payment status */
   status: string;
+  /** Booking protection fee added to student (not deducted from instructor) */
+  student_fee_cents: number;
   /** Student name (privacy aware) */
   student_name?: InstructorInvoiceSummaryStudentName;
   /** Tip amount included with the payment in cents */
@@ -2923,6 +3114,79 @@ export interface LiveAlertsResponse {
   minutes: number;
 }
 
+/**
+ * Resolved location name
+ */
+export type LocationResolutionInfoResolvedName = string | null;
+
+/**
+ * Resolved sub-regions if applicable
+ */
+export type LocationResolutionInfoResolvedRegions = string[] | null;
+
+/**
+ * Successful tier number if any
+ */
+export type LocationResolutionInfoSuccessfulTier = number | null;
+
+/**
+ * Detailed location resolution breakdown.
+ */
+export interface LocationResolutionInfo {
+  /** Original location query */
+  query: string;
+  /** Resolved location name */
+  resolved_name?: LocationResolutionInfoResolvedName;
+  /** Resolved sub-regions if applicable */
+  resolved_regions?: LocationResolutionInfoResolvedRegions;
+  /** Successful tier number if any */
+  successful_tier?: LocationResolutionInfoSuccessfulTier;
+  /** Per-tier results */
+  tiers?: LocationTierResult[];
+}
+
+/**
+ * Confidence score when available
+ */
+export type LocationTierResultConfidence = number | null;
+
+/**
+ * Additional tier details
+ */
+export type LocationTierResultDetails = string | null;
+
+/**
+ * Resolved location name if any
+ */
+export type LocationTierResultResult = string | null;
+
+/**
+ * Result of a location resolution tier attempt.
+ */
+export interface LocationTierResult {
+  /** Whether the tier was attempted */
+  attempted: boolean;
+  /** Confidence score when available */
+  confidence?: LocationTierResultConfidence;
+  /** Additional tier details */
+  details?: LocationTierResultDetails;
+  /**
+   * Tier duration in ms
+   * @minimum 0
+   */
+  duration_ms: number;
+  /** Resolved location name if any */
+  result?: LocationTierResultResult;
+  /** Tier status */
+  status: StageStatus;
+  /**
+   * Location tier (0-5)
+   * @minimum 0
+   * @maximum 5
+   */
+  tier: number;
+}
+
 export type LoginResponseAccessToken = string | null;
 
 export type LoginResponseTempToken = string | null;
@@ -3089,6 +3353,11 @@ export interface MonitoringDashboardResponse {
  */
 export type NLSearchMetaCorrectedQuery = string | null;
 
+/**
+ * Detailed diagnostics for admin tooling
+ */
+export type NLSearchMetaDiagnostics = SearchDiagnostics | null;
+
 export type NLSearchMetaFilterStatsAnyOf = { [key: string]: number };
 
 /**
@@ -3123,6 +3392,8 @@ export interface NLSearchMeta {
   degradation_reasons?: string[];
   /** Whether search was degraded */
   degraded?: boolean;
+  /** Detailed diagnostics for admin tooling */
+  diagnostics?: NLSearchMetaDiagnostics;
   /** Filter stage counts for debugging (optional) */
   filter_stats?: NLSearchMetaFilterStats;
   /** Filters applied during constraint filtering */
@@ -3149,6 +3420,8 @@ export interface NLSearchMeta {
   query: string;
   /** Search query ID for click tracking */
   search_query_id?: NLSearchMetaSearchQueryId;
+  /** Operations skipped during degradation */
+  skipped_operations?: string[];
   /** User-facing message when constraints are relaxed */
   soft_filter_message?: NLSearchMetaSoftFilterMessage;
   /** Whether soft filtering/relaxation was applied */
@@ -3689,6 +3962,30 @@ export interface PerformanceRecommendation {
   severity: string;
   /** Recommendation type (database/cache/memory/requests) */
   type: string;
+}
+
+export type PipelineStageDetailsAnyOf = { [key: string]: unknown };
+
+/**
+ * Stage details
+ */
+export type PipelineStageDetails = PipelineStageDetailsAnyOf | null;
+
+/**
+ * Timing and status for a pipeline stage.
+ */
+export interface PipelineStage {
+  /** Stage details */
+  details?: PipelineStageDetails;
+  /**
+   * Stage duration in ms
+   * @minimum 0
+   */
+  duration_ms: number;
+  /** Stage name */
+  name: string;
+  /** Stage status */
+  status: StageStatus;
 }
 
 export type PlaceDetailsCity = string | null;
@@ -4648,6 +4945,71 @@ export interface SearchConfigUpdate {
 }
 
 /**
+ * Location resolution details
+ */
+export type SearchDiagnosticsLocationResolution = LocationResolutionInfo | null;
+
+/**
+ * Full diagnostics for admin tooling.
+ */
+export interface SearchDiagnostics {
+  /**
+   * Candidates after availability filter
+   * @minimum 0
+   */
+  after_availability_filter: number;
+  /**
+   * Candidates after location filter
+   * @minimum 0
+   */
+  after_location_filter: number;
+  /**
+   * Candidates after price filter
+   * @minimum 0
+   */
+  after_price_filter: number;
+  /**
+   * Candidates after text search
+   * @minimum 0
+   */
+  after_text_search: number;
+  /**
+   * Candidates after vector search
+   * @minimum 0
+   */
+  after_vector_search: number;
+  /** Budget tracking info */
+  budget: BudgetInfo;
+  /** Whether cache was hit */
+  cache_hit: boolean;
+  /** Whether query embedding was used */
+  embedding_used: boolean;
+  /**
+   * Final result count
+   * @minimum 0
+   */
+  final_results: number;
+  /**
+   * Initial candidate count
+   * @minimum 0
+   */
+  initial_candidates: number;
+  /** Location resolution details */
+  location_resolution?: SearchDiagnosticsLocationResolution;
+  /** Parsing mode used */
+  parsing_mode: string;
+  /** Pipeline stage timings */
+  pipeline_stages?: PipelineStage[];
+  /**
+   * Total latency in ms
+   * @minimum 0
+   */
+  total_latency_ms: number;
+  /** Whether vector search was used */
+  vector_search_used: boolean;
+}
+
+/**
  * Search effectiveness metrics.
  */
 export interface SearchEffectiveness {
@@ -5350,6 +5712,22 @@ export interface SpecificDateAvailabilityCreate {
   specific_date: string;
   start_time: string;
 }
+
+/**
+ * Status for pipeline stages and location tiers.
+ */
+export type StageStatus = (typeof StageStatus)[keyof typeof StageStatus];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const StageStatus = {
+  success: 'success',
+  skipped: 'skipped',
+  timeout: 'timeout',
+  error: 'error',
+  cache_hit: 'cache_hit',
+  miss: 'miss',
+  cancelled: 'cancelled',
+} as const;
 
 export type StudentBadgeViewAwardedAt = string | null;
 
@@ -6516,7 +6894,7 @@ export type GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetPara
 };
 
 export type StreamUserMessagesApiV1MessagesStreamGetParams = {
-  token?: string | null;
+  sse_token?: string | null;
 };
 
 export type StartOnboardingApiV1PaymentsConnectOnboardPostParams = {
@@ -6607,6 +6985,30 @@ export type NlSearchApiV1SearchGetParams = {
    * @maximum 50
    */
   limit?: number;
+  /**
+   * Include detailed diagnostics (admin only)
+   */
+  diagnostics?: boolean;
+  /**
+   * Force skip Tier 5 LLM (admin only)
+   */
+  force_skip_tier5?: boolean;
+  /**
+   * Force skip Tier 4 embedding (admin only)
+   */
+  force_skip_tier4?: boolean;
+  /**
+   * Force skip vector search (admin only)
+   */
+  force_skip_vector?: boolean;
+  /**
+   * Force skip embeddings (admin only)
+   */
+  force_skip_embedding?: boolean;
+  /**
+   * Force high-load budget (admin only)
+   */
+  force_high_load?: boolean;
 };
 
 export type GetRecentSearchesApiV1SearchHistoryGetParams = {

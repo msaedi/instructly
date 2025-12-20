@@ -78,6 +78,10 @@ export interface EarningsResponse {
   period_start?: string;
   period_end?: string;
   invoices?: InstructorInvoice[];
+  // Instructor-centric aggregate fields
+  total_lesson_value?: number;
+  total_platform_fees?: number;
+  total_tips?: number;
 }
 
 export interface InstructorInvoice {
@@ -92,6 +96,11 @@ export interface InstructorInvoice {
   instructor_share_cents: number;
   status: string;
   created_at: string;
+  // Instructor-centric clarity fields
+  lesson_price_cents: number;
+  platform_fee_cents: number;
+  platform_fee_rate: number;
+  student_fee_cents: number;
 }
 
 class PaymentService {

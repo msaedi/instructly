@@ -135,7 +135,7 @@ const renderPaymentSection = (overrides: Partial<typeof BASE_BOOKING> = {}) => {
 const buildPreview = (base: number, fee: number, credit: number): PricingPreviewResponse => ({
   base_price_cents: base,
   student_fee_cents: fee,
-  instructor_commission_cents: 0,
+  instructor_platform_fee_cents: 0,
   credit_applied_cents: credit,
   student_pay_cents: base + fee - credit,
   application_fee_cents: 0,

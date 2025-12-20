@@ -113,7 +113,7 @@ describe('PaymentSection pricing preview integration', () => {
     fetchPricingPreviewMock.mockResolvedValue({
       base_price_cents: 7500,
       student_fee_cents: 900,
-      instructor_commission_cents: 0,
+      instructor_platform_fee_cents: 0,
       credit_applied_cents: 0,
       student_pay_cents: 8400,
       application_fee_cents: 0,
@@ -149,7 +149,7 @@ describe('PaymentSection pricing preview integration', () => {
     fetchPricingPreviewQuoteMock.mockResolvedValue({
       base_price_cents: 8800,
       student_fee_cents: 1056,
-      instructor_commission_cents: 0,
+      instructor_platform_fee_cents: 0,
       credit_applied_cents: 0,
       student_pay_cents: 9856,
       application_fee_cents: 0,
@@ -205,7 +205,7 @@ describe('PaymentSection pricing preview integration', () => {
         return Promise.resolve({
           base_price_cents: 10000,
           student_fee_cents: 1200,
-          instructor_commission_cents: 0,
+          instructor_platform_fee_cents: 0,
           credit_applied_cents: 0,
           student_pay_cents: 11200,
           application_fee_cents: 0,
@@ -220,7 +220,7 @@ describe('PaymentSection pricing preview integration', () => {
         return Promise.resolve({
           base_price_cents: 10000,
           student_fee_cents: 1200,
-          instructor_commission_cents: 0,
+          instructor_platform_fee_cents: 0,
           credit_applied_cents: 2000,
           student_pay_cents: 9200,
           application_fee_cents: 0,

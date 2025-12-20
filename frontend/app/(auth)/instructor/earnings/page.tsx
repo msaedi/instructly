@@ -107,8 +107,9 @@ function EarningsPageImpl() {
       minute: '2-digit',
     });
   };
-  const grossVolume = (earnings?.total_earned ?? 0) + (earnings?.total_fees ?? 0);
-  const netVolume = earnings?.total_earned ?? 0;
+  // Use instructor-centric values from backend
+  const totalLessonValue = earnings?.total_lesson_value ?? 0;
+  const netEarnings = earnings?.total_earned ?? 0;
   const resolvedServiceCount = typeof earnings?.service_count === 'number'
     ? earnings.service_count
     : (typeof earnings?.booking_count === 'number' ? earnings.booking_count : 0);
@@ -181,12 +182,12 @@ function EarningsPageImpl() {
         {/* Stat Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Total earned</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(grossVolume)}</p>
+            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Total Lessons</h3>
+            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(totalLessonValue)}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Sent to bank</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(netVolume)}</p>
+            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Net Earnings</h3>
+            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(netEarnings)}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Service count</h3>
@@ -242,21 +243,19 @@ function EarningsPageImpl() {
                         <th className="py-2 pr-4">Student</th>
                         <th className="py-2 pr-4">Service</th>
                         <th className="py-2 pr-4">Duration</th>
-                        <th className="py-2 pr-4">Total Paid</th>
+                        <th className="py-2 pr-4">Lesson Price</th>
                         <th className="py-2 pr-4">Platform Fee</th>
-                        <th className="py-2 pr-4">Your Share</th>
+                        <th className="py-2 pr-4">Your Earnings</th>
                         <th className="py-2 pr-4">Tip</th>
                         <th className="py-2 pr-4">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {invoices.map((invoice) => {
-                        const platformFeeCents = Math.max(
-                          0,
-                          (invoice.total_paid_cents ?? 0) -
-                            (invoice.instructor_share_cents ?? 0) -
-                            (invoice.tip_cents ?? 0)
-                        );
+                        // Use backend-calculated platform fee (no frontend calculation)
+                        const platformFeeRate = invoice.platform_fee_rate ?? 0;
+                        const platformFeePct = Math.round(platformFeeRate * 100);
+                        const statusColor = invoice.status === 'authorized' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700';
                         return (
                           <tr key={`${invoice.booking_id}-${invoice.created_at}`}>
                             <td className="py-3 pr-4 text-gray-900">
@@ -265,12 +264,15 @@ function EarningsPageImpl() {
                             <td className="py-3 pr-4 text-gray-700">{invoice.student_name ?? 'Student'}</td>
                             <td className="py-3 pr-4 text-gray-700">{invoice.service_name ?? 'Lesson'}</td>
                             <td className="py-3 pr-4 text-gray-700">{formatDuration(invoice.duration_minutes)}</td>
-                            <td className="py-3 pr-4 font-semibold text-gray-900">{formatCents(invoice.total_paid_cents)}</td>
-                            <td className="py-3 pr-4 text-gray-700">{formatCents(platformFeeCents)}</td>
-                            <td className="py-3 pr-4 text-gray-700">{formatCents(invoice.instructor_share_cents)}</td>
+                            <td className="py-3 pr-4 font-semibold text-gray-900">{formatCents(invoice.lesson_price_cents)}</td>
+                            <td className="py-3 pr-4 text-gray-700">
+                              {formatCents(invoice.platform_fee_cents)}
+                              <span className="text-gray-400 text-xs ml-1">({platformFeePct}%)</span>
+                            </td>
+                            <td className="py-3 pr-4 font-semibold text-[#7E22CE]">{formatCents(invoice.instructor_share_cents)}</td>
                             <td className="py-3 pr-4 text-gray-700">{formatCents(invoice.tip_cents)}</td>
                             <td className="py-3 pr-4">
-                              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}>
                                 {formatStatusLabel(invoice.status)}
                               </span>
                             </td>

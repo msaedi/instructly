@@ -66,7 +66,7 @@ class ChargeContext:
     applied_credit_cents: int
     base_price_cents: int
     student_fee_cents: int
-    instructor_commission_cents: int
+    instructor_platform_fee_cents: int
     target_instructor_payout_cents: int
     student_pay_cents: int
     application_fee_cents: int
@@ -462,8 +462,16 @@ class StripeService(BaseService):
             payload.requested_credit_cents,
         )
 
-        if payment_result["success"] and payment_result["status"] == "succeeded":
+        # With capture_method: "manual", successful authorization returns "requires_capture"
+        # We treat both "succeeded" (legacy/credits-only) and "requires_capture" as successful auth
+        if payment_result["success"] and payment_result["status"] in [
+            "succeeded",
+            "requires_capture",
+        ]:
             booking.status = "CONFIRMED"
+            # Set payment_status to reflect authorization state
+            if payment_result["status"] == "requires_capture":
+                booking.payment_status = "authorized"
             booking_service.repository.flush()
             try:
                 booking_service.invalidate_booking_cache(booking)
@@ -526,8 +534,31 @@ class StripeService(BaseService):
             except Exception:
                 return 0
 
+        def _compute_base_price_cents(hourly_rate: Any, duration_minutes: int) -> int:
+            """Calculate base lesson price from hourly rate and duration."""
+            try:
+                rate = Decimal(str(hourly_rate or 0))
+                cents_value = rate * Decimal(duration_minutes) * Decimal(100) / Decimal(60)
+                return int(cents_value.quantize(Decimal("1")))
+            except Exception:
+                return 0
+
+        def _get_instructor_tier_pct(config: Dict[str, Any]) -> float:
+            """Get instructor's platform fee tier percentage."""
+            # Default to first tier (highest platform fee) for earnings display
+            tiers = config.get("instructor_tiers", [])
+            if tiers:
+                return float(tiers[0].get("pct", 0.15))
+            return 0.15
+
+        student_fee_pct = float(pricing_config.get("student_fee_pct", 0.12))
+        instructor_tier_pct = _get_instructor_tier_pct(pricing_config)
+
         invoices: List[InstructorInvoiceSummary] = []
         total_minutes = 0
+        total_lesson_value = 0
+        total_platform_fees = 0
+        total_tips = 0
 
         for payment in instructor_payments:
             booking = payment.booking
@@ -557,6 +588,32 @@ class StripeService(BaseService):
 
             total_paid_cents = int(payment.amount or 0)
             tip_cents = _money_to_cents(summary.tip_paid if summary else None)
+            total_tips += tip_cents
+
+            # Calculate instructor-centric amounts for display
+            lesson_price_cents = _compute_base_price_cents(booking.hourly_rate, minutes)
+            platform_fee_cents = int(
+                Decimal(lesson_price_cents) * Decimal(str(instructor_tier_pct))
+            )
+            student_fee_cents_calc = int(
+                Decimal(lesson_price_cents) * Decimal(str(student_fee_pct))
+            )
+            # instructor_share_cents is the actual amount from payment records
+            instructor_share_cents = max(
+                0, int(payment.amount or 0) - int(payment.application_fee or 0)
+            )
+
+            # Aggregate totals
+            total_lesson_value += lesson_price_cents
+            total_platform_fees += platform_fee_cents
+
+            # Map payment status for display
+            if payment.status == "succeeded":
+                display_status = "paid"
+            elif payment.status == "requires_capture":
+                display_status = "authorized"
+            else:
+                display_status = payment.status or "pending"
 
             invoices.append(
                 InstructorInvoiceSummary(
@@ -568,12 +625,14 @@ class StripeService(BaseService):
                     duration_minutes=minutes or None,
                     total_paid_cents=total_paid_cents,
                     tip_cents=tip_cents,
-                    instructor_share_cents=max(
-                        0,
-                        int(payment.amount or 0) - int(payment.application_fee or 0),
-                    ),
-                    status="paid" if payment.status == "succeeded" else payment.status,
+                    instructor_share_cents=instructor_share_cents,
+                    status=display_status,
                     created_at=payment.created_at,
+                    # New instructor-centric fields
+                    lesson_price_cents=lesson_price_cents,
+                    platform_fee_cents=platform_fee_cents,
+                    platform_fee_rate=instructor_tier_pct,
+                    student_fee_cents=student_fee_cents_calc,
                 )
             )
 
@@ -589,6 +648,10 @@ class StripeService(BaseService):
             "period_start": earnings.get("period_start"),
             "period_end": earnings.get("period_end"),
             "invoices": invoices,
+            # New instructor-centric aggregate fields
+            "total_lesson_value": total_lesson_value,
+            "total_platform_fees": total_platform_fees,
+            "total_tips": total_tips,
         }
         return EarningsResponse(**response_payload)
 
@@ -794,7 +857,7 @@ class StripeService(BaseService):
             "instructor_tier_pct": str(context.instructor_tier_pct),
             "base_price_cents": str(context.base_price_cents),
             "student_fee_cents": str(context.student_fee_cents),
-            "commission_cents": str(context.instructor_commission_cents),
+            "platform_fee_cents": str(context.instructor_platform_fee_cents),
             "applied_credit_cents": str(context.applied_credit_cents),
             "student_pay_cents": str(context.student_pay_cents),
             "application_fee_cents": str(context.application_fee_cents),
@@ -1049,7 +1112,7 @@ class StripeService(BaseService):
                 applied_credit_cents=applied_credit_cents,
                 base_price_cents=int(pricing.get("base_price_cents", 0)),
                 student_fee_cents=int(pricing.get("student_fee_cents", 0)),
-                instructor_commission_cents=int(pricing.get("instructor_commission_cents", 0)),
+                instructor_platform_fee_cents=int(pricing.get("instructor_platform_fee_cents", 0)),
                 target_instructor_payout_cents=int(
                     pricing.get("target_instructor_payout_cents", 0)
                 ),
@@ -1579,7 +1642,7 @@ class StripeService(BaseService):
                         "instructor_tier_pct": str(ctx.instructor_tier_pct),
                         "base_price_cents": str(ctx.base_price_cents),
                         "student_fee_cents": str(ctx.student_fee_cents),
-                        "commission_cents": str(ctx.instructor_commission_cents),
+                        "platform_fee_cents": str(ctx.instructor_platform_fee_cents),
                         "applied_credit_cents": str(ctx.applied_credit_cents),
                         "student_pay_cents": str(ctx.student_pay_cents),
                         "application_fee_cents": str(ctx.application_fee_cents),
@@ -1647,6 +1710,7 @@ class StripeService(BaseService):
                         "transfer_data": {"destination": destination_account_id},
                         "application_fee_amount": application_fee_cents,
                         "metadata": metadata,
+                        "capture_method": "manual",
                     }
                     if ctx is not None:
                         stripe_kwargs["transfer_group"] = f"booking:{booking_id}"
@@ -2063,6 +2127,11 @@ class StripeService(BaseService):
                     )
                 except Exception:
                     pass
+
+                # Set booking payment_intent_id and payment_status for capture task
+                booking.payment_intent_id = payment_record.stripe_payment_intent_id
+                if stripe_intent.status in {"requires_capture", "succeeded"}:
+                    booking.payment_status = "authorized"
 
                 requires_action = stripe_intent.status in [
                     "requires_action",
@@ -2780,15 +2849,15 @@ class StripeService(BaseService):
     def _top_up_from_pi_metadata(pi: Any) -> Optional[int]:
         """Compute top-up from PaymentIntent metadata when available.
 
-        If PI metadata contains: base_price_cents, commission_cents, student_fee_cents,
+        If PI metadata contains: base_price_cents, platform_fee_cents, student_fee_cents,
         applied_credit_cents, compute deterministic top-up using the creation-time values:
 
             A = int(pi.amount)
             B = int(meta["base_price_cents"])
-            c = int(meta["commission_cents"])
+            f = int(meta["platform_fee_cents"])
             s = int(meta["student_fee_cents"])
             C = int(meta["applied_credit_cents"])
-            P = B - c
+            P = B - f
             top_up = max(0, P - A)
 
         Return top_up; return None if any value is missing/non-int.
@@ -2802,7 +2871,7 @@ class StripeService(BaseService):
 
         try:
             base_price_cents = int(str(metadata["base_price_cents"]))
-            commission_cents = int(str(metadata["commission_cents"]))
+            platform_fee_cents = int(str(metadata["platform_fee_cents"]))
             # student_fee_cents currently unused but validated for completeness
             _ = int(str(metadata["student_fee_cents"]))
             applied_credit_cents = int(str(metadata["applied_credit_cents"]))
@@ -2823,7 +2892,7 @@ class StripeService(BaseService):
         except (TypeError, ValueError):
             return None
 
-        target_instructor_payout = base_price_cents - commission_cents
+        target_instructor_payout = base_price_cents - platform_fee_cents
         top_up = target_instructor_payout - student_pay_cents
         if top_up <= 0:
             return 0

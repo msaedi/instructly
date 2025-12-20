@@ -42,11 +42,11 @@ def _charge_context_from_config(
     tier_pct = Decimal(str(tier["pct"]))
     student_fee_pct = DEFAULT_PRICING_CONFIG.get("student_fee_pct", 0)
     student_fee_cents = cents_from_pct(base_price_cents, student_fee_pct)
-    instructor_commission_cents = cents_from_pct(base_price_cents, tier_pct)
-    target_payout = base_price_cents - instructor_commission_cents
+    instructor_platform_fee_cents = cents_from_pct(base_price_cents, tier_pct)
+    target_payout = base_price_cents - instructor_platform_fee_cents
     student_pay = max(0, base_price_cents + student_fee_cents - credit_cents)
     application_fee_cents = max(
-        0, student_fee_cents + instructor_commission_cents - credit_cents
+        0, student_fee_cents + instructor_platform_fee_cents - credit_cents
     )
     top_up_transfer_cents = max(0, target_payout - student_pay)
     return ChargeContext(
@@ -54,7 +54,7 @@ def _charge_context_from_config(
         applied_credit_cents=credit_cents,
         base_price_cents=base_price_cents,
         student_fee_cents=student_fee_cents,
-        instructor_commission_cents=instructor_commission_cents,
+        instructor_platform_fee_cents=instructor_platform_fee_cents,
         target_instructor_payout_cents=target_payout,
         student_pay_cents=student_pay,
         application_fee_cents=application_fee_cents,
@@ -458,9 +458,9 @@ class TestPaymentTasks:
         base_price_cents = int(metadata.get("base_price_cents", kwargs.get("amount", 0)))
         student_fee_pct = DEFAULT_PRICING_CONFIG["student_fee_pct"]
         student_fee_cents = cents_from_pct(base_price_cents, student_fee_pct)
-        commission_cents = int(metadata.get("commission_cents", 0))
+        platform_fee_cents = int(metadata.get("platform_fee_cents", 0))
         applied_credit_cents = int(metadata.get("applied_credit_cents", "0"))
-        expected_fee = max(0, student_fee_cents + commission_cents - applied_credit_cents)
+        expected_fee = max(0, student_fee_cents + platform_fee_cents - applied_credit_cents)
         assert kwargs["application_fee_amount"] == expected_fee
 
     @patch("app.tasks.payment_tasks.StripeService")
