@@ -2,14 +2,14 @@
 Tests for StripeService.
 
 Comprehensive test suite for Stripe marketplace payment processing,
-including customer management, connected accounts, payment processing,
-and webhook handling.
+including customer management, connected accounts, and payment processing.
 """
 
-from datetime import datetime, time
+from datetime import datetime, time, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 import logging
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from sqlalchemy.orm import Session
@@ -22,6 +22,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
+from app.schemas.payment_schemas import CreateCheckoutRequest
 from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import ChargeContext, StripeService
@@ -47,6 +48,14 @@ def _student_fee_pct(stripe_service: StripeService) -> Decimal:
     config, _ = stripe_service.config_service.get_pricing_config()
     pct = config.get("student_fee_pct", 0)
     return Decimal(str(pct)).quantize(Decimal("0.0001"))
+
+
+def _booking_service_stub() -> MagicMock:
+    booking_service = MagicMock()
+    booking_service.repository = MagicMock()
+    booking_service.system_message_service = MagicMock()
+    booking_service.invalidate_booking_cache = MagicMock()
+    return booking_service
 
 
 class TestStripeService:
@@ -289,6 +298,33 @@ class TestStripeService:
         assert account.stripe_account_id == "acct_test123"
         assert account.onboarding_completed is False
 
+    @patch("stripe.Account.create")
+    def test_create_connected_account_fallback_when_unconfigured(
+        self, mock_stripe_create, stripe_service: StripeService, test_instructor: tuple
+    ):
+        """Fallback to mock account when Stripe isn't configured."""
+        instructor_user, profile, _ = test_instructor
+        stripe_service.stripe_configured = False
+        mock_stripe_create.side_effect = Exception("stripe unavailable")
+
+        account = stripe_service.create_connected_account(profile.id, instructor_user.email)
+
+        assert account.stripe_account_id == f"mock_acct_{profile.id}"
+
+    @patch("stripe.Account.create")
+    def test_create_connected_account_stripe_error(
+        self, mock_stripe_create, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        instructor_user, profile, _ = test_instructor
+        stripe_service.stripe_configured = True
+        mock_stripe_create.side_effect = stripe.StripeError("stripe failure")
+
+        with pytest.raises(ServiceException, match="Failed to create connected account"):
+            stripe_service.create_connected_account(
+                instructor_profile_id=profile.id,
+                email=instructor_user.email,
+            )
+
     @patch("stripe.AccountLink.create")
     def test_create_account_link_success(self, mock_link_create, stripe_service: StripeService, test_instructor: tuple):
         """Test successful account link creation."""
@@ -317,6 +353,21 @@ class TestStripeService:
 
         # Verify result
         assert link_url == "https://connect.stripe.com/setup/test"
+
+    @patch("stripe.AccountLink.create")
+    def test_create_account_link_stripe_error(
+        self, mock_link_create, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        _, profile, _ = test_instructor
+        stripe_service.payment_repository.create_connected_account_record(profile.id, "acct_test123")
+        mock_link_create.side_effect = stripe.StripeError("link error")
+
+        with pytest.raises(ServiceException, match="Failed to create account link"):
+            stripe_service.create_account_link(
+                instructor_profile_id=profile.id,
+                refresh_url="https://app.com/refresh",
+                return_url="https://app.com/return",
+            )
 
     def test_create_account_link_no_account(self, stripe_service: StripeService, test_instructor: tuple):
         """Test account link creation with no connected account."""
@@ -357,6 +408,36 @@ class TestStripeService:
         assert status["payouts_enabled"] is True
         assert status["details_submitted"] is True
         assert status["requirements"] == []
+
+    @patch("stripe.Account.retrieve")
+    def test_check_account_status_updates_onboarding_status(
+        self, mock_retrieve, stripe_service: StripeService, test_instructor: tuple
+    ):
+        """Update onboarding status when Stripe reports completion."""
+        _, profile, _ = test_instructor
+
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_test123", onboarding_completed=False
+        )
+
+        mock_account = MagicMock()
+        mock_account.charges_enabled = True
+        mock_account.details_submitted = True
+        mock_account.payouts_enabled = False
+        mock_account.requirements = MagicMock(
+            currently_due=["legal_entity.verification.document"],
+            past_due=[],
+            pending_verification=[],
+        )
+        mock_retrieve.return_value = mock_account
+
+        with patch.object(
+            stripe_service.payment_repository, "update_onboarding_status"
+        ) as mock_update:
+            status = stripe_service.check_account_status(profile.id)
+
+        mock_update.assert_called_once_with("acct_test123", True)
+        assert "legal_entity.verification.document" in status["requirements"]
 
     def test_check_account_status_no_account(self, stripe_service: StripeService, test_instructor: tuple):
         """Test checking account status with no account."""
@@ -399,6 +480,237 @@ class TestStripeService:
         assert status.details_submitted is True
         assert status.onboarding_completed is True
         assert status.requirements == []
+
+    def test_get_instructor_onboarding_status_profile_missing(
+        self, stripe_service: StripeService, test_user: User
+    ) -> None:
+        with pytest.raises(ServiceException, match="Instructor profile not found"):
+            stripe_service.get_instructor_onboarding_status(user=test_user)
+
+    def test_get_instructor_onboarding_status_no_account(
+        self, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        user, _, _ = test_instructor
+        status = stripe_service.get_instructor_onboarding_status(user=user)
+
+        assert status.has_account is False
+        assert status.onboarding_completed is False
+
+    @patch("app.services.stripe_service.StripeService.create_account_link")
+    def test_start_instructor_onboarding_reuses_existing_account(
+        self, mock_create_link, stripe_service: StripeService, test_instructor: tuple, monkeypatch
+    ):
+        """Existing Stripe accounts should be reused for onboarding."""
+        user, profile, _ = test_instructor
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_test123", onboarding_completed=False
+        )
+        mock_create_link.return_value = "https://stripe.test/onboard"
+        monkeypatch.setattr(settings, "frontend_url", "https://app.test", raising=False)
+
+        response = stripe_service.start_instructor_onboarding(
+            user=user,
+            request_host="api.app.test",
+            request_scheme="https",
+            return_to="/instructor/onboarding/complete",
+        )
+
+        assert response.account_id == "acct_test123"
+        assert response.onboarding_url == "https://stripe.test/onboard"
+        assert response.already_onboarded is False
+
+        _, kwargs = mock_create_link.call_args
+        assert kwargs["instructor_profile_id"] == profile.id
+        assert kwargs["return_url"].endswith("/instructor/onboarding/status/complete")
+
+    @patch("app.services.stripe_service.StripeService.create_account_link")
+    @patch("app.services.stripe_service.StripeService.create_connected_account")
+    def test_start_instructor_onboarding_creates_account(
+        self,
+        mock_create_account,
+        mock_create_link,
+        stripe_service: StripeService,
+        test_instructor: tuple,
+        monkeypatch,
+    ):
+        """Missing accounts should trigger creation before onboarding."""
+        user, profile, _ = test_instructor
+        mock_create_account.return_value = MagicMock(id="acct_new", stripe_account_id="acct_new")
+        mock_create_link.return_value = "https://stripe.test/onboard"
+        monkeypatch.setattr(settings, "frontend_url", "https://app.test", raising=False)
+
+        response = stripe_service.start_instructor_onboarding(
+            user=user,
+            request_host="api.app.test",
+            request_scheme="https",
+            return_to=None,
+        )
+
+        assert response.account_id == "acct_new"
+        assert response.onboarding_url == "https://stripe.test/onboard"
+        mock_create_account.assert_called_once()
+
+    def test_start_instructor_onboarding_missing_profile(
+        self, stripe_service: StripeService, test_user: User
+    ) -> None:
+        with pytest.raises(ServiceException, match="Instructor profile not found"):
+            stripe_service.start_instructor_onboarding(
+                user=test_user,
+                request_host="app.test",
+                request_scheme="https",
+            )
+
+    @patch("app.services.stripe_service.StripeService.create_account_link")
+    def test_start_instructor_onboarding_parses_callback_from_instructor_path(
+        self,
+        mock_create_link,
+        stripe_service: StripeService,
+        test_instructor: tuple,
+        monkeypatch,
+    ) -> None:
+        user, profile, _ = test_instructor
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_callback", onboarding_completed=False
+        )
+        mock_create_link.return_value = "https://stripe.test/onboard"
+        monkeypatch.setattr(settings, "frontend_url", "not-a-url", raising=False)
+        monkeypatch.setattr(settings, "local_beta_frontend_origin", "", raising=False)
+
+        response = stripe_service.start_instructor_onboarding(
+            user=user,
+            request_host="api.example.com",
+            request_scheme="https",
+            return_to="/instructor/earnings",
+        )
+
+        assert response.account_id == "acct_callback"
+        _, kwargs = mock_create_link.call_args
+        assert kwargs["return_url"].endswith("/instructor/onboarding/status/earnings")
+
+    @patch("app.services.stripe_service.StripeService.create_account_link")
+    def test_start_instructor_onboarding_parses_callback_from_last_segment(
+        self,
+        mock_create_link,
+        stripe_service: StripeService,
+        test_instructor: tuple,
+        monkeypatch,
+    ) -> None:
+        user, profile, _ = test_instructor
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_callback2", onboarding_completed=False
+        )
+        mock_create_link.return_value = "https://stripe.test/onboard"
+        monkeypatch.setattr(settings, "frontend_url", "https://app.test", raising=False)
+
+        response = stripe_service.start_instructor_onboarding(
+            user=user,
+            request_host="app.test",
+            request_scheme="https",
+            return_to="/foo/bar",
+        )
+
+        assert response.account_id == "acct_callback2"
+        _, kwargs = mock_create_link.call_args
+        assert kwargs["return_url"].endswith("/instructor/onboarding/status/bar")
+
+    @patch("stripe.Account.create_login_link")
+    def test_get_instructor_dashboard_link_success(
+        self, mock_link, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Dashboard link should be fetched from Stripe."""
+        user, profile, _ = test_instructor
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_dash", onboarding_completed=True
+        )
+        mock_link.return_value = {"url": "https://stripe.test/dash"}
+
+        response = stripe_service.get_instructor_dashboard_link(user=user)
+
+        assert response.dashboard_url == "https://stripe.test/dash"
+
+    def test_get_instructor_dashboard_link_missing_profile(
+        self, stripe_service: StripeService, test_user: User
+    ) -> None:
+        with pytest.raises(ServiceException, match="Instructor profile not found"):
+            stripe_service.get_instructor_dashboard_link(user=test_user)
+
+    def test_get_instructor_dashboard_link_not_onboarded(
+        self, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        user, _, _ = test_instructor
+
+        with pytest.raises(ServiceException, match="not onboarded"):
+            stripe_service.get_instructor_dashboard_link(user=user)
+
+    @patch("stripe.Account.modify")
+    def test_set_payout_schedule_for_account_success(
+        self, mock_modify, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Direct payout schedule updates should return account details."""
+        _, profile, _ = test_instructor
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_schedule", onboarding_completed=True
+        )
+        mock_modify.return_value = MagicMock(settings={"payouts": {"schedule": {"interval": "weekly"}}})
+
+        result = stripe_service.set_payout_schedule_for_account(
+            instructor_profile_id=profile.id,
+            interval="weekly",
+            weekly_anchor="tuesday",
+        )
+
+        assert result["account_id"] == "acct_schedule"
+
+    @patch("stripe.Account.modify")
+    def test_set_payout_schedule_for_account_stripe_error(
+        self, mock_modify, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        _, profile, _ = test_instructor
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_schedule", onboarding_completed=True
+        )
+        mock_modify.side_effect = stripe.StripeError("modify failed")
+
+        with pytest.raises(ServiceException, match="Failed to set payout schedule"):
+            stripe_service.set_payout_schedule_for_account(
+                instructor_profile_id=profile.id,
+                interval="weekly",
+                weekly_anchor="tuesday",
+            )
+
+    def test_set_payout_schedule_for_account_missing_account(
+        self, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Missing accounts should raise when setting payout schedule."""
+        _, profile, _ = test_instructor
+
+        with pytest.raises(ServiceException, match="Connected account not found"):
+            stripe_service.set_payout_schedule_for_account(instructor_profile_id=profile.id)
+
+    def test_refresh_instructor_identity_sets_verified_status(
+        self, stripe_service: StripeService, test_instructor: tuple
+    ) -> None:
+        """Identity refresh should reflect account verification state."""
+        user, profile, _ = test_instructor
+        stripe_service.instructor_repository.update(profile.id, bgc_in_dispute=True)
+
+        with patch.object(
+            stripe_service,
+            "check_account_status",
+            return_value={"charges_enabled": True, "requirements": []},
+        ):
+            refreshed = stripe_service.refresh_instructor_identity(user=user)
+
+        assert refreshed.verified is True
+        assert refreshed.status == "verified"
+        updated_profile = stripe_service.instructor_repository.get_by_user_id(user.id)
+        assert updated_profile.bgc_in_dispute is False
+
+    def test_refresh_instructor_identity_missing_profile(
+        self, stripe_service: StripeService, test_user: User
+    ) -> None:
+        with pytest.raises(ServiceException, match="Instructor profile not found"):
+            stripe_service.refresh_instructor_identity(user=test_user)
 
     # ========== Payment Processing Tests ==========
 
@@ -561,6 +873,52 @@ class TestStripeService:
             for record in caplog.records
         )
 
+    def test_build_charge_context_missing_booking(self, stripe_service: StripeService) -> None:
+        with pytest.raises(ServiceException, match="Booking not found for charge context"):
+            stripe_service.build_charge_context("missing_booking")
+
+    @patch("app.services.pricing_service.PricingService.compute_booking_pricing")
+    def test_build_charge_context_logs_top_up_transfer(
+        self,
+        mock_pricing,
+        stripe_service: StripeService,
+        test_booking: Booking,
+    ) -> None:
+        base_price_cents = 10000
+        student_fee_cents = 1200
+        instructor_platform_fee_cents = 1000
+        top_up_transfer_cents = 500
+        mock_pricing.return_value = {
+            "base_price_cents": base_price_cents,
+            "student_fee_cents": student_fee_cents,
+            "instructor_platform_fee_cents": instructor_platform_fee_cents,
+            "target_instructor_payout_cents": base_price_cents - instructor_platform_fee_cents,
+            "credit_applied_cents": 0,
+            "student_pay_cents": base_price_cents + student_fee_cents,
+            "application_fee_cents": student_fee_cents + instructor_platform_fee_cents,
+            "top_up_transfer_cents": top_up_transfer_cents,
+            "instructor_tier_pct": 0.1,
+        }
+
+        stripe_service.payment_repository.get_applied_credit_cents_for_booking = MagicMock(
+            return_value=0
+        )
+
+        context = stripe_service.build_charge_context(
+            booking_id=test_booking.id, requested_credit_cents=None
+        )
+
+        assert context.top_up_transfer_cents == top_up_transfer_cents
+
+    def test_build_charge_context_wraps_unexpected_error(
+        self, stripe_service: StripeService
+    ) -> None:
+        with patch.object(
+            stripe_service.booking_repository, "get_by_id", side_effect=Exception("db down")
+        ):
+            with pytest.raises(ServiceException, match="Failed to build charge context"):
+                stripe_service.build_charge_context("booking_error")
+
     def test_get_applied_credit_cents_prefers_used_events(
         self, stripe_service: StripeService, test_booking: Booking
     ) -> None:
@@ -660,6 +1018,111 @@ class TestStripeService:
         assert payment.amount == student_pay_cents
         assert payment.application_fee == application_fee_cents
 
+    def test_create_payment_intent_requires_amount_without_context(
+        self, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """amount_cents is required when no charge context is provided."""
+        with pytest.raises(ServiceException, match="amount_cents is required"):
+            stripe_service.create_payment_intent(
+                booking_id=test_booking.id,
+                customer_id="cus_noctx",
+                destination_account_id="acct_noctx",
+            )
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_without_context_uses_platform_fee(
+        self, mock_create, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """Fallback metadata should include applied_credit_cents and platform fee."""
+        mock_intent = MagicMock()
+        mock_intent.id = "pi_noctx"
+        mock_intent.status = "requires_payment_method"
+        mock_create.return_value = mock_intent
+
+        amount_cents = 2400
+        payment = stripe_service.create_payment_intent(
+            booking_id=test_booking.id,
+            customer_id="cus_noctx",
+            destination_account_id="acct_noctx",
+            amount_cents=amount_cents,
+        )
+
+        call_args = mock_create.call_args[1]
+        expected_fee = int(amount_cents * stripe_service.platform_fee_percentage)
+        assert call_args["application_fee_amount"] == expected_fee
+        assert call_args["capture_method"] == "manual"
+        assert call_args["metadata"]["booking_id"] == test_booking.id
+        assert call_args["metadata"]["applied_credit_cents"] == "0"
+        assert payment.stripe_payment_intent_id == "pi_noctx"
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_parity_parse_error_does_not_fail(
+        self,
+        mock_create,
+        stripe_service: StripeService,
+        test_booking: Booking,
+    ) -> None:
+        stripe_service.stripe_configured = True
+        mock_intent = MagicMock()
+        mock_intent.id = "pi_parse"
+        mock_intent.status = "requires_payment_method"
+        mock_create.return_value = mock_intent
+
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=0,
+            base_price_cents=Decimal("100.5"),
+            student_fee_cents=0,
+            instructor_platform_fee_cents=0,
+            target_instructor_payout_cents=100,
+            student_pay_cents=Decimal("10.5"),
+            application_fee_cents=0,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0.1"),
+        )
+
+        payment = stripe_service.create_payment_intent(
+            booking_id=test_booking.id,
+            customer_id="cus_parse",
+            destination_account_id="acct_parse",
+            charge_context=context,
+        )
+
+        assert payment.stripe_payment_intent_id == "pi_parse"
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_stripe_error(
+        self, mock_create, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        stripe_service.stripe_configured = True
+        mock_create.side_effect = stripe.StripeError("pi error")
+
+        with pytest.raises(ServiceException, match="Failed to create payment intent"):
+            stripe_service.create_payment_intent(
+                booking_id=test_booking.id,
+                customer_id="cus_fail",
+                destination_account_id="acct_fail",
+                amount_cents=1200,
+            )
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_fallback_when_unconfigured(
+        self, mock_create, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """Return mock intent when Stripe is not configured."""
+        stripe_service.stripe_configured = False
+        mock_create.side_effect = Exception("stripe offline")
+
+        payment = stripe_service.create_payment_intent(
+            booking_id=test_booking.id,
+            customer_id="cus_noctx",
+            destination_account_id="acct_noctx",
+            amount_cents=1200,
+        )
+
+        assert payment.stripe_payment_intent_id == f"mock_pi_{test_booking.id}"
+        assert payment.status == "requires_payment_method"
+
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_skips_parity_assertions_in_production(
         self,
@@ -722,7 +1185,7 @@ class TestStripeService:
     ) -> None:
         """Adapter should build context and create manual capture PI."""
 
-        instructor_user, profile, _ = test_instructor
+        _, profile, _ = test_instructor
         stripe_service.payment_repository.create_customer_record(
             test_booking.student_id, "cus_student123"
         )
@@ -781,6 +1244,119 @@ class TestStripeService:
         assert metadata["applied_credit_cents"] == str(context.applied_credit_cents)
         assert metadata["base_price_cents"] == str(context.base_price_cents)
 
+    @patch("stripe.PaymentIntent.create")
+    def test_create_or_retry_booking_payment_intent_fallback_when_unconfigured(
+        self,
+        mock_create,
+        stripe_service: StripeService,
+        test_booking: Booking,
+        test_instructor: tuple,
+    ) -> None:
+        """Unconfigured Stripe should fall back to a local payment intent record."""
+        _, profile, _ = test_instructor
+        stripe_service.stripe_configured = False
+
+        stripe_service.payment_repository.create_customer_record(
+            test_booking.student_id, "cus_student_fallback"
+        )
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_fallback", onboarding_completed=True
+        )
+
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=0,
+            base_price_cents=5000,
+            student_fee_cents=0,
+            instructor_platform_fee_cents=500,
+            target_instructor_payout_cents=4500,
+            student_pay_cents=5000,
+            application_fee_cents=500,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0.10"),
+        )
+        stripe_service.build_charge_context = MagicMock(return_value=context)
+        mock_create.side_effect = Exception("stripe down")
+
+        result = stripe_service.create_or_retry_booking_payment_intent(
+            booking_id=test_booking.id,
+            payment_method_id=None,
+        )
+
+        assert result.id == f"mock_pi_{test_booking.id}"
+        assert result.status == "requires_payment_method"
+        record = stripe_service.payment_repository.get_payment_by_intent_id(
+            f"mock_pi_{test_booking.id}"
+        )
+        assert record is not None
+        assert test_booking.payment_intent_id == f"mock_pi_{test_booking.id}"
+        assert test_booking.payment_status == "authorized"
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_and_confirm_manual_authorization_requires_action(
+        self, mock_create, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+    ) -> None:
+        """Manual authorization should return action requirements when Stripe demands it."""
+        _, profile, _ = test_instructor
+        stripe_service.payment_repository.create_customer_record(
+            test_booking.student_id, "cus_manual123"
+        )
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_manual123", onboarding_completed=True
+        )
+
+        mock_pi = MagicMock()
+        mock_pi.id = "pi_manual_action"
+        mock_pi.status = "requires_action"
+        mock_pi.client_secret = "secret_123"
+        mock_create.return_value = mock_pi
+
+        result = stripe_service.create_and_confirm_manual_authorization(
+            booking_id=test_booking.id,
+            customer_id="cus_manual123",
+            destination_account_id="acct_manual123",
+            payment_method_id="pm_manual123",
+            amount_cents=1500,
+        )
+
+        assert result["requires_action"] is True
+        assert result["client_secret"] == "secret_123"
+        assert result["status"] == "requires_action"
+        record = stripe_service.payment_repository.get_payment_by_intent_id("pi_manual_action")
+        assert record is not None
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_and_confirm_manual_authorization_success(
+        self, mock_create, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+    ) -> None:
+        """Manual authorization should persist non-action statuses."""
+        _, profile, _ = test_instructor
+        stripe_service.payment_repository.create_customer_record(
+            test_booking.student_id, "cus_manual456"
+        )
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_manual456", onboarding_completed=True
+        )
+
+        mock_pi = MagicMock()
+        mock_pi.id = "pi_manual_ok"
+        mock_pi.status = "requires_capture"
+        mock_create.return_value = mock_pi
+
+        result = stripe_service.create_and_confirm_manual_authorization(
+            booking_id=test_booking.id,
+            customer_id="cus_manual456",
+            destination_account_id="acct_manual456",
+            payment_method_id="pm_manual456",
+            amount_cents=2000,
+        )
+
+        assert result["requires_action"] is False
+        assert result["client_secret"] is None
+        assert result["status"] == "requires_capture"
+        record = stripe_service.payment_repository.get_payment_by_intent_id("pi_manual_ok")
+        assert record is not None
+
     @patch("stripe.Transfer.create")
     @patch("stripe.PaymentIntent.capture")
     @patch("stripe.PaymentIntent.retrieve")
@@ -795,7 +1371,7 @@ class TestStripeService:
     ) -> None:
         """Wrapper should pass through capture and trigger top-up once."""
 
-        instructor_user, profile, _ = test_instructor
+        _, profile, _ = test_instructor
         stripe_service.payment_repository.create_customer_record(
             test_booking.student_id, "cus_student123"
         )
@@ -882,7 +1458,7 @@ class TestStripeService:
     ) -> None:
         """Top-up computation should prefer metadata and remain idempotent across retries."""
 
-        instructor_user, profile, _ = test_instructor
+        _, profile, _ = test_instructor
         stripe_service.payment_repository.create_customer_record(
             test_booking.student_id, "cus_student123"
         )
@@ -967,6 +1543,191 @@ class TestStripeService:
         assert second_capture["top_up_transfer_cents"] == expected_top_up
         mock_transfer.assert_not_called()
 
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_capture_booking_payment_intent_handles_retrieve_and_context_errors(
+        self,
+        mock_retrieve,
+        stripe_service: StripeService,
+        test_booking: Booking,
+    ) -> None:
+        stripe_service.stripe_configured = True
+        mock_retrieve.side_effect = Exception("stripe retrieve failed")
+
+        capture_result = {"payment_intent": None, "amount_received": 100}
+
+        with (
+            patch.object(stripe_service, "capture_payment_intent", return_value=capture_result),
+            patch.object(stripe_service, "build_charge_context", side_effect=Exception("pricing fail")),
+            patch.object(
+                stripe_service.booking_repository, "get_by_id", side_effect=Exception("db down")
+            ),
+        ):
+            result = stripe_service.capture_booking_payment_intent(
+                booking_id=test_booking.id,
+                payment_intent_id="pi_err",
+            )
+
+        assert result["payment_intent"] is None
+        assert result["top_up_transfer_cents"] == 0
+
+    def test_capture_booking_payment_intent_handles_instructor_lookup_error(
+        self,
+        stripe_service: StripeService,
+        test_booking: Booking,
+    ) -> None:
+        stripe_service.stripe_configured = False
+        payment_intent = {
+            "metadata": {
+                "base_price_cents": "10000",
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "0",
+            },
+            "amount": 8500,
+        }
+
+        capture_result = {"payment_intent": payment_intent}
+
+        with (
+            patch.object(stripe_service, "capture_payment_intent", return_value=capture_result),
+            patch.object(stripe_service.booking_repository, "get_by_id", return_value=test_booking),
+            patch.object(
+                stripe_service.instructor_repository,
+                "get_by_user_id",
+                side_effect=Exception("instructor lookup failed"),
+            ),
+        ):
+            result = stripe_service.capture_booking_payment_intent(
+                booking_id=test_booking.id,
+                payment_intent_id="pi_instructor_err",
+            )
+
+        assert result["top_up_transfer_cents"] == 0
+
+    def test_capture_booking_payment_intent_handles_connected_account_error(
+        self,
+        stripe_service: StripeService,
+        test_booking: Booking,
+        test_instructor: tuple,
+    ) -> None:
+        stripe_service.stripe_configured = False
+        _, profile, _ = test_instructor
+        payment_intent = {
+            "metadata": {
+                "base_price_cents": "10000",
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "0",
+            },
+            "amount": 8500,
+        }
+
+        capture_result = {"payment_intent": payment_intent}
+
+        with (
+            patch.object(stripe_service, "capture_payment_intent", return_value=capture_result),
+            patch.object(stripe_service.booking_repository, "get_by_id", return_value=test_booking),
+            patch.object(stripe_service.instructor_repository, "get_by_user_id", return_value=profile),
+            patch.object(
+                stripe_service.payment_repository,
+                "get_connected_account_by_instructor_id",
+                side_effect=Exception("acct lookup failed"),
+            ),
+        ):
+            result = stripe_service.capture_booking_payment_intent(
+                booking_id=test_booking.id,
+                payment_intent_id="pi_account_err",
+            )
+
+        assert result["top_up_transfer_cents"] == 0
+
+    def test_capture_booking_payment_intent_handles_top_up_transfer_error(
+        self,
+        stripe_service: StripeService,
+        test_booking: Booking,
+        test_instructor: tuple,
+    ) -> None:
+        stripe_service.stripe_configured = False
+        _, profile, _ = test_instructor
+        payment_intent = {
+            "metadata": {
+                "base_price_cents": "10000",
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "2000",
+            },
+            "amount": 5000,
+        }
+
+        capture_result = {"payment_intent": payment_intent}
+        connected_account = MagicMock(stripe_account_id="acct_topup")
+
+        with (
+            patch.object(stripe_service, "capture_payment_intent", return_value=capture_result),
+            patch.object(stripe_service.booking_repository, "get_by_id", return_value=test_booking),
+            patch.object(stripe_service.instructor_repository, "get_by_user_id", return_value=profile),
+            patch.object(
+                stripe_service.payment_repository,
+                "get_connected_account_by_instructor_id",
+                return_value=connected_account,
+            ),
+            patch.object(stripe_service, "ensure_top_up_transfer", side_effect=Exception("boom")),
+        ):
+            result = stripe_service.capture_booking_payment_intent(
+                booking_id=test_booking.id,
+                payment_intent_id="pi_topup_err",
+            )
+
+        assert result["top_up_transfer_cents"] == 3500
+
+    def test_ensure_top_up_transfer_noop_when_amount_zero(
+        self, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """Zero top-up amounts should short-circuit."""
+        result = stripe_service.ensure_top_up_transfer(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_zero",
+            destination_account_id="acct_zero",
+            amount_cents=0,
+        )
+        assert result is None
+
+    @patch("stripe.Transfer.create")
+    def test_ensure_top_up_transfer_noop_when_duplicate(
+        self, mock_transfer, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """Duplicate top-up events should not create another transfer."""
+        stripe_service.payment_repository.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="top_up_transfer_created",
+            event_data={"payment_intent_id": "pi_dup", "amount_cents": 250},
+        )
+
+        result = stripe_service.ensure_top_up_transfer(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_dup",
+            destination_account_id="acct_dup",
+            amount_cents=250,
+        )
+
+        assert result is None
+        mock_transfer.assert_not_called()
+
+    @patch("stripe.Transfer.create")
+    def test_ensure_top_up_transfer_stripe_error(
+        self, mock_transfer, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """Stripe transfer errors should surface as ServiceException."""
+        mock_transfer.side_effect = stripe.StripeError("transfer failed")
+
+        with pytest.raises(ServiceException, match="Failed to create top-up transfer"):
+            stripe_service.ensure_top_up_transfer(
+                booking_id=test_booking.id,
+                payment_intent_id="pi_fail",
+                destination_account_id="acct_fail",
+                amount_cents=100,
+            )
+
     @patch("stripe.PaymentIntent.confirm")
     def test_confirm_payment_intent_success(self, mock_confirm, stripe_service: StripeService, test_booking: Booking):
         """Test successful payment intent confirmation."""
@@ -988,9 +1749,6 @@ class TestStripeService:
         # Confirm payment
         confirmed_payment = stripe_service.confirm_payment_intent("pi_test123", "pm_card123")
 
-        # Verify Stripe API call - use unittest.mock.ANY for return_url since it's from settings
-        from unittest.mock import ANY
-
         mock_confirm.assert_called_once_with(
             "pi_test123",
             payment_method="pm_card123",
@@ -1001,12 +1759,35 @@ class TestStripeService:
         assert confirmed_payment.status == "succeeded"
 
     @patch("stripe.PaymentIntent.confirm")
+    def test_confirm_payment_intent_missing_record(
+        self, mock_confirm, stripe_service: StripeService
+    ) -> None:
+        mock_intent = MagicMock()
+        mock_intent.status = "succeeded"
+        mock_confirm.return_value = mock_intent
+
+        with patch.object(
+            stripe_service.payment_repository, "update_payment_status", return_value=None
+        ):
+            with pytest.raises(ServiceException, match="Payment record not found"):
+                stripe_service.confirm_payment_intent("pi_missing", "pm_card")
+
+    @patch("stripe.PaymentIntent.confirm")
+    def test_confirm_payment_intent_stripe_error(
+        self, mock_confirm, stripe_service: StripeService
+    ) -> None:
+        mock_confirm.side_effect = stripe.StripeError("confirm failed")
+
+        with pytest.raises(ServiceException, match="Failed to confirm payment"):
+            stripe_service.confirm_payment_intent("pi_error", "pm_card")
+
+    @patch("stripe.PaymentIntent.confirm")
     @patch("stripe.PaymentIntent.create")
     def test_process_booking_payment_success(
         self, mock_create, mock_confirm, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
     ):
         """Test end-to-end booking payment processing."""
-        instructor_user, profile, _ = test_instructor
+        _, profile, _ = test_instructor
 
         # Create customer and connected account
         _customer = stripe_service.payment_repository.create_customer_record(test_booking.student_id, "cus_student123")
@@ -1065,6 +1846,112 @@ class TestStripeService:
         assert result["amount"] == 5000  # $50.00 in cents
         assert result["application_fee"] == application_fee_cents
 
+    def test_process_booking_payment_credit_only(
+        self, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+    ) -> None:
+        """Credits covering the full amount should skip Stripe charge."""
+        _, profile, _ = test_instructor
+
+        stripe_service.payment_repository.create_customer_record(test_booking.student_id, "cus_credit123")
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_credit123", onboarding_completed=True
+        )
+
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=5000,
+            base_price_cents=5000,
+            student_fee_cents=0,
+            instructor_platform_fee_cents=0,
+            target_instructor_payout_cents=5000,
+            student_pay_cents=0,
+            application_fee_cents=0,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0"),
+        )
+        stripe_service.build_charge_context = MagicMock(return_value=context)
+
+        result = stripe_service.process_booking_payment(
+            booking_id=test_booking.id, payment_method_id=None
+        )
+
+        assert result["status"] == "succeeded"
+        assert result["payment_intent_id"] == "credit_only"
+        assert test_booking.payment_status == "authorized"
+
+        events = stripe_service.payment_repository.get_payment_events_for_booking(test_booking.id)
+        assert any(evt.event_type == "auth_succeeded_credits_only" for evt in events)
+
+    def test_process_booking_payment_requires_payment_method(
+        self, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+    ) -> None:
+        """Missing payment methods should raise when balance remains."""
+        _, profile, _ = test_instructor
+        stripe_service.payment_repository.create_customer_record(test_booking.student_id, "cus_missing_pm")
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_missing_pm", onboarding_completed=True
+        )
+
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=0,
+            base_price_cents=5000,
+            student_fee_cents=0,
+            instructor_platform_fee_cents=500,
+            target_instructor_payout_cents=4500,
+            student_pay_cents=5000,
+            application_fee_cents=500,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0.10"),
+        )
+        stripe_service.build_charge_context = MagicMock(return_value=context)
+
+        with pytest.raises(ServiceException, match="Payment method required"):
+            stripe_service.process_booking_payment(booking_id=test_booking.id, payment_method_id=None)
+
+    @patch("stripe.PaymentIntent.confirm")
+    @patch("stripe.PaymentIntent.create")
+    def test_process_booking_payment_requires_action(
+        self, mock_create, mock_confirm, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+    ) -> None:
+        """3DS-required payments should return client_secret."""
+        _, profile, _ = test_instructor
+
+        stripe_service.payment_repository.create_customer_record(test_booking.student_id, "cus_action123")
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_action123", onboarding_completed=True
+        )
+
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=0,
+            base_price_cents=5000,
+            student_fee_cents=0,
+            instructor_platform_fee_cents=500,
+            target_instructor_payout_cents=4500,
+            student_pay_cents=5000,
+            application_fee_cents=500,
+            top_up_transfer_cents=0,
+            instructor_tier_pct=Decimal("0.10"),
+        )
+        stripe_service.build_charge_context = MagicMock(return_value=context)
+
+        mock_intent = MagicMock()
+        mock_intent.id = "pi_action123"
+        mock_intent.status = "requires_payment_method"
+        mock_create.return_value = mock_intent
+
+        mock_confirmed = MagicMock()
+        mock_confirmed.status = "requires_action"
+        mock_confirmed.client_secret = "secret_action"
+        mock_confirm.return_value = mock_confirmed
+
+        result = stripe_service.process_booking_payment(test_booking.id, "pm_action")
+
+        assert result["status"] == "requires_action"
+        assert result["client_secret"] == "secret_action"
+        assert test_booking.payment_status != "authorized"
+
     @patch("stripe.Transfer.create")
     @patch("stripe.PaymentIntent.capture")
     def test_capture_payment_intent_returns_capture_details_without_top_up(
@@ -1100,6 +1987,96 @@ class TestStripeService:
         assert result["transfer_id"] == "tr_primary"
         mock_transfer.assert_not_called()
 
+    @patch("stripe.PaymentIntent.capture")
+    def test_capture_payment_intent_falls_back_to_amount(
+        self, mock_capture, stripe_service: StripeService
+    ) -> None:
+        """Fallback to amount when amount_received is missing."""
+        mock_capture.return_value = {
+            "id": "pi_fallback",
+            "status": "succeeded",
+            "amount": 1234,
+            "charges": {"data": []},
+        }
+
+        result = stripe_service.capture_payment_intent("pi_fallback")
+
+        assert result["amount_received"] == 1234
+
+    @patch("stripe.PaymentIntent.capture")
+    def test_capture_payment_intent_stripe_error(
+        self, mock_capture, stripe_service: StripeService
+    ) -> None:
+        """Stripe capture errors should raise ServiceException."""
+        mock_capture.side_effect = stripe.error.InvalidRequestError(
+            "This PaymentIntent has already been captured", param=None
+        )
+
+        with pytest.raises(ServiceException, match="Failed to capture payment"):
+            stripe_service.capture_payment_intent("pi_already_captured")
+
+    @patch("stripe.PaymentIntent.cancel")
+    def test_cancel_payment_intent_updates_status(
+        self, mock_cancel, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """Cancel should update stored payment status when possible."""
+        stripe_service.payment_repository.create_payment_record(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_cancel",
+            amount=1000,
+            application_fee=100,
+            status="requires_capture",
+        )
+
+        mock_pi = MagicMock()
+        mock_pi.status = "canceled"
+        mock_cancel.return_value = mock_pi
+
+        result = stripe_service.cancel_payment_intent("pi_cancel")
+
+        assert result["payment_intent"] == mock_pi
+        updated = stripe_service.payment_repository.get_payment_by_intent_id("pi_cancel")
+        assert updated.status == "canceled"
+
+    @patch("stripe.PaymentIntent.cancel")
+    def test_cancel_payment_intent_stripe_error(
+        self, mock_cancel, stripe_service: StripeService
+    ) -> None:
+        """Cancel errors should surface as ServiceException."""
+        mock_cancel.side_effect = stripe.StripeError("cancel failed")
+
+        with pytest.raises(ServiceException, match="Failed to cancel payment intent"):
+            stripe_service.cancel_payment_intent("pi_missing")
+
+    @patch("stripe.Transfer.create_reversal")
+    def test_reverse_transfer_partial_reversal(
+        self, mock_reversal, stripe_service: StripeService
+    ) -> None:
+        """Partial reversals should return without raising."""
+        reversal = MagicMock()
+        reversal.amount_reversed = 50
+        reversal.failure_code = "balance_insufficient"
+        mock_reversal.return_value = reversal
+
+        result = stripe_service.reverse_transfer(
+            transfer_id="tr_partial",
+            amount_cents=100,
+            reason="test",
+            idempotency_key="rev_tr_partial",
+        )
+
+        assert result["reversal"] == reversal
+
+    @patch("stripe.Transfer.create_reversal")
+    def test_reverse_transfer_stripe_error(
+        self, mock_reversal, stripe_service: StripeService
+    ) -> None:
+        """Stripe reversal errors should raise ServiceException."""
+        mock_reversal.side_effect = stripe.StripeError("reversal failed")
+
+        with pytest.raises(ServiceException, match="Failed to reverse transfer"):
+            stripe_service.reverse_transfer(transfer_id="tr_fail", amount_cents=100)
+
     def test_process_booking_payment_booking_not_found(self, stripe_service: StripeService):
         """Test payment processing with non-existent booking."""
         with pytest.raises(ServiceException, match="Booking .* not found"):
@@ -1109,13 +2086,270 @@ class TestStripeService:
         self, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
     ):
         """Test payment processing when instructor account not set up."""
-        instructor_user, profile, _ = test_instructor
+        _, profile, _ = test_instructor
 
         # Create customer but no connected account
         stripe_service.payment_repository.create_customer_record(test_booking.student_id, "cus_student123")
 
         with pytest.raises(ServiceException, match="Instructor payment account not set up"):
             stripe_service.process_booking_payment(test_booking.id, "pm_card123")
+
+    # ========== Checkout Tests ==========
+
+    def test_create_booking_checkout_requires_student(
+        self, stripe_service: StripeService, test_booking: Booking, test_user: User
+    ) -> None:
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id="pm_any",
+            save_payment_method=False,
+        )
+
+        test_user._cached_is_student = False
+
+        with pytest.raises(ServiceException, match="Only students can pay for bookings"):
+            stripe_service.create_booking_checkout(
+                current_user=test_user,
+                payload=payload,
+                booking_service=_booking_service_stub(),
+            )
+
+    def test_create_booking_checkout_booking_not_found(
+        self, stripe_service: StripeService, test_user: User
+    ) -> None:
+        payload = CreateCheckoutRequest(
+            booking_id="missing_booking",
+            payment_method_id="pm_any",
+            save_payment_method=False,
+        )
+
+        test_user._cached_is_student = True
+
+        with pytest.raises(ServiceException, match="Booking not found"):
+            stripe_service.create_booking_checkout(
+                current_user=test_user,
+                payload=payload,
+                booking_service=_booking_service_stub(),
+            )
+
+    def test_create_booking_checkout_wrong_student(
+        self, stripe_service: StripeService, test_booking: Booking, db: Session
+    ) -> None:
+        other_user = User(
+            id=str(ulid.ULID()),
+            email=f"other_{ulid.ULID()}@example.com",
+            hashed_password="hashed",
+            first_name="Other",
+            last_name="Student",
+            zip_code="10001",
+        )
+        db.add(other_user)
+        db.flush()
+        other_user._cached_is_student = True
+
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id="pm_any",
+            save_payment_method=False,
+        )
+
+        with pytest.raises(ServiceException, match="only pay for your own bookings"):
+            stripe_service.create_booking_checkout(
+                current_user=other_user,
+                payload=payload,
+                booking_service=_booking_service_stub(),
+            )
+
+    def test_create_booking_checkout_invalid_status(
+        self, stripe_service: StripeService, test_booking: Booking, test_user: User
+    ) -> None:
+        test_user._cached_is_student = True
+        test_booking.status = BookingStatus.CANCELLED
+
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id="pm_any",
+            save_payment_method=False,
+        )
+
+        with pytest.raises(ServiceException, match="Cannot process payment for booking with status"):
+            stripe_service.create_booking_checkout(
+                current_user=test_user,
+                payload=payload,
+                booking_service=_booking_service_stub(),
+            )
+
+    def test_create_booking_checkout_already_paid(
+        self, stripe_service: StripeService, test_booking: Booking, test_user: User
+    ) -> None:
+        test_user._cached_is_student = True
+        stripe_service.payment_repository.create_payment_record(
+            booking_id=test_booking.id,
+            payment_intent_id="pi_paid",
+            amount=5000,
+            application_fee=500,
+            status="succeeded",
+        )
+
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id="pm_any",
+            save_payment_method=False,
+        )
+
+        with pytest.raises(ServiceException, match="already been paid"):
+            stripe_service.create_booking_checkout(
+                current_user=test_user,
+                payload=payload,
+                booking_service=_booking_service_stub(),
+            )
+
+    def test_create_booking_checkout_save_payment_method_requires_id(
+        self, stripe_service: StripeService, test_booking: Booking, test_user: User
+    ) -> None:
+        test_user._cached_is_student = True
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id=None,
+            save_payment_method=True,
+        )
+
+        with pytest.raises(ServiceException, match="Payment method is required"):
+            stripe_service.create_booking_checkout(
+                current_user=test_user,
+                payload=payload,
+                booking_service=_booking_service_stub(),
+            )
+
+    def test_create_booking_checkout_success_requires_capture(
+        self, stripe_service: StripeService, test_booking: Booking, test_user: User
+    ) -> None:
+        test_user._cached_is_student = True
+        test_booking.status = BookingStatus.PENDING
+        booking_service = _booking_service_stub()
+
+        payment_result = {
+            "success": True,
+            "payment_intent_id": "pi_capture",
+            "status": "requires_capture",
+            "amount": 5000,
+            "application_fee": 500,
+            "client_secret": None,
+        }
+
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id="pm_capture",
+            save_payment_method=True,
+            requested_credit_cents=0,
+        )
+
+        with (
+            patch.object(stripe_service, "process_booking_payment", return_value=payment_result) as mock_process,
+            patch.object(stripe_service, "save_payment_method") as mock_save,
+        ):
+            response = stripe_service.create_booking_checkout(
+                current_user=test_user,
+                payload=payload,
+                booking_service=booking_service,
+            )
+
+        mock_save.assert_called_once_with(
+            user_id=test_user.id,
+            payment_method_id="pm_capture",
+            set_as_default=False,
+        )
+        mock_process.assert_called_once_with(
+            test_booking.id,
+            "pm_capture",
+            0,
+        )
+
+        assert response.success is True
+        assert response.status == "requires_capture"
+        assert response.requires_action is False
+        assert response.client_secret is None
+        assert test_booking.status == "CONFIRMED"
+        assert test_booking.payment_status == "authorized"
+
+        booking_service.repository.flush.assert_called_once()
+        booking_service.invalidate_booking_cache.assert_called_once_with(test_booking)
+        booking_service.system_message_service.create_booking_created_message.assert_called_once()
+
+        _, message_kwargs = booking_service.system_message_service.create_booking_created_message.call_args
+        assert message_kwargs["service_name"] == test_booking.instructor_service.name
+
+    def test_create_booking_checkout_suppresses_notification_errors(
+        self, stripe_service: StripeService, test_booking: Booking, test_user: User
+    ) -> None:
+        test_user._cached_is_student = True
+        test_booking.status = BookingStatus.PENDING
+        booking_service = _booking_service_stub()
+        booking_service.invalidate_booking_cache.side_effect = Exception("cache down")
+        booking_service.system_message_service.create_booking_created_message.side_effect = Exception(
+            "message fail"
+        )
+
+        payment_result = {
+            "success": True,
+            "payment_intent_id": "pi_capture",
+            "status": "requires_capture",
+            "amount": 5000,
+            "application_fee": 500,
+            "client_secret": None,
+        }
+
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id="pm_capture",
+            save_payment_method=False,
+        )
+
+        with patch.object(stripe_service, "process_booking_payment", return_value=payment_result):
+            response = stripe_service.create_booking_checkout(
+                current_user=test_user,
+                payload=payload,
+                booking_service=booking_service,
+            )
+
+        assert response.success is True
+        booking_service.invalidate_booking_cache.assert_called_once_with(test_booking)
+        booking_service.system_message_service.create_booking_created_message.assert_called_once()
+
+    def test_create_booking_checkout_requires_action_returns_client_secret(
+        self, stripe_service: StripeService, test_booking: Booking, test_user: User
+    ) -> None:
+        test_user._cached_is_student = True
+        test_booking.status = BookingStatus.PENDING
+        booking_service = _booking_service_stub()
+
+        payment_result = {
+            "success": True,
+            "payment_intent_id": "pi_action",
+            "status": "requires_action",
+            "amount": 5000,
+            "application_fee": 500,
+            "client_secret": "secret_action",
+        }
+
+        payload = CreateCheckoutRequest(
+            booking_id=test_booking.id,
+            payment_method_id="pm_action",
+            save_payment_method=False,
+        )
+
+        with patch.object(stripe_service, "process_booking_payment", return_value=payment_result):
+            response = stripe_service.create_booking_checkout(
+                current_user=test_user,
+                payload=payload,
+                booking_service=booking_service,
+            )
+
+        assert response.requires_action is True
+        assert response.client_secret == "secret_action"
+        assert test_booking.status == BookingStatus.PENDING
+        booking_service.repository.flush.assert_not_called()
+        booking_service.system_message_service.create_booking_created_message.assert_not_called()
 
     # ========== Payment Method Management Tests ==========
 
@@ -1157,6 +2391,48 @@ class TestStripeService:
         assert payment_method.brand == "visa"
         assert payment_method.is_default is True
 
+    @patch("stripe.PaymentMethod.retrieve")
+    def test_save_payment_method_different_customer(
+        self, mock_retrieve, stripe_service: StripeService, test_user: User
+    ) -> None:
+        """Saving a payment method from another customer should fail."""
+        stripe_service.payment_repository.create_customer_record(test_user.id, "cus_local")
+
+        mock_pm = MagicMock()
+        mock_pm.customer = "cus_other"
+        mock_pm.card.last4 = "4242"
+        mock_pm.card.brand = "visa"
+        mock_retrieve.return_value = mock_pm
+
+        with pytest.raises(ServiceException, match="already in use by another account"):
+            stripe_service.save_payment_method(
+                user_id=test_user.id,
+                payment_method_id="pm_other",
+                set_as_default=False,
+            )
+
+    @patch("stripe.PaymentMethod.retrieve")
+    def test_save_payment_method_card_error(
+        self, mock_retrieve, stripe_service: StripeService, test_user: User
+    ) -> None:
+        """Card errors should surface as ServiceException."""
+        stripe_service.payment_repository.create_customer_record(test_user.id, "cus_card_error")
+
+        card_error = stripe.error.CardError(
+            "Card declined",
+            param="payment_method",
+            code="card_declined",
+            json_body={"error": {"message": "Card declined"}},
+        )
+        mock_retrieve.side_effect = card_error
+
+        with pytest.raises(ServiceException, match="Card declined"):
+            stripe_service.save_payment_method(
+                user_id=test_user.id,
+                payment_method_id="pm_declined",
+                set_as_default=False,
+            )
+
     def test_get_user_payment_methods(self, stripe_service: StripeService, test_user: User):
         """Test getting user payment methods."""
         # Create payment methods
@@ -1187,114 +2463,342 @@ class TestStripeService:
         methods = stripe_service.get_user_payment_methods(test_user.id)
         assert len(methods) == 0
 
-    # ========== Webhook Handling Tests ==========
+    # ========== Identity & Credits Tests ==========
 
-    @patch("stripe.Webhook.construct_event")
-    @patch("app.services.stripe_service.settings")
-    def test_verify_webhook_signature_valid(self, mock_settings, mock_construct, stripe_service: StripeService):
-        """Test valid webhook signature verification."""
-        # Mock webhook secret configuration
-        mock_settings.stripe_webhook_secret = "whsec_test_secret"
+    @patch("stripe.identity.VerificationSession.create")
+    def test_create_identity_verification_session_success(
+        self, mock_create, stripe_service: StripeService, test_user: User
+    ) -> None:
+        """Identity session should return client secret and ID."""
+        stripe_service.stripe_configured = True
+        mock_session = MagicMock()
+        mock_session.id = "vs_123"
+        mock_session.client_secret = "secret_123"
+        mock_create.return_value = mock_session
 
-        # Mock successful verification
-        mock_construct.return_value = {}
-
-        result = stripe_service.verify_webhook_signature(b"payload", "signature")
-
-        assert result is True
-        mock_construct.assert_called_once_with(b"payload", "signature", "whsec_test_secret")
-
-    @patch("stripe.Webhook.construct_event")
-    @patch("app.services.stripe_service.settings")
-    def test_verify_webhook_signature_invalid(self, mock_settings, mock_construct, stripe_service: StripeService):
-        """Test invalid webhook signature verification."""
-        # Mock webhook secret configuration
-        mock_settings.stripe_webhook_secret = "whsec_test_secret"
-
-        # Mock signature verification error
-        mock_construct.side_effect = stripe.SignatureVerificationError("Invalid", "signature")
-
-        result = stripe_service.verify_webhook_signature(b"payload", "signature")
-
-        assert result is False
-
-    def test_handle_payment_intent_webhook_success(self, stripe_service: StripeService, test_booking: Booking):
-        """Test handling payment intent webhook."""
-        # Create payment record
-        _payment = stripe_service.payment_repository.create_payment_record(
-            test_booking.id, "pi_test123", 5000, 750, "requires_payment_method"
+        result = stripe_service.create_identity_verification_session(
+            user_id=test_user.id, return_url="https://app.test/return"
         )
 
-        # Create webhook event
-        event = {"type": "payment_intent.succeeded", "data": {"object": {"id": "pi_test123", "status": "succeeded"}}}
+        assert result["verification_session_id"] == "vs_123"
+        assert result["client_secret"] == "secret_123"
 
-        # Handle webhook
-        success = stripe_service.handle_payment_intent_webhook(event)
+    @patch("stripe.identity.VerificationSession.create")
+    def test_create_identity_verification_session_stripe_error(
+        self, mock_create, stripe_service: StripeService, test_user: User
+    ) -> None:
+        """Stripe errors should surface as ServiceException."""
+        stripe_service.stripe_configured = True
+        mock_create.side_effect = stripe.error.APIConnectionError("network down")
 
-        assert success is True
+        with pytest.raises(ServiceException, match="Failed to start identity verification"):
+            stripe_service.create_identity_verification_session(
+                user_id=test_user.id, return_url="https://app.test/return"
+            )
 
-        # Verify status update
-        updated_payment = stripe_service.payment_repository.get_payment_by_intent_id("pi_test123")
-        assert updated_payment.status == "succeeded"
+    def test_create_identity_verification_session_user_not_found(
+        self, stripe_service: StripeService
+    ) -> None:
+        stripe_service.stripe_configured = True
 
-    def test_handle_payment_intent_webhook_not_found(self, stripe_service: StripeService):
-        """Test handling webhook for non-existent payment intent."""
-        # Create webhook event
-        event = {
-            "type": "payment_intent.succeeded",
-            "data": {"object": {"id": "pi_nonexistent", "status": "succeeded"}},
-        }
+        with pytest.raises(ServiceException, match="User not found for identity verification"):
+            stripe_service.create_identity_verification_session(
+                user_id="missing_user", return_url="https://app.test/return"
+            )
 
-        # Handle webhook
-        success = stripe_service.handle_payment_intent_webhook(event)
+    @patch("stripe.identity.VerificationSession.create")
+    def test_create_identity_verification_session_missing_client_secret(
+        self, mock_create, stripe_service: StripeService, test_user: User
+    ) -> None:
+        stripe_service.stripe_configured = True
+        mock_session = MagicMock()
+        mock_session.id = "vs_missing_secret"
+        mock_session.client_secret = None
+        mock_create.return_value = mock_session
 
-        assert success is False
+        with pytest.raises(ServiceException, match="Failed to create identity verification session"):
+            stripe_service.create_identity_verification_session(
+                user_id=test_user.id, return_url="https://app.test/return"
+            )
 
-    # ========== Analytics Tests ==========
+    def test_create_identity_verification_session_unexpected_error(
+        self, stripe_service: StripeService, test_user: User
+    ) -> None:
+        stripe_service.stripe_configured = True
 
-    def test_get_platform_revenue_stats(self, stripe_service: StripeService, test_booking: Booking):
-        """Test getting platform revenue statistics."""
-        context = stripe_service.build_charge_context(test_booking.id)
-        # Create successful payment
+        with patch.object(
+            stripe_service.user_repository, "get_by_id", side_effect=Exception("db down")
+        ):
+            with pytest.raises(ServiceException, match="Failed to start identity verification"):
+                stripe_service.create_identity_verification_session(
+                    user_id=test_user.id, return_url="https://app.test/return"
+                )
+
+    @patch("stripe.identity.VerificationSession.list")
+    def test_get_latest_identity_status_found(
+        self, mock_list, stripe_service: StripeService, test_user: User
+    ) -> None:
+        """Return the latest identity session for a user."""
+        stripe_service.stripe_configured = True
+        session_old = MagicMock()
+        session_old.id = "vs_old"
+        session_old.status = "processing"
+        session_old.created = 10
+        session_old.metadata = {"user_id": test_user.id}
+
+        session_new = MagicMock()
+        session_new.id = "vs_new"
+        session_new.status = "verified"
+        session_new.created = 20
+        session_new.metadata = {"user_id": test_user.id}
+
+        mock_list.return_value = {"data": [session_old, session_new]}
+
+        result = stripe_service.get_latest_identity_status(test_user.id)
+
+        assert result["status"] == "verified"
+        assert result["id"] == "vs_new"
+        assert result["created"] == 20
+
+    @patch("stripe.identity.VerificationSession.list")
+    def test_get_latest_identity_status_not_found(
+        self, mock_list, stripe_service: StripeService
+    ) -> None:
+        stripe_service.stripe_configured = True
+        mock_list.return_value = {"data": []}
+
+        result = stripe_service.get_latest_identity_status("user_missing")
+
+        assert result["status"] == "not_found"
+
+    def test_get_user_credit_balance_returns_earliest_expiry(
+        self, stripe_service: StripeService, test_user: User
+    ) -> None:
+        """Earliest credit expiration should be surfaced in the balance."""
+        now = datetime.now(timezone.utc)
+        stripe_service.payment_repository.create_platform_credit(
+            user_id=test_user.id,
+            amount_cents=500,
+            reason="test",
+            expires_at=now + timedelta(days=10),
+        )
+        stripe_service.payment_repository.create_platform_credit(
+            user_id=test_user.id,
+            amount_cents=700,
+            reason="test",
+            expires_at=now + timedelta(days=5),
+        )
+
+        balance = stripe_service.get_user_credit_balance(user=test_user)
+
+        assert balance.available == pytest.approx(12.0)
+        assert balance.expires_at is not None
+
+    def test_get_user_transaction_history_includes_summary_fields(
+        self, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """Transaction history should include pricing summary fields."""
         stripe_service.payment_repository.create_payment_record(
-            test_booking.id,
-            "pi_test123",
-            context.student_pay_cents,
-            context.application_fee_cents,
-            "succeeded",
+            booking_id=test_booking.id,
+            payment_intent_id="pi_hist",
+            amount=6000,
+            application_fee=600,
+            status="succeeded",
         )
 
-        stats = stripe_service.get_platform_revenue_stats()
+        student = stripe_service.user_repository.get_by_id(test_booking.student_id)
+        assert student is not None
+        history = stripe_service.get_user_transaction_history(user=student, limit=10, offset=0)
 
-        assert stats["total_amount"] == context.student_pay_cents
-        assert stats["total_fees"] == context.application_fee_cents
-        assert stats["payment_count"] == 1
+        assert len(history) == 1
+        entry = history[0]
+        assert entry.booking_id == test_booking.id
+        assert entry.status == "succeeded"
+        assert entry.total_paid >= entry.lesson_amount
 
-    def test_get_instructor_earnings(
-        self, stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
-    ):
-        """Test getting instructor earnings."""
-        instructor_user, profile, _ = test_instructor
-
-        context = stripe_service.build_charge_context(test_booking.id)
-        # Create successful payment
-        stripe_service.payment_repository.create_payment_record(
-            test_booking.id,
-            "pi_test123",
-            context.student_pay_cents,
-            context.application_fee_cents,
-            "succeeded",
+    def test_get_user_transaction_history_skips_failed_summary(
+        self, stripe_service: StripeService
+    ) -> None:
+        student = MagicMock(id="student_1")
+        instructor = MagicMock(first_name="Alex", last_name="")
+        bad_booking = MagicMock(
+            id="bk_bad",
+            service_name="Service",
+            booking_date=datetime.now().date(),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            duration_minutes=60,
+            hourly_rate=50.0,
+            instructor=instructor,
+        )
+        good_booking = MagicMock(
+            id="bk_good",
+            service_name="Service",
+            booking_date=datetime.now().date(),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            duration_minutes=60,
+            hourly_rate=50.0,
+            instructor=instructor,
+        )
+        bad_payment = MagicMock(
+            id="pi_bad",
+            booking=bad_booking,
+            status="succeeded",
+            created_at=datetime.now(timezone.utc),
+        )
+        good_payment = MagicMock(
+            id="pi_good",
+            booking=good_booking,
+            status="succeeded",
+            created_at=datetime.now(timezone.utc),
+        )
+        summary = MagicMock(
+            lesson_amount=50.0,
+            service_fee=0.0,
+            credit_applied=0.0,
+            tip_amount=0.0,
+            tip_paid=0.0,
+            tip_status=None,
+            total_paid=50.0,
         )
 
-        earnings = stripe_service.get_instructor_earnings(test_booking.instructor_id)
+        with (
+            patch.object(
+                stripe_service.payment_repository,
+                "get_user_payment_history",
+                return_value=[bad_payment, good_payment],
+            ),
+            patch(
+                "app.services.stripe_service.build_student_payment_summary",
+                side_effect=[Exception("boom"), summary],
+            ),
+        ):
+            history = stripe_service.get_user_transaction_history(
+                user=student, limit=10, offset=0
+            )
 
-        assert earnings["total_earned"] == (
-            context.student_pay_cents - context.application_fee_cents
+        assert len(history) == 1
+        assert history[0].instructor_name == "Alex"
+
+    def test_top_up_from_pi_metadata_returns_top_up(self) -> None:
+        pi = SimpleNamespace(
+            metadata={
+                "base_price_cents": "10000",
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "2000",
+            },
+            amount=5000,
         )
-        assert earnings["total_fees"] == context.application_fee_cents
-        assert earnings["booking_count"] == 1
+
+        assert StripeService._top_up_from_pi_metadata(pi) == 3500
+
+    def test_top_up_from_pi_metadata_returns_zero_when_no_top_up(self) -> None:
+        pi = SimpleNamespace(
+            metadata={
+                "base_price_cents": "10000",
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "0",
+            },
+            amount=8500,
+        )
+
+        assert StripeService._top_up_from_pi_metadata(pi) == 0
+
+    def test_top_up_from_pi_metadata_returns_none_without_metadata(self) -> None:
+        pi = SimpleNamespace(metadata=None, amount=5000)
+
+        assert StripeService._top_up_from_pi_metadata(pi) is None
+
+    def test_top_up_from_pi_metadata_returns_none_on_negative_credit(self) -> None:
+        pi = SimpleNamespace(
+            metadata={
+                "base_price_cents": "10000",
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "-100",
+            },
+            amount=5000,
+        )
+
+        assert StripeService._top_up_from_pi_metadata(pi) is None
+
+    def test_top_up_from_pi_metadata_returns_none_when_amount_missing(self) -> None:
+        pi = SimpleNamespace(
+            metadata={
+                "base_price_cents": "10000",
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "0",
+            },
+            amount=None,
+        )
+
+        assert StripeService._top_up_from_pi_metadata(pi) is None
+
+    def test_top_up_from_pi_metadata_returns_none_on_invalid_metadata(self) -> None:
+        pi = SimpleNamespace(
+            metadata={
+                "base_price_cents": "not-a-number",
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "0",
+            },
+            amount=5000,
+        )
+
+        assert StripeService._top_up_from_pi_metadata(pi) is None
+
+    def test_top_up_from_pi_metadata_returns_none_on_invalid_amount(self) -> None:
+        pi = SimpleNamespace(
+            metadata={
+                "base_price_cents": "10000",
+                "platform_fee_cents": "1500",
+                "student_fee_cents": "1200",
+                "applied_credit_cents": "0",
+            },
+            amount="not-a-number",
+        )
+
+        assert StripeService._top_up_from_pi_metadata(pi) is None
 
     # ========== Error Handling Tests ==========
+
+    def test_check_stripe_configured_raises_when_missing(
+        self, stripe_service: StripeService
+    ) -> None:
+        stripe_service.stripe_configured = False
+
+        with pytest.raises(ServiceException, match="Stripe service not configured"):
+            stripe_service._check_stripe_configured()
+
+    @patch("stripe.Customer.create")
+    def test_create_customer_auth_error_uses_mock(
+        self, mock_create, stripe_service: StripeService, test_user: User
+    ) -> None:
+        """Authentication errors should fall back to mock customers when unconfigured."""
+        stripe_service.stripe_configured = False
+        mock_create.side_effect = stripe.error.AuthenticationError("No API key provided")
+
+        customer = stripe_service.create_customer(
+            user_id=test_user.id,
+            email=test_user.email,
+            name=f"{test_user.first_name} {test_user.last_name}",
+        )
+
+        assert customer.stripe_customer_id == f"mock_cust_{test_user.id}"
+
+    @patch("stripe.PaymentIntent.capture")
+    def test_capture_payment_intent_rate_limit_error(
+        self, mock_capture, stripe_service: StripeService
+    ) -> None:
+        """Rate limit errors should raise ServiceException."""
+        mock_capture.side_effect = stripe.error.RateLimitError("rate limited")
+
+        with pytest.raises(ServiceException, match="Failed to capture payment"):
+            stripe_service.capture_payment_intent("pi_rate_limited")
 
     @patch("stripe.Customer.create")
     def test_service_exception_handling(self, mock_create, stripe_service: StripeService, test_user: User):
