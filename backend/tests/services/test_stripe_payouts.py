@@ -3,12 +3,14 @@ Payout and earnings summary tests for StripeService.
 """
 
 from datetime import datetime, time, timezone
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy.orm import Session
 import ulid
 
+from app.constants.pricing_defaults import PRICING_DEFAULTS
 from app.core.exceptions import ServiceException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -585,3 +587,89 @@ def test_get_instructor_earnings_summary_uses_actual_instructor_tier(
 
     invoice = summary.invoices[0]
     assert invoice.platform_fee_rate == pytest.approx(0.10)
+
+
+def test_get_instructor_earnings_summary_uses_configured_student_fee_pct(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+) -> None:
+    """Student fee percent should come from ConfigService (admin pricing config)."""
+    instructor_user, _, _ = test_instructor
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_student_fee_config",
+        amount=10000,
+        application_fee=1500,
+        status="succeeded",
+    )
+
+    pricing_config, _ = stripe_service.config_service.get_pricing_config()
+    pricing_config["student_fee_pct"] = 0.2
+    stripe_service.config_service.set_pricing_config(pricing_config)
+
+    with (
+        patch.object(
+            stripe_service,
+            "get_instructor_earnings",
+            return_value={
+                "total_earned": 0,
+                "total_fees": 0,
+                "booking_count": 0,
+                "average_earning": 0,
+                "period_start": None,
+                "period_end": None,
+            },
+        ),
+        patch(
+            "app.services.stripe_service.build_student_payment_summary",
+            return_value=MagicMock(tip_paid=0),
+        ),
+    ):
+        summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    invoice = summary.invoices[0]
+    expected_fee_cents = int(Decimal(invoice.lesson_price_cents) * Decimal("0.2"))
+    assert invoice.student_fee_cents == expected_fee_cents
+
+
+def test_get_instructor_earnings_summary_defaults_student_fee_pct_when_missing(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+) -> None:
+    instructor_user, _, _ = test_instructor
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_student_fee_default",
+        amount=10000,
+        application_fee=1500,
+        status="succeeded",
+    )
+
+    with (
+        patch.object(
+            stripe_service.config_service,
+            "get_pricing_config",
+            return_value=({"instructor_tiers": [{"pct": 0.15}]}, None),
+        ),
+        patch.object(
+            stripe_service,
+            "get_instructor_earnings",
+            return_value={
+                "total_earned": 0,
+                "total_fees": 0,
+                "booking_count": 0,
+                "average_earning": 0,
+                "period_start": None,
+                "period_end": None,
+            },
+        ),
+        patch(
+            "app.services.stripe_service.build_student_payment_summary",
+            return_value=MagicMock(tip_paid=0),
+        ),
+    ):
+        summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    invoice = summary.invoices[0]
+    expected_fee_cents = int(
+        Decimal(invoice.lesson_price_cents) * Decimal(str(PRICING_DEFAULTS["student_fee_pct"]))
+    )
+    assert invoice.student_fee_cents == expected_fee_cents

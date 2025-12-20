@@ -30,6 +30,8 @@ from app.models.service_catalog import InstructorService, ServiceCatalog, Servic
 from app.models.user import User
 from app.schemas.payment_schemas import CheckoutResponse
 
+HTTP_422_STATUS = getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422)
+
 
 class _DummySecret:
     def __init__(self, value: str) -> None:
@@ -58,6 +60,7 @@ class TestPaymentRoutes:
             "/api/v1/payments/connect/status",
             "/api/v1/payments/connect/dashboard",
             "/api/v1/payments/earnings",
+            "/api/v1/payments/payouts",
             # Student endpoints
             "/api/v1/payments/methods",
             "/api/v1/payments/checkout",
@@ -92,6 +95,7 @@ class TestPaymentRoutes:
             "/api/v1/payments/connect/status": ["GET"],
             "/api/v1/payments/connect/dashboard": ["GET"],
             "/api/v1/payments/earnings": ["GET"],
+            "/api/v1/payments/payouts": ["GET"],
             "/api/v1/payments/methods": ["GET", "POST"],
             "/api/v1/payments/checkout": ["POST"],
             "/api/v1/payments/webhooks/stripe": ["POST"],
@@ -113,6 +117,7 @@ class TestPaymentRoutes:
             ("/api/v1/payments/connect/status", "GET"),
             ("/api/v1/payments/connect/dashboard", "GET"),
             ("/api/v1/payments/earnings", "GET"),
+            ("/api/v1/payments/payouts", "GET"),
         ]
 
         for endpoint, method in instructor_endpoints:
@@ -833,7 +838,7 @@ class TestCheckoutEndpoint:
             json={"requested_credit_cents": -1},
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == HTTP_422_STATUS
 
 
 class TestOnboardingEndpoints:
@@ -1061,6 +1066,20 @@ class TestEarningsAndPayoutsEndpoints:
     ):
         response = client.get("/api/v1/payments/payouts", headers=auth_headers_student)
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @pytest.mark.parametrize("limit", [0, -1, 101, 999999])
+    def test_payouts_limit_validation(
+        self,
+        client: TestClient,
+        auth_headers_instructor: Dict[str, str],
+        limit: int,
+    ):
+        response = client.get(
+            f"/api/v1/payments/payouts?limit={limit}",
+            headers=auth_headers_instructor,
+        )
+
+        assert response.status_code == HTTP_422_STATUS
 
 
 class TestPaymentMethodEndpoints:

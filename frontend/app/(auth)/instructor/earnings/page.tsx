@@ -257,7 +257,7 @@ function EarningsPageImpl() {
                         // Use backend-calculated platform fee (no frontend calculation)
                         const platformFeeRate = invoice.platform_fee_rate ?? 0;
                         const platformFeePct = Math.round(platformFeeRate * 100);
-                        // Status color mapping for payment states
+                        // Keep status mapping aligned with backend/app/constants/payment_status.py.
                         const getStatusColor = (status?: string) => {
                           switch (status) {
                             case 'authorized':
@@ -485,8 +485,9 @@ function EarningsPageImpl() {
               onClick={async () => {
                 setSendingExport(true);
                 try {
-                  // Placeholder: wire to backend export endpoint when available
-                  // e.g., await fetchWithAuth(`/api/payments/exports?year=${exportYear}&type=${exportType}`)
+                  // TODO: Implement export endpoint (POST /api/v1/payments/earnings/export).
+                  // This should generate a CSV/PDF of earnings history.
+                  // Tracked in: future work.
                   setTimeout(() => {}, 300);
                   setExportOpen(false);
                 } finally {

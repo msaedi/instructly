@@ -779,8 +779,16 @@ def _ensure_catalog_data():
         # Check if catalog already exists
         existing_categories = session.query(ServiceCategory).count()
         existing_services = session.query(ServiceCatalog).count()
+        required_category_slugs = {"music", "sports-fitness"}
+        required_service_slugs = {"piano", "guitar", "yoga"}
+        category_slugs = {row[0] for row in session.query(ServiceCategory.slug).all()}
+        service_slugs = {row[0] for row in session.query(ServiceCatalog.slug).all()}
+        missing_required = (
+            not required_category_slugs.issubset(category_slugs)
+            or not required_service_slugs.issubset(service_slugs)
+        )
 
-        if existing_categories == 0 or existing_services == 0:
+        if existing_categories == 0 or existing_services == 0 or missing_required:
             print("\n🌱 Seeding catalog data for tests...")
             # Close session before seeding (seed_catalog creates its own)
             session.close()
@@ -796,9 +804,15 @@ def _ensure_catalog_data():
             # Verify critical services exist
             piano = session.query(ServiceCatalog).filter_by(slug="piano").first()
             guitar = session.query(ServiceCatalog).filter_by(slug="guitar").first()
+            yoga = session.query(ServiceCatalog).filter_by(slug="yoga").first()
+            music = session.query(ServiceCategory).filter_by(slug="music").first()
+            sports = session.query(ServiceCategory).filter_by(slug="sports-fitness").first()
 
-            if not piano or not guitar:
-                raise RuntimeError("Critical catalog services (piano, guitar) not found after seeding")
+            if not piano or not guitar or not yoga or not music or not sports:
+                raise RuntimeError(
+                    "Critical catalog entries (music, sports-fitness, piano, guitar, yoga) "
+                    "not found after seeding"
+                )
 
             print(f"✅ Seeded {categories_count} categories and {services_count} services")
     except Exception as e:

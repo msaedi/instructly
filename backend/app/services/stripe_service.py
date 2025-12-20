@@ -30,6 +30,8 @@ from urllib.parse import ParseResult, urljoin, urlparse
 from sqlalchemy.orm import Session
 import stripe
 
+from ..constants.payment_status import map_payment_status
+from ..constants.pricing_defaults import PRICING_DEFAULTS
 from ..core.config import settings
 from ..core.exceptions import ServiceException
 from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
@@ -561,7 +563,9 @@ class StripeService(BaseService):
             except Exception:
                 return default_pct
 
-        student_fee_pct = float(pricing_config.get("student_fee_pct", 0.12))
+        student_fee_pct = float(
+            pricing_config.get("student_fee_pct", PRICING_DEFAULTS["student_fee_pct"])
+        )
         instructor_tier_pct = _get_instructor_tier_pct(pricing_config, profile)
 
         invoices: List[InstructorInvoiceSummary] = []
@@ -617,16 +621,7 @@ class StripeService(BaseService):
             total_lesson_value += lesson_price_cents
             total_platform_fees += platform_fee_cents
 
-            # Map payment status for display
-            # Stripe statuses: requires_capture, succeeded, canceled, requires_payment_method
-            status_mapping = {
-                "succeeded": "paid",
-                "requires_capture": "authorized",
-                "canceled": "cancelled",  # Normalize to UK spelling
-                "requires_payment_method": "pending",
-                "processing": "pending",
-            }
-            display_status = status_mapping.get(payment.status or "", payment.status or "pending")
+            display_status = map_payment_status(payment.status)
 
             invoices.append(
                 InstructorInvoiceSummary(

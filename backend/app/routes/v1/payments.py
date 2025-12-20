@@ -32,7 +32,7 @@ import logging
 from typing import Any, Dict, List, Optional, cast
 from urllib.parse import urljoin, urlparse
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 import stripe
@@ -589,11 +589,15 @@ async def get_instructor_earnings(
     )
 
 
-@router.get("/payouts", response_model=PayoutHistoryResponse)
+@router.get(
+    "/payouts",
+    response_model=PayoutHistoryResponse,
+    dependencies=[Depends(rate_limit("read"))],
+)
 async def get_instructor_payouts(
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=100),
 ) -> PayoutHistoryResponse:
     """
     Get payout history for an instructor.

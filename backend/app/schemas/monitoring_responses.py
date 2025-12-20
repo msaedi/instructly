@@ -497,7 +497,7 @@ class RateLimitTestResponse(StrictModel):
         json_schema_extra={
             "example": {
                 "message": "Rate limit test successful",
-                "timestamp": "2025-01-20T10:30:00.123456",
+                "timestamp": "2025-01-20T10:30:00.234567",
                 "note": "This endpoint is rate limited to 3 requests per minute",
             }
         },
@@ -573,7 +573,7 @@ class PaymentHealthResponse(StrictModel):
         json_schema_extra={
             "example": {
                 "status": "healthy",
-                "timestamp": "2025-01-20T10:30:00.123456",
+                "timestamp": "2025-01-20T10:30:00.234567",
                 "payment_stats": {
                     "pending_payment_method": 5,
                     "scheduled": 12,
@@ -612,7 +612,7 @@ class PaymentHealthCheckTriggerResponse(StrictModel):
                 "status": "triggered",
                 "task_id": "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6",
                 "message": "Health check task has been queued",
-                "timestamp": "2025-01-20T10:30:00.123456",
+                "timestamp": "2025-01-20T10:30:00.234567",
             }
         }
     )

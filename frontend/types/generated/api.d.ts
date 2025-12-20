@@ -8753,7 +8753,7 @@ export type components = {
             platform_fee_cents: number;
             /**
              * Platform Fee Rate
-             * @description Platform fee rate applied (e.g., 0.12 for 12%)
+             * @description Platform fee rate applied (e.g., 0.1 for 10%)
              */
             platform_fee_rate: number;
             /**
@@ -10188,7 +10188,7 @@ export type components = {
          *       "message": "Health check task has been queued",
          *       "status": "triggered",
          *       "task_id": "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6",
-         *       "timestamp": "2025-01-20T10:30:00.123456"
+         *       "timestamp": "2025-01-20T10:30:00.234567"
          *     }
          */
         PaymentHealthCheckTriggerResponse: {
@@ -10241,7 +10241,7 @@ export type components = {
          *         "payment_captured": 8
          *       },
          *       "status": "healthy",
-         *       "timestamp": "2025-01-20T10:30:00.123456"
+         *       "timestamp": "2025-01-20T10:30:00.234567"
          *     }
          */
         PaymentHealthResponse: {
@@ -11150,7 +11150,7 @@ export type components = {
          * @example {
          *       "message": "Rate limit test successful",
          *       "note": "This endpoint is rate limited to 3 requests per minute",
-         *       "timestamp": "2025-01-20T10:30:00.123456"
+         *       "timestamp": "2025-01-20T10:30:00.234567"
          *     }
          */
         RateLimitTestResponse: {

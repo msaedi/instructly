@@ -2681,7 +2681,7 @@ export interface InstructorInvoiceSummary {
   lesson_price_cents: number;
   /** Platform fee deducted from instructor earnings */
   platform_fee_cents: number;
-  /** Platform fee rate applied (e.g., 0.12 for 12%) */
+  /** Platform fee rate applied (e.g., 0.1 for 10%) */
   platform_fee_rate: number;
   /** Name of the service taught */
   service_name?: InstructorInvoiceSummaryServiceName;
@@ -6950,6 +6950,10 @@ export type SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams = {
 };
 
 export type GetInstructorPayoutsApiV1PaymentsPayoutsGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
   limit?: number;
 };
 

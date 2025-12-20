@@ -290,7 +290,7 @@ class InstructorInvoiceSummary(StrictModel):
         ..., description="Platform fee deducted from instructor earnings"
     )
     platform_fee_rate: float = Field(
-        ..., description="Platform fee rate applied (e.g., 0.12 for 12%)"
+        ..., description="Platform fee rate applied (e.g., 0.1 for 10%)"
     )
     student_fee_cents: int = Field(
         ..., description="Booking protection fee added to student (not deducted from instructor)"
