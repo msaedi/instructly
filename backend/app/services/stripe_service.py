@@ -545,16 +545,24 @@ class StripeService(BaseService):
             except Exception:
                 return 0
 
-        def _get_instructor_tier_pct(config: Dict[str, Any]) -> float:
+        def _get_instructor_tier_pct(config: Dict[str, Any], instructor_profile: Any) -> float:
             """Get instructor's platform fee tier percentage."""
-            # Default to first tier (highest platform fee) for earnings display
             tiers = config.get("instructor_tiers", [])
-            if tiers:
-                return float(tiers[0].get("pct", 0.15))
-            return 0.15
+            default_pct = float(tiers[0].get("pct", 0.15)) if tiers else 0.15
+
+            raw_pct = getattr(instructor_profile, "current_tier_pct", None)
+            if raw_pct is None:
+                return default_pct
+            try:
+                pct_decimal = Decimal(str(raw_pct))
+                if pct_decimal > 1:
+                    pct_decimal = pct_decimal / Decimal("100")
+                return float(pct_decimal)
+            except Exception:
+                return default_pct
 
         student_fee_pct = float(pricing_config.get("student_fee_pct", 0.12))
-        instructor_tier_pct = _get_instructor_tier_pct(pricing_config)
+        instructor_tier_pct = _get_instructor_tier_pct(pricing_config, profile)
 
         invoices: List[InstructorInvoiceSummary] = []
         total_minutes = 0
@@ -2719,7 +2727,24 @@ class StripeService(BaseService):
             payout_id = payout.get("id")
             amount = payout.get("amount")
             status = payout.get("status")
-            arrival_date = payout.get("arrival_date")
+            arrival_raw = payout.get("arrival_date")
+            arrival_date: Optional[datetime] = None
+            if isinstance(arrival_raw, datetime):
+                arrival_date = (
+                    arrival_raw.replace(tzinfo=timezone.utc)
+                    if arrival_raw.tzinfo is None
+                    else arrival_raw
+                )
+            elif isinstance(arrival_raw, (int, float)):
+                arrival_date = datetime.fromtimestamp(arrival_raw, tz=timezone.utc)
+            elif isinstance(arrival_raw, str):
+                try:
+                    parsed = datetime.fromisoformat(arrival_raw)
+                    arrival_date = (
+                        parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+                    )
+                except ValueError:
+                    arrival_date = None
             account_id = payout.get("destination") or payout.get("stripe_account")
 
             if event_type == "payout.created":
@@ -2739,7 +2764,7 @@ class StripeService(BaseService):
                                 payout_id=payout_id,
                                 amount_cents=amount,
                                 status=status,
-                                arrival_date=None,
+                                arrival_date=arrival_date,
                             )
                 except Exception as e:  # best-effort analytics only
                     self.logger.warning(f"Failed to persist payout.created analytics: {e}")
@@ -2761,7 +2786,7 @@ class StripeService(BaseService):
                                 payout_id=payout_id,
                                 amount_cents=amount,
                                 status=status,
-                                arrival_date=None,
+                                arrival_date=arrival_date,
                             )
                 except Exception as e:
                     self.logger.warning(f"Failed to persist payout.paid analytics: {e}")
@@ -2786,7 +2811,7 @@ class StripeService(BaseService):
                                 payout_id=payout_id,
                                 amount_cents=amount,
                                 status="failed",
-                                arrival_date=None,
+                                arrival_date=arrival_date,
                                 failure_code=failure_code,
                                 failure_message=failure_message,
                             )

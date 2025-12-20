@@ -621,6 +621,9 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
         ]
 
         for booking in bookings_to_capture:
+            if not booking.payment_intent_id:
+                logger.warning(f"Skipping capture for booking {booking.id}: no payment_intent_id")
+                continue
             capture_result = attempt_payment_capture(
                 booking, _payment_repo, "instructor_completed", stripe_service
             )
@@ -646,9 +649,12 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                 bookings_to_auto_complete.append(booking)
 
         for booking in bookings_to_auto_complete:
+            lesson_end = datetime.combine(
+                booking.booking_date, booking.end_time, tzinfo=timezone.utc
+            )
             # Auto-complete the booking
             booking.status = BookingStatus.COMPLETED
-            booking.completed_at = now
+            booking.completed_at = lesson_end
 
             credit_service.maybe_issue_milestone_credit(
                 student_id=booking.student_id,
@@ -660,14 +666,16 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                 event_type="auto_completed",
                 event_data={
                     "reason": "No instructor confirmation within 24hr",
-                    "lesson_end": datetime.combine(
-                        booking.booking_date, booking.end_time, tzinfo=timezone.utc
-                    ).isoformat(),
+                    "lesson_end": lesson_end.isoformat(),
                     "auto_completed_at": now.isoformat(),
                 },
             )
 
             # Attempt capture
+            if not booking.payment_intent_id:
+                logger.warning(f"Skipping capture for booking {booking.id}: no payment_intent_id")
+                results["auto_completed"] += 1
+                continue
             capture_result = attempt_payment_capture(
                 booking, _payment_repo, "auto_completed", stripe_service
             )

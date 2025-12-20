@@ -8,7 +8,6 @@ import types
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
 import stripe
 from tests.helpers.pricing import cents_from_pct
 import ulid
@@ -1206,9 +1205,6 @@ class TestPaymentTasks:
         ]
         assert "auto_completed" in event_types
 
-    @pytest.mark.xfail(
-        reason="Bug: auto-completion sets completed_at to task run time, not lesson end"
-    )
     @patch("app.tasks.payment_tasks.attempt_payment_capture", return_value={"success": True})
     @patch("app.tasks.payment_tasks.StudentCreditService")
     @patch("app.database.SessionLocal")
@@ -2438,9 +2434,6 @@ class TestPaymentTasks:
 
         assert result["expired_handled"] == 0
 
-    @pytest.mark.xfail(
-        reason="Bug: capture task doesn't skip bookings without payment_intent_id"
-    )
     @patch("app.tasks.payment_tasks.attempt_payment_capture")
     @patch("app.database.SessionLocal")
     def test_capture_completed_lessons_skips_missing_payment_intent_id(

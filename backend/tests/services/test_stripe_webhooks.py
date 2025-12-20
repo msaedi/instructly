@@ -161,6 +161,16 @@ def test_verify_webhook_signature_invalid(
 
 
 @patch("app.services.stripe_service.settings")
+def test_verify_webhook_signature_missing_secret(
+    mock_settings, stripe_service: StripeService
+) -> None:
+    mock_settings.stripe_webhook_secret = None
+
+    with pytest.raises(ServiceException, match="Failed to verify webhook signature"):
+        stripe_service.verify_webhook_signature(b"payload", "signature")
+
+
+@patch("app.services.stripe_service.settings")
 def test_handle_webhook_requires_secret(mock_settings, stripe_service: StripeService) -> None:
     mock_settings.stripe_webhook_secret = None
 
@@ -211,6 +221,19 @@ def test_handle_webhook_invalid_payload(
 
     with pytest.raises(ServiceException, match="Invalid webhook payload"):
         stripe_service.handle_webhook("{}", "sig")
+
+
+@patch("stripe.Webhook.construct_event")
+@patch("app.services.stripe_service.settings")
+def test_handle_webhook_unexpected_error(
+    mock_settings, mock_construct, stripe_service: StripeService
+) -> None:
+    mock_settings.stripe_webhook_secret = MagicMock(get_secret_value=lambda: "whsec_test_secret")
+    mock_construct.return_value = {"type": "payment_intent.succeeded"}
+
+    with patch.object(stripe_service, "handle_webhook_event", side_effect=Exception("boom")):
+        with pytest.raises(ServiceException, match="Failed to process webhook"):
+            stripe_service.handle_webhook("{}", "sig")
 
 
 def test_handle_webhook_event_raises_on_handler_error(
@@ -284,6 +307,42 @@ def test_handle_payment_intent_webhook_not_found(stripe_service: StripeService) 
     assert stripe_service.handle_payment_intent_webhook(event) is False
 
 
+def test_handle_payment_intent_webhook_error(stripe_service: StripeService) -> None:
+    event = {
+        "type": "payment_intent.succeeded",
+        "data": {"object": {"id": "pi_error", "status": "succeeded"}},
+    }
+
+    with patch.object(
+        stripe_service.payment_repository, "update_payment_status", side_effect=Exception("db down")
+    ):
+        with pytest.raises(ServiceException, match="Failed to handle payment webhook"):
+            stripe_service.handle_payment_intent_webhook(event)
+
+
+def test_handle_successful_payment_missing_booking(stripe_service: StripeService) -> None:
+    payment_record = MagicMock(booking_id="missing_booking")
+
+    stripe_service._handle_successful_payment(payment_record)
+
+
+def test_handle_successful_payment_cache_error(
+    stripe_service: StripeService, test_booking: Booking
+) -> None:
+    test_booking.status = "PENDING"
+    payment_record = stripe_service.payment_repository.create_payment_record(
+        test_booking.id, "pi_success_cache", 5000, 500, "succeeded"
+    )
+
+    with patch("app.services.booking_service.BookingService") as mock_booking_service:
+        mock_booking_service.return_value.invalidate_booking_cache.side_effect = Exception(
+            "cache down"
+        )
+        stripe_service._handle_successful_payment(payment_record)
+
+    assert test_booking.status == "CONFIRMED"
+
+
 def test_handle_account_webhook_updates_onboarding(
     stripe_service: StripeService, test_instructor: tuple
 ) -> None:
@@ -302,6 +361,18 @@ def test_handle_account_webhook_updates_onboarding(
         assert stripe_service._handle_account_webhook(event) is True
 
     mock_update.assert_called_once_with("acct_webhook", True)
+
+
+def test_handle_account_webhook_update_failure(stripe_service: StripeService) -> None:
+    event = {
+        "type": "account.updated",
+        "data": {"object": {"id": "acct_fail", "charges_enabled": True, "details_submitted": True}},
+    }
+
+    with patch.object(
+        stripe_service.payment_repository, "update_onboarding_status", side_effect=Exception("db down")
+    ):
+        assert stripe_service._handle_account_webhook(event) is False
 
 
 def test_handle_account_webhook_deauthorized(stripe_service: StripeService) -> None:
@@ -327,6 +398,14 @@ def test_handle_transfer_webhook_events(
 def test_handle_transfer_webhook_unhandled(stripe_service: StripeService) -> None:
     event = {"type": "transfer.updated", "data": {"object": {"id": "tr_123"}}}
     assert stripe_service._handle_transfer_webhook(event) is False
+
+
+def test_handle_transfer_webhook_error_returns_false(stripe_service: StripeService) -> None:
+    class BadEvent:
+        def get(self, *args, **kwargs):
+            raise Exception("boom")
+
+    assert stripe_service._handle_transfer_webhook(BadEvent()) is False
 
 
 def test_handle_charge_refunded_updates_payment_and_credits(
@@ -355,6 +434,39 @@ def test_handle_charge_refunded_updates_payment_and_credits(
     mock_update.assert_called_once_with("pi_refund", "refunded")
     mock_get.assert_called_once_with("pi_refund")
     mock_credit_service.return_value.process_refund_hooks.assert_called_once()
+
+
+def test_handle_charge_refunded_handles_credit_error(
+    stripe_service: StripeService, test_booking: Booking
+) -> None:
+    payment_record = stripe_service.payment_repository.create_payment_record(
+        test_booking.id, "pi_refund_err", 5000, 500, "succeeded"
+    )
+
+    event = {
+        "type": "charge.refunded",
+        "data": {"object": {"id": "ch_refund_err", "payment_intent": "pi_refund_err"}},
+    }
+
+    with (
+        patch.object(stripe_service.payment_repository, "update_payment_status") as mock_update,
+        patch.object(
+            stripe_service.payment_repository,
+            "get_payment_by_intent_id",
+            return_value=payment_record,
+        ) as mock_get,
+        patch("app.services.stripe_service.StudentCreditService") as mock_credit_service,
+    ):
+        mock_credit_service.return_value.process_refund_hooks.side_effect = Exception("boom")
+        assert stripe_service._handle_charge_webhook(event) is True
+
+    mock_update.assert_called_once_with("pi_refund_err", "refunded")
+    mock_get.assert_called_once_with("pi_refund_err")
+
+
+def test_handle_charge_webhook_succeeded(stripe_service: StripeService) -> None:
+    event = {"type": "charge.succeeded", "data": {"object": {"id": "ch_success"}}}
+    assert stripe_service._handle_charge_webhook(event) is True
 
 
 def test_handle_charge_webhook_failed(stripe_service: StripeService) -> None:
@@ -425,7 +537,6 @@ def test_payout_persistence_created_paid_failed(db: Session) -> None:
     assert {"po_1", "po_2", "po_3"}.issubset(ids)
 
 
-@pytest.mark.xfail(reason="Bug: arrival_date not persisted - see Phase 6 audit")
 def test_payout_webhook_stores_arrival_date(
     stripe_service: StripeService, test_instructor: tuple
 ) -> None:
@@ -452,6 +563,150 @@ def test_payout_webhook_stores_arrival_date(
 
     rows = stripe_service.payment_repository.get_instructor_payout_history(profile.id, limit=1)
     assert rows[0].arrival_date == arrival
+
+
+def test_payout_webhook_arrival_date_unix_timestamp(
+    stripe_service: StripeService, test_instructor: tuple
+) -> None:
+    _, profile, _ = test_instructor
+
+    class FakeAcct:
+        def __init__(self, instructor_profile_id):
+            self.instructor_profile_id = instructor_profile_id
+
+    stripe_service.payment_repository.get_connected_account_by_stripe_id = MagicMock(
+        return_value=FakeAcct(profile.id)
+    )
+    stripe_service.payment_repository.record_payout_event = MagicMock()
+
+    event = {
+        "type": "payout.paid",
+        "data": {
+            "object": {
+                "id": "po_unix",
+                "amount": 1200,
+                "destination": "acct_unix",
+                "arrival_date": 1700000000,
+            }
+        },
+    }
+
+    assert stripe_service._handle_payout_webhook(event) is True
+    _, kwargs = stripe_service.payment_repository.record_payout_event.call_args
+    assert isinstance(kwargs["arrival_date"], datetime)
+
+
+def test_payout_webhook_arrival_date_iso_string(
+    stripe_service: StripeService, test_instructor: tuple
+) -> None:
+    _, profile, _ = test_instructor
+
+    class FakeAcct:
+        def __init__(self, instructor_profile_id):
+            self.instructor_profile_id = instructor_profile_id
+
+    stripe_service.payment_repository.get_connected_account_by_stripe_id = MagicMock(
+        return_value=FakeAcct(profile.id)
+    )
+    stripe_service.payment_repository.record_payout_event = MagicMock()
+
+    event = {
+        "type": "payout.created",
+        "data": {
+            "object": {
+                "id": "po_iso",
+                "amount": 800,
+                "destination": "acct_iso",
+                "arrival_date": "2025-01-01T10:00:00",
+            }
+        },
+    }
+
+    assert stripe_service._handle_payout_webhook(event) is True
+    _, kwargs = stripe_service.payment_repository.record_payout_event.call_args
+    assert kwargs["arrival_date"] is not None
+
+
+def test_payout_webhook_arrival_date_invalid_string(
+    stripe_service: StripeService, test_instructor: tuple
+) -> None:
+    _, profile, _ = test_instructor
+
+    class FakeAcct:
+        def __init__(self, instructor_profile_id):
+            self.instructor_profile_id = instructor_profile_id
+
+    stripe_service.payment_repository.get_connected_account_by_stripe_id = MagicMock(
+        return_value=FakeAcct(profile.id)
+    )
+    stripe_service.payment_repository.record_payout_event = MagicMock()
+
+    event = {
+        "type": "payout.paid",
+        "data": {
+            "object": {
+                "id": "po_bad",
+                "amount": 800,
+                "destination": "acct_bad",
+                "arrival_date": "not-a-date",
+            }
+        },
+    }
+
+    assert stripe_service._handle_payout_webhook(event) is True
+    _, kwargs = stripe_service.payment_repository.record_payout_event.call_args
+    assert kwargs["arrival_date"] is None
+
+
+def test_payout_webhook_missing_account_id(
+    stripe_service: StripeService,
+) -> None:
+    stripe_service.payment_repository.record_payout_event = MagicMock()
+
+    event = {
+        "type": "payout.created",
+        "data": {"object": {"id": "po_no_account", "amount": 500}},
+    }
+
+    assert stripe_service._handle_payout_webhook(event) is True
+    stripe_service.payment_repository.record_payout_event.assert_not_called()
+
+
+def test_payout_webhook_persist_error_returns_true(
+    stripe_service: StripeService, test_instructor: tuple
+) -> None:
+    _, profile, _ = test_instructor
+
+    class FakeAcct:
+        def __init__(self, instructor_profile_id):
+            self.instructor_profile_id = instructor_profile_id
+
+    stripe_service.payment_repository.get_connected_account_by_stripe_id = MagicMock(
+        return_value=FakeAcct(profile.id)
+    )
+    stripe_service.payment_repository.record_payout_event = MagicMock(
+        side_effect=Exception("db down")
+    )
+
+    event = {
+        "type": "payout.failed",
+        "data": {
+            "object": {
+                "id": "po_fail",
+                "amount": 700,
+                "destination": "acct_fail",
+                "failure_code": "account",
+                "failure_message": "invalid",
+            }
+        },
+    }
+
+    assert stripe_service._handle_payout_webhook(event) is True
+
+
+def test_payout_webhook_unhandled_event(stripe_service: StripeService) -> None:
+    event = {"type": "payout.updated", "data": {"object": {"id": "po_unhandled"}}}
+    assert stripe_service._handle_payout_webhook(event) is False
 
 
 def test_identity_webhook_verified_updates_profile(
@@ -497,6 +752,32 @@ def test_identity_webhook_missing_user_id(stripe_service: StripeService) -> None
     }
 
     assert stripe_service._handle_identity_webhook(event) is True
+
+
+def test_identity_webhook_missing_profile(
+    stripe_service: StripeService, test_user: User
+) -> None:
+    event = {
+        "type": "identity.verification_session.verified",
+        "data": {"object": {"id": "vs_missing", "status": "verified", "metadata": {"user_id": test_user.id}}},
+    }
+
+    assert stripe_service._handle_identity_webhook(event) is True
+
+
+def test_identity_webhook_requires_input_update_failure(
+    stripe_service: StripeService, test_instructor: tuple
+) -> None:
+    user, profile, _ = test_instructor
+    event = {
+        "type": "identity.verification_session.requires_input",
+        "data": {
+            "object": {"id": "vs_requires", "status": "requires_input", "metadata": {"user_id": user.id}}
+        },
+    }
+
+    with patch.object(stripe_service.instructor_repository, "update", side_effect=Exception("boom")):
+        assert stripe_service._handle_identity_webhook(event) is True
 
 
 def test_identity_webhook_update_failure_returns_false(

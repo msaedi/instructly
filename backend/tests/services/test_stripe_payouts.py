@@ -255,6 +255,13 @@ def test_get_instructor_payout_history_empty(
     assert history.total_pending_cents == 0
 
 
+def test_get_instructor_payout_history_missing_profile(
+    stripe_service: StripeService, test_user: User
+) -> None:
+    with pytest.raises(ServiceException, match="Instructor profile not found"):
+        stripe_service.get_instructor_payout_history(user=test_user, limit=10)
+
+
 def test_get_instructor_earnings(
     stripe_service: StripeService, test_booking: Booking
 ) -> None:
@@ -293,6 +300,24 @@ def test_get_platform_revenue_stats(
     assert stats["total_amount"] == context.student_pay_cents
     assert stats["total_fees"] == context.application_fee_cents
     assert stats["payment_count"] == 1
+
+
+def test_get_platform_revenue_stats_error(stripe_service: StripeService) -> None:
+    stripe_service.payment_repository.get_platform_revenue_stats = MagicMock(
+        side_effect=Exception("db down")
+    )
+
+    with pytest.raises(ServiceException, match="Failed to get revenue stats"):
+        stripe_service.get_platform_revenue_stats()
+
+
+def test_get_instructor_earnings_error(stripe_service: StripeService) -> None:
+    stripe_service.payment_repository.get_instructor_earnings = MagicMock(
+        side_effect=Exception("db down")
+    )
+
+    with pytest.raises(ServiceException, match="Failed to get instructor earnings"):
+        stripe_service.get_instructor_earnings("instructor_id")
 
 
 def test_get_instructor_earnings_summary_includes_tips(
@@ -448,7 +473,99 @@ def test_get_instructor_earnings_summary_handles_missing_booking_and_summary_err
     assert len(summary.invoices) == 1
 
 
-@pytest.mark.xfail(reason="Bug: earnings summary uses default tier, not instructor tier")
+def test_get_instructor_earnings_summary_default_tier_when_missing_current(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+) -> None:
+    instructor_user, _, _ = test_instructor
+
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_default_tier",
+        amount=10000,
+        application_fee=1500,
+        status="succeeded",
+    )
+
+    with (
+        patch.object(
+            stripe_service.config_service,
+            "get_pricing_config",
+            return_value=({"instructor_tiers": [{"pct": 0.2}], "student_fee_pct": 0.12}, None),
+        ),
+        patch.object(
+            stripe_service,
+            "get_instructor_earnings",
+            return_value={
+                "total_earned": 0,
+                "total_fees": 0,
+                "booking_count": 0,
+                "average_earning": 0,
+                "period_start": None,
+                "period_end": None,
+            },
+        ),
+        patch(
+            "app.services.stripe_service.build_student_payment_summary",
+            return_value=MagicMock(tip_paid=0),
+        ),
+        patch.object(
+            stripe_service.instructor_repository,
+            "get_by_user_id",
+            return_value=MagicMock(current_tier_pct=None),
+        ),
+    ):
+        summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    assert summary.invoices[0].platform_fee_rate == pytest.approx(0.2)
+
+
+def test_get_instructor_earnings_summary_handles_invalid_tier_and_tip(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+) -> None:
+    instructor_user, _, _ = test_instructor
+
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_bad_tier",
+        amount=10000,
+        application_fee=1500,
+        status="succeeded",
+    )
+
+    with (
+        patch.object(
+            stripe_service.config_service,
+            "get_pricing_config",
+            return_value=({"instructor_tiers": [{"pct": 0.15}], "student_fee_pct": 0.12}, None),
+        ),
+        patch.object(
+            stripe_service,
+            "get_instructor_earnings",
+            return_value={
+                "total_earned": 0,
+                "total_fees": 0,
+                "booking_count": 0,
+                "average_earning": 0,
+                "period_start": None,
+                "period_end": None,
+            },
+        ),
+        patch(
+            "app.services.stripe_service.build_student_payment_summary",
+            return_value=MagicMock(tip_paid="bad"),
+        ),
+        patch.object(
+            stripe_service.instructor_repository,
+            "get_by_user_id",
+            return_value=MagicMock(current_tier_pct="bad"),
+        ),
+    ):
+        summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    assert summary.total_tips == 0
+    assert summary.invoices[0].platform_fee_rate == pytest.approx(0.15)
+
+
 def test_get_instructor_earnings_summary_uses_actual_instructor_tier(
     stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
 ) -> None:
