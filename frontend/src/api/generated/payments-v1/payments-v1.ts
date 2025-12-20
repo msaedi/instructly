@@ -28,6 +28,7 @@ import type {
   CreditBalanceResponse,
   DashboardLinkResponse,
   EarningsResponse,
+  GetInstructorPayoutsApiV1PaymentsPayoutsGetParams,
   GetTransactionHistoryApiV1PaymentsTransactionsGetParams,
   HTTPValidationError,
   IdentityRefreshResponse,
@@ -36,6 +37,7 @@ import type {
   OnboardingResponse,
   OnboardingStatusResponse,
   PaymentMethodResponse,
+  PayoutHistoryResponse,
   PayoutScheduleResponse,
   SavePaymentMethodRequest,
   SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams,
@@ -1463,6 +1465,167 @@ export const useDeletePaymentMethodApiV1PaymentsMethodsMethodIdDelete = <
 
   return useMutation(mutationOptions, queryClient);
 };
+/**
+ * Get payout history for an instructor.
+
+Returns Stripe payout events recorded for the instructor's connected account.
+
+Returns:
+    PayoutHistoryResponse with list of payouts and totals
+
+Raises:
+    HTTPException: If fetching payouts fails
+ * @summary Get Instructor Payouts
+ */
+export const getInstructorPayoutsApiV1PaymentsPayoutsGet = (
+  params?: GetInstructorPayoutsApiV1PaymentsPayoutsGetParams,
+  signal?: AbortSignal
+) => {
+  return customFetch<PayoutHistoryResponse>({
+    url: `/api/v1/payments/payouts`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
+
+export const getGetInstructorPayoutsApiV1PaymentsPayoutsGetQueryKey = (
+  params?: GetInstructorPayoutsApiV1PaymentsPayoutsGetParams
+) => {
+  return [`/api/v1/payments/payouts`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetInstructorPayoutsApiV1PaymentsPayoutsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetInstructorPayoutsApiV1PaymentsPayoutsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetInstructorPayoutsApiV1PaymentsPayoutsGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>
+  > = ({ signal }) => getInstructorPayoutsApiV1PaymentsPayoutsGet(params, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetInstructorPayoutsApiV1PaymentsPayoutsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>
+>;
+export type GetInstructorPayoutsApiV1PaymentsPayoutsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetInstructorPayoutsApiV1PaymentsPayoutsGet<
+  TData = Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetInstructorPayoutsApiV1PaymentsPayoutsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInstructorPayoutsApiV1PaymentsPayoutsGet<
+  TData = Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetInstructorPayoutsApiV1PaymentsPayoutsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInstructorPayoutsApiV1PaymentsPayoutsGet<
+  TData = Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetInstructorPayoutsApiV1PaymentsPayoutsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Instructor Payouts
+ */
+
+export function useGetInstructorPayoutsApiV1PaymentsPayoutsGet<
+  TData = Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetInstructorPayoutsApiV1PaymentsPayoutsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorPayoutsApiV1PaymentsPayoutsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetInstructorPayoutsApiV1PaymentsPayoutsGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
 /**
  * Get user's transaction history
 

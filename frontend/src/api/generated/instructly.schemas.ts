@@ -2301,11 +2301,6 @@ export type EarningsResponsePeriodStart = string | null;
 export type EarningsResponseServiceCount = number | null;
 
 /**
- * Total commission deducted from instructor earnings
- */
-export type EarningsResponseTotalCommission = number | null;
-
-/**
  * Total earnings in cents
  */
 export type EarningsResponseTotalEarned = number | null;
@@ -2319,6 +2314,11 @@ export type EarningsResponseTotalFees = number | null;
  * Total value of all lessons (before any fees)
  */
 export type EarningsResponseTotalLessonValue = number | null;
+
+/**
+ * Total platform fees deducted from instructor earnings
+ */
+export type EarningsResponseTotalPlatformFees = number | null;
 
 /**
  * Total tips received
@@ -2340,14 +2340,14 @@ export interface EarningsResponse {
   period_start?: EarningsResponsePeriodStart;
   /** Number of completed services contributing to earnings */
   service_count?: EarningsResponseServiceCount;
-  /** Total commission deducted from instructor earnings */
-  total_commission?: EarningsResponseTotalCommission;
   /** Total earnings in cents */
   total_earned?: EarningsResponseTotalEarned;
   /** Total fees in cents */
   total_fees?: EarningsResponseTotalFees;
   /** Total value of all lessons (before any fees) */
   total_lesson_value?: EarningsResponseTotalLessonValue;
+  /** Total platform fees deducted from instructor earnings */
+  total_platform_fees?: EarningsResponseTotalPlatformFees;
   /** Total tips received */
   total_tips?: EarningsResponseTotalTips;
 }
@@ -2669,10 +2669,6 @@ export type InstructorInvoiceSummaryStudentName = string | null;
 export interface InstructorInvoiceSummary {
   /** Associated booking ID */
   booking_id: string;
-  /** Platform commission deducted from instructor earnings */
-  commission_cents: number;
-  /** Commission rate applied (e.g., 0.12 for 12%) */
-  commission_rate: number;
   /** When the payment was completed */
   created_at: string;
   /** Duration of the lesson in minutes */
@@ -2683,6 +2679,10 @@ export interface InstructorInvoiceSummary {
   lesson_date: string;
   /** Base lesson price (instructor's rate × duration) */
   lesson_price_cents: number;
+  /** Platform fee deducted from instructor earnings */
+  platform_fee_cents: number;
+  /** Platform fee rate applied (e.g., 0.12 for 12%) */
+  platform_fee_rate: number;
   /** Name of the service taught */
   service_name?: InstructorInvoiceSummaryServiceName;
   /** Lesson start time */
@@ -3884,6 +3884,17 @@ export interface PaymentSummary {
   total_paid: number;
 }
 
+export interface PayoutHistoryResponse {
+  /** Number of payouts */
+  payout_count?: number;
+  /** List of payouts */
+  payouts?: PayoutSummary[];
+  /** Total amount successfully paid out */
+  total_paid_cents?: number;
+  /** Total amount pending payout */
+  total_pending_cents?: number;
+}
+
 /**
  * Stripe connected account identifier
  */
@@ -3903,6 +3914,38 @@ export interface PayoutScheduleResponse {
   ok: boolean;
   /** Stripe payout schedule settings that were applied */
   settings?: PayoutScheduleResponseSettings;
+}
+
+/**
+ * Expected arrival date
+ */
+export type PayoutSummaryArrivalDate = string | null;
+
+/**
+ * Failure code if payout failed
+ */
+export type PayoutSummaryFailureCode = string | null;
+
+/**
+ * Failure message if payout failed
+ */
+export type PayoutSummaryFailureMessage = string | null;
+
+export interface PayoutSummary {
+  /** Amount in cents */
+  amount_cents: number;
+  /** Expected arrival date */
+  arrival_date?: PayoutSummaryArrivalDate;
+  /** When the payout was created */
+  created_at: string;
+  /** Failure code if payout failed */
+  failure_code?: PayoutSummaryFailureCode;
+  /** Failure message if payout failed */
+  failure_message?: PayoutSummaryFailureMessage;
+  /** Payout ID (Stripe) */
+  id: string;
+  /** Payout status (pending, in_transit, paid, failed, canceled) */
+  status: string;
 }
 
 /**
@@ -4211,7 +4254,7 @@ export interface PricingPreviewOut {
   /** @minimum 0 */
   credit_applied_cents: number;
   /** @minimum 0 */
-  instructor_commission_cents: number;
+  instructor_platform_fee_cents: number;
   /**
    * @minimum 0
    * @maximum 1
@@ -6904,6 +6947,10 @@ export type StartOnboardingApiV1PaymentsConnectOnboardPostParams = {
 export type SetPayoutScheduleApiV1PaymentsConnectPayoutSchedulePostParams = {
   interval?: string;
   weekly_anchor?: string;
+};
+
+export type GetInstructorPayoutsApiV1PaymentsPayoutsGetParams = {
+  limit?: number;
 };
 
 export type GetTransactionHistoryApiV1PaymentsTransactionsGetParams = {
