@@ -220,6 +220,9 @@ class CodebaseAnalyzer:
     def get_git_stats(self) -> Dict:
         """Get git repository statistics."""
         try:
+            if self._is_shallow_repo():
+                self._ensure_full_history()
+
             # Get total commits
             commits_str = subprocess.run(
                 ["git", "rev-list", "--count", "HEAD"], capture_output=True, text=True, cwd=self.root_path
@@ -289,6 +292,25 @@ class CodebaseAnalyzer:
                 "last_commit": "N/A",
                 "current_branch": "N/A",
             }
+
+    def _run_git(self, args: List[str]) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            cwd=self.root_path,
+        )
+
+    def _is_shallow_repo(self) -> bool:
+        result = self._run_git(["rev-parse", "--is-shallow-repository"])
+        return result.stdout.strip().lower() == "true"
+
+    def _ensure_full_history(self) -> None:
+        result = self._run_git(["fetch", "--unshallow", "--tags"])
+        if result.returncode == 0:
+            return
+        # Fall back to deepening when unshallow is not supported.
+        self._run_git(["fetch", "--deepen", "1000", "--tags"])
 
     def format_number(self, num: int) -> str:
         """Format number with thousands separator."""
