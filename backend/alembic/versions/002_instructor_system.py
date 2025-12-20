@@ -1,19 +1,9 @@
 # backend/alembic/versions/002_instructor_system.py
-"""Instructor system - Profiles and service catalog
+"""Instructor system - Profiles, services, and background checks
 
 Revision ID: 002_instructor_system
-Revises: 001_initial_schema
-Create Date: 2024-12-21 00:00:01.000000
-
-This migration creates instructor-specific tables including profiles
-and a three-table service catalog system:
-
-1. service_categories - Categories like Music, Academic, Fitness
-2. service_catalog - Predefined services with standardized names
-3. instructor_services - Links instructors to catalog services with custom pricing
-
-This replaces the simple services table with a proper catalog system for
-better organization and search capabilities.
+Revises: 001_core_foundation
+Create Date: 2025-02-10 00:00:01.000000
 """
 from typing import Sequence, Union
 
@@ -23,54 +13,19 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "002_instructor_system"
-down_revision: Union[str, None] = "001_initial_schema"
+down_revision: Union[str, None] = "001_core_foundation"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
-
-def _create_extension_prefer_extensions_schema(extension_name: str) -> None:
-    """Create extension using extensions schema when available."""
-
-    bind = op.get_bind()
-    if bind is None or bind.dialect.name != "postgresql":
-        return
-
-    op.execute(
-        f"""
-        DO $$
-        DECLARE
-            extensions_schema_exists BOOLEAN;
-            extension_installed BOOLEAN;
-        BEGIN
-            SELECT EXISTS (
-                SELECT 1 FROM pg_namespace WHERE nspname = 'extensions'
-            ) INTO extensions_schema_exists;
-
-            SELECT EXISTS (
-                SELECT 1 FROM pg_extension WHERE extname = '{extension_name}'
-            ) INTO extension_installed;
-
-            IF NOT extension_installed THEN
-                IF extensions_schema_exists THEN
-                    EXECUTE 'CREATE EXTENSION IF NOT EXISTS {extension_name} WITH SCHEMA extensions';
-                ELSE
-                    EXECUTE 'CREATE EXTENSION IF NOT EXISTS {extension_name}';
-                END IF;
-            END IF;
-        END
-        $$;
-        """
-    )
 
 
 def upgrade() -> None:
     """Create instructor profiles and services tables."""
     print("Creating instructor system tables...")
 
-    # Enable pgvector extension for semantic search
-    _create_extension_prefer_extensions_schema("vector")
-    # Enable pg_trgm for fuzzy text matching
-    _create_extension_prefer_extensions_schema("pg_trgm")
+    bind = op.get_bind()
+    dialect_name = bind.dialect.name if bind is not None else "postgresql"
+    is_postgres = dialect_name == "postgresql"
+    json_type = sa.dialects.postgresql.JSONB(astext_type=sa.Text()) if is_postgres else sa.JSON()
 
     # Create instructor_profiles table
     op.create_table(
@@ -79,17 +34,11 @@ def upgrade() -> None:
         sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("bio", sa.Text(), nullable=True),
         sa.Column("years_experience", sa.Integer(), nullable=True),
-        # Travel preferences JSON to store mobility options (car/subway etc.)
-        sa.Column(
-            "travel_preferences",
-            sa.dialects.postgresql.JSONB(astext_type=sa.Text()),
-            nullable=True,
-        ),
+        sa.Column("travel_preferences", json_type, nullable=True),
         sa.Column("min_advance_booking_hours", sa.Integer(), nullable=False, server_default="2"),
         sa.Column("buffer_time_minutes", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("current_tier_pct", sa.Numeric(5, 2), nullable=False, server_default="15.00"),
         sa.Column("last_tier_eval_at", sa.DateTime(timezone=True), nullable=True),
-        # Onboarding status fields
         sa.Column("skills_configured", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("identity_verified_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("identity_verification_session_id", sa.String(255), nullable=True),
@@ -97,6 +46,31 @@ def upgrade() -> None:
         sa.Column("background_check_uploaded_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("onboarding_completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("is_live", sa.Boolean(), nullable=False, server_default="false"),
+        # Background check fields
+        sa.Column("bgc_status", sa.String(length=20), nullable=True),
+        sa.Column("bgc_report_id", sa.Text(), nullable=True),
+        sa.Column("bgc_completed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("bgc_env", sa.String(length=20), nullable=False, server_default="sandbox"),
+        sa.Column("bgc_valid_until", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("bgc_eta", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("bgc_invited_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("bgc_includes_canceled", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("bgc_in_dispute", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("bgc_dispute_note", sa.Text(), nullable=True),
+        sa.Column("bgc_dispute_opened_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("bgc_dispute_resolved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("bgc_pre_adverse_notice_id", sa.String(length=26), nullable=True),
+        sa.Column("bgc_pre_adverse_sent_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("bgc_final_adverse_sent_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("bgc_review_email_sent_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("bgc_report_result", sa.String(length=32), nullable=True),
+        sa.Column("checkr_candidate_id", sa.String(length=64), nullable=True),
+        sa.Column("checkr_invitation_id", sa.String(length=64), nullable=True),
+        sa.Column("bgc_note", sa.Text(), nullable=True),
+        # Ranking signals
+        sa.Column("last_active_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("response_rate", sa.Numeric(5, 2), nullable=True),
+        sa.Column("profile_completeness", sa.Numeric(3, 2), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -119,7 +93,6 @@ def upgrade() -> None:
         comment="Instructor-specific profile information and preferences",
     )
 
-    # Create indexes for instructor_profiles
     op.create_index("ix_instructor_profiles_id", "instructor_profiles", ["id"])
     op.create_index("idx_instructor_profiles_user_id", "instructor_profiles", ["user_id"])
     op.create_index("idx_instructor_profiles_is_live", "instructor_profiles", ["is_live"])
@@ -128,12 +101,41 @@ def upgrade() -> None:
         "instructor_profiles",
         ["identity_verified_at"],
     )
+    op.create_index(
+        "ix_instructor_profiles_checkr_candidate_id",
+        "instructor_profiles",
+        ["checkr_candidate_id"],
+    )
+    op.create_index(
+        "ix_instructor_profiles_checkr_invitation_id",
+        "instructor_profiles",
+        ["checkr_invitation_id"],
+    )
+    op.create_index(
+        "ix_instructor_profiles_bgc_report_id",
+        "instructor_profiles",
+        ["bgc_report_id"],
+    )
 
-    # Add check constraint for non-negative years of experience
     op.create_check_constraint(
         "check_years_experience_non_negative",
         "instructor_profiles",
         "years_experience >= 0",
+    )
+    op.create_check_constraint(
+        "ck_instructor_profiles_bgc_status",
+        "instructor_profiles",
+        "bgc_status IN ('pending','passed','review','failed','consider','canceled')",
+    )
+    op.create_check_constraint(
+        "ck_instructor_profiles_bgc_env",
+        "instructor_profiles",
+        "bgc_env IN ('sandbox','production')",
+    )
+    op.create_check_constraint(
+        "ck_live_requires_bgc_passed",
+        "instructor_profiles",
+        "(is_live = FALSE) OR (bgc_status = 'passed')",
     )
 
     # Create service categories table
@@ -163,7 +165,6 @@ def upgrade() -> None:
         comment="Service categories for organizing the service catalog",
     )
 
-    # Create indexes for service_categories
     op.create_index("ix_service_categories_id", "service_categories", ["id"])
     op.create_index("idx_service_categories_slug", "service_categories", ["slug"])
     op.create_index("idx_service_categories_display_order", "service_categories", ["display_order"])
@@ -205,25 +206,18 @@ def upgrade() -> None:
         comment="Predefined service catalog with standardized service offerings",
     )
 
-    # Create indexes for service_catalog
     op.create_index("ix_service_catalog_id", "service_catalog", ["id"])
     op.create_index("idx_service_catalog_category_id", "service_catalog", ["category_id"])
     op.create_index("idx_service_catalog_slug", "service_catalog", ["slug"])
     op.create_index("idx_service_catalog_is_active", "service_catalog", ["is_active"])
-
-    # GIN index for search_terms array
     op.create_index(
         "idx_service_catalog_search_terms",
         "service_catalog",
         ["search_terms"],
         postgresql_using="gin",
     )
-
-    # Add indexes for new columns
     op.create_index("idx_service_catalog_display_order", "service_catalog", ["display_order"])
     op.create_index("idx_service_catalog_online_capable", "service_catalog", ["online_capable"])
-
-    # Index for vector similarity search
     op.create_index(
         "idx_service_catalog_embedding",
         "service_catalog",
@@ -232,21 +226,7 @@ def upgrade() -> None:
         postgresql_ops={"embedding": "vector_cosine_ops"},
     )
 
-    # Trigram GIN indexes for fuzzy text search on name/description
-    op.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_service_catalog_name_trgm
-        ON service_catalog USING gin (name gin_trgm_ops);
-        """
-    )
-    op.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_service_catalog_description_trgm
-        ON service_catalog USING gin (description gin_trgm_ops);
-        """
-    )
-
-    # Create instructor services table (replaces old services table)
+    # Create instructor services table
     op.create_table(
         "instructor_services",
         sa.Column("id", sa.String(26), nullable=False),
@@ -289,21 +269,15 @@ def upgrade() -> None:
         comment="Instructor-specific service offerings linked to service catalog",
     )
 
-    # Create indexes for instructor_services
     op.create_index("ix_instructor_services_id", "instructor_services", ["id"])
     op.create_index("idx_instructor_services_instructor_profile_id", "instructor_services", ["instructor_profile_id"])
     op.create_index("idx_instructor_services_service_catalog_id", "instructor_services", ["service_catalog_id"])
-
-    # Create partial index for active services only
     op.create_index(
         "idx_instructor_services_active",
         "instructor_services",
         ["instructor_profile_id", "is_active"],
         postgresql_where=sa.text("is_active = true"),
     )
-
-    # Create unique constraint for active services only
-    # This allows instructors to have multiple inactive services for the same catalog item
     op.create_index(
         "unique_instructor_catalog_service_active",
         "instructor_services",
@@ -312,51 +286,6 @@ def upgrade() -> None:
         postgresql_where=sa.text("is_active = true"),
     )
 
-    # Create service analytics table
-    op.create_table(
-        "service_analytics",
-        sa.Column("service_catalog_id", sa.String(26), nullable=False),
-        sa.Column("search_count_7d", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("search_count_30d", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("booking_count_7d", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("booking_count_30d", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("search_to_view_rate", sa.Float(), nullable=True),
-        sa.Column("view_to_booking_rate", sa.Float(), nullable=True),
-        sa.Column("avg_price_booked", sa.Float(), nullable=True),
-        sa.Column("price_percentile_25", sa.Float(), nullable=True),
-        sa.Column("price_percentile_50", sa.Float(), nullable=True),
-        sa.Column("price_percentile_75", sa.Float(), nullable=True),
-        sa.Column("most_booked_duration", sa.Integer(), nullable=True),
-        sa.Column("duration_distribution", sa.JSON(), nullable=True),
-        sa.Column("peak_hours", sa.JSON(), nullable=True),
-        sa.Column("peak_days", sa.JSON(), nullable=True),
-        sa.Column("seasonality_index", sa.JSON(), nullable=True),
-        sa.Column("avg_rating", sa.Float(), nullable=True),
-        sa.Column("completion_rate", sa.Float(), nullable=True),
-        sa.Column("active_instructors", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("total_weekly_hours", sa.Float(), nullable=True),
-        sa.Column("supply_demand_ratio", sa.Float(), nullable=True),
-        sa.Column(
-            "last_calculated",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
-            ["service_catalog_id"],
-            ["service_catalog.id"],
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("service_catalog_id"),
-        comment="Analytics and intelligence data for each service in the catalog",
-    )
-
-    # Create indexes for service_analytics
-    op.create_index("idx_service_analytics_search_count_7d", "service_analytics", ["search_count_7d"])
-    op.create_index("idx_service_analytics_booking_count_30d", "service_analytics", ["booking_count_30d"])
-    op.create_index("idx_service_analytics_last_calculated", "service_analytics", ["last_calculated"])
-
-    # Add constraints
     op.create_check_constraint("check_hourly_rate_positive", "instructor_services", "hourly_rate > 0")
     op.create_check_constraint(
         "check_duration_options_not_empty", "instructor_services", "array_length(duration_options, 1) > 0"
@@ -367,65 +296,147 @@ def upgrade() -> None:
         "duration_options[1] >= 15 AND duration_options[1] <= 720",
     )
 
-    print("Instructor system tables created successfully!")
-    print("- Enabled pgvector extension for semantic search")
-    print("- Enhanced service catalog system with:")
-    print("  - service_categories: Categories with icon_name support")
-    print("  - service_catalog: Services with embeddings, display_order, and online capability")
-    print("  - instructor_services: Enhanced with experience level, requirements, and location info")
-    print("  - service_analytics: Intelligence data for demand signals and pricing")
-    print("- Added vector similarity search index for natural language queries")
-    print("- Added constraints for pricing and duration validation")
-
-    # Now that service_catalog exists, create search_event_candidates table (observability)
+    print("Creating bgc_webhook_log table...")
     op.create_table(
-        "search_event_candidates",
-        sa.Column("id", sa.String(26), nullable=False),
-        sa.Column("search_event_id", sa.String(26), nullable=False),
-        sa.Column("position", sa.SmallInteger(), nullable=False, comment="1-based rank in candidate list"),
-        sa.Column("service_catalog_id", sa.String(26), nullable=True),
-        sa.Column("score", sa.Float(), nullable=True, comment="primary score used for ordering (e.g., hybrid)"),
-        sa.Column("vector_score", sa.Float(), nullable=True, comment="raw vector similarity if available"),
+        "bgc_webhook_log",
+        sa.Column("id", sa.String(length=26), primary_key=True, nullable=False),
+        sa.Column("event_type", sa.String(length=64), nullable=False),
+        sa.Column("delivery_id", sa.String(length=80), nullable=True),
+        sa.Column("resource_id", sa.String(length=64), nullable=True),
+        sa.Column("http_status", sa.Integer(), nullable=True),
         sa.Column(
-            "lexical_score", sa.Float(), nullable=True, comment="text/trigram or token overlap score if available"
+            "payload_json",
+            json_type,
+            nullable=False,
         ),
-        sa.Column("source", sa.String(20), nullable=True, comment="vector|trgm|exact|hybrid"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.ForeignKeyConstraint(["search_event_id"], ["search_events.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["service_catalog_id"], ["service_catalog.id"], ondelete="SET NULL"),
+        sa.Column("signature", sa.String(length=128), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+    )
+    op.create_index(
+        "ix_bgc_webhook_log_event_type_created_at",
+        "bgc_webhook_log",
+        ["event_type", "created_at"],
+    )
+    op.create_index(
+        "ix_bgc_webhook_log_delivery_id",
+        "bgc_webhook_log",
+        ["delivery_id"],
+    )
+    op.create_index(
+        "ix_bgc_webhook_log_http_status",
+        "bgc_webhook_log",
+        ["http_status", "created_at"],
+    )
+
+    print("Creating background_checks history table...")
+    op.create_table(
+        "background_checks",
+        sa.Column("id", sa.String(length=26), nullable=False),
+        sa.Column("instructor_id", sa.String(length=26), nullable=False),
+        sa.Column("report_id_enc", sa.Text(), nullable=True),
+        sa.Column("result", sa.String(length=32), nullable=False),
+        sa.Column("package", sa.Text(), nullable=True),
+        sa.Column("env", sa.String(length=20), nullable=False),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(["instructor_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        comment="Top-N candidates considered for a search event (observability)",
+    )
+
+    op.create_index(
+        "ix_background_checks_report_id_enc",
+        "background_checks",
+        ["report_id_enc"],
+    )
+
+    if is_postgres:
+        op.execute(
+            "CREATE INDEX ix_background_checks_instructor_created_at_desc "
+            "ON background_checks (instructor_id, created_at DESC);"
+        )
+    else:
+        op.create_index(
+            "ix_background_checks_instructor_created_at",
+            "background_checks",
+            ["instructor_id", "created_at"],
+        )
+
+    print("Creating bgc_adverse_action_events table...")
+    op.create_table(
+        "bgc_adverse_action_events",
+        sa.Column("id", sa.String(length=26), nullable=False),
+        sa.Column("profile_id", sa.String(length=26), nullable=False),
+        sa.Column("notice_id", sa.String(length=26), nullable=False),
+        sa.Column("event_type", sa.String(length=40), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["profile_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_unique_constraint(
+        "uq_bgc_adverse_action_events_profile_notice_type",
+        "bgc_adverse_action_events",
+        ["profile_id", "notice_id", "event_type"],
     )
     op.create_index(
-        "idx_search_event_candidates_event_position",
-        "search_event_candidates",
-        ["search_event_id", "position"],
-        unique=True,
+        "ix_bgc_adverse_action_events_profile",
+        "bgc_adverse_action_events",
+        ["profile_id"],
     )
-    op.create_index(
-        "idx_search_event_candidates_service_created",
-        "search_event_candidates",
-        ["service_catalog_id", "created_at"],
-        unique=False,
+
+    print("Creating bgc_consent table...")
+    op.create_table(
+        "bgc_consent",
+        sa.Column("id", sa.String(length=26), nullable=False),
+        sa.Column("instructor_id", sa.String(length=26), nullable=False),
+        sa.Column("consented_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column("consent_version", sa.Text(), nullable=False),
+        sa.Column("ip_address", sa.String(length=45), nullable=True),
+        sa.ForeignKeyConstraint(["instructor_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index("ix_bgc_consent_instructor_id", "bgc_consent", ["instructor_id"])
 
 
 def downgrade() -> None:
     """Drop instructor system tables."""
     print("Dropping instructor system tables...")
 
-    # Drop observability table and indexes first due to FKs
-    op.drop_index("idx_search_event_candidates_service_created", table_name="search_event_candidates")
-    op.drop_index("idx_search_event_candidates_event_position", table_name="search_event_candidates")
-    op.drop_table("search_event_candidates")
+    op.drop_index("ix_bgc_consent_instructor_id", table_name="bgc_consent")
+    op.drop_table("bgc_consent")
 
-    # Drop service_analytics indexes and table
-    op.drop_index("idx_service_analytics_last_calculated", table_name="service_analytics")
-    op.drop_index("idx_service_analytics_booking_count_30d", table_name="service_analytics")
-    op.drop_index("idx_service_analytics_search_count_7d", table_name="service_analytics")
-    op.drop_table("service_analytics")
+    op.drop_index("ix_bgc_adverse_action_events_profile", table_name="bgc_adverse_action_events")
+    op.drop_constraint(
+        "uq_bgc_adverse_action_events_profile_notice_type",
+        "bgc_adverse_action_events",
+        type_="unique",
+    )
+    op.drop_table("bgc_adverse_action_events")
 
-    # Drop instructor_services indexes and table
+    op.drop_index("ix_background_checks_report_id_enc", table_name="background_checks")
+    if op.get_bind().dialect.name == "postgresql":
+        op.execute("DROP INDEX IF EXISTS ix_background_checks_instructor_created_at_desc")
+    else:
+        op.drop_index("ix_background_checks_instructor_created_at", table_name="background_checks")
+    op.drop_table("background_checks")
+
+    op.drop_index("ix_bgc_webhook_log_http_status", table_name="bgc_webhook_log")
+    op.drop_index("ix_bgc_webhook_log_delivery_id", table_name="bgc_webhook_log")
+    op.drop_index("ix_bgc_webhook_log_event_type_created_at", table_name="bgc_webhook_log")
+    op.drop_table("bgc_webhook_log")
+
+    op.drop_constraint("check_duration_options_range", "instructor_services", type_="check")
+    op.drop_constraint("check_duration_options_not_empty", "instructor_services", type_="check")
+    op.drop_constraint("check_hourly_rate_positive", "instructor_services", type_="check")
     op.drop_index("unique_instructor_catalog_service_active", table_name="instructor_services")
     op.drop_index("idx_instructor_services_active", table_name="instructor_services")
     op.drop_index("idx_instructor_services_service_catalog_id", table_name="instructor_services")
@@ -433,9 +444,6 @@ def downgrade() -> None:
     op.drop_index("ix_instructor_services_id", table_name="instructor_services")
     op.drop_table("instructor_services")
 
-    # Drop service_catalog indexes and table
-    op.execute("DROP INDEX IF EXISTS idx_service_catalog_description_trgm")
-    op.execute("DROP INDEX IF EXISTS idx_service_catalog_name_trgm")
     op.drop_index("idx_service_catalog_embedding", table_name="service_catalog")
     op.drop_index("idx_service_catalog_online_capable", table_name="service_catalog")
     op.drop_index("idx_service_catalog_display_order", table_name="service_catalog")
@@ -446,23 +454,20 @@ def downgrade() -> None:
     op.drop_index("ix_service_catalog_id", table_name="service_catalog")
     op.drop_table("service_catalog")
 
-    # Drop service_categories indexes and table
     op.drop_index("idx_service_categories_display_order", table_name="service_categories")
     op.drop_index("idx_service_categories_slug", table_name="service_categories")
     op.drop_index("ix_service_categories_id", table_name="service_categories")
     op.drop_table("service_categories")
 
-    # Drop instructor_profiles constraint, indexes and table
+    op.drop_constraint("ck_live_requires_bgc_passed", "instructor_profiles", type_="check")
+    op.drop_constraint("ck_instructor_profiles_bgc_env", "instructor_profiles", type_="check")
+    op.drop_constraint("ck_instructor_profiles_bgc_status", "instructor_profiles", type_="check")
     op.drop_constraint("check_years_experience_non_negative", "instructor_profiles", type_="check")
-    # Drop indexes added in upgrade
+    op.drop_index("ix_instructor_profiles_bgc_report_id", table_name="instructor_profiles")
+    op.drop_index("ix_instructor_profiles_checkr_invitation_id", table_name="instructor_profiles")
+    op.drop_index("ix_instructor_profiles_checkr_candidate_id", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_identity_verified_at", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_is_live", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_user_id", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_id", table_name="instructor_profiles")
     op.drop_table("instructor_profiles")
-
-    # Drop extensions
-    op.execute("DROP EXTENSION IF EXISTS vector")
-    op.execute("DROP EXTENSION IF EXISTS pg_trgm")
-
-    print("Instructor system tables dropped successfully!")
