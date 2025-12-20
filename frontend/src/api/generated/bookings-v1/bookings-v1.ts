@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -44,14 +41,11 @@ import type {
   PaginatedResponseBookingResponse,
   PaginatedResponseUpcomingBookingResponse,
   PricingPreviewOut,
-  SendRemindersResponse
+  SendRemindersResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Get bookings for the current user with advanced filtering.
@@ -67,94 +61,132 @@ Returns: Standardized PaginatedResponse with BookingResponse items
  * @summary Get Bookings
  */
 export const getBookingsApiV1BookingsGet = (
-    params?: GetBookingsApiV1BookingsGetParams,
- signal?: AbortSignal
+  params?: GetBookingsApiV1BookingsGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PaginatedResponseBookingResponse>({
+    url: `/api/v1/bookings`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<PaginatedResponseBookingResponse>(
-      {url: `/api/v1/bookings`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetBookingsApiV1BookingsGetQueryKey = (params?: GetBookingsApiV1BookingsGetParams,) => {
-    return [
-    `/api/v1/bookings`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetBookingsApiV1BookingsGetQueryOptions = <TData = Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetBookingsApiV1BookingsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData>>, }
+export const getGetBookingsApiV1BookingsGetQueryKey = (
+  params?: GetBookingsApiV1BookingsGetParams
 ) => {
+  return [`/api/v1/bookings`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetBookingsApiV1BookingsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetBookingsApiV1BookingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData>
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetBookingsApiV1BookingsGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getGetBookingsApiV1BookingsGetQueryKey(params);
 
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>> = ({
+    signal,
+  }) => getBookingsApiV1BookingsGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>> = ({ signal }) => getBookingsApiV1BookingsGet(params, signal);
+export type GetBookingsApiV1BookingsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>
+>;
+export type GetBookingsApiV1BookingsGetQueryError = ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetBookingsApiV1BookingsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>>
-export type GetBookingsApiV1BookingsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetBookingsApiV1BookingsGet<TData = Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetBookingsApiV1BookingsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData>> & Pick<
+export function useGetBookingsApiV1BookingsGet<
+  TData = Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetBookingsApiV1BookingsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>,
           TError,
           Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBookingsApiV1BookingsGet<TData = Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetBookingsApiV1BookingsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBookingsApiV1BookingsGet<
+  TData = Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetBookingsApiV1BookingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>,
           TError,
           Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBookingsApiV1BookingsGet<TData = Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetBookingsApiV1BookingsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBookingsApiV1BookingsGet<
+  TData = Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetBookingsApiV1BookingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Bookings
  */
 
-export function useGetBookingsApiV1BookingsGet<TData = Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetBookingsApiV1BookingsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetBookingsApiV1BookingsGet<
+  TData = Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetBookingsApiV1BookingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getBookingsApiV1BookingsGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetBookingsApiV1BookingsGetQueryOptions(params, options);
 
-  const queryOptions = getGetBookingsApiV1BookingsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Create a booking with payment setup (Phase 2.1).
@@ -169,134 +201,172 @@ Rate limited per user to prevent booking spam.
  * @summary Create Booking
  */
 export const createBookingApiV1BookingsPost = (
-    bookingCreate: BookingCreate,
- signal?: AbortSignal
+  bookingCreate: BookingCreate,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookingCreateResponse>({
+    url: `/api/v1/bookings`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bookingCreate,
+    signal,
+  });
+};
 
+export const getCreateBookingApiV1BookingsPostMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>,
+    TError,
+    { data: BookingCreate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>,
+  TError,
+  { data: BookingCreate },
+  TContext
+> => {
+  const mutationKey = ['createBookingApiV1BookingsPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<BookingCreateResponse>(
-      {url: `/api/v1/bookings`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: bookingCreate, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>,
+    { data: BookingCreate }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return createBookingApiV1BookingsPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getCreateBookingApiV1BookingsPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>, TError,{data: BookingCreate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>, TError,{data: BookingCreate}, TContext> => {
+export type CreateBookingApiV1BookingsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>
+>;
+export type CreateBookingApiV1BookingsPostMutationBody = BookingCreate;
+export type CreateBookingApiV1BookingsPostMutationError = ErrorType<void>;
 
-const mutationKey = ['createBookingApiV1BookingsPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>, {data: BookingCreate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  createBookingApiV1BookingsPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CreateBookingApiV1BookingsPostMutationResult = NonNullable<Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>>
-    export type CreateBookingApiV1BookingsPostMutationBody = BookingCreate
-    export type CreateBookingApiV1BookingsPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Create Booking
  */
-export const useCreateBookingApiV1BookingsPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>, TError,{data: BookingCreate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>,
-        TError,
-        {data: BookingCreate},
-        TContext
-      > => {
+export const useCreateBookingApiV1BookingsPost = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>,
+      TError,
+      { data: BookingCreate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createBookingApiV1BookingsPost>>,
+  TError,
+  { data: BookingCreate },
+  TContext
+> => {
+  const mutationOptions = getCreateBookingApiV1BookingsPostMutationOptions(options);
 
-      const mutationOptions = getCreateBookingApiV1BookingsPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Check if a time range is available for booking.
 
 Rate limited to prevent abuse of expensive availability checks.
  * @summary Check Availability
  */
 export const checkAvailabilityApiV1BookingsCheckAvailabilityPost = (
-    availabilityCheckRequest: AvailabilityCheckRequest,
- signal?: AbortSignal
+  availabilityCheckRequest: AvailabilityCheckRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<AvailabilityCheckResponse>({
+    url: `/api/v1/bookings/check-availability`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: availabilityCheckRequest,
+    signal,
+  });
+};
 
+export const getCheckAvailabilityApiV1BookingsCheckAvailabilityPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>,
+    TError,
+    { data: AvailabilityCheckRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>,
+  TError,
+  { data: AvailabilityCheckRequest },
+  TContext
+> => {
+  const mutationKey = ['checkAvailabilityApiV1BookingsCheckAvailabilityPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<AvailabilityCheckResponse>(
-      {url: `/api/v1/bookings/check-availability`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: availabilityCheckRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>,
+    { data: AvailabilityCheckRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return checkAvailabilityApiV1BookingsCheckAvailabilityPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getCheckAvailabilityApiV1BookingsCheckAvailabilityPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>, TError,{data: AvailabilityCheckRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>, TError,{data: AvailabilityCheckRequest}, TContext> => {
+export type CheckAvailabilityApiV1BookingsCheckAvailabilityPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>
+>;
+export type CheckAvailabilityApiV1BookingsCheckAvailabilityPostMutationBody =
+  AvailabilityCheckRequest;
+export type CheckAvailabilityApiV1BookingsCheckAvailabilityPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['checkAvailabilityApiV1BookingsCheckAvailabilityPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>, {data: AvailabilityCheckRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  checkAvailabilityApiV1BookingsCheckAvailabilityPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CheckAvailabilityApiV1BookingsCheckAvailabilityPostMutationResult = NonNullable<Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>>
-    export type CheckAvailabilityApiV1BookingsCheckAvailabilityPostMutationBody = AvailabilityCheckRequest
-    export type CheckAvailabilityApiV1BookingsCheckAvailabilityPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Check Availability
  */
-export const useCheckAvailabilityApiV1BookingsCheckAvailabilityPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>, TError,{data: AvailabilityCheckRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>,
-        TError,
-        {data: AvailabilityCheckRequest},
-        TContext
-      > => {
+export const useCheckAvailabilityApiV1BookingsCheckAvailabilityPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>,
+      TError,
+      { data: AvailabilityCheckRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof checkAvailabilityApiV1BookingsCheckAvailabilityPost>>,
+  TError,
+  { data: AvailabilityCheckRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getCheckAvailabilityApiV1BookingsCheckAvailabilityPostMutationOptions(options);
 
-      const mutationOptions = getCheckAvailabilityApiV1BookingsCheckAvailabilityPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Send 24-hour reminder emails for tomorrow's bookings.
 
 Should be called by scheduled job/cron.
@@ -305,542 +375,779 @@ Rate limited to prevent email spam.
 Requires: MANAGE_ALL_BOOKINGS permission (admin only)
  * @summary Send Reminder Emails
  */
-export const sendReminderEmailsApiV1BookingsSendRemindersPost = (
+export const sendReminderEmailsApiV1BookingsSendRemindersPost = (signal?: AbortSignal) => {
+  return customFetch<SendRemindersResponse>({
+    url: `/api/v1/bookings/send-reminders`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getSendReminderEmailsApiV1BookingsSendRemindersPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['sendReminderEmailsApiV1BookingsSendRemindersPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>,
+    void
+  > = () => {
+    return sendReminderEmailsApiV1BookingsSendRemindersPost();
+  };
 
-      return customFetch<SendRemindersResponse>(
-      {url: `/api/v1/bookings/send-reminders`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type SendReminderEmailsApiV1BookingsSendRemindersPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>
+>;
 
+export type SendReminderEmailsApiV1BookingsSendRemindersPostMutationError = ErrorType<unknown>;
 
-export const getSendReminderEmailsApiV1BookingsSendRemindersPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>, TError,void, TContext> => {
-
-const mutationKey = ['sendReminderEmailsApiV1BookingsSendRemindersPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>, void> = () => {
-
-
-          return  sendReminderEmailsApiV1BookingsSendRemindersPost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type SendReminderEmailsApiV1BookingsSendRemindersPostMutationResult = NonNullable<Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>>
-
-    export type SendReminderEmailsApiV1BookingsSendRemindersPostMutationError = ErrorType<unknown>
-
-    /**
+/**
  * @summary Send Reminder Emails
  */
-export const useSendReminderEmailsApiV1BookingsSendRemindersPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useSendReminderEmailsApiV1BookingsSendRemindersPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof sendReminderEmailsApiV1BookingsSendRemindersPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions =
+    getSendReminderEmailsApiV1BookingsSendRemindersPostMutationOptions(options);
 
-      const mutationOptions = getSendReminderEmailsApiV1BookingsSendRemindersPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get booking statistics (requires instructor role).
  * @summary Get Booking Stats
  */
-export const getBookingStatsApiV1BookingsStatsGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<BookingStatsResponse>(
-      {url: `/api/v1/bookings/stats`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getBookingStatsApiV1BookingsStatsGet = (signal?: AbortSignal) => {
+  return customFetch<BookingStatsResponse>({
+    url: `/api/v1/bookings/stats`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetBookingStatsApiV1BookingsStatsGetQueryKey = () => {
-    return [
-    `/api/v1/bookings/stats`
-    ] as const;
-    }
+  return [`/api/v1/bookings/stats`] as const;
+};
 
+export const getGetBookingStatsApiV1BookingsStatsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError, TData>
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetBookingStatsApiV1BookingsStatsGetQueryOptions = <TData = Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getGetBookingStatsApiV1BookingsStatsGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>
+  > = ({ signal }) => getBookingStatsApiV1BookingsStatsGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetBookingStatsApiV1BookingsStatsGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetBookingStatsApiV1BookingsStatsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>
+>;
+export type GetBookingStatsApiV1BookingsStatsGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>> = ({ signal }) => getBookingStatsApiV1BookingsStatsGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetBookingStatsApiV1BookingsStatsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>>
-export type GetBookingStatsApiV1BookingsStatsGetQueryError = ErrorType<unknown>
-
-
-export function useGetBookingStatsApiV1BookingsStatsGet<TData = Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError, TData>> & Pick<
+export function useGetBookingStatsApiV1BookingsStatsGet<
+  TData = Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
           TError,
           Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBookingStatsApiV1BookingsStatsGet<TData = Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBookingStatsApiV1BookingsStatsGet<
+  TData = Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
           TError,
           Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBookingStatsApiV1BookingsStatsGet<TData = Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBookingStatsApiV1BookingsStatsGet<
+  TData = Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Booking Stats
  */
 
-export function useGetBookingStatsApiV1BookingsStatsGet<TData = Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetBookingStatsApiV1BookingsStatsGet<
+  TData = Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingStatsApiV1BookingsStatsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetBookingStatsApiV1BookingsStatsGetQueryOptions(options);
 
-  const queryOptions = getGetBookingStatsApiV1BookingsStatsGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get upcoming bookings for dashboard widget.
  * @summary Get Upcoming Bookings
  */
 export const getUpcomingBookingsApiV1BookingsUpcomingGet = (
-    params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams,
- signal?: AbortSignal
+  params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PaginatedResponseUpcomingBookingResponse>({
+    url: `/api/v1/bookings/upcoming`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<PaginatedResponseUpcomingBookingResponse>(
-      {url: `/api/v1/bookings/upcoming`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetUpcomingBookingsApiV1BookingsUpcomingGetQueryKey = (params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams,) => {
-    return [
-    `/api/v1/bookings/upcoming`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetUpcomingBookingsApiV1BookingsUpcomingGetQueryOptions = <TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError, TData>>, }
+export const getGetUpcomingBookingsApiV1BookingsUpcomingGetQueryKey = (
+  params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams
 ) => {
+  return [`/api/v1/bookings/upcoming`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetUpcomingBookingsApiV1BookingsUpcomingGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetUpcomingBookingsApiV1BookingsUpcomingGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUpcomingBookingsApiV1BookingsUpcomingGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>
+  > = ({ signal }) => getUpcomingBookingsApiV1BookingsUpcomingGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>> = ({ signal }) => getUpcomingBookingsApiV1BookingsUpcomingGet(params, signal);
+export type GetUpcomingBookingsApiV1BookingsUpcomingGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>
+>;
+export type GetUpcomingBookingsApiV1BookingsUpcomingGetQueryError = ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetUpcomingBookingsApiV1BookingsUpcomingGetQueryResult = NonNullable<Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>>
-export type GetUpcomingBookingsApiV1BookingsUpcomingGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetUpcomingBookingsApiV1BookingsUpcomingGet<TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetUpcomingBookingsApiV1BookingsUpcomingGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError, TData>> & Pick<
+export function useGetUpcomingBookingsApiV1BookingsUpcomingGet<
+  TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetUpcomingBookingsApiV1BookingsUpcomingGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
           TError,
           Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetUpcomingBookingsApiV1BookingsUpcomingGet<TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetUpcomingBookingsApiV1BookingsUpcomingGet<
+  TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
           TError,
           Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetUpcomingBookingsApiV1BookingsUpcomingGet<TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetUpcomingBookingsApiV1BookingsUpcomingGet<
+  TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Upcoming Bookings
  */
 
-export function useGetUpcomingBookingsApiV1BookingsUpcomingGet<TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetUpcomingBookingsApiV1BookingsUpcomingGet<
+  TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUpcomingBookingsApiV1BookingsUpcomingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUpcomingBookingsApiV1BookingsUpcomingGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetUpcomingBookingsApiV1BookingsUpcomingGetQueryOptions(params, options);
 
-  const queryOptions = getGetUpcomingBookingsApiV1BookingsUpcomingGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get full booking details with privacy protection for students.
  * @summary Get Booking Details
  */
 export const getBookingDetailsApiV1BookingsBookingIdGet = (
-    bookingId: string,
- signal?: AbortSignal
+  bookingId: string,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookingResponse>({
+    url: `/api/v1/bookings/${bookingId}`,
+    method: 'GET',
+    signal,
+  });
+};
 
+export const getGetBookingDetailsApiV1BookingsBookingIdGetQueryKey = (bookingId?: string) => {
+  return [`/api/v1/bookings/${bookingId}`] as const;
+};
 
-      return customFetch<BookingResponse>(
-      {url: `/api/v1/bookings/${bookingId}`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
-
-export const getGetBookingDetailsApiV1BookingsBookingIdGetQueryKey = (bookingId?: string,) => {
-    return [
-    `/api/v1/bookings/${bookingId}`
-    ] as const;
-    }
-
-
-export const getGetBookingDetailsApiV1BookingsBookingIdGetQueryOptions = <TData = Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError = ErrorType<HTTPValidationError>>(bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError, TData>>, }
+export const getGetBookingDetailsApiV1BookingsBookingIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
 ) => {
+  const { query: queryOptions } = options ?? {};
 
-const {query: queryOptions} = options ?? {};
+  const queryKey =
+    queryOptions?.queryKey ?? getGetBookingDetailsApiV1BookingsBookingIdGetQueryKey(bookingId);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetBookingDetailsApiV1BookingsBookingIdGetQueryKey(bookingId);
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>
+  > = ({ signal }) => getBookingDetailsApiV1BookingsBookingIdGet(bookingId, signal);
 
+  return { queryKey, queryFn, enabled: !!bookingId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetBookingDetailsApiV1BookingsBookingIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>
+>;
+export type GetBookingDetailsApiV1BookingsBookingIdGetQueryError =
+  ErrorType<void | HTTPValidationError>;
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>> = ({ signal }) => getBookingDetailsApiV1BookingsBookingIdGet(bookingId, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(bookingId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetBookingDetailsApiV1BookingsBookingIdGetQueryResult = NonNullable<Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>>
-export type GetBookingDetailsApiV1BookingsBookingIdGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetBookingDetailsApiV1BookingsBookingIdGet<TData = Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError, TData>> & Pick<
+export function useGetBookingDetailsApiV1BookingsBookingIdGet<
+  TData = Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
           TError,
           Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBookingDetailsApiV1BookingsBookingIdGet<TData = Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBookingDetailsApiV1BookingsBookingIdGet<
+  TData = Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
           TError,
           Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBookingDetailsApiV1BookingsBookingIdGet<TData = Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBookingDetailsApiV1BookingsBookingIdGet<
+  TData = Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Booking Details
  */
 
-export function useGetBookingDetailsApiV1BookingsBookingIdGet<TData = Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetBookingDetailsApiV1BookingsBookingIdGet<
+  TData = Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingDetailsApiV1BookingsBookingIdGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetBookingDetailsApiV1BookingsBookingIdGetQueryOptions(
+    bookingId,
+    options
+  );
 
-  const queryOptions = getGetBookingDetailsApiV1BookingsBookingIdGetQueryOptions(bookingId,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Update booking details (instructor only).
  * @summary Update Booking
  */
 export const updateBookingApiV1BookingsBookingIdPatch = (
-    bookingId: string,
-    bookingUpdate: BookingUpdate,
- ) => {
+  bookingId: string,
+  bookingUpdate: BookingUpdate
+) => {
+  return customFetch<BookingResponse>({
+    url: `/api/v1/bookings/${bookingId}`,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    data: bookingUpdate,
+  });
+};
 
+export const getUpdateBookingApiV1BookingsBookingIdPatchMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>,
+    TError,
+    { bookingId: string; data: BookingUpdate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>,
+  TError,
+  { bookingId: string; data: BookingUpdate },
+  TContext
+> => {
+  const mutationKey = ['updateBookingApiV1BookingsBookingIdPatch'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<BookingResponse>(
-      {url: `/api/v1/bookings/${bookingId}`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: bookingUpdate
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>,
+    { bookingId: string; data: BookingUpdate }
+  > = (props) => {
+    const { bookingId, data } = props ?? {};
 
+    return updateBookingApiV1BookingsBookingIdPatch(bookingId, data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getUpdateBookingApiV1BookingsBookingIdPatchMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>, TError,{bookingId: string;data: BookingUpdate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>, TError,{bookingId: string;data: BookingUpdate}, TContext> => {
+export type UpdateBookingApiV1BookingsBookingIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>
+>;
+export type UpdateBookingApiV1BookingsBookingIdPatchMutationBody = BookingUpdate;
+export type UpdateBookingApiV1BookingsBookingIdPatchMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['updateBookingApiV1BookingsBookingIdPatch'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>, {bookingId: string;data: BookingUpdate}> = (props) => {
-          const {bookingId,data} = props ?? {};
-
-          return  updateBookingApiV1BookingsBookingIdPatch(bookingId,data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdateBookingApiV1BookingsBookingIdPatchMutationResult = NonNullable<Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>>
-    export type UpdateBookingApiV1BookingsBookingIdPatchMutationBody = BookingUpdate
-    export type UpdateBookingApiV1BookingsBookingIdPatchMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Update Booking
  */
-export const useUpdateBookingApiV1BookingsBookingIdPatch = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>, TError,{bookingId: string;data: BookingUpdate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>,
-        TError,
-        {bookingId: string;data: BookingUpdate},
-        TContext
-      > => {
+export const useUpdateBookingApiV1BookingsBookingIdPatch = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>,
+      TError,
+      { bookingId: string; data: BookingUpdate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateBookingApiV1BookingsBookingIdPatch>>,
+  TError,
+  { bookingId: string; data: BookingUpdate },
+  TContext
+> => {
+  const mutationOptions = getUpdateBookingApiV1BookingsBookingIdPatchMutationOptions(options);
 
-      const mutationOptions = getUpdateBookingApiV1BookingsBookingIdPatchMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Cancel a booking.
  * @summary Cancel Booking
  */
 export const cancelBookingApiV1BookingsBookingIdCancelPost = (
-    bookingId: string,
-    bookingCancel: BookingCancel,
- signal?: AbortSignal
+  bookingId: string,
+  bookingCancel: BookingCancel,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookingResponse>({
+    url: `/api/v1/bookings/${bookingId}/cancel`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bookingCancel,
+    signal,
+  });
+};
 
+export const getCancelBookingApiV1BookingsBookingIdCancelPostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>,
+    TError,
+    { bookingId: string; data: BookingCancel },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>,
+  TError,
+  { bookingId: string; data: BookingCancel },
+  TContext
+> => {
+  const mutationKey = ['cancelBookingApiV1BookingsBookingIdCancelPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<BookingResponse>(
-      {url: `/api/v1/bookings/${bookingId}/cancel`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: bookingCancel, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>,
+    { bookingId: string; data: BookingCancel }
+  > = (props) => {
+    const { bookingId, data } = props ?? {};
 
+    return cancelBookingApiV1BookingsBookingIdCancelPost(bookingId, data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getCancelBookingApiV1BookingsBookingIdCancelPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>, TError,{bookingId: string;data: BookingCancel}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>, TError,{bookingId: string;data: BookingCancel}, TContext> => {
+export type CancelBookingApiV1BookingsBookingIdCancelPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>
+>;
+export type CancelBookingApiV1BookingsBookingIdCancelPostMutationBody = BookingCancel;
+export type CancelBookingApiV1BookingsBookingIdCancelPostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['cancelBookingApiV1BookingsBookingIdCancelPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>, {bookingId: string;data: BookingCancel}> = (props) => {
-          const {bookingId,data} = props ?? {};
-
-          return  cancelBookingApiV1BookingsBookingIdCancelPost(bookingId,data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CancelBookingApiV1BookingsBookingIdCancelPostMutationResult = NonNullable<Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>>
-    export type CancelBookingApiV1BookingsBookingIdCancelPostMutationBody = BookingCancel
-    export type CancelBookingApiV1BookingsBookingIdCancelPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Cancel Booking
  */
-export const useCancelBookingApiV1BookingsBookingIdCancelPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>, TError,{bookingId: string;data: BookingCancel}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>,
-        TError,
-        {bookingId: string;data: BookingCancel},
-        TContext
-      > => {
+export const useCancelBookingApiV1BookingsBookingIdCancelPost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>,
+      TError,
+      { bookingId: string; data: BookingCancel },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof cancelBookingApiV1BookingsBookingIdCancelPost>>,
+  TError,
+  { bookingId: string; data: BookingCancel },
+  TContext
+> => {
+  const mutationOptions = getCancelBookingApiV1BookingsBookingIdCancelPostMutationOptions(options);
 
-      const mutationOptions = getCancelBookingApiV1BookingsBookingIdCancelPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Mark a booking as completed.
 
 Requires: COMPLETE_BOOKINGS permission (instructor only)
  * @summary Complete Booking
  */
 export const completeBookingApiV1BookingsBookingIdCompletePost = (
-    bookingId: string,
- signal?: AbortSignal
+  bookingId: string,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookingResponse>({
+    url: `/api/v1/bookings/${bookingId}/complete`,
+    method: 'POST',
+    signal,
+  });
+};
 
+export const getCompleteBookingApiV1BookingsBookingIdCompletePostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>,
+    TError,
+    { bookingId: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>,
+  TError,
+  { bookingId: string },
+  TContext
+> => {
+  const mutationKey = ['completeBookingApiV1BookingsBookingIdCompletePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<BookingResponse>(
-      {url: `/api/v1/bookings/${bookingId}/complete`, method: 'POST', signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>,
+    { bookingId: string }
+  > = (props) => {
+    const { bookingId } = props ?? {};
 
+    return completeBookingApiV1BookingsBookingIdCompletePost(bookingId);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getCompleteBookingApiV1BookingsBookingIdCompletePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>, TError,{bookingId: string}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>, TError,{bookingId: string}, TContext> => {
+export type CompleteBookingApiV1BookingsBookingIdCompletePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>
+>;
 
-const mutationKey = ['completeBookingApiV1BookingsBookingIdCompletePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type CompleteBookingApiV1BookingsBookingIdCompletePostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>, {bookingId: string}> = (props) => {
-          const {bookingId} = props ?? {};
-
-          return  completeBookingApiV1BookingsBookingIdCompletePost(bookingId,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CompleteBookingApiV1BookingsBookingIdCompletePostMutationResult = NonNullable<Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>>
-
-    export type CompleteBookingApiV1BookingsBookingIdCompletePostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Complete Booking
  */
-export const useCompleteBookingApiV1BookingsBookingIdCompletePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>, TError,{bookingId: string}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>,
-        TError,
-        {bookingId: string},
-        TContext
-      > => {
+export const useCompleteBookingApiV1BookingsBookingIdCompletePost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>,
+      TError,
+      { bookingId: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof completeBookingApiV1BookingsBookingIdCompletePost>>,
+  TError,
+  { bookingId: string },
+  TContext
+> => {
+  const mutationOptions =
+    getCompleteBookingApiV1BookingsBookingIdCompletePostMutationOptions(options);
 
-      const mutationOptions = getCompleteBookingApiV1BookingsBookingIdCompletePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Confirm payment method for a booking (Phase 2.1).
 
 Called after frontend collects card details via SetupIntent.
@@ -848,68 +1155,91 @@ This completes the booking creation flow.
  * @summary Confirm Booking Payment
  */
 export const confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost = (
-    bookingId: string,
-    bookingConfirmPayment: BookingConfirmPayment,
- signal?: AbortSignal
+  bookingId: string,
+  bookingConfirmPayment: BookingConfirmPayment,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookingResponse>({
+    url: `/api/v1/bookings/${bookingId}/confirm-payment`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bookingConfirmPayment,
+    signal,
+  });
+};
 
+export const getConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>,
+    TError,
+    { bookingId: string; data: BookingConfirmPayment },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>,
+  TError,
+  { bookingId: string; data: BookingConfirmPayment },
+  TContext
+> => {
+  const mutationKey = ['confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<BookingResponse>(
-      {url: `/api/v1/bookings/${bookingId}/confirm-payment`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: bookingConfirmPayment, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>,
+    { bookingId: string; data: BookingConfirmPayment }
+  > = (props) => {
+    const { bookingId, data } = props ?? {};
 
+    return confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost(bookingId, data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>, TError,{bookingId: string;data: BookingConfirmPayment}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>, TError,{bookingId: string;data: BookingConfirmPayment}, TContext> => {
+export type ConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>
+  >;
+export type ConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutationBody =
+  BookingConfirmPayment;
+export type ConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>, {bookingId: string;data: BookingConfirmPayment}> = (props) => {
-          const {bookingId,data} = props ?? {};
-
-          return  confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost(bookingId,data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutationResult = NonNullable<Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>>
-    export type ConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutationBody = BookingConfirmPayment
-    export type ConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Confirm Booking Payment
  */
-export const useConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>, TError,{bookingId: string;data: BookingConfirmPayment}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>,
-        TError,
-        {bookingId: string;data: BookingConfirmPayment},
-        TContext
-      > => {
+export const useConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>,
+      TError,
+      { bookingId: string; data: BookingConfirmPayment },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost>>,
+  TError,
+  { bookingId: string; data: BookingConfirmPayment },
+  TContext
+> => {
+  const mutationOptions =
+    getConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutationOptions(options);
 
-      const mutationOptions = getConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Mark a booking as no-show (student didn't attend).
 
 Only the instructor for this booking can mark it as no-show.
@@ -919,65 +1249,86 @@ Requires: COMPLETE_BOOKINGS permission (instructor only)
  * @summary Mark Booking No Show
  */
 export const markBookingNoShowApiV1BookingsBookingIdNoShowPost = (
-    bookingId: string,
- signal?: AbortSignal
+  bookingId: string,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookingResponse>({
+    url: `/api/v1/bookings/${bookingId}/no-show`,
+    method: 'POST',
+    signal,
+  });
+};
 
+export const getMarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
+    TError,
+    { bookingId: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
+  TError,
+  { bookingId: string },
+  TContext
+> => {
+  const mutationKey = ['markBookingNoShowApiV1BookingsBookingIdNoShowPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<BookingResponse>(
-      {url: `/api/v1/bookings/${bookingId}/no-show`, method: 'POST', signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
+    { bookingId: string }
+  > = (props) => {
+    const { bookingId } = props ?? {};
 
+    return markBookingNoShowApiV1BookingsBookingIdNoShowPost(bookingId);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getMarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>, TError,{bookingId: string}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>, TError,{bookingId: string}, TContext> => {
+export type MarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>
+>;
 
-const mutationKey = ['markBookingNoShowApiV1BookingsBookingIdNoShowPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type MarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>, {bookingId: string}> = (props) => {
-          const {bookingId} = props ?? {};
-
-          return  markBookingNoShowApiV1BookingsBookingIdNoShowPost(bookingId,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type MarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationResult = NonNullable<Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>>
-
-    export type MarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Mark Booking No Show
  */
-export const useMarkBookingNoShowApiV1BookingsBookingIdNoShowPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>, TError,{bookingId: string}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
-        TError,
-        {bookingId: string},
-        TContext
-      > => {
+export const useMarkBookingNoShowApiV1BookingsBookingIdNoShowPost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
+      TError,
+      { bookingId: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof markBookingNoShowApiV1BookingsBookingIdNoShowPost>>,
+  TError,
+  { bookingId: string },
+  TContext
+> => {
+  const mutationOptions =
+    getMarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationOptions(options);
 
-      const mutationOptions = getMarkBookingNoShowApiV1BookingsBookingIdNoShowPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Update booking payment method and retry authorization immediately.
 
 - Verifies ownership (student)
@@ -986,259 +1337,414 @@ export const useMarkBookingNoShowApiV1BookingsBookingIdNoShowPost = <TError = Er
  * @summary Update Booking Payment Method
  */
 export const updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch = (
-    bookingId: string,
-    bookingPaymentMethodUpdate: BookingPaymentMethodUpdate,
- ) => {
+  bookingId: string,
+  bookingPaymentMethodUpdate: BookingPaymentMethodUpdate
+) => {
+  return customFetch<BookingResponse>({
+    url: `/api/v1/bookings/${bookingId}/payment-method`,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    data: bookingPaymentMethodUpdate,
+  });
+};
 
+export const getUpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatchMutationOptions =
+  <TError = ErrorType<void | HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>
+      >,
+      TError,
+      { bookingId: string; data: BookingPaymentMethodUpdate },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>>,
+    TError,
+    { bookingId: string; data: BookingPaymentMethodUpdate },
+    TContext
+  > => {
+    const mutationKey = ['updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
 
-      return customFetch<BookingResponse>(
-      {url: `/api/v1/bookings/${bookingId}/payment-method`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: bookingPaymentMethodUpdate
-    },
-      );
-    }
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>
+      >,
+      { bookingId: string; data: BookingPaymentMethodUpdate }
+    > = (props) => {
+      const { bookingId, data } = props ?? {};
 
+      return updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch(bookingId, data);
+    };
 
+    return { mutationFn, ...mutationOptions };
+  };
 
-export const getUpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatchMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>>, TError,{bookingId: string;data: BookingPaymentMethodUpdate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>>, TError,{bookingId: string;data: BookingPaymentMethodUpdate}, TContext> => {
+export type UpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatchMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>>
+  >;
+export type UpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatchMutationBody =
+  BookingPaymentMethodUpdate;
+export type UpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatchMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>>, {bookingId: string;data: BookingPaymentMethodUpdate}> = (props) => {
-          const {bookingId,data} = props ?? {};
-
-          return  updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch(bookingId,data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatchMutationResult = NonNullable<Awaited<ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>>>
-    export type UpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatchMutationBody = BookingPaymentMethodUpdate
-    export type UpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatchMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Update Booking Payment Method
  */
-export const useUpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>>, TError,{bookingId: string;data: BookingPaymentMethodUpdate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>>,
-        TError,
-        {bookingId: string;data: BookingPaymentMethodUpdate},
-        TContext
-      > => {
+export const useUpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>
+      >,
+      TError,
+      { bookingId: string; data: BookingPaymentMethodUpdate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatch>>,
+  TError,
+  { bookingId: string; data: BookingPaymentMethodUpdate },
+  TContext
+> => {
+  const mutationOptions =
+    getUpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatchMutationOptions(options);
 
-      const mutationOptions = getUpdateBookingPaymentMethodApiV1BookingsBookingIdPaymentMethodPatchMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get preview information for a booking.
  * @summary Get Booking Preview
  */
 export const getBookingPreviewApiV1BookingsBookingIdPreviewGet = (
-    bookingId: string,
- signal?: AbortSignal
+  bookingId: string,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookingPreviewResponse>({
+    url: `/api/v1/bookings/${bookingId}/preview`,
+    method: 'GET',
+    signal,
+  });
+};
 
-
-      return customFetch<BookingPreviewResponse>(
-      {url: `/api/v1/bookings/${bookingId}/preview`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
-
-export const getGetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryKey = (bookingId?: string,) => {
-    return [
-    `/api/v1/bookings/${bookingId}/preview`
-    ] as const;
-    }
-
-
-export const getGetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryOptions = <TData = Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError = ErrorType<HTTPValidationError>>(bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError, TData>>, }
+export const getGetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryKey = (
+  bookingId?: string
 ) => {
+  return [`/api/v1/bookings/${bookingId}/preview`] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryKey(bookingId);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryKey(bookingId);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>
+  > = ({ signal }) => getBookingPreviewApiV1BookingsBookingIdPreviewGet(bookingId, signal);
 
+  return { queryKey, queryFn, enabled: !!bookingId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>> = ({ signal }) => getBookingPreviewApiV1BookingsBookingIdPreviewGet(bookingId, signal);
+export type GetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>
+>;
+export type GetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryError =
+  ErrorType<void | HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(bookingId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryResult = NonNullable<Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>>
-export type GetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetBookingPreviewApiV1BookingsBookingIdPreviewGet<TData = Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError, TData>> & Pick<
+export function useGetBookingPreviewApiV1BookingsBookingIdPreviewGet<
+  TData = Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
           TError,
           Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBookingPreviewApiV1BookingsBookingIdPreviewGet<TData = Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBookingPreviewApiV1BookingsBookingIdPreviewGet<
+  TData = Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
           TError,
           Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBookingPreviewApiV1BookingsBookingIdPreviewGet<TData = Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBookingPreviewApiV1BookingsBookingIdPreviewGet<
+  TData = Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Booking Preview
  */
 
-export function useGetBookingPreviewApiV1BookingsBookingIdPreviewGet<TData = Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetBookingPreviewApiV1BookingsBookingIdPreviewGet<
+  TData = Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingPreviewApiV1BookingsBookingIdPreviewGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryOptions(
+    bookingId,
+    options
+  );
 
-  const queryOptions = getGetBookingPreviewApiV1BookingsBookingIdPreviewGetQueryOptions(bookingId,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Return a pricing preview for the requested booking.
  * @summary Get Booking Pricing
  */
 export const getBookingPricingApiV1BookingsBookingIdPricingGet = (
-    bookingId: string,
-    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams,
- signal?: AbortSignal
+  bookingId: string,
+  params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PricingPreviewOut>({
+    url: `/api/v1/bookings/${bookingId}/pricing`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<PricingPreviewOut>(
-      {url: `/api/v1/bookings/${bookingId}/pricing`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryKey = (bookingId?: string,
-    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams,) => {
-    return [
-    `/api/v1/bookings/${bookingId}/pricing`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryOptions = <TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError = ErrorType<HTTPValidationError>>(bookingId: string,
-    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData>>, }
+export const getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryKey = (
+  bookingId?: string,
+  params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams
 ) => {
+  return [`/api/v1/bookings/${bookingId}/pricing`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryKey(bookingId,params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryKey(bookingId, params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>
+  > = ({ signal }) => getBookingPricingApiV1BookingsBookingIdPricingGet(bookingId, params, signal);
 
+  return { queryKey, queryFn, enabled: !!bookingId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>> = ({ signal }) => getBookingPricingApiV1BookingsBookingIdPricingGet(bookingId,params, signal);
+export type GetBookingPricingApiV1BookingsBookingIdPricingGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>
+>;
+export type GetBookingPricingApiV1BookingsBookingIdPricingGetQueryError =
+  ErrorType<void | HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(bookingId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetBookingPricingApiV1BookingsBookingIdPricingGetQueryResult = NonNullable<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>>
-export type GetBookingPricingApiV1BookingsBookingIdPricingGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string,
-    params: undefined |  GetBookingPricingApiV1BookingsBookingIdPricingGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData>> & Pick<
+export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<
+  TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  params: undefined | GetBookingPricingApiV1BookingsBookingIdPricingGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
           TError,
           Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string,
-    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<
+  TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
           TError,
           Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string,
-    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<
+  TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Booking Pricing
  */
 
-export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string,
-    params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<
+  TData = Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  bookingId: string,
+  params?: GetBookingPricingApiV1BookingsBookingIdPricingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBookingPricingApiV1BookingsBookingIdPricingGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryOptions(
+    bookingId,
+    params,
+    options
+  );
 
-  const queryOptions = getGetBookingPricingApiV1BookingsBookingIdPricingGetQueryOptions(bookingId,params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Reschedule flow (server-orchestrated):
@@ -1249,64 +1755,86 @@ export function useGetBookingPricingApiV1BookingsBookingIdPricingGet<TData = Awa
  * @summary Reschedule Booking
  */
 export const rescheduleBookingApiV1BookingsBookingIdReschedulePost = (
-    bookingId: string,
-    bookingRescheduleRequest: BookingRescheduleRequest,
- signal?: AbortSignal
+  bookingId: string,
+  bookingRescheduleRequest: BookingRescheduleRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookingResponse>({
+    url: `/api/v1/bookings/${bookingId}/reschedule`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bookingRescheduleRequest,
+    signal,
+  });
+};
 
+export const getRescheduleBookingApiV1BookingsBookingIdReschedulePostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>,
+    TError,
+    { bookingId: string; data: BookingRescheduleRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>,
+  TError,
+  { bookingId: string; data: BookingRescheduleRequest },
+  TContext
+> => {
+  const mutationKey = ['rescheduleBookingApiV1BookingsBookingIdReschedulePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<BookingResponse>(
-      {url: `/api/v1/bookings/${bookingId}/reschedule`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: bookingRescheduleRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>,
+    { bookingId: string; data: BookingRescheduleRequest }
+  > = (props) => {
+    const { bookingId, data } = props ?? {};
 
+    return rescheduleBookingApiV1BookingsBookingIdReschedulePost(bookingId, data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getRescheduleBookingApiV1BookingsBookingIdReschedulePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>, TError,{bookingId: string;data: BookingRescheduleRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>, TError,{bookingId: string;data: BookingRescheduleRequest}, TContext> => {
+export type RescheduleBookingApiV1BookingsBookingIdReschedulePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>
+>;
+export type RescheduleBookingApiV1BookingsBookingIdReschedulePostMutationBody =
+  BookingRescheduleRequest;
+export type RescheduleBookingApiV1BookingsBookingIdReschedulePostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['rescheduleBookingApiV1BookingsBookingIdReschedulePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>, {bookingId: string;data: BookingRescheduleRequest}> = (props) => {
-          const {bookingId,data} = props ?? {};
-
-          return  rescheduleBookingApiV1BookingsBookingIdReschedulePost(bookingId,data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type RescheduleBookingApiV1BookingsBookingIdReschedulePostMutationResult = NonNullable<Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>>
-    export type RescheduleBookingApiV1BookingsBookingIdReschedulePostMutationBody = BookingRescheduleRequest
-    export type RescheduleBookingApiV1BookingsBookingIdReschedulePostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Reschedule Booking
  */
-export const useRescheduleBookingApiV1BookingsBookingIdReschedulePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>, TError,{bookingId: string;data: BookingRescheduleRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>,
-        TError,
-        {bookingId: string;data: BookingRescheduleRequest},
-        TContext
-      > => {
+export const useRescheduleBookingApiV1BookingsBookingIdReschedulePost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>,
+      TError,
+      { bookingId: string; data: BookingRescheduleRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof rescheduleBookingApiV1BookingsBookingIdReschedulePost>>,
+  TError,
+  { bookingId: string; data: BookingRescheduleRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getRescheduleBookingApiV1BookingsBookingIdReschedulePostMutationOptions(options);
 
-      const mutationOptions = getRescheduleBookingApiV1BookingsBookingIdReschedulePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
+  return useMutation(mutationOptions, queryClient);
+};

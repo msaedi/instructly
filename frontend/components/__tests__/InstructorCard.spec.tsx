@@ -24,7 +24,15 @@ jest.mock('@/hooks/queries/useFavoriteStatus', () => ({
 }));
 
 jest.mock('@/features/shared/hooks/useAuth', () => ({
-  useAuth: () => ({ user: null }),
+  useAuth: () => ({ user: null, isAuthenticated: false, redirectToLogin: jest.fn() }),
+}));
+
+jest.mock('@/hooks/useCreateConversation', () => ({
+  useCreateConversation: () => ({
+    createConversation: jest.fn(),
+    isCreating: false,
+    error: null,
+  }),
 }));
 
 jest.mock('@/hooks/queries/useRatings', () => ({

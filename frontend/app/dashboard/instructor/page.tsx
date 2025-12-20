@@ -297,9 +297,9 @@ export default function InstructorDashboard() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Recent Reviews</h2>
-            {profile?.id && totalReviews > 0 && (
+            {profile?.user_id && totalReviews > 0 && (
               <Link
-                href={`/instructors/${profile.id}/reviews`}
+                href={`/instructors/${profile.user_id}/reviews`}
                 className="text-sm text-[#7E22CE] hover:underline"
                 onClick={() => logger.debug('Navigating to public reviews view from dashboard')}
               >

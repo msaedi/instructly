@@ -20,13 +20,33 @@ from .audit_log import AuditLog
 from .availability import BlackoutDate
 from .availability_day import AvailabilityDay  # noqa: F401
 from .booking import Booking, BookingStatus
-from .conversation_state import ConversationState
+from .conversation import Conversation
 from .conversation_user_state import ConversationUserState
 from .event_outbox import EventOutbox, EventOutboxStatus, NotificationDelivery
 from .favorite import UserFavorite
 from .instructor import BGCConsent, InstructorPreferredPlace, InstructorProfile
-from .message import Message, MessageNotification
+
+# Location resolution models
+from .location_alias import NYC_CITY_ID, LocationAlias
+from .message import (
+    MESSAGE_TYPE_SYSTEM_BOOKING_CANCELLED,
+    MESSAGE_TYPE_SYSTEM_BOOKING_COMPLETED,
+    MESSAGE_TYPE_SYSTEM_BOOKING_CREATED,
+    MESSAGE_TYPE_SYSTEM_BOOKING_RESCHEDULED,
+    MESSAGE_TYPE_SYSTEM_CONVERSATION_STARTED,
+    MESSAGE_TYPE_USER,
+    Message,
+    MessageNotification,
+)
 from .monitoring import AlertHistory
+
+# NL Search models
+from .nl_search import (
+    PriceThreshold,
+    RegionSettings,
+    SearchClick,
+    SearchQuery,
+)
 from .password_reset import PasswordResetToken
 from .payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from .platform_config import PlatformConfig
@@ -44,6 +64,7 @@ from .search_event import SearchEvent, SearchEventCandidate
 from .search_history import SearchHistory
 from .search_interaction import SearchInteraction
 from .service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
+from .unresolved_location_query import UnresolvedLocationQuery
 from .user import User
 
 __all__ = [
@@ -92,10 +113,17 @@ __all__ = [
     "WalletTransaction",
     "ReferralLimit",
     # Messaging models
+    "Conversation",
     "Message",
     "MessageNotification",
-    "ConversationState",
     "ConversationUserState",
+    # Message type constants
+    "MESSAGE_TYPE_USER",
+    "MESSAGE_TYPE_SYSTEM_BOOKING_CREATED",
+    "MESSAGE_TYPE_SYSTEM_BOOKING_CANCELLED",
+    "MESSAGE_TYPE_SYSTEM_BOOKING_RESCHEDULED",
+    "MESSAGE_TYPE_SYSTEM_BOOKING_COMPLETED",
+    "MESSAGE_TYPE_SYSTEM_CONVERSATION_STARTED",
     # Monitoring models
     "AlertHistory",
     # Address/Spatial models
@@ -103,9 +131,17 @@ __all__ = [
     "NYCNeighborhood",
     "InstructorServiceArea",
     "RegionBoundary",
+    "LocationAlias",
+    "NYC_CITY_ID",
+    "UnresolvedLocationQuery",
     # Search history
     "SearchHistory",
     "SearchEvent",
     "SearchEventCandidate",
     "SearchInteraction",
+    # NL Search models
+    "SearchQuery",
+    "SearchClick",
+    "RegionSettings",
+    "PriceThreshold",
 ]

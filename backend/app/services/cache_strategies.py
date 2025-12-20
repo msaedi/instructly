@@ -8,6 +8,7 @@ data consistency without arbitrary delays.
 
 import asyncio
 from datetime import date, timedelta
+import inspect
 import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
@@ -18,7 +19,7 @@ from ..core.timezone_utils import get_user_today_by_id
 # AvailabilitySlot removed - bitmap-only storage now
 
 if TYPE_CHECKING:
-    from .cache_service import CacheService
+    from .cache_service import CacheService, CacheServiceSyncAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class CacheWarmingStrategy:
 
     def __init__(
         self,
-        cache_service: Optional["CacheService"],
+        cache_service: Optional["CacheService | CacheServiceSyncAdapter"],
         db: Session,
         max_retries: int = 3,
     ) -> None:
@@ -41,6 +42,12 @@ class CacheWarmingStrategy:
         self.db = db
         self.max_retries = max_retries
         self.logger = logging.getLogger(__name__)
+
+    async def _maybe_await(self, value: Any) -> Any:
+        """Await value when it is awaitable; otherwise return it unchanged."""
+        if inspect.isawaitable(value):
+            return await value
+        return value
 
     async def warm_with_verification(
         self, instructor_id: str, week_start: date, expected_window_count: Optional[int] = None
@@ -80,7 +87,7 @@ class CacheWarmingStrategy:
                 actual_count = sum(len(slots) for slots in fresh_data.values())
                 if actual_count == expected_window_count:
                     # Data is fresh! Cache it and return
-                    self._write_week_cache_bundle(
+                    await self._write_week_cache_bundle(
                         instructor_id,
                         week_start,
                         fresh_data,
@@ -94,7 +101,7 @@ class CacheWarmingStrategy:
                     )
             else:
                 # No verification needed, just cache and return
-                self._write_week_cache_bundle(
+                await self._write_week_cache_bundle(
                     instructor_id,
                     week_start,
                     fresh_data,
@@ -111,7 +118,7 @@ class CacheWarmingStrategy:
         # Cache what we have anyway
         if last_result:
             cached_map, _ = last_result
-            self._write_week_cache_bundle(
+            await self._write_week_cache_bundle(
                 instructor_id,
                 week_start,
                 cached_map,
@@ -137,7 +144,7 @@ class CacheWarmingStrategy:
             expected_window_count=expected_window_count,
         )
 
-    def _write_week_cache_bundle(
+    async def _write_week_cache_bundle(
         self,
         instructor_id: str,
         week_start: date,
@@ -159,8 +166,12 @@ class CacheWarmingStrategy:
             "slots": [],  # slots removed - bitmap-only storage now
             "_metadata": [],
         }
-        self.cache_service.set_json(composite_key, payload, ttl=ttl_seconds)
-        self.cache_service.set_json(map_key, payload["map"], ttl=ttl_seconds)
+        await self._maybe_await(
+            self.cache_service.set_json(composite_key, payload, ttl=ttl_seconds)
+        )
+        await self._maybe_await(
+            self.cache_service.set_json(map_key, payload["map"], ttl=ttl_seconds)
+        )
 
     def _week_cache_ttl_seconds(self, instructor_id: str, week_start: date) -> int:
         assert self.cache_service is not None
@@ -181,7 +192,9 @@ class CacheWarmingStrategy:
         """
         # First, invalidate all affected caches
         if self.cache_service:
-            self.cache_service.invalidate_instructor_availability(instructor_id, dates)
+            await self._maybe_await(
+                self.cache_service.invalidate_instructor_availability(instructor_id, dates)
+            )
 
         # Group dates by week for efficient warming
         weeks_to_warm = set()
@@ -212,6 +225,12 @@ class ReadThroughCache:
         self.db = db
         self.logger = logging.getLogger(__name__)
 
+    async def _maybe_await(self, value: Any) -> Any:
+        """Await value when it is awaitable; otherwise return it unchanged."""
+        if inspect.isawaitable(value):
+            return await value
+        return value
+
     async def get_week_availability(
         self, instructor_id: str, week_start: date, force_refresh: bool = False
     ) -> Dict[str, Any]:
@@ -224,7 +243,7 @@ class ReadThroughCache:
 
         # Check cache first (unless forced refresh)
         if not force_refresh and self.cache_service:
-            cached_data_raw = self.cache_service.get(cache_key)
+            cached_data_raw = await self._maybe_await(self.cache_service.get(cache_key))
             if isinstance(cached_data_raw, dict):
                 cached_data = cast(Dict[str, Any], cached_data_raw)
                 self.logger.debug(f"Cache hit for {cache_key}")
@@ -241,7 +260,9 @@ class ReadThroughCache:
 
         # Update cache with fresh data
         if self.cache_service:
-            self.cache_service.cache_week_availability(instructor_id, week_start, fresh_data)
+            await self._maybe_await(
+                self.cache_service.cache_week_availability(instructor_id, week_start, fresh_data)
+            )
             self.logger.debug(f"Cache updated for {cache_key}")
 
         return fresh_data

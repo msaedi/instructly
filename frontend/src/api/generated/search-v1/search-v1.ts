@@ -5,134 +5,1172 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
   HTTPValidationError,
-  InstructorSearchResponse,
-  SearchInstructorsApiV1SearchInstructorsGetParams
+  LogSearchClickApiV1SearchClickPostBody,
+  LogSearchClickApiV1SearchClickPostParams,
+  NLSearchResponse,
+  NlSearchApiV1SearchGetParams,
+  PopularQueriesApiV1SearchAnalyticsPopularGetParams,
+  PopularQueriesResponse,
+  SearchClickResponse,
+  SearchConfigResetResponse,
+  SearchConfigResponse,
+  SearchConfigUpdate,
+  SearchHealthResponse,
+  SearchMetricsApiV1SearchAnalyticsMetricsGetParams,
+  SearchMetricsResponse,
+  ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetParams,
+  ZeroResultQueriesResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
 
-
-
-
 /**
- * Search for instructors using natural language queries.
+ * Natural language search for instructors and services.
+
+Full pipeline search that combines:
+- Query parsing (regex + LLM)
+- Semantic embedding
+- Hybrid vector + text retrieval
+- Constraint filtering (price, location, availability)
+- Multi-signal ranking
 
 Supports queries like:
-- "piano lessons under $50"
-- "math tutor near me"
-- "online yoga classes"
-- "SAT prep this weekend"
+- "piano lessons in brooklyn"
+- "cheap guitar lessons tomorrow"
+- "math tutoring for kids after 5pm"
 
 Args:
-    q: The search query string
-    limit: Maximum number of results to return (1-100, default 20)
+    q: Natural language search query
+    lat: User latitude (optional, must provide with lng)
+    lng: User longitude (optional, must provide with lat)
+    region: Region code for location and price threshold lookups (default: nyc)
+    limit: Maximum results to return (1-50, default 20)
+    response: FastAPI response object for headers
     db: Database session
+    cache_service: Cache service for result caching
 
 Returns:
-    Search results with instructors, services, and metadata
- * @summary Search Instructors
+    Search results with ranked instructors and full metadata
+ * @summary Nl Search
  */
-export const searchInstructorsApiV1SearchInstructorsGet = (
-    params: SearchInstructorsApiV1SearchInstructorsGetParams,
- signal?: AbortSignal
+export const nlSearchApiV1SearchGet = (
+  params: NlSearchApiV1SearchGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<NLSearchResponse>({ url: `/api/v1/search`, method: 'GET', params, signal });
+};
 
+export const getNlSearchApiV1SearchGetQueryKey = (params?: NlSearchApiV1SearchGetParams) => {
+  return [`/api/v1/search`, ...(params ? [params] : [])] as const;
+};
 
-      return customFetch<InstructorSearchResponse>(
-      {url: `/api/v1/search/instructors`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getSearchInstructorsApiV1SearchInstructorsGetQueryKey = (params?: SearchInstructorsApiV1SearchInstructorsGetParams,) => {
-    return [
-    `/api/v1/search/instructors`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getSearchInstructorsApiV1SearchInstructorsGetQueryOptions = <TData = Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError = ErrorType<HTTPValidationError>>(params: SearchInstructorsApiV1SearchInstructorsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError, TData>>, }
+export const getNlSearchApiV1SearchGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: NlSearchApiV1SearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>, TError, TData>
+    >;
+  }
 ) => {
+  const { query: queryOptions } = options ?? {};
 
-const {query: queryOptions} = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getNlSearchApiV1SearchGetQueryKey(params);
 
-  const queryKey =  queryOptions?.queryKey ?? getSearchInstructorsApiV1SearchInstructorsGetQueryKey(params);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>> = ({ signal }) =>
+    nlSearchApiV1SearchGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type NlSearchApiV1SearchGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>
+>;
+export type NlSearchApiV1SearchGetQueryError = ErrorType<HTTPValidationError>;
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>> = ({ signal }) => searchInstructorsApiV1SearchInstructorsGet(params, signal);
+export function useNlSearchApiV1SearchGet<
+  TData = Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: NlSearchApiV1SearchGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>,
+          TError,
+          Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useNlSearchApiV1SearchGet<
+  TData = Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: NlSearchApiV1SearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>,
+          TError,
+          Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useNlSearchApiV1SearchGet<
+  TData = Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: NlSearchApiV1SearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Nl Search
+ */
 
+export function useNlSearchApiV1SearchGet<
+  TData = Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: NlSearchApiV1SearchGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof nlSearchApiV1SearchGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getNlSearchApiV1SearchGetQueryOptions(params, options);
 
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
+  query.queryKey = queryOptions.queryKey;
 
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+  return query;
 }
 
-export type SearchInstructorsApiV1SearchInstructorsGetQueryResult = NonNullable<Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>>
-export type SearchInstructorsApiV1SearchInstructorsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useSearchInstructorsApiV1SearchInstructorsGet<TData = Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: SearchInstructorsApiV1SearchInstructorsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>,
-          TError,
-          Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useSearchInstructorsApiV1SearchInstructorsGet<TData = Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: SearchInstructorsApiV1SearchInstructorsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>,
-          TError,
-          Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useSearchInstructorsApiV1SearchInstructorsGet<TData = Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: SearchInstructorsApiV1SearchInstructorsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Search Instructors
+ * Get aggregate search metrics for the last N days. Requires admin access.
+
+Returns metrics including:
+- Total searches
+- Average latency (p50, p95)
+- Average results per search
+- Zero result rate
+- Cache hit rate
+- Degradation rate
+ * @summary Search Metrics
+ */
+export const searchMetricsApiV1SearchAnalyticsMetricsGet = (
+  params?: SearchMetricsApiV1SearchAnalyticsMetricsGetParams,
+  signal?: AbortSignal
+) => {
+  return customFetch<SearchMetricsResponse>({
+    url: `/api/v1/search/analytics/metrics`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
+
+export const getSearchMetricsApiV1SearchAnalyticsMetricsGetQueryKey = (
+  params?: SearchMetricsApiV1SearchAnalyticsMetricsGetParams
+) => {
+  return [`/api/v1/search/analytics/metrics`, ...(params ? [params] : [])] as const;
+};
+
+export const getSearchMetricsApiV1SearchAnalyticsMetricsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: SearchMetricsApiV1SearchAnalyticsMetricsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getSearchMetricsApiV1SearchAnalyticsMetricsGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>
+  > = ({ signal }) => searchMetricsApiV1SearchAnalyticsMetricsGet(params, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type SearchMetricsApiV1SearchAnalyticsMetricsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>
+>;
+export type SearchMetricsApiV1SearchAnalyticsMetricsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useSearchMetricsApiV1SearchAnalyticsMetricsGet<
+  TData = Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | SearchMetricsApiV1SearchAnalyticsMetricsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+          TError,
+          Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchMetricsApiV1SearchAnalyticsMetricsGet<
+  TData = Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: SearchMetricsApiV1SearchAnalyticsMetricsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+          TError,
+          Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchMetricsApiV1SearchAnalyticsMetricsGet<
+  TData = Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: SearchMetricsApiV1SearchAnalyticsMetricsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Search Metrics
  */
 
-export function useSearchInstructorsApiV1SearchInstructorsGet<TData = Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: SearchInstructorsApiV1SearchInstructorsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchInstructorsApiV1SearchInstructorsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useSearchMetricsApiV1SearchAnalyticsMetricsGet<
+  TData = Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: SearchMetricsApiV1SearchAnalyticsMetricsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof searchMetricsApiV1SearchAnalyticsMetricsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getSearchMetricsApiV1SearchAnalyticsMetricsGetQueryOptions(params, options);
 
-  const queryOptions = getSearchInstructorsApiV1SearchInstructorsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+  query.queryKey = queryOptions.queryKey;
 
-  query.queryKey = queryOptions.queryKey ;
+  return query;
+}
+
+/**
+ * Get most popular search queries. Requires admin access.
+ * @summary Popular Queries
+ */
+export const popularQueriesApiV1SearchAnalyticsPopularGet = (
+  params?: PopularQueriesApiV1SearchAnalyticsPopularGetParams,
+  signal?: AbortSignal
+) => {
+  return customFetch<PopularQueriesResponse>({
+    url: `/api/v1/search/analytics/popular`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
+
+export const getPopularQueriesApiV1SearchAnalyticsPopularGetQueryKey = (
+  params?: PopularQueriesApiV1SearchAnalyticsPopularGetParams
+) => {
+  return [`/api/v1/search/analytics/popular`, ...(params ? [params] : [])] as const;
+};
+
+export const getPopularQueriesApiV1SearchAnalyticsPopularGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: PopularQueriesApiV1SearchAnalyticsPopularGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getPopularQueriesApiV1SearchAnalyticsPopularGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>
+  > = ({ signal }) => popularQueriesApiV1SearchAnalyticsPopularGet(params, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type PopularQueriesApiV1SearchAnalyticsPopularGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>
+>;
+export type PopularQueriesApiV1SearchAnalyticsPopularGetQueryError = ErrorType<HTTPValidationError>;
+
+export function usePopularQueriesApiV1SearchAnalyticsPopularGet<
+  TData = Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | PopularQueriesApiV1SearchAnalyticsPopularGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+          TError,
+          Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function usePopularQueriesApiV1SearchAnalyticsPopularGet<
+  TData = Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: PopularQueriesApiV1SearchAnalyticsPopularGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+          TError,
+          Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function usePopularQueriesApiV1SearchAnalyticsPopularGet<
+  TData = Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: PopularQueriesApiV1SearchAnalyticsPopularGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Popular Queries
+ */
+
+export function usePopularQueriesApiV1SearchAnalyticsPopularGet<
+  TData = Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: PopularQueriesApiV1SearchAnalyticsPopularGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof popularQueriesApiV1SearchAnalyticsPopularGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getPopularQueriesApiV1SearchAnalyticsPopularGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+/**
+ * Get queries that returned zero results. Requires admin access.
+ * @summary Zero Result Queries
+ */
+export const zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet = (
+  params?: ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetParams,
+  signal?: AbortSignal
+) => {
+  return customFetch<ZeroResultQueriesResponse>({
+    url: `/api/v1/search/analytics/zero-results`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
+
+export const getZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetQueryKey = (
+  params?: ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetParams
+) => {
+  return [`/api/v1/search/analytics/zero-results`, ...(params ? [params] : [])] as const;
+};
+
+export const getZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>
+  > = ({ signal }) => zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet(params, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>
+>;
+export type ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useZeroResultQueriesApiV1SearchAnalyticsZeroResultsGet<
+  TData = Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+          TError,
+          Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useZeroResultQueriesApiV1SearchAnalyticsZeroResultsGet<
+  TData = Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+          TError,
+          Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useZeroResultQueriesApiV1SearchAnalyticsZeroResultsGet<
+  TData = Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Zero Result Queries
+ */
+
+export function useZeroResultQueriesApiV1SearchAnalyticsZeroResultsGet<
+  TData = Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof zeroResultQueriesApiV1SearchAnalyticsZeroResultsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getZeroResultQueriesApiV1SearchAnalyticsZeroResultsGetQueryOptions(
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+/**
+ * Log a click on a search result for conversion tracking.
+
+Call this endpoint when a user interacts with a search result.
+Authentication is optional (best-effort).
+ * @summary Log Search Click
+ */
+export const logSearchClickApiV1SearchClickPost = (
+  logSearchClickApiV1SearchClickPostBody: LogSearchClickApiV1SearchClickPostBody,
+  params?: LogSearchClickApiV1SearchClickPostParams,
+  signal?: AbortSignal
+) => {
+  return customFetch<SearchClickResponse>({
+    url: `/api/v1/search/click`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: logSearchClickApiV1SearchClickPostBody,
+    params,
+    signal,
+  });
+};
+
+export const getLogSearchClickApiV1SearchClickPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof logSearchClickApiV1SearchClickPost>>,
+    TError,
+    {
+      data: LogSearchClickApiV1SearchClickPostBody;
+      params?: LogSearchClickApiV1SearchClickPostParams;
+    },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof logSearchClickApiV1SearchClickPost>>,
+  TError,
+  {
+    data: LogSearchClickApiV1SearchClickPostBody;
+    params?: LogSearchClickApiV1SearchClickPostParams;
+  },
+  TContext
+> => {
+  const mutationKey = ['logSearchClickApiV1SearchClickPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof logSearchClickApiV1SearchClickPost>>,
+    {
+      data: LogSearchClickApiV1SearchClickPostBody;
+      params?: LogSearchClickApiV1SearchClickPostParams;
+    }
+  > = (props) => {
+    const { data, params } = props ?? {};
+
+    return logSearchClickApiV1SearchClickPost(data, params);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LogSearchClickApiV1SearchClickPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof logSearchClickApiV1SearchClickPost>>
+>;
+export type LogSearchClickApiV1SearchClickPostMutationBody = LogSearchClickApiV1SearchClickPostBody;
+export type LogSearchClickApiV1SearchClickPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Log Search Click
+ */
+export const useLogSearchClickApiV1SearchClickPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof logSearchClickApiV1SearchClickPost>>,
+      TError,
+      {
+        data: LogSearchClickApiV1SearchClickPostBody;
+        params?: LogSearchClickApiV1SearchClickPostParams;
+      },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof logSearchClickApiV1SearchClickPost>>,
+  TError,
+  {
+    data: LogSearchClickApiV1SearchClickPostBody;
+    params?: LogSearchClickApiV1SearchClickPostParams;
+  },
+  TContext
+> => {
+  const mutationOptions = getLogSearchClickApiV1SearchClickPostMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+/**
+ * Get current NL search configuration. Requires admin access.
+
+Returns the currently active models and timeouts along with
+available options for the admin UI.
+ * @summary Get Config
+ */
+export const getConfigApiV1SearchConfigGet = (signal?: AbortSignal) => {
+  return customFetch<SearchConfigResponse>({ url: `/api/v1/search/config`, method: 'GET', signal });
+};
+
+export const getGetConfigApiV1SearchConfigGetQueryKey = () => {
+  return [`/api/v1/search/config`] as const;
+};
+
+export const getGetConfigApiV1SearchConfigGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>, TError, TData>
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetConfigApiV1SearchConfigGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>> = ({
+    signal,
+  }) => getConfigApiV1SearchConfigGet(signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetConfigApiV1SearchConfigGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>
+>;
+export type GetConfigApiV1SearchConfigGetQueryError = ErrorType<unknown>;
+
+export function useGetConfigApiV1SearchConfigGet<
+  TData = Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>,
+          TError,
+          Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetConfigApiV1SearchConfigGet<
+  TData = Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>,
+          TError,
+          Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetConfigApiV1SearchConfigGet<
+  TData = Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Config
+ */
+
+export function useGetConfigApiV1SearchConfigGet<
+  TData = Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getConfigApiV1SearchConfigGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetConfigApiV1SearchConfigGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+/**
+ * Update NL search configuration at runtime. Requires admin access.
+
+Changes are temporary (not persisted to environment).
+Useful for testing different models without redeployment.
+Server restart will revert to environment defaults.
+
+Note: Embedding model cannot be changed at runtime as it requires
+re-generating all embeddings in the database.
+ * @summary Update Config
+ */
+export const updateConfigApiV1SearchConfigPut = (searchConfigUpdate: SearchConfigUpdate) => {
+  return customFetch<SearchConfigResponse>({
+    url: `/api/v1/search/config`,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    data: searchConfigUpdate,
+  });
+};
+
+export const getUpdateConfigApiV1SearchConfigPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateConfigApiV1SearchConfigPut>>,
+    TError,
+    { data: SearchConfigUpdate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateConfigApiV1SearchConfigPut>>,
+  TError,
+  { data: SearchConfigUpdate },
+  TContext
+> => {
+  const mutationKey = ['updateConfigApiV1SearchConfigPut'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateConfigApiV1SearchConfigPut>>,
+    { data: SearchConfigUpdate }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateConfigApiV1SearchConfigPut(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateConfigApiV1SearchConfigPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateConfigApiV1SearchConfigPut>>
+>;
+export type UpdateConfigApiV1SearchConfigPutMutationBody = SearchConfigUpdate;
+export type UpdateConfigApiV1SearchConfigPutMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Config
+ */
+export const useUpdateConfigApiV1SearchConfigPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateConfigApiV1SearchConfigPut>>,
+      TError,
+      { data: SearchConfigUpdate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateConfigApiV1SearchConfigPut>>,
+  TError,
+  { data: SearchConfigUpdate },
+  TContext
+> => {
+  const mutationOptions = getUpdateConfigApiV1SearchConfigPutMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+/**
+ * Reset NL search configuration to environment defaults. Requires admin access.
+
+Use this to revert any runtime changes made via PUT /config.
+ * @summary Reset Config
+ */
+export const resetConfigApiV1SearchConfigResetPost = (signal?: AbortSignal) => {
+  return customFetch<SearchConfigResetResponse>({
+    url: `/api/v1/search/config/reset`,
+    method: 'POST',
+    signal,
+  });
+};
+
+export const getResetConfigApiV1SearchConfigResetPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetConfigApiV1SearchConfigResetPost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resetConfigApiV1SearchConfigResetPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['resetConfigApiV1SearchConfigResetPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resetConfigApiV1SearchConfigResetPost>>,
+    void
+  > = () => {
+    return resetConfigApiV1SearchConfigResetPost();
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResetConfigApiV1SearchConfigResetPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resetConfigApiV1SearchConfigResetPost>>
+>;
+
+export type ResetConfigApiV1SearchConfigResetPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reset Config
+ */
+export const useResetConfigApiV1SearchConfigResetPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof resetConfigApiV1SearchConfigResetPost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof resetConfigApiV1SearchConfigResetPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions = getResetConfigApiV1SearchConfigResetPostMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+/**
+ * Health check for search service components.
+
+Returns status of:
+- Cache service availability
+- Parsing circuit breaker state
+- Embedding circuit breaker state
+
+Returns:
+    Health status with component details
+ * @summary Search Health
+ */
+export const searchHealthApiV1SearchHealthGet = (signal?: AbortSignal) => {
+  return customFetch<SearchHealthResponse>({ url: `/api/v1/search/health`, method: 'GET', signal });
+};
+
+export const getSearchHealthApiV1SearchHealthGetQueryKey = () => {
+  return [`/api/v1/search/health`] as const;
+};
+
+export const getSearchHealthApiV1SearchHealthGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>, TError, TData>
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getSearchHealthApiV1SearchHealthGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>> = ({
+    signal,
+  }) => searchHealthApiV1SearchHealthGet(signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type SearchHealthApiV1SearchHealthGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>
+>;
+export type SearchHealthApiV1SearchHealthGetQueryError = ErrorType<unknown>;
+
+export function useSearchHealthApiV1SearchHealthGet<
+  TData = Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>,
+          TError,
+          Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchHealthApiV1SearchHealthGet<
+  TData = Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>,
+          TError,
+          Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSearchHealthApiV1SearchHealthGet<
+  TData = Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Search Health
+ */
+
+export function useSearchHealthApiV1SearchHealthGet<
+  TData = Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof searchHealthApiV1SearchHealthGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getSearchHealthApiV1SearchHealthGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

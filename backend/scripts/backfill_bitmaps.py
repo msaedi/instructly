@@ -12,7 +12,7 @@ import argparse
 from datetime import date, timedelta
 import logging
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -32,6 +32,8 @@ def backfill_bitmaps_range(session: Session, days: int) -> Dict[str, int]:
     Copy the current week's bitmap backward to cover the requested number of days.
 
     Returns a mapping of instructor_id -> days backfilled.
+
+    Optimized version: uses bulk_upsert_all for single database round-trip.
     """
 
     days = max(0, days)
@@ -46,33 +48,82 @@ def backfill_bitmaps_range(session: Session, days: int) -> Dict[str, int]:
     user_repo = RepositoryFactory.create_user_repository(session)
     instructor_ids = user_repo.list_instructor_ids()
 
+    if not instructor_ids:
+        return {}
+
+    # Pre-load all source weeks for all instructors in one query
+    current_week_end = current_monday + timedelta(days=6)
+    earliest_target_monday = current_monday - timedelta(weeks=weeks_needed)
+
+    from app.models.availability_day import AvailabilityDay
+
+    # Load all bitmap data from earliest target to current week end
+    all_bitmap_rows = (
+        session.query(
+            AvailabilityDay.instructor_id,
+            AvailabilityDay.day_date,
+            AvailabilityDay.bits
+        )
+        .filter(
+            AvailabilityDay.instructor_id.in_(instructor_ids),
+            AvailabilityDay.day_date >= earliest_target_monday,
+            AvailabilityDay.day_date <= current_week_end,
+        )
+        .all()
+    )
+
+    # Build lookup: {instructor_id: {date: bits}}
+    bitmap_by_instructor: Dict[str, Dict[date, bytes]] = {}
+    for instructor_id, day_date, bits in all_bitmap_rows:
+        if instructor_id not in bitmap_by_instructor:
+            bitmap_by_instructor[instructor_id] = {}
+        if bits is not None:
+            bitmap_by_instructor[instructor_id][day_date] = bits
+
+    # Collect ALL items for bulk upsert
+    all_items: List[Tuple[str, date, bytes]] = []
     stats: Dict[str, int] = {}
 
     for instructor_id in instructor_ids:
-        source_week = repo.get_week(instructor_id, current_monday)
+        instructor_bitmaps = bitmap_by_instructor.get(instructor_id, {})
+
+        # Check if source week exists
+        source_week = {}
+        for day_offset in range(7):
+            src_day = current_monday + timedelta(days=day_offset)
+            if src_day in instructor_bitmaps:
+                source_week[src_day] = instructor_bitmaps[src_day]
+
         if not source_week:
             continue
 
         backfilled_days = 0
         for week_offset in range(1, weeks_needed + 1):
             target_monday = current_monday - timedelta(weeks=week_offset)
-            existing_week = repo.get_week(instructor_id, target_monday)
 
-            if existing_week and len(existing_week) == 7 and all(existing_week.values()):
+            # Check existing coverage from pre-loaded data
+            existing_count = 0
+            for day_offset in range(7):
+                target_day = target_monday + timedelta(days=day_offset)
+                if target_day in instructor_bitmaps and instructor_bitmaps[target_day]:
+                    existing_count += 1
+
+            if existing_count == 7:
                 continue
 
-            items = []
             for day_offset in range(7):
                 src_day = current_monday + timedelta(days=day_offset)
                 dst_day = target_monday + timedelta(days=day_offset)
                 bits = source_week.get(src_day) or bytes(6)
-                items.append((dst_day, bits))
-
-            written = repo.upsert_week(instructor_id, items)
-            backfilled_days += written
+                all_items.append((instructor_id, dst_day, bits))
+                backfilled_days += 1
 
         if backfilled_days:
             stats[instructor_id] = backfilled_days
+
+    # Single native PostgreSQL UPSERT for all data (1 statement)
+    if all_items:
+        repo.bulk_upsert_native(all_items)
 
     return stats
 

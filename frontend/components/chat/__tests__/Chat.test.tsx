@@ -1,25 +1,18 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Chat } from '../Chat';
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
+import type { ConversationMessage } from '@/types/conversation';
 
-const mockUseMessageHistory = jest.fn();
-const mockUseSendMessage = jest.fn();
+const mockUseConversationMessages = jest.fn();
 const mockUseMarkMessagesAsRead = jest.fn();
 const mockUseEditMessage = jest.fn();
 const mockUseDeleteMessage = jest.fn();
 const mockUseAddReaction = jest.fn();
 const mockUseRemoveReaction = jest.fn();
-const mockUseSendTypingIndicator = jest.fn();
+const mockUseSendConversationMessage = jest.fn();
+const mockUseSendConversationTyping = jest.fn();
 const mockUseMessageStream = jest.fn();
-
-// Mock useQueryClient from react-query
-jest.mock('@tanstack/react-query', () => ({
-  ...jest.requireActual('@tanstack/react-query'),
-  useQueryClient: () => ({
-    invalidateQueries: jest.fn(),
-  }),
-}));
 
 // Mock UserMessageStreamProvider (Phase 4: per-user SSE)
 jest.mock('@/providers/UserMessageStreamProvider', () => ({
@@ -33,14 +26,17 @@ jest.mock('@/src/api/services/messages', () => ({
     isLoading: false,
     error: null,
   }),
-  useMessageHistory: (...args: unknown[]) => mockUseMessageHistory(...args),
-  useSendMessage: (...args: unknown[]) => mockUseSendMessage(...args),
+  useConversationMessages: (...args: unknown[]) => mockUseConversationMessages(...args),
   useMarkMessagesAsRead: (...args: unknown[]) => mockUseMarkMessagesAsRead(...args),
   useEditMessage: (...args: unknown[]) => mockUseEditMessage(...args),
   useDeleteMessage: (...args: unknown[]) => mockUseDeleteMessage(...args),
   useAddReaction: (...args: unknown[]) => mockUseAddReaction(...args),
   useRemoveReaction: (...args: unknown[]) => mockUseRemoveReaction(...args),
-  useSendTypingIndicator: (...args: unknown[]) => mockUseSendTypingIndicator(...args),
+}));
+
+jest.mock('@/src/api/services/conversations', () => ({
+  useSendConversationMessage: (...args: unknown[]) => mockUseSendConversationMessage(...args),
+  useSendConversationTyping: (...args: unknown[]) => mockUseSendConversationTyping(...args),
 }));
 
 // Mock queryKeys
@@ -49,42 +45,44 @@ jest.mock('@/src/api/queryKeys', () => ({
     messages: {
       config: ['messages', 'config'],
       unreadCount: ['messages', 'unread-count'],
-      history: (bookingId: string) => ['messages', 'history', bookingId, {}],
+      conversationMessages: (conversationId: string) => ['messages', 'conversation', conversationId, {}],
     },
   },
 }));
 
 const baseProps = {
+  conversationId: 'conversation-123',
   bookingId: 'booking-123',
   currentUserId: 'user-1',
   currentUserName: 'Instructor A',
   otherUserName: 'Student A',
 };
 
-const defaultHistoryResponse = (messages: MessageResponse[] = []) => ({
+const defaultHistoryResponse = (messages: ConversationMessage[] = []) => ({
   data: {
-    booking_id: baseProps.bookingId,
     messages,
-    limit: messages.length,
-    offset: 0,
     has_more: false,
+    next_cursor: null,
   },
   isLoading: false,
   error: null,
 });
 
-const buildMessage = (id: string, overrides: Partial<MessageResponse> = {}): MessageResponse => ({
+const buildMessage = (id: string, overrides: Partial<ConversationMessage> = {}): ConversationMessage => ({
   id,
-  booking_id: baseProps.bookingId,
-  sender_id: overrides.sender_id ?? 'student-1',
+  conversation_id: baseProps.conversationId,
   content: overrides.content ?? 'Hello!',
+  sender_id: overrides.sender_id ?? 'student-1',
+  is_from_me: overrides.is_from_me ?? false,
+  message_type: overrides.message_type ?? 'user',
+  booking_id: overrides.booking_id ?? baseProps.bookingId,
+  booking_details: overrides.booking_details ?? null,
   created_at: overrides.created_at ?? new Date('2024-01-01T00:00:00Z').toISOString(),
-  updated_at: overrides.updated_at ?? new Date('2024-01-01T00:00:00Z').toISOString(),
+  edited_at: overrides.edited_at ?? null,
   is_deleted: overrides.is_deleted ?? false,
-  read_by: overrides.read_by,
-  delivered_at: overrides.delivered_at,
-  edited_at: overrides.edited_at,
-  sender: overrides.sender,
+  delivered_at: overrides.delivered_at ?? null,
+  read_by: overrides.read_by ?? [],
+  reactions: overrides.reactions ?? [],
 });
 
 beforeAll(() => {
@@ -94,18 +92,20 @@ beforeAll(() => {
 describe('Chat mark-as-read behavior', () => {
   let markMessagesAsReadMutate: jest.Mock;
   let historyResponse: ReturnType<typeof defaultHistoryResponse>;
+  let queryClient: QueryClient;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    queryClient = new QueryClient();
 
-    mockUseSendMessage.mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+    mockUseSendConversationMessage.mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+    mockUseSendConversationTyping.mockReturnValue({ mutate: jest.fn() });
     markMessagesAsReadMutate = jest.fn();
     mockUseMarkMessagesAsRead.mockImplementation(() => ({ mutate: markMessagesAsReadMutate }));
     mockUseEditMessage.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseDeleteMessage.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseAddReaction.mockReturnValue({ mutateAsync: jest.fn() });
     mockUseRemoveReaction.mockReturnValue({ mutateAsync: jest.fn() });
-    mockUseSendTypingIndicator.mockReturnValue({ mutate: jest.fn() });
     mockUseMessageStream.mockReturnValue({
       isConnected: true,
       connectionError: null,
@@ -113,10 +113,10 @@ describe('Chat mark-as-read behavior', () => {
     });
 
     historyResponse = defaultHistoryResponse();
-    mockUseMessageHistory.mockImplementation(() => historyResponse);
+    mockUseConversationMessages.mockImplementation(() => historyResponse);
   });
 
-  const setHistoryMessages = (messages: MessageResponse[]) => {
+  const setHistoryMessages = (messages: ConversationMessage[]) => {
     historyResponse = defaultHistoryResponse(messages);
   };
 
@@ -126,7 +126,11 @@ describe('Chat mark-as-read behavior', () => {
     });
     setHistoryMessages([readMessage]);
 
-    render(<Chat {...baseProps} />);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => expect(markMessagesAsReadMutate).not.toHaveBeenCalled());
   });
@@ -135,11 +139,19 @@ describe('Chat mark-as-read behavior', () => {
     const unreadMessage = buildMessage('msg-unread', { read_by: [] });
     setHistoryMessages([unreadMessage]);
 
-    const { rerender } = render(<Chat {...baseProps} />);
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => expect(markMessagesAsReadMutate).toHaveBeenCalledTimes(1));
 
-    rerender(<Chat {...baseProps} otherUserName="Student B" />);
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} otherUserName="Student B" />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => expect(markMessagesAsReadMutate).toHaveBeenCalledTimes(1));
   });
@@ -147,7 +159,11 @@ describe('Chat mark-as-read behavior', () => {
   it('marks messages again when a newer unread message appears', async () => {
     setHistoryMessages([buildMessage('msg-one', { read_by: [] })]);
 
-    const { rerender } = render(<Chat {...baseProps} />);
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => expect(markMessagesAsReadMutate).toHaveBeenCalledTimes(1));
 
@@ -162,7 +178,11 @@ describe('Chat mark-as-read behavior', () => {
       }),
     ]);
 
-    rerender(<Chat {...baseProps} />);
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <Chat {...baseProps} />
+      </QueryClientProvider>
+    );
 
     await waitFor(() => expect(markMessagesAsReadMutate).toHaveBeenCalledTimes(2));
   });

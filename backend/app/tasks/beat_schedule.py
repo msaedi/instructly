@@ -151,6 +151,16 @@ CELERYBEAT_SCHEDULE = {
         },
         # Note: Calculate hourly search metrics and engagement
     },
+    # Self-learning: promote unresolved location queries into trusted aliases
+    "learn-location-aliases": {
+        "task": "app.tasks.location_learning.process_location_learning",
+        "schedule": crontab(hour=3, minute=10),  # Daily at 3:10 AM
+        "kwargs": {"limit": 500},
+        "options": {
+            "queue": "analytics",
+            "priority": 3,
+        },
+    },
     # ==================== PAYMENT PROCESSING TASKS ====================
     # Process scheduled authorizations - runs every 30 minutes
     "process-scheduled-authorizations": {
@@ -212,6 +222,17 @@ CELERYBEAT_SCHEDULE = {
             "priority": 3,
         },
         # Note: Generate weekly search behavior insights
+    },
+    # ==================== EMBEDDING MAINTENANCE ====================
+    # Maintain service embeddings - runs every hour
+    "maintain-service-embeddings": {
+        "task": "maintain_service_embeddings",
+        "schedule": crontab(minute=30),  # Every hour at :30
+        "options": {
+            "queue": "analytics",
+            "priority": 3,
+        },
+        # Note: Update embeddings for new/changed services
     },
     # Finalize pending badges daily (after quality holds expire)
     "badges-finalize-pending": {

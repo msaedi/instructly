@@ -7,6 +7,7 @@ Migrated from /api/instructors/{instructor_id}/bgc to /api/v1/instructors/{instr
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, cast
@@ -194,7 +195,10 @@ def _is_package_not_found_error(err: CheckrError) -> bool:
 
 
 def _is_work_location_error(err: CheckrError) -> bool:
-    if err.status_code not in {status.HTTP_400_BAD_REQUEST, status.HTTP_422_UNPROCESSABLE_ENTITY}:
+    if err.status_code not in {
+        status.HTTP_400_BAD_REQUEST,
+        getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
+    }:
         return False
     body = getattr(err, "error_body", None)
     needles = ("work_location", "work_locations")
@@ -221,7 +225,7 @@ def _get_instructor_profile(
 
 def _ensure_owner_or_admin(user: User, instructor_user_id: str) -> None:
     is_owner = user.id == instructor_user_id
-    is_admin = any(getattr(role, "name", "") == "admin" for role in user.roles)
+    is_admin = user.is_admin
     if not (is_owner or is_admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
@@ -374,7 +378,8 @@ async def trigger_background_check_invite(
     )
 
     try:
-        invite_result = await background_check_service.invite(
+        invite_result = await asyncio.to_thread(
+            background_check_service.invite,
             instructor_id,
             package_override=payload.package_slug,
         )
@@ -664,7 +669,7 @@ async def trigger_background_check_recheck(
         )
 
     try:
-        invite_result = await background_check_service.invite(instructor_id)
+        invite_result = await asyncio.to_thread(background_check_service.invite, instructor_id)
     except ServiceException as exc:
         if exc.code == "invalid_work_location":
             details = exc.details if isinstance(exc.details, dict) else {}

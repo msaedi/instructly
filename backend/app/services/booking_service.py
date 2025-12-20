@@ -22,7 +22,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 from zoneinfo import ZoneInfo
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 import stripe
 
@@ -32,8 +32,10 @@ from ..core.exceptions import (
     BookingConflictException,
     BusinessRuleException,
     NotFoundException,
+    RepositoryException,
     ValidationException,
 )
+from ..events import BookingCancelled, BookingCreated, BookingReminder, EventPublisher
 from ..models.audit_log import AuditLog
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
@@ -41,13 +43,16 @@ from ..models.service_catalog import InstructorService
 from ..models.user import User
 from ..repositories.availability_day_repository import AvailabilityDayRepository
 from ..repositories.factory import RepositoryFactory
+from ..repositories.job_repository import JobRepository
 from ..schemas.booking import BookingCreate, BookingUpdate
 from .audit_redaction import redact
 from .base import BaseService
+from .cache_service import CacheService, CacheServiceSyncAdapter
 from .config_service import ConfigService
 from .notification_service import NotificationService
 from .pricing_service import PricingService
 from .student_credit_service import StudentCreditService
+from .system_message_service import SystemMessageService
 
 if TYPE_CHECKING:
     # AvailabilitySlot removed - bitmap-only storage now
@@ -56,7 +61,7 @@ if TYPE_CHECKING:
     from ..repositories.booking_repository import BookingRepository
     from ..repositories.conflict_checker_repository import ConflictCheckerRepository
     from ..repositories.event_outbox_repository import EventOutboxRepository
-    from .cache_service import CacheService
+    from ..schemas.booking import PaymentSummary
 
 logger = logging.getLogger(__name__)
 
@@ -79,18 +84,30 @@ class BookingService(BaseService):
     repository: "BookingRepository"
     availability_repository: "AvailabilityRepository"
     conflict_checker_repository: "ConflictCheckerRepository"
-    cache_service: Optional["CacheService"]
+    cache_service: Optional[CacheServiceSyncAdapter]
     notification_service: NotificationService
     event_outbox_repository: "EventOutboxRepository"
     audit_repository: "AuditRepository"
+    event_publisher: EventPublisher
+
+    @staticmethod
+    def _is_deadlock_error(exc: OperationalError) -> bool:
+        orig = getattr(exc, "orig", None)
+        pgcode = getattr(orig, "pgcode", None) or getattr(orig, "sqlstate", None)
+        if pgcode == "40P01":
+            return True
+        message = str(exc).lower()
+        return "deadlock detected" in message
 
     def __init__(
         self,
         db: Session,
         notification_service: Optional[NotificationService] = None,
+        event_publisher: Optional[EventPublisher] = None,
         repository: Optional["BookingRepository"] = None,
         conflict_checker_repository: Optional["ConflictCheckerRepository"] = None,
-        cache_service: Optional["CacheService"] = None,
+        cache_service: Optional[CacheService | CacheServiceSyncAdapter] = None,
+        system_message_service: Optional[SystemMessageService] = None,
     ):
         """
         Initialize booking service.
@@ -98,24 +115,34 @@ class BookingService(BaseService):
         Args:
             db: Database session
             notification_service: Optional notification service instance
+            event_publisher: Optional event publisher for async side effects
             repository: Optional BookingRepository instance
             conflict_checker_repository: Optional ConflictCheckerRepository instance
             cache_service: Optional cache service for invalidation
+            system_message_service: Optional system message service for conversation messages
         """
-        super().__init__(db, cache=cache_service)
+        cache_impl = cache_service
+        cache_adapter: Optional[CacheServiceSyncAdapter] = None
+        if isinstance(cache_impl, CacheServiceSyncAdapter):
+            cache_adapter = cache_impl
+        elif isinstance(cache_impl, CacheService):
+            cache_adapter = CacheServiceSyncAdapter(cache_impl)
+        super().__init__(db, cache=cache_adapter)
         self.notification_service = notification_service or NotificationService(db)
+        self.event_publisher = event_publisher or EventPublisher(JobRepository(db))
+        self.system_message_service = system_message_service or SystemMessageService(db)
         # Pass cache_service to BookingRepository for caching support
         if repository:
             self.repository = repository
         else:
             from ..repositories.booking_repository import BookingRepository
 
-            self.repository = BookingRepository(db, cache_service=cache_service)
+            self.repository = BookingRepository(db, cache_service=cache_adapter)
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
         self.conflict_checker_repository = (
             conflict_checker_repository or RepositoryFactory.create_conflict_checker_repository(db)
         )
-        self.cache_service = cache_service
+        self.cache_service = cache_adapter
         self.service_area_repository = RepositoryFactory.create_instructor_service_area_repository(
             db
         )
@@ -402,8 +429,27 @@ class BookingService(BaseService):
 
         return GENERIC_CONFLICT_MESSAGE, None
 
+    def _raise_conflict_from_repo_error(
+        self,
+        exc: RepositoryException,
+        booking_data: BookingCreate,
+        student_id: Optional[str],
+    ) -> None:
+        """
+        Translate repository-level deadlocks into booking conflicts so callers
+        receive a deterministic error instead of a generic RepositoryException.
+        """
+        message = str(exc).lower()
+        if "deadlock detected" in message or "exclusion constraint" in message:
+            conflict_details = self._build_conflict_details(booking_data, student_id)
+            raise BookingConflictException(
+                message=GENERIC_CONFLICT_MESSAGE,
+                details=conflict_details,
+            ) from exc
+        raise exc
+
     @BaseService.measure_operation("create_booking")
-    async def create_booking(
+    def create_booking(
         self, student: User, booking_data: BookingCreate, selected_duration: int
     ) -> Booking:
         """
@@ -434,9 +480,7 @@ class BookingService(BaseService):
         )
 
         # 1. Validate and load required data
-        service, instructor_profile = await self._validate_booking_prerequisites(
-            student, booking_data
-        )
+        service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
 
         # 2. Validate selected duration (strict for new bookings)
         if selected_duration not in service.duration_options:
@@ -456,13 +500,13 @@ class BookingService(BaseService):
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
         # 5. Check conflicts and apply business rules
-        await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
+        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
         # 6. Create the booking with transaction
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
-                booking = await self._create_booking_record(
+                booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
                 self._enqueue_booking_outbox_event(booking, "booking.created")
@@ -484,14 +528,24 @@ class BookingService(BaseService):
                 message=message,
                 details=conflict_details,
             ) from exc
+        except OperationalError as exc:
+            if self._is_deadlock_error(exc):
+                conflict_details = self._build_conflict_details(booking_data, student.id)
+                raise BookingConflictException(
+                    message=GENERIC_CONFLICT_MESSAGE,
+                    details=conflict_details,
+                ) from exc
+            raise
+        except RepositoryException as exc:
+            self._raise_conflict_from_repo_error(exc, booking_data, student.id)
 
         # 7. Handle post-creation tasks
-        await self._handle_post_booking_tasks(booking)
+        self._handle_post_booking_tasks(booking)
 
         return booking
 
     @BaseService.measure_operation("create_booking_with_payment_setup")
-    async def create_booking_with_payment_setup(
+    def create_booking_with_payment_setup(
         self,
         student: User,
         booking_data: BookingCreate,
@@ -524,9 +578,7 @@ class BookingService(BaseService):
         )
 
         # 1. Validate and load required data
-        service, instructor_profile = await self._validate_booking_prerequisites(
-            student, booking_data
-        )
+        service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
 
         # 2. Validate selected duration
         if selected_duration not in service.duration_options:
@@ -546,13 +598,13 @@ class BookingService(BaseService):
         self._validate_against_availability_bits(booking_data, instructor_profile)
 
         # 5. Check conflicts and apply business rules
-        await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
+        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
         # 6. Create booking with PENDING status initially
         transactional_repo = cast(Any, self.repository)
         try:
             with transactional_repo.transaction():
-                booking = await self._create_booking_record(
+                booking = self._create_booking_record(
                     student, booking_data, service, instructor_profile, selected_duration
                 )
 
@@ -649,12 +701,22 @@ class BookingService(BaseService):
                 message=message,
                 details=conflict_details,
             ) from exc
+        except OperationalError as exc:
+            if self._is_deadlock_error(exc):
+                conflict_details = self._build_conflict_details(booking_data, student.id)
+                raise BookingConflictException(
+                    message=GENERIC_CONFLICT_MESSAGE,
+                    details=conflict_details,
+                ) from exc
+            raise
+        except RepositoryException as exc:
+            self._raise_conflict_from_repo_error(exc, booking_data, student.id)
 
         self.log_operation("create_booking_with_payment_setup_completed", booking_id=booking.id)
         return booking
 
     @BaseService.measure_operation("confirm_booking_payment")
-    async def confirm_booking_payment(
+    def confirm_booking_payment(
         self,
         booking_id: str,
         student: User,
@@ -690,12 +752,10 @@ class BookingService(BaseService):
             raise NotFoundException(f"Booking {booking_id} not found")
 
         if booking.student_id != student.id:
-            raise ValidationException("You can only confirm payment for your own bookings")
+            raise NotFoundException("Booking not found")
 
         if booking.status != BookingStatus.PENDING:
-            raise ValidationException(
-                f"Cannot confirm payment for booking with status {booking.status}"
-            )
+            raise NotFoundException("Booking not found")
 
         with self.transaction():
             # Save payment method
@@ -765,6 +825,48 @@ class BookingService(BaseService):
             booking_id=booking.id,
             payment_status=booking.payment_status,
         )
+
+        # Create system message in conversation
+        try:
+            service_name = "Lesson"
+            if booking.instructor_service and booking.instructor_service.name:
+                service_name = booking.instructor_service.name
+
+            # Check if this is a rescheduled booking
+            if booking.rescheduled_from_booking_id:
+                old_booking = self.repository.get_by_id(booking.rescheduled_from_booking_id)
+                if old_booking:
+                    self.system_message_service.create_booking_rescheduled_message(
+                        student_id=booking.student_id,
+                        instructor_id=booking.instructor_id,
+                        booking_id=booking.id,
+                        old_date=old_booking.booking_date,
+                        old_time=old_booking.start_time,
+                        new_date=booking.booking_date,
+                        new_time=booking.start_time,
+                    )
+                else:
+                    # Old booking not found, create as new booking
+                    self.system_message_service.create_booking_created_message(
+                        student_id=booking.student_id,
+                        instructor_id=booking.instructor_id,
+                        booking_id=booking.id,
+                        service_name=service_name,
+                        booking_date=booking.booking_date,
+                        start_time=booking.start_time,
+                    )
+            else:
+                self.system_message_service.create_booking_created_message(
+                    student_id=booking.student_id,
+                    instructor_id=booking.instructor_id,
+                    booking_id=booking.id,
+                    service_name=service_name,
+                    booking_date=booking.booking_date,
+                    start_time=booking.start_time,
+                )
+        except Exception as e:
+            logger.error(f"Failed to create system message for booking {booking.id}: {str(e)}")
+
         # Invalidate caches so upcoming lists include the newly confirmed booking
         try:
             self._invalidate_booking_caches(booking)
@@ -773,7 +875,7 @@ class BookingService(BaseService):
         return booking
 
     @BaseService.measure_operation("find_booking_opportunities")
-    async def find_booking_opportunities(
+    def find_booking_opportunities(
         self,
         instructor_id: str,
         target_date: date,
@@ -803,11 +905,11 @@ class BookingService(BaseService):
             latest_time = time(21, 0)
 
         # Get availability data
-        availability_windows = await self._get_instructor_availability_windows(
+        availability_windows = self._get_instructor_availability_windows(
             instructor_id, target_date, earliest_time, latest_time
         )
 
-        existing_bookings = await self._get_existing_bookings_for_date(
+        existing_bookings = self._get_existing_bookings_for_date(
             instructor_id, target_date, earliest_time, latest_time
         )
 
@@ -825,9 +927,7 @@ class BookingService(BaseService):
         return opportunities
 
     @BaseService.measure_operation("cancel_booking")
-    async def cancel_booking(
-        self, booking_id: str, user: User, reason: Optional[str] = None
-    ) -> Booking:
+    def cancel_booking(self, booking_id: str, user: User, reason: Optional[str] = None) -> Booking:
         """
         Cancel a booking.
 
@@ -971,19 +1071,29 @@ class BookingService(BaseService):
                     )
                     booking.payment_status = "capture_not_possible"
                 else:
-                    capture = stripe_service.capture_payment_intent(
-                        booking.payment_intent_id,
-                        idempotency_key=f"capture_late_cancel_{booking.id}",
-                    )
-                    payment_repo.create_payment_event(
-                        booking_id=booking.id,
-                        event_type="captured_last_minute_cancel",
-                        event_data={
-                            "payment_intent_id": booking.payment_intent_id,
-                            "amount": capture.get("amount_received"),
-                        },
-                    )
-                    booking.payment_status = "captured"
+                    try:
+                        capture = stripe_service.capture_payment_intent(
+                            booking.payment_intent_id,
+                            idempotency_key=f"capture_late_cancel_{booking.id}",
+                        )
+                        payment_repo.create_payment_event(
+                            booking_id=booking.id,
+                            event_type="captured_last_minute_cancel",
+                            event_data={
+                                "payment_intent_id": booking.payment_intent_id,
+                                "amount": capture.get("amount_received"),
+                            },
+                        )
+                        booking.payment_status = "captured"
+                    except Exception as e:
+                        # Best-effort capture; do not block cancellation if PI is invalid/missing
+                        logger.warning(f"Capture not performed for booking {booking.id}: {e}")
+                        payment_repo.create_payment_event(
+                            booking_id=booking.id,
+                            event_type="capture_failed_last_minute_cancel",
+                            event_data={"payment_intent_id": booking.payment_intent_id},
+                        )
+                        booking.payment_status = "capture_failed"
 
             # Cancel the booking
             booking.cancel(user.id, reason)
@@ -998,13 +1108,35 @@ class BookingService(BaseService):
                 default_role=default_role,
             )
 
-        # Send notifications
+        cancelled_by_role = "student" if user.id == booking.student_id else "instructor"
+
+        # Publish cancellation event
         try:
-            await self.notification_service.send_cancellation_notification(
-                booking=booking, cancelled_by=user, reason=reason
+            self.event_publisher.publish(
+                BookingCancelled(
+                    booking_id=booking.id,
+                    cancelled_by=cancelled_by_role,
+                    cancelled_at=booking.cancelled_at or datetime.now(timezone.utc),
+                    refund_amount=None,
+                )
             )
         except Exception as e:
-            logger.error(f"Failed to send cancellation notification: {str(e)}")
+            logger.error(f"Failed to send cancellation notification event: {str(e)}")
+
+        # Create system message in conversation
+        try:
+            self.system_message_service.create_booking_cancelled_message(
+                student_id=booking.student_id,
+                instructor_id=booking.instructor_id,
+                booking_id=booking.id,
+                booking_date=booking.booking_date,
+                start_time=booking.start_time,
+                cancelled_by=cancelled_by_role,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to create cancellation system message for booking {booking.id}: {str(e)}"
+            )
 
         # Invalidate caches
         self._invalidate_booking_caches(booking)
@@ -1292,7 +1424,180 @@ class BookingService(BaseService):
                 exc,
             )
 
+        # Create system message in conversation
+        try:
+            service_name = None
+            if refreshed_booking.instructor_service and refreshed_booking.instructor_service.name:
+                service_name = refreshed_booking.instructor_service.name
+
+            self.system_message_service.create_booking_completed_message(
+                student_id=refreshed_booking.student_id,
+                instructor_id=refreshed_booking.instructor_id,
+                booking_id=refreshed_booking.id,
+                booking_date=refreshed_booking.booking_date,
+                service_name=service_name,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to create completion system message for booking {booking_id}: {str(e)}"
+            )
+
         return refreshed_booking
+
+    @BaseService.measure_operation("instructor_mark_complete")
+    def instructor_mark_complete(
+        self,
+        booking_id: str,
+        instructor: User,
+        notes: Optional[str] = None,
+    ) -> Booking:
+        """
+        Mark a lesson as completed by the instructor with payment tracking.
+
+        This triggers the 24-hour payment capture timer. The payment will be
+        captured 24 hours after completion, giving the student time to dispute.
+
+        Args:
+            booking_id: ID of the booking to complete
+            instructor: The instructor marking completion
+            notes: Optional completion notes
+
+        Returns:
+            Updated booking
+
+        Raises:
+            NotFoundException: If booking not found
+            ValidationException: If not the instructor's booking
+            BusinessRuleException: If booking cannot be completed
+        """
+        from ..repositories.payment_repository import PaymentRepository
+        from ..services.badge_award_service import BadgeAwardService
+
+        payment_repo = PaymentRepository(self.db)
+
+        with self.transaction():
+            booking = self.repository.get_by_id(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if booking.instructor_id != instructor.id:
+                raise ValidationException("You can only mark your own lessons as complete")
+
+            if booking.status != BookingStatus.CONFIRMED:
+                raise BusinessRuleException(
+                    f"Cannot mark booking as complete. Current status: {booking.status}"
+                )
+
+            # Verify lesson has ended
+            now = datetime.now(timezone.utc)
+            lesson_end = datetime.combine(booking.booking_date, booking.end_time)
+            if lesson_end > now:
+                raise BusinessRuleException("Cannot mark lesson as complete before it ends")
+
+            # Mark as completed
+            booking.status = BookingStatus.COMPLETED
+            booking.completed_at = now
+            if notes:
+                booking.instructor_note = notes
+
+            # Record payment completion event
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="instructor_marked_complete",
+                event_data={
+                    "instructor_id": instructor.id,
+                    "completed_at": now.isoformat(),
+                    "notes": notes,
+                    "payment_capture_scheduled_for": (now + timedelta(hours=24)).isoformat(),
+                },
+            )
+
+            # Trigger badge checks
+            badge_service = BadgeAwardService(self.db)
+            booked_at = booking.confirmed_at or booking.created_at or now
+            category_slug = None
+            try:
+                instructor_service = booking.instructor_service
+                if instructor_service and instructor_service.catalog_entry:
+                    category = instructor_service.catalog_entry.category
+                    if category:
+                        category_slug = category.slug
+            except AttributeError:
+                category_slug = None
+
+            badge_service.check_and_award_on_lesson_completed(
+                student_id=booking.student_id,
+                lesson_id=booking.id,
+                instructor_id=booking.instructor_id,
+                category_slug=category_slug,
+                booked_at_utc=booked_at,
+                completed_at_utc=now,
+            )
+
+        # Reload for fresh state after commit
+        refreshed = self.repository.get_by_id(booking_id)
+        if refreshed is None:
+            raise NotFoundException("Booking not found after completion")
+        return refreshed
+
+    @BaseService.measure_operation("instructor_dispute_completion")
+    def instructor_dispute_completion(
+        self,
+        booking_id: str,
+        instructor: User,
+        reason: str,
+    ) -> Booking:
+        """
+        Dispute a lesson completion as an instructor.
+
+        Used when a student marks a lesson as complete but the instructor disagrees.
+        This pauses payment capture pending resolution.
+
+        Args:
+            booking_id: ID of the booking to dispute
+            instructor: The instructor disputing
+            reason: Reason for the dispute
+
+        Returns:
+            Updated booking
+
+        Raises:
+            NotFoundException: If booking not found
+            ValidationException: If not the instructor's booking
+        """
+        from ..repositories.payment_repository import PaymentRepository
+
+        payment_repo = PaymentRepository(self.db)
+
+        with self.transaction():
+            booking = self.repository.get_by_id(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if booking.instructor_id != instructor.id:
+                raise ValidationException("You can only dispute your own lessons")
+
+            # Record dispute event
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="completion_disputed",
+                event_data={
+                    "disputed_by": instructor.id,
+                    "reason": reason,
+                    "disputed_at": datetime.now(timezone.utc).isoformat(),
+                    "payment_capture_paused": True,
+                },
+            )
+
+            # Update payment status to prevent capture
+            if booking.payment_status == "authorized":
+                booking.payment_status = "disputed"
+
+        # Reload for fresh state after commit
+        refreshed = self.repository.get_by_id(booking_id)
+        if refreshed is None:
+            raise NotFoundException("Booking not found after dispute")
+        return refreshed
 
     @BaseService.measure_operation("mark_no_show")
     def mark_no_show(self, booking_id: str, instructor: User) -> Booking:
@@ -1364,7 +1669,7 @@ class BookingService(BaseService):
         return refreshed_booking
 
     @BaseService.measure_operation("check_availability")
-    async def check_availability(
+    def check_availability(
         self,
         instructor_id: str,
         booking_date: date,
@@ -1434,7 +1739,7 @@ class BookingService(BaseService):
         }
 
     @BaseService.measure_operation("send_booking_reminders")
-    async def send_booking_reminders(self) -> int:
+    def send_booking_reminders(self) -> int:
         """
         Send 24-hour reminder emails for tomorrow's bookings.
 
@@ -1487,17 +1792,22 @@ class BookingService(BaseService):
             ):
                 continue
             try:
-                # Send reminder for this specific booking
-                reminder_count = await self.notification_service._send_booking_reminders([booking])
-                sent_count += reminder_count
+                # Queue reminder event for this specific booking
+                self.event_publisher.publish(
+                    BookingReminder(
+                        booking_id=booking.id,
+                        reminder_type="24h",
+                    )
+                )
+                sent_count += 1
             except Exception as e:
-                logger.error(f"Error sending reminder for booking {booking.id}: {str(e)}")
+                logger.error(f"Error queueing reminder for booking {booking.id}: {str(e)}")
 
         return sent_count
 
     # Private helper methods for create_booking refactoring
 
-    async def _validate_booking_prerequisites(
+    def _validate_booking_prerequisites(
         self, student: User, booking_data: BookingCreate
     ) -> Tuple[InstructorService, InstructorProfile]:
         """
@@ -1561,7 +1871,7 @@ class BookingService(BaseService):
 
         return service, instructor_profile
 
-    async def _check_conflicts_and_rules(
+    def _check_conflicts_and_rules(
         self,
         booking_data: BookingCreate,
         service: InstructorService,
@@ -1661,7 +1971,7 @@ class BookingService(BaseService):
                     f"Bookings must be made at least {min_advance_hours} hours in advance"
                 )
 
-    async def _create_booking_record(
+    def _create_booking_record(
         self,
         student: User,
         booking_data: BookingCreate,
@@ -1745,25 +2055,66 @@ class BookingService(BaseService):
             return ", ".join(sorted_boroughs)
         return f"{sorted_boroughs[0]} + {len(sorted_boroughs) - 1} more"
 
-    async def _handle_post_booking_tasks(self, booking: Booking) -> None:
+    def _handle_post_booking_tasks(
+        self, booking: Booking, is_reschedule: bool = False, old_booking: Optional[Booking] = None
+    ) -> None:
         """
-        Handle notifications and cache invalidation after booking creation.
+        Handle notifications, system messages, and cache invalidation after booking creation.
 
         Args:
             booking: The created booking
+            is_reschedule: Whether this is a rescheduled booking
+            old_booking: The original booking if this is a reschedule
         """
-        # Send notifications
+        # Publish async notification event
         try:
-            await self.notification_service.send_booking_confirmation(booking)
+            self.event_publisher.publish(
+                BookingCreated(
+                    booking_id=booking.id,
+                    student_id=booking.student_id,
+                    instructor_id=booking.instructor_id,
+                    created_at=booking.created_at or datetime.now(timezone.utc),
+                )
+            )
         except Exception as e:
-            logger.error(f"Failed to send booking confirmation: {str(e)}")
+            logger.error(f"Failed to enqueue booking confirmation event: {str(e)}")
+
+        # Create system message in conversation
+        try:
+            service_name = "Lesson"
+            if booking.instructor_service and booking.instructor_service.name:
+                service_name = booking.instructor_service.name
+
+            if is_reschedule and old_booking:
+                # Create rescheduled message
+                self.system_message_service.create_booking_rescheduled_message(
+                    student_id=booking.student_id,
+                    instructor_id=booking.instructor_id,
+                    booking_id=booking.id,
+                    old_date=old_booking.booking_date,
+                    old_time=old_booking.start_time,
+                    new_date=booking.booking_date,
+                    new_time=booking.start_time,
+                )
+            else:
+                # Create booking created message
+                self.system_message_service.create_booking_created_message(
+                    student_id=booking.student_id,
+                    instructor_id=booking.instructor_id,
+                    booking_id=booking.id,
+                    service_name=service_name,
+                    booking_date=booking.booking_date,
+                    start_time=booking.start_time,
+                )
+        except Exception as e:
+            logger.error(f"Failed to create system message for booking {booking.id}: {str(e)}")
 
         # Invalidate relevant caches
         self._invalidate_booking_caches(booking)
 
     # Private helper methods for find_booking_opportunities refactoring
 
-    async def _get_instructor_availability_windows(
+    def _get_instructor_availability_windows(
         self,
         instructor_id: str,
         target_date: date,
@@ -1815,7 +2166,7 @@ class BookingService(BaseService):
             )
         return result
 
-    async def _get_existing_bookings_for_date(
+    def _get_existing_bookings_for_date(
         self,
         instructor_id: str,
         target_date: date,
@@ -1952,7 +2303,7 @@ class BookingService(BaseService):
 
     # Existing private helper methods
 
-    async def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
+    def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
         """Apply business rules for cancellation."""
         # Check cancellation deadline using user's timezone
         from app.core.timezone_utils import get_user_timezone
@@ -2058,3 +2409,192 @@ class BookingService(BaseService):
                 )
             except Exception as e:
                 logger.warning(f"Failed to invalidate BookingRepository caches: {e}")
+
+    # =========================================================================
+    # Methods for route layer (no direct DB/repo access needed in routes)
+    # =========================================================================
+
+    @BaseService.measure_operation("get_booking_pricing_preview")
+    def get_booking_pricing_preview(
+        self,
+        booking_id: str,
+        current_user_id: str,
+        applied_credit_cents: int = 0,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get pricing preview for a booking.
+
+        Args:
+            booking_id: Booking ULID
+            current_user_id: Current user's ID (for access control)
+            applied_credit_cents: Credits to apply
+
+        Returns:
+            Dict with pricing data or None if booking not found/access denied
+        """
+        from ..schemas.pricing_preview import PricingPreviewData
+        from ..services.pricing_service import PricingService
+
+        booking = self.repository.get_by_id(booking_id)
+        if not booking:
+            return None
+
+        # Access control
+        allowed_participants = {booking.student_id, booking.instructor_id}
+        if current_user_id not in allowed_participants:
+            logger.warning(
+                "pricing_preview.forbidden",
+                extra={
+                    "booking_id": booking_id,
+                    "requested_by": current_user_id,
+                },
+            )
+            return {"error": "access_denied"}
+
+        pricing_service = PricingService(self.db)
+        pricing_data: PricingPreviewData = pricing_service.compute_booking_pricing(
+            booking_id,
+            applied_credit_cents,
+            False,
+        )
+        return dict(pricing_data)
+
+    @BaseService.measure_operation("get_booking_with_payment_summary")
+    def get_booking_with_payment_summary(
+        self,
+        booking_id: str,
+        user: "User",
+    ) -> Optional[tuple["Booking", Optional["PaymentSummary"]]]:
+        """
+        Get booking with payment summary for student.
+
+        Args:
+            booking_id: Booking ULID
+            user: Current user (for access control and payment summary)
+
+        Returns:
+            Tuple of (booking, payment_summary) or None if not found
+        """
+        from ..repositories.factory import RepositoryFactory
+        from ..repositories.review_repository import ReviewTipRepository
+        from ..services.config_service import ConfigService
+        from ..services.payment_summary_service import build_student_payment_summary
+
+        booking = self.get_booking_for_user(booking_id, user)
+        if not booking:
+            return None
+
+        payment_summary: Optional[PaymentSummary] = None
+        if booking.student_id == user.id:
+            config_service = ConfigService(self.db)
+            pricing_config, _ = config_service.get_pricing_config()
+            payment_repo = RepositoryFactory.create_payment_repository(self.db)
+            tip_repo = ReviewTipRepository(self.db)
+            payment_summary = build_student_payment_summary(
+                booking=booking,
+                pricing_config=pricing_config,
+                payment_repo=payment_repo,
+                review_tip_repo=tip_repo,
+            )
+
+        return (booking, payment_summary)
+
+    @BaseService.measure_operation("check_student_time_conflict")
+    def check_student_time_conflict(
+        self,
+        student_id: str,
+        booking_date: "date",
+        start_time: "time",
+        end_time: "time",
+        exclude_booking_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Check if student has a conflicting booking at the given time.
+
+        Args:
+            student_id: Student ULID
+            booking_date: Date to check
+            start_time: Start time
+            end_time: End time
+            exclude_booking_id: Optional booking to exclude from check
+
+        Returns:
+            True if there's a conflict, False otherwise
+        """
+        try:
+            conflicting = self.repository.check_student_time_conflict(
+                student_id=student_id,
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                exclude_booking_id=exclude_booking_id,
+            )
+            return bool(conflicting)
+        except Exception:
+            return False
+
+    @BaseService.measure_operation("validate_reschedule_payment_method")
+    def validate_reschedule_payment_method(
+        self,
+        user_id: str,
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Validate that user has a valid payment method for rescheduling.
+
+        Args:
+            user_id: User ULID
+
+        Returns:
+            Tuple of (has_valid_method, stripe_payment_method_id)
+        """
+        from ..services.config_service import ConfigService as _ConfigService
+        from ..services.pricing_service import PricingService as _PricingService
+        from ..services.stripe_service import StripeService as _StripeService
+
+        config_service = _ConfigService(self.db)
+        pricing_service = _PricingService(self.db)
+        stripe_service = _StripeService(
+            self.db,
+            config_service=config_service,
+            pricing_service=pricing_service,
+        )
+
+        default_pm = stripe_service.payment_repository.get_default_payment_method(user_id)
+        if not default_pm or not default_pm.stripe_payment_method_id:
+            return False, None
+
+        return True, default_pm.stripe_payment_method_id
+
+    @BaseService.measure_operation("abort_pending_booking")
+    def abort_pending_booking(self, booking_id: str) -> bool:
+        """
+        Abort a pending booking (used when reschedule payment confirmation fails).
+
+        Only aborts bookings in pending_payment status.
+
+        Args:
+            booking_id: Booking ULID to abort
+
+        Returns:
+            True if aborted, False otherwise
+        """
+        try:
+            booking = self.repository.get_by_id(booking_id)
+            if not booking:
+                return False
+
+            # Only abort pending bookings
+            if booking.status != BookingStatus.PENDING:
+                logger.warning(
+                    f"Cannot abort booking {booking_id} - status is {booking.status}, not pending_payment"
+                )
+                return False
+
+            with self.transaction():
+                self.repository.delete(booking.id)
+
+            logger.info(f"Aborted pending booking {booking_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to abort pending booking {booking_id}: {e}")
+            return False

@@ -7,11 +7,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models.monitoring import AlertHistory
+from ..repositories.alerts_repository import AlertsRepository
 from ..schemas.alert_responses import (
     AlertDetail,
     AlertSummaryResponse,
@@ -37,23 +36,23 @@ def verify_api_key(x_api_key: str = Header(...)) -> str:
     return x_api_key
 
 
+def get_alerts_repository(db: Session = Depends(get_db)) -> AlertsRepository:
+    """Get an instance of the alerts repository."""
+    return AlertsRepository(db)
+
+
 @router.get("/recent", response_model=RecentAlertsResponse)
 def get_recent_alerts(
     hours: int = Query(24, description="Get alerts from last N hours"),
     limit: int = Query(50, description="Maximum number of alerts to return"),
     severity: Optional[str] = Query(None, description="Filter by severity"),
-    db: Session = Depends(get_db),
+    repository: AlertsRepository = Depends(get_alerts_repository),
     _: str = Depends(verify_api_key),
 ) -> RecentAlertsResponse:
     """Get recent alerts from the database."""
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-    query = db.query(AlertHistory).filter(AlertHistory.created_at >= since)
-
-    if severity:
-        query = query.filter(AlertHistory.severity == severity.lower())
-
-    alerts = query.order_by(desc(AlertHistory.created_at)).limit(limit).all()
+    alerts = repository.get_recent_alerts(since, limit, severity)
 
     return RecentAlertsResponse(
         total=len(alerts),
@@ -78,27 +77,17 @@ def get_recent_alerts(
 @router.get("/summary", response_model=AlertSummaryResponse)
 def get_alert_summary(
     days: int = Query(7, description="Number of days to summarize"),
-    db: Session = Depends(get_db),
+    repository: AlertsRepository = Depends(get_alerts_repository),
     _: str = Depends(verify_api_key),
 ) -> AlertSummaryResponse:
     """Get alert summary statistics."""
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Get counts by type
-    type_counts = (
-        db.query(AlertHistory.alert_type, func.count(AlertHistory.id).label("count"))
-        .filter(AlertHistory.created_at >= since)
-        .group_by(AlertHistory.alert_type)
-        .all()
-    )
+    type_counts = repository.get_type_counts(since)
 
     # Get counts by severity
-    severity_counts = (
-        db.query(AlertHistory.severity, func.count(AlertHistory.id).label("count"))
-        .filter(AlertHistory.created_at >= since)
-        .group_by(AlertHistory.severity)
-        .all()
-    )
+    severity_counts = repository.get_severity_counts(since)
 
     # Get daily counts
     daily_alerts = []
@@ -108,12 +97,7 @@ def get_alert_summary(
         )
         day_end = day_start + timedelta(days=1)
 
-        count = (
-            db.query(AlertHistory)
-            .filter(AlertHistory.created_at >= day_start)
-            .filter(AlertHistory.created_at < day_end)
-            .count()
-        )
+        count = repository.count_alerts_in_range(day_start, day_end)
 
         daily_alerts.append(
             {
@@ -124,28 +108,23 @@ def get_alert_summary(
 
     return AlertSummaryResponse(
         days=days,
-        by_type={alert_type: count for alert_type, count in type_counts},
-        by_severity={severity: count for severity, count in severity_counts},
+        by_type={tc.alert_type: tc.count for tc in type_counts},
+        by_severity={sc.severity: sc.count for sc in severity_counts},
         by_day=[DailyAlertCount(**alert) for alert in daily_alerts],
-        total=sum(count for _, count in type_counts),
+        total=sum(tc.count for tc in type_counts),
     )
 
 
 @router.get("/live", response_model=LiveAlertsResponse)
 def get_live_alerts(
     minutes: int = Query(5, description="Get alerts from last N minutes"),
-    db: Session = Depends(get_db),
+    repository: AlertsRepository = Depends(get_alerts_repository),
     _: str = Depends(verify_api_key),
 ) -> LiveAlertsResponse:
     """Get very recent alerts (similar to live view)."""
     since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
 
-    alerts = (
-        db.query(AlertHistory)
-        .filter(AlertHistory.created_at >= since)
-        .order_by(desc(AlertHistory.created_at))
-        .all()
-    )
+    alerts = repository.get_live_alerts(since)
 
     return LiveAlertsResponse(
         minutes=minutes,

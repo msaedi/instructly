@@ -9,18 +9,18 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback, type KeyboardEvent, Fragment } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ArrowLeft, Bell, MessageSquare, ChevronDown, Undo2 } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import {
-  useSendTypingIndicator,
   useAddReaction,
   useRemoveReaction,
   useEditMessage,
   useDeleteMessage,
   useMessageConfig,
 } from '@/src/api/services/messages';
+import { sendTypingIndicator as sendConversationTypingIndicator } from '@/src/api/services/conversations';
 import { useAuthStatus } from '@/hooks/queries/useAuth';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import { logger } from '@/lib/logger';
@@ -71,10 +71,14 @@ function getFiltersForDisplay(
 
 export default function MessagesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user: currentUser, isLoading: isLoadingUser } = useAuthStatus();
 
+  // Read conversation ID from URL parameter (for deep linking from MessageInstructorButton)
+  const conversationFromUrl = searchParams.get('conversation');
+
   // Core UI state
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [selectedChat, setSelectedChat] = useState<string | null>(conversationFromUrl);
   const [messageText, setMessageText] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -163,6 +167,19 @@ export default function MessagesPage() {
   // Track if selection was intentionally cleared (archive/trash) to prevent auto-select
   const intentionallyClearedRef = useRef(false);
 
+  // Handle conversation selection from URL parameter (deep linking)
+  useEffect(() => {
+    if (conversationFromUrl && conversations.length > 0) {
+      // Check if the conversation exists in the current list
+      const conversationExists = conversations.some((c) => c.id === conversationFromUrl);
+      if (conversationExists) {
+        setSelectedChat(conversationFromUrl);
+        // Ensure we're in inbox view to see the conversation
+        setMessageDisplay('inbox');
+      }
+    }
+  }, [conversationFromUrl, conversations]);
+
   useEffect(() => {
     if (conversations) {
       const currentIds = new Set(conversations.map((c) => c.id));
@@ -185,28 +202,28 @@ export default function MessagesPage() {
   }, [conversations, invalidateConversationCache]);
 
   // Backend-powered archive/trash handlers
-  const handleArchiveConversation = useCallback((bookingId: string) => {
+  const handleArchiveConversation = useCallback((conversationId: string) => {
     // If archiving the currently selected conversation, clear selection
-    if (selectedChat === bookingId) {
+    if (selectedChat === conversationId) {
       intentionallyClearedRef.current = true;
       setSelectedChat(null);
     }
-    updateStateMutation.mutate({ bookingId, state: 'archived' });
+    updateStateMutation.mutate({ conversationId, state: 'archived' });
   }, [updateStateMutation, selectedChat]);
 
-  const handleDeleteConversation = useCallback((bookingId: string) => {
+  const handleDeleteConversation = useCallback((conversationId: string) => {
     // If trashing the currently selected conversation, clear selection
-    if (selectedChat === bookingId) {
+    if (selectedChat === conversationId) {
       intentionallyClearedRef.current = true;
       setSelectedChat(null);
     }
-    updateStateMutation.mutate({ bookingId, state: 'trashed' });
+    updateStateMutation.mutate({ conversationId, state: 'trashed' });
   }, [updateStateMutation, selectedChat]);
 
-  const handleRestoreConversation = useCallback((bookingId: string) => {
+  const handleRestoreConversation = useCallback((conversationId: string) => {
     // Restore conversation to active state
     updateStateMutation.mutate(
-      { bookingId, state: 'active' },
+      { conversationId, state: 'active' },
       {
         onSuccess: () => {
           // After cache is invalidated, clear selection and switch back to inbox
@@ -225,18 +242,14 @@ export default function MessagesPage() {
       : null,
     [selectedChat, isComposeView, conversations]
   );
-  const selectedBookingId = activeConversation?.primaryBookingId ?? '';
 
   // Typing indicator
-  const sendTypingMutation = useSendTypingIndicator();
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleTyping = useCallback(() => {
-    if (!selectedBookingId) return;
-    try {
-      sendTypingMutation.mutate({ bookingId: selectedBookingId });
-    } catch {}
-  }, [selectedBookingId, sendTypingMutation]);
+    if (!selectedChat || selectedChat === COMPOSE_THREAD_ID) return;
+    void sendConversationTypingIndicator(selectedChat).catch(() => {});
+  }, [selectedChat]);
 
   // Reaction mutations and shared hook
   const addReactionMutation = useAddReaction();
@@ -314,19 +327,15 @@ export default function MessagesPage() {
   }, [selectedChat, activeConversation, currentUser?.id]);
 
   // Extract SSE handlers to useCallback for stable references (fixes re-render loop)
-  const handleSSEMessageWrapper = useCallback((message: { id: string; content: string; sender_id: string; sender_name: string; created_at: string; booking_id: string; delivered_at?: string | null }, _isMine: boolean) => {
+  const handleSSEMessageWrapper = useCallback((message: { id: string; content: string; sender_id: string | null; sender_name: string | null; created_at: string; booking_id?: string; delivered_at?: string | null }, isMine: boolean) => {
     if (!selectedChatRef.current || !activeConversationRef.current || !currentUserIdRef.current) return;
-    const sseMessage = {
-      id: message.id,
-      booking_id: message.booking_id,
-      sender_id: message.sender_id,
-      content: message.content,
-      created_at: message.created_at,
-      updated_at: message.created_at, // Use created_at as fallback
+    const sseMessage: SSEMessageWithOwnership = {
+      ...message,
+      booking_id: message.booking_id ?? null,
+      delivered_at: message.delivered_at ?? null,
       is_deleted: false,
-      is_mine: message.sender_id === currentUserIdRef.current,
-      delivered_at: message.delivered_at,
-    } as SSEMessageWithOwnership;
+      is_mine: isMine,
+    };
     handleSSEMessageRef.current(sseMessage, selectedChatRef.current, activeConversationRef.current);
   }, []);
 
@@ -415,13 +424,15 @@ export default function MessagesPage() {
     return diffMinutes <= editWindowMinutes;
   }, [currentUser?.id, editWindowMinutes]);
 
-  // Subscribe to active conversation's events
+  // Subscribe to active conversation's events using conversation_id (NOT booking_id!)
+  // Phase 7: SSE must use conversation_id because one conversation spans multiple bookings.
+  // Using booking_id would cause messages to not be delivered when viewing chat via different bookings.
   useEffect(() => {
-    if (!selectedBookingId || messageDisplay !== 'inbox') {
+    if (!selectedChat || isComposeView || messageDisplay !== 'inbox') {
       return;
     }
 
-    const unsubscribe = subscribe(selectedBookingId, {
+    const unsubscribe = subscribe(selectedChat, {
       onMessage: handleSSEMessageWrapper,
       onTyping: handleSSETyping,
       onReadReceipt: handleSSEReadReceipt,
@@ -431,7 +442,7 @@ export default function MessagesPage() {
     });
 
     return unsubscribe;
-  }, [selectedBookingId, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleSSEReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted]);
+  }, [selectedChat, isComposeView, messageDisplay, subscribe, handleSSEMessageWrapper, handleSSETyping, handleSSEReadReceipt, handleReaction, handleMessageEdited, handleMessageDeleted]);
 
   // Filter conversations (backend now handles state/type filtering, we just filter by search text)
   const filteredConversations = useMemo(() => {
@@ -986,6 +997,7 @@ export default function MessagesPage() {
                         isSendDisabled={isSendDisabled}
                         typingUserName={typingUserName}
                         messageDisplay={messageDisplay}
+                        hasUpcomingBookings={isComposeView || activeConversation?.type === 'platform' || (activeConversation?.upcomingBookingCount ?? 0) > 0}
                         onMessageChange={handleMessageChange}
                         onKeyPress={handleKeyPress}
                         onSend={handleSend}

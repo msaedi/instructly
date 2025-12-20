@@ -52,6 +52,98 @@ from app.repositories.beta_repository import (  # noqa: E402
 DEFAULT_ADMIN_PASSWORD = "Test1234!"
 DEFAULT_ADMIN_ZIP = "10001"
 
+# Location aliases are seeded from `backend/data/location_aliases.json` via
+# `backend/scripts/seed_location_aliases.py`.
+
+
+def seed_region_settings(engine: "sa.Engine", verbose: bool = True) -> int:
+    """
+    Seed the region_settings table with initial region configurations.
+
+    Returns the number of regions seeded.
+    """
+    import ulid
+
+    regions = [
+        {
+            "id": f"region_{str(ulid.ULID())[:20]}",
+            "region_code": "nyc",
+            "region_name": "New York City",
+            "country_code": "us",
+            "timezone": "America/New_York",
+            "price_floor_in_person": 50,
+            "price_floor_remote": 40,
+            "currency_code": "USD",
+            "student_fee_percent": 12.0,
+            "is_active": True,
+            "launch_date": None,
+        },
+        # Future regions (inactive for now)
+        {
+            "id": f"region_{str(ulid.ULID())[:20]}",
+            "region_code": "chicago",
+            "region_name": "Chicago",
+            "country_code": "us",
+            "timezone": "America/Chicago",
+            "price_floor_in_person": 45,
+            "price_floor_remote": 35,
+            "currency_code": "USD",
+            "student_fee_percent": 12.0,
+            "is_active": False,
+            "launch_date": None,
+        },
+        {
+            "id": f"region_{str(ulid.ULID())[:20]}",
+            "region_code": "la",
+            "region_name": "Los Angeles",
+            "country_code": "us",
+            "timezone": "America/Los_Angeles",
+            "price_floor_in_person": 55,
+            "price_floor_remote": 45,
+            "currency_code": "USD",
+            "student_fee_percent": 12.0,
+            "is_active": False,
+            "launch_date": None,
+        },
+    ]
+
+    seeded = 0
+    with Session(engine) as session:
+        for region in regions:
+            try:
+                session.execute(
+                    text("""
+                        INSERT INTO region_settings (
+                            id, region_code, region_name, country_code, timezone,
+                            price_floor_in_person, price_floor_remote, currency_code,
+                            student_fee_percent, is_active, launch_date
+                        )
+                        VALUES (
+                            :id, :region_code, :region_name, :country_code, :timezone,
+                            :price_floor_in_person, :price_floor_remote, :currency_code,
+                            :student_fee_percent, :is_active, :launch_date
+                        )
+                        ON CONFLICT (region_code) DO UPDATE SET
+                            region_name = EXCLUDED.region_name,
+                            timezone = EXCLUDED.timezone,
+                            price_floor_in_person = EXCLUDED.price_floor_in_person,
+                            price_floor_remote = EXCLUDED.price_floor_remote,
+                            student_fee_percent = EXCLUDED.student_fee_percent
+                    """),
+                    region,
+                )
+                seeded += 1
+            except Exception as e:
+                if verbose:
+                    print(f"    ⚠ Could not seed region {region['region_code']}: {e}")
+
+        session.commit()
+
+    if verbose:
+        print(f"  ✓ Seeded {seeded} region settings")
+
+    return seeded
+
 
 BADGE_SEED_DEFINITIONS = [
     {
@@ -715,6 +807,24 @@ def seed_system_data(verbose: bool = True) -> None:
         print(f"  ⚠ Skipping region boundaries load: {e}")
 
     engine = create_engine(settings.get_database_url())
+
+    # Seed region settings for multi-city support
+    if verbose:
+        print("\n▶ Seeding region settings…")
+    try:
+        seed_region_settings(engine, verbose=verbose)
+    except Exception as e:
+        print(f"  ⚠ Skipping region_settings seed: {e}")
+
+    # Seed location aliases for NL search
+    if verbose:
+        print("\n▶ Seeding location aliases for NL search…")
+    try:
+        from seed_location_aliases import seed_location_aliases  # noqa: E402
+
+        seed_location_aliases(engine, verbose=verbose, region_code="nyc")
+    except Exception as e:
+        print(f"  ⚠ Skipping location_aliases seed: {e}")
     seed_badge_definitions(engine, verbose=verbose)
 
     # Seed baseline admin account

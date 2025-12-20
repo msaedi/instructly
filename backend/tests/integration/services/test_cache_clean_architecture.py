@@ -16,7 +16,7 @@ Run with:
 """
 
 from datetime import date, time
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -113,7 +113,7 @@ class TestCacheDataStructures:
         """Create cache service with mocked Redis."""
         import os
         # Mock Redis client
-        mock_redis = Mock()
+        mock_redis = AsyncMock()
         mock_redis.get.return_value = None
         mock_redis.setex.return_value = True
         mock_redis.delete.return_value = 1
@@ -129,7 +129,8 @@ class TestCacheDataStructures:
             else:
                 os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = previous_flag
 
-    def test_cache_week_availability_uses_clean_data(self, cache_service):
+    @pytest.mark.asyncio
+    async def test_cache_week_availability_uses_clean_data(self, cache_service):
         """Test caching week availability doesn't store removed fields."""
         instructor_id = 123
         # Use a date that's definitely in the future to ensure "hot" tier TTL
@@ -162,7 +163,7 @@ class TestCacheDataStructures:
         }
 
         # Cache the data
-        result = cache_service.cache_week_availability(instructor_id, week_start, availability_data)
+        result = await cache_service.cache_week_availability(instructor_id, week_start, availability_data)
         assert result is True
 
         # Verify what was cached
@@ -179,7 +180,8 @@ class TestCacheDataStructures:
         ttl = call_args[0][1]
         assert ttl == CacheService.TTL_TIERS["hot"]  # 5 minutes
 
-    def test_cache_booking_conflicts_uses_clean_data(self, cache_service):
+    @pytest.mark.asyncio
+    async def test_cache_booking_conflicts_uses_clean_data(self, cache_service):
         """Test caching booking conflicts uses time-based data."""
         instructor_id = 123
         check_date = date(2025, 7, 15)
@@ -197,7 +199,9 @@ class TestCacheDataStructures:
         ]
 
         # Cache the conflicts
-        result = cache_service.cache_booking_conflicts(instructor_id, check_date, start_time, end_time, conflicts)
+        result = await cache_service.cache_booking_conflicts(
+            instructor_id, check_date, start_time, end_time, conflicts
+        )
         assert result is True
 
         # Verify the cache operation
@@ -211,19 +215,26 @@ class TestCacheDataStructures:
         assert str(instructor_id) in cached_key
         assert "slot" not in cached_key
 
-    def test_cache_invalidation_patterns_are_clean(self, cache_service):
+    @pytest.mark.asyncio
+    async def test_cache_invalidation_patterns_are_clean(self, cache_service):
         """Test cache invalidation uses clean patterns."""
+        async def _aiter(items: list[str]):
+            for item in items:
+                yield item
+
         # Mock scan_iter for pattern deletion
-        cache_service.redis.scan_iter.return_value = [
+        keys = [
             "avail:week:123:2025-07-14",
             "con:123:2025-07-15:abc123",  # FIXED: Using "con" not "conf"
         ]
+        # `scan_iter` returns an async iterator (it is not awaited), so use a sync Mock here.
+        cache_service.redis.scan_iter = Mock(side_effect=lambda *args, **kwargs: _aiter(keys))
 
         instructor_id = 123
         dates = [date(2025, 7, 14), date(2025, 7, 15)]
 
         # Invalidate caches
-        cache_service.invalidate_instructor_availability(instructor_id, dates)
+        await cache_service.invalidate_instructor_availability(instructor_id, dates)
 
         # Check the patterns used for invalidation
         scan_calls = cache_service.redis.scan_iter.call_args_list
@@ -236,7 +247,8 @@ class TestCacheDataStructures:
             assert "slot_id" not in pattern
             assert "availability_slot" not in pattern
 
-    def test_cache_decorator_uses_clean_keys(self, cache_service):
+    @pytest.mark.asyncio
+    async def test_cache_decorator_uses_clean_keys(self, cache_service):
         """Test the @cached decorator generates clean keys."""
 
         # Example function with cache decorator
@@ -244,11 +256,11 @@ class TestCacheDataStructures:
             key_func=lambda self, instructor_id, date: f"test:data:{instructor_id}:{date}",
             tier="warm",
         )
-        def get_test_data(self, instructor_id: int, date: date):
+        async def get_test_data(self, instructor_id: int, date: date):
             return {"instructor_id": instructor_id, "date": str(date), "data": "test"}
 
         # Call the function
-        get_test_data(None, 123, date(2025, 7, 15))
+        await get_test_data(None, 123, date(2025, 7, 15))
 
         # Verify cache was checked/set
         cache_service.redis.get.assert_called_once()
@@ -369,13 +381,21 @@ class TestCacheWarmingStrategies:
 class TestCacheIntegration:
     """Integration tests for cache with clean architecture."""
 
-    def test_cache_stats_dont_reference_removed_concepts(self, db):
+    @pytest.mark.asyncio
+    async def test_cache_stats_dont_reference_removed_concepts(self, db):
         """Test cache statistics don't include removed concepts."""
-        # FIXED: Remove incompatible Redis parameters
-        # Create cache service without specifying Redis connection parameters
-        # that might not be compatible with the version being used
-        cache_service = CacheService(db)  # Let it use defaults
-        stats = cache_service.get_stats()
+        import os
+
+        previous_flag = os.environ.get("AVAILABILITY_TEST_MEMORY_CACHE")
+        os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = "1"
+        try:
+            cache_service = CacheService(db)
+            stats = await cache_service.get_stats()
+        finally:
+            if previous_flag is None:
+                os.environ.pop("AVAILABILITY_TEST_MEMORY_CACHE", None)
+            else:
+                os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = previous_flag
 
         # Stats should be about cache performance
         assert "hits" in stats
@@ -400,17 +420,18 @@ class TestCacheIntegration:
         assert "slot" not in str(tiers).lower()
         assert "availability_slot" not in str(tiers).lower()
 
-    def test_circuit_breaker_works_without_slot_logic(self, db):
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_works_without_slot_logic(self, db):
         """Test circuit breaker pattern doesn't involve slot logic."""
         from app.services.cache_service import CircuitBreaker, CircuitState
 
         breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=60)
 
         # Test normal operation
-        def good_operation():
+        async def good_operation():
             return "success"
 
-        result = breaker.call(good_operation)
+        result = await breaker.call(good_operation)
         assert result == "success"
         assert breaker.state == CircuitState.CLOSED
 

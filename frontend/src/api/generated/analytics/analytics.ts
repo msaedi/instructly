@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -52,263 +49,374 @@ import type {
   SearchAnalyticsSummaryResponse,
   SearchPerformanceResponse,
   SearchReferrersResponse,
-  SearchTrendsResponse
+  SearchTrendsResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
 
-
-
-
 /**
  * Return historical metrics from metrics_history.json if present.
  * @summary Get Codebase Metrics History
  */
-export const getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<CodebaseHistoryResponse>(
-      {url: `/api/analytics/codebase/history`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet = (signal?: AbortSignal) => {
+  return customFetch<CodebaseHistoryResponse>({
+    url: `/api/analytics/codebase/history`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryKey = () => {
-    return [
-    `/api/analytics/codebase/history`
-    ] as const;
-    }
+  return [`/api/analytics/codebase/history`] as const;
+};
 
+export const getGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryOptions = <TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>
+  > = ({ signal }) => getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>
+>;
+export type GetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryError = ErrorType<void>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>> = ({ signal }) => getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryResult = NonNullable<Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>>
-export type GetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryError = ErrorType<void>
-
-
-export function useGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet<TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError = ErrorType<void>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError, TData>> & Pick<
+export function useGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet<
+  TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+  TError = ErrorType<void>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
           TError,
           Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet<TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet<
+  TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
           TError,
           Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet<TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet<
+  TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Codebase Metrics History
  */
 
-export function useGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet<TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet<
+  TData = Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryOptions(options);
 
-  const queryOptions = getGetCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Append current snapshot to metrics_history.json to persist trends.
  * @summary Append Codebase Metrics History
  */
 export const appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost = (
-
- signal?: AbortSignal
+  signal?: AbortSignal
 ) => {
+  return customFetch<AppendHistoryResponse>({
+    url: `/api/analytics/codebase/history/append`,
+    method: 'POST',
+    signal,
+  });
+};
 
+export const getAppendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPostMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<AppendHistoryResponse>(
-      {url: `/api/analytics/codebase/history/append`, method: 'POST', signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>,
+    void
+  > = () => {
+    return appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost();
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
+export type AppendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>
+  >;
 
-export const getAppendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPostMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>, TError,void, TContext> => {
+export type AppendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPostMutationError =
+  ErrorType<void>;
 
-const mutationKey = ['appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>, void> = () => {
-
-
-          return  appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type AppendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPostMutationResult = NonNullable<Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>>
-
-    export type AppendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPostMutationError = ErrorType<void>
-
-    /**
+/**
  * @summary Append Codebase Metrics History
  */
-export const useAppendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useAppendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof appendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions =
+    getAppendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPostMutationOptions(options);
 
-      const mutationOptions = getAppendCodebaseMetricsHistoryApiAnalyticsCodebaseHistoryAppendPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Return the current codebase metrics as JSON.
  * @summary Get Codebase Metrics
  */
-export const getCodebaseMetricsApiAnalyticsCodebaseMetricsGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<CodebaseMetricsResponse>(
-      {url: `/api/analytics/codebase/metrics`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getCodebaseMetricsApiAnalyticsCodebaseMetricsGet = (signal?: AbortSignal) => {
+  return customFetch<CodebaseMetricsResponse>({
+    url: `/api/analytics/codebase/metrics`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryKey = () => {
-    return [
-    `/api/analytics/codebase/metrics`
-    ] as const;
-    }
+  return [`/api/analytics/codebase/metrics`] as const;
+};
 
+export const getGetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryOptions = <TData = Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError, TData>>, }
-) => {
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>
+  > = ({ signal }) => getCodebaseMetricsApiAnalyticsCodebaseMetricsGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>
+>;
+export type GetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryError = ErrorType<void>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>> = ({ signal }) => getCodebaseMetricsApiAnalyticsCodebaseMetricsGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>>
-export type GetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryError = ErrorType<void>
-
-
-export function useGetCodebaseMetricsApiAnalyticsCodebaseMetricsGet<TData = Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError = ErrorType<void>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError, TData>> & Pick<
+export function useGetCodebaseMetricsApiAnalyticsCodebaseMetricsGet<
+  TData = Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+  TError = ErrorType<void>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
           TError,
           Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCodebaseMetricsApiAnalyticsCodebaseMetricsGet<TData = Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCodebaseMetricsApiAnalyticsCodebaseMetricsGet<
+  TData = Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
           TError,
           Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCodebaseMetricsApiAnalyticsCodebaseMetricsGet<TData = Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCodebaseMetricsApiAnalyticsCodebaseMetricsGet<
+  TData = Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Codebase Metrics
  */
 
-export function useGetCodebaseMetricsApiAnalyticsCodebaseMetricsGet<TData = Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetCodebaseMetricsApiAnalyticsCodebaseMetricsGet<
+  TData = Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCodebaseMetricsApiAnalyticsCodebaseMetricsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryOptions(options);
 
-  const queryOptions = getGetCodebaseMetricsApiAnalyticsCodebaseMetricsGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Export analytics data in various formats.
@@ -325,530 +433,991 @@ Returns:
  * @summary Export Analytics
  */
 export const exportAnalyticsApiAnalyticsExportPost = (
-    params?: ExportAnalyticsApiAnalyticsExportPostParams,
- signal?: AbortSignal
+  params?: ExportAnalyticsApiAnalyticsExportPostParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<ExportAnalyticsResponse>({
+    url: `/api/analytics/export`,
+    method: 'POST',
+    params,
+    signal,
+  });
+};
 
+export const getExportAnalyticsApiAnalyticsExportPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>,
+    TError,
+    { params?: ExportAnalyticsApiAnalyticsExportPostParams },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>,
+  TError,
+  { params?: ExportAnalyticsApiAnalyticsExportPostParams },
+  TContext
+> => {
+  const mutationKey = ['exportAnalyticsApiAnalyticsExportPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<ExportAnalyticsResponse>(
-      {url: `/api/analytics/export`, method: 'POST',
-        params, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>,
+    { params?: ExportAnalyticsApiAnalyticsExportPostParams }
+  > = (props) => {
+    const { params } = props ?? {};
 
+    return exportAnalyticsApiAnalyticsExportPost(params);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getExportAnalyticsApiAnalyticsExportPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>, TError,{params?: ExportAnalyticsApiAnalyticsExportPostParams}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>, TError,{params?: ExportAnalyticsApiAnalyticsExportPostParams}, TContext> => {
+export type ExportAnalyticsApiAnalyticsExportPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>
+>;
 
-const mutationKey = ['exportAnalyticsApiAnalyticsExportPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type ExportAnalyticsApiAnalyticsExportPostMutationError = ErrorType<HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>, {params?: ExportAnalyticsApiAnalyticsExportPostParams}> = (props) => {
-          const {params} = props ?? {};
-
-          return  exportAnalyticsApiAnalyticsExportPost(params,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ExportAnalyticsApiAnalyticsExportPostMutationResult = NonNullable<Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>>
-
-    export type ExportAnalyticsApiAnalyticsExportPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Export Analytics
  */
-export const useExportAnalyticsApiAnalyticsExportPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>, TError,{params?: ExportAnalyticsApiAnalyticsExportPostParams}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>,
-        TError,
-        {params?: ExportAnalyticsApiAnalyticsExportPostParams},
-        TContext
-      > => {
+export const useExportAnalyticsApiAnalyticsExportPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>,
+      TError,
+      { params?: ExportAnalyticsApiAnalyticsExportPostParams },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof exportAnalyticsApiAnalyticsExportPost>>,
+  TError,
+  { params?: ExportAnalyticsApiAnalyticsExportPostParams },
+  TContext
+> => {
+  const mutationOptions = getExportAnalyticsApiAnalyticsExportPostMutationOptions(options);
 
-      const mutationOptions = getExportAnalyticsApiAnalyticsExportPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * @summary Candidates Category Trends
  */
 export const candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet = (
+  params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams,
+  signal?: AbortSignal
+) => {
+  return customFetch<CandidateCategoryTrendsResponse>({
+    url: `/api/analytics/search/candidates/category-trends`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
+
+export const getCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryKey = (
+  params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams
+) => {
+  return [`/api/analytics/search/candidates/category-trends`, ...(params ? [params] : [])] as const;
+};
+
+export const getCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
     params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams,
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<CandidateCategoryTrendsResponse>(
-      {url: `/api/analytics/search/candidates/category-trends`, method: 'GET',
-        params, signal
-    },
-      );
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+          >,
+          TError,
+          TData
+        >
+      >;
     }
+  ) => {
+    const { query: queryOptions } = options ?? {};
 
+    const queryKey =
+      queryOptions?.queryKey ??
+      getCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryKey(params);
 
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+      >
+    > = ({ signal }) =>
+      candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet(params, signal);
 
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
 
-export const getCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryKey = (params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams,) => {
-    return [
-    `/api/analytics/search/candidates/category-trends`, ...(params ? [params]: [])
-    ] as const;
-    }
+export type CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+    >
+  >;
+export type CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-export const getCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryOptions = <TData = Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError = ErrorType<HTTPValidationError>>(params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError, TData>>, }
-) => {
-
-const {query: queryOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryKey(params);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>> = ({ signal }) => candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet(params, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryResult = NonNullable<Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>>
-export type CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet<TData = Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError, TData>> & Pick<
+export function useCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>,
+          Awaited<
+            ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet<TData = Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError, TData>> & Pick<
+          Awaited<
+            ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>,
+          Awaited<
+            ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet<TData = Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<
+            ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Candidates Category Trends
  */
 
-export function useCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet<TData = Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof candidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryOptions(
+      params,
+      options
+    );
 
-  const queryOptions = getCandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * List queries that produced candidates for a given service (recent first).
  * @summary Candidate Service Queries
  */
 export const candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet = (
-    params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams,
- signal?: AbortSignal
+  params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<CandidateServiceQueriesResponse>({
+    url: `/api/analytics/search/candidates/queries`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<CandidateServiceQueriesResponse>(
-      {url: `/api/analytics/search/candidates/queries`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryKey = (params?: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams,) => {
-    return [
-    `/api/analytics/search/candidates/queries`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryOptions = <TData = Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError = ErrorType<HTTPValidationError>>(params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError, TData>>, }
+export const getCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryKey = (
+  params?: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams
 ) => {
+  return [`/api/analytics/search/candidates/queries`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>
+  > = ({ signal }) => candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>> = ({ signal }) => candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet(params, signal);
+export type CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>
+>;
+export type CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryResult = NonNullable<Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>>
-export type CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet<TData = Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError = ErrorType<HTTPValidationError>>(
- params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError, TData>> & Pick<
+export function useCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet<
+  TData = Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
           TError,
           Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet<TData = Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError = ErrorType<HTTPValidationError>>(
- params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet<
+  TData = Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
           TError,
           Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet<TData = Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError = ErrorType<HTTPValidationError>>(
- params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet<
+  TData = Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Candidate Service Queries
  */
 
-export function useCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet<TData = Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError = ErrorType<HTTPValidationError>>(
- params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet<
+  TData = Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getCandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * @summary Candidates Score Distribution
  */
 export const candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet = (
-    params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams,
- signal?: AbortSignal
+  params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<CandidateScoreDistributionResponse>({
+    url: `/api/analytics/search/candidates/score-distribution`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<CandidateScoreDistributionResponse>(
-      {url: `/api/analytics/search/candidates/score-distribution`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryKey = (params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams,) => {
+export const getCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryKey =
+  (params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams) => {
     return [
-    `/api/analytics/search/candidates/score-distribution`, ...(params ? [params]: [])
+      `/api/analytics/search/candidates/score-distribution`,
+      ...(params ? [params] : []),
     ] as const;
+  };
+
+export const getCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
     }
+  ) => {
+    const { query: queryOptions } = options ?? {};
 
+    const queryKey =
+      queryOptions?.queryKey ??
+      getCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryKey(
+        params
+      );
 
-export const getCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryOptions = <TData = Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError = ErrorType<HTTPValidationError>>(params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError, TData>>, }
-) => {
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<
+          typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+        >
+      >
+    > = ({ signal }) =>
+      candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet(params, signal);
 
-const {query: queryOptions} = options ?? {};
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<
+          typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+        >
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
 
-  const queryKey =  queryOptions?.queryKey ?? getCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryKey(params);
+export type CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>
+    >
+  >;
+export type CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>> = ({ signal }) => candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet(params, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryResult = NonNullable<Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>>
-export type CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet<TData = Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError, TData>> & Pick<
+export function useCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params:
+    | undefined
+    | CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>,
+          Awaited<
+            ReturnType<
+              typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+            >
+          >,
           TError,
-          Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet<TData = Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError, TData>> & Pick<
+          Awaited<
+            ReturnType<
+              typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+          >
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>,
+          Awaited<
+            ReturnType<
+              typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+            >
+          >,
           TError,
-          Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet<TData = Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<
+            ReturnType<
+              typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Candidates Score Distribution
  */
 
-export function useCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet<TData = Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<
+            typeof candidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGet
+          >
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryOptions(
+      params,
+      options
+    );
 
-  const queryOptions = getCandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * @summary Candidates Summary
  */
 export const candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet = (
-    params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams,
- signal?: AbortSignal
+  params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<CandidateSummaryResponse>({
+    url: `/api/analytics/search/candidates/summary`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<CandidateSummaryResponse>(
-      {url: `/api/analytics/search/candidates/summary`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryKey = (params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams,) => {
-    return [
-    `/api/analytics/search/candidates/summary`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryOptions = <TData = Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError = ErrorType<HTTPValidationError>>(params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError, TData>>, }
+export const getCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryKey = (
+  params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams
 ) => {
+  return [`/api/analytics/search/candidates/summary`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>
+  > = ({ signal }) => candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>> = ({ signal }) => candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet(params, signal);
+export type CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>
+>;
+export type CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryResult = NonNullable<Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>>
-export type CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGet<TData = Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError, TData>> & Pick<
+export function useCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGet<
+  TData = Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
           TError,
           Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGet<TData = Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGet<
+  TData = Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
           TError,
           Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGet<TData = Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGet<
+  TData = Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Candidates Summary
  */
 
-export function useCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGet<TData = Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGet<
+  TData = Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidatesSummaryApiAnalyticsSearchCandidatesSummaryGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getCandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * @summary Candidates Top Services
  */
 export const candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet = (
-    params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams,
- signal?: AbortSignal
+  params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<CandidateTopServicesResponse>({
+    url: `/api/analytics/search/candidates/top-services`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<CandidateTopServicesResponse>(
-      {url: `/api/analytics/search/candidates/top-services`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryKey = (params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams,) => {
-    return [
-    `/api/analytics/search/candidates/top-services`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryOptions = <TData = Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError = ErrorType<HTTPValidationError>>(params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError, TData>>, }
+export const getCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryKey = (
+  params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams
 ) => {
+  return [`/api/analytics/search/candidates/top-services`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>
+  > = ({ signal }) =>
+    candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>> = ({ signal }) => candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet(params, signal);
+export type CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>
+  >;
+export type CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryResult = NonNullable<Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>>
-export type CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet<TData = Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError, TData>> & Pick<
+export function useCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>,
+          Awaited<
+            ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet<TData = Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError, TData>> & Pick<
+          Awaited<
+            ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>,
+          Awaited<
+            ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet<TData = Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<
+            ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Candidates Top Services
  */
 
-export function useCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet<TData = Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet<
+  TData = Awaited<
+    ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof candidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryOptions(params, options);
 
-  const queryOptions = getCandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get guest-to-user conversion metrics.
@@ -857,94 +1426,158 @@ Returns conversion rates and guest engagement data.
  * @summary Get Conversion Metrics
  */
 export const getConversionMetricsApiAnalyticsSearchConversionMetricsGet = (
-    params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams,
- signal?: AbortSignal
+  params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<ConversionMetricsResponse>({
+    url: `/api/analytics/search/conversion-metrics`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<ConversionMetricsResponse>(
-      {url: `/api/analytics/search/conversion-metrics`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryKey = (params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams,) => {
-    return [
-    `/api/analytics/search/conversion-metrics`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryOptions = <TData = Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError, TData>>, }
+export const getGetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryKey = (
+  params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams
 ) => {
+  return [`/api/analytics/search/conversion-metrics`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>
+  > = ({ signal }) => getConversionMetricsApiAnalyticsSearchConversionMetricsGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>> = ({ signal }) => getConversionMetricsApiAnalyticsSearchConversionMetricsGet(params, signal);
+export type GetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>
+>;
+export type GetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>>
-export type GetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetConversionMetricsApiAnalyticsSearchConversionMetricsGet<TData = Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError, TData>> & Pick<
+export function useGetConversionMetricsApiAnalyticsSearchConversionMetricsGet<
+  TData = Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
           TError,
           Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetConversionMetricsApiAnalyticsSearchConversionMetricsGet<TData = Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetConversionMetricsApiAnalyticsSearchConversionMetricsGet<
+  TData = Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
           TError,
           Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetConversionMetricsApiAnalyticsSearchConversionMetricsGet<TData = Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetConversionMetricsApiAnalyticsSearchConversionMetricsGet<
+  TData = Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Conversion Metrics
  */
 
-export function useGetConversionMetricsApiAnalyticsSearchConversionMetricsGet<TData = Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetConversionMetricsApiAnalyticsSearchConversionMetricsGet<
+  TData = Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getConversionMetricsApiAnalyticsSearchConversionMetricsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetConversionMetricsApiAnalyticsSearchConversionMetricsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get most popular search queries.
@@ -953,94 +1586,158 @@ Returns search queries ordered by frequency with user counts and average results
  * @summary Get Popular Searches
  */
 export const getPopularSearchesApiAnalyticsSearchPopularSearchesGet = (
-    params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams,
- signal?: AbortSignal
+  params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PopularSearchesResponse>({
+    url: `/api/analytics/search/popular-searches`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<PopularSearchesResponse>(
-      {url: `/api/analytics/search/popular-searches`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryKey = (params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams,) => {
-    return [
-    `/api/analytics/search/popular-searches`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryOptions = <TData = Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError, TData>>, }
+export const getGetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryKey = (
+  params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams
 ) => {
+  return [`/api/analytics/search/popular-searches`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>
+  > = ({ signal }) => getPopularSearchesApiAnalyticsSearchPopularSearchesGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>> = ({ signal }) => getPopularSearchesApiAnalyticsSearchPopularSearchesGet(params, signal);
+export type GetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>
+>;
+export type GetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryResult = NonNullable<Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>>
-export type GetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetPopularSearchesApiAnalyticsSearchPopularSearchesGet<TData = Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError, TData>> & Pick<
+export function useGetPopularSearchesApiAnalyticsSearchPopularSearchesGet<
+  TData = Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
           TError,
           Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPopularSearchesApiAnalyticsSearchPopularSearchesGet<TData = Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPopularSearchesApiAnalyticsSearchPopularSearchesGet<
+  TData = Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
           TError,
           Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPopularSearchesApiAnalyticsSearchPopularSearchesGet<TData = Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPopularSearchesApiAnalyticsSearchPopularSearchesGet<
+  TData = Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Popular Searches
  */
 
-export function useGetPopularSearchesApiAnalyticsSearchPopularSearchesGet<TData = Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetPopularSearchesApiAnalyticsSearchPopularSearchesGet<
+  TData = Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPopularSearchesApiAnalyticsSearchPopularSearchesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetPopularSearchesApiAnalyticsSearchPopularSearchesGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get pages that drive searches (referrers).
@@ -1049,94 +1746,157 @@ Returns referrer pages with search counts and unique sessions.
  * @summary Get Search Referrers
  */
 export const getSearchReferrersApiAnalyticsSearchReferrersGet = (
-    params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams,
- signal?: AbortSignal
+  params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SearchReferrersResponse>({
+    url: `/api/analytics/search/referrers`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<SearchReferrersResponse>(
-      {url: `/api/analytics/search/referrers`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetSearchReferrersApiAnalyticsSearchReferrersGetQueryKey = (params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams,) => {
-    return [
-    `/api/analytics/search/referrers`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetSearchReferrersApiAnalyticsSearchReferrersGetQueryOptions = <TData = Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError, TData>>, }
+export const getGetSearchReferrersApiAnalyticsSearchReferrersGetQueryKey = (
+  params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams
 ) => {
+  return [`/api/analytics/search/referrers`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetSearchReferrersApiAnalyticsSearchReferrersGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetSearchReferrersApiAnalyticsSearchReferrersGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSearchReferrersApiAnalyticsSearchReferrersGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>
+  > = ({ signal }) => getSearchReferrersApiAnalyticsSearchReferrersGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>> = ({ signal }) => getSearchReferrersApiAnalyticsSearchReferrersGet(params, signal);
+export type GetSearchReferrersApiAnalyticsSearchReferrersGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>
+>;
+export type GetSearchReferrersApiAnalyticsSearchReferrersGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetSearchReferrersApiAnalyticsSearchReferrersGetQueryResult = NonNullable<Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>>
-export type GetSearchReferrersApiAnalyticsSearchReferrersGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetSearchReferrersApiAnalyticsSearchReferrersGet<TData = Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetSearchReferrersApiAnalyticsSearchReferrersGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError, TData>> & Pick<
+export function useGetSearchReferrersApiAnalyticsSearchReferrersGet<
+  TData = Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetSearchReferrersApiAnalyticsSearchReferrersGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
           TError,
           Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSearchReferrersApiAnalyticsSearchReferrersGet<TData = Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSearchReferrersApiAnalyticsSearchReferrersGet<
+  TData = Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
           TError,
           Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSearchReferrersApiAnalyticsSearchReferrersGet<TData = Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSearchReferrersApiAnalyticsSearchReferrersGet<
+  TData = Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Search Referrers
  */
 
-export function useGetSearchReferrersApiAnalyticsSearchReferrersGet<TData = Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetSearchReferrersApiAnalyticsSearchReferrersGet<
+  TData = Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchReferrersApiAnalyticsSearchReferrersGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchReferrersApiAnalyticsSearchReferrersGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetSearchReferrersApiAnalyticsSearchReferrersGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetSearchReferrersApiAnalyticsSearchReferrersGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get comprehensive search analytics summary.
@@ -1145,94 +1905,191 @@ Returns totals, user breakdown, search types, conversions, and performance metri
  * @summary Get Search Analytics Summary
  */
 export const getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet = (
-    params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams,
- signal?: AbortSignal
+  params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SearchAnalyticsSummaryResponse>({
+    url: `/api/analytics/search/search-analytics-summary`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<SearchAnalyticsSummaryResponse>(
-      {url: `/api/analytics/search/search-analytics-summary`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryKey = (params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams,) => {
-    return [
-    `/api/analytics/search/search-analytics-summary`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryOptions = <TData = Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError, TData>>, }
+export const getGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryKey = (
+  params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams
 ) => {
+  return [`/api/analytics/search/search-analytics-summary`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>
+  > = ({ signal }) =>
+    getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<
+      ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+    >,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>> = ({ signal }) => getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet(params, signal);
+export type GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>
+  >;
+export type GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryResult = NonNullable<Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>>
-export type GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet<TData = Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError, TData>> & Pick<
+export function useGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet<
+  TData = Awaited<
+    ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>,
+          Awaited<
+            ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet<TData = Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError, TData>> & Pick<
+          Awaited<
+            ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet<
+  TData = Awaited<
+    ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>,
+          Awaited<
+            ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet<TData = Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<
+            ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet<
+  TData = Awaited<
+    ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Search Analytics Summary
  */
 
-export function useGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet<TData = Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet<
+  TData = Awaited<
+    ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryOptions(
+      params,
+      options
+    );
 
-  const queryOptions = getGetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get search performance metrics.
@@ -1241,94 +2098,158 @@ Returns result distribution, effectiveness metrics, and problematic queries.
  * @summary Get Search Performance
  */
 export const getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet = (
-    params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams,
- signal?: AbortSignal
+  params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SearchPerformanceResponse>({
+    url: `/api/analytics/search/search-performance`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<SearchPerformanceResponse>(
-      {url: `/api/analytics/search/search-performance`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryKey = (params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams,) => {
-    return [
-    `/api/analytics/search/search-performance`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryOptions = <TData = Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError, TData>>, }
+export const getGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryKey = (
+  params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams
 ) => {
+  return [`/api/analytics/search/search-performance`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>
+  > = ({ signal }) => getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>> = ({ signal }) => getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet(params, signal);
+export type GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>
+>;
+export type GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryResult = NonNullable<Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>>
-export type GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGet<TData = Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError, TData>> & Pick<
+export function useGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGet<
+  TData = Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
           TError,
           Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGet<TData = Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGet<
+  TData = Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
           TError,
           Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGet<TData = Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGet<
+  TData = Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Search Performance
  */
 
-export function useGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGet<TData = Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGet<
+  TData = Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchPerformanceApiAnalyticsSearchSearchPerformanceGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get search trends over time.
@@ -1337,88 +2258,154 @@ Returns daily search counts, unique users, and unique guests.
  * @summary Get Search Trends
  */
 export const getSearchTrendsApiAnalyticsSearchSearchTrendsGet = (
-    params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams,
- signal?: AbortSignal
+  params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SearchTrendsResponse>({
+    url: `/api/analytics/search/search-trends`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<SearchTrendsResponse>(
-      {url: `/api/analytics/search/search-trends`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryKey = (params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams,) => {
-    return [
-    `/api/analytics/search/search-trends`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryOptions = <TData = Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError, TData>>, }
+export const getGetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryKey = (
+  params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams
 ) => {
+  return [`/api/analytics/search/search-trends`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>
+  > = ({ signal }) => getSearchTrendsApiAnalyticsSearchSearchTrendsGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>> = ({ signal }) => getSearchTrendsApiAnalyticsSearchSearchTrendsGet(params, signal);
+export type GetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>
+>;
+export type GetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>>
-export type GetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetSearchTrendsApiAnalyticsSearchSearchTrendsGet<TData = Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError, TData>> & Pick<
+export function useGetSearchTrendsApiAnalyticsSearchSearchTrendsGet<
+  TData = Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
           TError,
           Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSearchTrendsApiAnalyticsSearchSearchTrendsGet<TData = Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSearchTrendsApiAnalyticsSearchSearchTrendsGet<
+  TData = Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
           TError,
           Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSearchTrendsApiAnalyticsSearchSearchTrendsGet<TData = Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSearchTrendsApiAnalyticsSearchSearchTrendsGet<
+  TData = Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Search Trends
  */
 
-export function useGetSearchTrendsApiAnalyticsSearchSearchTrendsGet<TData = Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetSearchTrendsApiAnalyticsSearchSearchTrendsGet<
+  TData = Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getSearchTrendsApiAnalyticsSearchSearchTrendsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetSearchTrendsApiAnalyticsSearchSearchTrendsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

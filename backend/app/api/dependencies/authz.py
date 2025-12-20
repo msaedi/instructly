@@ -10,10 +10,9 @@ explicitly marked as open.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from functools import wraps
 import logging
 import os
-from typing import Optional, ParamSpec, Sequence, Set, Tuple, TypeVar, cast
+from typing import Optional, ParamSpec, Sequence, Set, Tuple, TypeVar
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -158,12 +157,7 @@ def requires_roles(
 
     def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         setattr(func, "_required_roles", list(roles))
-
-        @wraps(func)
-        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            return await func(*args, **kwargs)
-
-        return cast(Callable[P, Awaitable[R]], wrapper)
+        return func
 
     return decorator
 
@@ -175,12 +169,7 @@ def requires_scopes(
 
     def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         setattr(func, "_required_scopes", list(scopes))
-
-        @wraps(func)
-        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            return await func(*args, **kwargs)
-
-        return cast(Callable[P, Awaitable[R]], wrapper)
+        return func
 
     return decorator
 

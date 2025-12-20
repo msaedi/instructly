@@ -14,7 +14,7 @@ from app.models.booking import Booking, BookingStatus
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cached_repository_mixin import CachedRepositoryMixin
 from app.services.booking_service import BookingService
-from app.services.cache_service import CacheService
+from app.services.cache_service import CacheServiceSyncAdapter
 
 
 class TestRepositoryCaching:
@@ -34,7 +34,7 @@ class TestRepositoryCaching:
     def test_cache_result_decorator_hit(self, db):
         """Test cache hit with @cache_result decorator."""
         # Create mock cache service
-        mock_cache = Mock(spec=CacheService)
+        mock_cache = Mock(spec=CacheServiceSyncAdapter)
         mock_cache.get.return_value = [{"id": 1, "status": "CONFIRMED"}]  # Cached result
 
         # Create repository with mock cache
@@ -52,7 +52,7 @@ class TestRepositoryCaching:
     def test_cache_result_decorator_miss(self, db):
         """Test cache miss with @cache_result decorator."""
         # Create mock cache service
-        mock_cache = Mock(spec=CacheService)
+        mock_cache = Mock(spec=CacheServiceSyncAdapter)
         mock_cache.get.return_value = None  # Cache miss
 
         # Create repository with mock cache
@@ -76,7 +76,7 @@ class TestRepositoryCaching:
     def test_cache_invalidation_on_update(self, db):
         """Test that cache is invalidated when booking is updated."""
         # Create mock cache service
-        mock_cache = Mock(spec=CacheService)
+        mock_cache = Mock(spec=CacheServiceSyncAdapter)
 
         # Create repository with mock cache
         repo = BookingRepository(db, cache_service=mock_cache)
@@ -121,7 +121,7 @@ class TestServiceCaching:
     def test_booking_stats_cache_hit(self, db):
         """Test that booking stats are cached at service level."""
         # Create mock cache service
-        mock_cache = Mock(spec=CacheService)
+        mock_cache = Mock(spec=CacheServiceSyncAdapter)
         cached_stats = {"total_bookings": 10, "upcoming_bookings": 3, "completed_bookings": 7, "total_earnings": 1500.0}
         mock_cache.get.return_value = cached_stats
 
@@ -141,7 +141,7 @@ class TestServiceCaching:
     def test_booking_stats_cache_miss(self, db):
         """Test that booking stats are calculated and cached on miss."""
         # Create mock cache service
-        mock_cache = Mock(spec=CacheService)
+        mock_cache = Mock(spec=CacheServiceSyncAdapter)
         mock_cache.get.return_value = None  # Cache miss
 
         # Create mock repository
@@ -187,7 +187,7 @@ class TestServiceCaching:
     def test_cache_invalidation_on_booking_change(self, db):
         """Test that stats cache is invalidated when booking changes."""
         # Create mock cache service
-        mock_cache = Mock(spec=CacheService)
+        mock_cache = Mock(spec=CacheServiceSyncAdapter)
 
         # Create mock booking
         mock_booking = Mock(spec=Booking)
@@ -212,7 +212,7 @@ class TestServiceCaching:
     def test_cache_disabled_context_manager(self, db):
         """Test that caching can be temporarily disabled."""
         # Create mock cache service
-        mock_cache = Mock(spec=CacheService)
+        mock_cache = Mock(spec=CacheServiceSyncAdapter)
         mock_cache.get.return_value = {"cached": True}
 
         # Create repository with mock cache
@@ -276,7 +276,7 @@ class TestCachePerformance:
     def test_service_cache_reduces_computation(self, db):
         """Test that service caching reduces expensive computations."""
         # Create service with cache
-        mock_cache = Mock(spec=CacheService)
+        mock_cache = Mock(spec=CacheServiceSyncAdapter)
         mock_cache.get.side_effect = [None, {"cached": True}]  # First miss, then hit
 
         mock_repo = Mock()

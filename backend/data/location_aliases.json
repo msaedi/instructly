@@ -1,0 +1,88 @@
+{
+  "version": "2.1.0",
+  "description": "NYC location aliases for search resolution (abbreviations and colloquialisms only; canonical names live in region_boundaries)",
+  "region_code": "nyc",
+  "city_id": "01JDEFAULTNYC0000000000",
+  "aliases": [
+    { "alias": "bk", "region_name": "Brooklyn", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "bklyn", "region_name": "Brooklyn", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "kings county", "region_name": "Brooklyn", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "bx", "region_name": "Bronx", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "the bronx", "region_name": "Bronx", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "qns", "region_name": "Queens", "type": "abbreviation", "confidence": 1.0 },
+
+    { "alias": "les", "region_name": "Lower East Side", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "uws", "region_name": "Upper West Side", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "fidi", "region_name": "Financial District", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "soho", "region_name": "SoHo", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "tribeca", "region_name": "Tribeca", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "hells kitchen", "region_name": "Hell's Kitchen", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "hell's kitchen", "region_name": "Hell's Kitchen", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "east village", "region_name": "East Village", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "west village", "region_name": "West Village", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "greenwich", "region_name": "Greenwich Village", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "the village", "region_name": "Greenwich Village", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "flatiron", "region_name": "Midtown South-Flatiron-Union Square", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "gramercy", "region_name": "Gramercy Park", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "murray hill", "region_name": "Murray Hill", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "harlem", "region_name": "Harlem", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "east harlem", "region_name": "East Harlem", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "el barrio", "region_name": "East Harlem", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "washington heights", "region_name": "Washington Heights", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "wash heights", "region_name": "Washington Heights", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "inwood", "region_name": "Inwood", "type": "colloquial", "confidence": 1.0 },
+
+    { "alias": "wburg", "region_name": "Williamsburg", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "billyburg", "region_name": "Williamsburg", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "parkslope", "region_name": "Park Slope", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "the slope", "region_name": "Park Slope", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "bed stuy", "region_name": "Bedford-Stuyvesant", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "bed-stuy", "region_name": "Bedford-Stuyvesant", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "bedstuy", "region_name": "Bedford-Stuyvesant", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "dumbo", "region_name": "DUMBO", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "crown heights", "region_name": "Crown Heights", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "prospect heights", "region_name": "Prospect Heights", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "fort greene", "region_name": "Fort Greene", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "cobble hill", "region_name": "Cobble Hill", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "carroll gardens", "region_name": "Carroll Gardens", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "red hook", "region_name": "Red Hook", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "sunset park", "region_name": "Sunset Park", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "bay ridge", "region_name": "Bay Ridge", "type": "colloquial", "confidence": 1.0 },
+
+    { "alias": "lic", "region_name": "Long Island City", "type": "abbreviation", "confidence": 1.0 },
+    { "alias": "astoria", "region_name": "Astoria", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "jackson heights", "region_name": "Jackson Heights", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "flushing", "region_name": "Flushing", "type": "colloquial", "confidence": 1.0 },
+    { "alias": "forest hills", "region_name": "Forest Hills", "type": "colloquial", "confidence": 1.0 }
+  ],
+  "ambiguous_aliases": [
+    {
+      "alias": "ues",
+      "candidates": [
+        "Upper East Side-Yorkville",
+        "Upper East Side-Carnegie Hill",
+        "Upper East Side-Lenox Hill-Roosevelt Island"
+      ],
+      "type": "abbreviation",
+      "confidence": 1.0
+    },
+    {
+      "alias": "central park",
+      "candidates": ["Upper West Side", "Upper East Side"],
+      "type": "landmark",
+      "confidence": 1.0
+    },
+    {
+      "alias": "east side",
+      "candidates": ["Upper East Side", "Lower East Side", "East Village"],
+      "type": "colloquial",
+      "confidence": 1.0
+    },
+    {
+      "alias": "chinatown",
+      "candidates": ["Chinatown", "Sunset Park"],
+      "type": "colloquial",
+      "confidence": 1.0
+    }
+  ]
+}

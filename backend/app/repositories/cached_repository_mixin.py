@@ -18,7 +18,7 @@ import json
 import logging
 from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
-from ..services.cache_service import CacheService, get_cache_service
+from ..services.cache_service import CacheServiceSyncAdapter, get_cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class CachedRepositoryMixin:
                 self.init_cache()
     """
 
-    def init_cache(self, cache_service: Optional[CacheService] = None):
+    def init_cache(self, cache_service: Optional[CacheServiceSyncAdapter] = None):
         """
         Initialize cache service for the repository.
 
@@ -46,11 +46,11 @@ class CachedRepositoryMixin:
         self._cache_enabled = True
 
     @property
-    def cache_service(self) -> Optional[CacheService]:
-        """Get cache service, creating if needed."""
+    def cache_service(self) -> Optional[CacheServiceSyncAdapter]:
+        """Get cache service adapter, creating if needed."""
         if not hasattr(self, "_cache_service") or self._cache_service is None:
             try:
-                self._cache_service = get_cache_service(self.db)
+                self._cache_service = CacheServiceSyncAdapter(get_cache_service(self.db))
             except Exception as e:
                 logger.warning(f"Failed to initialize cache service: {e}")
                 self._cache_service = None

@@ -5,13 +5,11 @@ import { useMessageThread } from '@/components/instructor/messages/hooks/useMess
 import type { ConversationEntry } from '@/components/instructor/messages/types';
 
 // Mock the API services
-const mockUseMessageHistory = jest.fn();
-const mockSendMessageImperative = jest.fn();
+const mockUseConversationMessages = jest.fn();
 const mockMarkMessagesAsReadImperative = jest.fn();
 
 jest.mock('@/src/api/services/messages', () => ({
-  useMessageHistory: (...args: unknown[]) => mockUseMessageHistory(...args),
-  sendMessageImperative: (...args: unknown[]) => mockSendMessageImperative(...args),
+  useConversationMessages: (...args: unknown[]) => mockUseConversationMessages(...args),
   markMessagesAsReadImperative: (...args: unknown[]) => mockMarkMessagesAsReadImperative(...args),
 }));
 
@@ -83,8 +81,8 @@ describe('useMessageThread', () => {
     jest.clearAllMocks();
     setConversationsMock = jest.fn();
 
-    mockUseMessageHistory.mockImplementation((bookingId: string) => {
-      if (!bookingId) {
+    mockUseConversationMessages.mockImplementation((conversationId: string) => {
+      if (!conversationId) {
         return { data: undefined, isLoading: false, error: undefined };
       }
       return {
@@ -96,7 +94,7 @@ describe('useMessageThread', () => {
               sender_id: 'student1',
               created_at: '2024-01-01T12:00:00Z',
               updated_at: '2024-01-01T12:00:00Z',
-              booking_id: bookingId,
+              booking_id: 'booking1',
             },
           ],
         },
@@ -110,9 +108,9 @@ describe('useMessageThread', () => {
 
   describe('conversation switching', () => {
     it('loads history for the selected conversation and switches cleanly', async () => {
-      mockUseMessageHistory.mockImplementation((bookingId: string) => {
-        if (!bookingId) return { data: undefined, isLoading: false, error: undefined };
-        if (bookingId === 'booking1') {
+      mockUseConversationMessages.mockImplementation((conversationId: string) => {
+        if (!conversationId) return { data: undefined, isLoading: false, error: undefined };
+        if (conversationId === 'conv1') {
           return {
             data: {
               messages: [
@@ -122,7 +120,7 @@ describe('useMessageThread', () => {
                   sender_id: 'student1',
                   created_at: '2024-01-01T12:00:00Z',
                   updated_at: '2024-01-01T12:00:00Z',
-                  booking_id: bookingId,
+                  booking_id: 'booking1',
                 },
               ],
             },
@@ -139,7 +137,7 @@ describe('useMessageThread', () => {
                 sender_id: 'student2',
                 created_at: '2024-01-01T12:00:00Z',
                 updated_at: '2024-01-01T12:00:00Z',
-                booking_id: bookingId,
+                booking_id: 'booking2',
               },
             ],
           },
@@ -166,10 +164,10 @@ describe('useMessageThread', () => {
         expect(result.current.threadMessages[0]?.text).toBe('Hello from conv2');
       });
 
-      const callsForBooking1 = mockUseMessageHistory.mock.calls.filter((call) => call[0] === 'booking1');
-      const callsForBooking2 = mockUseMessageHistory.mock.calls.filter((call) => call[0] === 'booking2');
-      expect(callsForBooking1.length).toBeGreaterThan(0);
-      expect(callsForBooking2.length).toBeGreaterThan(0);
+      const callsForConv1 = mockUseConversationMessages.mock.calls.filter((call) => call[0] === 'conv1');
+      const callsForConv2 = mockUseConversationMessages.mock.calls.filter((call) => call[0] === 'conv2');
+      expect(callsForConv1.length).toBeGreaterThan(0);
+      expect(callsForConv2.length).toBeGreaterThan(0);
     });
 
     it('reuses cached messages when reloading the same conversation', async () => {
@@ -208,13 +206,13 @@ describe('useMessageThread', () => {
 
       await waitFor(() => {
         expect(
-          mockUseMessageHistory.mock.calls.some(
-            (call) => call[0] === 'booking1' && call[3] === true
+          mockUseConversationMessages.mock.calls.some(
+            (call) => call[0] === 'conv1' && call[3] === true
           )
         ).toBe(true);
       });
 
-      const callsBefore = mockUseMessageHistory.mock.calls.length;
+      const callsBefore = mockUseConversationMessages.mock.calls.length;
 
       // Invalidate and reload
       await act(async () => {
@@ -223,7 +221,7 @@ describe('useMessageThread', () => {
       });
 
       await waitFor(() => {
-        expect(mockUseMessageHistory.mock.calls.length).toBeGreaterThan(callsBefore);
+        expect(mockUseConversationMessages.mock.calls.length).toBeGreaterThan(callsBefore);
       });
     });
   });
@@ -264,7 +262,7 @@ describe('useMessageThread', () => {
 
   describe('unread count management', () => {
     it('should update conversation unread count after loading', async () => {
-      mockUseMessageHistory.mockImplementation((bookingId: string) => ({
+      mockUseConversationMessages.mockImplementation((_conversationId: string) => ({
         data: {
           messages: [
             {
@@ -273,7 +271,7 @@ describe('useMessageThread', () => {
               sender_id: 'student1', // From student, not current user
               created_at: '2024-01-01T12:00:00Z',
               updated_at: '2024-01-01T12:00:00Z',
-              booking_id: bookingId,
+              booking_id: 'booking1',
               read_by: [], // Not read by current user
             },
           ],
@@ -308,13 +306,13 @@ describe('useMessageThread', () => {
         expect(result.current.threadMessages.length).toBe(1);
       });
 
-      const callCountBefore = mockUseMessageHistory.mock.calls.length;
+      const callCountBefore = mockUseConversationMessages.mock.calls.length;
 
       await act(async () => {
         result.current.loadThreadMessages('conv1', mockConversation, 'inbox');
       });
 
-      expect(mockUseMessageHistory.mock.calls.length).toBeLessThanOrEqual(callCountBefore + 1);
+      expect(mockUseConversationMessages.mock.calls.length).toBeLessThanOrEqual(callCountBefore + 1);
     });
 
     it('refetches when conversation marked stale via newer latestMessageAt', async () => {
@@ -337,7 +335,7 @@ describe('useMessageThread', () => {
         expect(result.current.threadMessages.length).toBe(1);
       });
 
-      mockUseMessageHistory.mockClear();
+      mockUseConversationMessages.mockClear();
       rerender({ convos: [newerConversation] });
 
       await act(async () => {
@@ -345,8 +343,8 @@ describe('useMessageThread', () => {
       });
 
       expect(
-        mockUseMessageHistory.mock.calls.some(
-          (call) => call[0] === 'booking1' && call[3] === true
+        mockUseConversationMessages.mock.calls.some(
+          (call) => call[0] === 'conv1' && call[3] === true
         )
       ).toBe(true);
     });

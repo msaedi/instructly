@@ -24,7 +24,12 @@ from typing import Any, Dict, Sequence, Tuple
 sys.path.insert(0, str(Path(__file__).parent))
 
 from seed_catalog_only import seed_catalog
-from seed_utils import create_review_booking_pg_safe, find_free_slot_in_bitmap
+from seed_utils import (
+    BulkSeedingContext,
+    create_bulk_seeding_context,
+    find_free_slot_bulk,
+    register_pending_booking,
+)
 from seed_yaml_loader import SeedDataLoader
 from sqlalchemy import create_engine, func, text
 from sqlalchemy.orm import Session
@@ -33,6 +38,7 @@ import ulid
 from app.auth import get_password_hash
 from app.core.config import settings
 from app.core.enums import RoleName
+from app.models.address import InstructorServiceArea
 from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import BGCConsent, InstructorProfile
@@ -41,8 +47,8 @@ from app.models.rbac import Role, UserRole as UserRoleJunction
 from app.models.review import Review, ReviewStatus
 from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.models.user import User
-from app.repositories.address_repository import InstructorServiceAreaRepository
 from app.repositories.availability_day_repository import AvailabilityDayRepository
+from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
 from app.utils.bitset import bits_from_windows, new_empty_bits
 
@@ -245,6 +251,16 @@ class DatabaseSeeder:
                 print("❌ Error: Roles not found. Make sure migrations ran successfully.")
                 return
 
+            # Pre-hash password ONCE (bcrypt is expensive ~500ms per hash)
+            hashed_password = get_password_hash(password)
+
+            # Pre-load existing users by email for bulk check
+            student_emails = [s["email"] for s in students]
+            existing_users = {
+                u.email: u
+                for u in session.query(User).filter(User.email.in_(student_emails)).all()
+            }
+
             created_count = 0
             skipped_existing = 0
 
@@ -252,9 +268,8 @@ class DatabaseSeeder:
                 # Determine role based on email
                 is_admin = student_data["email"] == "admin@instainstru.com"
 
-                existing_user = (
-                    session.query(User).filter(User.email == student_data["email"]).one_or_none()
-                )
+                # Use pre-loaded existing users (no query needed)
+                existing_user = existing_users.get(student_data["email"])
                 role_to_assign = admin_role if is_admin else student_role
 
                 if existing_user:
@@ -282,7 +297,7 @@ class DatabaseSeeder:
                     last_name=student_data["last_name"],
                     phone=student_data.get("phone"),
                     zip_code=student_data["zip_code"],
-                    hashed_password=get_password_hash(password),
+                    hashed_password=hashed_password,  # Use pre-hashed password
                     is_active=True,
                     account_status="active",
                 )
@@ -319,25 +334,41 @@ class DatabaseSeeder:
                 print("❌ Error: Instructor role not found. Make sure migrations ran successfully.")
                 return
 
+            # Pre-hash password ONCE (bcrypt is expensive ~500ms per hash)
+            hashed_password = get_password_hash(password)
+
+            # Pre-load catalog services ONCE (not inside loop!)
+            catalog_services = session.query(ServiceCatalog).all()
+            service_map = {s.name: s for s in catalog_services}
+
+            # PHASE 1: Create all User objects first (for FK constraints)
+            user_data_map = {}  # email -> (user_id, user, instructor_data)
             for instructor_data in instructors:
-                # Create user account
-                # Allow account_status to be specified in YAML, default to "active"
                 account_status = instructor_data.get("account_status", "active")
+                user_id = str(ulid.ULID())
                 user = User(
+                    id=user_id,
                     email=instructor_data["email"],
                     first_name=instructor_data["first_name"],
                     last_name=instructor_data["last_name"],
                     phone=instructor_data.get("phone"),
                     zip_code=instructor_data["zip_code"],
-                    hashed_password=get_password_hash(password),
+                    hashed_password=hashed_password,
                     is_active=True,
                     account_status=account_status,
                 )
                 session.add(user)
-                session.flush()
+                user_data_map[instructor_data["email"]] = (user_id, user, instructor_data)
+
+            # Flush all users at once (single round trip)
+            session.flush()
+
+            # PHASE 2: Create all dependent objects (roles, profiles, services)
+            for email, (user_id, user, instructor_data) in user_data_map.items():
+                account_status = instructor_data.get("account_status", "active")
 
                 # Assign instructor role
-                user_role = UserRoleJunction(user_id=user.id, role_id=instructor_role.id)
+                user_role = UserRoleJunction(user_id=user_id, role_id=instructor_role.id)
                 session.add(user_role)
 
                 # Create instructor profile
@@ -355,8 +386,11 @@ class DatabaseSeeder:
                 seed_completed_last_30d = int(instructor_data.get("seed_completed_last_30d") or 0)
                 seed_randomize_categories = bool(instructor_data.get("seed_randomize_categories", False))
 
+                # Pre-generate profile ULID to avoid flush for ID
+                profile_id = str(ulid.ULID())
                 profile = InstructorProfile(
-                    user_id=user.id,
+                    id=profile_id,
+                    user_id=user_id,
                     bio=_bio,
                     years_experience=profile_data.get("years_experience", 1),
                     min_advance_booking_hours=2,
@@ -379,11 +413,10 @@ class DatabaseSeeder:
                     profile.bgc_completed_at = now_utc
 
                 session.add(profile)
-                session.flush()
 
                 plan_entry = {
-                    "user_id": user.id,
-                    "profile_id": profile.id,
+                    "user_id": user_id,
+                    "profile_id": profile_id,
                     "seed_completed_last_30d": seed_completed_last_30d,
                     "seed_randomize_categories": seed_randomize_categories,
                     "service_ids": [],
@@ -394,18 +427,15 @@ class DatabaseSeeder:
                     now_utc = profile.bgc_completed_at or datetime.now(timezone.utc)
                     session.add(
                         BGCConsent(
-                            instructor_id=profile.id,
+                            instructor_id=profile_id,
                             consent_version="seed.v1",
                             consented_at=now_utc,
                             ip_address="127.0.0.1",
                         )
                     )
 
-                # Create services from catalog
+                # Create services from catalog (using pre-loaded service_map)
                 service_count = 0
-                # Get catalog services for mapping
-                catalog_services = session.query(ServiceCatalog).all()
-                service_map = {s.name: s for s in catalog_services}
 
                 for service_data in profile_data.get("services", []):
                     service_name = service_data["name"]
@@ -449,9 +479,11 @@ class DatabaseSeeder:
                     except Exception:
                         pass
 
-                    # Create instructor service linked to catalog
+                    # Create instructor service linked to catalog (pre-generate ULID)
+                    service_id = str(ulid.ULID())
                     service = InstructorService(
-                        instructor_profile_id=profile.id,
+                        id=service_id,
+                        instructor_profile_id=profile_id,
                         service_catalog_id=catalog_service.id,
                         hourly_rate=service_data["price"],
                         description=service_data.get("description"),
@@ -466,10 +498,9 @@ class DatabaseSeeder:
                         is_active=True,
                     )
                     session.add(service)
-                    session.flush()
-                    self.created_services[f"{user.email}:{service_name}"] = service.id
+                    self.created_services[f"{user.email}:{service_name}"] = service_id
                     service_count += 1
-                    plan_entry["service_ids"].append(service.id)
+                    plan_entry["service_ids"].append(service_id)
 
                 # Create Stripe connected account if mapping exists
                 if user.email in self.stripe_mapping and self.stripe_mapping[user.email]:
@@ -477,7 +508,7 @@ class DatabaseSeeder:
                     # This just restores the account association
                     stripe_account = StripeConnectedAccount(
                         id=str(ulid.ULID()),
-                        instructor_profile_id=profile.id,
+                        instructor_profile_id=profile_id,
                         stripe_account_id=self.stripe_mapping[user.email],
                         onboarding_completed=True,
                         created_at=_now,
@@ -486,7 +517,7 @@ class DatabaseSeeder:
                     session.add(stripe_account)
                     print(f"    💳 Linked to existing Stripe account: {self.stripe_mapping[user.email][:20]}...")
 
-                self.created_users[user.email] = user.id
+                self.created_users[user.email] = user_id
                 status_info = f" [{account_status.upper()}]" if account_status != "active" else ""
                 print(
                     f"  ✅ Created instructor: {user.first_name} {user.last_name} with {service_count} services{status_info}"
@@ -513,35 +544,52 @@ class DatabaseSeeder:
         with Session(self.engine) as session:
             return self._seed_tier_maintenance_sessions(session, reason=reason)
 
-    def _student_slot_conflicts(
+    def _slot_conflicts(
         self,
         session: Session,
-        student_id: str,
+        user_id: str,
         booking_date: date,
         start_time: time,
         end_time: time,
         pending_spans: set[tuple[str, date, time, time]],
+        *,
+        check_instructor: bool = False,
     ) -> bool:
-        span_key = (student_id, booking_date, start_time, end_time)
-        if span_key in pending_spans:
-            return True
+        """Check for overlapping bookings for a user (student or instructor).
 
+        Args:
+            user_id: The student or instructor ID to check
+            booking_date: Date of the proposed booking
+            start_time: Start time of the proposed booking
+            end_time: End time of the proposed booking
+            pending_spans: Set of (user_id, date, start, end) tuples already queued
+            check_instructor: If True, check instructor_id column; else student_id
+        """
+        # Check against pending (not yet flushed) bookings
+        for uid, dt, st, et in pending_spans:
+            if uid == user_id and dt == booking_date:
+                # Overlap if start < other_end AND end > other_start
+                if start_time < et and end_time > st:
+                    return True
+
+        # Check against committed bookings in the database
+        id_column = "instructor_id" if check_instructor else "student_id"
         overlap_sql = text(
-            """
+            f"""
             SELECT 1
             FROM bookings
-            WHERE student_id = :student_id
+            WHERE {id_column} = :user_id
               AND booking_date = :booking_date
               AND start_time < :end_time
               AND end_time > :start_time
             LIMIT 1
-            """
+            """  # nosec B608 - id_column is hardcoded, not user input
         )
         with session.no_autoflush:
             overlap = session.execute(
                 overlap_sql,
                 {
-                    "student_id": student_id,
+                    "user_id": user_id,
                     "booking_date": booking_date,
                     "start_time": start_time,
                     "end_time": end_time,
@@ -586,6 +634,7 @@ class DatabaseSeeder:
         rng = random.Random(42)
         total_seeded = 0
         pending_student_spans: set[tuple[str, date, time, time]] = set()
+        pending_instructor_spans: set[tuple[str, date, time, time]] = set()
         skipped_conflicts = 0
         max_attempts_per_booking = 8
 
@@ -655,13 +704,27 @@ class DatabaseSeeder:
 
                     student = rng.choice(students)
 
-                    if self._student_slot_conflicts(
+                    # Check for instructor overlap first (most common conflict)
+                    if self._slot_conflicts(
+                        session,
+                        user_id,
+                        booking_date,
+                        start_time,
+                        end_time,
+                        pending_instructor_spans,
+                        check_instructor=True,
+                    ):
+                        continue
+
+                    # Check for student overlap
+                    if self._slot_conflicts(
                         session,
                         student.id,
                         booking_date,
                         start_time,
                         end_time,
                         pending_student_spans,
+                        check_instructor=False,
                     ):
                         continue
 
@@ -696,6 +759,7 @@ class DatabaseSeeder:
                     )
                     session.add(booking)
                     pending_student_spans.add((student.id, booking_date, start_time, end_time))
+                    pending_instructor_spans.add((user_id, booking_date, start_time, end_time))
                     total_seeded += 1
                     inserted = True
                     break
@@ -709,7 +773,7 @@ class DatabaseSeeder:
             print("  ℹ️  Tier maintenance seeding skipped: existing completed sessions already satisfy targets")
         if skipped_conflicts:
             print(
-                f"  ⚠️  Tier maintenance skipped {skipped_conflicts} attempt(s) due to overlapping student bookings"
+                f"  ⚠️  Tier maintenance skipped {skipped_conflicts} attempt(s) due to slot conflicts"
             )
         return total_seeded
 
@@ -720,7 +784,6 @@ class DatabaseSeeder:
         by email, and default Manhattan neighborhoods otherwise.
         """
         with Session(self.engine) as session:
-            isa_repo = InstructorServiceAreaRepository(session)
             region_repo = RegionBoundaryRepository(session)
 
             rules = self.loader.get_coverage_rules()
@@ -745,15 +808,35 @@ class DatabaseSeeder:
                     all_names.append(cfg["name"])
             name_to_id = region_repo.find_region_ids_by_partial_names(list(dict.fromkeys(all_names)))
 
-            # Assign to each example instructor
+            # Pre-load all instructors with roles in ONE query
+            instructor_emails = [e for e in self.created_users.keys() if e.endswith("@example.com")]
+            instructor_user_ids = [self.created_users[e] for e in instructor_emails]
+            instructors_with_roles = (
+                session.query(User)
+                .filter(User.id.in_(instructor_user_ids))
+                .all()
+            )
+            instructor_id_set = {
+                u.id for u in instructors_with_roles
+                if any(r.name == RoleName.INSTRUCTOR for r in u.roles)
+            }
+
+            # Pre-load all existing service areas in ONE query
+            existing_areas = (
+                session.query(InstructorServiceArea)
+                .filter(InstructorServiceArea.instructor_id.in_(list(instructor_id_set)))
+                .all()
+            )
+            existing_lookup = {
+                (a.instructor_id, a.neighborhood_id): a for a in existing_areas
+            }
+
+            # Assign to each instructor (no per-user queries needed)
             for email, user_id in self.created_users.items():
                 if not email.endswith("@example.com"):
                     continue
-                # Skip non-instructors
-                with session.no_autoflush:
-                    user = session.query(User).filter(User.id == user_id).first()
-                    if not user or not any(r.name == RoleName.INSTRUCTOR for r in user.roles):
-                        continue
+                if user_id not in instructor_id_set:
+                    continue
 
                 # Pick config: override by email, else defaults
                 cfg = overrides.get(email, defaults)
@@ -761,19 +844,32 @@ class DatabaseSeeder:
                     rid = name_to_id.get(item["name"]) if item.get("name") else None
                     if not rid:
                         continue
-                    isa_repo.upsert_area(
-                        instructor_id=user_id,
-                        neighborhood_id=rid,
-                        coverage_type=item.get("coverage_type"),
-                        max_distance_miles=float(cfg.get("max_distance_miles", 2.0)),
-                        is_active=True,
-                    )
 
+                    # Upsert using pre-loaded data (no query per area)
+                    key = (user_id, rid)
+                    existing = existing_lookup.get(key)
+                    if existing:
+                        existing.is_active = True
+                        if item.get("coverage_type"):
+                            existing.coverage_type = item.get("coverage_type")
+                        existing.max_distance_miles = float(cfg.get("max_distance_miles", 2.0))
+                    else:
+                        area = InstructorServiceArea(
+                            instructor_id=user_id,
+                            neighborhood_id=rid,
+                            coverage_type=item.get("coverage_type"),
+                            max_distance_miles=float(cfg.get("max_distance_miles", 2.0)),
+                            is_active=True,
+                        )
+                        session.add(area)
+                        existing_lookup[key] = area
+
+            session.flush()
             session.commit()
             print("✅ Assigned instructor coverage areas from YAML rules")
 
     def create_availability(self):
-        """Create availability slots based on patterns"""
+        """Create availability slots based on patterns (optimized with bulk operations)."""
         instructors = self.loader.get_instructors()
         settings_cfg = self.loader.config.get("settings", {})
         weeks_future = settings_cfg.get("availability_weeks_future")
@@ -786,7 +882,15 @@ class DatabaseSeeder:
         if weeks_past is None:
             weeks_past = 0
 
+        print(f"  ⏳ Creating availability for {len(instructors)} instructors ({weeks_past} past + {weeks_future} future weeks)...")
+
         with Session(self.engine) as session:
+            repo = AvailabilityDayRepository(session)
+            created_count = 0
+
+            # Collect ALL items for ALL instructors first
+            all_items: list[Tuple[str, date, bytes]] = []
+
             for instructor_data in instructors:
                 pattern_name = instructor_data.get("availability_pattern")
                 if not pattern_name:
@@ -794,7 +898,6 @@ class DatabaseSeeder:
 
                 pattern = self.loader.get_availability_pattern(pattern_name)
                 if not pattern:
-                    print(f"  ⚠️  Pattern '{pattern_name}' not found")
                     continue
 
                 user_id = self.created_users.get(instructor_data["email"])
@@ -803,8 +906,7 @@ class DatabaseSeeder:
 
                 days_data = pattern.get("days", {})
 
-                # Create availability for the next N weeks
-                # Generate slots for past weeks (if configured), current week, and future weeks
+                # Build items for all weeks for this instructor
                 for week_offset in range(-weeks_past, weeks_future + 1):
                     week_start_date = self._get_week_start_for_offset(week_offset)
                     day_windows: Dict[date, list[Tuple[str, str]]] = {}
@@ -819,22 +921,20 @@ class DatabaseSeeder:
                         if normalized_slots:
                             day_windows.setdefault(target_date, []).extend(normalized_slots)
 
-                    repo = AvailabilityDayRepository(session)
-                    items: list[Tuple[date, bytes]] = []
                     for offset in range(7):
                         day_date = week_start_date + timedelta(days=offset)
                         windows = day_windows.get(day_date, [])
                         bits = bits_from_windows(windows) if windows else new_empty_bits()
-                        items.append((day_date, bits))
+                        all_items.append((user_id, day_date, bits))
 
-                    repo.upsert_week(user_id, items)
+                created_count += 1
 
+            # Single native PostgreSQL UPSERT for all instructors (1 statement)
+            if all_items:
+                repo.bulk_upsert_native(all_items)
                 session.commit()
-                print(
-                    f"  ✅ Created availability for {instructor_data['first_name']} {instructor_data['last_name']} using pattern '{pattern_name}'"
-                )
 
-        print("✅ Created availability patterns for all instructors")
+        print(f"  ✅ Created availability patterns for {created_count} instructors")
 
     def _get_week_start_for_offset(self, week_offset: int) -> date:
         today = date.today()
@@ -931,14 +1031,13 @@ class DatabaseSeeder:
         }
 
     def create_bookings(self) -> int:
-        """Create sample bookings for testing"""
+        """Create sample bookings for testing (optimized with bulk loading)."""
         settings_cfg = self.loader.config.get("settings", {})
         booking_days_future = settings_cfg.get("booking_days_future", settings_cfg.get("booking_days_ahead", 7))
         booking_days_past = settings_cfg.get("booking_days_past", 21)
 
         with Session(self.engine) as session:
             # Get all students
-            # Get students by joining with roles
             student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
             students = (
                 session.query(User)
@@ -955,54 +1054,94 @@ class DatabaseSeeder:
             students = [s for s in students if s.email != "emma.fresh@example.com"]
             print(f"  📝 Creating bookings for {len(students)} students (excluding emma.fresh@example.com)")
 
+            # Build list of instructors with their services (pre-load in bulk)
+            instructor_emails = [e for e in self.created_users.keys() if e.endswith("@example.com")]
+            instructor_user_ids = [self.created_users[e] for e in instructor_emails]
+
+            # Pre-load all instructor users with roles in ONE query
+            instructors = (
+                session.query(User)
+                .filter(User.id.in_(instructor_user_ids))
+                .all()
+            )
+            instructor_id_set = {
+                u.id for u in instructors
+                if any(r.name == RoleName.INSTRUCTOR for r in u.roles)
+            }
+
+            # Pre-load all services for all instructors in ONE query
+            all_services = (
+                session.query(InstructorService)
+                .join(InstructorProfile)
+                .filter(InstructorProfile.user_id.in_(list(instructor_id_set)))
+                .all()
+            )
+
+            # Group services by instructor user_id
+            services_by_instructor: Dict[str, list[InstructorService]] = {}
+            for svc in all_services:
+                # Get user_id from profile
+                user_id = svc.instructor_profile.user_id
+                if user_id not in services_by_instructor:
+                    services_by_instructor[user_id] = []
+                services_by_instructor[user_id].append(svc)
+
+            instructor_data_list = [
+                (uid, services_by_instructor[uid])
+                for uid in instructor_id_set
+                if uid in services_by_instructor and services_by_instructor[uid]
+            ]
+
+            if not instructor_data_list:
+                print("  ⚠️  No instructors with services found")
+                return 0
+
+            # Pre-load all data for bulk operations
+            instructor_ids = [inst_id for inst_id, _ in instructor_data_list]
+            student_ids = [s.id for s in students]
+            print(f"  ⏳ Pre-loading bitmap data for {len(instructor_ids)} instructors...")
+
+            bulk_ctx = create_bulk_seeding_context(
+                session,
+                instructor_ids=instructor_ids,
+                student_ids=student_ids,
+                lookback_days=booking_days_past,  # Include past for historical booking overlap detection
+                horizon_days=booking_days_future + 7,
+            )
+
+            # Pre-fetch service catalog names
+            catalog_services = {
+                cs.id: cs.name
+                for cs in session.query(ServiceCatalog.id, ServiceCatalog.name).all()
+            }
+
             booking_count = 0
+            conversation_pairs: set[tuple[str, str]] = set()  # Track (student_id, instructor_id) pairs
 
-            # For each instructor, create 1-3 bookings
-            for instructor_email, instructor_id in self.created_users.items():
-                if not instructor_email.endswith("@example.com"):
-                    continue
-
-                # Skip students
-                instructor = session.query(User).filter(User.id == instructor_id).first()
-                if not any(role.name == RoleName.INSTRUCTOR for role in instructor.roles):
-                    continue
-
-                # Get instructor's services
-                services = (
-                    session.query(InstructorService)
-                    .join(InstructorProfile)
-                    .filter(InstructorProfile.user_id == instructor_id)
-                    .all()
-                )
-
-                if not services:
-                    continue
-
-                # Create 1-3 bookings for this instructor
+            # Create 1-3 bookings per instructor using bulk slot finding
+            for instructor_id, services in instructor_data_list:
                 num_bookings = random.randint(1, min(3, len(students)))
 
                 for _ in range(num_bookings):
                     service = random.choice(services)
                     student = random.choice(students)
-
-                    # Pick a random duration from the service's options
                     duration = random.choice(service.duration_options)
 
-                    candidate, _ = find_free_slot_in_bitmap(
-                        session,
+                    slot = find_free_slot_bulk(
+                        bulk_ctx,
                         instructor_id=instructor_id,
                         student_id=student.id,
                         base_date=date.today(),
+                        lookback_days=0,
                         horizon_days=booking_days_future,
                         durations_minutes=[duration],
                     )
 
-                    if not candidate:
+                    if not slot:
                         continue
 
-                    booking_date, start_time, end_time = candidate
-
-                    catalog_service = session.query(ServiceCatalog).filter_by(id=service.service_catalog_id).first()
+                    booking_date, start_time, end_time = slot
+                    service_name = catalog_services.get(service.service_catalog_id, "Service")
 
                     booking = Booking(
                         student_id=student.id,
@@ -1012,7 +1151,7 @@ class DatabaseSeeder:
                         start_time=start_time,
                         end_time=end_time,
                         duration_minutes=duration,
-                        service_name=catalog_service.name if catalog_service else "Service",
+                        service_name=service_name,
                         hourly_rate=service.hourly_rate,
                         total_price=service.hourly_rate * (duration / 60),
                         status=BookingStatus.CONFIRMED,
@@ -1021,11 +1160,35 @@ class DatabaseSeeder:
                         location_type="neutral",
                     )
                     session.add(booking)
+
+                    # Register in context for conflict detection
+                    register_pending_booking(
+                        bulk_ctx, instructor_id, student.id, booking_date, start_time, end_time
+                    )
                     booking_count += 1
+                    conversation_pairs.add((student.id, instructor_id))
 
             session.commit()
-            self._create_historical_bookings_for_inactive_instructors(session, booking_days_past)
-            self._create_completed_bookings_for_active_students(session, booking_days_past)
+
+            # Create conversations for all booking pairs
+            if conversation_pairs:
+                conv_repo = ConversationRepository(db=session)
+                conv_count = 0
+                for student_id, instructor_id in conversation_pairs:
+                    _, created = conv_repo.get_or_create(
+                        student_id=student_id,
+                        instructor_id=instructor_id,
+                    )
+                    if created:
+                        conv_count += 1
+                session.commit()
+                if conv_count:
+                    print(f"  💬 Created {conv_count} conversations for bookings")
+
+            # Create historical bookings using the same bulk context
+            self._create_historical_bookings_bulk(session, bulk_ctx, booking_days_past)
+            self._create_completed_bookings_bulk(session, bulk_ctx, booking_days_past)
+
             if booking_count:
                 print(f"  ✅ Created {booking_count} sample bookings")
             return booking_count
@@ -1297,8 +1460,238 @@ class DatabaseSeeder:
         if completed_count > 0:
             print(f"  🎯 Created {completed_count} completed bookings for active students (Book Again testing)")
 
+    def _create_historical_bookings_bulk(
+        self, session: Session, bulk_ctx: BulkSeedingContext, booking_days_past: int
+    ) -> None:
+        """Create past bookings for suspended/deactivated instructors (bulk optimized)."""
+        historical_count = 0
+
+        # Get suspended/deactivated instructors
+        instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
+        inactive_instructors = (
+            session.query(User)
+            .join(UserRoleJunction)
+            .filter(
+                UserRoleJunction.role_id == instructor_role.id,
+                User.email.like("%@example.com"),
+                User.account_status.in_(["suspended", "deactivated"]),
+            )
+            .all()
+        )
+
+        if not inactive_instructors:
+            return
+
+        # Get some students
+        student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
+        students = (
+            session.query(User)
+            .join(UserRoleJunction)
+            .filter(UserRoleJunction.role_id == student_role.id, User.email.like("%@example.com"))
+            .limit(3)
+            .all()
+        )
+
+        if not students:
+            return
+
+        for instructor in inactive_instructors:
+            services = (
+                session.query(InstructorService)
+                .join(InstructorProfile)
+                .filter(InstructorProfile.user_id == instructor.id)
+                .all()
+            )
+
+            if not services:
+                continue
+
+            num_past_bookings = random.randint(2, 3)
+            for i in range(num_past_bookings):
+                service = random.choice(services)
+                student = random.choice(students)
+                duration = random.choice(service.duration_options)
+
+                days_ago = random.randint(7, max(7, booking_days_past))
+                booking_date = date.today() - timedelta(days=days_ago)
+
+                hour = random.randint(10, 17)
+                start_time = time(hour, 0)
+                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+
+                # In-memory conflict check
+                start_min = start_time.hour * 60 + start_time.minute
+                end_min = end_time.hour * 60 + end_time.minute
+
+                # Check for conflicts in context
+                has_conflict = False
+                for key in list(bulk_ctx.pending_instructor_bookings) + list(bulk_ctx.instructor_bookings):
+                    if key[0] == instructor.id and key[1] == booking_date:
+                        if start_min < key[3] and end_min > key[2]:
+                            has_conflict = True
+                            break
+
+                if not has_conflict:
+                    for key in list(bulk_ctx.pending_student_bookings) + list(bulk_ctx.student_bookings):
+                        if key[0] == student.id and key[1] == booking_date:
+                            if start_min < key[3] and end_min > key[2]:
+                                has_conflict = True
+                                break
+
+                if has_conflict:
+                    continue
+
+                booking = Booking(
+                    student_id=student.id,
+                    instructor_id=instructor.id,
+                    instructor_service_id=service.id,
+                    booking_date=booking_date,
+                    start_time=start_time,
+                    end_time=end_time,
+                    status=BookingStatus.COMPLETED,
+                    location_type="neutral",
+                    meeting_location="Zoom",
+                    service_name=service.catalog_entry.name if service.catalog_entry else "Service",
+                    service_area=None,
+                    hourly_rate=service.hourly_rate,
+                    total_price=service.session_price(duration),
+                    duration_minutes=duration,
+                    student_note=f"Historical booking for testing - {instructor.account_status} instructor",
+                )
+                session.add(booking)
+                register_pending_booking(bulk_ctx, instructor.id, student.id, booking_date, start_time, end_time)
+                historical_count += 1
+
+        session.commit()
+        if historical_count > 0:
+            print(f"  📚 Created {historical_count} historical bookings for inactive instructors")
+
+    def _create_completed_bookings_bulk(
+        self, session: Session, bulk_ctx: BulkSeedingContext, booking_days_past: int
+    ) -> None:
+        """Create completed bookings for active students (bulk optimized)."""
+        completed_count = 0
+
+        # Get active students
+        student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
+        active_students = (
+            session.query(User)
+            .join(UserRoleJunction)
+            .filter(
+                UserRoleJunction.role_id == student_role.id,
+                User.email.like("%@example.com"),
+                User.account_status == "active",
+            )
+            .all()
+        )
+
+        # Get active instructors
+        instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
+        active_instructors = (
+            session.query(User)
+            .join(UserRoleJunction)
+            .filter(
+                UserRoleJunction.role_id == instructor_role.id,
+                User.email.like("%@example.com"),
+                User.account_status == "active",
+            )
+            .all()
+        )
+
+        if not active_students or not active_instructors:
+            print("  ⚠️  No active students or instructors found for completed bookings")
+            return
+
+        # Pre-fetch service catalog names
+        catalog_services = {
+            cs.id: cs.name
+            for cs in session.query(ServiceCatalog.id, ServiceCatalog.name).all()
+        }
+
+        for student in active_students:
+            num_completed = random.randint(2, 3)
+
+            for _ in range(num_completed):
+                instructor = random.choice(active_instructors)
+
+                services = (
+                    session.query(InstructorService)
+                    .join(InstructorProfile)
+                    .filter(InstructorProfile.user_id == instructor.id)
+                    .all()
+                )
+
+                if not services:
+                    continue
+
+                service = random.choice(services)
+                duration = random.choice(service.duration_options)
+
+                days_ago = random.randint(7, max(7, booking_days_past))
+                booking_date = date.today() - timedelta(days=days_ago)
+
+                hour = random.randint(10, 17)
+                start_time = time(hour, 0)
+                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+
+                # In-memory conflict check
+                start_min = start_time.hour * 60 + start_time.minute
+                end_min = end_time.hour * 60 + end_time.minute
+
+                has_conflict = False
+                for key in list(bulk_ctx.pending_instructor_bookings) + list(bulk_ctx.instructor_bookings):
+                    if key[0] == instructor.id and key[1] == booking_date:
+                        if start_min < key[3] and end_min > key[2]:
+                            has_conflict = True
+                            break
+
+                if not has_conflict:
+                    for key in list(bulk_ctx.pending_student_bookings) + list(bulk_ctx.student_bookings):
+                        if key[0] == student.id and key[1] == booking_date:
+                            if start_min < key[3] and end_min > key[2]:
+                                has_conflict = True
+                                break
+
+                if has_conflict:
+                    continue
+
+                service_name = catalog_services.get(service.service_catalog_id, "Service")
+
+                booking = Booking(
+                    student_id=student.id,
+                    instructor_id=instructor.id,
+                    instructor_service_id=service.id,
+                    booking_date=booking_date,
+                    start_time=start_time,
+                    end_time=end_time,
+                    status=BookingStatus.COMPLETED,
+                    location_type="neutral",
+                    meeting_location="In-person",
+                    service_name=service_name,
+                    service_area="Manhattan",
+                    hourly_rate=service.hourly_rate,
+                    total_price=service.hourly_rate * (duration / 60),
+                    duration_minutes=duration,
+                    student_note="Completed lesson for testing Book Again feature",
+                    completed_at=datetime.now() - timedelta(days=days_ago - 1),
+                )
+                session.add(booking)
+                register_pending_booking(bulk_ctx, instructor.id, student.id, booking_date, start_time, end_time)
+                completed_count += 1
+
+        session.commit()
+        if completed_count > 0:
+            print(f"  🎯 Created {completed_count} completed bookings for active students (Book Again testing)")
+
     def create_reviews(self, strict: bool = False) -> int:
-        """Create 3 published reviews per active instructor to enable ratings display."""
+        """Create 3 published reviews per active instructor to enable ratings display.
+
+        Uses bulk loading optimization: pre-fetches all bitmap data and bookings
+        in 2 queries, then does in-memory conflict detection. Uses native PostgreSQL
+        bulk INSERT for bookings and reviews (2 round trips instead of ~200).
+        """
+        from psycopg2.extras import execute_values
+
         with Session(self.engine) as session:
             try:
                 instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
@@ -1394,85 +1787,165 @@ class DatabaseSeeder:
                             f"  ⚠️  Preferred review student '{preferred_student_email}' not found; using random students."
                         )
 
-                total_reviews_created = 0
+                # Get all students for random assignment
+                all_students = (
+                    session.query(User)
+                    .join(UserRoleJunction)
+                    .filter(
+                        UserRoleJunction.role_id == student_role.id,
+                        User.email.like("%@example.com"),
+                        User.account_status == "active",
+                    )
+                    .all()
+                )
+                if not all_students:
+                    print("  ⚠️  No students found; skipping review seeding")
+                    return 0
 
+                student_ids = [s.id for s in all_students]
+
+                # Pre-load all instructor services
+                all_services_by_instructor: Dict[str, list] = {}
                 for instructor in active_instructors:
-                    completed_bookings = (
-                        session.query(Booking)
-                        .filter(
-                            Booking.instructor_id == instructor.id,
-                            Booking.status == BookingStatus.COMPLETED,
-                        )
-                        .order_by(Booking.booking_date.desc())
+                    services = (
+                        session.query(InstructorService)
+                        .join(InstructorProfile)
+                        .filter(InstructorProfile.user_id == instructor.id)
                         .all()
                     )
+                    if services:
+                        all_services_by_instructor[instructor.id] = services
 
-                    while len(completed_bookings) < 3:
-                        services = (
-                            session.query(InstructorService)
-                            .join(InstructorProfile)
-                            .filter(InstructorProfile.user_id == instructor.id)
-                            .all()
-                        )
+                # Get existing completed bookings for all instructors
+                existing_completed_bookings: Dict[str, list] = {inst.id: [] for inst in active_instructors}
+                all_completed = (
+                    session.query(Booking)
+                    .filter(
+                        Booking.instructor_id.in_(instructor_ids),
+                        Booking.status == BookingStatus.COMPLETED,
+                    )
+                    .order_by(Booking.booking_date.desc())
+                    .all()
+                )
+                for booking in all_completed:
+                    existing_completed_bookings[booking.instructor_id].append(booking)
+
+                # Get existing review booking IDs
+                existing_review_booking_ids = set(
+                    r[0]
+                    for r in session.query(Review.booking_id)
+                    .filter(Review.instructor_id.in_(instructor_ids))
+                    .all()
+                )
+
+                # =========================================================
+                # BULK LOADING OPTIMIZATION
+                # Pre-fetch all bitmap data and bookings in 2 queries
+                # =========================================================
+                print("  ⏳ Pre-loading bitmap data and bookings for bulk processing...")
+                bulk_ctx = create_bulk_seeding_context(
+                    session,
+                    instructor_ids=instructor_ids,
+                    student_ids=student_ids,
+                    lookback_days=seed_lookback,
+                    horizon_days=seed_horizon,
+                )
+                print(f"  ✓ Loaded {len(bulk_ctx.bitmap_data)} bitmap rows, "
+                      f"{len(bulk_ctx.instructor_bookings)} booking spans")
+
+                # =========================================================
+                # BULK INSERT OPTIMIZATION
+                # Collect all data in memory, then bulk INSERT at end
+                # =========================================================
+                pending_bookings: list[tuple] = []  # Booking data tuples
+                pending_reviews: list[tuple] = []   # Review data tuples
+                # Track booking_id -> booking_data for reviews
+                booking_id_map: Dict[str, dict] = {}
+
+                for instructor in active_instructors:
+                    # Get existing completed bookings (real ORM objects)
+                    existing_for_instructor = existing_completed_bookings.get(instructor.id, [])[:]
+                    # Track how many we need to create
+                    needed = 3 - len(existing_for_instructor)
+
+                    # Create synthetic bookings if needed (up to 3 total)
+                    new_booking_ids = []
+                    for _ in range(max(0, needed)):
+                        services = all_services_by_instructor.get(instructor.id)
                         if not services:
                             break
 
-                        if preferred_student:
-                            student = preferred_student
-                        else:
-                            student = (
-                                session.query(User)
-                                .join(UserRoleJunction)
-                                .filter(
-                                    UserRoleJunction.role_id == student_role.id,
-                                    User.email.like("%@example.com"),
-                                    User.account_status == "active",
-                                )
-                                .first()
-                            )
-                            if not student:
-                                break
+                        student = preferred_student if preferred_student else random.choice(all_students)
 
                         service = random.choice(services)
                         duration = random.choice(service.duration_options)
-                        days_ago = random.randint(7, 56)
-                        base_date = date.today() - timedelta(days=days_ago)
+                        max_days_ago = max(7, seed_lookback - 1)
+                        days_ago = random.randint(7, max_days_ago)
+                        base_date_val = date.today() - timedelta(days=days_ago)
                         helper_completed_at = datetime.now(timezone.utc) - timedelta(days=days_ago - 1)
 
-                        new_booking = create_review_booking_pg_safe(
-                            session,
-                            student_id=student.id,
+                        # Use bulk slot finding (in-memory conflict detection)
+                        slot = find_free_slot_bulk(
+                            bulk_ctx,
                             instructor_id=instructor.id,
-                            instructor_service_id=service.id,
-                            base_date=base_date,
-                            location_type="neutral",
-                            meeting_location="In-person",
-                            service_name=service.catalog_entry.name if service.catalog_entry else "Service",
-                            hourly_rate=service.hourly_rate,
-                            total_price=service.hourly_rate * (duration / 60),
-                            student_note="Seeded completed booking for reviews",
-                            completed_at=helper_completed_at,
-                            service_area=None,
-                            duration_minutes=duration,
-                            horizon_days=seed_horizon,
+                            student_id=student.id,
+                            base_date=base_date_val,
                             lookback_days=seed_lookback,
+                            horizon_days=seed_horizon,
                             day_start_hour=seed_day_start,
                             day_end_hour=seed_day_end,
                             step_minutes=seed_step_minutes,
                             durations_minutes=seed_durations,
+                            randomize=True,
                         )
 
-                        if not new_booking:
-                            print(
-                                f"  ⚠️  Skipping synthetic booking for reviews (instructor={instructor.id}); see structured log output."
-                            )
+                        if not slot:
                             break
 
-                        completed_bookings.append(new_booking)
+                        booking_date_val, start_time_val, end_time_val = slot
 
-                    for booking in completed_bookings[:3]:
-                        exists = session.query(Review).filter(Review.booking_id == booking.id).first()
-                        if exists:
+                        # Pre-generate ULID for bulk insert
+                        booking_id = str(ulid.ULID())
+                        service_name = service.catalog_entry.name if service.catalog_entry else "Service"
+                        total_price = float(service.hourly_rate * (duration / 60))
+
+                        # Collect booking data for bulk INSERT
+                        pending_bookings.append((
+                            booking_id,
+                            student.id,
+                            instructor.id,
+                            service.id,
+                            booking_date_val,
+                            start_time_val,
+                            end_time_val,
+                            service_name,
+                            float(service.hourly_rate),
+                            total_price,
+                            duration,
+                            BookingStatus.COMPLETED.value,
+                            "neutral",
+                            "In-person",
+                            "Seeded completed booking for reviews",
+                            helper_completed_at,
+                        ))
+
+                        # Track for review creation
+                        booking_id_map[booking_id] = {
+                            "student_id": student.id,
+                            "instructor_id": instructor.id,
+                            "instructor_service_id": service.id,
+                            "completed_at": helper_completed_at,
+                        }
+                        new_booking_ids.append(booking_id)
+
+                        # Register in context for subsequent conflict detection
+                        register_pending_booking(bulk_ctx, instructor.id, student.id,
+                                                booking_date_val, start_time_val, end_time_val)
+
+                    # Collect reviews for existing + new bookings (up to 3)
+                    # First, handle existing bookings
+                    for booking in existing_for_instructor[:3]:
+                        if booking.id in existing_review_booking_ids:
                             continue
 
                         rating_value = random.choices([5, 4, 3], weights=[60, 30, 10])[0]
@@ -1495,23 +1968,103 @@ class DatabaseSeeder:
                         elif completed_at.tzinfo is None:
                             completed_at = completed_at.replace(tzinfo=timezone.utc)
 
-                        review = Review(
-                            booking_id=booking.id,
-                            student_id=booking.student_id,
-                            instructor_id=booking.instructor_id,
-                            instructor_service_id=booking.instructor_service_id,
-                            rating=rating_value,
-                            review_text=review_text,
-                            status=ReviewStatus.PUBLISHED,
-                            is_verified=True,
-                            booking_completed_at=completed_at,
-                        )
-                        session.add(review)
-                        total_reviews_created += 1
+                        pending_reviews.append((
+                            str(ulid.ULID()),
+                            booking.id,
+                            booking.student_id,
+                            booking.instructor_id,
+                            booking.instructor_service_id,
+                            rating_value,
+                            review_text,
+                            ReviewStatus.PUBLISHED.value,
+                            True,
+                            completed_at,
+                        ))
+                        existing_review_booking_ids.add(booking.id)
+
+                    # Then, handle new bookings (up to remaining slots)
+                    remaining_slots = 3 - len(existing_for_instructor)
+                    for booking_id in new_booking_ids[:remaining_slots]:
+                        if booking_id in existing_review_booking_ids:
+                            continue
+
+                        bdata = booking_id_map[booking_id]
+                        rating_value = random.choices([5, 4, 3], weights=[60, 30, 10])[0]
+                        sample_texts = [
+                            "Great lesson, very helpful and patient.",
+                            "Clear explanations and good pace.",
+                            "Enjoyable session; learned a lot.",
+                            "Professional and friendly instructor.",
+                            "Challenging but rewarding lesson.",
+                        ]
+                        review_text = random.choice(sample_texts)
+
+                        pending_reviews.append((
+                            str(ulid.ULID()),
+                            booking_id,
+                            bdata["student_id"],
+                            bdata["instructor_id"],
+                            bdata["instructor_service_id"],
+                            rating_value,
+                            review_text,
+                            ReviewStatus.PUBLISHED.value,
+                            True,
+                            bdata["completed_at"],
+                        ))
+                        existing_review_booking_ids.add(booking_id)
+
+                # =========================================================
+                # EXECUTE BULK INSERTS (2 round trips total)
+                # =========================================================
+                connection = session.connection().connection
+
+                # Bulk INSERT bookings
+                if pending_bookings:
+                    print(f"  ⏳ Bulk inserting {len(pending_bookings)} bookings...")
+                    booking_sql = """
+                        INSERT INTO bookings (
+                            id, student_id, instructor_id, instructor_service_id,
+                            booking_date, start_time, end_time,
+                            service_name, hourly_rate, total_price, duration_minutes,
+                            status, location_type, meeting_location, student_note, completed_at,
+                            created_at, confirmed_at
+                        ) VALUES %s
+                    """
+                    booking_template = """(
+                        %s, %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s::numeric, %s::numeric, %s::integer,
+                        %s, %s, %s, %s, %s::timestamptz,
+                        NOW(), NOW()
+                    )"""
+                    with connection.cursor() as cursor:
+                        execute_values(cursor, booking_sql, pending_bookings,
+                                       template=booking_template, page_size=1000)
+
+                # Bulk INSERT reviews
+                if pending_reviews:
+                    print(f"  ⏳ Bulk inserting {len(pending_reviews)} reviews...")
+                    review_sql = """
+                        INSERT INTO reviews (
+                            id, booking_id, student_id, instructor_id, instructor_service_id,
+                            rating, review_text, status, is_verified, booking_completed_at,
+                            created_at, updated_at
+                        ) VALUES %s
+                    """
+                    review_template = """(
+                        %s, %s, %s, %s, %s,
+                        %s::integer, %s, %s, %s::boolean, %s::timestamptz,
+                        NOW(), NOW()
+                    )"""
+                    with connection.cursor() as cursor:
+                        execute_values(cursor, review_sql, pending_reviews,
+                                       template=review_template, page_size=1000)
 
                 session.commit()
-                print(f"✅ Seeded {total_reviews_created} published reviews for active instructors")
-                return total_reviews_created
+                print(f"✅ Seeded {len(pending_reviews)} published reviews for active instructors")
+                if pending_bookings:
+                    print(f"  ↪︎ Created {len(pending_bookings)} synthetic completed bookings for reviews")
+                return len(pending_reviews)
             except Exception as e:
                 session.rollback()
                 print(f"  ⚠️  Skipped review seeding due to error: {e}")

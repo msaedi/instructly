@@ -1,5 +1,4 @@
 # backend/scripts/send_test_email.py
-import asyncio
 from pathlib import Path
 import sys
 
@@ -11,7 +10,7 @@ from app.services.notification_service import NotificationService
 from app.services.template_service import TemplateService
 
 
-async def send_test():
+def send_test() -> None:
     db = SessionLocal()
 
     try:
@@ -41,7 +40,7 @@ async def send_test():
         booking.instructor.email = test_email
 
         print(f"\nSending test emails to: {test_email}")
-        result = await notification_service.send_booking_confirmation(booking)
+        result = notification_service.send_booking_confirmation(booking)
 
         # Restore
         booking.student.email = original_student
@@ -57,4 +56,4 @@ async def send_test():
 
 
 if __name__ == "__main__":
-    asyncio.run(send_test())
+    send_test()

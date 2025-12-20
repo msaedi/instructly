@@ -27,6 +27,7 @@ import importlib
 import os
 import secrets
 import sys
+import threading
 from typing import Dict, List, Sequence, Tuple
 
 from fastapi.testclient import TestClient
@@ -37,6 +38,10 @@ from ulid import ULID
 # CRITICAL: Set testing mode BEFORE any app imports!
 os.environ.setdefault("is_testing", "true")
 os.environ.setdefault("rate_limit_enabled", "false")
+# Ensure tests never inherit a prod-like SITE_MODE at import time (DatabaseConfig + CORS/CSRF).
+# We intentionally clear SITE_MODE later for legacy DB-safety behavior, but we must pin it
+# here to prevent dotenv/user shell from affecting module import side effects.
+os.environ["SITE_MODE"] = "int"
 os.environ.setdefault("AVAILABILITY_PERF_DEBUG", "1")
 os.environ.setdefault("AVAILABILITY_TEST_MEMORY_CACHE", "1")
 os.environ.setdefault("SEED_AVAILABILITY", "0")
@@ -112,11 +117,13 @@ from app.core.config import settings
 settings.is_testing = True
 settings.rate_limit_enabled = False
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import MagicMock, Mock
 
 from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.api.dependencies.database import get_db as deps_get_db
 from app.auth import get_password_hash
 
 # Now we can import from app
@@ -136,6 +143,7 @@ from app.models.badge import (  # noqa: F401 ensures badge tables
 )
 from app.models.beta import BetaAccess, BetaInvite  # noqa: F401 ensure beta tables are registered
 from app.models.booking import Booking, BookingStatus
+from app.models.conversation import Conversation  # noqa: F401 ensure conversation table is created
 from app.models.event_outbox import EventOutbox, NotificationDelivery  # noqa: F401
 from app.models.instructor import InstructorProfile
 from app.models.referrals import (  # noqa: F401 ensures tables are registered
@@ -431,39 +439,57 @@ except Exception as e:
 # Create test session factory with expire_on_commit=False to prevent stale ORM objects
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine, expire_on_commit=False)
 
+_DB_PREPARED = False
+_DB_PREPARE_LOCK = threading.Lock()
+
 
 def ensure_outbox_table() -> None:
     """Ensure event_outbox table exists (guard DDL to prevent conflicts)."""
     insp = inspect(test_engine)
-    if not insp.has_table("event_outbox"):
-        with test_engine.begin() as conn:
-            conn.execute(text("""
-            CREATE TABLE event_outbox (
-                id VARCHAR(26) PRIMARY KEY,
-                event_type VARCHAR(100) NOT NULL,
-                aggregate_id VARCHAR(64) NOT NULL,
-                idempotency_key VARCHAR(255) UNIQUE NOT NULL,
-                payload JSONB NOT NULL,
-                status VARCHAR(20) NOT NULL,
-                attempt_count INTEGER NOT NULL,
-                next_attempt_at TIMESTAMPTZ,
-                last_error TEXT,
-                created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-                updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
-            )
-            """))
-            if conn.dialect.name != "sqlite":
-                conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS notification_delivery (
-                    id VARCHAR(26) PRIMARY KEY,
-                    outbox_id VARCHAR(26) NOT NULL,
-                    recipient_email VARCHAR(255) NOT NULL,
-                    notification_type VARCHAR(50) NOT NULL,
-                    status VARCHAR(20) NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-                    FOREIGN KEY (outbox_id) REFERENCES event_outbox(id)
+    if insp.has_table("event_outbox"):
+        return
+
+    with test_engine.begin() as conn:
+        try:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS event_outbox (
+                        id VARCHAR(26) PRIMARY KEY,
+                        event_type VARCHAR(100) NOT NULL,
+                        aggregate_id VARCHAR(64) NOT NULL,
+                        idempotency_key VARCHAR(255) UNIQUE NOT NULL,
+                        payload JSONB NOT NULL,
+                        status VARCHAR(20) NOT NULL,
+                        attempt_count INTEGER NOT NULL,
+                        next_attempt_at TIMESTAMPTZ,
+                        last_error TEXT,
+                        created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                        updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+                    )
+                    """
                 )
-                """))
+            )
+            if conn.dialect.name != "sqlite":
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE IF NOT EXISTS notification_delivery (
+                            id VARCHAR(26) PRIMARY KEY,
+                            outbox_id VARCHAR(26) NOT NULL,
+                            recipient_email VARCHAR(255) NOT NULL,
+                            notification_type VARCHAR(50) NOT NULL,
+                            status VARCHAR(20) NOT NULL,
+                            created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+                            FOREIGN KEY (outbox_id) REFERENCES event_outbox(id)
+                        )
+                        """
+                    )
+                )
+        except IntegrityError as exc:
+            # Concurrent creation can surface as duplicate pg_type rows; safe to ignore
+            if "pg_type_typname_nsp_index" not in str(exc):
+                raise
 
 
 def _prepare_database() -> None:
@@ -475,16 +501,33 @@ def _prepare_database() -> None:
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":
             insp = inspect(test_engine)
-            if insp.has_table("notification_delivery"):
-                conn.execute(text("DROP TABLE IF EXISTS notification_delivery CASCADE"))
-            if insp.has_table("event_outbox"):
-                conn.execute(text("DROP TABLE IF EXISTS event_outbox CASCADE"))
+            reset_outbox = os.getenv("RESET_OUTBOX_SCHEMA", "0") == "1"
+            if reset_outbox:
+                if insp.has_table("notification_delivery"):
+                    conn.execute(text("DROP TABLE IF EXISTS notification_delivery CASCADE"))
+                if insp.has_table("event_outbox"):
+                    conn.execute(text("DROP TABLE IF EXISTS event_outbox CASCADE"))
+                # Postgres can rarely leave behind an orphaned composite type for a dropped/failed table
+                # create, which then breaks subsequent CREATE TABLE with pg_type_typname_nsp_index errors.
+                conn.execute(text("DROP TYPE IF EXISTS event_outbox CASCADE"))
+            # These schemas evolve quickly during search/location work; drop so create_all
+            # recreates them with the latest SQLAlchemy models for this test run.
+            if insp.has_table("location_aliases"):
+                conn.execute(text("DROP TABLE IF EXISTS location_aliases CASCADE"))
+            if insp.has_table("unresolved_location_queries"):
+                conn.execute(text("DROP TABLE IF EXISTS unresolved_location_queries CASCADE"))
             conn.commit()
 
     Base.metadata.create_all(bind=test_engine)
 
     # Ensure outbox table exists (guarded to prevent conflicts)
     ensure_outbox_table()
+
+    # Keep region_boundaries schema aligned with ORM models (tests reuse an existing DB).
+    with test_engine.connect() as conn:
+        if conn.dialect.name != "sqlite":
+            conn.execute(text("ALTER TABLE region_boundaries ADD COLUMN IF NOT EXISTS name_embedding vector(1536)"))
+            conn.commit()
 
     with test_engine.connect() as conn:
         if conn.dialect.name != "sqlite":
@@ -591,6 +634,34 @@ def _prepare_database() -> None:
             )
         )
         conn.commit()
+
+# ============================================================================
+# Database Prep Guard
+# ============================================================================
+
+def ensure_test_database_ready() -> None:
+    """Prepare test schema once per process, with a cross-process advisory lock."""
+    global _DB_PREPARED
+    if _DB_PREPARED:
+        return
+
+    with _DB_PREPARE_LOCK:
+        if _DB_PREPARED:
+            return
+
+        if test_engine.dialect.name != "sqlite":
+            with test_engine.connect() as conn:
+                conn.execute(text("SELECT pg_advisory_lock(:key)"), {"key": 987654321})
+                conn.commit()
+                try:
+                    _prepare_database()
+                finally:
+                    conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": 987654321})
+                    conn.commit()
+        else:
+            _prepare_database()
+
+        _DB_PREPARED = True
 
 # ============================================================================
 # Helper Functions
@@ -742,7 +813,7 @@ def create_test_session() -> Session:
     if settings.is_production_database(TEST_DATABASE_URL):
         raise RuntimeError("CRITICAL: Refusing to create tables in what appears to be a production database!")
 
-    _prepare_database()
+    ensure_test_database_ready()
     _ensure_catalog_data()
     _ensure_rbac_roles()
     return TestSessionLocal()
@@ -820,6 +891,7 @@ def client(db: Session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[deps_get_db] = override_get_db
 
     # Don't use context manager - create directly
     test_client = TestClient(app)
@@ -900,7 +972,7 @@ def unique_nyc_region_code(db: Session):
 @pytest.fixture
 def enable_price_floors():
     """Enable production-like price floors for the duration of a test."""
-    _prepare_database()
+    ensure_test_database_ready()
     session = TestSessionLocal()
     config_service = ConfigService(session)
     original_config, _ = config_service.get_pricing_config()
@@ -924,7 +996,7 @@ def enable_price_floors():
 @pytest.fixture
 def disable_price_floors():
     """Disable price floors for tests that assume low-price bookings."""
-    _prepare_database()
+    ensure_test_database_ready()
     session = TestSessionLocal()
     config_service = ConfigService(session)
     original_config, _ = config_service.get_pricing_config()
@@ -1379,7 +1451,45 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
         db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor_with_availability.id).first()
     )
 
-    service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
+    # Ensure profile exists (some tests may not create it earlier)
+    if profile is None:
+        profile = InstructorProfile(
+            user_id=test_instructor_with_availability.id,
+            **_public_profile_kwargs(
+                bio="Test instructor bio",
+                years_experience=5,
+                min_advance_booking_hours=2,
+                buffer_time_minutes=15,
+            ),
+        )
+        db.add(profile)
+        db.flush()
+
+    service = (
+        db.query(Service)
+        .filter(Service.instructor_profile_id == profile.id, Service.is_active == True)
+        .first()
+    )
+    if service is None:
+        # Create a basic active service if none exists
+        catalog_service = (
+            db.query(ServiceCatalog)
+            .filter(ServiceCatalog.slug.in_(["piano", "guitar"]))
+            .order_by(ServiceCatalog.slug)
+            .first()
+        )
+        if not catalog_service:
+            raise RuntimeError("Required catalog services (piano, guitar) not found")
+        service = Service(
+            instructor_profile_id=profile.id,
+            service_catalog_id=catalog_service.id,
+            hourly_rate=50.0,
+            description=catalog_service.description,
+            duration_options=[60],
+            is_active=True,
+        )
+        db.add(service)
+        db.flush()
 
     # Get service name from catalog
     catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.id == service.service_catalog_id).first()
@@ -1616,10 +1726,10 @@ def mock_notification_service(db: Session, template_service, email_service):
     service = NotificationService(db, None, template_service, email_service)
 
     # The email service is already mocked in the email_service fixture
-    # Also create async mocks for the main methods
-    service.send_booking_confirmation = AsyncMock(return_value=True)
-    service.send_cancellation_notification = AsyncMock(return_value=True)
-    service.send_reminder_emails = AsyncMock(return_value=0)
+    # Also create sync mocks for the main methods
+    service.send_booking_confirmation = MagicMock(return_value=True)
+    service.send_cancellation_notification = MagicMock(return_value=True)
+    service.send_reminder_emails = MagicMock(return_value=0)
 
     return service
 

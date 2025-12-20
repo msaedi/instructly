@@ -51,9 +51,6 @@ jobs:
         run: df -h
 
       - name: Install backend dependencies
-        env:
-          PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
-          PIP_EXTRA_INDEX_URL: https://pypi.org/simple
         run: |
           cd backend
           python -m pip install --upgrade pip

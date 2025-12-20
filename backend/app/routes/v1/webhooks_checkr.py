@@ -7,6 +7,7 @@ Migrated from /webhooks/checkr to /api/v1/webhooks/checkr
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -419,7 +420,8 @@ async def handle_checkr_webhook(
         )
 
         try:
-            workflow_service.handle_report_eta_updated(
+            await asyncio.to_thread(
+                workflow_service.handle_report_eta_updated,
                 report_id=report_id,
                 env=settings.checkr_env,
                 eta=eta_value,
@@ -429,7 +431,8 @@ async def handle_checkr_webhook(
             _mark_delivery(delivery_key)
         except RepositoryException as exc:
             CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="queued").inc()
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_eta",
                 payload={
                     "report_id": report_id,
@@ -445,7 +448,8 @@ async def handle_checkr_webhook(
             )
         except Exception:  # pragma: no cover
             CHECKR_WEBHOOK_TOTAL.labels(result="other", outcome="error").inc()
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_eta",
                 payload={
                     "report_id": report_id,
@@ -491,7 +495,8 @@ async def handle_checkr_webhook(
         package_value = data_object.get("package") or settings.checkr_package
 
         try:
-            status_value, profile, requires_follow_up = workflow_service.handle_report_completed(
+            status_value, profile, requires_follow_up = await asyncio.to_thread(
+                workflow_service.handle_report_completed,
                 report_id=report_id,
                 result=normalized_result,
                 assessment=normalized_assessment,
@@ -534,7 +539,8 @@ async def handle_checkr_webhook(
                     "outcome": "queued",
                 },
             )
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_completed",
                 payload={
                     "report_id": report_id,
@@ -561,7 +567,8 @@ async def handle_checkr_webhook(
                     "outcome": "error",
                 },
             )
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_completed",
                 payload={
                     "report_id": report_id,
@@ -600,7 +607,8 @@ async def handle_checkr_webhook(
         canceled_at = _parse_timestamp(canceled_raw) or datetime.now(timezone.utc)
         result_label = _result_label("canceled")
         try:
-            workflow_service.handle_report_canceled(
+            await asyncio.to_thread(
+                workflow_service.handle_report_canceled,
                 report_id=report_id,
                 env=settings.checkr_env,
                 canceled_at=canceled_at,
@@ -625,7 +633,8 @@ async def handle_checkr_webhook(
                 str(exc),
                 extra={"evt": "checkr_webhook", "type": event_type, "report_id": report_id},
             )
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_canceled",
                 payload={
                     "report_id": report_id,
@@ -646,7 +655,8 @@ async def handle_checkr_webhook(
                     "outcome": "error",
                 },
             )
-            job_repository.enqueue(
+            await asyncio.to_thread(
+                job_repository.enqueue,
                 type="webhook.report_canceled",
                 payload={
                     "report_id": report_id,
@@ -665,7 +675,8 @@ async def handle_checkr_webhook(
             return WebhookAckResponse(ok=True)
 
         try:
-            workflow_service.handle_report_suspended(
+            await asyncio.to_thread(
+                workflow_service.handle_report_suspended,
                 report_id,
                 _format_note(event_type, _extract_reason(data_object)),
             )

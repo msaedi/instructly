@@ -31,8 +31,8 @@ export type BookingListResponse = components['schemas']['PaginatedResponse_Booki
 export type UpcomingBookingList = components['schemas']['PaginatedResponse_UpcomingBookingResponse_'];
 
 // Search responses
-export type InstructorSearchResponse = components['schemas']['InstructorSearchResponse'];
-export type NaturalLanguageSearchResponse = components['schemas']['InstructorSearchResponse'];
+export type InstructorSearchResponse = components['schemas']['NLSearchResponse'];
+export type NaturalLanguageSearchResponse = components['schemas']['NLSearchResponse'];
 
 // Availability types
 export type TimeSlot = components['schemas']['TimeSlot'];

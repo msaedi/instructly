@@ -58,6 +58,8 @@ class PermissionName(str, Enum):
     SUSPEND_OWN_INSTRUCTOR_ACCOUNT = "suspend_own_instructor_account"
 
     # Admin permissions
+    ADMIN_READ = "admin:read"
+    ADMIN_MANAGE = "admin:manage"
     VIEW_ALL_USERS = "view_all_users"
     MANAGE_USERS = "manage_users"
     VIEW_SYSTEM_ANALYTICS = "view_system_analytics"

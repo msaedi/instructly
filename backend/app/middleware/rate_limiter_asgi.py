@@ -36,6 +36,8 @@ class RateLimitMiddlewareASGI:
         self._invite_path = re.compile(r"^/api/instructors/[^/]+/bgc/(invite|recheck)$")
         self.invite_limit = 10
         self.invite_window_seconds = 3600
+        # Bypass token for load testing (configured via RATE_LIMIT_BYPASS_TOKEN env var)
+        self._bypass_token: str = getattr(settings, "rate_limit_bypass_token", "") or ""
 
     @staticmethod
     def _extract_client_ip(scope: Scope) -> str:
@@ -53,11 +55,26 @@ class RateLimitMiddlewareASGI:
                 return host
         return "unknown"
 
+    def _has_bypass_token(self, scope: Scope) -> bool:
+        """Check if request has valid rate limit bypass token."""
+        if not self._bypass_token:
+            return False
+        headers = scope.get("headers") or []
+        for key, value in headers:
+            if key.decode().lower() == "x-rate-limit-bypass":
+                return bool(value.decode() == self._bypass_token)
+        return False
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """ASGI application entrypoint."""
 
         # Only handle HTTP requests
         if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Check for rate limit bypass token (for load testing)
+        if self._has_bypass_token(scope):
             await self.app(scope, receive, send)
             return
 
@@ -102,7 +119,7 @@ class RateLimitMiddlewareASGI:
         client_ip = self._extract_client_ip(scope)
 
         if method == "POST" and self._invite_path.match(path):
-            allowed_invite, _, retry_after_invite = self.rate_limiter.check_rate_limit(
+            allowed_invite, _, retry_after_invite = await self.rate_limiter.check_rate_limit(
                 identifier=f"invite:{client_ip}",
                 limit=self.invite_limit,
                 window_seconds=self.invite_window_seconds,
@@ -141,7 +158,7 @@ class RateLimitMiddlewareASGI:
         if path == "/internal/metrics":
             metrics_limit = getattr(settings, "metrics_rate_limit_per_min", 6)
             if metrics_limit > 0:
-                allowed_metrics, _, retry_after_metrics = self.rate_limiter.check_rate_limit(
+                allowed_metrics, _, retry_after_metrics = await self.rate_limiter.check_rate_limit(
                     identifier=f"metrics:{client_ip}",
                     limit=metrics_limit,
                     window_seconds=60,
@@ -161,7 +178,7 @@ class RateLimitMiddlewareASGI:
                     return
 
         # Apply general rate limit
-        allowed, requests_made, retry_after = self.rate_limiter.check_rate_limit(
+        allowed, requests_made, retry_after = await self.rate_limiter.check_rate_limit(
             identifier=client_ip, limit=self.general_limit, window_seconds=60, window_name="general"
         )
 
@@ -231,7 +248,7 @@ class RateLimitMiddlewareASGI:
             return
 
         # Get remaining requests for headers
-        remaining = self.rate_limiter.get_remaining_requests(
+        remaining = await self.rate_limiter.get_remaining_requests(
             identifier=client_ip, limit=self.general_limit, window_seconds=60, window_name="general"
         )
 

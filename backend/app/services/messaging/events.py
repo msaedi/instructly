@@ -53,14 +53,30 @@ def build_event(event_type: EventType, payload: Dict[str, Any]) -> Dict[str, Any
 def build_new_message_event(
     message_id: str,
     content: str,
-    sender_id: str,
-    booking_id: str,
+    sender_id: Optional[str],
+    conversation_id: str,
     recipient_ids: List[str],
     created_at: datetime,
+    booking_id: Optional[str] = None,
     delivered_at: Optional[datetime] = None,
     reactions: Optional[List[Dict[str, Any]]] = None,
+    message_type: str = "user",
+    sender_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build a new_message event."""
+    """Build a new_message event.
+
+    Args:
+        message_id: ULID of the message
+        content: Message content
+        sender_id: ULID of sender (None for system messages)
+        conversation_id: ULID of the conversation (PRIMARY key for SSE routing)
+        recipient_ids: List of user IDs to receive this message
+        created_at: Message creation timestamp
+        booking_id: Optional ULID of the booking this message is about
+        delivered_at: Optional delivery timestamp
+        reactions: Optional list of reactions
+        message_type: Type of message ('user', 'system_booking_created', etc.)
+    """
     return build_event(
         EventType.NEW_MESSAGE,
         {
@@ -68,15 +84,19 @@ def build_new_message_event(
                 "id": message_id,
                 "content": content,
                 "sender_id": sender_id,
+                "sender_name": sender_name,
                 "booking_id": booking_id,
                 "created_at": created_at.isoformat(),
                 "delivered_at": delivered_at.isoformat() if delivered_at else None,
                 "edited_at": None,
                 "reactions": reactions or [],
+                "message_type": message_type,
             },
-            "conversation_id": booking_id,
+            "conversation_id": conversation_id,
+            "booking_id": booking_id,  # Include for context/filtering
             "sender_id": sender_id,
             "recipient_ids": recipient_ids,
+            "message_type": message_type,
         },
     )
 
@@ -84,6 +104,7 @@ def build_new_message_event(
 def build_typing_status_event(
     conversation_id: str,
     user_id: str,
+    user_name: Optional[str] = None,
     is_typing: bool = True,
 ) -> Dict[str, Any]:
     """Build a typing_status event."""
@@ -92,6 +113,7 @@ def build_typing_status_event(
         {
             "conversation_id": conversation_id,
             "user_id": user_id,
+            "user_name": user_name,
             "is_typing": is_typing,
         },
     )

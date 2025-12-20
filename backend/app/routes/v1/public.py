@@ -13,6 +13,7 @@ Key Design Decisions:
 5. Respects blackout dates
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta
 import hashlib
 import logging
@@ -25,8 +26,6 @@ import ulid
 from ...core.config import settings
 from ...core.timezone_utils import get_user_today
 from ...database import get_db
-from ...models.instructor import InstructorProfile
-from ...models.user import User
 from ...schemas.public_availability import (
     NextAvailableSlotResponse,
     PublicDayAvailability,
@@ -208,17 +207,15 @@ async def get_instructor_public_availability(
         404: If instructor not found
         400: If date range is invalid
     """
-    # Validate instructor exists and is active
-    instructor_user = db.query(User).filter(User.id == instructor_id).first()
-    if not instructor_user:
+    # Validate instructor exists and has profile using service layer
+    try:
+        instructor_user = await asyncio.to_thread(
+            instructor_service.get_instructor_user, instructor_id
+        )
+    except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
-
-    # Verify they have an instructor profile
-    instructor_profile = (
-        db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
-    )
-    if not instructor_profile:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
+    # Canonicalize to instructor user_id for downstream queries/caching.
+    instructor_id = instructor_user.id
 
     # Validate dates using instructor's timezone
     instructor_today = get_user_today(instructor_user)
@@ -257,7 +254,7 @@ async def get_instructor_public_availability(
     cached_result: Optional[Dict[str, Any]] = None
     if cache_service:
         try:
-            cached_data = cache_service.get(cache_key)
+            cached_data = await cache_service.get(cache_key)
             if cached_data:
                 logger.info(f"Cache hit for public availability: {cache_key}")
                 cached_result = cast(Dict[str, Any], cached_data)
@@ -270,8 +267,11 @@ async def get_instructor_public_availability(
     # Build response based on detail level
     if settings.public_availability_detail_level == "minimal":
         # Minimal: Just check if any availability exists
-        all_slots = availability_service.get_week_windows_as_slot_like(
-            instructor_id, start_date, end_date
+        all_slots = await asyncio.to_thread(
+            availability_service.get_week_windows_as_slot_like,
+            instructor_id,
+            start_date,
+            end_date,
         )
 
         response_data = PublicInstructorAvailability(
@@ -296,8 +296,11 @@ async def get_instructor_public_availability(
 
     elif settings.public_availability_detail_level == "summary":
         # Summary: Show counts and time ranges, not specific slots
-        all_slots = availability_service.get_week_windows_as_slot_like(
-            instructor_id, start_date, end_date
+        all_slots = await asyncio.to_thread(
+            availability_service.get_week_windows_as_slot_like,
+            instructor_id,
+            start_date,
+            end_date,
         )
 
         # Group by morning/afternoon/evening
@@ -354,13 +357,18 @@ async def get_instructor_public_availability(
         earliest_available_date: Optional[str] = None
 
         # Get blackout dates
-        blackout_dates = availability_service.get_blackout_dates(instructor_id)
+        blackout_dates = await asyncio.to_thread(
+            availability_service.get_blackout_dates, instructor_id
+        )
         blackout_date_set = {b.date for b in blackout_dates}
 
         # Compute merged and booked-subtracted intervals via service
-        computed: Dict[
-            str, List[Tuple[time, time]]
-        ] = availability_service.compute_public_availability(instructor_id, start_date, end_date)
+        computed: Dict[str, List[Tuple[time, time]]] = await asyncio.to_thread(
+            availability_service.compute_public_availability,
+            instructor_id,
+            start_date,
+            end_date,
+        )
 
         # Process each date in the range
         current_date = start_date
@@ -442,7 +450,7 @@ async def get_instructor_public_availability(
     # Cache the response if not already cached
     if not cached_result and cache_service:
         try:
-            cache_service.set(
+            await cache_service.set(
                 cache_key,
                 response_data.model_dump(exclude_none=True),
                 ttl=settings.public_availability_cache_ttl,
@@ -478,16 +486,15 @@ async def get_next_available_slot(
 
     This is a convenience endpoint for "Book Now" functionality.
     """
-    # Validate instructor
-    instructor_user = db.query(User).filter(User.id == instructor_id).first()
-    if not instructor_user:
+    # Validate instructor using service layer
+    try:
+        instructor_user = await asyncio.to_thread(
+            instructor_service.get_instructor_user, instructor_id
+        )
+    except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
-
-    instructor_profile = (
-        db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
-    )
-    if not instructor_profile:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
+    # Canonicalize to instructor user_id for downstream queries.
+    instructor_id = instructor_user.id
 
     # Search for next configured days using instructor's timezone
     search_days = settings.public_availability_days
@@ -495,12 +502,17 @@ async def get_next_available_slot(
 
     for _ in range(search_days):
         # Skip if blackout date
-        if conflict_checker.check_blackout_date(instructor_id, current_date):
+        if await asyncio.to_thread(
+            conflict_checker.check_blackout_date, instructor_id, current_date
+        ):
             current_date += timedelta(days=1)
             continue
 
-        availability_map = availability_service.compute_public_availability(
-            instructor_id, current_date, current_date
+        availability_map = await asyncio.to_thread(
+            availability_service.compute_public_availability,
+            instructor_id,
+            current_date,
+            current_date,
         )
         slots = availability_map.get(current_date.isoformat(), [])
 
@@ -571,7 +583,7 @@ async def send_referral_invites(
     )
     email_service = EmailService(db)
     try:
-        email_service.validate_email_config()
+        await asyncio.to_thread(email_service.validate_email_config)
         logger.info("[Referrals] Email config validated")
     except Exception as e:
         logger.error(f"[Referrals] Email config invalid: {e}")
@@ -584,8 +596,11 @@ async def send_referral_invites(
     error_details: list[ReferralSendError] = []
     for to_email in emails:
         try:
-            email_service.send_referral_invite(
-                to_email=to_email, referral_link=referral_link, inviter_name=from_name
+            await asyncio.to_thread(
+                email_service.send_referral_invite,
+                to_email=to_email,
+                referral_link=referral_link,
+                inviter_name=from_name,
             )
             sent += 1
         except Exception as e:

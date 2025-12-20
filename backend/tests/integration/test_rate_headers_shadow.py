@@ -12,7 +12,7 @@ def test_read_route_has_rate_headers_shadow(monkeypatch):
     client = TestClient(fastapi_app)
     # Use search route which we wired with read bucket
     # This route requires query param q; use a simple value
-    r = client.get("/api/v1/search/instructors", params={"q": "piano"})
+    r = client.get("/api/v1/search", params={"q": "piano"})
     assert r.status_code != 429
     assert "X-RateLimit-Remaining" in r.headers
     assert "X-RateLimit-Limit" in r.headers

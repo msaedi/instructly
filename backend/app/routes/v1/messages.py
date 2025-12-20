@@ -16,83 +16,59 @@ Key Features:
     - RBAC permission checks
 
 Endpoints (organized with static routes BEFORE dynamic routes):
-    === Static Routes (Section 1) ===
-    GET /stream - SSE endpoint for per-user real-time messages (Phase 2)
+    GET /stream - SSE endpoint for per-user real-time messages
     GET /config - Get message configuration (edit window, etc.)
     GET /unread-count - Get total unread count for current user
-    GET /inbox-state - Get all conversations with unread counts (Phase 3)
-    POST /mark-read - Mark messages as read
-    POST /send - Send a message to a booking chat
+    POST /mark-read - Mark messages as read by conversation or IDs
 
-    === Booking-specific Routes (Section 2) ===
-    GET /stream/{booking_id} - (DEPRECATED) SSE endpoint for booking-specific messages
-    GET /history/{booking_id} - Get paginated message history
-    POST /typing/{booking_id} - Send typing indicator
-
-    === Message-specific Routes (Section 3) ===
+    === Message-specific Routes ===
     PATCH /{message_id} - Edit a message
     DELETE /{message_id} - Soft delete a message
     POST /{message_id}/reactions - Add emoji reaction
     DELETE /{message_id}/reactions - Remove emoji reaction
 """
 
+import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 import logging
-from typing import Literal, Optional
 
-from fastapi import (
-    APIRouter,
-    Body,
-    Depends,
-    Header,
-    HTTPException,
-    Query,
-    Request,
-    Response,
-    status,
-)
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from ...api.dependencies.auth import get_current_active_user
 from ...auth_sse import get_current_user_sse
+from ...core.auth_cache import user_has_cached_permission
 from ...core.config import settings
 from ...core.enums import PermissionName
 from ...core.exceptions import ForbiddenException, NotFoundException, ValidationException
-from ...database import get_db
+from ...database import SessionLocal, get_db
 from ...dependencies.permissions import require_permission
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
-from ...schemas.message_requests import MarkMessagesReadRequest, SendMessageRequest
+from ...schemas.message_requests import MarkMessagesReadRequest
 from ...schemas.message_responses import (
-    ConversationStateUpdateResponse,
     DeleteMessageResponse,
-    InboxStateResponse,
     MarkMessagesReadResponse,
     MessageConfigResponse,
-    MessageResponse,
-    MessagesHistoryResponse,
-    SendMessageResponse,
-    TypingStatusResponse,
     UnreadCountResponse,
 )
-from ...services.message_service import MessageService
+from ...services.message_service import MessageService, SSEStreamContext
 
 # Redis Pub/Sub (v3.1 - Redis is the ONLY notification source)
+# NOTE: Using *_direct versions for proper architecture - routes don't need DB access
 from ...services.messaging import (
     create_sse_stream,
-    publish_message_deleted,
-    publish_message_edited,
-    publish_new_message,
-    publish_reaction_update,
-    publish_read_receipt,
-    publish_typing_status,
+    ensure_db_health,
+    publish_message_deleted_direct,
+    publish_message_edited_direct,
+    publish_reaction_update_direct,
+    publish_read_receipt_direct,
 )
 
 # Ensure request schema is fully built before FastAPI inspects annotations.
-SendMessageRequest.model_rebuild()
 MarkMessagesReadRequest.model_rebuild()
 
 logger = logging.getLogger(__name__)
@@ -119,11 +95,6 @@ class EditMessageRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=5000, description="New message content")
 
 
-class ConversationStateUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    state: Literal["active", "archived", "trashed"]
-
-
 # ============================================================================
 # SECTION 1: Static routes (no path parameters)
 # MUST be defined before dynamic routes to prevent matching issues
@@ -143,19 +114,24 @@ class ConversationStateUpdate(BaseModel):
 async def stream_user_messages(
     request: Request,
     current_user: User = Depends(get_current_user_sse),
-    service: MessageService = Depends(get_message_service),
 ) -> EventSourceResponse:
     """
-    SSE endpoint for real-time message streaming - per-user inbox (v3.1).
+    SSE endpoint for real-time message streaming - per-user inbox (v4.0).
 
     Establishes a Server-Sent Events connection for receiving
     real-time messages across ALL user's conversations.
 
+    Architecture (v4.0 with Broadcaster):
+    - Single Redis PubSub connection shared across all SSE clients per worker
+    - Enables 500+ concurrent SSE users instead of ~30 with per-connection pattern
+    - Proper async waiting (no busy-wait polling)
+
     Features:
-    - Redis Pub/Sub as the ONLY real-time source
+    - Redis Pub/Sub via Broadcaster (fan-out multiplexer)
     - Last-Event-ID support for automatic catch-up on reconnect
     - new_message events include SSE id: field
     - Heartbeat every 10 seconds
+    - DB session explicitly closed before streaming (prevents idle_in_transaction)
 
     Supports Last-Event-ID header - when reconnecting, the client
     automatically sends the last received message ID, and the server
@@ -173,11 +149,51 @@ async def stream_user_messages(
         },
     )
 
-    # Check if user has VIEW_MESSAGES permission
-    from ...services.permission_service import PermissionService
+    # =========================================================================
+    # PHASE 1: DB OPERATIONS (via service layer with manual session)
+    #
+    # CRITICAL: We use manual session management here instead of Depends(get_db)
+    # because FastAPI's dependency cleanup only runs AFTER the response completes.
+    # For SSE streams that run 30+ seconds, this would hold DB connections in
+    # "idle in transaction" state, exhausting the connection pool.
+    #
+    # By manually closing the session BEFORE returning EventSourceResponse,
+    # we ensure DB connections are released immediately after the initial queries.
+    # =========================================================================
 
-    permission_service = PermissionService(service.db)
-    if not permission_service.user_has_permission(current_user.id, PermissionName.VIEW_MESSAGES):
+    user_id = current_user.id
+    last_event_id = request.headers.get("Last-Event-ID")
+
+    # Check permission using cached data (no DB query for transient users)
+    # This avoids the redundant user lookup that was happening in get_stream_context
+    cached_has_permission = user_has_cached_permission(current_user, PermissionName.VIEW_MESSAGES)
+
+    # Service layer handles missed message fetch (permission pre-checked above)
+    db = SessionLocal()
+    try:
+        await ensure_db_health(db)
+        message_service = MessageService(db)
+        context: SSEStreamContext = await asyncio.to_thread(
+            message_service.get_stream_context,
+            user_id=current_user.id,
+            last_event_id=last_event_id,
+            has_permission=cached_has_permission,  # Pass pre-computed permission
+        )
+    finally:
+        # CRITICAL: Explicitly rollback and close DB session BEFORE starting the SSE stream.
+        # Rollback is needed because autocommit=False means a transaction was started.
+        # Without rollback, the connection returns to the pool in "idle in transaction" state,
+        # which Supabase will kill after its idle_in_transaction_session_timeout.
+        # async-blocking-ignore: SSE cleanup <1ms
+        db.rollback()  # db-access-ok: SSE requires explicit session cleanup to prevent idle-in-transaction  # async-blocking-ignore
+        db.close()  # db-access-ok: SSE requires explicit session close
+        logger.debug(
+            "[SSE] DB session closed before streaming",
+            extra={"user_id": user_id},
+        )
+
+    # Check permission result from service
+    if not context.has_permission:
         logger.warning(
             "[SSE] Permission denied",
             extra={"user_id": current_user.id, "permission": "VIEW_MESSAGES"},
@@ -187,21 +203,36 @@ async def stream_user_messages(
             detail="You don't have permission to view messages",
         )
 
-    # Read Last-Event-ID header (sent automatically by browser on reconnect)
-    last_event_id = request.headers.get("Last-Event-ID")
+    # Log reconnection info if applicable
     if last_event_id:
         logger.info(
             "[SSE] Client reconnecting with Last-Event-ID",
-            extra={"user_id": current_user.id, "last_event_id": last_event_id},
+            extra={
+                "user_id": current_user.id,
+                "last_event_id": last_event_id,
+                "missed_count": len(context.missed_messages),
+            },
         )
 
+    # =========================================================================
+    # PHASE 2: SSE STREAM (DB-free, via Broadcaster)
+    # At this point, the DB session is closed. The stream runs purely via
+    # the shared Broadcaster connection (1 Redis connection per worker).
+    # =========================================================================
+
     async def event_generator() -> AsyncGenerator[dict[str, str], None]:
-        """Generate SSE events using Redis-only stream."""
+        """Generate SSE events using Broadcaster multiplexer (no DB access)."""
         async for event in create_sse_stream(
-            user_id=current_user.id,
-            db=service.db,
-            last_event_id=last_event_id,
+            user_id=user_id,
+            missed_messages=context.missed_messages,
         ):
+            # Early exit if client disconnected
+            if await request.is_disconnected():
+                logger.info(
+                    "[SSE] Client disconnected, stopping stream",
+                    extra={"user_id": user_id},
+                )
+                break
             yield event
 
     # Create EventSourceResponse with appropriate headers
@@ -258,7 +289,7 @@ async def get_unread_count(
     Requires VIEW_MESSAGES permission.
     """
     try:
-        count = service.get_unread_count(current_user.id)
+        count = await asyncio.to_thread(service.get_unread_count, current_user.id)
 
         return UnreadCountResponse(
             unread_count=count,
@@ -273,76 +304,6 @@ async def get_unread_count(
         )
 
 
-@router.get(
-    "/inbox-state",
-    response_model=InboxStateResponse,
-    dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
-    responses={
-        200: {"description": "Inbox state with all conversations"},
-        304: {"description": "Not Modified - content unchanged (ETag match)"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied"},
-    },
-)
-async def get_inbox_state(
-    response: Response,
-    current_user: User = Depends(get_current_active_user),
-    service: MessageService = Depends(get_message_service),
-    if_none_match: Optional[str] = Header(None, alias="If-None-Match"),
-    state: Optional[str] = Query(None, pattern="^(archived|trashed)$"),
-    type: Optional[str] = Query(None, pattern="^(student|platform)$"),
-) -> InboxStateResponse:
-    """
-    Get all conversations with unread counts and last message previews.
-
-    Supports ETag caching - returns 304 Not Modified if content unchanged.
-    Poll this endpoint every 5-15 seconds for inbox updates.
-
-    Query Parameters:
-        - state: Filter by conversation state ('archived', 'trashed', or None for active)
-        - type: Filter by conversation type ('student', 'platform')
-
-    Returns:
-        - conversations: List of filtered conversations
-        - total_unread: Sum of all unread messages
-        - state_counts: Count of conversations by state
-
-    Requires VIEW_MESSAGES permission.
-    """
-    try:
-        # Determine user role
-        user_role = "instructor" if current_user.role == "instructor" else "student"
-
-        # Get inbox state from service with filters
-        inbox_state = service.get_inbox_state(
-            current_user.id, user_role, state_filter=state, type_filter=type
-        )
-
-        # Generate ETag
-        etag = service.generate_inbox_etag(inbox_state)
-
-        # Check if client has current version (ETag match)
-        if if_none_match and if_none_match.strip('"') == etag:
-            # FastAPI doesn't have a clean way to return 304, so we raise an exception
-            # that gets caught and returns 304
-            response.status_code = status.HTTP_304_NOT_MODIFIED
-            # Return empty response for 304 - client will use cached version
-            return InboxStateResponse(conversations=[], total_unread=0, unread_conversations=0)
-
-        # Set ETag header for successful response
-        response.headers["ETag"] = f'"{etag}"'
-
-        # Return validated response model
-        return InboxStateResponse(**inbox_state)
-
-    except Exception as e:
-        logger.error(f"Error getting inbox state: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get inbox state",
-        )
-
-
 @router.post(
     "/mark-read",
     response_model=MarkMessagesReadResponse,
@@ -352,7 +313,7 @@ async def get_inbox_state(
         400: {"description": "Validation error"},
         401: {"description": "Not authenticated"},
         403: {"description": "Permission denied"},
-        422: {"description": "Either booking_id or message_ids must be provided"},
+        422: {"description": "Either conversation_id or message_ids must be provided"},
     },
 )
 async def mark_messages_as_read(
@@ -363,61 +324,52 @@ async def mark_messages_as_read(
     """
     Mark messages as read.
 
-    Can mark specific messages or all messages in a booking.
+    Can mark specific messages or all messages in a conversation.
     Requires VIEW_MESSAGES permission.
     """
     try:
-        booking_id: Optional[str] = None
-        marked_message_ids: list[str] = []
+        if not request.conversation_id and not request.message_ids:
+            raise ValidationException("Either conversation_id or message_ids must be provided")
 
-        if request.booking_id:
-            booking_id = request.booking_id
-            # Get unread messages before marking (to get IDs for notification)
-            unread_messages = service.repository.get_unread_messages(booking_id, current_user.id)
-            marked_message_ids = [msg.id for msg in unread_messages]
+        # Single service call that returns all data needed (no direct DB access)
+        result = await asyncio.to_thread(
+            service.mark_messages_read_with_context,
+            request.conversation_id,
+            request.message_ids,
+            current_user.id,
+        )
 
-            # Mark all messages in booking as read
-            count = service.mark_booking_messages_as_read(
-                booking_id=booking_id,
-                user_id=current_user.id,
-            )
-        elif request.message_ids:
-            marked_message_ids = request.message_ids
-            # Mark specific messages as read
-            count = service.mark_messages_as_read(
-                message_ids=request.message_ids,
-                user_id=current_user.id,
-            )
-            # Get booking_id from first message for notification
-            if marked_message_ids:
-                first_msg = service.repository.get_by_id(marked_message_ids[0])
-                if first_msg:
-                    booking_id = first_msg.booking_id
-        else:
-            raise ValidationException("Either booking_id or message_ids must be provided")
-
-        # Redis Pub/Sub publishing (fire-and-forget)
-        if count > 0 and booking_id and marked_message_ids:
-            try:
-                await publish_read_receipt(
-                    db=service.db,
-                    conversation_id=booking_id,
-                    reader_id=str(current_user.id),
-                    message_ids=marked_message_ids,
-                )
-                logger.debug(
-                    "[REDIS-PUBSUB] Mark-read: Published to Redis",
-                    extra={"message_count": len(marked_message_ids)},
-                )
-            except Exception as e:
-                logger.error(
-                    "[REDIS-PUBSUB] Mark-read: Redis publish failed",
-                    extra={"error": str(e), "booking_id": booking_id},
+        # Redis Pub/Sub publishing (fire-and-forget) - using direct function (no DB needed)
+        if result.count > 0 and result.marked_message_ids:
+            if result.conversation_id and result.participant_ids:
+                try:
+                    await publish_read_receipt_direct(
+                        participant_ids=result.participant_ids,
+                        conversation_id=result.conversation_id,
+                        reader_id=str(current_user.id),
+                        message_ids=result.marked_message_ids,
+                    )
+                    logger.debug(
+                        "[REDIS-PUBSUB] Mark-read: Published to Redis",
+                        extra={
+                            "message_count": len(result.marked_message_ids),
+                            "conversation_id": result.conversation_id,
+                        },
+                    )
+                except Exception as e:
+                    logger.error(
+                        "[REDIS-PUBSUB] Mark-read: Redis publish failed",
+                        extra={"error": str(e), "conversation_id": result.conversation_id},
+                    )
+            else:
+                logger.warning(
+                    "[REDIS-PUBSUB] Mark-read: Could not resolve conversation_id for SSE routing",
+                    extra={"message_ids": result.marked_message_ids[:3]},
                 )
 
         return MarkMessagesReadResponse(
             success=True,
-            messages_marked=count,
+            messages_marked=result.count,
         )
 
     except ValidationException as e:
@@ -438,312 +390,8 @@ async def mark_messages_as_read(
         )
 
 
-@router.post(
-    "/send",
-    response_model=SendMessageResponse,
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[
-        Depends(require_permission(PermissionName.SEND_MESSAGES)),
-    ],
-    responses={
-        201: {"description": "Message sent successfully"},
-        400: {"description": "Validation error"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied or no access to booking"},
-        404: {"description": "Booking not found"},
-    },
-)
-@rate_limit("10/minute", key_type=RateLimitKeyType.USER)
-async def send_message(
-    request: SendMessageRequest = Body(...),
-    current_user: User = Depends(get_current_active_user),
-    service: MessageService = Depends(get_message_service),
-) -> SendMessageResponse:
-    """
-    Send a message in a booking chat.
-
-    Requires SEND_MESSAGES permission.
-    Rate limited to 10 messages per minute.
-    """
-    # [MSG-DEBUG] Log message send attempt
-    logger.info(
-        "[MSG-DEBUG] Message SEND: Request received",
-        extra={
-            "user_id": current_user.id,
-            "booking_id": request.booking_id,
-            "content_length": len(request.content) if request.content else 0,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    )
-
-    try:
-        message = service.send_message(
-            booking_id=request.booking_id,
-            sender_id=current_user.id,
-            content=request.content,
-        )
-
-        # [MSG-DEBUG] Log successful message send
-        logger.info(
-            "[MSG-DEBUG] Message SEND: Success",
-            extra={
-                "user_id": current_user.id,
-                "booking_id": request.booking_id,
-                "message_id": message.id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-
-        # Redis Pub/Sub publishing (fire-and-forget)
-        try:
-            await publish_new_message(
-                db=service.db,
-                message_id=str(message.id),
-                content=message.content,
-                sender_id=str(current_user.id),
-                booking_id=request.booking_id,
-                created_at=message.created_at,
-                delivered_at=message.delivered_at,
-            )
-            logger.debug(
-                "[REDIS-PUBSUB] Message SEND: Published to Redis",
-                extra={"message_id": message.id},
-            )
-        except Exception as e:
-            # Fire-and-forget: log but don't fail the request
-            logger.error(
-                "[REDIS-PUBSUB] Message SEND: Redis publish failed",
-                extra={"error": str(e), "message_id": message.id},
-            )
-
-        return SendMessageResponse(
-            success=True,
-            message=MessageResponse.model_validate(message),
-        )
-
-    except ValidationException as e:
-        logger.warning(
-            "[MSG-DEBUG] Message SEND: Validation error",
-            extra={
-                "user_id": current_user.id,
-                "booking_id": request.booking_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
-    except ForbiddenException as e:
-        logger.warning(
-            "[MSG-DEBUG] Message SEND: Forbidden",
-            extra={
-                "user_id": current_user.id,
-                "booking_id": request.booking_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        )
-    except NotFoundException as e:
-        logger.warning(
-            "[MSG-DEBUG] Message SEND: Not found",
-            extra={
-                "user_id": current_user.id,
-                "booking_id": request.booking_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        )
-    except Exception as e:
-        logger.error(
-            "[MSG-DEBUG] Message SEND: Unexpected error",
-            extra={
-                "user_id": current_user.id,
-                "booking_id": request.booking_id,
-                "error": str(e),
-                "error_type": type(e).__name__,
-            },
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to send message",
-        )
-
-
-@router.put(
-    "/conversations/{booking_id}/state",
-    response_model=ConversationStateUpdateResponse,
-    dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
-    responses={
-        200: {"description": "Conversation state updated"},
-        400: {"description": "Invalid state value"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied"},
-    },
-)
-async def update_conversation_state(
-    booking_id: str,
-    body: ConversationStateUpdate,
-    current_user: User = Depends(get_current_active_user),
-    service: MessageService = Depends(get_message_service),
-) -> ConversationStateUpdateResponse:
-    """
-    Update conversation state (archive, trash, or restore).
-
-    Sets the conversation state for the current user only (doesn't affect other participant).
-
-    Request body:
-        - state: 'active', 'archived', or 'trashed'
-
-    Returns:
-        Dict with booking_id, state, and state_changed_at
-
-    Requires VIEW_MESSAGES permission.
-    """
-    try:
-        result = service.set_conversation_state(
-            user_id=current_user.id, booking_id=booking_id, state=body.state
-        )
-        return ConversationStateUpdateResponse(**result)
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
-    except Exception as e:
-        logger.error(f"Error updating conversation state: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update conversation state",
-        )
-
-
 # ============================================================================
-# SECTION 2: Booking-specific routes (with {booking_id} parameter)
-# These use /stream/, /history/, /typing/ prefixes to avoid conflicts
-# ============================================================================
-
-
-# DEPRECATED: Per-booking SSE endpoint removed in Phase 2
-# Replaced by /stream (per-user inbox) for ALL user conversations
-# Old endpoint: /stream/{booking_id}
-# New endpoint: /stream (no booking_id - receives all user's messages)
-
-
-@router.get(
-    "/history/{booking_id}",
-    response_model=MessagesHistoryResponse,
-    dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
-    responses={
-        200: {"description": "Message history"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied or no access to booking"},
-    },
-)
-async def get_message_history(
-    booking_id: str,
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_active_user),
-    service: MessageService = Depends(get_message_service),
-) -> MessagesHistoryResponse:
-    """
-    Get message history for a booking.
-
-    Returns paginated list of messages in chronological order.
-    Requires VIEW_MESSAGES permission.
-    """
-    try:
-        messages = service.get_message_history(
-            booking_id=booking_id,
-            user_id=current_user.id,
-            limit=limit,
-            offset=offset,
-        )
-
-        return MessagesHistoryResponse(
-            booking_id=booking_id,
-            messages=[MessageResponse.model_validate(msg) for msg in messages],
-            limit=limit,
-            offset=offset,
-            has_more=len(messages) == limit,
-        )
-
-    except ForbiddenException as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        )
-    except Exception as e:
-        logger.error(f"Error fetching message history: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch message history",
-        )
-
-
-@router.post(
-    "/typing/{booking_id}",
-    response_model=TypingStatusResponse,
-    status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_permission(PermissionName.SEND_MESSAGES))],
-    responses={
-        200: {"description": "Typing indicator sent"},
-        401: {"description": "Not authenticated"},
-        403: {"description": "Permission denied or no access to booking"},
-    },
-)
-@rate_limit("1/second", key_type=RateLimitKeyType.USER)
-async def send_typing_indicator(
-    booking_id: str,
-    current_user: User = Depends(get_current_active_user),
-    service: MessageService = Depends(get_message_service),
-) -> TypingStatusResponse:
-    """
-    Send a typing indicator for a booking chat (ephemeral, no DB writes).
-
-    Publishes typing status via Redis Pub/Sub (no Postgres NOTIFY).
-    Rate limited to 1 per second.
-    """
-    # Let service handle access validation
-    try:
-        service.send_typing_indicator(booking_id, current_user.id, current_user.first_name)
-    except ForbiddenException as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to send typing indicator: {str(e)}")
-
-    # Redis Pub/Sub publishing (Phase 1 - fire-and-forget)
-    try:
-        await publish_typing_status(
-            db=service.db,
-            conversation_id=booking_id,
-            user_id=str(current_user.id),
-            is_typing=True,
-        )
-        logger.debug(
-            "[REDIS-PUBSUB] Typing indicator: Published to Redis",
-            extra={"booking_id": booking_id},
-        )
-    except Exception as e:
-        logger.error(
-            "[REDIS-PUBSUB] Typing indicator: Redis publish failed",
-            extra={"error": str(e), "booking_id": booking_id},
-        )
-
-    return TypingStatusResponse(success=True)
-
-
-# ============================================================================
-# SECTION 3: Message-specific routes (with {message_id} parameter)
+# SECTION 2: Message-specific routes (with {message_id} parameter)
 # These must come LAST to avoid capturing static routes
 # ============================================================================
 
@@ -786,7 +434,14 @@ async def edit_message(
     )
 
     try:
-        service.edit_message(message_id, current_user.id, request.content)
+        # Single service call that returns all data needed (no direct DB access)
+        result = await asyncio.to_thread(
+            service.edit_message_with_context,
+            message_id,
+            current_user.id,
+            request.content,
+        )
+
         logger.info(
             "[MSG-DEBUG] Message EDIT: Success",
             extra={
@@ -796,26 +451,30 @@ async def edit_message(
             },
         )
 
-        # Redis Pub/Sub publishing (fire-and-forget)
-        try:
-            message = service.get_message_by_id(message_id, str(current_user.id))
-            if message:
-                await publish_message_edited(
-                    db=service.db,
-                    conversation_id=str(message.booking_id),
+        # Redis Pub/Sub publishing (fire-and-forget) - using direct function (no DB needed)
+        if result.conversation_id and result.participant_ids:
+            try:
+                await publish_message_edited_direct(
+                    participant_ids=result.participant_ids,
+                    conversation_id=result.conversation_id,
                     message_id=message_id,
                     new_content=request.content,
                     editor_id=str(current_user.id),
-                    edited_at=message.edited_at or datetime.now(timezone.utc),
+                    edited_at=result.edited_at or datetime.now(timezone.utc),
                 )
                 logger.debug(
                     "[REDIS-PUBSUB] Message EDIT: Published to Redis",
-                    extra={"message_id": message_id},
+                    extra={"message_id": message_id, "conversation_id": result.conversation_id},
                 )
-        except Exception as e:
-            logger.error(
-                "[REDIS-PUBSUB] Message EDIT: Redis publish failed",
-                extra={"error": str(e), "message_id": message_id},
+            except Exception as e:
+                logger.error(
+                    "[REDIS-PUBSUB] Message EDIT: Redis publish failed",
+                    extra={"error": str(e), "message_id": message_id},
+                )
+        else:
+            logger.warning(
+                "[REDIS-PUBSUB] Message EDIT: Could not resolve conversation_id",
+                extra={"message_id": message_id},
             )
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -887,40 +546,41 @@ async def delete_message(
     Requires SEND_MESSAGES permission.
     """
     try:
-        message = service.get_message_by_id(message_id, str(current_user.id))
-        if not message:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Message not found",
-            )
-
-        deleted = service.delete_message(
-            message_id=message_id,
-            user_id=current_user.id,
+        # Single service call that returns all data needed (no direct DB access)
+        result = await asyncio.to_thread(
+            service.delete_message_with_context,
+            message_id,
+            current_user.id,
         )
 
-        if not deleted:
+        if not result.success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Message not found",
             )
 
-        # Redis Pub/Sub publishing (fire-and-forget)
-        try:
-            await publish_message_deleted(
-                db=service.db,
-                conversation_id=str(message.booking_id),
-                message_id=message_id,
-                deleted_by=str(current_user.id),
-            )
-            logger.debug(
-                "[REDIS-PUBSUB] Message DELETE: Published to Redis",
+        # Redis Pub/Sub publishing (fire-and-forget) - using direct function (no DB needed)
+        if result.conversation_id and result.participant_ids:
+            try:
+                await publish_message_deleted_direct(
+                    participant_ids=result.participant_ids,
+                    conversation_id=result.conversation_id,
+                    message_id=message_id,
+                    deleted_by=str(current_user.id),
+                )
+                logger.debug(
+                    "[REDIS-PUBSUB] Message DELETE: Published to Redis",
+                    extra={"message_id": message_id, "conversation_id": result.conversation_id},
+                )
+            except Exception as e:
+                logger.error(
+                    "[REDIS-PUBSUB] Message DELETE: Redis publish failed",
+                    extra={"error": str(e), "message_id": message_id},
+                )
+        else:
+            logger.warning(
+                "[REDIS-PUBSUB] Message DELETE: Could not resolve conversation_id",
                 extra={"message_id": message_id},
-            )
-        except Exception as e:
-            logger.error(
-                "[REDIS-PUBSUB] Message DELETE: Redis publish failed",
-                extra={"error": str(e), "message_id": message_id},
             )
 
         return DeleteMessageResponse(
@@ -936,6 +596,11 @@ async def delete_message(
     except ValidationException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except NotFoundException as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
     except HTTPException:
@@ -985,10 +650,14 @@ async def add_reaction(
     )
 
     try:
-        # Get message info first for notification
-        message = service.get_message_by_id(message_id, str(current_user.id))
+        # Single service call that returns all data needed (no direct DB access)
+        result = await asyncio.to_thread(
+            service.add_reaction_with_context,
+            message_id,
+            current_user.id,
+            request.emoji,
+        )
 
-        service.add_reaction(message_id, current_user.id, request.emoji)
         logger.info(
             "[MSG-DEBUG] Reaction ADD: Success",
             extra={
@@ -999,26 +668,31 @@ async def add_reaction(
             },
         )
 
-        # Redis Pub/Sub publishing (fire-and-forget)
-        if message:
+        # Redis Pub/Sub publishing (fire-and-forget) - using direct function (no DB needed)
+        if result.conversation_id and result.participant_ids and result.action:
             try:
-                await publish_reaction_update(
-                    db=service.db,
-                    conversation_id=str(message.booking_id),
+                await publish_reaction_update_direct(
+                    participant_ids=result.participant_ids,
+                    conversation_id=result.conversation_id,
                     message_id=message_id,
                     user_id=str(current_user.id),
                     emoji=request.emoji,
-                    action="added",
+                    action=result.action,
                 )
                 logger.debug(
                     "[REDIS-PUBSUB] Reaction ADD: Published to Redis",
-                    extra={"message_id": message_id},
+                    extra={"message_id": message_id, "conversation_id": result.conversation_id},
                 )
             except Exception as e:
                 logger.error(
                     "[REDIS-PUBSUB] Reaction ADD: Redis publish failed",
                     extra={"error": str(e), "message_id": message_id},
                 )
+        else:
+            logger.warning(
+                "[REDIS-PUBSUB] Reaction ADD: Could not resolve conversation_id",
+                extra={"message_id": message_id},
+            )
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ForbiddenException as e:
@@ -1092,10 +766,14 @@ async def remove_reaction(
     )
 
     try:
-        # Get message info first for notification
-        message = service.get_message_by_id(message_id, str(current_user.id))
+        # Single service call that returns all data needed (no direct DB access)
+        result = await asyncio.to_thread(
+            service.remove_reaction_with_context,
+            message_id,
+            current_user.id,
+            request.emoji,
+        )
 
-        service.remove_reaction(message_id, current_user.id, request.emoji)
         logger.info(
             "[MSG-DEBUG] Reaction REMOVE: Success",
             extra={
@@ -1106,12 +784,12 @@ async def remove_reaction(
             },
         )
 
-        # Redis Pub/Sub publishing (fire-and-forget)
-        if message:
+        # Redis Pub/Sub publishing (fire-and-forget) - using direct function (no DB needed)
+        if result.conversation_id and result.participant_ids:
             try:
-                await publish_reaction_update(
-                    db=service.db,
-                    conversation_id=str(message.booking_id),
+                await publish_reaction_update_direct(
+                    participant_ids=result.participant_ids,
+                    conversation_id=result.conversation_id,
                     message_id=message_id,
                     user_id=str(current_user.id),
                     emoji=request.emoji,
@@ -1119,13 +797,18 @@ async def remove_reaction(
                 )
                 logger.debug(
                     "[REDIS-PUBSUB] Reaction REMOVE: Published to Redis",
-                    extra={"message_id": message_id},
+                    extra={"message_id": message_id, "conversation_id": result.conversation_id},
                 )
             except Exception as e:
                 logger.error(
                     "[REDIS-PUBSUB] Reaction REMOVE: Redis publish failed",
                     extra={"error": str(e), "message_id": message_id},
                 )
+        else:
+            logger.warning(
+                "[REDIS-PUBSUB] Reaction REMOVE: Could not resolve conversation_id",
+                extra={"message_id": message_id},
+            )
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except ForbiddenException as e:
@@ -1138,6 +821,16 @@ async def remove_reaction(
             },
         )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except NotFoundException as e:
+        logger.warning(
+            "[MSG-DEBUG] Reaction REMOVE: Not found",
+            extra={
+                "user_id": current_user.id,
+                "message_id": message_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         logger.error(
             "[MSG-DEBUG] Reaction REMOVE: Unexpected error",

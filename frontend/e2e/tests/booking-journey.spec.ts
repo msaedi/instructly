@@ -95,7 +95,7 @@ test.describe('Student Booking Journey', () => {
     });
 
     // 2. Mock search results with correct natural language API structure
-    await context.route('**/api/v1/search/instructors**', async (route) => {
+    await context.route('**/api/v1/search**', async (route) => {
       const url = route.request().url();
       const searchQuery = new URL(url).searchParams.get('q');
 
@@ -105,13 +105,29 @@ test.describe('Student Booking Journey', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            query: 'didgeridoo',
-            parsed: {
-              services: ['didgeridoo'],
-              location: null,
-            },
-            total_found: 0,
             results: [],
+            meta: {
+              query: 'didgeridoo',
+              search_query_id: '01J5TESTQUERY00000000000002',
+              corrected_query: null,
+              parsed: {
+                service_query: 'didgeridoo',
+                location: null,
+                max_price: null,
+                date: null,
+                time_after: null,
+                audience_hint: null,
+                skill_level: null,
+                urgency: null,
+              },
+              total_results: 0,
+              limit: 20,
+              latency_ms: 50,
+              cache_hit: false,
+              degraded: false,
+              degradation_reasons: [],
+              parsing_mode: 'regex',
+            },
           }),
         });
       } else {
@@ -120,74 +136,86 @@ test.describe('Student Booking Journey', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            query: searchQuery || 'piano',
-            parsed: {
-              services: [searchQuery || 'piano'],
-              location: null,
-            },
-            total_found: 2,
             results: [
               {
+                instructor_id: '1',
                 instructor: {
-                  id: 1,
-                  name: 'Test Instructor 1',
-                  bio: 'Experienced instructor',
-                  profile_image_url: null,
-                  location: 'Manhattan',
-                  service_area_summary: 'Manhattan, Brooklyn',
-                  service_area_boroughs: ['Manhattan', 'Brooklyn'],
-                  service_area_neighborhoods: [],
+                  id: '1',
+                  first_name: 'Test',
+                  last_initial: 'I',
+                  profile_picture_url: null,
+                  bio_snippet: 'Experienced instructor',
+                  verified: true,
                   years_experience: 10,
                 },
-                service: {
-                  id: 1,
+                rating: {
+                  average: 4.9,
+                  count: 25,
+                },
+                coverage_areas: ['Manhattan', 'Brooklyn'],
+                best_match: {
+                  service_id: '1',
+                  service_catalog_id: '1',
                   name: 'Piano',
-                  actual_min_price: 100,
                   description: 'Piano lessons',
+                  price_per_hour: 100,
+                  relevance_score: 0.95,
                 },
-                offering: {
-                  hourly_rate: 100,
-                  description: 'Piano lessons',
-                  duration_options: [30, 60, 90],
-                },
-                match_score: 0.95,
-                availability_summary: 'Available this week',
-                rating: 4.9,
-                total_reviews: 25,
-                location: 'Manhattan',
-                distance_miles: null,
+                other_matches: [],
+                total_matching_services: 1,
+                relevance_score: 0.95,
               },
               {
+                instructor_id: '2',
                 instructor: {
-                  id: 2,
-                  name: 'Test Instructor 2',
-                  bio: 'Professional instructor',
-                  profile_image_url: null,
-                  location: 'Brooklyn',
-                  service_area_summary: 'Brooklyn, Queens',
-                  service_area_boroughs: ['Brooklyn', 'Queens'],
-                  service_area_neighborhoods: [],
+                  id: '2',
+                  first_name: 'Test',
+                  last_initial: 'J',
+                  profile_picture_url: null,
+                  bio_snippet: 'Professional instructor',
+                  verified: false,
                   years_experience: 5,
                 },
-                service: {
-                  id: 2,
+                rating: {
+                  average: 4.7,
+                  count: 15,
+                },
+                coverage_areas: ['Brooklyn', 'Queens'],
+                best_match: {
+                  service_id: '2',
+                  service_catalog_id: '2',
                   name: 'Piano',
-                  actual_min_price: 80,
                   description: 'Piano lessons for beginners',
+                  price_per_hour: 80,
+                  relevance_score: 0.9,
                 },
-                offering: {
-                  hourly_rate: 80,
-                  description: 'Piano lessons for beginners',
-                  duration_options: [30, 60],
-                },
-                match_score: 0.9,
-                availability_summary: 'Available this week',
-                rating: 4.7,
-                total_reviews: 15,
-                location: 'Brooklyn',
-                distance_miles: null,
+                other_matches: [],
+                total_matching_services: 1,
+                relevance_score: 0.9,
               },
             ],
+            meta: {
+              query: searchQuery || 'piano',
+              search_query_id: '01J5TESTQUERY00000000000003',
+              corrected_query: null,
+              parsed: {
+                service_query: searchQuery || 'piano',
+                location: null,
+                max_price: null,
+                date: null,
+                time_after: null,
+                audience_hint: null,
+                skill_level: null,
+                urgency: null,
+              },
+              total_results: 2,
+              limit: 20,
+              latency_ms: 50,
+              cache_hit: false,
+              degraded: false,
+              degradation_reasons: [],
+              parsing_mode: 'regex',
+            },
           }),
         });
       }

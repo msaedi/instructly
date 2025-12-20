@@ -5,7 +5,6 @@
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { useEffect, useState, useRef } from 'react';
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 
 // Mock the message service (Orval layer)
 const mockFetchMessageHistory = jest.fn();
@@ -14,7 +13,7 @@ jest.mock('@/src/api/services/messages', () => ({
 }));
 
 // Simplified version of the fetch effect logic
-type MessagesByThread = Record<string, MessageResponse[]>;
+type MessagesByThread = Record<string, Array<{ id: string }>>;
 
 const useFetchMessagesEffect = (
   selectedChat: string | null,
@@ -122,17 +121,7 @@ describe('Instructor Messages - Message Fetching', () => {
 
   it('fetches messages exactly once for conversations with messages', async () => {
     // Mock response with messages
-    const mockMessages: MessageResponse[] = [
-      {
-        id: 'msg-1',
-        booking_id: 'booking-emma-456',
-        sender_id: 'student-emma',
-        content: 'Hello!',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_deleted: false,
-      },
-    ];
+    const mockMessages = [{ id: 'msg-1' }];
 
     mockFetchMessageHistory.mockResolvedValue({
       messages: mockMessages,

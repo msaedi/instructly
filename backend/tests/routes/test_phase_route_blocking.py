@@ -19,7 +19,7 @@ class TestPhaseRouteBlocking:
         db.commit()
 
         # Hitting the search endpoint (phase-gated) should 403 when authenticated under instructor_only
-        _res = client.get("/api/v1/search/instructors", params={"q": "piano"})
+        _res = client.get("/api/v1/search", params={"q": "piano"})
         # Since dependency requires auth, we expect 401 or 403 depending on setup; but phase dependency should 403
         # Ensure we get 403 if authenticated but phase is not open
         from app.models.user import User
@@ -37,7 +37,7 @@ class TestPhaseRouteBlocking:
         token = _make_token_for_user(u.email)
         headers = {"Authorization": f"Bearer {token}"}
         res2 = client.get(
-            "/api/v1/search/instructors",
+            "/api/v1/search",
             params={"q": "piano"},
             headers={**headers, "x-enforce-beta-checks": "1"},
         )
@@ -51,6 +51,6 @@ class TestPhaseRouteBlocking:
         repo.update_settings(beta_disabled=True, beta_phase="instructor_only", allow_signup_without_invite=False)
         db.commit()
 
-        res = client.get("/api/v1/search/instructors", params={"q": "piano"})
+        res = client.get("/api/v1/search", params={"q": "piano"})
         # Unauthenticated search can now proceed (public search), but our endpoint expects only query validation
         assert res.status_code in (200, 400)  # 200 if service returns, 400 if empty/trivial input handling kicks in

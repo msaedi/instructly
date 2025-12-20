@@ -42,6 +42,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .constants import BRAND_NAME
 
+
+def is_running_tests() -> bool:
+    """
+    Detect if code is running under pytest.
+
+    PYTEST_CURRENT_TEST is set automatically by pytest during test runs, and is
+    not expected to be present in production environments.
+    """
+    return os.getenv("PYTEST_CURRENT_TEST") is not None
+
+
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SENDER_PROFILES_FILE = _BACKEND_ROOT / "config" / "email_senders.json"
 
@@ -470,6 +481,33 @@ class Settings(BaseSettings):
     )
     search_analytics_enabled: bool = True  # Enable/disable analytics tracking
 
+    # OpenAI Location Resolution (Tier 5)
+    openai_location_model: str = Field(
+        default="gpt-4o-mini",
+        alias="OPENAI_LOCATION_MODEL",
+        description="Model used for Tier 5 location resolution",
+    )
+    openai_location_timeout_ms: int = Field(
+        default=3000,
+        alias="OPENAI_LOCATION_TIMEOUT_MS",
+        ge=500,
+        description="Timeout (ms) for Tier 5 location resolution",
+    )
+    openai_call_concurrency: int = Field(
+        default=3,
+        alias="OPENAI_CALL_CONCURRENCY",
+        ge=1,
+        description=(
+            "Maximum concurrent OpenAI API calls per worker.\n\n"
+            "Tuning guidelines:\n"
+            "- Free tier: 3 (default)\n"
+            "- Tier 1 ($5/mo): 5-8\n"
+            "- Tier 2 ($50/mo): 10-15\n"
+            "- Tier 3+ ($100/mo+): 15-25\n"
+            "Higher values reduce latency but risk rate limits; monitor 429s."
+        ),
+    )
+
     # Privacy and Data Retention Configuration (GDPR compliance)
     search_event_retention_days: int = 365  # Keep detailed search events for 1 year
     booking_pii_retention_days: int = 2555  # Keep booking PII for 7 years (business requirement)
@@ -634,12 +672,50 @@ class Settings(BaseSettings):
         default=True, description="Enable rate limiting (disable for testing)"
     )
 
+    login_concurrency_limit: int = Field(
+        default=10,
+        alias="LOGIN_CONCURRENCY_LIMIT",
+        description="Max concurrent login verifications allowed (controls Argon2 load)",
+    )
+    login_concurrency_timeout_seconds: float = Field(
+        default=5.0,
+        alias="LOGIN_CONCURRENCY_TIMEOUT",
+        description="Seconds to wait for a login slot before returning 429",
+    )
+    login_attempts_per_minute: int = Field(
+        default=5,
+        alias="LOGIN_ATTEMPTS_PER_MINUTE",
+        description="Per-account login attempts allowed per minute",
+    )
+    login_attempts_per_hour: int = Field(
+        default=20,
+        alias="LOGIN_ATTEMPTS_PER_HOUR",
+        description="Per-account login attempts allowed per hour",
+    )
+    captcha_failure_threshold: int = Field(
+        default=3,
+        alias="CAPTCHA_FAILURE_THRESHOLD",
+        description="Number of failed logins before CAPTCHA is required",
+    )
+    turnstile_secret_key: str = Field(
+        default="",
+        alias="TURNSTILE_SECRET_KEY",
+        description="Cloudflare Turnstile secret key (empty disables CAPTCHA)",
+    )
+    turnstile_site_key: str = Field(
+        default="",
+        alias="TURNSTILE_SITE_KEY",
+        description="Cloudflare Turnstile site key (for frontend)",
+    )
+
     rate_limit_general_per_minute: int = Field(
-        default=100, description="General API rate limit per minute per IP"
+        default=100,
+        description="General API rate limit per minute per IP. NL search now returns all embedded data in one request, eliminating N+1 queries.",
     )
 
     rate_limit_auth_per_minute: int = Field(
-        default=5, description="Authentication attempts per minute per IP"
+        default=20,
+        description="Authentication attempts per minute per IP (generous - DDoS protection only; email-based limiting handles brute force)",
     )
 
     rate_limit_password_reset_per_hour: int = Field(
@@ -677,7 +753,7 @@ class Settings(BaseSettings):
     message_edit_window_minutes: int = Field(
         default=5, description="How many minutes a user can edit their message"
     )
-    sse_heartbeat_interval: int = Field(default=10, description="SSE heartbeat interval in seconds")
+    sse_heartbeat_interval: int = Field(default=30, description="SSE heartbeat interval in seconds")
 
     # Geocoding/Maps providers
     geocoding_provider: str = Field(

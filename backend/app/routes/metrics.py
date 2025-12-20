@@ -5,6 +5,7 @@ Simple metrics endpoint for performance monitoring.
 This gives us immediate visibility without Prometheus complexity.
 """
 
+import asyncio
 from datetime import datetime, timezone
 import os
 from typing import Any, Dict, List, Mapping, Optional, cast
@@ -12,11 +13,11 @@ from typing import Any, Dict, List, Mapping, Optional, cast
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
 import psutil
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.authz import require_roles
 from ..api.dependencies.services import (
+    get_auth_service,
     get_availability_service,
     get_booking_service,
     get_cache_service_dep,
@@ -29,6 +30,7 @@ from ..metrics import retention_metrics
 from ..middleware import rate_limiter as rate_limiter_module
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.user import User
+from ..repositories.metrics_repository import MetricsRepository
 from ..schemas.base_responses import HealthCheckResponse, SuccessResponse
 from ..schemas.monitoring_responses import (
     AvailabilityCacheMetricsResponse,
@@ -39,6 +41,7 @@ from ..schemas.monitoring_responses import (
     RateLimitTestResponse,
     SlowQueriesResponse,
 )
+from ..services.auth_service import AuthService
 from ..services.cache_service import CacheService
 
 router = APIRouter(prefix="/ops", tags=["monitoring"])
@@ -68,14 +71,18 @@ def _ops_admin_required() -> bool:
     return mode in {"preview", "prod"} or raw_mode == "beta"
 
 
+def get_metrics_repository(db: Session = Depends(get_db)) -> MetricsRepository:
+    """Get an instance of the metrics repository."""
+    return MetricsRepository(db)
+
+
 async def _get_optional_user(
     current_user_email: Optional[str] = Depends(auth_get_current_user_optional),
-    db: Session = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> Optional[User]:
     if not current_user_email:
         return None
-    user = db.query(User).filter(User.email == current_user_email).first()
-    return cast(Optional[User], user)
+    return auth_service.get_user_by_email(current_user_email)
 
 
 async def _ensure_ops_access(
@@ -158,13 +165,13 @@ async def get_performance_metrics(
     booking_service: Any = Depends(get_booking_service),
     conflict_checker: Any = Depends(get_conflict_checker),
     cache_service: Optional[CacheService] = Depends(get_cache_service_dep),
-    db: Session = Depends(get_db),
+    metrics_repository: MetricsRepository = Depends(get_metrics_repository),
 ) -> PerformanceMetricsResponse:
     """Get performance metrics from all services."""
 
     # Cache metrics
     if cache_service:
-        raw_cache_stats = cache_service.get_stats()
+        raw_cache_stats = await cache_service.get_stats()
         cache_stats = _coerce_json_dict(raw_cache_stats, "Unexpected cache stats format")
     else:
         cache_stats = {"error": "Cache service not available"}
@@ -177,21 +184,25 @@ async def get_performance_metrics(
     }
 
     # Database metrics
-    db_stats = db.execute(text("SELECT count(*) FROM pg_stat_activity")).scalar()
+    db_stats = await asyncio.to_thread(metrics_repository.get_active_connections_count)
     database_metrics: JsonDict = {
         "active_connections": db_stats,
         "pool_status": get_db_pool_status(),
     }
 
+    availability_service_metrics = await asyncio.to_thread(availability_service.get_metrics)
+    booking_service_metrics = await asyncio.to_thread(booking_service.get_metrics)
+    conflict_checker_metrics = await asyncio.to_thread(conflict_checker.get_metrics)
+
     return PerformanceMetricsResponse(
         availability_service=_normalize_service_metrics(
-            cast(Mapping[str, Any], availability_service.get_metrics())
+            cast(Mapping[str, Any], availability_service_metrics)
         ),
         booking_service=_normalize_service_metrics(
-            cast(Mapping[str, Any], booking_service.get_metrics())
+            cast(Mapping[str, Any], booking_service_metrics)
         ),
         conflict_checker=_normalize_service_metrics(
-            cast(Mapping[str, Any], conflict_checker.get_metrics())
+            cast(Mapping[str, Any], conflict_checker_metrics)
         ),
         cache=cache_stats,
         system=system_metrics,
@@ -213,7 +224,7 @@ async def get_cache_metrics(
         raise HTTPException(status_code=503, detail="Cache service not available")
 
     # Get basic cache stats
-    stats = _coerce_json_dict(cache_service.get_stats(), "Unexpected cache stats format")
+    stats = _coerce_json_dict(await cache_service.get_stats(), "Unexpected cache stats format")
 
     # Add availability-specific metrics
     availability_stats: JsonDict = {
@@ -233,10 +244,11 @@ async def get_cache_metrics(
 
     # Add cache size estimates (if Redis is available)
     redis_info: Optional[JsonDict] = None
-    if hasattr(cache_service, "redis") and cache_service.redis:
+    redis_client = await cache_service.get_redis_client()
+    if redis_client is not None:
         try:
             # Get approximate cache size
-            info = cache_service.redis.info()
+            info = await redis_client.info()
             redis_info = {
                 "used_memory_human": info.get("used_memory_human", "Unknown"),
                 "keyspace_hits": info.get("keyspace_hits", 0),
@@ -309,7 +321,7 @@ async def get_availability_cache_metrics(
     if not cache_service:
         raise HTTPException(status_code=503, detail="Cache service not available")
 
-    stats = cache_service.get_stats()
+    stats = await cache_service.get_stats()
 
     # Calculate availability-specific metrics
     avail_hits = stats.get("availability_hits", 0)
@@ -330,13 +342,18 @@ async def get_availability_cache_metrics(
 
     # Get top cached keys (if possible)
     top_keys: List[str] = []
-    if hasattr(cache_service, "redis") and cache_service.redis:
+    redis_client = await cache_service.get_redis_client()
+    if redis_client is not None:
         try:
             # Sample some availability-related keys
             sample_keys: List[str] = []
             for pattern in ["avail:*", "availability:*"]:
-                keys = list(cache_service.redis.scan_iter(match=pattern, count=10))
-                sample_keys.extend(keys[:5])  # Limit to 5 per pattern
+                keys: List[str] = []
+                async for key in redis_client.scan_iter(match=pattern, count=10):
+                    keys.append(key)
+                    if len(keys) >= 5:
+                        break
+                sample_keys.extend(keys)
 
             top_keys = sample_keys[:10]  # Top 10 keys
         except Exception as e:
@@ -373,47 +390,28 @@ async def get_availability_cache_metrics(
     response_model=SlowQueriesResponse,
     dependencies=[Depends(_ensure_ops_access)],
 )
-async def get_slow_queries(db: Session = Depends(get_db)) -> SlowQueriesResponse:
+async def get_slow_queries(
+    metrics_repository: MetricsRepository = Depends(get_metrics_repository),
+) -> SlowQueriesResponse:
     """Get recent slow queries."""
-    # Get slow queries from PostgreSQL
-    try:
-        result = db.execute(
-            text(
-                """
-            SELECT
-                query,
-                mean_exec_time,
-                calls,
-                total_exec_time
-            FROM pg_stat_statements
-            WHERE mean_exec_time > 100
-            ORDER BY mean_exec_time DESC
-            LIMIT 20
-        """
-            )
+    # Get slow queries from PostgreSQL via repository
+    raw_queries = await asyncio.to_thread(metrics_repository.get_slow_queries)
+
+    slow_queries: JsonList = []
+    for row in raw_queries:
+        slow_queries.append(
+            {
+                "query": str(row.get("query", ""))[:200],  # First 200 chars
+                "duration_ms": float(row.get("mean_exec_time", 0)),
+                "timestamp": datetime.now(timezone.utc),  # Approximate timestamp
+                "endpoint": None,  # Not available from pg_stat_statements
+            }
         )
 
-        slow_queries: JsonList = []
-        for row in result:
-            slow_queries.append(
-                {
-                    "query": row[0][:200],  # First 200 chars
-                    "duration_ms": float(row[1]),
-                    "timestamp": datetime.now(timezone.utc),  # Approximate timestamp
-                    "endpoint": None,  # Not available from pg_stat_statements
-                }
-            )
-
-        return SlowQueriesResponse(
-            slow_queries=slow_queries,
-            total_count=len(slow_queries),
-        )
-    except Exception:
-        # Return empty list if pg_stat_statements not available
-        return SlowQueriesResponse(
-            slow_queries=[],
-            total_count=0,
-        )
+    return SlowQueriesResponse(
+        slow_queries=slow_queries,
+        total_count=len(slow_queries),
+    )
 
 
 @router.post(
@@ -441,7 +439,7 @@ async def reset_cache_stats(
     response_model=RateLimitStats,
     dependencies=[Depends(_ensure_ops_access)],
 )
-def get_rate_limit_stats() -> RateLimitStats:
+async def get_rate_limit_stats() -> RateLimitStats:
     """
     Get current rate limit statistics.
 
@@ -453,7 +451,7 @@ def get_rate_limit_stats() -> RateLimitStats:
     Requires authentication.
     """
     stats = _coerce_json_dict(
-        RateLimitAdmin.get_rate_limit_stats(), "Unexpected rate limit stats format"
+        await RateLimitAdmin.get_rate_limit_stats(), "Unexpected rate limit stats format"
     )
     return RateLimitStats(**stats)
 
@@ -463,7 +461,7 @@ def get_rate_limit_stats() -> RateLimitStats:
     response_model=RateLimitResetResponse,
     dependencies=[Depends(_ensure_ops_access)],
 )
-def reset_rate_limits(
+async def reset_rate_limits(
     pattern: str = Query(..., description="Pattern to match (e.g., 'email_*', 'ip_192.168.*')"),
 ) -> RateLimitResetResponse:
     """
@@ -476,7 +474,7 @@ def reset_rate_limits(
 
     Requires admin privileges.
     """
-    count = RateLimitAdmin.reset_all_limits(pattern)
+    count = await RateLimitAdmin.reset_all_limits(pattern)
 
     return RateLimitResetResponse(
         status="success",

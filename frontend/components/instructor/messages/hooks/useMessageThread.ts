@@ -14,11 +14,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { logger } from '@/lib/logger';
 import { queryKeys } from '@/src/api/queryKeys';
 import {
-  useMessageHistory,
-  sendMessageImperative,
+  useConversationMessages,
   markMessagesAsReadImperative,
 } from '@/src/api/services/messages';
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
+import { sendMessage as sendConversationMessage } from '@/src/api/services/conversations';
 import type {
   ConversationEntry,
   MessageWithAttachments,
@@ -78,7 +77,6 @@ export function useMessageThread({
   setConversations,
 }: UseMessageThreadOptions): UseMessageThreadResult {
   const HISTORY_LIMIT = 100;
-  const HISTORY_OFFSET = 0;
   const queryClient = useQueryClient();
 
   // Thread messages state
@@ -127,7 +125,7 @@ export function useMessageThread({
     staleThreadsRef.current.delete(threadId);
   }, []);
 
-  // When inbox-state derived conversations update, mark stale threads whose latestMessageAt advanced
+  // When conversation list updates, mark stale threads whose latestMessageAt advanced
   useEffect(() => {
     if (!conversationsRef.current) return;
     for (const conv of conversationsRef.current) {
@@ -142,11 +140,11 @@ export function useMessageThread({
     }
   }, [_conversations]);
 
-  const historyBookingId = historyTarget?.conversation.primaryBookingId ?? '';
+  const conversationId = historyTarget?.conversation.id ?? '';
   const {
     data: historyData,
     error: historyError,
-  } = useMessageHistory(historyBookingId, HISTORY_LIMIT, HISTORY_OFFSET, Boolean(historyBookingId));
+  } = useConversationMessages(conversationId, HISTORY_LIMIT, undefined, Boolean(conversationId));
 
   // Set thread messages for current display mode
   const setThreadMessagesForDisplay = useCallback((
@@ -170,9 +168,6 @@ export function useMessageThread({
     _messageDisplay: MessageDisplayMode
   ) => {
     if (!selectedChat || selectedChat === COMPOSE_THREAD_ID || !activeConversation || !currentUserId) return;
-
-    const bookingId = activeConversation.primaryBookingId;
-    if (!bookingId) return;
 
     const cached = messagesByThreadRef.current[selectedChat];
     const hasCache = Boolean(cached && cached.length > 0);
@@ -204,11 +199,11 @@ export function useMessageThread({
     }
 
     // Proactively mark as read on first view of this conversation to avoid duplicate effects
-    const lastMarked = markedReadThreadsRef.current.get(bookingId);
+    const lastMarked = markedReadThreadsRef.current.get(selectedChat);
     if (lastMarked === undefined) {
-      markedReadThreadsRef.current.set(bookingId, 0);
-      void markMessagesAsReadImperative({ booking_id: bookingId }).catch(() => {
-        markedReadThreadsRef.current.delete(bookingId);
+      markedReadThreadsRef.current.set(selectedChat, 0);
+      void markMessagesAsReadImperative({ conversation_id: selectedChat }).catch(() => {
+        markedReadThreadsRef.current.delete(selectedChat);
       });
     }
   }, [currentUserId]);
@@ -221,7 +216,8 @@ export function useMessageThread({
     const messages = historyData.messages || [];
 
     // Guard against re-processing identical history payloads (prevents render loops in tests)
-    const lastMessageId = messages[messages.length - 1]?.id ?? 'none';
+    const lastMessage = messages.at(-1);
+    const lastMessageId = lastMessage?.id ?? 'none';
     const dedupeKey = `${threadId}:${messages.length}:${lastMessageId}`;
     if (lastHistoryAppliedRef.current === dedupeKey) {
       return;
@@ -247,13 +243,18 @@ export function useMessageThread({
     setThreadMessages(mergedMessages);
 
     // Track last seen message timestamp for staleness checks
-    const lastTimestamp = mergedMessages.length > 0
-      ? new Date(mergedMessages[mergedMessages.length - 1]?.createdAt || '').getTime()
+    const lastMergedMessage = mergedMessages.at(-1);
+    const lastTimestamp = lastMergedMessage?.createdAt
+      ? new Date(lastMergedMessage.createdAt).getTime()
       : (conversation.latestMessageAt ?? undefined);
     updateLastSeenTimestamp(threadId, lastTimestamp);
 
     // Update conversation unread count
-    const unreadCount = computeUnreadFromMessages(messages, conversation, currentUserId);
+    const unreadCount = computeUnreadFromMessages(
+      messages,
+      conversation,
+      currentUserId
+    );
     setConversations((prev) =>
       prev.map((conv) =>
         conv.id === threadId ? { ...conv, unread: unreadCount } : conv
@@ -261,32 +262,31 @@ export function useMessageThread({
     );
 
     // Mark messages as read for this booking when needed
-    const bookingId = conversation.primaryBookingId;
-    if (bookingId) {
-      const lastCount = markedReadThreadsRef.current.get(bookingId);
+    const messageIdsToMark = mergedMessages.map((m) => m.id);
+    if (messageIdsToMark.length > 0) {
+      const lastCount = markedReadThreadsRef.current.get(conversation.id);
       const shouldMarkRead = unreadCount > 0 || lastCount === undefined;
 
       if (shouldMarkRead) {
-        markedReadThreadsRef.current.set(bookingId, unreadCount);
-        markMessagesAsReadImperative({ booking_id: bookingId })
+        markedReadThreadsRef.current.set(conversation.id, unreadCount);
+        markMessagesAsReadImperative({ message_ids: messageIdsToMark })
           .then(() => {
             setConversations((prev) =>
               prev.map((conv) =>
                 conv.id === threadId ? { ...conv, unread: 0 } : conv
               )
             );
-            markedReadThreadsRef.current.set(bookingId, 0);
+            markedReadThreadsRef.current.set(conversation.id, 0);
           })
           .catch(() => {
-            // Revert the last known count on failure
             if (lastCount !== undefined) {
-              markedReadThreadsRef.current.set(bookingId, lastCount);
+              markedReadThreadsRef.current.set(conversation.id, lastCount);
             } else {
-              markedReadThreadsRef.current.delete(bookingId);
+              markedReadThreadsRef.current.delete(conversation.id);
             }
           });
       } else {
-        markedReadThreadsRef.current.set(bookingId, 0);
+        markedReadThreadsRef.current.set(conversation.id, 0);
       }
     }
   }, [historyData, historyTarget, currentUserId, setConversations, updateLastSeenTimestamp]);
@@ -309,7 +309,7 @@ export function useMessageThread({
     if (!currentUserId) return;
 
     const mappedMessage = mapMessageFromResponse(
-      message as MessageResponse,
+      message,
       activeConversation,
       currentUserId
     );
@@ -376,11 +376,11 @@ export function useMessageThread({
     void queryClient.invalidateQueries({ queryKey: queryKeys.messages.unreadCount });
 
     // If we're viewing this thread and received a message from the other user, mark as read server-side
-    if (!isOwnMessage && activeConversation.primaryBookingId) {
-      markedReadThreadsRef.current.set(activeConversation.primaryBookingId, 0);
-      void markMessagesAsReadImperative({ booking_id: activeConversation.primaryBookingId }).catch((err) => {
+    if (!isOwnMessage) {
+      markedReadThreadsRef.current.set(activeConversation.id, 0);
+      void markMessagesAsReadImperative({ message_ids: [mappedMessage.id] }).catch((err) => {
         logger.warn('[MSG-DEBUG] Failed to mark messages as read from SSE handler', {
-          bookingId: activeConversation.primaryBookingId,
+          conversationId: activeConversation.id,
           error: err instanceof Error ? err.message : err,
         });
       });
@@ -493,37 +493,37 @@ export function useMessageThread({
     });
 
     // Send to server
-    const bookingIdTarget = getPrimaryBookingId(targetThreadId);
     let resolvedServerId: string | undefined;
     let deliveredAtFromBackend: string | null = null;
     const optimisticTimestamp = new Date().getTime();
     updateLastSeenTimestamp(targetThreadId, optimisticTimestamp);
 
     try {
-      if (bookingIdTarget) {
-        const composedForServer = trimmed || (hasAttachments
-          ? pendingAttachments.map((file) => `[Attachment] ${file.name}`).join('\n')
-          : '');
-        const res = await sendMessageImperative({
-          booking_id: bookingIdTarget,
-          content: composedForServer,
-        });
-        resolvedServerId = res?.message?.id ?? undefined;
-        // Store delivered_at from backend response
-        deliveredAtFromBackend = res?.message?.delivered_at ?? null;
-      }
+      const composedForServer =
+        trimmed ||
+        (hasAttachments
+          ? pendingAttachments.map((file) => `[Attachment] ${file.name}`).join("\n")
+          : "");
+      const res = await sendConversationMessage(
+        targetThreadId,
+        composedForServer,
+        getPrimaryBookingId(targetThreadId) || undefined
+      );
+      resolvedServerId = res?.id ?? undefined;
+      deliveredAtFromBackend = null;
     } catch (error) {
       logger.warn('Failed to persist instructor message', { error });
     }
 
     // Update with delivered status
-    const deliveredAt = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const deliveredAtIso = new Date().toISOString();
+    const deliveredAt = new Date(deliveredAtIso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     const deliveredMessage: MessageWithAttachments = {
       ...optimistic,
       id: resolvedServerId ?? optimisticId,
       delivery: { status: 'delivered', timeLabel: deliveredAt },
-      // Add delivered_at field from backend response (Bug #4 fix)
-      delivered_at: deliveredAtFromBackend,
+      // Add delivered_at field (use backend value if available, otherwise now)
+      delivered_at: deliveredAtFromBackend ?? deliveredAtIso,
     };
 
     const applyDeliveryUpdate = (collection: MessageWithAttachments[]): MessageWithAttachments[] => {
@@ -637,14 +637,10 @@ export function useMessageThread({
 
   // Invalidate conversation cache to force refetch on next view
   const invalidateConversationCache = useCallback((conversationId: string) => {
-    const conversation = conversationsRef.current.find((c) => c.id === conversationId);
-    const bookingId = conversation?.primaryBookingId;
-    if (!bookingId) return;
-
     void queryClient.invalidateQueries({
-      queryKey: queryKeys.messages.history(bookingId, { limit: HISTORY_LIMIT, offset: HISTORY_OFFSET }),
+      queryKey: queryKeys.messages.conversationMessages(conversationId, { limit: HISTORY_LIMIT }),
     });
-  }, [queryClient, HISTORY_LIMIT, HISTORY_OFFSET]);
+  }, [queryClient, HISTORY_LIMIT]);
 
   return {
     threadMessages,

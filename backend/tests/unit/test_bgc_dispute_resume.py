@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-import pytest
 from sqlalchemy.orm import Session
 from tests.unit.services._adverse_helpers import ensure_adverse_schema
 import ulid
@@ -65,8 +64,7 @@ def _create_profile(
     return profile
 
 
-@pytest.mark.anyio
-async def test_resume_final_adverse_enqueues_immediately(db: Session) -> None:
+def test_resume_final_adverse_enqueues_immediately(db: Session) -> None:
     original_testing = settings.is_testing
     settings.is_testing = False
     try:
@@ -89,7 +87,7 @@ async def test_resume_final_adverse_enqueues_immediately(db: Session) -> None:
         repo = InstructorProfileRepository(db)
         workflow = BackgroundCheckWorkflowService(repo)
 
-        resumed, scheduled_for = await workflow.resolve_dispute_and_resume_final_adverse(profile.id)
+        resumed, scheduled_for = workflow.resolve_dispute_and_resume_final_adverse(profile.id)
         db.flush()
 
         assert resumed is True
@@ -112,8 +110,7 @@ async def test_resume_final_adverse_enqueues_immediately(db: Session) -> None:
         settings.is_testing = original_testing
 
 
-@pytest.mark.anyio
-async def test_resume_final_adverse_schedules_remaining_window(db: Session) -> None:
+def test_resume_final_adverse_schedules_remaining_window(db: Session) -> None:
     original_testing = settings.is_testing
     settings.is_testing = False
     try:
@@ -131,7 +128,7 @@ async def test_resume_final_adverse_schedules_remaining_window(db: Session) -> N
         repo = InstructorProfileRepository(db)
         workflow = BackgroundCheckWorkflowService(repo)
 
-        resumed, scheduled_for = await workflow.resolve_dispute_and_resume_final_adverse(profile.id)
+        resumed, scheduled_for = workflow.resolve_dispute_and_resume_final_adverse(profile.id)
         db.flush()
 
         assert resumed is False
@@ -157,8 +154,7 @@ async def test_resume_final_adverse_schedules_remaining_window(db: Session) -> N
         settings.is_testing = original_testing
 
 
-@pytest.mark.anyio
-async def test_resume_final_adverse_noop_when_final_already_sent(db: Session) -> None:
+def test_resume_final_adverse_noop_when_final_already_sent(db: Session) -> None:
     original_testing = settings.is_testing
     settings.is_testing = False
     try:
@@ -175,7 +171,7 @@ async def test_resume_final_adverse_noop_when_final_already_sent(db: Session) ->
         repo = InstructorProfileRepository(db)
         workflow = BackgroundCheckWorkflowService(repo)
 
-        resumed, scheduled_for = await workflow.resolve_dispute_and_resume_final_adverse(profile.id)
+        resumed, scheduled_for = workflow.resolve_dispute_and_resume_final_adverse(profile.id)
         db.flush()
 
         assert resumed is False

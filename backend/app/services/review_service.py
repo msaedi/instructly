@@ -22,14 +22,17 @@ from ..models.booking import BookingStatus
 from ..models.review import Review, ReviewResponse, ReviewStatus
 from ..repositories.booking_repository import BookingRepository
 from ..repositories.factory import RepositoryFactory
+from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..repositories.review_repository import (
     ReviewRepository,
     ReviewResponseRepository,
     ReviewTipRepository,
 )
+from ..services.config_service import ConfigService
+from ..services.pricing_service import PricingService
+from ..services.stripe_service import StripeService
 from .badge_award_service import BadgeAwardService
-from .base import BaseService
-from .cache_service import CacheService
+from .base import BaseService, CacheInvalidationProtocol
 from .ratings_config import DEFAULT_RATINGS_CONFIG, RatingsConfig
 from .ratings_math import (
     compute_dirichlet_rating,
@@ -65,6 +68,12 @@ class SearchRatingSummary(TypedDict):
     is_service_specific: bool
 
 
+class ReviewSubmissionResult(TypedDict):
+    review: Review
+    tip_status: str | None
+    tip_client_secret: str | None
+
+
 class ReviewService(BaseService):
     """Service layer for reviews & ratings."""
 
@@ -75,7 +84,7 @@ class ReviewService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache: Optional[CacheService] = None,
+        cache: Optional[CacheInvalidationProtocol] = None,
         config: RatingsConfig = DEFAULT_RATINGS_CONFIG,
     ) -> None:
         super().__init__(db, cache)
@@ -83,7 +92,32 @@ class ReviewService(BaseService):
         self.response_repository: ReviewResponseRepository = ReviewResponseRepository(db)
         self.tip_repository: ReviewTipRepository = ReviewTipRepository(db)
         self.booking_repository: BookingRepository = RepositoryFactory.create_booking_repository(db)
+        self.instructor_profile_repository: InstructorProfileRepository = (
+            InstructorProfileRepository(db)
+        )
         self.config = config
+
+    def _resolve_instructor_user_id(self, instructor_id: str) -> str:
+        """
+        Resolve an instructor identifier to the `users.id` used by the reviews table.
+
+        Public endpoints historically pass instructor profile IDs (instructor_profiles.id),
+        while the reviews schema stores the instructor as `users.id`. To be tolerant and
+        avoid returning empty ratings, we treat the input as:
+        - If it matches an instructor profile id: use `profile.user_id`
+        - Otherwise: assume it is already a `users.id`
+        """
+        try:
+            profile = self.instructor_profile_repository.get_by_id(
+                instructor_id, load_relationships=False
+            )
+            user_id = getattr(profile, "user_id", None) if profile else None
+            if user_id:
+                return str(user_id)
+        except Exception:
+            # Fall back to treating the provided value as `users.id`
+            pass
+        return instructor_id
 
     @BaseService.measure_operation("submit_review")
     def submit_review(
@@ -214,17 +248,155 @@ class ReviewService(BaseService):
 
         return review
 
+    @BaseService.measure_operation("submit_review_with_tip")
+    def submit_review_with_tip(
+        self,
+        *,
+        student_id: str,
+        booking_id: str,
+        rating: int,
+        review_text: Optional[str] = None,
+        tip_amount_cents: Optional[int] = None,
+    ) -> ReviewSubmissionResult:
+        """
+        Submit review and handle optional tip PaymentIntent creation.
+
+        Returns the created review plus tip status/client secret metadata.
+        """
+        review = self.submit_review(
+            student_id=student_id,
+            booking_id=booking_id,
+            rating=rating,
+            review_text=review_text,
+            tip_amount_cents=tip_amount_cents,
+        )
+
+        tip_status: str | None = None
+        tip_client_secret: str | None = None
+
+        if tip_amount_cents and tip_amount_cents > 0:
+            tip_record = None
+            try:
+                tip_record = self.tip_repository.get_by_review_id(review.id)
+            except Exception:
+                tip_record = None
+
+            try:
+                config_service = ConfigService(self.db)
+                pricing_service = PricingService(self.db)
+                stripe_service = StripeService(
+                    self.db,
+                    config_service=config_service,
+                    pricing_service=pricing_service,
+                )
+                customer = stripe_service.get_or_create_customer(student_id)
+                instr_repo = InstructorProfileRepository(self.db)
+                instructor_profile = instr_repo.get_by_user_id(review.instructor_id)
+                if not instructor_profile:
+                    raise ValidationException("Instructor profile not found for tip")
+
+                connected = (
+                    stripe_service.payment_repository.get_connected_account_by_instructor_id(
+                        instructor_profile.id
+                    )
+                )
+                if not connected or not connected.stripe_account_id:
+                    raise ValidationException("Instructor is not set up to receive tips")
+
+                pi_record = stripe_service.create_payment_intent(
+                    booking_id=review.booking_id,
+                    customer_id=customer.stripe_customer_id,
+                    destination_account_id=connected.stripe_account_id,
+                    amount_cents=int(tip_amount_cents),
+                    charge_context=None,
+                )
+
+                if tip_record:
+                    self.tip_repository.set_payment_intent_details(
+                        tip_record.id,
+                        stripe_payment_intent_id=pi_record.stripe_payment_intent_id,
+                        status=pi_record.status,
+                    )
+
+                default_pm = stripe_service.payment_repository.get_default_payment_method(
+                    student_id
+                )
+                if default_pm and default_pm.stripe_payment_method_id:
+                    try:
+                        pi_after_confirm = stripe_service.confirm_payment_intent(
+                            pi_record.stripe_payment_intent_id, default_pm.stripe_payment_method_id
+                        )
+                        tip_status = pi_after_confirm.status
+                        if tip_record:
+                            self.tip_repository.set_payment_intent_details(
+                                tip_record.id,
+                                stripe_payment_intent_id=pi_after_confirm.id,
+                                status=pi_after_confirm.status,
+                                processed_at=datetime.now(timezone.utc)
+                                if pi_after_confirm.status == "succeeded"
+                                else None,
+                            )
+                        if tip_status in ("requires_action", "requires_confirmation"):
+                            try:
+                                import stripe as _stripe
+
+                                if getattr(stripe_service, "stripe_configured", False):
+                                    pi = _stripe.PaymentIntent.retrieve(
+                                        pi_record.stripe_payment_intent_id
+                                    )
+                                    tip_client_secret = getattr(pi, "client_secret", None)
+                            except Exception:
+                                tip_client_secret = None
+                    except Exception:
+                        tip_status = "requires_payment_method"
+                        tip_client_secret = None
+                        if tip_record:
+                            self.tip_repository.set_payment_intent_details(
+                                tip_record.id,
+                                stripe_payment_intent_id=pi_record.stripe_payment_intent_id,
+                                status=tip_status,
+                            )
+                else:
+                    tip_status = "requires_payment_method"
+                    if tip_record:
+                        self.tip_repository.set_payment_intent_details(
+                            tip_record.id,
+                            stripe_payment_intent_id=pi_record.stripe_payment_intent_id,
+                            status=tip_status,
+                        )
+            except ValidationException:
+                raise
+            except Exception:
+                tip_status = "failed"
+                tip_client_secret = None
+                if tip_record:
+                    try:
+                        self.tip_repository.set_payment_intent_details(
+                            tip_record.id,
+                            stripe_payment_intent_id=tip_record.stripe_payment_intent_id,
+                            status=tip_status,
+                        )
+                    except Exception:
+                        pass
+
+        return {
+            "review": review,
+            "tip_status": tip_status,
+            "tip_client_secret": tip_client_secret,
+        }
+
     @BaseService.measure_operation("get_instructor_ratings")
     def get_instructor_ratings(self, instructor_id: str) -> InstructorRatingsSummary:
-        cache_key = f"ratings:{self.CACHE_VERSION}:instructor:{instructor_id}"
+        resolved_instructor_id = self._resolve_instructor_user_id(instructor_id)
+        cache_key = f"ratings:{self.CACHE_VERSION}:instructor:{resolved_instructor_id}"
         if self.cache:
             cached = self.cache.get(cache_key)
             if cached:
                 return cast(InstructorRatingsSummary, cached)
 
         # Compute Dirichlet-smoothed rating with recency weighting
-        overall = self._compute_dirichlet_rating(instructor_id)
-        breakdown_rows = self.repository.get_service_breakdown(instructor_id)
+        overall = self._compute_dirichlet_rating(resolved_instructor_id)
+        breakdown_rows = self.repository.get_service_breakdown(resolved_instructor_id)
 
         by_service: list[ServiceBreakdownSummary] = []
         for s in breakdown_rows:
@@ -270,8 +442,9 @@ class ReviewService(BaseService):
         with_text: Optional[bool] = None,
     ) -> list[Review]:
         offset = max(0, (page - 1) * max(1, limit))
+        resolved_instructor_id = self._resolve_instructor_user_id(instructor_id)
         return self.repository.get_recent_reviews(
-            instructor_id,
+            resolved_instructor_id,
             instructor_service_id,
             limit,
             offset,
@@ -290,8 +463,9 @@ class ReviewService(BaseService):
         rating: Optional[int] = None,
         with_text: Optional[bool] = None,
     ) -> int:
+        resolved_instructor_id = self._resolve_instructor_user_id(instructor_id)
         count = self.repository.count_recent_reviews(
-            instructor_id,
+            resolved_instructor_id,
             instructor_service_id,
             min_rating=min_rating,
             rating=rating,
@@ -329,16 +503,17 @@ class ReviewService(BaseService):
     def get_rating_for_search_context(
         self, instructor_id: str, instructor_service_id: Optional[str] = None
     ) -> SearchRatingSummary:
-        cache_key = (
-            f"ratings:search:{self.CACHE_VERSION}:{instructor_id}:{instructor_service_id or 'all'}"
-        )
+        resolved_instructor_id = self._resolve_instructor_user_id(instructor_id)
+        cache_key = f"ratings:search:{self.CACHE_VERSION}:{resolved_instructor_id}:{instructor_service_id or 'all'}"
         if self.cache:
             cached = self.cache.get(cache_key)
             if cached:
                 return cast(SearchRatingSummary, cached)
 
         if instructor_service_id:
-            sr = self._compute_dirichlet_rating_for_service(instructor_id, instructor_service_id)
+            sr = self._compute_dirichlet_rating_for_service(
+                resolved_instructor_id, instructor_service_id
+            )
             result: SearchRatingSummary = {
                 "primary_rating": sr["rating"]
                 if sr["total_reviews"] >= self.config.min_reviews_to_display
@@ -350,7 +525,7 @@ class ReviewService(BaseService):
                 self.cache.set(cache_key, result, ttl=300)
             return result
 
-        overall = self._compute_dirichlet_rating(instructor_id)
+        overall = self._compute_dirichlet_rating(resolved_instructor_id)
         overall_result: SearchRatingSummary = {
             "primary_rating": overall["rating"]
             if overall["total_reviews"] >= self.config.min_reviews_to_display
@@ -455,6 +630,33 @@ class ReviewService(BaseService):
         if count < 100:
             return "established"
         return "trusted"
+
+    @BaseService.measure_operation("get_reviewer_display_name")
+    def get_reviewer_display_name(self, user_id: str) -> Optional[str]:
+        """
+        Get display name for a reviewer by user ID.
+
+        Args:
+            user_id: The ID of the user/reviewer
+
+        Returns:
+            Display name string or None if not found
+        """
+        from ..repositories.user_repository import UserRepository
+
+        user_repo = UserRepository(self.db)
+        user = user_repo.get_by_id(user_id)
+        if not user:
+            return None
+
+        # Format as "FirstName L." for privacy
+        first_name = getattr(user, "first_name", None) or ""
+        last_name = getattr(user, "last_name", None) or ""
+        if first_name and last_name:
+            return f"{first_name} {last_name[0]}."
+        elif first_name:
+            return first_name
+        return None
 
     def _invalidate_instructor_caches(self, instructor_id: str) -> None:
         if not self.cache:

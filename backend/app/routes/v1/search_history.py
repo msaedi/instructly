@@ -14,6 +14,7 @@ Endpoints:
     POST /interaction        → Track search result interaction
 """
 
+import asyncio
 import logging
 from typing import Dict, List, Optional, cast
 
@@ -23,6 +24,7 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
+from ...api.dependencies.services import get_auth_service
 from ...auth import get_current_user_optional as auth_get_current_user_optional
 from ...database import get_db
 from ...models.user import User
@@ -33,6 +35,7 @@ from ...schemas.search_history import (
     SearchHistoryResponse,
 )
 from ...schemas.search_history_responses import SearchInteractionResponse
+from ...services.auth_service import AuthService
 from ...services.search_history_service import SearchHistoryService
 
 # V1 router - no prefix here, will be added when mounting in main.py
@@ -43,7 +46,7 @@ ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
 
 async def get_current_user_optional(
     current_user_email: Optional[str] = Depends(auth_get_current_user_optional),
-    db: Session = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> Optional[User]:
     """
     Get current user if authenticated, otherwise return None.
@@ -53,8 +56,7 @@ async def get_current_user_optional(
     if not current_user_email:
         return None
 
-    user: User | None = db.query(User).filter(User.email == current_user_email).first()
-    return user
+    return await asyncio.to_thread(auth_service.get_user_by_email, current_user_email)
 
 
 async def get_search_context(
@@ -186,7 +188,9 @@ async def get_recent_searches(
         List of recent search history entries
     """
     search_service = SearchHistoryService(db)
-    searches = search_service.get_recent_searches(context=context, limit=limit)
+    searches = await asyncio.to_thread(
+        search_service.get_recent_searches, context=context, limit=limit
+    )
 
     return [
         SearchHistoryResponse(
@@ -303,10 +307,16 @@ async def delete_search(
     search_service = SearchHistoryService(db)
 
     if current_user:
-        deleted = search_service.delete_search(user_id=current_user.id, search_id=search_id)
+        deleted = await asyncio.to_thread(
+            search_service.delete_search,
+            user_id=current_user.id,
+            search_id=search_id,
+        )
     elif x_guest_session_id:
-        deleted = search_service.delete_search(
-            guest_session_id=x_guest_session_id, search_id=search_id
+        deleted = await asyncio.to_thread(
+            search_service.delete_search,
+            guest_session_id=x_guest_session_id,
+            search_id=search_id,
         )
     else:
         raise HTTPException(
@@ -383,7 +393,8 @@ async def track_interaction(
         session_id = getattr(context, "session_id", None)
 
         # Track the interaction
-        interaction = search_service.track_interaction(
+        interaction = await asyncio.to_thread(
+            search_service.track_interaction,
             search_event_id=search_event_id,
             interaction_type=interaction_type,
             instructor_id=instructor_id,

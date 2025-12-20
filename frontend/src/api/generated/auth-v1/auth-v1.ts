@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -34,14 +31,11 @@ import type {
   PasswordChangeResponse,
   UserCreate,
   UserLogin,
-  UserUpdate
+  UserUpdate,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Change password for the current authenticated user.
@@ -50,70 +44,93 @@ Verifies the current password, enforces minimal strength, and updates the hash.
  * @summary Change Password
  */
 export const changePasswordApiV1AuthChangePasswordPost = (
-    passwordChangeRequest: PasswordChangeRequest,
- signal?: AbortSignal
+  passwordChangeRequest: PasswordChangeRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PasswordChangeResponse>({
+    url: `/api/v1/auth/change-password`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: passwordChangeRequest,
+    signal,
+  });
+};
 
+export const getChangePasswordApiV1AuthChangePasswordPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>,
+    TError,
+    { data: PasswordChangeRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>,
+  TError,
+  { data: PasswordChangeRequest },
+  TContext
+> => {
+  const mutationKey = ['changePasswordApiV1AuthChangePasswordPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<PasswordChangeResponse>(
-      {url: `/api/v1/auth/change-password`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: passwordChangeRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>,
+    { data: PasswordChangeRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return changePasswordApiV1AuthChangePasswordPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getChangePasswordApiV1AuthChangePasswordPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>, TError,{data: PasswordChangeRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>, TError,{data: PasswordChangeRequest}, TContext> => {
+export type ChangePasswordApiV1AuthChangePasswordPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>
+>;
+export type ChangePasswordApiV1AuthChangePasswordPostMutationBody = PasswordChangeRequest;
+export type ChangePasswordApiV1AuthChangePasswordPostMutationError = ErrorType<HTTPValidationError>;
 
-const mutationKey = ['changePasswordApiV1AuthChangePasswordPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>, {data: PasswordChangeRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  changePasswordApiV1AuthChangePasswordPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ChangePasswordApiV1AuthChangePasswordPostMutationResult = NonNullable<Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>>
-    export type ChangePasswordApiV1AuthChangePasswordPostMutationBody = PasswordChangeRequest
-    export type ChangePasswordApiV1AuthChangePasswordPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Change Password
  */
-export const useChangePasswordApiV1AuthChangePasswordPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>, TError,{data: PasswordChangeRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>,
-        TError,
-        {data: PasswordChangeRequest},
-        TContext
-      > => {
+export const useChangePasswordApiV1AuthChangePasswordPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>,
+      TError,
+      { data: PasswordChangeRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof changePasswordApiV1AuthChangePasswordPost>>,
+  TError,
+  { data: PasswordChangeRequest },
+  TContext
+> => {
+  const mutationOptions = getChangePasswordApiV1AuthChangePasswordPostMutationOptions(options);
 
-      const mutationOptions = getChangePasswordApiV1AuthChangePasswordPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Login with username (email) and password.
 
 Rate limited to prevent brute force attacks.
+
+PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
+running bcrypt verification (~200ms). This reduces DB connection hold time
+from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
 
 Args:
     form_data: OAuth2 form with username and password
@@ -127,90 +144,123 @@ Raises:
  * @summary Login
  */
 export const loginApiV1AuthLoginPost = (
-    bodyLoginApiV1AuthLoginPost: BodyLoginApiV1AuthLoginPost,
- signal?: AbortSignal
+  bodyLoginApiV1AuthLoginPost: BodyLoginApiV1AuthLoginPost,
+  signal?: AbortSignal
 ) => {
+  const formUrlEncoded = new URLSearchParams();
+  if (
+    bodyLoginApiV1AuthLoginPost.client_id !== undefined &&
+    bodyLoginApiV1AuthLoginPost.client_id !== null
+  ) {
+    formUrlEncoded.append(`client_id`, bodyLoginApiV1AuthLoginPost.client_id);
+  }
+  if (
+    bodyLoginApiV1AuthLoginPost.client_secret !== undefined &&
+    bodyLoginApiV1AuthLoginPost.client_secret !== null
+  ) {
+    formUrlEncoded.append(`client_secret`, bodyLoginApiV1AuthLoginPost.client_secret);
+  }
+  if (
+    bodyLoginApiV1AuthLoginPost.grant_type !== undefined &&
+    bodyLoginApiV1AuthLoginPost.grant_type !== null
+  ) {
+    formUrlEncoded.append(`grant_type`, bodyLoginApiV1AuthLoginPost.grant_type);
+  }
+  formUrlEncoded.append(`password`, bodyLoginApiV1AuthLoginPost.password);
+  if (bodyLoginApiV1AuthLoginPost.scope !== undefined) {
+    formUrlEncoded.append(`scope`, bodyLoginApiV1AuthLoginPost.scope);
+  }
+  formUrlEncoded.append(`username`, bodyLoginApiV1AuthLoginPost.username);
 
-      const formUrlEncoded = new URLSearchParams();
-if(bodyLoginApiV1AuthLoginPost.client_id !== undefined && bodyLoginApiV1AuthLoginPost.client_id !== null) {
- formUrlEncoded.append(`client_id`, bodyLoginApiV1AuthLoginPost.client_id)
- }
-if(bodyLoginApiV1AuthLoginPost.client_secret !== undefined && bodyLoginApiV1AuthLoginPost.client_secret !== null) {
- formUrlEncoded.append(`client_secret`, bodyLoginApiV1AuthLoginPost.client_secret)
- }
-if(bodyLoginApiV1AuthLoginPost.grant_type !== undefined && bodyLoginApiV1AuthLoginPost.grant_type !== null) {
- formUrlEncoded.append(`grant_type`, bodyLoginApiV1AuthLoginPost.grant_type)
- }
-formUrlEncoded.append(`password`, bodyLoginApiV1AuthLoginPost.password)
-if(bodyLoginApiV1AuthLoginPost.scope !== undefined) {
- formUrlEncoded.append(`scope`, bodyLoginApiV1AuthLoginPost.scope)
- }
-formUrlEncoded.append(`username`, bodyLoginApiV1AuthLoginPost.username)
+  return customFetch<LoginResponse>({
+    url: `/api/v1/auth/login`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    data: formUrlEncoded,
+    signal,
+  });
+};
 
-      return customFetch<LoginResponse>(
-      {url: `/api/v1/auth/login`, method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded', },
-       data: formUrlEncoded, signal
-    },
-      );
-    }
+export const getLoginApiV1AuthLoginPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>,
+    TError,
+    { data: BodyLoginApiV1AuthLoginPost },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>,
+  TError,
+  { data: BodyLoginApiV1AuthLoginPost },
+  TContext
+> => {
+  const mutationKey = ['loginApiV1AuthLoginPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>,
+    { data: BodyLoginApiV1AuthLoginPost }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return loginApiV1AuthLoginPost(data);
+  };
 
-export const getLoginApiV1AuthLoginPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>, TError,{data: BodyLoginApiV1AuthLoginPost}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>, TError,{data: BodyLoginApiV1AuthLoginPost}, TContext> => {
+  return { mutationFn, ...mutationOptions };
+};
 
-const mutationKey = ['loginApiV1AuthLoginPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type LoginApiV1AuthLoginPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>
+>;
+export type LoginApiV1AuthLoginPostMutationBody = BodyLoginApiV1AuthLoginPost;
+export type LoginApiV1AuthLoginPostMutationError = ErrorType<HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>, {data: BodyLoginApiV1AuthLoginPost}> = (props) => {
-          const {data} = props ?? {};
-
-          return  loginApiV1AuthLoginPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type LoginApiV1AuthLoginPostMutationResult = NonNullable<Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>>
-    export type LoginApiV1AuthLoginPostMutationBody = BodyLoginApiV1AuthLoginPost
-    export type LoginApiV1AuthLoginPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Login
  */
-export const useLoginApiV1AuthLoginPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>, TError,{data: BodyLoginApiV1AuthLoginPost}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>,
-        TError,
-        {data: BodyLoginApiV1AuthLoginPost},
-        TContext
-      > => {
+export const useLoginApiV1AuthLoginPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>,
+      TError,
+      { data: BodyLoginApiV1AuthLoginPost },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof loginApiV1AuthLoginPost>>,
+  TError,
+  { data: BodyLoginApiV1AuthLoginPost },
+  TContext
+> => {
+  const mutationOptions = getLoginApiV1AuthLoginPostMutationOptions(options);
 
-      const mutationOptions = getLoginApiV1AuthLoginPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Login with email and password, optionally converting guest searches.
 
 This endpoint supports guest session conversion.
 
+PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
+running bcrypt verification (~200ms). This reduces DB connection hold time
+from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
+
 Args:
     login_data: Login credentials with optional guest_session_id
     auth_service: Authentication service
-    db: Database session
+    db: Database session (used only for guest search conversion after auth)
 
 Returns:
     LoginResponse: Access token metadata for the client
@@ -220,171 +270,216 @@ Raises:
  * @summary Login With Session
  */
 export const loginWithSessionApiV1AuthLoginWithSessionPost = (
-    userLogin: UserLogin,
- signal?: AbortSignal
+  userLogin: UserLogin,
+  signal?: AbortSignal
 ) => {
+  return customFetch<LoginResponse>({
+    url: `/api/v1/auth/login-with-session`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: userLogin,
+    signal,
+  });
+};
 
+export const getLoginWithSessionApiV1AuthLoginWithSessionPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>,
+    TError,
+    { data: UserLogin },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>,
+  TError,
+  { data: UserLogin },
+  TContext
+> => {
+  const mutationKey = ['loginWithSessionApiV1AuthLoginWithSessionPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<LoginResponse>(
-      {url: `/api/v1/auth/login-with-session`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: userLogin, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>,
+    { data: UserLogin }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return loginWithSessionApiV1AuthLoginWithSessionPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getLoginWithSessionApiV1AuthLoginWithSessionPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>, TError,{data: UserLogin}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>, TError,{data: UserLogin}, TContext> => {
+export type LoginWithSessionApiV1AuthLoginWithSessionPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>
+>;
+export type LoginWithSessionApiV1AuthLoginWithSessionPostMutationBody = UserLogin;
+export type LoginWithSessionApiV1AuthLoginWithSessionPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['loginWithSessionApiV1AuthLoginWithSessionPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>, {data: UserLogin}> = (props) => {
-          const {data} = props ?? {};
-
-          return  loginWithSessionApiV1AuthLoginWithSessionPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type LoginWithSessionApiV1AuthLoginWithSessionPostMutationResult = NonNullable<Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>>
-    export type LoginWithSessionApiV1AuthLoginWithSessionPostMutationBody = UserLogin
-    export type LoginWithSessionApiV1AuthLoginWithSessionPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Login With Session
  */
-export const useLoginWithSessionApiV1AuthLoginWithSessionPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>, TError,{data: UserLogin}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>,
-        TError,
-        {data: UserLogin},
-        TContext
-      > => {
+export const useLoginWithSessionApiV1AuthLoginWithSessionPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>,
+      TError,
+      { data: UserLogin },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof loginWithSessionApiV1AuthLoginWithSessionPost>>,
+  TError,
+  { data: UserLogin },
+  TContext
+> => {
+  const mutationOptions = getLoginWithSessionApiV1AuthLoginWithSessionPostMutationOptions(options);
 
-      const mutationOptions = getLoginWithSessionApiV1AuthLoginWithSessionPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get current user information with roles and permissions.
 
-No additional rate limiting as this requires authentication.
+PERFORMANCE OPTIMIZED (v4.4): Uses cached User from auth dependency.
+- Auth cache provides user with roles, permissions, AND beta_access (0 queries if cached)
+- Previous (v4.3): 1 query for beta_access, took 1322ms under 200 concurrent users
+- Now: ZERO queries when cache is warm, typically <5ms
 
 Args:
-    current_user: Current user email from JWT
-    auth_service: Authentication service
-    db: Database session
+    current_user: User object from auth cache (has roles, permissions, beta_access cached)
+    db: Database session (unused, kept for signature compatibility)
 
 Returns:
     AuthUserWithPermissionsResponse: Current user data with roles and permissions
-
-Raises:
-    HTTPException: If user not found
  * @summary Read Users Me
  */
-export const readUsersMeApiV1AuthMeGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<AuthUserWithPermissionsResponse>(
-      {url: `/api/v1/auth/me`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const readUsersMeApiV1AuthMeGet = (signal?: AbortSignal) => {
+  return customFetch<AuthUserWithPermissionsResponse>({
+    url: `/api/v1/auth/me`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getReadUsersMeApiV1AuthMeGetQueryKey = () => {
-    return [
-    `/api/v1/auth/me`
-    ] as const;
-    }
+  return [`/api/v1/auth/me`] as const;
+};
 
+export const getReadUsersMeApiV1AuthMeGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData>
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getReadUsersMeApiV1AuthMeGetQueryOptions = <TData = Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getReadUsersMeApiV1AuthMeGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>> = ({
+    signal,
+  }) => readUsersMeApiV1AuthMeGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getReadUsersMeApiV1AuthMeGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type ReadUsersMeApiV1AuthMeGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>
+>;
+export type ReadUsersMeApiV1AuthMeGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>> = ({ signal }) => readUsersMeApiV1AuthMeGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ReadUsersMeApiV1AuthMeGetQueryResult = NonNullable<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>>
-export type ReadUsersMeApiV1AuthMeGetQueryError = ErrorType<unknown>
-
-
-export function useReadUsersMeApiV1AuthMeGet<TData = Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData>> & Pick<
+export function useReadUsersMeApiV1AuthMeGet<
+  TData = Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>,
           TError,
           Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useReadUsersMeApiV1AuthMeGet<TData = Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadUsersMeApiV1AuthMeGet<
+  TData = Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>,
           TError,
           Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useReadUsersMeApiV1AuthMeGet<TData = Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadUsersMeApiV1AuthMeGet<
+  TData = Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Read Users Me
  */
 
-export function useReadUsersMeApiV1AuthMeGet<TData = Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useReadUsersMeApiV1AuthMeGet<
+  TData = Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof readUsersMeApiV1AuthMeGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadUsersMeApiV1AuthMeGetQueryOptions(options);
 
-  const queryOptions = getReadUsersMeApiV1AuthMeGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Update current user's profile (including timezone).
@@ -402,67 +497,83 @@ Raises:
     HTTPException: If user not found or update fails
  * @summary Update Current User
  */
-export const updateCurrentUserApiV1AuthMePatch = (
-    userUpdate: UserUpdate,
- ) => {
+export const updateCurrentUserApiV1AuthMePatch = (userUpdate: UserUpdate) => {
+  return customFetch<AuthUserWithPermissionsResponse>({
+    url: `/api/v1/auth/me`,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    data: userUpdate,
+  });
+};
 
+export const getUpdateCurrentUserApiV1AuthMePatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>,
+    TError,
+    { data: UserUpdate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>,
+  TError,
+  { data: UserUpdate },
+  TContext
+> => {
+  const mutationKey = ['updateCurrentUserApiV1AuthMePatch'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<AuthUserWithPermissionsResponse>(
-      {url: `/api/v1/auth/me`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: userUpdate
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>,
+    { data: UserUpdate }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return updateCurrentUserApiV1AuthMePatch(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getUpdateCurrentUserApiV1AuthMePatchMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>, TError,{data: UserUpdate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>, TError,{data: UserUpdate}, TContext> => {
+export type UpdateCurrentUserApiV1AuthMePatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>
+>;
+export type UpdateCurrentUserApiV1AuthMePatchMutationBody = UserUpdate;
+export type UpdateCurrentUserApiV1AuthMePatchMutationError = ErrorType<HTTPValidationError>;
 
-const mutationKey = ['updateCurrentUserApiV1AuthMePatch'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>, {data: UserUpdate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  updateCurrentUserApiV1AuthMePatch(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdateCurrentUserApiV1AuthMePatchMutationResult = NonNullable<Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>>
-    export type UpdateCurrentUserApiV1AuthMePatchMutationBody = UserUpdate
-    export type UpdateCurrentUserApiV1AuthMePatchMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Update Current User
  */
-export const useUpdateCurrentUserApiV1AuthMePatch = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>, TError,{data: UserUpdate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>,
-        TError,
-        {data: UserUpdate},
-        TContext
-      > => {
+export const useUpdateCurrentUserApiV1AuthMePatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>,
+      TError,
+      { data: UserUpdate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateCurrentUserApiV1AuthMePatch>>,
+  TError,
+  { data: UserUpdate },
+  TContext
+> => {
+  const mutationOptions = getUpdateCurrentUserApiV1AuthMePatchMutationOptions(options);
 
-      const mutationOptions = getUpdateCurrentUserApiV1AuthMePatchMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Register a new user.
 
 Rate limited to prevent spam registrations.
@@ -479,64 +590,80 @@ Raises:
     HTTPException: If email already registered or rate limit exceeded
  * @summary Register
  */
-export const registerApiV1AuthRegisterPost = (
-    userCreate: UserCreate,
- signal?: AbortSignal
-) => {
+export const registerApiV1AuthRegisterPost = (userCreate: UserCreate, signal?: AbortSignal) => {
+  return customFetch<AuthUserResponse>({
+    url: `/api/v1/auth/register`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: userCreate,
+    signal,
+  });
+};
 
+export const getRegisterApiV1AuthRegisterPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>,
+    TError,
+    { data: UserCreate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>,
+  TError,
+  { data: UserCreate },
+  TContext
+> => {
+  const mutationKey = ['registerApiV1AuthRegisterPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<AuthUserResponse>(
-      {url: `/api/v1/auth/register`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: userCreate, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>,
+    { data: UserCreate }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return registerApiV1AuthRegisterPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getRegisterApiV1AuthRegisterPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>, TError,{data: UserCreate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>, TError,{data: UserCreate}, TContext> => {
+export type RegisterApiV1AuthRegisterPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>
+>;
+export type RegisterApiV1AuthRegisterPostMutationBody = UserCreate;
+export type RegisterApiV1AuthRegisterPostMutationError = ErrorType<HTTPValidationError>;
 
-const mutationKey = ['registerApiV1AuthRegisterPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>, {data: UserCreate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  registerApiV1AuthRegisterPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type RegisterApiV1AuthRegisterPostMutationResult = NonNullable<Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>>
-    export type RegisterApiV1AuthRegisterPostMutationBody = UserCreate
-    export type RegisterApiV1AuthRegisterPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Register
  */
-export const useRegisterApiV1AuthRegisterPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>, TError,{data: UserCreate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>,
-        TError,
-        {data: UserCreate},
-        TContext
-      > => {
+export const useRegisterApiV1AuthRegisterPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>,
+      TError,
+      { data: UserCreate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof registerApiV1AuthRegisterPost>>,
+  TError,
+  { data: UserCreate },
+  TContext
+> => {
+  const mutationOptions = getRegisterApiV1AuthRegisterPostMutationOptions(options);
 
-      const mutationOptions = getRegisterApiV1AuthRegisterPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
+  return useMutation(mutationOptions, queryClient);
+};

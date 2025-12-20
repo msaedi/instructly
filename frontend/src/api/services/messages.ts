@@ -1,35 +1,17 @@
 /**
  * Messages Service Layer
  *
- * Domain-friendly wrappers around Orval-generated messages v1 hooks.
- * This is the ONLY layer that should directly import from generated/messages-v1.
- *
- * Components should use these hooks, not the raw Orval-generated ones.
- *
- * Phase 10: Messages domain migrated to /api/v1/messages
+ * Domain-friendly wrappers around messaging endpoints.
+ * Components should use these hooks instead of calling fetch directly.
  */
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/api/queryKeys';
-import {
-  useGetMessageConfigApiV1MessagesConfigGet,
-  useGetUnreadCountApiV1MessagesUnreadCountGet,
-  useGetMessageHistoryApiV1MessagesHistoryBookingIdGet,
-  useSendMessageApiV1MessagesSendPost,
-  useMarkMessagesAsReadApiV1MessagesMarkReadPost,
-  useDeleteMessageApiV1MessagesMessageIdDelete,
-  useEditMessageApiV1MessagesMessageIdPatch,
-  useAddReactionApiV1MessagesMessageIdReactionsPost,
-  useRemoveReactionApiV1MessagesMessageIdReactionsDelete,
-  useSendTypingIndicatorApiV1MessagesTypingBookingIdPost,
-} from '@/src/api/generated/messages-v1/messages-v1';
-import type {
-  SendMessageRequest,
-  MarkMessagesReadRequest,
-  EditMessageRequest,
-  ReactionRequest,
-  GetMessageHistoryApiV1MessagesHistoryBookingIdGetParams,
-} from '@/src/api/generated/instructly.schemas';
+import { withApiBase } from '@/lib/apiBase';
+import type { ConversationMessagesResponse } from '@/types/conversation';
+
+type EditMessageRequest = { content: string };
+type ReactionRequest = { emoji: string };
 
 /**
  * Get message configuration (edit window, etc.).
@@ -46,11 +28,20 @@ import type {
  * ```
  */
 export function useMessageConfig() {
-  return useGetMessageConfigApiV1MessagesConfigGet({
-    query: {
-      queryKey: queryKeys.messages.config,
-      staleTime: 1000 * 60 * 60, // 1 hour - rarely changes
+  return useQuery({
+    queryKey: queryKeys.messages.config,
+    queryFn: async () => {
+      const res = await fetch(withApiBase('/api/v1/messages/config'), {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        throw new Error('Failed to load message config');
+      }
+      return res.json() as Promise<{ edit_window_minutes: number }>;
     },
+    staleTime: 1000 * 60 * 60,
   });
 }
 
@@ -70,27 +61,39 @@ export function useMessageConfig() {
  * ```
  */
 export function useUnreadCount(enabled: boolean = true) {
-  return useGetUnreadCountApiV1MessagesUnreadCountGet({
-    query: {
-      queryKey: queryKeys.messages.unreadCount,
-      staleTime: 1000 * 30, // 30 seconds
-      enabled,
-      refetchInterval: 1000 * 30, // Poll every 30 seconds - matches conversation refresh
+  return useQuery({
+    queryKey: queryKeys.messages.unreadCount,
+    queryFn: async () => {
+      const res = await fetch(withApiBase('/api/v1/messages/unread-count'), {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        throw new Error('Failed to load unread count');
+      }
+      return res.json() as Promise<{ unread_count: number; user_id: string }>;
     },
+    staleTime: 1000 * 30,
+    enabled,
+    refetchInterval: 1000 * 30,
   });
 }
 
 /**
- * Get message history for a booking.
+ * Get message history for a conversation (Phase 7).
  *
- * @param bookingId - ULID of the booking
+ * Fetches ALL messages in a conversation across all bookings between the same
+ * student-instructor pair.
+ *
+ * @param conversationId - ULID of the conversation
  * @param limit - Number of messages per page (default: 50)
- * @param offset - Pagination offset (default: 0)
+ * @param before - Cursor for pagination (message ID)
  * @param enabled - Whether the query should be enabled
  * @example
  * ```tsx
- * function ChatMessages({ bookingId }: { bookingId: string }) {
- *   const { data, isLoading } = useMessageHistory(bookingId);
+ * function ChatMessages({ conversationId }: { conversationId: string }) {
+ *   const { data, isLoading } = useConversationMessages(conversationId);
  *
  *   if (isLoading) return <div>Loading messages...</div>;
  *
@@ -104,48 +107,35 @@ export function useUnreadCount(enabled: boolean = true) {
  * }
  * ```
  */
-export function useMessageHistory(
-  bookingId: string,
+export function useConversationMessages(
+  conversationId: string | undefined,
   limit: number = 50,
-  offset: number = 0,
+  before?: string,
   enabled: boolean = true
 ) {
-  const params: GetMessageHistoryApiV1MessagesHistoryBookingIdGetParams = {
-    limit,
-    offset,
-  };
+  const pagination = before ? { limit, before } : { limit };
 
-  return useGetMessageHistoryApiV1MessagesHistoryBookingIdGet(bookingId, params, {
-    query: {
-      queryKey: queryKeys.messages.history(bookingId, { limit, offset }),
-      staleTime: 1000 * 60, // 1 minute
-      enabled: enabled && !!bookingId,
+  return useQuery<ConversationMessagesResponse>({
+    queryKey: queryKeys.messages.conversationMessages(conversationId ?? '', pagination),
+    queryFn: async (): Promise<ConversationMessagesResponse> => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (before) params.append('before', before);
+      const response = await fetch(
+        withApiBase(`/api/v1/conversations/${conversationId}/messages?${params}`),
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        }
+      );
+      if (!response.ok) {
+        throw new Error('Failed to fetch conversation messages');
+      }
+      return (await response.json()) as ConversationMessagesResponse;
     },
+    staleTime: 1000 * 60, // 1 minute
+    enabled: enabled && !!conversationId,
   });
-}
-
-/**
- * Send message mutation.
- *
- * @example
- * ```tsx
- * function ChatInput({ bookingId }: { bookingId: string }) {
- *   const sendMessage = useSendMessage();
- *   const [text, setText] = useState('');
- *
- *   const handleSend = async () => {
- *     await sendMessage.mutateAsync({
- *       data: { booking_id: bookingId, content: text }
- *     });
- *     setText('');
- *   };
- *
- *   return <input value={text} onChange={e => setText(e.target.value)} />;
- * }
- * ```
- */
-export function useSendMessage() {
-  return useSendMessageApiV1MessagesSendPost();
 }
 
 /**
@@ -168,14 +158,29 @@ export function useSendMessage() {
  */
 export function useMarkMessagesAsRead() {
   const queryClient = useQueryClient();
-  return useMarkMessagesAsReadApiV1MessagesMarkReadPost({
-    mutation: {
-      onSuccess: () => {
-        // Invalidate unread count so dashboard badge updates
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.messages.unreadCount,
-        });
-      },
+  return useMutation({
+    mutationFn: async (body: { conversation_id?: string; message_ids?: string[] }) => {
+      const response = await fetch(withApiBase('/api/v1/messages/mark-read'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(
+          message || `Failed to mark messages as read (status ${response.status})`
+        );
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate unread count so dashboard badge updates
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.messages.unreadCount,
+      });
     },
   });
 }
@@ -199,7 +204,20 @@ export function useMarkMessagesAsRead() {
  * ```
  */
 export function useDeleteMessage() {
-  return useDeleteMessageApiV1MessagesMessageIdDelete();
+  return useMutation({
+    mutationFn: async ({ messageId }: { messageId: string }) => {
+      const res = await fetch(withApiBase(`/api/v1/messages/${messageId}`), {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || 'Failed to delete message');
+      }
+      return res.json();
+    },
+  });
 }
 
 /**
@@ -225,7 +243,21 @@ export function useDeleteMessage() {
  * ```
  */
 export function useEditMessage() {
-  return useEditMessageApiV1MessagesMessageIdPatch();
+  return useMutation({
+    mutationFn: async ({ messageId, data }: { messageId: string; data: EditMessageRequest }) => {
+      const res = await fetch(withApiBase(`/api/v1/messages/${messageId}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || 'Failed to edit message');
+      }
+      return res;
+    },
+  });
 }
 
 /**
@@ -250,7 +282,21 @@ export function useEditMessage() {
  * ```
  */
 export function useAddReaction() {
-  return useAddReactionApiV1MessagesMessageIdReactionsPost();
+  return useMutation({
+    mutationFn: async ({ messageId, data }: { messageId: string; data: ReactionRequest }) => {
+      const res = await fetch(withApiBase(`/api/v1/messages/${messageId}/reactions`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || 'Failed to add reaction');
+      }
+      return res;
+    },
+  });
 }
 
 /**
@@ -275,30 +321,21 @@ export function useAddReaction() {
  * ```
  */
 export function useRemoveReaction() {
-  return useRemoveReactionApiV1MessagesMessageIdReactionsDelete();
-}
-
-/**
- * Send typing indicator mutation.
- *
- * Sends a typing indicator to other participants (ephemeral, no DB writes).
- * Rate limited to 1 per second.
- *
- * @example
- * ```tsx
- * function ChatInput({ bookingId }: { bookingId: string }) {
- *   const sendTyping = useSendTypingIndicator();
- *
- *   const handleTyping = useDebouncedCallback(() => {
- *     sendTyping.mutate({ bookingId });
- *   }, 1000);
- *
- *   return <input onChange={handleTyping} />;
- * }
- * ```
- */
-export function useSendTypingIndicator() {
-  return useSendTypingIndicatorApiV1MessagesTypingBookingIdPost();
+  return useMutation({
+    mutationFn: async ({ messageId, data }: { messageId: string; data: ReactionRequest }) => {
+      const res = await fetch(withApiBase(`/api/v1/messages/${messageId}/reactions`), {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || 'Failed to remove reaction');
+      }
+      return res;
+    },
+  });
 }
 
 /**
@@ -316,7 +353,19 @@ export function useSendTypingIndicator() {
  * setEditWindow(config.edit_window_minutes);
  * ```
  */
-export { getMessageConfigApiV1MessagesConfigGet as fetchMessageConfig } from '@/src/api/generated/messages-v1/messages-v1';
+export async function fetchMessageConfig() {
+  const response = await fetch(withApiBase('/api/v1/messages/config'), {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch message config (status ${response.status})`);
+  }
+
+  return response.json();
+}
 
 /**
  * Fetch unread count imperatively.
@@ -326,40 +375,46 @@ export { getMessageConfigApiV1MessagesConfigGet as fetchMessageConfig } from '@/
  * const { unread_count } = await fetchUnreadCount();
  * ```
  */
-export { getUnreadCountApiV1MessagesUnreadCountGet as fetchUnreadCount } from '@/src/api/generated/messages-v1/messages-v1';
+export async function fetchUnreadCount() {
+  const response = await fetch(withApiBase('/api/v1/messages/unread-count'), {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
 
-/**
- * Fetch message history imperatively.
- *
- * @example
- * ```tsx
- * const { messages, has_more } = await fetchMessageHistory('01ABC...', { limit: 50 });
- * ```
- */
-export { getMessageHistoryApiV1MessagesHistoryBookingIdGet as fetchMessageHistory } from '@/src/api/generated/messages-v1/messages-v1';
+  if (!response.ok) {
+    throw new Error(`Failed to fetch unread count (status ${response.status})`);
+  }
 
-/**
- * Send a message imperatively.
- *
- * @example
- * ```tsx
- * const response = await sendMessageImperative({
- *   booking_id: '01ABC...',
- *   content: 'Hello!'
- * });
- * ```
- */
-export { sendMessageApiV1MessagesSendPost as sendMessageImperative } from '@/src/api/generated/messages-v1/messages-v1';
+  return response.json();
+}
 
 /**
  * Mark messages as read imperatively.
  *
  * @example
  * ```tsx
- * await markMessagesAsReadImperative({ booking_id: '01ABC...' });
+ * await markMessagesAsReadImperative({ conversation_id: '01ABC...' });
  * ```
  */
-export { markMessagesAsReadApiV1MessagesMarkReadPost as markMessagesAsReadImperative } from '@/src/api/generated/messages-v1/messages-v1';
+export async function markMessagesAsReadImperative(body: {
+  conversation_id?: string;
+  message_ids?: string[];
+}) {
+  const response = await fetch(withApiBase('/api/v1/messages/mark-read'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to mark messages as read (status ${response.status})`);
+  }
+
+  return response.json();
+}
 
 /**
  * Delete a message imperatively.
@@ -369,15 +424,22 @@ export { markMessagesAsReadApiV1MessagesMarkReadPost as markMessagesAsReadImpera
  * await deleteMessageImperative('01XYZ...');
  * ```
  */
-export { deleteMessageApiV1MessagesMessageIdDelete as deleteMessageImperative } from '@/src/api/generated/messages-v1/messages-v1';
+export async function deleteMessageImperative(messageId: string) {
+  const response = await fetch(withApiBase(`/api/v1/messages/${messageId}`), {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to delete message (status ${response.status})`);
+  }
+
+  return response.json();
+}
 
 /**
  * Type exports for convenience
  */
-export type {
-  SendMessageRequest,
-  MarkMessagesReadRequest,
-  EditMessageRequest,
-  ReactionRequest,
-  GetMessageHistoryApiV1MessagesHistoryBookingIdGetParams as MessageHistoryParams,
-};
+export type { EditMessageRequest, ReactionRequest };

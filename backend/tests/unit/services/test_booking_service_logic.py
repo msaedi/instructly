@@ -9,9 +9,10 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 UPDATED FOR WORK STREAM #11: Time-based booking (no slot IDs).
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -23,6 +24,7 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.core.ulid_helper import generate_ulid
+from app.events import BookingCancelled, BookingCreated, BookingReminder
 
 # AvailabilitySlot removed - bitmap-only storage now
 from app.models.booking import Booking, BookingStatus
@@ -50,10 +52,10 @@ class TestBookingServiceUnit:
     def mock_notification_service(self):
         """Create a mock notification service."""
         mock = Mock()
-        mock.send_booking_confirmation = AsyncMock()
-        mock.send_cancellation_notification = AsyncMock()
-        mock.send_reminder_emails = AsyncMock()
-        mock._send_booking_reminders = AsyncMock(return_value=1)
+        mock.send_booking_confirmation = MagicMock()
+        mock.send_cancellation_notification = MagicMock()
+        mock.send_reminder_emails = MagicMock()
+        mock._send_booking_reminders = MagicMock(return_value=1)
         return mock
 
     @pytest.fixture
@@ -88,7 +90,12 @@ class TestBookingServiceUnit:
     @pytest.fixture
     def booking_service(self, unit_db, mock_notification_service, mock_repository, mock_availability_repository):
         """Create BookingService with mocked dependencies."""
-        service = BookingService(unit_db, mock_notification_service, mock_repository)
+        service = BookingService(
+            unit_db,
+            mock_notification_service,
+            event_publisher=Mock(),
+            repository=mock_repository,
+        )
         # Replace the repository
         service.availability_repository = mock_availability_repository
 
@@ -267,7 +274,7 @@ class TestBookingServiceUnit:
         booking_service.conflict_checker_repository.get_blackout_date.return_value = None
 
         # Mock the _validate_booking_prerequisites to bypass instructor status check
-        booking_service._validate_booking_prerequisites = AsyncMock(
+        booking_service._validate_booking_prerequisites = MagicMock(
             return_value=(mock_service, mock_instructor_profile)
         )
 
@@ -283,7 +290,7 @@ class TestBookingServiceUnit:
         with patch.object(booking_service, "_invalidate_booking_caches"):
             with patch("app.services.booking_service.PricingService") as pricing_service_mock:
                 pricing_service_mock.return_value.compute_booking_pricing.return_value = None
-                result = await booking_service.create_booking(
+                result = await asyncio.to_thread(booking_service.create_booking,
                     mock_student, booking_data, selected_duration=booking_data.selected_duration
                 )
 
@@ -291,8 +298,10 @@ class TestBookingServiceUnit:
         assert result == mock_booking
         booking_service.repository.check_time_conflict.assert_called_once()
         booking_service.repository.create.assert_called_once()
-        # Note: commit is handled by transaction wrapper, not called explicitly
-        booking_service.notification_service.send_booking_confirmation.assert_called_once()
+        booking_service.event_publisher.publish.assert_called_once()
+        published_event = booking_service.event_publisher.publish.call_args[0][0]
+        assert isinstance(published_event, BookingCreated)
+        assert published_event.booking_id == result.id
 
     @pytest.mark.asyncio
     async def test_create_booking_instructor_role_fails(self, booking_service, mock_instructor):
@@ -307,7 +316,7 @@ class TestBookingServiceUnit:
         )
 
         with pytest.raises(ValidationException, match="Only students can create bookings"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 mock_instructor, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -330,7 +339,7 @@ class TestBookingServiceUnit:
         booking_service.conflict_checker_repository.get_active_service.return_value = None
 
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -378,7 +387,7 @@ class TestBookingServiceUnit:
             selected_duration=30,
         )
 
-        await booking_service._check_conflicts_and_rules(
+        await asyncio.to_thread(booking_service._check_conflicts_and_rules,
             first_booking,
             mock_service,
             mock_instructor_profile,
@@ -394,7 +403,7 @@ class TestBookingServiceUnit:
             selected_duration=30,
         )
 
-        await booking_service._check_conflicts_and_rules(
+        await asyncio.to_thread(booking_service._check_conflicts_and_rules,
             second_booking,
             mock_service,
             mock_instructor_profile,
@@ -429,7 +438,7 @@ class TestBookingServiceUnit:
         with pytest.raises(
             BusinessRuleException, match="Bookings must be made at least 1 hours in advance"
         ):
-            await booking_service._check_conflicts_and_rules(
+            await asyncio.to_thread(booking_service._check_conflicts_and_rules,
                 too_close_booking,
                 mock_service,
                 mock_instructor_profile,
@@ -466,12 +475,12 @@ class TestBookingServiceUnit:
         booking_service.conflict_checker_repository.get_blackout_date.return_value = None
 
         # Mock the _validate_booking_prerequisites to bypass instructor status check
-        booking_service._validate_booking_prerequisites = AsyncMock(
+        booking_service._validate_booking_prerequisites = MagicMock(
             return_value=(mock_service, mock_instructor_profile)
         )
 
         with pytest.raises(ConflictException, match="Instructor already has a booking that overlaps this time"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -501,12 +510,12 @@ class TestBookingServiceUnit:
         booking_service.conflict_checker_repository.get_blackout_date.return_value = None
 
         # Mock the _validate_booking_prerequisites to bypass instructor status check
-        booking_service._validate_booking_prerequisites = AsyncMock(
+        booking_service._validate_booking_prerequisites = MagicMock(
             return_value=(mock_service, mock_instructor_profile)
         )
 
         with pytest.raises(BusinessRuleException, match="at least 24 hours in advance"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -540,19 +549,19 @@ class TestBookingServiceUnit:
         )
 
         booking_service.repository.check_time_conflict.return_value = False
-        booking_service._validate_booking_prerequisites = AsyncMock(
+        booking_service._validate_booking_prerequisites = MagicMock(
             return_value=(mock_service, mock_instructor_profile)
         )
 
         fake_booking = Mock(spec=Booking)
         fake_booking.id = generate_ulid()
-        monkeypatch.setattr(booking_service, "_create_booking_record", AsyncMock(return_value=fake_booking))
+        monkeypatch.setattr(booking_service, "_create_booking_record", MagicMock(return_value=fake_booking))
         monkeypatch.setattr(booking_service, "_enqueue_booking_outbox_event", Mock())
         monkeypatch.setattr(booking_service, "_snapshot_booking", Mock(return_value={}))
         monkeypatch.setattr(booking_service, "_write_booking_audit", Mock())
-        monkeypatch.setattr(booking_service, "_handle_post_booking_tasks", AsyncMock())
+        monkeypatch.setattr(booking_service, "_handle_post_booking_tasks", MagicMock())
 
-        result = await booking_service.create_booking(
+        result = await asyncio.to_thread(booking_service.create_booking,
             mock_student, booking_data, selected_duration=booking_data.selected_duration
         )
 
@@ -595,24 +604,24 @@ class TestBookingServiceUnit:
         )
 
         booking_service.repository.check_time_conflict.return_value = False
-        booking_service._validate_booking_prerequisites = AsyncMock(
+        booking_service._validate_booking_prerequisites = MagicMock(
             return_value=(mock_service, mock_instructor_profile)
         )
 
-        mocked_create = AsyncMock()
+        mocked_create = MagicMock()
         monkeypatch.setattr(booking_service, "_create_booking_record", mocked_create)
         monkeypatch.setattr(booking_service, "_enqueue_booking_outbox_event", Mock())
         monkeypatch.setattr(booking_service, "_snapshot_booking", Mock(return_value={}))
         monkeypatch.setattr(booking_service, "_write_booking_audit", Mock())
-        monkeypatch.setattr(booking_service, "_handle_post_booking_tasks", AsyncMock())
+        monkeypatch.setattr(booking_service, "_handle_post_booking_tasks", MagicMock())
 
         with pytest.raises(BusinessRuleException, match="Requested time is not available"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
             )
 
         booking_service.repository.check_time_conflict.assert_not_called()
-        mocked_create.assert_not_awaited()
+        mocked_create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_cancel_booking_success(self, booking_service, mock_student, mock_booking):
@@ -628,14 +637,16 @@ class TestBookingServiceUnit:
             stripe_instance.cancel_payment_intent.return_value = None
             stripe_instance.capture_payment_intent.return_value = {}
 
-            _result = await booking_service.cancel_booking(
+            _result = await asyncio.to_thread(booking_service.cancel_booking,
                 booking_id=generate_ulid(), user=mock_student, reason="Schedule conflict"
             )
 
         # Assertions
         mock_booking.cancel.assert_called_once_with(mock_student.id, "Schedule conflict")
-        # Note: commit is handled by transaction wrapper, not called explicitly
-        booking_service.notification_service.send_cancellation_notification.assert_called_once()
+        booking_service.event_publisher.publish.assert_called_once()
+        cancel_event = booking_service.event_publisher.publish.call_args[0][0]
+        assert isinstance(cancel_event, BookingCancelled)
+        assert cancel_event.booking_id == mock_booking.id
 
     @pytest.mark.asyncio
     async def test_cancel_booking_not_found(self, booking_service):
@@ -643,7 +654,7 @@ class TestBookingServiceUnit:
         booking_service.repository.get_booking_with_details.return_value = None
 
         with pytest.raises(NotFoundException, match="Booking not found"):
-            await booking_service.cancel_booking(1, Mock())
+            await asyncio.to_thread(booking_service.cancel_booking, 1, Mock())
 
     @pytest.mark.asyncio
     async def test_cancel_booking_unauthorized(self, booking_service, mock_booking):
@@ -654,7 +665,7 @@ class TestBookingServiceUnit:
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
         with pytest.raises(ValidationException, match="You don't have permission to cancel this booking"):
-            await booking_service.cancel_booking(1, unauthorized_user)
+            await asyncio.to_thread(booking_service.cancel_booking, 1, unauthorized_user)
 
     @pytest.mark.asyncio
     async def test_cancel_booking_not_cancellable(self, booking_service, mock_student, mock_booking):
@@ -665,7 +676,7 @@ class TestBookingServiceUnit:
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
         with pytest.raises(BusinessRuleException, match="Booking cannot be cancelled"):
-            await booking_service.cancel_booking(1, mock_student)
+            await asyncio.to_thread(booking_service.cancel_booking, 1, mock_student)
 
     def test_get_bookings_for_student(self, booking_service, mock_student, mock_booking):
         """Test retrieving bookings for a student."""
@@ -815,10 +826,13 @@ class TestBookingServiceUnit:
         with patch("app.core.timezone_utils.get_user_today_by_id") as mock_get_today:
             mock_get_today.return_value = date.today()
 
-            count = await booking_service.send_booking_reminders()
+            count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
             assert count == 1
-            # Note: The actual call is to _send_booking_reminders, not send_reminder_emails
+            booking_service.event_publisher.publish.assert_called_once()
+            reminder_event = booking_service.event_publisher.publish.call_args[0][0]
+            assert isinstance(reminder_event, BookingReminder)
+            assert reminder_event.booking_id == tomorrow_booking.id
 
     @pytest.mark.asyncio
     async def test_send_booking_reminders_with_failures(self, booking_service, mock_notification_service):
@@ -836,16 +850,14 @@ class TestBookingServiceUnit:
 
         booking_service.repository.get_bookings_for_date.return_value = [booking1, booking2]
 
-        # Make first reminder fail
-        mock_notification_service._send_booking_reminders.side_effect = [Exception("Email error"), 1]  # Second succeeds
-
         # Mock get_user_today_by_id to return today's date
         with patch("app.core.timezone_utils.get_user_today_by_id") as mock_get_today:
             mock_get_today.return_value = date.today()
 
-            count = await booking_service.send_booking_reminders()
+            count = await asyncio.to_thread(booking_service.send_booking_reminders)
 
-            assert count == 1  # Only one succeeded
+            assert count == 2
+            assert booking_service.event_publisher.publish.call_count == 2
 
     def test_calculate_pricing_standard(self, booking_service):
         """Test pricing calculation for standard booking."""

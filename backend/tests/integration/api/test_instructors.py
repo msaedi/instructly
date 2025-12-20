@@ -299,7 +299,7 @@ class TestInstructorRoutes:
         """Test creating profile with invalid data."""
         # Test missing required fields
         response = client.post("/api/v1/instructors/me", json={}, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
         # Test empty services
         profile_data = {
@@ -308,7 +308,7 @@ class TestInstructorRoutes:
             "services": [],  # Empty services not allowed
         }
         response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_get_my_profile_success(
         self,
@@ -534,7 +534,7 @@ class TestInstructorRoutes:
         }
 
         response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
         assert "Duplicate services" in str(response.json()["detail"])
 
     def test_update_profile_with_empty_services(
@@ -600,19 +600,19 @@ class TestInstructorRoutes:
             "services": [{"service_catalog_id": catalog_service.id, "hourly_rate": 50.0}],
         }
         response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
         # Test negative experience
         profile_data["bio"] = "Valid bio that is long enough"
         profile_data["years_experience"] = -1
         response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
         # Test hourly rate too high
         profile_data["years_experience"] = 5
         profile_data["services"][0]["hourly_rate"] = 1500.0  # Over max
         response = client.post("/api/v1/instructors/me", json=profile_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_unauthenticated_access(self, client: TestClient):
         """Test that unauthenticated requests are rejected for protected endpoints."""
@@ -635,7 +635,7 @@ class TestInstructorRoutes:
         # Public endpoints should work but require service_catalog_id parameter
         # Test that 422 is returned for missing required parameter (not auth error)
         response = client.get("/api/v1/instructors/")
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
         nonexistent_id = generate_ulid()
         response = client.get(f"/api/v1/instructors/{nonexistent_id}")

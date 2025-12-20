@@ -31,28 +31,24 @@ Router Endpoints:
     DELETE /blackout-dates/{id} - Remove a blackout date
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 from email.utils import format_datetime
-from functools import wraps
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Optional, ParamSpec, TypeVar, cast
+from typing import Any, Callable, Dict, List, Optional, TypeVar, cast
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
-
-from app.api.dependencies.authz import requires_roles as _requires_roles
 
 from ...api.dependencies.auth import get_current_active_user, require_beta_access
 from ...api.dependencies.services import (
     get_availability_service,
     get_bulk_operation_service,
-    get_cache_service_dep,
     get_conflict_checker,
     get_presentation_service,
     get_week_operation_service,
 )
 from ...core.config import settings
 from ...core.constants import ERROR_INSTRUCTOR_ONLY
-from ...core.enums import RoleName
 from ...core.exceptions import ConflictException, DomainException
 from ...core.timezone_utils import get_user_today_by_id
 from ...middleware.perf_counters import note_cache_miss
@@ -90,15 +86,13 @@ from ...schemas.availability_window import (
 )
 from ...services.availability_service import ALLOW_PAST as SERVICE_ALLOW_PAST, AvailabilityService
 from ...services.bulk_operation_service import BulkOperationService
-from ...services.cache_service import CacheService
 from ...services.conflict_checker import ConflictChecker
 from ...services.presentation_service import PresentationService
 from ...services.week_operation_service import WeekOperationService
 from ...utils.bitset import windows_from_bits
 from ...utils.time_helpers import string_to_time
 
-P = ParamSpec("P")
-R = TypeVar("R")
+F = TypeVar("F", bound=Callable[..., Any])
 
 ALLOW_PAST = SERVICE_ALLOW_PAST
 EXPOSE_HEADERS = "ETag, Last-Modified, X-Allow-Past"
@@ -116,20 +110,12 @@ def _set_bitmap_headers(
 
 def requires_roles(
     *roles: str,
-) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
-    """Typed shim around authz.requires_roles for mypy route slice."""
-    real_decorator = _requires_roles(*roles)
+) -> Callable[[F], F]:
+    """Annotate endpoints with required roles (works for sync + async handlers)."""
 
-    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+    def decorator(func: F) -> F:
         setattr(func, "_required_roles", list(roles))
-        decorated: Callable[P, Awaitable[R]] = real_decorator(func)
-
-        @wraps(func)
-        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            return await decorated(*args, **kwargs)
-
-        setattr(wrapper, "_required_roles", getattr(decorated, "_required_roles", list(roles)))
-        return wrapper
+        return func
 
     return decorator
 
@@ -142,7 +128,7 @@ router = APIRouter(tags=["availability"])
 
 def verify_instructor(current_user: User) -> User:
     """Verify the current user is an instructor."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         logger.warning(
             f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint"
         )
@@ -159,7 +145,7 @@ def verify_instructor(current_user: User) -> User:
         403: {"description": "User is not an instructor"},
     },
 )
-async def get_week_availability(
+def get_week_availability(
     response: Response,
     start_date: date = Query(..., description="Monday of the week"),
     current_user: User = Depends(get_current_active_user),
@@ -225,13 +211,12 @@ async def get_week_availability(
     },
 )
 @requires_roles("instructor")
-async def save_week_availability(
+def save_week_availability(
     request: Request,
     response: Response,
     payload: WeekSpecificScheduleCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
     override: bool = Query(
         False,
         description="Set to true to bypass version conflict checks when saving availability",
@@ -282,10 +267,6 @@ async def save_week_availability(
         server_version: Optional[str] = None
 
         try:
-            # Inject cache service if needed
-            if not availability_service.cache_service and cache_service:
-                availability_service.cache_service = cache_service
-
             # Version handshake: If-Match header or body-provided base_version
             client_version = (
                 request.headers.get("if-match") or payload.base_version or payload.version
@@ -385,7 +366,6 @@ async def copy_week_availability(
     payload: CopyWeekRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> CopyWeekResponse:
     """Copy availability from one week to another."""
     verify_instructor(current_user)
@@ -398,9 +378,6 @@ async def copy_week_availability(
         payload_size_bytes=payload_size,
     ):
         try:
-            if not week_operation_service.cache_service and cache_service:
-                week_operation_service.cache_service = cache_service
-
             result = await week_operation_service.copy_week_availability(
                 instructor_id=current_user.id,
                 from_week_start=payload.from_week_start,
@@ -442,15 +419,11 @@ async def apply_to_date_range(
     payload: ApplyToDateRangeRequest = Body(...),
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> ApplyToDateRangeResponse:
     """Apply a week's pattern to a date range."""
     verify_instructor(current_user)
 
     try:
-        if not week_operation_service.cache_service and cache_service:
-            week_operation_service.cache_service = cache_service
-
         result = await week_operation_service.apply_pattern_to_date_range(
             instructor_id=current_user.id,
             from_week_start=payload.from_week_start,
@@ -701,13 +674,16 @@ async def get_week_booked_slots(
     verify_instructor(current_user)
 
     try:
-        booked_slots_by_date = conflict_checker.get_booked_times_for_week(
-            instructor_id=current_user.id, week_start=start_date
+        booked_slots_by_date = await asyncio.to_thread(
+            conflict_checker.get_booked_times_for_week,
+            instructor_id=current_user.id,
+            week_start=start_date,
         )
 
         # Format for frontend display
-        formatted_slots = presentation_service.format_booked_slots_from_service_data(
-            booked_slots_by_date
+        formatted_slots = await asyncio.to_thread(
+            presentation_service.format_booked_slots_from_service_data,
+            booked_slots_by_date,
         )
 
         from datetime import timedelta
@@ -742,8 +718,10 @@ async def validate_week_changes(
     verify_instructor(current_user)
 
     try:
-        result = await bulk_operation_service.validate_week_changes(
-            instructor_id=current_user.id, validation_data=validation_data
+        result = await asyncio.to_thread(
+            bulk_operation_service.validate_week_changes,
+            instructor_id=current_user.id,
+            validation_data=validation_data,
         )
         return WeekValidationResponse(**result)
     except DomainException as e:

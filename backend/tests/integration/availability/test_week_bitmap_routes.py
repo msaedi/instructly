@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, time, timedelta, timezone
 from importlib import reload
 from typing import Dict, List, Tuple
@@ -124,7 +125,12 @@ def test_save_week_bitmap_initial_then_if_match_conflict_and_override(
 ) -> None:
     repo = AvailabilityDayRepository(db)
     db.query(AvailabilityDay).filter(AvailabilityDay.instructor_id == test_instructor.id).delete()
-    week_start = date(2025, 11, 10)
+    # Use dynamic future date: next Monday from today
+    today = date.today()
+    days_until_monday = (7 - today.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7  # If today is Monday, use next Monday
+    week_start = today + timedelta(days=days_until_monday)
 
     body = {
         "week_start": week_start.isoformat(),
@@ -232,7 +238,11 @@ async def test_midnight_window_round_trip(
     test_instructor: User,
     auth_headers_instructor: dict,
 ) -> None:
-    monday = date(2025, 11, 17)
+    today = date.today()
+    days_until_monday = (7 - today.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7
+    monday = today + timedelta(days=days_until_monday)
     payload = {
         "week_start": monday.isoformat(),
         "clear_existing": True,
@@ -262,7 +272,7 @@ async def test_midnight_window_round_trip(
     assert body[monday.isoformat()] == [{"start_time": "23:30:00", "end_time": "00:00:00"}]
 
     booking_service = BookingService(db)
-    windows = await booking_service._get_instructor_availability_windows(
+    windows = await asyncio.to_thread(booking_service._get_instructor_availability_windows,
         test_instructor.id,
         monday,
         time(0, 0),

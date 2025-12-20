@@ -4,6 +4,7 @@ Integration tests for student conflict validation in BookingService.
 Tests with real database to ensure the feature works end-to-end.
 """
 
+import asyncio
 from datetime import date, time, timedelta
 
 import pytest
@@ -264,7 +265,7 @@ class TestStudentConflictValidationIntegration:
         # Refresh student_user from database to avoid session issues
         student_user = db.query(User).filter(User.id == student_id).first()
 
-        booking1 = await booking_service.create_booking(
+        booking1 = await asyncio.to_thread(booking_service.create_booking,
             student_user, booking1_data, selected_duration=booking1_data.selected_duration
         )
         assert booking1.id is not None
@@ -284,7 +285,7 @@ class TestStudentConflictValidationIntegration:
 
         # Should fail with student conflict
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 student_user, booking2_data, selected_duration=booking2_data.selected_duration
             )
 
@@ -332,7 +333,7 @@ class TestStudentConflictValidationIntegration:
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(
+        booking1 = await asyncio.to_thread(booking_service.create_booking,
             student_user, booking1_data, selected_duration=booking1_data.selected_duration
         )
         assert booking1.status == BookingStatus.CONFIRMED
@@ -350,7 +351,7 @@ class TestStudentConflictValidationIntegration:
         )
 
         # Should succeed
-        booking2 = await booking_service.create_booking(
+        booking2 = await asyncio.to_thread(booking_service.create_booking,
             student_user, booking2_data, selected_duration=booking2_data.selected_duration
         )
         assert booking2.id is not None
@@ -418,7 +419,7 @@ class TestStudentConflictValidationIntegration:
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(
+        booking1 = await asyncio.to_thread(booking_service.create_booking,
             student1, booking1_data, selected_duration=booking1_data.selected_duration
         )
         assert booking1.status == BookingStatus.CONFIRMED
@@ -437,7 +438,7 @@ class TestStudentConflictValidationIntegration:
 
         # Should fail with instructor conflict (not student conflict)
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 student2, booking2_data, selected_duration=booking2_data.selected_duration
             )
 
@@ -480,13 +481,13 @@ class TestStudentConflictValidationIntegration:
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(
+        booking1 = await asyncio.to_thread(booking_service.create_booking,
             student_user, booking1_data, selected_duration=booking1_data.selected_duration
         )
         assert booking1.status == BookingStatus.CONFIRMED
 
         # Cancel the booking
-        cancelled = await booking_service.cancel_booking(
+        cancelled = await asyncio.to_thread(booking_service.cancel_booking,
             booking_id=booking1.id, user=student_user, reason="Changed my mind"
         )
         assert cancelled.status == BookingStatus.CANCELLED
@@ -504,7 +505,7 @@ class TestStudentConflictValidationIntegration:
         )
 
         # Should succeed since previous booking was cancelled
-        booking2 = await booking_service.create_booking(
+        booking2 = await asyncio.to_thread(booking_service.create_booking,
             student_user, booking2_data, selected_duration=booking2_data.selected_duration
         )
         assert booking2.id is not None

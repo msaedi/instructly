@@ -4,12 +4,16 @@ Monitoring endpoints for health checks and diagnostics.
 These endpoints are secured and used for internal monitoring and operations.
 """
 
+import asyncio
 from datetime import datetime, timezone
 import os
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from ..repositories.payment_monitoring_repository import PaymentMonitoringRepository
 
 from ..core.config import settings
 from ..database import get_db, get_db_pool_status
@@ -71,7 +75,7 @@ async def get_monitoring_dashboard(
 
         # Get cache statistics
         cache_service = get_cache_service(db)
-        cache_stats = cache_service.get_stats()
+        cache_stats = await cache_service.get_stats()
         cache_health = monitor.check_cache_health(cache_stats)
 
         # Get current database pool status
@@ -124,16 +128,11 @@ async def get_extended_cache_stats(
     """Get extended cache statistics."""
     cache_service = get_cache_service(db)
 
-    # Check if we have the extended stats method
-    stats = (
-        cache_service.get_extended_stats()
-        if hasattr(cache_service, "get_extended_stats")
-        else cache_service.get_stats()
-    )
+    stats = await cache_service.get_stats()
 
     return ExtendedCacheStats(
         basic_stats=stats.get("basic_stats", stats),
-        redis_info=stats.get("redis_info"),
+        redis_info=stats.get("redis_info") or stats.get("redis"),
         key_patterns=stats.get("key_patterns"),
     )
 
@@ -220,9 +219,19 @@ def _generate_recommendations(
 # ==================== Payment System Monitoring ====================
 
 
+def get_payment_monitoring_repository(
+    db: Session = Depends(get_db),
+) -> "PaymentMonitoringRepository":
+    """Get an instance of the payment monitoring repository."""
+    from ..repositories.payment_monitoring_repository import PaymentMonitoringRepository
+
+    return PaymentMonitoringRepository(db)
+
+
 @router.get("/payment-health", response_model=PaymentHealthResponse)
 async def get_payment_system_health(
-    db: Session = Depends(get_db), _: None = Depends(verify_monitoring_api_key)
+    repository: "PaymentMonitoringRepository" = Depends(get_payment_monitoring_repository),
+    _: None = Depends(verify_monitoring_api_key),
 ) -> PaymentHealthResponse:
     """
     Get payment system health metrics.
@@ -235,57 +244,25 @@ async def get_payment_system_health(
 
     Requires monitoring API key in production.
     """
-    from datetime import datetime, timedelta
+    from datetime import timedelta
 
-    from sqlalchemy import and_, func
-
-    from app.models.booking import Booking, BookingStatus
-    from app.models.payment import PaymentEvent
-    from app.repositories.factory import RepositoryFactory
-
-    _payment_repo = RepositoryFactory.get_payment_repository(db)
     now = datetime.now(timezone.utc)
 
     # Count bookings by payment status
-    payment_stats = (
-        db.query(Booking.payment_status, func.count(Booking.id).label("count"))
-        .filter(Booking.status == BookingStatus.CONFIRMED, Booking.booking_date >= now.date())
-        .group_by(Booking.payment_status)
-        .all()
-    )
-
+    payment_stats = await asyncio.to_thread(repository.get_payment_status_counts, now)
     stats_dict = {stat.payment_status: stat.count for stat in payment_stats if stat.payment_status}
 
     # Count recent events
-    recent_events = (
-        db.query(PaymentEvent.event_type, func.count(PaymentEvent.id).label("count"))
-        .filter(PaymentEvent.created_at >= now - timedelta(hours=24))
-        .group_by(PaymentEvent.event_type)
-        .all()
+    recent_events = await asyncio.to_thread(
+        repository.get_recent_event_counts, now - timedelta(hours=24)
     )
-
     events_dict = {event.event_type: event.count for event in recent_events}
 
     # Find overdue authorizations
-    overdue_bookings = (
-        db.query(Booking)
-        .filter(
-            and_(
-                Booking.status == BookingStatus.CONFIRMED,
-                Booking.payment_status == "scheduled",
-                Booking.booking_date <= now.date(),
-            )
-        )
-        .count()
-    )
+    overdue_bookings = await asyncio.to_thread(repository.count_overdue_authorizations, now)
 
     # Get last successful authorization
-    last_auth = (
-        db.query(PaymentEvent)
-        .filter(PaymentEvent.event_type.in_(["auth_succeeded", "auth_retry_succeeded"]))
-        .order_by(PaymentEvent.created_at.desc())
-        .first()
-    )
+    last_auth = await asyncio.to_thread(repository.get_last_successful_authorization)
 
     minutes_since_auth = None
     if last_auth:

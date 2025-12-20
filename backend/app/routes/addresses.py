@@ -269,7 +269,7 @@ def place_details(place_id: str, provider: str | None = None) -> PlaceDetails:
             },
         )
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
             detail={
                 "code": "invalid_place_id_for_provider",
                 "provider": requested_provider,

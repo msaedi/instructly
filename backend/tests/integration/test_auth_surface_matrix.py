@@ -1,3 +1,11 @@
+"""Auth surface matrix test - probes preview server to document auth behavior.
+
+This test hits the LIVE preview server, not the local test database.
+It is skipped by default in CI to avoid external dependencies.
+
+To run manually:
+    RUN_AUTH_MATRIX=1 pytest tests/integration/test_auth_surface_matrix.py -v
+"""
 from __future__ import annotations
 
 import json
@@ -7,6 +15,13 @@ from typing import Dict, List, Optional
 
 import pytest
 import requests
+
+# Skip in regular CI - only run when explicitly requested
+_RUN_AUTH_MATRIX = os.environ.get("RUN_AUTH_MATRIX", "0") == "1"
+pytestmark = pytest.mark.skipif(
+    not _RUN_AUTH_MATRIX,
+    reason="Auth matrix test hits live preview server. Set RUN_AUTH_MATRIX=1 to run.",
+)
 
 ARTIFACT_DIR = Path(__file__).resolve().parents[2] / ".artifacts"
 ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)

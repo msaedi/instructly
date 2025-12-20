@@ -42,8 +42,10 @@ from .base_repository import BaseRepository, IRepository
 from .booking_repository import BookingRepository
 from .bulk_operation_repository import BulkOperationRepository
 from .conflict_checker_repository import ConflictCheckerRepository
+from .conversation_repository import ConversationRepository
 from .factory import RepositoryFactory
 from .instructor_profile_repository import InstructorProfileRepository
+from .nl_search_repository import PriceThresholdRepository
 from .referral_repository import (
     ReferralAttributionRepository,
     ReferralClickRepository,
@@ -67,6 +69,7 @@ __all__ = [
     "ConflictCheckerRepository",
     "BulkOperationRepository",
     "BookingRepository",
+    "ConversationRepository",
     "WeekOperationRepository",
     "InstructorProfileRepository",
     "SearchEventRepository",
@@ -76,6 +79,7 @@ __all__ = [
     "ReferralRewardRepository",
     "WalletTransactionRepository",
     "ReferralLimitRepository",
+    "PriceThresholdRepository",
 ]
 
 # Version info

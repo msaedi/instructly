@@ -36,11 +36,10 @@ from ..api.dependencies.auth import (
     require_beta_access,
 )
 from ..api.dependencies.services import (
-    get_cache_service_dep,
+    get_cache_service_sync_dep,
     get_favorites_service,
     get_instructor_service,
 )
-from ..core.enums import RoleName
 from ..core.exceptions import DomainException, ValidationException
 from ..core.ulid_helper import is_valid_ulid
 from ..database import get_db
@@ -58,7 +57,7 @@ from ..schemas.instructor import (
     InstructorProfileUpdate,
 )
 from ..services.address_service import AddressService
-from ..services.cache_service import CacheService
+from ..services.cache_service import CacheServiceSyncAdapter
 from ..services.config_service import ConfigService
 from ..services.favorites_service import FavoritesService
 from ..services.instructor_service import InstructorService
@@ -179,7 +178,7 @@ async def get_my_profile(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> InstructorProfileResponse:
     """Get current instructor's profile."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can access profiles",
@@ -206,10 +205,10 @@ async def update_profile(
     profile_update: InstructorProfileUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> InstructorProfileResponse:
     """Update instructor profile with soft delete support."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can update profiles",
@@ -252,7 +251,7 @@ async def go_live(
     - At least one service configured (skills/pricing)
     - Background check cleared within the platform
     """
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can perform this action",
@@ -356,10 +355,10 @@ async def go_live(
 async def delete_instructor_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> None:
     """Delete instructor profile and revert to student role."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can delete their profiles",

@@ -183,7 +183,7 @@ class User(Base):
     service_areas: Mapped[list["InstructorServiceArea"]] = relationship(
         "InstructorServiceArea",
         back_populates="instructor",
-        lazy="selectin",
+        lazy="select",  # Changed from selectin - only load when explicitly accessed
         cascade="all, delete-orphan",
     )
 
@@ -221,11 +221,12 @@ class User(Base):
     )
 
     def __init__(self, **kwargs: Any) -> None:
-        """Initialize a new user and log the creation."""
+        """Initialize a new user."""
         super().__init__(**kwargs)
-        logger.info(
-            f"Creating new {kwargs.get('role', 'unknown')} user with email: {kwargs.get('email', 'unknown')}"
-        )
+        # Only log actual new user creations (with role), not transient/cache reconstructions
+        role = kwargs.get("role")
+        if role:
+            logger.info(f"Creating new {role} user with email: {kwargs.get('email', 'unknown')}")
 
     def __repr__(self) -> str:
         """String representation of the User object."""
@@ -239,7 +240,15 @@ class User(Base):
 
     @property
     def is_instructor(self) -> bool:
-        """Check if user has instructor role."""
+        """Check if user has instructor role.
+
+        For transient users (created from cache), returns the cached value.
+        """
+        # Check for cached value first (for transient users from auth cache)
+        cached = getattr(self, "_cached_is_instructor", None)
+        if cached is not None:
+            return bool(cached)
+
         from app.core.enums import RoleName
 
         roles = cast(list[Any], getattr(self, "roles", []) or [])
@@ -251,7 +260,15 @@ class User(Base):
 
     @property
     def is_student(self) -> bool:
-        """Check if user has student role."""
+        """Check if user has student role.
+
+        For transient users (created from cache), returns the cached value.
+        """
+        # Check for cached value first (for transient users from auth cache)
+        cached = getattr(self, "_cached_is_student", None)
+        if cached is not None:
+            return bool(cached)
+
         from app.core.enums import RoleName
 
         roles = cast(list[Any], getattr(self, "roles", []) or [])
@@ -263,7 +280,15 @@ class User(Base):
 
     @property
     def is_admin(self) -> bool:
-        """Check if the user has admin role."""
+        """Check if the user has admin role.
+
+        For transient users (created from cache), returns the cached value.
+        """
+        # Check for cached value first (for transient users from auth cache)
+        cached = getattr(self, "_cached_is_admin", None)
+        if cached is not None:
+            return bool(cached)
+
         from app.core.enums import RoleName
 
         roles = cast(list[Any], getattr(self, "roles", []) or [])

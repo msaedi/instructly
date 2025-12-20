@@ -12,6 +12,7 @@ UPDATED IN v65:
 Now monitoring all cache operations to optimize energy usage! ⚡
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta
 from enum import Enum
 from functools import wraps
@@ -20,10 +21,22 @@ import json
 import logging
 import os
 import threading
-from typing import Any, Callable, Dict, List, Optional, ParamSpec, TypeVar, Union, cast
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Dict,
+    List,
+    Optional,
+    ParamSpec,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from fastapi import Depends
-from redis import ConnectionError, Redis, from_url
+from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.orm import Session
 
@@ -33,7 +46,6 @@ from app.middleware.perf_counters import (
     record_cache_key,
 )
 
-from ..core.config import settings
 from ..database import get_db
 from .base import BaseService
 
@@ -94,7 +106,9 @@ class CircuitBreaker:
                         self._state = CircuitState.HALF_OPEN
             return self._state
 
-    def call(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> Optional[T]:
+    async def call(
+        self, func: Callable[..., Awaitable[T]], *args: Any, **kwargs: Any
+    ) -> Optional[T]:
         """
         Execute function with circuit breaker protection.
 
@@ -114,7 +128,7 @@ class CircuitBreaker:
             return None
 
         try:
-            result = func(*args, **kwargs)
+            result = await func(*args, **kwargs)
             self._on_success()
             return result
         except self.expected_exception:
@@ -218,11 +232,17 @@ class CacheService(BaseService):
         "static": 604800,  # 7 days - rarely changes
     }
 
-    def __init__(self, db: Session, redis_client: Optional[Redis] = None):
+    def __init__(self, db: Optional[Session] = None, redis_client: Optional[Redis] = None):
         """
         Initialize cache service.
 
         REFACTORED: Split initialization into helper methods to stay under 50 lines.
+
+        Args:
+            db: Optional database session. Not used by CacheService but required
+                by BaseService for consistency with other services.
+            redis_client: Optional Redis client. If not provided, will attempt
+                to connect using REDIS_URL from settings.
         """
         super().__init__(db)
         self.logger = logging.getLogger(__name__)
@@ -236,9 +256,8 @@ class CacheService(BaseService):
         self._memory_cache: Dict[str, Any] = {}
         self._memory_expiry: Dict[str, datetime] = {}
 
-        # Initialize Redis connection
+        # Redis connection (async, shared pool via app.core.cache_redis)
         self.redis: Optional[Redis] = redis_client
-        self._setup_redis_connection()
 
         # Initialize statistics
         self._stats: Dict[str, int] = self._initialize_stats()
@@ -249,31 +268,31 @@ class CacheService(BaseService):
             failure_threshold=5, recovery_timeout=60, expected_exception=RedisError
         )
 
-    def _setup_redis_connection(self) -> None:
-        """Setup Redis connection with fallback to in-memory cache."""
+    async def _get_redis_client(self) -> Optional[Redis]:
+        """Return a shared async Redis client, or None when unavailable."""
         if self.force_memory_cache:
-            self.redis = None
-            return
-        if self.redis is None:
-            try:
-                self.redis = from_url(
-                    settings.redis_url or "redis://localhost:6379",
-                    decode_responses=True,
-                    socket_keepalive=True,
-                    socket_connect_timeout=5,
-                    retry_on_timeout=True,
-                    health_check_interval=30,
-                    # Connection pooling
-                    max_connections=50,
-                )
-                # Test connection
-                self.redis.ping()
-                logger.info("Connected to Redis/DragonflyDB")
-            except (RedisError, ConnectionError) as e:
-                logger.warning(f"Redis not available: {e}. Using in-memory fallback.")
-                self.redis = None
-                self._memory_cache.clear()
-                self._memory_expiry.clear()
+            return None
+
+        # Allow explicit injection (tests/mocking) to override the shared pool.
+        if self.redis is not None:
+            return self.redis
+
+        # Lazy init from the shared cache Redis pool (separate from messaging Pub/Sub Redis)
+        try:
+            from app.core.cache_redis import get_async_cache_redis_client
+
+            # Do not cache the client on the CacheService instance: this service can be reused
+            # across multiple event loops in tests, while the underlying async Redis client is
+            # event-loop bound (cache_redis handles per-loop pooling).
+            return await get_async_cache_redis_client()
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Redis client unavailable, using in-memory fallback: %s", exc)
+            return None
+
+    @BaseService.measure_operation("get_redis_client")
+    async def get_redis_client(self) -> Optional[Redis]:
+        """Public accessor for the underlying async Redis client (if available)."""
+        return await self._get_redis_client()
 
     def _initialize_stats(self) -> Dict[str, int]:
         """Initialize cache statistics tracking."""
@@ -291,18 +310,17 @@ class CacheService(BaseService):
 
     # Internal helpers -------------------------------------------------
 
-    def _backend_get(self, key: str) -> Optional[Any]:
+    async def _backend_get(self, key: str) -> Optional[Any]:
         """Fetch raw value from the active backend without instrumentation."""
-        redis_client = self.redis
+        redis_client = await self._get_redis_client()
 
         try:
             if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
 
-                def _get_from_redis() -> Optional[Any]:
-                    assert redis_client is not None
-                    return redis_client.get(key)
+                async def _get_from_redis() -> Optional[Any]:
+                    return await redis_client.get(key)
 
-                return self.circuit_breaker.call(_get_from_redis)
+                return await self.circuit_breaker.call(_get_from_redis)
 
             if redis_client is None:
                 cached = self._memory_cache.get(key)
@@ -325,9 +343,9 @@ class CacheService(BaseService):
             self._stats["errors"] += 1
             return None
 
-    def _backend_set(self, key: str, value: Any, ttl: Optional[int]) -> bool:
+    async def _backend_set(self, key: str, value: Any, ttl: Optional[int]) -> bool:
         """Persist value to the active backend without serialization concerns."""
-        redis_client = self.redis
+        redis_client = await self._get_redis_client()
 
         try:
             expiration = ttl if ttl is not None else self.TTL_TIERS.get("warm", 3600)
@@ -335,12 +353,11 @@ class CacheService(BaseService):
 
             if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
 
-                def _set_in_redis() -> bool:
-                    assert redis_client is not None
-                    redis_client.setex(key, expiration, value)
+                async def _set_in_redis() -> bool:
+                    await redis_client.setex(key, expiration, value)
                     return True
 
-                result = self.circuit_breaker.call(_set_in_redis)
+                result = await self.circuit_breaker.call(_set_in_redis)
                 if result:
                     self._stats["sets"] += 1
                     return True
@@ -358,10 +375,10 @@ class CacheService(BaseService):
             return False
 
     @BaseService.measure_operation("cache_get_json")
-    def get_json(self, key: str) -> Optional[Any]:
+    async def get_json(self, key: str) -> Optional[Any]:
         """Fetch a JSON payload while routing through perf instrumentation."""
         record_cache_key(key)
-        raw_value = self._backend_get(key)
+        raw_value = await self._backend_get(key)
         if raw_value is None:
             self._stats["misses"] += 1
             note_cache_miss(key)
@@ -379,19 +396,19 @@ class CacheService(BaseService):
         return raw_value
 
     @BaseService.measure_operation("cache_set_json")
-    def set_json(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+    async def set_json(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """Persist a JSON-serializable payload uniformly for all backends."""
         payload = json.dumps(value, default=str)
-        self._backend_set(key, payload, ttl)
+        await self._backend_set(key, payload, ttl)
 
     # Core Cache Operations
 
     @BaseService.measure_operation("cache_get")
-    def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Optional[Any]:
         """Get value from cache with circuit breaker protection."""
         try:
             record_cache_key(key)
-            raw_value = self._backend_get(key)
+            raw_value = await self._backend_get(key)
             if raw_value is None:
                 self._stats["misses"] += 1
                 note_cache_miss(key)
@@ -414,7 +431,7 @@ class CacheService(BaseService):
             return None
 
     @BaseService.measure_operation("cache_set")
-    def set(
+    async def set(
         self,
         key: str,
         value: Any,
@@ -423,9 +440,9 @@ class CacheService(BaseService):
     ) -> bool:
         """Set value in cache with circuit breaker protection."""
 
-        redis_client = self.redis
-
         try:
+            redis_client = await self._get_redis_client()
+
             # Use tier TTL if not specified
             if ttl is None:
                 ttl = self.TTL_TIERS.get(tier, self.TTL_TIERS["warm"])
@@ -434,13 +451,14 @@ class CacheService(BaseService):
             expiration = ttl
             serialized = json.dumps(value, default=str)
 
-            def _set_in_redis() -> bool:
-                assert redis_client is not None
-                redis_client.setex(key, expiration, serialized)
-                return True
-
             if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
-                result = self.circuit_breaker.call(_set_in_redis)
+                redis = redis_client
+
+                async def _set_in_redis() -> bool:
+                    await redis.setex(key, expiration, serialized)
+                    return True
+
+                result = await self.circuit_breaker.call(_set_in_redis)
                 if result:
                     self._stats["sets"] += 1
                     return True
@@ -459,18 +477,18 @@ class CacheService(BaseService):
             return False
 
     @BaseService.measure_operation("cache_delete")
-    def delete(self, key: str) -> bool:
+    async def delete(self, key: str) -> bool:
         """Delete a key from cache with circuit breaker protection."""
 
-        redis_client = self.redis
-
-        def _delete_from_redis() -> bool:
-            assert redis_client is not None
-            return bool(redis_client.delete(key))
+        redis_client = await self._get_redis_client()
 
         try:
             if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
-                result = self.circuit_breaker.call(_delete_from_redis)
+
+                async def _delete_from_redis() -> bool:
+                    return bool(await redis_client.delete(key))
+
+                result = await self.circuit_breaker.call(_delete_from_redis)
                 if result:
                     self._stats["deletes"] += 1
                     return True
@@ -490,7 +508,7 @@ class CacheService(BaseService):
             return False
 
     @BaseService.measure_operation("cache_delete_pattern")
-    def delete_pattern(self, pattern: str) -> int:
+    async def delete_pattern(self, pattern: str) -> int:
         """
         Delete all keys matching pattern.
 
@@ -498,8 +516,9 @@ class CacheService(BaseService):
         """
         count = 0
         try:
-            if self.redis:
-                count = self._delete_pattern_redis(pattern)
+            redis_client = await self._get_redis_client()
+            if redis_client:
+                count = await self._delete_pattern_redis(pattern)
             else:
                 count = self._delete_pattern_memory(pattern)
 
@@ -513,7 +532,7 @@ class CacheService(BaseService):
             return 0
 
     @BaseService.measure_operation("cache_clear_prefix")
-    def clear_prefix(self, prefix: str) -> int:
+    async def clear_prefix(self, prefix: str) -> int:
         """
         Delete all keys that begin with the supplied prefix.
 
@@ -527,16 +546,16 @@ class CacheService(BaseService):
             return 0
 
         pattern = prefix if prefix.endswith("*") else f"{prefix}*"
-        return self.delete_pattern(pattern)
+        return await self.delete_pattern(pattern)
 
-    def _delete_pattern_redis(self, pattern: str) -> int:
+    async def _delete_pattern_redis(self, pattern: str) -> int:
         """Delete pattern from Redis using SCAN."""
         count = 0
-        redis_client = self.redis
+        redis_client = await self._get_redis_client()
         if redis_client is None:
             return 0
-        for key in redis_client.scan_iter(match=pattern):
-            if redis_client.delete(key):
+        async for key in redis_client.scan_iter(match=pattern):
+            if await redis_client.delete(key):
                 count += 1
         return count
 
@@ -550,17 +569,85 @@ class CacheService(BaseService):
             count += 1
         return count
 
+    # Lock Operations (for stampede protection)
+
+    @BaseService.measure_operation("cache_acquire_lock")
+    async def acquire_lock(self, key: str, ttl: int = 10) -> bool:
+        """
+        Acquire a distributed lock using Redis SETNX.
+
+        Used for cache stampede protection - ensures only one request
+        computes an expensive operation while others wait.
+
+        Args:
+            key: Lock key (typically "lock:{cache_key}")
+            ttl: Lock expiry in seconds (default 10s safety)
+
+        Returns:
+            True if lock acquired, False if already held
+        """
+        redis_client = await self._get_redis_client()
+
+        try:
+            if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
+                # SET key value NX EX ttl - atomic set-if-not-exists with expiry
+                result = await redis_client.set(key, "1", nx=True, ex=ttl)
+                return bool(result)
+            else:
+                # In-memory fallback: use simple dict check with expiry
+                now = datetime.now()
+                expires_at = self._memory_expiry.get(key)
+                if expires_at is None or now >= expires_at:
+                    # Lock is free or expired - acquire it
+                    self._memory_cache[key] = "1"
+                    self._memory_expiry[key] = now + timedelta(seconds=ttl)
+                    return True
+                return False
+
+        except Exception as e:
+            logger.error(f"Lock acquire error for key {key}: {e}")
+            self._stats["errors"] += 1
+            # On error, allow the request to proceed (fail-open)
+            return True
+
+    @BaseService.measure_operation("cache_release_lock")
+    async def release_lock(self, key: str) -> bool:
+        """
+        Release a distributed lock.
+
+        Args:
+            key: Lock key to release
+
+        Returns:
+            True if lock was released, False otherwise
+        """
+        redis_client = await self._get_redis_client()
+
+        try:
+            if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
+                return bool(await redis_client.delete(key))
+            else:
+                # In-memory fallback
+                self._memory_cache.pop(key, None)
+                self._memory_expiry.pop(key, None)
+                return True
+
+        except Exception as e:
+            logger.error(f"Lock release error for key {key}: {e}")
+            self._stats["errors"] += 1
+            return False
+
     # Batch Operations
 
     @BaseService.measure_operation("cache_mget")
-    def mget(self, keys: List[str]) -> Dict[str, Any]:
+    async def mget(self, keys: List[str]) -> Dict[str, Any]:
         """Get multiple keys at once."""
         result: Dict[str, Any] = {}
-        redis_client = self.redis
+        redis_client = await self._get_redis_client()
 
         try:
             if redis_client:
-                values = redis_client.mget(keys)
+                values = await redis_client.mget(keys)
                 for key, value in zip(keys, values):
                     record_cache_key(key)
                     if value is not None:
@@ -576,7 +663,7 @@ class CacheService(BaseService):
             else:
                 # In-memory
                 for key in keys:
-                    value = self.get(key)  # Reuse get logic
+                    value = await self.get(key)  # Reuse get logic
                     if value is not None:
                         result[key] = value
 
@@ -587,14 +674,16 @@ class CacheService(BaseService):
         return result
 
     @BaseService.measure_operation("cache_mset")
-    def mset(self, data: Dict[str, Any], ttl: Optional[int] = None, tier: str = "warm") -> bool:
+    async def mset(
+        self, data: Dict[str, Any], ttl: Optional[int] = None, tier: str = "warm"
+    ) -> bool:
         """Set multiple keys at once."""
         try:
             if ttl is None:
                 ttl = self.TTL_TIERS.get(tier, self.TTL_TIERS["warm"])
             assert ttl is not None
 
-            redis_client = self.redis
+            redis_client = await self._get_redis_client()
             if redis_client:
                 # Serialize all values
                 serialized_data = {k: json.dumps(v, default=str) for k, v in data.items()}
@@ -603,11 +692,11 @@ class CacheService(BaseService):
                 pipe = redis_client.pipeline()
                 for key, value in serialized_data.items():
                     pipe.setex(key, ttl, value)
-                pipe.execute()
+                await pipe.execute()
             else:
                 # In-memory
                 for key, value in data.items():
-                    self.set(key, value, ttl, tier)
+                    await self.set(key, value, ttl, tier)
 
             self._stats["sets"] += len(data)
             return True
@@ -620,7 +709,7 @@ class CacheService(BaseService):
     # Domain-Specific Methods
 
     @BaseService.measure_operation("cache_week_availability")
-    def cache_week_availability(
+    async def cache_week_availability(
         self, instructor_id: str, week_start: date, availability_data: Dict[str, Any]
     ) -> bool:
         """Cache week availability with smart TTL."""
@@ -632,16 +721,16 @@ class CacheService(BaseService):
         else:
             tier = "warm"  # 1 hour for past weeks
 
-        return self.set(key, availability_data, tier=tier)
+        return await self.set(key, availability_data, tier=tier)
 
     @BaseService.measure_operation("get_week_availability")
-    def get_week_availability(
+    async def get_week_availability(
         self, instructor_id: str, week_start: date
     ) -> Optional[Dict[str, Any]]:
         """Get cached week availability."""
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
         record_cache_key(key)
-        result = cast(Optional[Dict[str, Any]], self.get(key))
+        result = cast(Optional[Dict[str, Any]], await self.get(key))
 
         # Track availability-specific metrics
         if result is not None:
@@ -652,7 +741,7 @@ class CacheService(BaseService):
         return result
 
     @BaseService.measure_operation("cache_instructor_availability_date_range")
-    def cache_instructor_availability_date_range(
+    async def cache_instructor_availability_date_range(
         self,
         instructor_id: str,
         start_date: date,
@@ -668,15 +757,15 @@ class CacheService(BaseService):
         else:
             tier = "warm"  # 1 hour
 
-        return self.set(key, availability_data, tier=tier)
+        return await self.set(key, availability_data, tier=tier)
 
     @BaseService.measure_operation("get_instructor_availability_date_range")
-    def get_instructor_availability_date_range(
+    async def get_instructor_availability_date_range(
         self, instructor_id: str, start_date: date, end_date: date
     ) -> Optional[List[Dict[str, Any]]]:
         """Get cached instructor availability for date range."""
         key = self.key_builder.build("availability", "range", instructor_id, start_date, end_date)
-        result = cast(Optional[List[Dict[str, Any]]], self.get(key))
+        result = cast(Optional[List[Dict[str, Any]]], await self.get(key))
 
         # Track availability-specific metrics
         if result is not None:
@@ -687,20 +776,20 @@ class CacheService(BaseService):
         return result
 
     @BaseService.measure_operation("cache_instructor_weekly_availability")
-    def cache_instructor_weekly_availability(
+    async def cache_instructor_weekly_availability(
         self, instructor_id: str, weekly_data: Dict[str, List[Dict[str, Any]]]
     ) -> bool:
         """Cache instructor's weekly availability pattern with 5-minute TTL."""
         key = self.key_builder.build("availability", "weekly", instructor_id)
-        return self.set(key, weekly_data, tier="hot")  # 5 minutes
+        return await self.set(key, weekly_data, tier="hot")  # 5 minutes
 
     @BaseService.measure_operation("get_instructor_weekly_availability")
-    def get_instructor_weekly_availability(
+    async def get_instructor_weekly_availability(
         self, instructor_id: str
     ) -> Optional[Dict[str, List[Dict[str, Any]]]]:
         """Get cached instructor weekly availability pattern."""
         key = self.key_builder.build("availability", "weekly", instructor_id)
-        result = cast(Optional[Dict[str, List[Dict[str, Any]]]], self.get(key))
+        result = cast(Optional[Dict[str, List[Dict[str, Any]]]], await self.get(key))
 
         # Track availability-specific metrics
         if result is not None:
@@ -711,7 +800,7 @@ class CacheService(BaseService):
         return result
 
     @BaseService.measure_operation("batch_cache_availability")
-    def batch_cache_availability(self, availability_entries: List[Dict[str, Any]]) -> int:
+    async def batch_cache_availability(self, availability_entries: List[Dict[str, Any]]) -> int:
         """Batch cache multiple availability entries for performance."""
         cache_data: Dict[str, Any] = {}
 
@@ -733,11 +822,11 @@ class CacheService(BaseService):
         if not cache_data:
             return 0
 
-        success = self.mset(cache_data, tier="hot")
+        success = await self.mset(cache_data, tier="hot")
         return len(cache_data) if success else 0
 
     @BaseService.measure_operation("invalidate_instructor_availability")
-    def invalidate_instructor_availability(
+    async def invalidate_instructor_availability(
         self, instructor_id: Union[int, str], dates: Optional[List[date]] = None
     ) -> None:
         """Invalidate all availability caches for an instructor."""
@@ -762,7 +851,7 @@ class CacheService(BaseService):
 
         total_deleted = 0
         for pattern in patterns:
-            total_deleted += self.delete_pattern(pattern)
+            total_deleted += await self.delete_pattern(pattern)
 
         # Track availability-specific invalidations
         self._stats["availability_invalidations"] += total_deleted
@@ -770,7 +859,7 @@ class CacheService(BaseService):
         logger.info(f"Invalidated {total_deleted} cache entries for instructor {instructor_id}")
 
     @BaseService.measure_operation("cache_booking_conflicts")
-    def cache_booking_conflicts(
+    async def cache_booking_conflicts(
         self,
         instructor_id: str,
         check_date: date,
@@ -789,7 +878,7 @@ class CacheService(BaseService):
         key_hash = self.key_builder.hash_complex_key(key_data)
         key = self.key_builder.build("conflict", instructor_id, check_date, key_hash)
 
-        return self.set(key, conflicts, tier="hot")
+        return await self.set(key, conflicts, tier="hot")
 
     # Cache Warming
 
@@ -809,7 +898,7 @@ class CacheService(BaseService):
             # Get and cache availability
             availability = availability_service.get_week_availability(instructor_id, week_start)
             if availability:
-                self.cache_week_availability(instructor_id, week_start, availability)
+                await self.cache_week_availability(instructor_id, week_start, availability)
                 warmed += 1
 
         logger.info(f"Warmed {warmed} weeks of cache for instructor {instructor_id}")
@@ -823,7 +912,7 @@ class CacheService(BaseService):
         key_func: Callable[P, str],
         ttl: Optional[int] = None,
         tier: str = "warm",
-    ) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    ) -> Callable[[Callable[P, Awaitable[T]]], Callable[P, Awaitable[T]]]:
         """
         Decorator for caching function results.
 
@@ -836,41 +925,41 @@ class CacheService(BaseService):
                 return expensive_operation()
         """
 
-        def decorator(func: Callable[P, T]) -> Callable[P, T]:
+        def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
             @wraps(func)
-            def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
                 # Generate cache key
                 cache_key = key_func(*args, **kwargs)
 
                 # Try cache first
-                cached_value = self.get(cache_key)
+                cached_value = await self.get(cache_key)
                 if cached_value is not None:
                     logger.debug(f"Cache hit for {func.__name__}: {cache_key}")
                     return cast(T, cached_value)
 
                 # Execute function
-                result = func(*args, **kwargs)
+                result = await func(*args, **kwargs)
 
                 # Cache result
                 if result is not None:
-                    self.set(cache_key, result, ttl=ttl, tier=tier)
+                    await self.set(cache_key, result, ttl=ttl, tier=tier)
 
                 return result
 
             # Add cache invalidation helper
-            def invalidate(*args: P.args, **kwargs: P.kwargs) -> bool:
-                return self.delete(key_func(*args, **kwargs))
+            async def invalidate(*args: P.args, **kwargs: P.kwargs) -> bool:
+                return await self.delete(key_func(*args, **kwargs))
 
             setattr(wrapper, "invalidate", invalidate)
 
-            return cast(Callable[P, T], wrapper)
+            return cast(Callable[P, Awaitable[T]], wrapper)
 
         return decorator
 
     # Monitoring
 
     @BaseService.measure_operation("get_cache_stats")
-    def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> Dict[str, Any]:
         """
         Get cache performance statistics including circuit breaker state.
 
@@ -883,7 +972,7 @@ class CacheService(BaseService):
         stats["circuit_breaker"] = self._get_circuit_breaker_stats()
 
         # Add Redis info if available
-        redis_info = self._get_redis_info()
+        redis_info = await self._get_redis_info()
         if redis_info:
             stats["redis"] = redis_info
 
@@ -908,12 +997,12 @@ class CacheService(BaseService):
             "threshold": self.circuit_breaker.failure_threshold,
         }
 
-    def _get_redis_info(self) -> Optional[Dict[str, Any]]:
+    async def _get_redis_info(self) -> Optional[Dict[str, Any]]:
         """Get Redis server information if available."""
-        redis_client = self.redis
+        redis_client = await self._get_redis_client()
         if redis_client and self.circuit_breaker.state != CircuitState.OPEN:
             try:
-                info = redis_client.info()
+                info = await redis_client.info()
                 return {
                     "used_memory_human": info.get("used_memory_human"),
                     "connected_clients": info.get("connected_clients"),
@@ -938,6 +1027,181 @@ class CacheService(BaseService):
         return fnmatch.fnmatch(key, pattern)
 
 
+_cache_event_loop: asyncio.AbstractEventLoop | None = None
+_cache_event_loop_thread_id: int | None = None
+
+
+def set_cache_event_loop(loop: asyncio.AbstractEventLoop) -> None:
+    """Register the main event loop for sync-to-async cache bridging."""
+    global _cache_event_loop, _cache_event_loop_thread_id
+    _cache_event_loop = loop
+    _cache_event_loop_thread_id = threading.get_ident()
+
+
+_CT = TypeVar("_CT")
+
+
+def _run_cache_coroutine(coro: Coroutine[Any, Any, _CT]) -> _CT:
+    """
+    Run a cache coroutine from sync code without blocking the main event loop.
+
+    This is used only by CacheServiceSyncAdapter for legacy sync call sites.
+    """
+
+    async def _runner() -> _CT:
+        try:
+            return await coro
+        finally:
+            try:
+                from app.core.cache_redis import close_async_cache_redis_client
+
+                await close_async_cache_redis_client()
+            except Exception:
+                pass
+
+    loop = _cache_event_loop
+    if loop is None or loop.is_closed():
+        return asyncio.run(_runner())
+
+    # Never block the event loop thread waiting on itself.
+    if threading.get_ident() == _cache_event_loop_thread_id:
+        coro.close()
+        raise RuntimeError(
+            "Sync cache operation called on the event loop thread; use `await CacheService.*` instead."
+        )
+
+    try:
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+    except Exception:
+        # If scheduling failed (often because the loop is closing/closed), make sure we
+        # don't leak an un-awaited coroutine.
+        try:
+            return asyncio.run(_runner())
+        except Exception:
+            coro.close()
+            raise
+    return future.result()
+
+
+def clear_cache_event_loop() -> None:
+    """Clear the registered event loop for sync-to-async cache bridging (tests/shutdown)."""
+    global _cache_event_loop, _cache_event_loop_thread_id
+    _cache_event_loop = None
+    _cache_event_loop_thread_id = None
+
+
+class CacheServiceSyncAdapter:
+    """
+    Synchronous adapter over CacheService for legacy sync call sites.
+
+    Redis operations remain async (redis.asyncio) and execute on the main event loop,
+    while sync callers block only their worker thread.
+    """
+
+    TTL_TIERS = CacheService.TTL_TIERS
+
+    def __init__(self, cache_service: CacheService):
+        self._cache_service = cache_service
+        self.key_builder = cache_service.key_builder
+
+    @staticmethod
+    def _is_event_loop_thread() -> bool:
+        try:
+            asyncio.get_running_loop()
+            return True
+        except RuntimeError:
+            pass
+
+        loop = _cache_event_loop
+        return loop is not None and threading.get_ident() == _cache_event_loop_thread_id
+
+    def get(self, key: str) -> Optional[Any]:
+        if self._is_event_loop_thread():
+            return None
+        return _run_cache_coroutine(self._cache_service.get(key))
+
+    def set(self, key: str, value: Any, ttl: Optional[int] = None, tier: str = "warm") -> bool:
+        if self._is_event_loop_thread():
+            return False
+        return _run_cache_coroutine(self._cache_service.set(key, value, ttl=ttl, tier=tier))
+
+    def delete(self, key: str) -> bool:
+        if self._is_event_loop_thread():
+            return False
+        return _run_cache_coroutine(self._cache_service.delete(key))
+
+    def delete_pattern(self, pattern: str) -> int:
+        if self._is_event_loop_thread():
+            return 0
+        return _run_cache_coroutine(self._cache_service.delete_pattern(pattern))
+
+    def clear_prefix(self, prefix: str) -> int:
+        if self._is_event_loop_thread():
+            return 0
+        return _run_cache_coroutine(self._cache_service.clear_prefix(prefix))
+
+    def get_stats(self) -> Dict[str, Any]:
+        if self._is_event_loop_thread():
+            return {}
+        return _run_cache_coroutine(self._cache_service.get_stats())
+
+    def get_json(self, key: str) -> Optional[Any]:
+        if self._is_event_loop_thread():
+            return None
+        return _run_cache_coroutine(self._cache_service.get_json(key))
+
+    def set_json(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+        if self._is_event_loop_thread():
+            return
+        _run_cache_coroutine(self._cache_service.set_json(key, value, ttl=ttl))
+
+    def cache_week_availability(
+        self, instructor_id: str, week_start: date, availability_data: Dict[str, Any]
+    ) -> bool:
+        if self._is_event_loop_thread():
+            return False
+        return _run_cache_coroutine(
+            self._cache_service.cache_week_availability(
+                instructor_id, week_start, availability_data
+            )
+        )
+
+    def get_instructor_availability_date_range(
+        self, instructor_id: str, start_date: date, end_date: date
+    ) -> Optional[List[Dict[str, Any]]]:
+        if self._is_event_loop_thread():
+            return None
+        return _run_cache_coroutine(
+            self._cache_service.get_instructor_availability_date_range(
+                instructor_id, start_date, end_date
+            )
+        )
+
+    def cache_instructor_availability_date_range(
+        self,
+        instructor_id: str,
+        start_date: date,
+        end_date: date,
+        availability_data: List[Dict[str, Any]],
+    ) -> bool:
+        if self._is_event_loop_thread():
+            return False
+        return _run_cache_coroutine(
+            self._cache_service.cache_instructor_availability_date_range(
+                instructor_id, start_date, end_date, availability_data
+            )
+        )
+
+    def invalidate_instructor_availability(
+        self, instructor_id: str, dates: Optional[List[date]] = None
+    ) -> None:
+        if self._is_event_loop_thread():
+            return
+        _run_cache_coroutine(
+            self._cache_service.invalidate_instructor_availability(instructor_id, dates)
+        )
+
+
 # Dependency injection - NO MORE SINGLETON!
 def get_cache_service(db: Session = Depends(get_db)) -> CacheService:
     """
@@ -953,26 +1217,14 @@ def get_cache_service(db: Session = Depends(get_db)) -> CacheService:
     Returns:
         CacheService: Fresh cache service instance
     """
+    return CacheService(db)
+
+
+async def get_healthcheck_redis_client() -> Optional[Redis]:
+    """Return the shared async Redis client for readiness checks."""
     try:
-        redis_client = from_url(
-            settings.redis_url or "redis://localhost:6379", decode_responses=True
-        )
-        redis_client.ping()
-    except:
-        redis_client = None
-        logger.warning("Redis not available, using in-memory cache fallback")
+        from app.core.cache_redis import get_async_cache_redis_client
 
-    return CacheService(db, redis_client)
-
-
-def get_healthcheck_redis_client() -> Redis:
-    """Return a lightweight Redis client for readiness checks."""
-    return from_url(
-        settings.redis_url or "redis://localhost:6379",
-        decode_responses=True,
-        socket_keepalive=True,
-        socket_connect_timeout=5,
-        retry_on_timeout=True,
-        health_check_interval=30,
-        max_connections=10,
-    )
+        return await get_async_cache_redis_client()
+    except Exception:
+        return None

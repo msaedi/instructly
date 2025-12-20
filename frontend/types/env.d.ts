@@ -14,6 +14,7 @@ declare namespace NodeJS {
     NEXT_PUBLIC_JAWG_TOKEN?: string;
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?: string;
     NEXT_PUBLIC_IS_STAFF_PREVIEW?: string;
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY?: string;
 
     // Node environment
     NODE_ENV?: 'development' | 'production' | 'test';

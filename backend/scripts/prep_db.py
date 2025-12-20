@@ -7,6 +7,8 @@ Modes: prod | preview | stg | int
 """
 
 import argparse
+import asyncio
+from contextlib import contextmanager
 from datetime import date, timedelta
 import json
 import os
@@ -16,11 +18,13 @@ import shlex
 import subprocess
 import sys
 import textwrap
-from typing import Any, Callable, List, Optional, Tuple
+import time
+from typing import Any, Callable, Generator, List, Optional, Tuple
 import urllib.request
 
 import click
 from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 
 BACKEND_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
@@ -62,7 +66,15 @@ from app.utils.env_logging import (
 _ENV_TAGS = {"INT", "STG", "PREVIEW", "PROD"}
 
 
-def warn(msg: str):
+def warn(msg: str, *more: object):
+    """
+    Emit a warning message.
+
+    Backwards-compatible with legacy call sites that passed a tag + message
+    (e.g., warn("ops", "something happened")).
+    """
+    if more:
+        msg = f"[{msg}] " + " ".join(str(part) for part in more)
     click.echo(f"{click.style('[WARN]', fg='yellow')} {msg}", err=True)
 
 
@@ -77,6 +89,111 @@ def info(tag: str, msg: str):
 def fail(msg: str, code: int = 1):
     click.echo(f"{click.style('[ERROR]', fg='red')} {msg}", err=True)
     sys.exit(code)
+
+
+# ---------- performance monitoring ----------
+
+_PERF_TIMINGS: dict[str, float] = {}
+_PERF_START_TIME: float = 0.0
+
+
+def perf_init() -> None:
+    """Initialize performance monitoring."""
+    global _PERF_START_TIME
+    _PERF_START_TIME = time.perf_counter()
+    _PERF_TIMINGS.clear()
+
+
+def perf_log(operation: str, duration: float, extra: str = "") -> None:
+    """Log a performance measurement."""
+    _PERF_TIMINGS[operation] = duration
+    extra_str = f" | {extra}" if extra else ""
+    if duration >= 60:
+        duration_str = f"{duration / 60:.1f}m"
+    elif duration >= 1:
+        duration_str = f"{duration:.2f}s"
+    else:
+        duration_str = f"{duration * 1000:.0f}ms"
+    click.echo(
+        f"{click.style('[PERF]', fg='cyan')} {operation}: {click.style(duration_str, fg='yellow', bold=True)}{extra_str}"
+    )
+
+
+@contextmanager
+def perf_timer(operation: str, extra_fn: Optional[Callable[[], str]] = None) -> Generator[None, None, None]:
+    """Context manager for timing operations."""
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        duration = time.perf_counter() - start
+        extra = extra_fn() if extra_fn else ""
+        perf_log(operation, duration, extra)
+
+
+def perf_summary() -> None:
+    """Print performance summary at end of run."""
+    if not _PERF_TIMINGS:
+        return
+    total = time.perf_counter() - _PERF_START_TIME
+    click.echo("")
+    click.echo(click.style("═" * 60, fg="cyan"))
+    click.echo(click.style("  PERFORMANCE SUMMARY", fg="cyan", bold=True))
+    click.echo(click.style("═" * 60, fg="cyan"))
+
+    # Sort by duration descending
+    sorted_ops = sorted(_PERF_TIMINGS.items(), key=lambda x: x[1], reverse=True)
+
+    for op, duration in sorted_ops:
+        pct = (duration / total * 100) if total > 0 else 0
+        if duration >= 60:
+            duration_str = f"{duration / 60:.1f}m"
+        elif duration >= 1:
+            duration_str = f"{duration:.2f}s"
+        else:
+            duration_str = f"{duration * 1000:.0f}ms"
+
+        # Color-code by severity (5s threshold for potential bottlenecks)
+        if duration > 30:
+            color = "red"
+        elif duration > 10:
+            color = "yellow"
+        elif duration > 5:
+            color = "magenta"  # Warning: potential bottleneck
+        else:
+            color = "green"
+
+        bar_len = int(pct / 2)  # Scale to 50 chars max
+        bar = "█" * bar_len + "░" * (50 - bar_len)
+        duration_padded = f"{duration_str:>8s}"
+        styled_duration = click.style(duration_padded, fg=color)
+        click.echo(f"  {op:40s} {styled_duration} ({pct:5.1f}%) {bar}")
+
+    click.echo(click.style("─" * 60, fg="cyan"))
+    if total >= 60:
+        total_str = f"{total / 60:.1f}m"
+    else:
+        total_str = f"{total:.2f}s"
+    total_padded = f"{total_str:>8s}"
+    styled_total = click.style(total_padded, fg="cyan", bold=True)
+    click.echo(f"  {'TOTAL':40s} {styled_total}")
+    click.echo(click.style("═" * 60, fg="cyan"))
+
+    # Highlight slowest operations (5s threshold for remote DB latency issues)
+    if sorted_ops and sorted_ops[0][1] > 5:
+        click.echo("")
+        click.echo(click.style("⚠️  POTENTIAL BOTTLENECKS (>5s):", fg="magenta", bold=True))
+        for op, duration in sorted_ops:
+            if duration > 5:
+                ratio_hint = ""
+                # Estimate local vs remote ratio (assuming ~35ms network latency)
+                if duration > 1:
+                    estimated_queries = int((duration - 0.5) / 0.035)  # rough estimate
+                    if estimated_queries > 50:
+                        ratio_hint = f" (~{estimated_queries} queries?)"
+                click.echo(f"   • {op}: {duration:.1f}s{ratio_hint}")
+            else:
+                break
 
 
 # ---------- env resolution ----------
@@ -228,7 +345,8 @@ def run_migrations(db_url: str, dry_run: bool, tool_cmd: Optional[str]):
     env["DATABASE_URL"] = db_url
     cmd = tool_cmd or "alembic upgrade head"
     info("sys", f"Running migrations: {cmd}")
-    subprocess.check_call(shlex.split(cmd), cwd=str(BACKEND_DIR), env=env)
+    with perf_timer("Migrations"):
+        subprocess.check_call(shlex.split(cmd), cwd=str(BACKEND_DIR), env=env)
 
 
 def _mode_env(mode: str) -> dict:
@@ -251,7 +369,14 @@ def seed_system_data(db_url: str, dry_run: bool, mode: str, seed_db_url: Optiona
     # Roles/permissions and catalog + regions
     target = seed_db_url or db_url
     env = {**os.environ, **_mode_env(mode), "DATABASE_URL": target}
-    subprocess.check_call([sys.executable, "scripts/seed_data.py", "--system-only"], cwd=str(BACKEND_DIR), env=env)
+    with perf_timer("Seed System Data"):
+        subprocess.check_call([sys.executable, "scripts/seed_data.py", "--system-only"], cwd=str(BACKEND_DIR), env=env)
+    engine = create_engine(target)
+    try:
+        with Session(engine) as session:
+            populate_region_embeddings(session, dry_run=dry_run, mode=mode)
+    finally:
+        engine.dispose()
 
 
 def seed_mock_users(db_url: str, dry_run: bool, mode: str, seed_db_url: Optional[str] = None):
@@ -266,7 +391,8 @@ def seed_mock_users(db_url: str, dry_run: bool, mode: str, seed_db_url: Optional
 
     from scripts import seed_data  # noqa: E402
 
-    stats = seed_data.seed_mock_data(verbose=True, return_stats=True) or {}
+    with perf_timer("Seed Mock Users (via seed_data)"):
+        stats = seed_data.seed_mock_data(verbose=True, return_stats=True) or {}
     trace_message("seed_mock_users:end", env_snapshot_json)
     info(
         "seed",
@@ -293,7 +419,8 @@ def _run_future_bitmap_seeding(weeks: int, dry_run: bool, banner_prefix: str) ->
 
     from scripts.seed_bitmap_availability import seed_bitmap_availability
 
-    result = seed_bitmap_availability(weeks)
+    with perf_timer("Bitmap Future Seeding", lambda: f"weeks={weeks}"):
+        result = seed_bitmap_availability(weeks)
     if result:
         stats["weeks_written"] = len(result)
         stats["instructor_weeks"] = sum(result.values())
@@ -328,26 +455,27 @@ def _run_bitmap_backfill(backfill_days: int, dry_run: bool, banner_prefix: str) 
 
     from app.database import SessionLocal
 
-    with SessionLocal() as session:
-        result = backfill_bitmaps_range(session, backfill_days)
-        if result:
-            session.commit()
-            stats["instructors_touched"] = len(result)
-            stats["days_backfilled"] = sum(result.values())
-            for instructor_id, days_written in sorted(result.items()):
+    with perf_timer("Bitmap Backfill", lambda: f"days={backfill_days}"):
+        with SessionLocal() as session:
+            result = backfill_bitmaps_range(session, backfill_days)
+            if result:
+                session.commit()
+                stats["instructors_touched"] = len(result)
+                stats["days_backfilled"] = sum(result.values())
+                for instructor_id, days_written in sorted(result.items()):
+                    info(
+                        banner_prefix,
+                        f"  → Backfilled {days_written} day(s) of historical bitmap availability for instructor {instructor_id}",
+                    )
                 info(
                     banner_prefix,
-                    f"  → Backfilled {days_written} day(s) of historical bitmap availability for instructor {instructor_id}",
+                    f"✓ Bitmap backfill complete: {stats['days_backfilled']} total day writes "
+                    f"across {stats['instructors_touched']} instructor(s)",
                 )
-            info(
-                banner_prefix,
-                f"✓ Bitmap backfill complete: {stats['days_backfilled']} total day writes "
-                f"across {stats['instructors_touched']} instructor(s)",
-            )
-        else:
-            session.rollback()
-            info(banner_prefix, "  → No instructors required bitmap backfill.")
-            info(banner_prefix, "✓ Bitmap backfill complete: 0 day writes")
+            else:
+                session.rollback()
+                info(banner_prefix, "  → No instructors required bitmap backfill.")
+                info(banner_prefix, "✓ Bitmap backfill complete: 0 day writes")
     return stats
 
 
@@ -422,8 +550,9 @@ def probe_bitmap_coverage(
         """
     )
     engine = create_engine(db_url)
-    with engine.connect() as conn:  # type: ignore[assignment]
-        results = conn.execute(query, {"start": start_date, "end": end_date}).fetchall()
+    with perf_timer("Probe Bitmap Coverage"):
+        with engine.connect() as conn:  # type: ignore[assignment]
+            results = conn.execute(query, {"start": start_date, "end": end_date}).fetchall()
 
     total_rows = sum(row._mapping["rows"] for row in results)
     instructor_count = len(results)
@@ -588,11 +717,13 @@ def run_seed_all_pipeline(
 
         mock_seeder = DatabaseSeeder()
         log_summary("resetting mock dataset (idempotent cleanup)")
-        mock_seeder.reset_database()
+        with perf_timer("Reset Database"):
+            mock_seeder.reset_database()
         seed_system_data(db_url, dry_run, mode, seed_db_url=seed_db_url)
         system_data_seeded = True
         log_summary("seeding instructor baseline prior to bitmap pipeline")
-        mock_seeder.create_instructors(seed_tier_maintenance=False)
+        with perf_timer("Create Instructors"):
+            mock_seeder.create_instructors(seed_tier_maintenance=False)
         instructors_after = count_instructors(db_url) if not dry_run else instructors_before
         log_summary(f"instructor count after ensure={instructors_after}")
 
@@ -671,16 +802,20 @@ def run_seed_all_pipeline(
             except Exception as exc:  # pragma: no cover - defensive logging
                 warn(f"Unable to count mock students prior to seeding: {exc}")
                 students_before = 0
-        mock_seeder.create_students()
+        with perf_timer("Create Students"):
+            mock_seeder.create_students()
         if not dry_run:
             try:
                 students_after = count_mock_students(db_url)
             except Exception as exc:  # pragma: no cover - defensive logging
                 warn(f"Unable to count mock students after seeding: {exc}")
                 students_after = students_before
-        mock_seeder.create_availability()
-        mock_seeder.create_coverage_areas()
-        bookings_created = mock_seeder.create_bookings() or 0
+        with perf_timer("Create Availability"):
+            mock_seeder.create_availability()
+        with perf_timer("Create Coverage Areas"):
+            mock_seeder.create_coverage_areas()
+        with perf_timer("Create Bookings"):
+            bookings_created = mock_seeder.create_bookings() or 0
         students_created = max(students_after - students_before, 0)
         students_skipped = max(students_defined - students_created, 0)
         log_summary(
@@ -708,7 +843,8 @@ def run_seed_all_pipeline(
                 f"{bookings_created} bookings; reviews skipped (probe rows=0)"
             )
         else:
-            reviews_created = mock_seeder.create_reviews(strict=False) or 0
+            with perf_timer("Create Reviews"):
+                reviews_created = mock_seeder.create_reviews(strict=False) or 0
             pipeline_result["reviews_created"] = reviews_created
             pipeline_result["reviews_skipped"] = False
             log_summary(
@@ -746,7 +882,8 @@ def run_seed_all_pipeline(
         if recovery_probe["total_rows"] > 0:
             skip_reviews = False
             pipeline_result["reviews_skipped"] = False
-            recovered_reviews = mock_seeder.create_reviews(strict=False) or 0
+            with perf_timer("Create Reviews (Recovery)"):
+                recovered_reviews = mock_seeder.create_reviews(strict=False) or 0
             pipeline_result["reviews_created"] = recovered_reviews
             log_summary(f"recovery seeded {recovered_reviews} reviews after availability rerun")
         else:
@@ -763,7 +900,8 @@ def run_seed_all_pipeline(
             from scripts.reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
 
             mock_seeder = DatabaseSeeder()
-        credits_created = mock_seeder.create_sample_platform_credits() or 0
+        with perf_timer("Create Platform Credits"):
+            credits_created = mock_seeder.create_sample_platform_credits() or 0
         pipeline_result["credits_created"] = credits_created
         log_summary(f"created {credits_created} platform credit(s)")
 
@@ -780,7 +918,8 @@ def run_seed_all_pipeline(
             from scripts.reset_and_seed_yaml import DatabaseSeeder  # noqa: E402
 
             mock_seeder = DatabaseSeeder()
-        badges_awarded = seed_demo_student_badges(mock_seeder.engine, verbose=True) or 0
+        with perf_timer("Award Demo Badges"):
+            badges_awarded = seed_demo_student_badges(mock_seeder.engine, verbose=True) or 0
         pipeline_result["badges_awarded"] = badges_awarded
         log_summary(f"awarded {badges_awarded} demo badge(s)")
 
@@ -806,17 +945,18 @@ def run_seed_all_pipeline(
                 warn("chat fixture config contains invalid integers; skipping fixture seeding")
             else:
                 try:
-                    fixture_status = seed_chat_fixture_booking(
-                        instructor_email=os.getenv("CHAT_INSTRUCTOR_EMAIL", "sarah.chen@example.com"),
-                        student_email=os.getenv("CHAT_STUDENT_EMAIL", "emma.johnson@example.com"),
-                        start_hour=start_hour,
-                        duration_minutes=duration_minutes,
-                        days_ahead_min=days_ahead_min,
-                        days_ahead_max=days_ahead_max,
-                        location=os.getenv("CHAT_FIXTURE_LOCATION", "neutral"),
-                        service_name=os.getenv("CHAT_FIXTURE_SERVICE_NAME", "Lesson"),
-                        session_factory=SessionLocal,
-                    )
+                    with perf_timer("Seed Chat Fixture"):
+                        fixture_status = seed_chat_fixture_booking(
+                            instructor_email=os.getenv("CHAT_INSTRUCTOR_EMAIL", "sarah.chen@example.com"),
+                            student_email=os.getenv("CHAT_STUDENT_EMAIL", "emma.johnson@example.com"),
+                            start_hour=start_hour,
+                            duration_minutes=duration_minutes,
+                            days_ahead_min=days_ahead_min,
+                            days_ahead_max=days_ahead_max,
+                            location=os.getenv("CHAT_FIXTURE_LOCATION", "neutral"),
+                            service_name=os.getenv("CHAT_FIXTURE_SERVICE_NAME", "Lesson"),
+                            session_factory=SessionLocal,
+                        )
                     if fixture_status == "error":
                         warn("chat fixture booking encountered an error; see log output above.")
                 except Exception as exc:  # pragma: no cover - best effort seeding
@@ -894,12 +1034,141 @@ def verify_env_marker(db_url: str, expected_mode: str) -> bool:
 
 
 def generate_embeddings(db_url: str, dry_run: bool, mode: str) -> None:
+    """Generate embeddings using OpenAI API (replaces sentence-transformers)."""
     if dry_run:
         info("dry", f"(dry-run) Would generate embeddings on {redact(db_url)}")
         return
-    info("ops", "Generating service embeddings…")
+
+    # Check for OpenAI API key
+    if not os.getenv("OPENAI_API_KEY"):
+        warn("OPENAI_API_KEY not set - skipping embedding generation")
+        warn("Set OPENAI_API_KEY and run: python scripts/generate_openai_embeddings.py")
+        return
+
+    info("ops", "Generating OpenAI service embeddings…")
     env = {**os.environ, **_mode_env(mode), "DATABASE_URL": db_url}
-    subprocess.check_call([sys.executable, "scripts/generate_service_embeddings.py"], cwd=str(BACKEND_DIR), env=env)
+    with perf_timer("Generate Embeddings"):
+        subprocess.check_call(
+            [sys.executable, "scripts/generate_openai_embeddings.py"],
+            cwd=str(BACKEND_DIR),
+            env=env,
+        )
+
+
+def populate_region_embeddings(db: Session, *, dry_run: bool, mode: str) -> None:
+    """Populate region_boundaries.name_embedding for semantic location resolution."""
+    if dry_run:
+        info("dry", "(dry-run) Would populate region embeddings")
+        return
+
+    if not os.getenv("OPENAI_API_KEY"):
+        warn("OPENAI_API_KEY not set - skipping region embeddings")
+        warn("Set OPENAI_API_KEY and run: python scripts/populate_region_embeddings.py --region-type nyc")
+        return
+
+    try:
+        from openai import OpenAI  # type: ignore
+    except Exception as exc:  # pragma: no cover - optional dependency
+        warn(f"OpenAI client unavailable; skipping region embeddings ({exc})")
+        return
+
+    model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    missing = 0
+    try:
+        missing_raw = db.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM region_boundaries
+                WHERE region_type = :rtype
+                  AND region_name IS NOT NULL
+                  AND name_embedding IS NULL
+                """
+            ),
+            {"rtype": "nyc"},
+        ).scalar()
+        missing = int(missing_raw or 0)
+    except Exception as exc:  # pragma: no cover - best effort infra step
+        warn(f"Unable to check region embeddings status; skipping ({exc})")
+        warn("Ensure migrations are applied (name_embedding column) before embedding population.")
+        return
+
+    if missing == 0:
+        info("ops", "Region embeddings already populated.")
+        return
+
+    info("ops", f"Populating embeddings for {missing} region(s)…")
+    batch_size = int(os.getenv("REGION_EMBEDDINGS_BATCH_SIZE", "50") or 50)
+    delay_s = float(os.getenv("REGION_EMBEDDINGS_BATCH_DELAY_S", "0.25") or 0.25)
+
+    def _embedding_text(region_name: str, parent_region: Optional[str]) -> str:
+        base = region_name.strip()
+        parts = [base]
+        if parent_region:
+            parts.append(str(parent_region).strip())
+        parts.append("NYC location")
+        return ", ".join([p for p in parts if p])
+
+    try:
+        rows = db.execute(
+            text(
+                """
+                SELECT id, region_name, parent_region
+                FROM region_boundaries
+                WHERE region_type = :rtype
+                  AND region_name IS NOT NULL
+                  AND name_embedding IS NULL
+                ORDER BY region_name
+                """
+            ),
+            {"rtype": "nyc"},
+        ).fetchall()
+    except Exception as exc:  # pragma: no cover - defensive
+        warn(f"Unable to load region_boundaries for embedding; skipping ({exc})")
+        return
+
+    if not rows:
+        info("ops", "Region embeddings already populated.")
+        return
+
+    total = len(rows)
+    info("ops", f"Embedding model: {model}")
+
+    with perf_timer("Populate Region Embeddings", lambda: f"regions={total} batch={batch_size}"):
+        try:
+            for offset in range(0, total, batch_size):
+                batch = rows[offset : offset + batch_size]
+                inputs = [
+                    _embedding_text(str(r.region_name), str(r.parent_region) if r.parent_region else None)
+                    for r in batch
+                ]
+                response = client.embeddings.create(model=model, input=inputs)
+
+                for idx, item in enumerate(response.data):
+                    region_id = str(batch[idx].id)
+                    embedding = list(item.embedding)
+                    db.execute(
+                        text(
+                            """
+                            UPDATE region_boundaries
+                            SET name_embedding = :embedding,
+                                updated_at = NOW()
+                            WHERE id = :id
+                            """
+                        ),
+                        {"id": region_id, "embedding": embedding},
+                    )
+                db.commit()
+
+                done = min(offset + len(batch), total)
+                info("ops", f"  Embedded {done}/{total}")
+
+                if done < total and delay_s > 0:
+                    time.sleep(delay_s)
+        finally:
+            db.rollback()
 
 
 def calculate_analytics(db_url: str, dry_run: bool, mode: str) -> None:
@@ -908,7 +1177,8 @@ def calculate_analytics(db_url: str, dry_run: bool, mode: str) -> None:
         return
     info("ops", "Calculating service analytics…")
     env = {**os.environ, **_mode_env(mode), "DATABASE_URL": db_url}
-    subprocess.check_call([sys.executable, "scripts/calculate_service_analytics.py"], cwd=str(BACKEND_DIR), env=env)
+    with perf_timer("Calculate Analytics"):
+        subprocess.check_call([sys.executable, "scripts/calculate_service_analytics.py"], cwd=str(BACKEND_DIR), env=env)
 
 
 def _render_api_request(url: str, api_key: str, method: str = "GET", data: Optional[dict] = None) -> Optional[dict]:
@@ -983,23 +1253,24 @@ def clear_cache(mode: str, dry_run: bool) -> None:
             info("DRY", "(dry-run) Would run local cache clear script for STG")
             return
         info("CACHE", "Clearing cache locally via script…")
-        try:
-            result = subprocess.run(
-                [sys.executable, "scripts/clear_cache.py", "--scope", "all", "--echo-sentinel"],
-                cwd=str(BACKEND_DIR),
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            output = result.stdout or ""
-            if "CACHE_CLEAR_OK" in output:
-                color_log_info("stg", "Local cache cleared successfully")
-            else:
-                color_log_warn("stg", "Local cache script completed without sentinel acknowledgment")
-        except FileNotFoundError:
-            color_log_warn("stg", "clear_cache.py not found; skipping cache clear")
-        except subprocess.CalledProcessError as exc:
-            color_log_warn("stg", f"Local cache clear failed: {exc.stderr or exc.stdout or exc}")
+        with perf_timer("Clear Cache (STG)"):
+            try:
+                result = subprocess.run(
+                    [sys.executable, "scripts/clear_cache.py", "--scope", "all", "--echo-sentinel"],
+                    cwd=str(BACKEND_DIR),
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                output = result.stdout or ""
+                if "CACHE_CLEAR_OK" in output:
+                    color_log_info("stg", "Local cache cleared successfully")
+                else:
+                    color_log_warn("stg", "Local cache script completed without sentinel acknowledgment")
+            except FileNotFoundError:
+                color_log_warn("stg", "clear_cache.py not found; skipping cache clear")
+            except subprocess.CalledProcessError as exc:
+                color_log_warn("stg", f"Local cache clear failed: {exc.stderr or exc.stdout or exc}")
         return
 
     if mode not in {"preview", "prod"}:
@@ -1018,21 +1289,22 @@ def clear_cache(mode: str, dry_run: bool) -> None:
         info("DRY", f"(dry-run) Would redeploy Render service {redis_service}")
         return
 
-    backend_id = _render_get_service_id_by_name(api_key, backend_service)
-    if backend_id:
-        ok = _render_post_job(api_key, backend_id, 'bash -lc "python backend/scripts/clear_cache.py --scope all"')
-        if not ok:
-            color_log_warn(mode, f"Failed to start cache-clear job for {backend_service}")
-    else:
-        color_log_warn(mode, f"Could not find Render service '{backend_service}'")
+    with perf_timer(f"Clear Cache ({mode.upper()})"):
+        backend_id = _render_get_service_id_by_name(api_key, backend_service)
+        if backend_id:
+            ok = _render_post_job(api_key, backend_id, 'bash -lc "python backend/scripts/clear_cache.py --scope all"')
+            if not ok:
+                color_log_warn(mode, f"Failed to start cache-clear job for {backend_service}")
+        else:
+            color_log_warn(mode, f"Could not find Render service '{backend_service}'")
 
-    redis_id = _render_get_service_id_by_name(api_key, redis_service)
-    if redis_id:
-        ok = _render_redeploy_service(api_key, redis_id)
-        if not ok:
-            color_log_warn(mode, f"Failed to redeploy Render service '{redis_service}'")
-    else:
-        color_log_warn(mode, f"Could not find Render service '{redis_service}'")
+        redis_id = _render_get_service_id_by_name(api_key, redis_service)
+        if redis_id:
+            ok = _render_redeploy_service(api_key, redis_id)
+            if not ok:
+                color_log_warn(mode, f"Failed to redeploy Render service '{redis_service}'")
+        else:
+            color_log_warn(mode, f"Could not find Render service '{redis_service}'")
 
 
 # ---------- main ----------
@@ -1070,6 +1342,11 @@ to control the mock-data phases (stg/int default to include).
     parser.add_argument("--seed-system-only", action="store_true")
     parser.add_argument("--seed-mock-users", action="store_true")
     parser.add_argument(
+        "--seed-popular-queries",
+        action="store_true",
+        help="Warm NL search caches with popular queries",
+    )
+    parser.add_argument(
         "--seed-availability-only",
         action="store_true",
         help="Run only the bitmap availability pipeline (future + backfill) and exit.",
@@ -1100,6 +1377,9 @@ to control the mock-data phases (stg/int default to include).
     parser.add_argument("--yes", action="store_true", help="non-interactive confirmation for prod")
     parser.add_argument("--verify-env", action="store_true", help="sanity-check DB env marker")
     args = parser.parse_args()
+
+    # Initialize performance monitoring
+    perf_init()
 
     mode, legacy = detect_site_mode(args.env, args.env_flag)
     if legacy:
@@ -1151,11 +1431,18 @@ to control the mock-data phases (stg/int default to include).
             args.seed_system_only = True
             args.seed_mock_users = False
             args.seed_all = False
-        if not args.dry_run and (args.migrate or args.seed_system_only or args.seed_all_prod):
+        if not args.dry_run and (
+            args.migrate or args.seed_system_only or args.seed_all_prod or args.seed_popular_queries
+        ):
             if not (args.force and args.yes):
                 fail("Prod writes require BOTH --force and --yes.")
         # optional interactive confirmation (only when writing)
-        if not args.yes and not args.dry_run and (args.migrate or args.seed_system_only) and not os.getenv("CI"):
+        if (
+            not args.yes
+            and not args.dry_run
+            and (args.migrate or args.seed_system_only or args.seed_popular_queries)
+            and not os.getenv("CI")
+        ):
             resp = input("You are about to modify PRODUCTION. Type 'yes' to continue: ").strip().lower()
             if resp != "yes":
                 info("prod", "Operation cancelled.")
@@ -1287,12 +1574,41 @@ to control the mock-data phases (stg/int default to include).
             generate_embeddings(db_url, args.dry_run, mode)
             calculate_analytics(db_url, args.dry_run, mode)
             clear_cache(mode, args.dry_run)
+        if args.seed_popular_queries:
+            if args.dry_run:
+                info("dry", "(dry-run) Would warm NL search cache with popular queries")
+            else:
+                info("seed", "Warming NL search cache with popular queries…")
+                from scripts.seed_popular_queries import warm_queries  # noqa: E402
+
+                engine = create_engine(seed_db_url)
+                try:
+                    with Session(engine) as session:
+                        stats = asyncio.run(
+                            warm_queries(
+                                db=session,
+                                region_code="nyc",
+                                limit=20,
+                                user_location=None,
+                            )
+                        )
+                        info(
+                            "seed",
+                            "Popular query warmup complete: "
+                            f"success={stats['success']} failed={stats['failed']} degraded={stats['degraded']}",
+                        )
+                finally:
+                    engine.dispose()
         info(mode, "Complete!")
+        # Print performance summary at the end
+        perf_summary()
     except subprocess.CalledProcessError as e:
+        perf_summary()  # Still print summary on failure
         if mode in {"prod", "preview"} and not service_db_url:
             warn("Command failed; consider setting a service-role DSN (e.g., PROD_SERVICE_DATABASE_URL) for seeding.")
         fail(f"External command failed with exit code {e.returncode}")
     except KeyboardInterrupt:
+        perf_summary()  # Still print summary on interrupt
         fail("Interrupted by user", code=130)
 
 

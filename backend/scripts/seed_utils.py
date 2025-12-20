@@ -3,18 +3,24 @@ Shared seeding helpers for safety checks.
 
 Provides booking creation utilities that respect the PostgreSQL exclusion
 constraints by shifting proposed spans when conflicts are detected.
+
+Includes optimized bulk-loading functions for remote databases (Supabase)
+that pre-fetch all data and do in-memory conflict detection.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 import json
 import logging
-from typing import Any, Iterable, Mapping, Optional, Sequence, Tuple
+import random
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking, BookingStatus
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.utils.bitset import windows_from_bits
@@ -473,9 +479,359 @@ def create_review_booking_pg_safe(
     )
 
 
+# =============================================================================
+# BULK LOADING UTILITIES FOR REMOTE DATABASES
+# =============================================================================
+# These functions pre-fetch all data in a small number of queries and do
+# conflict detection in-memory, reducing network round-trips from ~40,000
+# queries to ~4 queries for review seeding.
+
+
+@dataclass
+class BulkSeedingContext:
+    """
+    Pre-loaded data for bulk review seeding.
+
+    Holds all bitmap availability and existing bookings in memory for O(1)
+    conflict detection instead of O(queries) per slot check.
+    """
+
+    # {(instructor_id, date): bitmap_bytes}
+    bitmap_data: Dict[Tuple[str, date], bytes] = field(default_factory=dict)
+
+    # Set of (instructor_id, date, start_minute, end_minute) for existing bookings
+    instructor_bookings: Set[Tuple[str, date, int, int]] = field(default_factory=set)
+
+    # Set of (student_id, date, start_minute, end_minute) for existing bookings
+    student_bookings: Set[Tuple[str, date, int, int]] = field(default_factory=set)
+
+    # Track newly created bookings during seeding (update sets as we go)
+    pending_instructor_bookings: Set[Tuple[str, date, int, int]] = field(default_factory=set)
+    pending_student_bookings: Set[Tuple[str, date, int, int]] = field(default_factory=set)
+
+
+def bulk_load_bitmap_data(
+    session: Session,
+    instructor_ids: List[str],
+    start_date: date,
+    end_date: date,
+) -> Dict[Tuple[str, date], bytes]:
+    """
+    Load all bitmap availability for given instructors in a single query.
+
+    Returns a dict mapping (instructor_id, date) -> bitmap_bytes.
+    """
+    if not instructor_ids:
+        return {}
+
+    rows = (
+        session.query(AvailabilityDay.instructor_id, AvailabilityDay.day_date, AvailabilityDay.bits)
+        .filter(
+            AvailabilityDay.instructor_id.in_(instructor_ids),
+            AvailabilityDay.day_date >= start_date,
+            AvailabilityDay.day_date <= end_date,
+        )
+        .all()
+    )
+
+    result: Dict[Tuple[str, date], bytes] = {}
+    for instructor_id, day_date, bits in rows:
+        if bits is not None:
+            result[(instructor_id, day_date)] = bits
+
+    logger.info(
+        "bulk_load_bitmap_data: loaded %d bitmap rows for %d instructors (%s to %s)",
+        len(result),
+        len(instructor_ids),
+        start_date.isoformat(),
+        end_date.isoformat(),
+    )
+    return result
+
+
+def bulk_load_bookings(
+    session: Session,
+    instructor_ids: List[str],
+    student_ids: List[str],
+    start_date: date,
+    end_date: date,
+) -> Tuple[Set[Tuple[str, date, int, int]], Set[Tuple[str, date, int, int]]]:
+    """
+    Load all active bookings for conflict detection in a single query.
+
+    Returns two sets:
+    - instructor_bookings: {(instructor_id, date, start_minute, end_minute)}
+    - student_bookings: {(student_id, date, start_minute, end_minute)}
+    """
+    # Short-circuit if both lists are empty - no bookings to load
+    if not instructor_ids and not student_ids:
+        return set(), set()
+
+    active_values = tuple(_active_status_values())
+
+    # Build base query
+    query = session.query(
+        Booking.instructor_id,
+        Booking.student_id,
+        Booking.booking_date,
+        Booking.start_time,
+        Booking.end_time,
+    ).filter(
+        Booking.booking_date >= start_date,
+        Booking.booking_date <= end_date,
+        Booking.cancelled_at.is_(None),
+        Booking.status.in_(active_values),
+    )
+
+    # Build OR filter only for non-empty lists (avoids IN () syntax error)
+    or_conditions = []
+    if instructor_ids:
+        or_conditions.append(Booking.instructor_id.in_(instructor_ids))
+    if student_ids:
+        or_conditions.append(Booking.student_id.in_(student_ids))
+
+    rows = query.filter(or_(*or_conditions)).all()
+
+    instructor_bookings: Set[Tuple[str, date, int, int]] = set()
+    student_bookings: Set[Tuple[str, date, int, int]] = set()
+
+    for instructor_id, student_id, booking_date, start_time, end_time in rows:
+        start_min = start_time.hour * 60 + start_time.minute if start_time else 0
+        end_min = end_time.hour * 60 + end_time.minute if end_time else 1440
+
+        instructor_bookings.add((instructor_id, booking_date, start_min, end_min))
+        student_bookings.add((student_id, booking_date, start_min, end_min))
+
+    logger.info(
+        "bulk_load_bookings: loaded %d instructor booking spans, %d student booking spans",
+        len(instructor_bookings),
+        len(student_bookings),
+    )
+    return instructor_bookings, student_bookings
+
+
+def create_bulk_seeding_context(
+    session: Session,
+    instructor_ids: List[str],
+    student_ids: List[str],
+    lookback_days: int = 90,
+    horizon_days: int = 21,
+) -> BulkSeedingContext:
+    """
+    Create a pre-loaded context for bulk review seeding.
+
+    This loads ALL necessary data in just 2 queries, enabling O(1) conflict
+    detection instead of O(queries) per slot.
+    """
+    today = date.today()
+    start_date = today - timedelta(days=lookback_days)
+    end_date = today + timedelta(days=horizon_days)
+
+    bitmap_data = bulk_load_bitmap_data(session, instructor_ids, start_date, end_date)
+    instructor_bookings, student_bookings = bulk_load_bookings(
+        session, instructor_ids, student_ids, start_date, end_date
+    )
+
+    return BulkSeedingContext(
+        bitmap_data=bitmap_data,
+        instructor_bookings=instructor_bookings,
+        student_bookings=student_bookings,
+    )
+
+
+def _has_conflict_bulk(
+    ctx: BulkSeedingContext,
+    instructor_id: str,
+    student_id: str,
+    booking_date: date,
+    start_minutes: int,
+    end_minutes: int,
+) -> bool:
+    """
+    In-memory conflict detection using pre-loaded data.
+
+    O(n) where n is number of bookings on that date, but n is typically small.
+    Much faster than database queries over network.
+    """
+    # Check instructor conflicts (existing + pending)
+    for inst_id, bdate, start_min, end_min in ctx.instructor_bookings:
+        if inst_id == instructor_id and bdate == booking_date:
+            # Overlap check: start < other_end AND end > other_start
+            if start_minutes < end_min and end_minutes > start_min:
+                return True
+
+    for inst_id, bdate, start_min, end_min in ctx.pending_instructor_bookings:
+        if inst_id == instructor_id and bdate == booking_date:
+            if start_minutes < end_min and end_minutes > start_min:
+                return True
+
+    # Check student conflicts (existing + pending)
+    for stu_id, bdate, start_min, end_min in ctx.student_bookings:
+        if stu_id == student_id and bdate == booking_date:
+            if start_minutes < end_min and end_minutes > start_min:
+                return True
+
+    for stu_id, bdate, start_min, end_min in ctx.pending_student_bookings:
+        if stu_id == student_id and bdate == booking_date:
+            if start_minutes < end_min and end_minutes > start_min:
+                return True
+
+    return False
+
+
+def find_free_slot_bulk(
+    ctx: BulkSeedingContext,
+    instructor_id: str,
+    student_id: str,
+    base_date: date,
+    lookback_days: int = 90,
+    horizon_days: int = 21,
+    day_start_hour: int = 9,
+    day_end_hour: int = 18,
+    step_minutes: int = 15,
+    durations_minutes: Optional[Sequence[int]] = None,
+    randomize: bool = True,
+) -> Optional[Tuple[date, time, time]]:
+    """
+    Find a free slot using pre-loaded bitmap data and in-memory conflict detection.
+
+    This is the bulk-optimized version of find_free_slot_in_bitmap that uses
+    pre-loaded data instead of making database queries per slot check.
+
+    If randomize=True, shuffles candidate dates to distribute bookings more evenly.
+    """
+    lookback = max(0, lookback_days)
+    horizon = max(0, horizon_days)
+    durations = [int(d) for d in (durations_minutes or (60, 45, 30)) if int(d) > 0]
+    if not durations:
+        durations = [30]
+
+    day_start_minutes = max(0, day_start_hour) * 60
+    day_end_minutes = min(24 * 60, max(day_start_minutes + 1, day_end_hour * 60))
+    step = max(1, step_minutes)
+
+    # Build candidate dates (backward then forward)
+    candidate_dates: List[date] = []
+    for day_offset in range(1, lookback + 1):
+        candidate_dates.append(base_date - timedelta(days=day_offset))
+    for day_offset in range(0, horizon + 1):
+        candidate_dates.append(base_date + timedelta(days=day_offset))
+
+    # Optionally randomize to distribute slots more evenly
+    if randomize:
+        random.shuffle(candidate_dates)
+
+    for target_date in candidate_dates:
+        bits = ctx.bitmap_data.get((instructor_id, target_date))
+        if bits is None:
+            continue
+
+        windows = windows_from_bits(bits)
+        if not windows:
+            continue
+
+        for start_str, end_str in windows:
+            window_start_minutes = _time_str_to_minutes(start_str)
+            window_end_minutes = _time_str_to_minutes(end_str)
+
+            if window_end_minutes <= day_start_minutes or window_start_minutes >= day_end_minutes:
+                continue
+
+            clamped_start = max(window_start_minutes, day_start_minutes)
+            clamped_end = min(window_end_minutes, day_end_minutes)
+            available_span = clamped_end - clamped_start
+            if available_span <= 0:
+                continue
+
+            for duration in durations:
+                if available_span < duration:
+                    continue
+
+                # Generate candidate spans
+                candidates = list(
+                    _generate_candidate_span_minutes(clamped_start, clamped_end, duration, step)
+                )
+                if randomize:
+                    random.shuffle(candidates)
+
+                for start_min, end_min in candidates:
+                    if not _has_conflict_bulk(
+                        ctx,
+                        instructor_id=instructor_id,
+                        student_id=student_id,
+                        booking_date=target_date,
+                        start_minutes=start_min,
+                        end_minutes=end_min,
+                    ):
+                        return target_date, _minutes_to_time(start_min), _minutes_to_time(end_min)
+
+    return None
+
+
+def register_pending_booking(
+    ctx: BulkSeedingContext,
+    instructor_id: str,
+    student_id: str,
+    booking_date: date,
+    start_time: time,
+    end_time: time,
+) -> None:
+    """
+    Register a newly created booking in the context so subsequent slot searches
+    see it for conflict detection.
+    """
+    start_min = start_time.hour * 60 + start_time.minute
+    end_min = end_time.hour * 60 + end_time.minute
+    ctx.pending_instructor_bookings.add((instructor_id, booking_date, start_min, end_min))
+    ctx.pending_student_bookings.add((student_id, booking_date, start_min, end_min))
+
+
+def create_booking_bulk(
+    session: Session,
+    ctx: BulkSeedingContext,
+    *,
+    student_id: str,
+    instructor_id: str,
+    instructor_service_id: str,
+    booking_date: date,
+    start_time: time,
+    end_time: time,
+    status: BookingStatus = BookingStatus.COMPLETED,
+    **extra_fields: Any,
+) -> Booking:
+    """
+    Create a booking and register it in the bulk context for conflict tracking.
+    """
+    booking = Booking(
+        student_id=student_id,
+        instructor_id=instructor_id,
+        instructor_service_id=instructor_service_id,
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        status=status,
+        **extra_fields,
+    )
+    session.add(booking)
+    session.flush()
+
+    # Register in context for subsequent conflict detection
+    register_pending_booking(ctx, instructor_id, student_id, booking_date, start_time, end_time)
+
+    return booking
+
+
 __all__ = [
     "SlotSearchDiagnostics",
     "create_booking_safe",
     "find_free_slot_in_bitmap",
     "create_review_booking_pg_safe",
+    # Bulk loading utilities
+    "BulkSeedingContext",
+    "bulk_load_bitmap_data",
+    "bulk_load_bookings",
+    "create_bulk_seeding_context",
+    "find_free_slot_bulk",
+    "register_pending_booking",
+    "create_booking_bulk",
 ]

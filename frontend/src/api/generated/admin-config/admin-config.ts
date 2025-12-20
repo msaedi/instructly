@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,173 +18,237 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
   HTTPValidationError,
   PricingConfigPayload,
-  PricingConfigResponse
+  PricingConfigResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
 
-
-
-
 /**
  * @summary Get Pricing Config
  */
-export const getPricingConfigApiAdminConfigPricingGet = (
+export const getPricingConfigApiV1AdminConfigPricingGet = (signal?: AbortSignal) => {
+  return customFetch<PricingConfigResponse>({
+    url: `/api/v1/admin/config/pricing`,
+    method: 'GET',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getGetPricingConfigApiV1AdminConfigPricingGetQueryKey = () => {
+  return [`/api/v1/admin/config/pricing`] as const;
+};
 
+export const getGetPricingConfigApiV1AdminConfigPricingGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-      return customFetch<PricingConfigResponse>(
-      {url: `/api/admin/config/pricing`, method: 'GET', signal
-    },
-      );
-    }
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPricingConfigApiV1AdminConfigPricingGetQueryKey();
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>
+  > = ({ signal }) => getPricingConfigApiV1AdminConfigPricingGet(signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetPricingConfigApiV1AdminConfigPricingGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>
+>;
+export type GetPricingConfigApiV1AdminConfigPricingGetQueryError = ErrorType<unknown>;
 
-export const getGetPricingConfigApiAdminConfigPricingGetQueryKey = () => {
-    return [
-    `/api/admin/config/pricing`
-    ] as const;
-    }
-
-
-export const getGetPricingConfigApiAdminConfigPricingGetQueryOptions = <TData = Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError, TData>>, }
-) => {
-
-const {query: queryOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetPricingConfigApiAdminConfigPricingGetQueryKey();
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>> = ({ signal }) => getPricingConfigApiAdminConfigPricingGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetPricingConfigApiAdminConfigPricingGetQueryResult = NonNullable<Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>>
-export type GetPricingConfigApiAdminConfigPricingGetQueryError = ErrorType<unknown>
-
-
-export function useGetPricingConfigApiAdminConfigPricingGet<TData = Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError, TData>> & Pick<
+export function useGetPricingConfigApiV1AdminConfigPricingGet<
+  TData = Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>,
+          Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
           TError,
-          Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPricingConfigApiAdminConfigPricingGet<TData = Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError, TData>> & Pick<
+          Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPricingConfigApiV1AdminConfigPricingGet<
+  TData = Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>,
+          Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
           TError,
-          Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPricingConfigApiAdminConfigPricingGet<TData = Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPricingConfigApiV1AdminConfigPricingGet<
+  TData = Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Pricing Config
  */
 
-export function useGetPricingConfigApiAdminConfigPricingGet<TData = Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPricingConfigApiAdminConfigPricingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetPricingConfigApiV1AdminConfigPricingGet<
+  TData = Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPricingConfigApiV1AdminConfigPricingGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPricingConfigApiV1AdminConfigPricingGetQueryOptions(options);
 
-  const queryOptions = getGetPricingConfigApiAdminConfigPricingGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
 
+/**
+ * @summary Update Pricing Config
+ */
+export const updatePricingConfigApiV1AdminConfigPricingPatch = (
+  pricingConfigPayload: PricingConfigPayload
+) => {
+  return customFetch<PricingConfigResponse>({
+    url: `/api/v1/admin/config/pricing`,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    data: pricingConfigPayload,
+  });
+};
 
+export const getUpdatePricingConfigApiV1AdminConfigPricingPatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePricingConfigApiV1AdminConfigPricingPatch>>,
+    TError,
+    { data: PricingConfigPayload },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePricingConfigApiV1AdminConfigPricingPatch>>,
+  TError,
+  { data: PricingConfigPayload },
+  TContext
+> => {
+  const mutationKey = ['updatePricingConfigApiV1AdminConfigPricingPatch'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePricingConfigApiV1AdminConfigPricingPatch>>,
+    { data: PricingConfigPayload }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updatePricingConfigApiV1AdminConfigPricingPatch(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePricingConfigApiV1AdminConfigPricingPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePricingConfigApiV1AdminConfigPricingPatch>>
+>;
+export type UpdatePricingConfigApiV1AdminConfigPricingPatchMutationBody = PricingConfigPayload;
+export type UpdatePricingConfigApiV1AdminConfigPricingPatchMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Pricing Config
  */
-export const updatePricingConfigApiAdminConfigPricingPatch = (
-    pricingConfigPayload: PricingConfigPayload,
- ) => {
+export const useUpdatePricingConfigApiV1AdminConfigPricingPatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updatePricingConfigApiV1AdminConfigPricingPatch>>,
+      TError,
+      { data: PricingConfigPayload },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updatePricingConfigApiV1AdminConfigPricingPatch>>,
+  TError,
+  { data: PricingConfigPayload },
+  TContext
+> => {
+  const mutationOptions =
+    getUpdatePricingConfigApiV1AdminConfigPricingPatchMutationOptions(options);
 
-
-      return customFetch<PricingConfigResponse>(
-      {url: `/api/admin/config/pricing`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: pricingConfigPayload
-    },
-      );
-    }
-
-
-
-export const getUpdatePricingConfigApiAdminConfigPricingPatchMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePricingConfigApiAdminConfigPricingPatch>>, TError,{data: PricingConfigPayload}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof updatePricingConfigApiAdminConfigPricingPatch>>, TError,{data: PricingConfigPayload}, TContext> => {
-
-const mutationKey = ['updatePricingConfigApiAdminConfigPricingPatch'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePricingConfigApiAdminConfigPricingPatch>>, {data: PricingConfigPayload}> = (props) => {
-          const {data} = props ?? {};
-
-          return  updatePricingConfigApiAdminConfigPricingPatch(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdatePricingConfigApiAdminConfigPricingPatchMutationResult = NonNullable<Awaited<ReturnType<typeof updatePricingConfigApiAdminConfigPricingPatch>>>
-    export type UpdatePricingConfigApiAdminConfigPricingPatchMutationBody = PricingConfigPayload
-    export type UpdatePricingConfigApiAdminConfigPricingPatchMutationError = ErrorType<HTTPValidationError>
-
-    /**
- * @summary Update Pricing Config
- */
-export const useUpdatePricingConfigApiAdminConfigPricingPatch = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePricingConfigApiAdminConfigPricingPatch>>, TError,{data: PricingConfigPayload}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof updatePricingConfigApiAdminConfigPricingPatch>>,
-        TError,
-        {data: PricingConfigPayload},
-        TContext
-      > => {
-
-      const mutationOptions = getUpdatePricingConfigApiAdminConfigPricingPatchMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
+  return useMutation(mutationOptions, queryClient);
+};

@@ -1,5 +1,6 @@
 alembic==1.13.1
 amqp==5.3.1
+argon2-cffi>=25.1.0
 annotated-types==0.7.0
 anyio==4.9.0
 async-timeout==5.0.1
@@ -20,8 +21,8 @@ cycler==0.12.1
 dnspython==2.7.0
 email_validator==2.2.0
 exceptiongroup==1.3.0
-fastapi==0.118.0
-fonttools==4.58.4
+fastapi==0.124.2
+fonttools==4.60.2
 h11==0.16.0
 hiredis==3.2.1
 httpx==0.28.1
@@ -62,13 +63,16 @@ python-multipart==0.0.20
 pytz==2025.2
 PyYAML==6.0.1
 redis==5.0.1
+broadcaster[redis]==0.3.1
 requests==2.32.5
 resend==2.4.0
-sentence-transformers==3.3.1
+# sentence-transformers removed - using OpenAI embeddings instead
+# See scripts/generate_openai_embeddings.py
 six==1.17.0
 sniffio==1.3.1
+symspellpy==6.9.0
 SQLAlchemy==2.0.41
-starlette==0.47.2
+starlette==0.49.1
 stripe==12.2.0
 pyotp==2.9.0
 qrcode==8.2
@@ -76,8 +80,9 @@ tomli==2.2.1
 typing_extensions==4.14.0
 typing-inspection==0.4.1
 tzdata==2025.2
-urllib3==2.5.0
+urllib3==2.6.0
 uvicorn==0.27.1
+gunicorn==23.0.0
 vine==5.1.0
 wcwidth==0.2.13
 zipp==3.23.0
@@ -86,4 +91,6 @@ asyncpg==0.30.0
 python-ulid==2.2.0
 geopandas==0.14.4
 boto3==1.35.49
+openai==2.11.0
 orjson==3.11.3
+dateparser>=1.2.0

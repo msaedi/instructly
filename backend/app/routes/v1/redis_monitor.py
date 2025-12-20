@@ -9,8 +9,9 @@ import logging
 from typing import Dict, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from redis import ConnectionError, Redis, TimeoutError, from_url
+from redis.asyncio import Redis as AsyncRedis
 
+from ...core.cache_redis import get_async_cache_redis_client
 from ...core.config import settings
 from ...core.enums import PermissionName
 from ...dependencies.permissions import require_permission
@@ -32,10 +33,12 @@ router = APIRouter(
 )
 
 
-def get_redis_client() -> Redis:
-    """Get Redis client instance."""
-    redis_url = settings.redis_url or "redis://localhost:6379/0"
-    return from_url(redis_url, decode_responses=True)
+async def get_redis_client() -> AsyncRedis:
+    """Get the shared async Redis client."""
+    client = await get_async_cache_redis_client()
+    if client is None:
+        raise RuntimeError("Redis unavailable")
+    return client
 
 
 @router.get("/health", response_model=RedisHealthResponse)
@@ -47,10 +50,10 @@ async def redis_health() -> RedisHealthResponse:
         Basic health status
     """
     try:
-        client = get_redis_client()
-        client.ping()
+        client = await get_redis_client()
+        await client.ping()
         return RedisHealthResponse(status="healthy", connected=True)
-    except (ConnectionError, TimeoutError) as e:
+    except Exception as e:
         logger.error(f"Redis health check failed: {e}")
         return RedisHealthResponse(status="unhealthy", connected=False, error=str(e))
 
@@ -66,20 +69,21 @@ async def redis_test() -> RedisTestResponse:
         Connection status and basic info
     """
     try:
-        client = get_redis_client()
+        client = await get_redis_client()
 
         # Test basic connectivity
-        ping_result = client.ping()
+        ping_result = await client.ping()
 
         # Get server info
-        info = client.info("server")
+        info = await client.info("server")
+        clients_info = await client.info("clients")
 
         return RedisTestResponse(
             status="connected",
             ping=ping_result,
             redis_version=info.get("redis_version", "unknown"),
             uptime_seconds=cast(int | None, info.get("uptime_in_seconds", 0)),
-            connected_clients=cast(int, client.info("clients").get("connected_clients", 0)),
+            connected_clients=cast(int, clients_info.get("connected_clients", 0)),
             message="Redis migration successful! Connection to instainstru-redis:6379 is working.",
         )
     except Exception as e:
@@ -110,10 +114,10 @@ async def redis_stats(
     """
 
     try:
-        client = get_redis_client()
+        client = await get_redis_client()
 
         # Get Redis INFO
-        info = client.info()
+        info = await client.info()
 
         # Extract key metrics
         memory_info = {
@@ -139,7 +143,7 @@ async def redis_stats(
         }
 
         # Get Celery queue lengths
-        celery_queues = _get_celery_queue_lengths(client)
+        celery_queues = await _get_celery_queue_lengths(client)
 
         # Estimate daily operations based on current rate
         ops_per_sec = info.get("instantaneous_ops_per_sec", 0)
@@ -185,8 +189,8 @@ async def celery_queue_status(
     """
 
     try:
-        client = get_redis_client()
-        queues = _get_celery_queue_lengths(client)
+        client = await get_redis_client()
+        queues = await _get_celery_queue_lengths(client)
 
         queues_data = {
             "status": "ok",
@@ -203,7 +207,7 @@ async def celery_queue_status(
         )
 
 
-def _get_celery_queue_lengths(client: Redis) -> Dict[str, int]:
+async def _get_celery_queue_lengths(client: AsyncRedis) -> Dict[str, int]:
     """Get lengths of all Celery queues."""
     queue_names = [
         "celery",
@@ -219,7 +223,7 @@ def _get_celery_queue_lengths(client: Redis) -> Dict[str, int]:
     for queue in queue_names:
         try:
             # Celery uses the queue name as the Redis key
-            length = client.llen(queue)
+            length = await client.llen(queue)
             if length > 0:
                 queue_lengths[queue] = length
         except Exception as e:
@@ -254,8 +258,8 @@ async def redis_connection_audit(
         upstash_detected = False  # Migration complete
 
         # Get active connections from current Redis
-        client = get_redis_client()
-        info = client.info("clients")
+        client = await get_redis_client()
+        info = await client.info("clients")
         connected_clients = cast(int, info.get("connected_clients", 0))
 
         # Parse URLs to identify service
@@ -343,7 +347,7 @@ async def flush_celery_queues(
     """
 
     try:
-        client = get_redis_client()
+        client = await get_redis_client()
 
         queue_names = [
             "celery",
@@ -361,10 +365,10 @@ async def flush_celery_queues(
         for queue in queue_names:
             try:
                 # Get current length before deletion
-                length = client.llen(queue)
+                length = await client.llen(queue)
                 if length > 0:
                     # Delete the queue
-                    client.delete(queue)
+                    await client.delete(queue)
                     flushed[queue] = length
                     total_removed += length
             except Exception as e:

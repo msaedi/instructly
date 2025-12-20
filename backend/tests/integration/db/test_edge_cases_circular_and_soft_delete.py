@@ -18,6 +18,7 @@ UPDATED FOR WORK STREAM #9: Layer independence
 - Bookings are time-based and independent of slots
 """
 
+import asyncio
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
@@ -49,7 +50,9 @@ except ModuleNotFoundError:  # pragma: no cover
 
 @pytest.fixture(autouse=True)
 def _clear_service_cache_namespace(db: Session) -> None:
-    cache = CacheService(db)
+    from app.services.cache_service import CacheServiceSyncAdapter
+
+    cache = CacheServiceSyncAdapter(CacheService(db))
     prefixes = [
         "catalog:services:",
         "catalog:top-services:",
@@ -514,7 +517,7 @@ class TestSoftDeleteEdgeCases:
 
         # Test async method - expect NotFoundException
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
-            await booking_service.create_booking(
+            await asyncio.to_thread(booking_service.create_booking,
                 student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -559,8 +562,8 @@ class TestSoftDeleteEdgeCases:
 
         # Verify only active services are returned (new service should be excluded)
         services_key = "services" if "services" in profile_data else "instructor_services"
-        service_names = [s["name"] for s in profile_data[services_key]]
-        assert catalog_service.name not in service_names  # Should not include the soft-deleted service
+        service_catalog_ids = [s.get("service_catalog_id") for s in profile_data[services_key]]
+        assert catalog_service.id not in service_catalog_ids  # Should not include the soft-deleted service
 
     def test_reactivate_soft_deleted_service(
         self, db: Session, instructor_user: User, instructor_service: InstructorService

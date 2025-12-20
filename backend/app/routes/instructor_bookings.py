@@ -110,14 +110,14 @@ async def mark_lesson_complete(
     # Verify this is the instructor's booking
     if booking.instructor_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
             detail="You can only mark your own lessons as complete",
         )
 
     # Verify booking is in correct status
     if booking.status != BookingStatus.CONFIRMED:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
             detail=f"Cannot mark booking as complete. Current status: {booking.status}",
         )
 
@@ -126,7 +126,7 @@ async def mark_lesson_complete(
     lesson_end = datetime.combine(booking.booking_date, booking.end_time)
     if lesson_end > now:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
             detail="Cannot mark lesson as complete before it ends",
         )
 
@@ -333,7 +333,7 @@ async def dispute_completion(
     # Verify this is the instructor's booking
     if booking.instructor_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
             detail="You can only dispute your own lessons",
         )
 

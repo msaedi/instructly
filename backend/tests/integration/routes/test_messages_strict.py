@@ -26,23 +26,9 @@ def client(_enable_strict):
     return TestClient(main.fastapi_app, raise_server_exceptions=False)
 
 
-def test_send_message_rejects_extra_field(client: TestClient):
-    body = {
-        "booking_id": "bk_1",
-        "content": "hello",
-        "unexpected": 1,
-    }
-    resp = client.post("/api/v1/messages/send", json=body)
-    if resp.status_code in (401, 403):
-        pytest.skip("Auth prevented validation; covered in authenticated suites")
-    assert resp.status_code == 422
-    data = resp.json()
-    assert "title" in data or "detail" in data
-
-
 def test_mark_read_rejects_extra_field(client: TestClient):
     body = {
-        "booking_id": "bk_1",
+        "conversation_id": "conv_1",
         "unexpected": 1,
     }
     resp = client.post("/api/v1/messages/mark-read", json=body)

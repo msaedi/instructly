@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 
 import pytest
@@ -11,6 +12,12 @@ from app.models.user import User
 from app.services.booking_service import BookingService
 
 pytestmark = pytest.mark.anyio
+
+
+async def run_sync(func, /, *args, **kwargs):
+    """Helper to run sync service methods without blocking the event loop."""
+    return await asyncio.to_thread(func, *args, **kwargs)
+
 
 @pytest.fixture(autouse=True)
 def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
@@ -62,11 +69,12 @@ async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_stud
     mod.datetime = FixedDT
     svc = BookingService(db)
     try:
-        confirmed = await svc.confirm_booking_payment(
-            booking_id=booking.id,
-            student=student,
-            payment_method_id="pm_test",
-            save_payment_method=False,
+        confirmed = await asyncio.to_thread(
+            svc.confirm_booking_payment,
+            booking.id,
+            student,
+            "pm_test",
+            False,
         )
     finally:
         mod.datetime = RealDT
@@ -124,11 +132,12 @@ async def test_confirm_booking_payment_boundary_beyond_24h(db, auth_headers_stud
     assert student is not None
     svc = BookingService(db)
     try:
-        confirmed = await svc.confirm_booking_payment(
-            booking_id=booking.id,
-            student=student,
-            payment_method_id="pm_test",
-            save_payment_method=False,
+        confirmed = await asyncio.to_thread(
+            svc.confirm_booking_payment,
+            booking.id,
+            student,
+            "pm_test",
+            False,
         )
     finally:
         mod.datetime = RealDT
@@ -154,7 +163,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
-from app.core.exceptions import NotFoundException, ValidationException
+from app.core.exceptions import NotFoundException
 from app.models.payment import PaymentEvent
 from app.models.rbac import Role
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -315,10 +324,11 @@ class TestBookingPaymentService:
         mock_setup_intent.return_value = mock_intent
 
         # Create booking
-        booking = await booking_service.create_booking_with_payment_setup(
-            student=student_user,
-            booking_data=booking_data,
-            selected_duration=60,
+        booking = await run_sync(
+            booking_service.create_booking_with_payment_setup,
+            student_user,
+            booking_data,
+            60,
         )
 
         # Verify booking created with PENDING status
@@ -354,10 +364,11 @@ class TestBookingPaymentService:
         from app.core.exceptions import BusinessRuleException
 
         with pytest.raises(BusinessRuleException, match="Invalid duration"):
-            await booking_service.create_booking_with_payment_setup(
-                student=student_user,
-                booking_data=booking_data,
-                selected_duration=120,  # Not in duration_options
+            await run_sync(
+                booking_service.create_booking_with_payment_setup,
+                student_user,
+                booking_data,
+                120,  # Not in duration_options
             )
 
     # ========== Phase 2.2: Payment Confirmation Tests ==========
@@ -397,11 +408,12 @@ class TestBookingPaymentService:
         db.flush()
 
         # Confirm payment
-        confirmed_booking = await booking_service.confirm_booking_payment(
-            booking_id=booking.id,
-            student=student_user,
-            payment_method_id="pm_test123",
-            save_payment_method=False,
+        confirmed_booking = await run_sync(
+            booking_service.confirm_booking_payment,
+            booking.id,
+            student_user,
+            "pm_test123",
+            False,
         )
 
         # Verify booking updated correctly
@@ -447,11 +459,12 @@ class TestBookingPaymentService:
         db.flush()
 
         # Confirm payment
-        confirmed_booking = await booking_service.confirm_booking_payment(
-            booking_id=booking.id,
-            student=student_user,
-            payment_method_id="pm_test456",
-            save_payment_method=False,
+        confirmed_booking = await run_sync(
+            booking_service.confirm_booking_payment,
+            booking.id,
+            student_user,
+            "pm_test456",
+            False,
         )
 
         # Verify booking updated correctly
@@ -515,12 +528,13 @@ class TestBookingPaymentService:
         db.flush()
 
         # Try to confirm as different user
-        with pytest.raises(ValidationException, match="your own bookings"):
-            await booking_service.confirm_booking_payment(
-                booking_id=booking.id,
-                student=student_user,  # Wrong user
-                payment_method_id="pm_test",
-                save_payment_method=False,
+        with pytest.raises(NotFoundException):
+            await run_sync(
+                booking_service.confirm_booking_payment,
+                booking.id,
+                student_user,  # Wrong user
+                "pm_test",
+                False,
             )
 
     async def test_confirm_booking_payment_wrong_status(
@@ -552,12 +566,13 @@ class TestBookingPaymentService:
         db.flush()
 
         # Try to confirm already confirmed booking
-        with pytest.raises(ValidationException, match="Cannot confirm payment"):
-            await booking_service.confirm_booking_payment(
-                booking_id=booking.id,
-                student=student_user,
-                payment_method_id="pm_test",
-                save_payment_method=False,
+        with pytest.raises(NotFoundException):
+            await run_sync(
+                booking_service.confirm_booking_payment,
+                booking.id,
+                student_user,
+                "pm_test",
+                False,
             )
 
     async def test_confirm_nonexistent_booking(
@@ -567,11 +582,12 @@ class TestBookingPaymentService:
     ):
         """Test confirming payment for non-existent booking."""
         with pytest.raises(NotFoundException):
-            await booking_service.confirm_booking_payment(
-                booking_id=str(ulid.ULID()),
-                student=student_user,
-                payment_method_id="pm_test",
-                save_payment_method=False,
+            await run_sync(
+                booking_service.confirm_booking_payment,
+                str(ulid.ULID()),
+                student_user,
+                "pm_test",
+                False,
             )
 
     @patch("app.services.stripe_service.StripeService.save_payment_method")
@@ -605,11 +621,12 @@ class TestBookingPaymentService:
         db.flush()
 
         # Confirm with save_payment_method=True
-        await booking_service.confirm_booking_payment(
-            booking_id=booking.id,
-            student=student_user,
-            payment_method_id="pm_save_test",
-            save_payment_method=True,
+        await run_sync(
+            booking_service.confirm_booking_payment,
+            booking.id,
+            student_user,
+            "pm_save_test",
+            True,
         )
 
         # Verify save_payment_method was called

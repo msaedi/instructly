@@ -12,6 +12,7 @@ Endpoints:
     GET /check/{instructor_id}         → Check if instructor is favorited
 """
 
+import asyncio
 import logging
 from typing import List
 
@@ -19,11 +20,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.params import Path
 from sqlalchemy.orm import Session
 
-from ...auth import get_current_user
+from ...api.dependencies import get_current_user
 from ...core.enums import PermissionName
+from ...core.exceptions import raise_503_if_pool_exhaustion
 from ...database import get_db
 from ...dependencies.permissions import require_permission
-from ...repositories.factory import RepositoryFactory
+from ...models.user import User
 from ...schemas.favorites import (
     FavoritedInstructor,
     FavoriteResponse,
@@ -51,8 +53,7 @@ def get_favorites_service(db: Session = Depends(get_db)) -> FavoritesService:
 @router.post("/{instructor_id}", response_model=FavoriteResponse)
 async def add_favorite(
     instructor_id: str = Path(..., pattern=ULID_PATH_PATTERN),
-    current_user: str = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     favorites_service: FavoritesService = Depends(get_favorites_service),
     _: None = Depends(
         require_permission(PermissionName.CREATE_BOOKINGS)
@@ -74,20 +75,18 @@ async def add_favorite(
         HTTPException: If validation fails or user not found
     """
     try:
-        user_repo = RepositoryFactory.create_user_repository(db)
-        user = user_repo.get_by_email(current_user)
-
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-        # Add favorite
-        result = favorites_service.add_favorite(student_id=user.id, instructor_id=instructor_id)
+        result = await asyncio.to_thread(
+            favorites_service.add_favorite,
+            student_id=current_user.id,
+            instructor_id=instructor_id,
+        )
 
         return FavoriteResponse(**result)
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        raise_503_if_pool_exhaustion(e)
         logger.error(f"Error adding favorite: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add favorite"
@@ -97,8 +96,7 @@ async def add_favorite(
 @router.delete("/{instructor_id}", response_model=FavoriteResponse)
 async def remove_favorite(
     instructor_id: str = Path(..., pattern=ULID_PATH_PATTERN),
-    current_user: str = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     favorites_service: FavoritesService = Depends(get_favorites_service),
     _: None = Depends(
         require_permission(PermissionName.CREATE_BOOKINGS)
@@ -120,20 +118,18 @@ async def remove_favorite(
         HTTPException: If validation fails or user not found
     """
     try:
-        user_repo = RepositoryFactory.create_user_repository(db)
-        user = user_repo.get_by_email(current_user)
-
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-        # Remove favorite
-        result = favorites_service.remove_favorite(student_id=user.id, instructor_id=instructor_id)
+        result = await asyncio.to_thread(
+            favorites_service.remove_favorite,
+            student_id=current_user.id,
+            instructor_id=instructor_id,
+        )
 
         return FavoriteResponse(**result)
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        raise_503_if_pool_exhaustion(e)
         logger.error(f"Error removing favorite: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to remove favorite"
@@ -142,8 +138,7 @@ async def remove_favorite(
 
 @router.get("", response_model=FavoritesList)
 async def get_favorites(
-    current_user: str = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     favorites_service: FavoritesService = Depends(get_favorites_service),
 ) -> FavoritesList:
     """
@@ -161,14 +156,10 @@ async def get_favorites(
         HTTPException: If user not found
     """
     try:
-        user_repo = RepositoryFactory.create_user_repository(db)
-        user = user_repo.get_by_email(current_user)
-
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-        # Get favorites
-        favorites = favorites_service.get_student_favorites(user.id)
+        favorites = await asyncio.to_thread(
+            favorites_service.get_student_favorites,
+            current_user.id,
+        )
 
         # Transform to response format
         favorited_instructors: List[FavoritedInstructor] = []
@@ -191,6 +182,7 @@ async def get_favorites(
         return FavoritesList(favorites=favorited_instructors, total=len(favorited_instructors))
 
     except Exception as e:
+        raise_503_if_pool_exhaustion(e)
         logger.error(f"Error getting favorites: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get favorites"
@@ -200,8 +192,7 @@ async def get_favorites(
 @router.get("/check/{instructor_id}", response_model=FavoriteStatusResponse)
 async def check_favorite_status(
     instructor_id: str = Path(..., pattern=ULID_PATH_PATTERN),
-    current_user: str = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     favorites_service: FavoritesService = Depends(get_favorites_service),
 ) -> FavoriteStatusResponse:
     """
@@ -220,20 +211,16 @@ async def check_favorite_status(
         HTTPException: If user not found
     """
     try:
-        user_repo = RepositoryFactory.create_user_repository(db)
-        user = user_repo.get_by_email(current_user)
-
-        if not user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-        # Check favorite status
-        is_favorited = favorites_service.is_favorited(
-            student_id=user.id, instructor_id=instructor_id
+        is_favorited = await asyncio.to_thread(
+            favorites_service.is_favorited,
+            student_id=current_user.id,
+            instructor_id=instructor_id,
         )
 
         return FavoriteStatusResponse(is_favorited=is_favorited)
 
     except Exception as e:
+        raise_503_if_pool_exhaustion(e)
         logger.error(f"Error checking favorite status: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

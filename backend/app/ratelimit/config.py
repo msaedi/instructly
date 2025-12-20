@@ -18,6 +18,10 @@ class RateLimitSettings:
             and os.getenv("SITE_MODE", "").strip().lower() not in {"prod", "production", "live"}
         )
     )
+    # Rate limiting/idempotency Redis (can be isolated from general caching Redis).
+    # Note: the global ASGI middleware in `app.middleware.rate_limiter_asgi` uses CacheService
+    # (REDIS_URL / `settings.redis_url`). Set RATE_LIMIT_REDIS_URL only when you intentionally
+    # want isolation for the new `app.ratelimit.*` dependency-based limiter/idempotency/locks.
     redis_url: str = os.getenv("RATE_LIMIT_REDIS_URL", "redis://localhost:6379/0")
     namespace: str = os.getenv("RATE_LIMIT_NAMESPACE", "instainstru")
     default_policy: str = os.getenv("RATE_LIMIT_DEFAULT_POLICY", "read")
@@ -29,7 +33,10 @@ settings: RateLimitSettings = RateLimitSettings()
 BUCKETS: Dict[str, Dict[str, Any]] = {
     "auth_bootstrap": dict(rate_per_min=100, burst=20, window_s=60),
     "read": dict(rate_per_min=60, burst=10, window_s=60),
-    "write": dict(rate_per_min=20, burst=3, window_s=60),
+    # Messaging uses the "write" bucket; relax to 30/min with a burst of 5 to prevent 429s during normal chat use
+    "write": dict(rate_per_min=30, burst=10, window_s=60),
+    # Conversation-scoped messaging limit (per user+conversation)
+    "conv_msg": dict(rate_per_min=10, burst=0, window_s=60),
     "financial": dict(rate_per_min=5, burst=0, window_s=60),
 }
 
@@ -39,6 +46,7 @@ BUCKET_SHADOW_OVERRIDES: dict[str, bool] = {
     "financial": os.getenv("RATE_LIMIT_SHADOW_FINANCIAL", "").lower() == "true",
     # PR-4: enable enforcement for write by default; allow shadow via env
     "write": os.getenv("RATE_LIMIT_SHADOW_WRITE", "").lower() == "true",
+    "conv_msg": os.getenv("RATE_LIMIT_SHADOW_CONV_MSG", "").lower() == "true",
     # Additional per-bucket toggles for PR-7
     "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
     "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
@@ -70,14 +78,15 @@ def _load_overrides_from_env() -> Dict[str, Dict[str, Any]]:
     return {}
 
 
-def _load_overrides_from_redis() -> Dict[str, Dict[str, Any]]:
+async def _load_overrides_from_redis_async() -> Dict[str, Dict[str, Any]]:
+    """Best-effort load of policy overrides from Redis (async)."""
     try:
         from .redis_backend import get_redis
 
         # Lazy import to avoid circular dependency
-        r = get_redis()
+        r = await get_redis()
         key = f"{settings.namespace}:rl:overrides"
-        val = r.get(key)
+        val = await r.get(key)
         if not val:
             return {}
         obj = json.loads(val)
@@ -104,14 +113,15 @@ def reload_config(cache_ttl_s: int = 30) -> Dict[str, Any]:
     BUCKET_SHADOW_OVERRIDES = {
         "financial": os.getenv("RATE_LIMIT_SHADOW_FINANCIAL", "").lower() == "true",
         "write": os.getenv("RATE_LIMIT_SHADOW_WRITE", "").lower() == "true",
+        "conv_msg": os.getenv("RATE_LIMIT_SHADOW_CONV_MSG", "").lower() == "true",
         "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
         "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
     }
 
     env_overrides = _load_overrides_from_env()
-    redis_overrides = _load_overrides_from_redis()
-    merged = {**env_overrides, **redis_overrides}
-    _POLICY_OVERRIDES = merged
+    # Redis-backed overrides require async Redis access; keep this function sync and env-only.
+    # If you need Redis overrides, call `await reload_config_async()`.
+    _POLICY_OVERRIDES = env_overrides
 
     info: Dict[str, Any] = {
         "enabled": settings.enabled,
@@ -121,6 +131,40 @@ def reload_config(cache_ttl_s: int = 30) -> Dict[str, Any]:
     }
 
     # Emit PR-8 metrics: count reloads and gauge active overrides
+    try:
+        rl_config_reload_total.inc()
+        rl_active_overrides.set(len(_POLICY_OVERRIDES))
+    except Exception:
+        pass
+
+    return info
+
+
+async def reload_config_async(cache_ttl_s: int = 30) -> Dict[str, Any]:
+    """Async version of reload_config that includes Redis-backed overrides."""
+    global BUCKET_SHADOW_OVERRIDES, _POLICY_OVERRIDES, settings
+
+    settings = RateLimitSettings()
+
+    BUCKET_SHADOW_OVERRIDES = {
+        "financial": os.getenv("RATE_LIMIT_SHADOW_FINANCIAL", "").lower() == "true",
+        "write": os.getenv("RATE_LIMIT_SHADOW_WRITE", "").lower() == "true",
+        "conv_msg": os.getenv("RATE_LIMIT_SHADOW_CONV_MSG", "").lower() == "true",
+        "read": os.getenv("RATE_LIMIT_SHADOW_READ", "").lower() == "true",
+        "auth_bootstrap": os.getenv("RATE_LIMIT_SHADOW_AUTH", "").lower() == "true",
+    }
+
+    env_overrides = _load_overrides_from_env()
+    redis_overrides = await _load_overrides_from_redis_async()
+    _POLICY_OVERRIDES = {**env_overrides, **redis_overrides}
+
+    info: Dict[str, Any] = {
+        "enabled": settings.enabled,
+        "shadow": settings.shadow,
+        "bucket_shadows": BUCKET_SHADOW_OVERRIDES,
+        "policy_overrides_count": len(_POLICY_OVERRIDES),
+    }
+
     try:
         rl_config_reload_total.inc()
         rl_active_overrides.set(len(_POLICY_OVERRIDES))

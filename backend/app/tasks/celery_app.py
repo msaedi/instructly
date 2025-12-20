@@ -130,6 +130,7 @@ def create_celery_app() -> Celery:
         | {
             "app.tasks.payment_tasks",
             "app.tasks.search_analytics",
+            "app.tasks.location_learning",
             "app.tasks.analytics",
             "app.tasks.monitoring_tasks",
             "app.tasks.codebase_metrics",
@@ -141,6 +142,8 @@ def create_celery_app() -> Celery:
             # Include legacy cleanup module for completeness
             "app.tasks.search_history_cleanup",
             "app.tasks.notification_tasks",
+            # NL Search embedding maintenance
+            "app.tasks.embedding_migration",
         }
     )
 

@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -31,329 +28,496 @@ import type {
   GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams,
   HTTPValidationError,
   ProfilePictureUrlsResponse,
-  SuccessResponse
+  SuccessResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
 
+/**
+ * @summary Delete Profile Picture
+ */
+export const deleteProfilePictureApiV1UsersMeProfilePictureDelete = () => {
+  return customFetch<AppSchemasBaseResponsesDeleteResponse>({
+    url: `/api/v1/users/me/profile-picture`,
+    method: 'DELETE',
+  });
+};
 
+export const getDeleteProfilePictureApiV1UsersMeProfilePictureDeleteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['deleteProfilePictureApiV1UsersMeProfilePictureDelete'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>,
+    void
+  > = () => {
+    return deleteProfilePictureApiV1UsersMeProfilePictureDelete();
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteProfilePictureApiV1UsersMeProfilePictureDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>
+>;
+
+export type DeleteProfilePictureApiV1UsersMeProfilePictureDeleteMutationError = ErrorType<unknown>;
 
 /**
  * @summary Delete Profile Picture
  */
-export const deleteProfilePictureApiV1UsersMeProfilePictureDelete = (
+export const useDeleteProfilePictureApiV1UsersMeProfilePictureDelete = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions =
+    getDeleteProfilePictureApiV1UsersMeProfilePictureDeleteMutationOptions(options);
 
- ) => {
-
-
-      return customFetch<AppSchemasBaseResponsesDeleteResponse>(
-      {url: `/api/v1/users/me/profile-picture`, method: 'DELETE'
-    },
-      );
-    }
-
-
-
-export const getDeleteProfilePictureApiV1UsersMeProfilePictureDeleteMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>, TError,void, TContext> => {
-
-const mutationKey = ['deleteProfilePictureApiV1UsersMeProfilePictureDelete'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>, void> = () => {
-
-
-          return  deleteProfilePictureApiV1UsersMeProfilePictureDelete()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteProfilePictureApiV1UsersMeProfilePictureDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>>
-
-    export type DeleteProfilePictureApiV1UsersMeProfilePictureDeleteMutationError = ErrorType<unknown>
-
-    /**
- * @summary Delete Profile Picture
- */
-export const useDeleteProfilePictureApiV1UsersMeProfilePictureDelete = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteProfilePictureApiV1UsersMeProfilePictureDelete>>,
-        TError,
-        void,
-        TContext
-      > => {
-
-      const mutationOptions = getDeleteProfilePictureApiV1UsersMeProfilePictureDeleteMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * @summary Upload Finalize Profile Picture
  */
 export const uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost = (
-    finalizeProfilePicturePayload: FinalizeProfilePicturePayload,
- signal?: AbortSignal
+  finalizeProfilePicturePayload: FinalizeProfilePicturePayload,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SuccessResponse>({
+    url: `/api/v1/users/me/profile-picture`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: finalizeProfilePicturePayload,
+    signal,
+  });
+};
 
+export const getUploadFinalizeProfilePictureApiV1UsersMeProfilePicturePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>,
+    TError,
+    { data: FinalizeProfilePicturePayload },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>,
+  TError,
+  { data: FinalizeProfilePicturePayload },
+  TContext
+> => {
+  const mutationKey = ['uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<SuccessResponse>(
-      {url: `/api/v1/users/me/profile-picture`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: finalizeProfilePicturePayload, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>,
+    { data: FinalizeProfilePicturePayload }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getUploadFinalizeProfilePictureApiV1UsersMeProfilePicturePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>, TError,{data: FinalizeProfilePicturePayload}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>, TError,{data: FinalizeProfilePicturePayload}, TContext> => {
+export type UploadFinalizeProfilePictureApiV1UsersMeProfilePicturePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>
+>;
+export type UploadFinalizeProfilePictureApiV1UsersMeProfilePicturePostMutationBody =
+  FinalizeProfilePicturePayload;
+export type UploadFinalizeProfilePictureApiV1UsersMeProfilePicturePostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>, {data: FinalizeProfilePicturePayload}> = (props) => {
-          const {data} = props ?? {};
-
-          return  uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UploadFinalizeProfilePictureApiV1UsersMeProfilePicturePostMutationResult = NonNullable<Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>>
-    export type UploadFinalizeProfilePictureApiV1UsersMeProfilePicturePostMutationBody = FinalizeProfilePicturePayload
-    export type UploadFinalizeProfilePictureApiV1UsersMeProfilePicturePostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Upload Finalize Profile Picture
  */
-export const useUploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>, TError,{data: FinalizeProfilePicturePayload}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>,
-        TError,
-        {data: FinalizeProfilePicturePayload},
-        TContext
-      > => {
+export const useUploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>,
+      TError,
+      { data: FinalizeProfilePicturePayload },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof uploadFinalizeProfilePictureApiV1UsersMeProfilePicturePost>>,
+  TError,
+  { data: FinalizeProfilePicturePayload },
+  TContext
+> => {
+  const mutationOptions =
+    getUploadFinalizeProfilePictureApiV1UsersMeProfilePicturePostMutationOptions(options);
 
-      const mutationOptions = getUploadFinalizeProfilePictureApiV1UsersMeProfilePicturePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Batch avatar URL lookup.
 
 Accepts up to 50 user IDs via comma-separated `ids` query param or repeated keys.
  * @summary Get Profile Picture Urls Batch
  */
 export const getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet = (
-    params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams,
- signal?: AbortSignal
+  params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<ProfilePictureUrlsResponse>({
+    url: `/api/v1/users/profile-picture-urls`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<ProfilePictureUrlsResponse>(
-      {url: `/api/v1/users/profile-picture-urls`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryKey = (params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams,) => {
-    return [
-    `/api/v1/users/profile-picture-urls`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryOptions = <TData = Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError, TData>>, }
+export const getGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryKey = (
+  params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams
 ) => {
+  return [`/api/v1/users/profile-picture-urls`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>
+  > = ({ signal }) => getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>> = ({ signal }) => getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet(params, signal);
+export type GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>
+>;
+export type GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>>
-export type GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet<TData = Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError, TData>> & Pick<
+export function useGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet<
+  TData = Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
           TError,
           Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet<TData = Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet<
+  TData = Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
           TError,
           Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet<TData = Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet<
+  TData = Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Profile Picture Urls Batch
  */
 
-export function useGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet<TData = Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet<
+  TData = Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * @summary Get Profile Picture Url
  */
 export const getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet = (
-    userId: string,
-    params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams,
- signal?: AbortSignal
+  userId: string,
+  params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SuccessResponse>({
+    url: `/api/v1/users/${userId}/profile-picture-url`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<SuccessResponse>(
-      {url: `/api/v1/users/${userId}/profile-picture-url`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryKey = (userId?: string,
-    params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams,) => {
-    return [
-    `/api/v1/users/${userId}/profile-picture-url`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryOptions = <TData = Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError = ErrorType<HTTPValidationError>>(userId: string,
-    params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError, TData>>, }
+export const getGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryKey = (
+  userId?: string,
+  params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams
 ) => {
+  return [`/api/v1/users/${userId}/profile-picture-url`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: string,
+  params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryKey(userId,params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryKey(userId, params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>
+  > = ({ signal }) =>
+    getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet(userId, params, signal);
 
+  return { queryKey, queryFn, enabled: !!userId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>> = ({ signal }) => getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet(userId,params, signal);
+export type GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>
+>;
+export type GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(userId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryResult = NonNullable<Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>>
-export type GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet<TData = Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError = ErrorType<HTTPValidationError>>(
- userId: string,
-    params: undefined |  GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError, TData>> & Pick<
+export function useGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet<
+  TData = Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: string,
+  params: undefined | GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
           TError,
           Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet<TData = Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError = ErrorType<HTTPValidationError>>(
- userId: string,
-    params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet<
+  TData = Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: string,
+  params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
           TError,
           Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet<TData = Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError = ErrorType<HTTPValidationError>>(
- userId: string,
-    params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet<
+  TData = Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: string,
+  params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Profile Picture Url
  */
 
-export function useGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet<TData = Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError = ErrorType<HTTPValidationError>>(
- userId: string,
-    params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet<
+  TData = Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: string,
+  params?: GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryOptions(
+    userId,
+    params,
+    options
+  );
 
-  const queryOptions = getGetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetQueryOptions(userId,params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

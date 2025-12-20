@@ -742,6 +742,30 @@ All designs are ASCII mockups with exact specifications. These ARE the official 
 
 **DO NOT** create new migration files with `alembic revision` during development.
 
+## 🔴 CRITICAL: Long-Running Command Output Capture
+
+**MANDATORY**: For ANY command that runs longer than 30 seconds (tests, load tests, builds), ALWAYS capture output to a file:
+
+```bash
+# ❌ WRONG - Output will be truncated/lost
+locust -f locustfile.py --headless -u 150 -r 10 -t 3m
+
+# ✅ CORRECT - Capture to file, then read results
+locust -f locustfile.py --headless -u 150 -r 10 -t 3m 2>&1 | tee /tmp/loadtest.log
+tail -50 /tmp/loadtest.log  # Read final summary
+```
+
+**Why This Matters:**
+- Long commands produce output that exceeds buffer limits
+- Truncated output wastes user time (e.g., 3-minute load test lost)
+- File capture ensures complete results are always available
+
+**Apply To:**
+- Load tests (`locust`, `k6`, `artillery`)
+- Test suites (`pytest`, `jest`, `playwright`)
+- Builds (`npm run build`, `docker build`)
+- Any command with `--timeout` or `-t` duration flags
+
 ## Essential Commands
 
 ### Test Credentials
@@ -861,7 +885,7 @@ localStorage.setItem('log-level', 'debug'); // or 'info', 'warn', 'error'
 8. Implement UI components
 
 ### Performance Optimization
-- Use monitoring middleware data at `/metrics/performance`
+- Use monitoring middleware data at `/ops/performance`
 - Profile slow queries with SQLAlchemy logging
 - Leverage caching for read-heavy operations
 - Database indexes already configured

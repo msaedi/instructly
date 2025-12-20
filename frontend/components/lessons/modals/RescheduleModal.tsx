@@ -164,6 +164,7 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
           isOpen={showChatModal}
           onClose={handleCloseChat}
           bookingId={lesson.id}
+          instructorId={lesson.instructor_id}
           currentUserId={user.id}
           currentUserName={user.first_name}
           otherUserName={lesson.instructor.first_name || 'Instructor'}

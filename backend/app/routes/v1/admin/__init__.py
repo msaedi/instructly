@@ -7,16 +7,22 @@ Administrative endpoints under /api/v1/admin.
 
 from . import (
     audit,
+    auth_blocks,
     background_checks,
     badges,
     config,
     instructors,
+    location_learning,
+    search_config,
 )
 
 __all__ = [
     "audit",
+    "auth_blocks",
     "background_checks",
     "badges",
     "config",
     "instructors",
+    "location_learning",
+    "search_config",
 ]

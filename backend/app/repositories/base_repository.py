@@ -361,24 +361,45 @@ class BaseRepository(IRepository[T]):
         """
         Update multiple entities efficiently.
 
+        Optimized: loads all entities in one query, updates in memory, single flush.
+
         Args:
             updates: List of dicts with 'id' and fields to update
 
         Returns:
             Number of entities updated
         """
-        try:
-            updated_count = 0
-            for update_data in updates:
-                entity_id = update_data.pop("id", None)
-                if entity_id and update_data:
-                    result = (
-                        self.db.query(self.model)
-                        .filter(self.model.id == entity_id)
-                        .update(update_data)
-                    )
-                    updated_count += result
+        if not updates:
+            return 0
 
+        try:
+            # Extract all IDs and build lookup
+            update_lookup = {}
+            for update_data in updates:
+                entity_id = update_data.get("id")
+                if entity_id:
+                    update_lookup[entity_id] = {k: v for k, v in update_data.items() if k != "id"}
+
+            if not update_lookup:
+                return 0
+
+            # Load all entities in ONE query
+            entities = (
+                self.db.query(self.model)
+                .filter(self.model.id.in_(list(update_lookup.keys())))
+                .all()
+            )
+
+            # Update in memory
+            updated_count = 0
+            for entity in entities:
+                update_data = update_lookup.get(entity.id)
+                if update_data:
+                    for key, value in update_data.items():
+                        setattr(entity, key, value)
+                    updated_count += 1
+
+            # Single flush for all updates
             self.db.flush()
             return updated_count
         except SQLAlchemyError as e:

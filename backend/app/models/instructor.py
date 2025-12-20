@@ -167,6 +167,11 @@ class InstructorProfile(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    # NL Search ranking signals
+    last_active_at = Column(DateTime(timezone=True), nullable=True)  # Last login/activity
+    response_rate = Column(Numeric(5, 2), nullable=True)  # 0.00-100.00 percentage
+    profile_completeness = Column(Numeric(3, 2), nullable=True)  # 0.00-1.00 fraction
+
     # Relationships
     user = relationship(
         "User",
@@ -459,6 +464,13 @@ class BackgroundJob(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        # Primary index for fetch_due() - most frequent query (Celery beat polling)
+        Index("ix_background_jobs_status_available", "status", "available_at"),
+        # Secondary index for type-based lookups (get_next_scheduled, get_pending_final_adverse_job)
+        Index("ix_background_jobs_type_status", "type", "status"),
     )
 
 

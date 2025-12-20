@@ -19,7 +19,7 @@ import anyio
 from sqlalchemy.orm import Session
 
 from ..core.enums import RoleName
-from ..core.exceptions import BusinessRuleException, NotFoundException
+from ..core.exceptions import BusinessRuleException, NotFoundException, ServiceException
 from ..models.instructor import InstructorPreferredPlace, InstructorProfile
 from ..models.service_catalog import InstructorService as Service, ServiceCatalog, ServiceCategory
 from ..models.user import User
@@ -35,8 +35,11 @@ from ..schemas.instructor import (
     ServiceCreate,
 )
 from .base import BaseService
-from .cache_service import CacheService
+from .cache_service import CacheServiceSyncAdapter
+from .config_service import ConfigService
 from .geocoding.factory import create_geocoding_provider
+from .pricing_service import PricingService
+from .stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +62,7 @@ class InstructorService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache_service: Optional[CacheService] = None,
+        cache_service: Optional[CacheServiceSyncAdapter] = None,
         profile_repository: Optional[Any] = None,
         service_repository: Optional[Any] = None,
         user_repository: Optional[Any] = None,
@@ -122,6 +125,39 @@ class InstructorService(BaseService):
 
         # Everything is already loaded - no additional queries
         return self._profile_to_dict(profile, include_inactive_services)
+
+    @BaseService.measure_operation("get_instructor_user")
+    def get_instructor_user(self, user_id: str) -> "User":
+        """
+        Get the User object for an instructor, validating they have a profile.
+
+        Used for public availability endpoints that need the User object
+        for timezone calculations.
+
+        Args:
+            user_id: The instructor user ID or instructor profile ID
+
+        Returns:
+            User object
+
+        Raises:
+            NotFoundException: If user not found or doesn't have instructor profile
+        """
+        user: Optional[User] = self.user_repository.get_by_id(user_id)
+        if user:
+            profile = self.profile_repository.get_by_user_id(user.id)
+            if not profile:
+                raise NotFoundException("Instructor not found")
+            return user
+
+        profile = self.profile_repository.get_by_id(user_id)
+        if not profile:
+            raise NotFoundException("Instructor not found")
+
+        resolved_user: Optional[User] = self.user_repository.get_by_id(profile.user_id)
+        if not resolved_user:
+            raise NotFoundException("Instructor not found")
+        return resolved_user
 
     @BaseService.measure_operation("get_all_instructors")
     def get_all_instructors(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
@@ -335,12 +371,27 @@ class InstructorService(BaseService):
 
     @BaseService.measure_operation("get_public_instructor_profile")
     def get_public_instructor_profile(self, instructor_id: str) -> Optional[Dict[str, Any]]:
-        """Return a public-facing instructor profile when visible."""
+        """Return a public-facing instructor profile when visible (cached for 5 minutes)."""
+        # Try cache first (5-minute TTL for instructor profiles)
+        cache_key = f"instructor:public:{instructor_id}"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                logger.debug(f"Cache hit for instructor profile: {instructor_id}")
+                return cast(JsonDict, cached)
 
         profile = self.profile_repository.get_public_by_id(instructor_id)
         if not profile:
             return None
-        return self._profile_to_dict(profile)
+
+        result = self._profile_to_dict(profile)
+
+        # Cache for 5 minutes (300 seconds)
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=300)
+            logger.debug(f"Cached instructor profile: {instructor_id}")
+
+        return result
 
     @BaseService.measure_operation("update_instructor_profile")
     def update_instructor_profile(
@@ -516,6 +567,64 @@ class InstructorService(BaseService):
                 cleanup_error,
             )
 
+    @BaseService.measure_operation("instructor.go_live")
+    def go_live(self, user_id: str) -> InstructorProfile:
+        """Activate instructor profile if prerequisites are met."""
+        profile = self.profile_repository.find_one_by(user_id=user_id)
+        if not profile:
+            raise NotFoundException("Instructor profile not found")
+
+        config_service = ConfigService(self.db)
+        pricing_service = PricingService(self.db)
+        stripe_service = StripeService(
+            self.db, config_service=config_service, pricing_service=pricing_service
+        )
+        connect_status = (
+            stripe_service.check_account_status(profile.id)
+            if profile.id
+            else {"has_account": False, "onboarding_completed": False}
+        )
+
+        skills_ok = bool(getattr(profile, "skills_configured", False))
+        identity_ok = bool(getattr(profile, "identity_verified_at", None))
+        connect_ok = bool(connect_status.get("onboarding_completed"))
+        bgc_ok = (getattr(profile, "bgc_status", "") or "").lower() == "passed"
+
+        missing: list[str] = []
+        if not skills_ok:
+            missing.append("skills")
+        if not identity_ok:
+            missing.append("identity")
+        if not connect_ok:
+            missing.append("stripe_connect")
+        if not bgc_ok:
+            missing.append("background_check")
+
+        if missing:
+            raise BusinessRuleException(
+                "Prerequisites not met",
+                code="GO_LIVE_PREREQUISITES",
+                details={"missing": missing},
+            )
+
+        with self.transaction():
+            if not getattr(profile, "onboarding_completed_at", None):
+                updated_profile = self.profile_repository.update(
+                    profile.id,
+                    is_live=True,
+                    onboarding_completed_at=datetime.now(timezone.utc),
+                    skills_configured=True
+                    if not getattr(profile, "skills_configured", False)
+                    else profile.skills_configured,
+                )
+            else:
+                updated_profile = self.profile_repository.update(profile.id, is_live=True)
+
+        if updated_profile is None:
+            raise ServiceException("Failed to update instructor profile", code="update_failed")
+
+        return updated_profile
+
     # Private helper methods
 
     def _validate_catalog_ids(self, catalog_ids: List[str]) -> None:
@@ -650,6 +759,9 @@ class InstructorService(BaseService):
             raise BusinessRuleException("At most two preferred places per category are allowed")
 
         self.preferred_place_repository.delete_for_kind(instructor_id, kind)
+        # Clear identity map to avoid stale preferred_places during the same session
+        self.preferred_place_repository.flush()
+        self.db.expire_all()
 
         for position, (address, label) in enumerate(normalized):
             self.preferred_place_repository.create_for_kind(
@@ -826,8 +938,9 @@ class InstructorService(BaseService):
         if not self.cache_service:
             return
 
-        # Clear profile cache
+        # Clear profile caches (both internal and public)
         self.cache_service.delete(f"instructor:profile:{user_id}")
+        self.cache_service.delete(f"instructor:public:{user_id}")
 
         # Clear availability caches
         self.cache_service.invalidate_instructor_availability(user_id)
@@ -900,9 +1013,17 @@ class InstructorService(BaseService):
 
     @BaseService.measure_operation("get_service_categories")
     def get_service_categories(self) -> List[Dict[str, Any]]:
-        """Get all service categories."""
+        """Get all service categories (cached for 1 hour)."""
+        # Try cache first (1-hour TTL for categories - they rarely change)
+        cache_key = "categories:all"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                logger.debug("Cache hit for service categories")
+                return cast(JsonList, cached)
+
         categories = self.category_repository.get_all()
-        return [
+        result = [
             {
                 "id": cat.id,
                 "name": cat.name,
@@ -914,6 +1035,13 @@ class InstructorService(BaseService):
             }
             for cat in sorted(categories, key=lambda x: x.display_order)
         ]
+
+        # Cache for 1 hour (3600 seconds)
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=3600)
+            logger.debug("Cached service categories for 1 hour")
+
+        return result
 
     @BaseService.measure_operation("create_instructor_service_from_catalog")
     def create_instructor_service_from_catalog(
@@ -1445,7 +1573,7 @@ class InstructorService(BaseService):
 
 # Dependency injection
 def get_instructor_service(
-    db: Session, cache_service: Optional[CacheService] = None
+    db: Session, cache_service: Optional[CacheServiceSyncAdapter] = None
 ) -> InstructorService:
     """Get instructor service instance for dependency injection."""
     return InstructorService(db, cache_service)

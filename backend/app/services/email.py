@@ -14,7 +14,7 @@ Changes from original:
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict, Optional
 
 import resend
 from sqlalchemy.orm import Session
@@ -22,15 +22,11 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.constants import BRAND_NAME, NOREPLY_EMAIL
 from ..core.exceptions import ServiceException
-from .base import BaseService
+from .base import BaseService, CacheInvalidationProtocol
 from .email_subjects import EmailSubject
 from .sender_registry import get_sender
 from .template_registry import TemplateRegistry, get_default_sender_key
 from .template_service import TemplateService
-
-# Use TYPE_CHECKING to avoid circular imports
-if TYPE_CHECKING:
-    from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +39,7 @@ class EmailService(BaseService):
     and standardized error handling. Uses dependency injection pattern.
     """
 
-    def __init__(self, db: Session, cache: Optional["CacheService"] = None):
+    def __init__(self, db: Session, cache: Optional[CacheInvalidationProtocol] = None):
         """
         Initialize email service with dependencies.
 

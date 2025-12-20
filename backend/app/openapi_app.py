@@ -49,6 +49,7 @@ from app.routes.v1 import (
     availability_windows as availability_windows_v1,
     bookings as bookings_v1,
     config as config_v1,
+    conversations as conversations_v1,
     favorites as favorites_v1,
     instructor_bgc as instructor_bgc_v1,
     instructor_bookings as instructor_bookings_v1,
@@ -76,6 +77,7 @@ from app.routes.v1.admin import (
     badges as admin_badges_v1,
     config as admin_config_v1,
     instructors as admin_instructors_v1,
+    search_config as admin_search_config_v1,
 )
 
 
@@ -98,6 +100,7 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
     api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
     api_v1.include_router(messages_v1.router, prefix="/messages")  # type: ignore[attr-defined]
+    api_v1.include_router(conversations_v1.router, prefix="/conversations")  # type: ignore[attr-defined]
     api_v1.include_router(reviews_v1.router, prefix="/reviews")  # type: ignore[attr-defined]
     api_v1.include_router(services_v1.router, prefix="/services")  # type: ignore[attr-defined]
     api_v1.include_router(favorites_v1.router, prefix="/favorites")  # type: ignore[attr-defined]
@@ -120,6 +123,7 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(student_badges_v1.router, prefix="/students/badges")  # type: ignore[attr-defined]
     # Phase 19 v1 admin routers
     api_v1.include_router(admin_config_v1.router, prefix="/admin/config")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_search_config_v1.router, prefix="/admin")  # type: ignore[attr-defined]
     api_v1.include_router(admin_audit_v1.router, prefix="/admin/audit")  # type: ignore[attr-defined]
     api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
     api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]

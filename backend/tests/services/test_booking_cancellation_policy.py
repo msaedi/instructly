@@ -102,8 +102,7 @@ def _create_booking(db: Session, student: User, instructor: User, svc: Instructo
     return bk
 
 
-@pytest.mark.asyncio
-async def test_cancel_over_24h_releases_auth(db: Session):
+def test_cancel_over_24h_releases_auth(db: Session):
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
     # Booking 2 days out (>24h)
@@ -115,7 +114,7 @@ async def test_cancel_over_24h_releases_auth(db: Session):
     with patch("app.services.stripe_service.StripeService.cancel_payment_intent") as mock_cancel, patch(
         "app.repositories.payment_repository.PaymentRepository.create_payment_event"
     ) as mock_event:
-        result = await service.cancel_booking(bk.id, user=student, reason="test")
+        result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
     assert result.payment_status == "released"
@@ -123,8 +122,7 @@ async def test_cancel_over_24h_releases_auth(db: Session):
     mock_event.assert_called()
 
 
-@pytest.mark.asyncio
-async def test_cancel_12_24h_capture_reverse_credit(db: Session):
+def test_cancel_12_24h_capture_reverse_credit(db: Session):
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
     # Booking ~18 hours out. Avoid crossing midnight which would wrap end_time to 00:00
@@ -142,7 +140,7 @@ async def test_cancel_12_24h_capture_reverse_credit(db: Session):
         "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
     ) as mock_credit:
         mock_capture.return_value = {"transfer_id": "tr_x", "amount_received": 10000}
-        result = await service.cancel_booking(bk.id, user=student, reason="test")
+        result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
     assert result.payment_status == "credit_issued"
@@ -151,8 +149,7 @@ async def test_cancel_12_24h_capture_reverse_credit(db: Session):
     mock_credit.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_cancel_under_12h_capture_only(db: Session):
+def test_cancel_under_12h_capture_only(db: Session):
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
     # Booking ~3 hours out. Avoid crossing midnight which would make end_time wrap to 00:00
@@ -168,7 +165,7 @@ async def test_cancel_under_12h_capture_only(db: Session):
 
     with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture:
         mock_capture.return_value = {"amount_received": 10000}
-        result = await service.cancel_booking(bk.id, user=student, reason="test")
+        result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
     assert result.payment_status == "captured"

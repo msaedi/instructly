@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from typing import Iterator
 
 from sqlalchemy.orm import Session
@@ -19,6 +20,8 @@ SessionLocal: _SessionFactory
 
 
 def get_db() -> Iterator[Session]: ...
+
+def get_db_session() -> AbstractContextManager[Session]: ...
 
 
 def get_db_pool_status() -> dict[str, int]: ...

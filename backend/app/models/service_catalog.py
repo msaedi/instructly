@@ -144,7 +144,13 @@ class ServiceCatalog(Base):
     description = Column(Text, nullable=True)
     search_terms: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     display_order = Column(Integer, nullable=False, default=999, index=True)
-    embedding = Column(Vector(384), nullable=True)
+    embedding = Column(Vector(384), nullable=True)  # MiniLM (legacy)
+    # OpenAI text-embedding-3-small embeddings (1536 dimensions)
+    embedding_v2 = Column(Vector(1536), nullable=True)
+    embedding_model = Column(Text, nullable=True)  # e.g., "text-embedding-3-small"
+    embedding_model_version = Column(Text, nullable=True)  # e.g., "2024-01"
+    embedding_updated_at = Column(DateTime(timezone=True), nullable=True)
+    embedding_text_hash = Column(Text, nullable=True)  # Hash of text used for embedding
     related_services: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     online_capable = Column(Boolean, nullable=False, default=True, index=True)
     requires_certification = Column(Boolean, nullable=False, default=False)

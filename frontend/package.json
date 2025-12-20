@@ -67,11 +67,12 @@
     "audit:lhci": "cross-env NEXT_PUBLIC_API_BASE=https://example.invalid next build && lhci autorun || true",
     "lhci": "lhci autorun --config=lhci.config.js || true",
     "api:schema": "python ../backend/scripts/export_openapi.py",
-    "api:generate": "orval --config orval.config.ts",
+    "api:generate": "orval --config orval.config.ts && prettier --write src/api/generated",
     "api:sync": "npm run api:schema && npm run api:generate",
     "api:lint": "spectral lint ../backend/openapi/openapi.json -r ../backend/openapi/spectral.yaml"
   },
   "dependencies": {
+    "@marsidev/react-turnstile": "^1.4.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-popover": "^1.1.15",
@@ -93,7 +94,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^0.542.0",
     "motion": "^12.23.12",
-    "next": "15.5.2",
+    "next": "15.5.9",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-leaflet": "^5.0.0",
@@ -106,7 +107,7 @@
     "@eslint/eslintrc": "^3",
     "@jest/globals": "^30.1.2",
     "@lhci/cli": "^0.15.1",
-    "@playwright/test": "1.55.0",
+    "@playwright/test": "1.57.0",
     "@size-limit/file": "^11.2.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.8.0",
@@ -121,7 +122,7 @@
     "cross-env": "^10.0.0",
     "dependency-cruiser": "^17.0.1",
     "eslint": "^9",
-    "eslint-config-next": "15.5.2",
+    "eslint-config-next": "15.5.9",
     "eslint-plugin-no-only-tests": "^3.3.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "husky": "^9.1.7",
@@ -132,6 +133,7 @@
     "openapi-typescript": "7.9.1",
     "orval": "^7.16.1",
     "postcss": "^8.5.6",
+    "prettier": "^3.7.4",
     "size-limit": "^11.2.0",
     "tailwindcss": "4.1.12",
     "ts-morph": "^22.0.0",
@@ -139,7 +141,6 @@
     "tsd": "^0.31.2",
     "type-coverage": "^2.29.7",
     "typescript": "^5",
-    "vercel": "47.1.4",
     "zod": "^3.25.76"
   },
   "size-limit": [
@@ -188,6 +189,8 @@
   },
   "overrides": {
     "path-to-regexp": "6.3.0",
-    "tar-fs": "3.1.1"
+    "tar-fs": "3.1.1",
+    "esbuild": "0.27.1",
+    "tmp": "0.2.5"
   }
 }

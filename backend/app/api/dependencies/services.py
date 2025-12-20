@@ -23,7 +23,7 @@ from ...services.background_check_workflow_service import BackgroundCheckWorkflo
 from ...services.base import BaseService
 from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
-from ...services.cache_service import CacheService, get_cache_service
+from ...services.cache_service import CacheService, CacheServiceSyncAdapter
 from ...services.conflict_checker import ConflictChecker
 from ...services.email import EmailService
 from ...services.favorites_service import FavoritesService
@@ -51,7 +51,8 @@ _service_instances: dict[type[BaseService], BaseService] = {}
 @lru_cache(maxsize=1)
 def get_cache_service_singleton() -> CacheService:
     """Get singleton cache service instance."""
-    return get_cache_service()
+    # CacheService does not require a DB session; keep singleton for connection reuse.
+    return CacheService()
 
 
 def get_cache_service_dep() -> CacheService:
@@ -59,8 +60,20 @@ def get_cache_service_dep() -> CacheService:
     return get_cache_service_singleton()
 
 
+@lru_cache(maxsize=1)
+def get_cache_service_sync_singleton() -> CacheServiceSyncAdapter:
+    """Get singleton sync adapter over the async cache service."""
+    return CacheServiceSyncAdapter(get_cache_service_singleton())
+
+
+def get_cache_service_sync_dep() -> CacheServiceSyncAdapter:
+    """Get sync cache service adapter for legacy sync services."""
+    return get_cache_service_sync_singleton()
+
+
 def get_email_service(
-    db: Session = Depends(get_db), cache: CacheService = Depends(get_cache_service_dep)
+    db: Session = Depends(get_db),
+    cache: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> EmailService:
     """Get EmailService instance with proper dependencies."""
     return EmailService(db, cache)
@@ -90,7 +103,7 @@ def get_notification_service(
 def get_booking_service(
     db: Session = Depends(get_db),
     notification_service: NotificationService = Depends(get_notification_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> BookingService:
     """
     Get booking service instance with all dependencies.
@@ -120,7 +133,7 @@ def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:
 
 def get_instructor_service(
     db: Session = Depends(get_db),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> InstructorService:
     """
     Get instructor service instance with all dependencies.
@@ -139,7 +152,7 @@ def get_instructor_service(
 
 def get_favorites_service(
     db: Session = Depends(get_db),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> FavoritesService:
     """
     Get favorites service instance with all dependencies.
@@ -156,7 +169,7 @@ def get_favorites_service(
 
 def get_availability_service(
     db: Session = Depends(get_db),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> AvailabilityService:
     """
     Get availability service instance with cache support.
@@ -293,7 +306,7 @@ def get_week_operation_service(
 def get_bulk_operation_service(
     db: Session = Depends(get_db),
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> BulkOperationService:
     """
     Get bulk operation service instance.
@@ -353,7 +366,7 @@ def get_password_reset_service(
 
 def get_account_lifecycle_service(
     db: Session = Depends(get_db),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> AccountLifecycleService:
     """
     Get AccountLifecycleService instance with dependencies.

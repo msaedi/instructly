@@ -17,7 +17,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.services import get_auth_service
-from ..auth import create_access_token, create_temp_token, get_current_user
+from ..auth import (
+    DUMMY_HASH_FOR_TIMING_ATTACK,
+    create_access_token,
+    create_temp_token,
+    get_current_user,
+    verify_password_async,
+)
 from ..core.config import settings
 from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..database import get_db
@@ -212,6 +218,10 @@ async def login(
 
     Rate limited to prevent brute force attacks.
 
+    PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
+    running bcrypt verification (~200ms). This reduces DB connection hold time
+    from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
+
     Args:
         form_data: OAuth2 form with username and password
         auth_service: Authentication service
@@ -222,12 +232,34 @@ async def login(
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
     """
-    user = auth_service.authenticate_user(
-        email=form_data.username,
-        password=form_data.password,
-    )
+    # Step 1: Fetch user data from DB (brief DB hold ~5-20ms)
+    user_data = auth_service.fetch_user_for_auth(form_data.username)
 
-    if not user:
+    # Step 2: Extract data needed BEFORE releasing DB
+    if user_data:
+        user_email = user_data["email"]
+        hashed_password = user_data["hashed_password"]
+        account_status = user_data.get("account_status")
+        totp_enabled = user_data.get("totp_enabled", False)
+        user_obj = user_data.get("_user_obj")
+    else:
+        user_email = None
+        hashed_password = DUMMY_HASH_FOR_TIMING_ATTACK
+        account_status = None
+        totp_enabled = False
+        user_obj = None
+
+    # Step 3: Release DB connection BEFORE bcrypt (critical for throughput)
+    try:
+        auth_service.db.close()
+    except Exception:
+        pass
+
+    # Step 4: Run bcrypt verification (~200ms, no DB held)
+    password_valid = await verify_password_async(form_data.password, hashed_password)
+
+    # Step 5: Validate authentication result
+    if not user_data or not password_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
@@ -237,17 +269,29 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    two_factor_response = _issue_two_factor_challenge_if_needed(user, request)
-    if two_factor_response:
-        return two_factor_response
+    # Check account status
+    if account_status == "deactivated":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "message": "Account has been deactivated",
+                "code": "AUTH_ACCOUNT_DEACTIVATED",
+            },
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    # Create access token (HTTP concern - stays in route)
+    # Step 6: Check 2FA requirement
+    if user_obj and totp_enabled:
+        two_factor_response = _issue_two_factor_challenge_if_needed(user_obj, request)
+        if two_factor_response:
+            return two_factor_response
+
+    # Step 7: Create access token (no DB needed)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-    # Include aud/iss in preview/prod so downstream validators accept the token
     import os as _os_jwt
 
     _site_mode_jwt = _os_jwt.getenv("SITE_MODE", "").lower().strip()
-    _claims = {"sub": user.email}
+    _claims = {"sub": user_email}
     if _site_mode_jwt == "preview":
         _claims.update({"aud": "preview", "iss": f"https://{settings.preview_api_domain}"})
     elif _site_mode_jwt in {"prod", "production", "live"}:
@@ -258,7 +302,7 @@ async def login(
         expires_delta=access_token_expires,
     )
 
-    # Set cookie for SSE authentication (API-host only)
+    # Step 8: Set cookie for SSE authentication
     site_mode = settings.site_mode
     base_cookie_name = session_cookie_base_name(site_mode)
 
@@ -291,10 +335,10 @@ async def change_password(
     # Get user object
     user = auth_service.get_current_user(email=current_user)
 
-    # Verify current password
-    from app.auth import get_password_hash, verify_password
+    # Verify current password (async to avoid blocking)
+    from app.auth import get_password_hash_async, verify_password_async
 
-    if not verify_password(request.current_password, user.hashed_password):
+    if not await verify_password_async(request.current_password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect"
         )
@@ -306,7 +350,7 @@ async def change_password(
             status_code=status.HTTP_400_BAD_REQUEST, detail="New password is too weak"
         )
 
-    hashed = get_password_hash(new_pw)
+    hashed = await get_password_hash_async(new_pw)
 
     from app.repositories import RepositoryFactory
 
@@ -338,10 +382,14 @@ async def login_with_session(
 
     This endpoint supports guest session conversion.
 
+    PERFORMANCE OPTIMIZATION: This endpoint releases the DB connection BEFORE
+    running bcrypt verification (~200ms). This reduces DB connection hold time
+    from ~200ms to ~5-20ms, allowing 10x more concurrent logins.
+
     Args:
         login_data: Login credentials with optional guest_session_id
         auth_service: Authentication service
-        db: Database session
+        db: Database session (used only for guest search conversion after auth)
 
     Returns:
         LoginResponse: Access token metadata for the client
@@ -349,36 +397,70 @@ async def login_with_session(
     Raises:
         HTTPException: If credentials are invalid or rate limit exceeded
     """
-    user = auth_service.authenticate_user(
-        email=login_data.email,
-        password=login_data.password,
-    )
+    # Step 1: Fetch user data from DB (brief DB hold ~5-20ms)
+    user_data = auth_service.fetch_user_for_auth(login_data.email)
 
-    if not user:
+    # Step 2: Extract data needed BEFORE releasing DB
+    if user_data:
+        user_id = user_data["id"]
+        user_email = user_data["email"]
+        hashed_password = user_data["hashed_password"]
+        account_status = user_data.get("account_status")
+        totp_enabled = user_data.get("totp_enabled", False)
+        user_obj = user_data.get("_user_obj")
+    else:
+        user_id = None
+        user_email = None
+        hashed_password = DUMMY_HASH_FOR_TIMING_ATTACK
+        account_status = None
+        totp_enabled = False
+        user_obj = None
+
+    # Step 3: Release auth_service DB connection BEFORE bcrypt
+    try:
+        auth_service.db.close()
+    except Exception:
+        pass
+
+    # Step 4: Run bcrypt verification (~200ms, auth_service.db released)
+    password_valid = await verify_password_async(login_data.password, hashed_password)
+
+    # Step 5: Validate authentication result
+    if not user_data or not password_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Check account status
+    if account_status == "deactivated":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account has been deactivated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Step 6: Check 2FA requirement
     extra_claims: dict[str, str] = {}
     if login_data.guest_session_id:
         extra_claims["guest_session_id"] = login_data.guest_session_id
 
-    two_factor_response = _issue_two_factor_challenge_if_needed(
-        user, request, extra_claims=extra_claims
-    )
-    if two_factor_response:
-        return two_factor_response
+    if user_obj and totp_enabled:
+        two_factor_response = _issue_two_factor_challenge_if_needed(
+            user_obj, request, extra_claims=extra_claims
+        )
+        if two_factor_response:
+            return two_factor_response
 
-    # Create access token
+    # Step 7: Create access token (no DB needed)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
-        data={"sub": user.email},
+        data={"sub": user_email},
         expires_delta=access_token_expires,
     )
 
-    # Set cookie for SSE authentication (API-host only)
+    # Step 8: Set cookie for SSE authentication
     site_mode = settings.site_mode
     base_cookie_name = session_cookie_base_name(site_mode)
 
@@ -393,14 +475,15 @@ async def login_with_session(
     if site_mode != "local":
         expire_parent_domain_cookie(response, base_cookie_name, ".instainstru.com")
 
-    # Convert guest searches if guest_session_id provided (only after full auth)
-    if login_data.guest_session_id:
+    # Step 9: Convert guest searches if guest_session_id provided
+    # Uses the separate `db` session (not auth_service.db which is closed)
+    if login_data.guest_session_id and user_id:
         try:
             search_service = SearchHistoryService(db)
             converted_count = search_service.convert_guest_searches_to_user(
-                guest_session_id=login_data.guest_session_id, user_id=user.id
+                guest_session_id=login_data.guest_session_id, user_id=user_id
             )
-            logger.info(f"Converted {converted_count} guest searches for user {user.id}")
+            logger.info(f"Converted {converted_count} guest searches for user {user_id}")
         except Exception as e:
             logger.error(f"Failed to convert guest searches during login: {str(e)}")
             # Don't fail login if conversion fails

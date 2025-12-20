@@ -12,13 +12,18 @@
 
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Chat } from './Chat';
+import { QueryErrorBoundary } from '@/components/errors/QueryErrorBoundary';
 import { cn } from '@/lib/utils';
+import { withApiBase } from '@/lib/apiBase';
 
 interface ChatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  bookingId: string;
+  conversationId?: string;
+  bookingId?: string;
+  instructorId?: string;
   currentUserId: string;
   currentUserName: string;
   otherUserName: string;
@@ -30,7 +35,9 @@ interface ChatModalProps {
 export function ChatModal({
   isOpen,
   onClose,
+  conversationId,
   bookingId,
+  instructorId,
   currentUserId,
   currentUserName,
   otherUserName,
@@ -70,6 +77,26 @@ export function ChatModal({
       document.body.style.overflow = '';
     };
   }, [isOpen, onClose]);
+
+  const { data: conversationData, isLoading: isLoadingConversation } = useQuery({
+    queryKey: ['conversation-for-instructor', instructorId],
+    queryFn: async () => {
+      const response = await fetch(withApiBase('/api/v1/conversations'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ instructor_id: instructorId }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to get conversation');
+      }
+      return response.json() as Promise<{ id: string; created: boolean }>;
+    },
+    enabled: !conversationId && !!instructorId,
+    staleTime: Infinity,
+  });
+
+  const resolvedConversationId = conversationId ?? conversationData?.id ?? null;
 
   if (!isOpen) return null;
 
@@ -121,17 +148,25 @@ export function ChatModal({
           </button>
         </div>
 
-        {/* Chat component - only render when fully mounted */}
-        {isMounted && (
-          <Chat
-            bookingId={bookingId}
-            currentUserId={currentUserId}
-            currentUserName={currentUserName}
-            otherUserName={otherUserName}
-            className="flex-1 min-h-0"
-            onClose={onClose}
-            isReadOnly={isReadOnly}
-          />
+        {/* Chat component - wrapped in error boundary for graceful error handling */}
+        {isMounted && resolvedConversationId && (
+          <QueryErrorBoundary>
+            <Chat
+              conversationId={resolvedConversationId}
+              {...(bookingId ? { bookingId } : {})}
+              currentUserId={currentUserId}
+              currentUserName={currentUserName}
+              otherUserName={otherUserName}
+              className="flex-1 min-h-0"
+              onClose={onClose}
+              isReadOnly={isReadOnly}
+            />
+          </QueryErrorBoundary>
+        )}
+        {isMounted && !resolvedConversationId && isLoadingConversation && (
+          <div className="flex flex-1 items-center justify-center text-sm text-gray-500">
+            Loading conversation...
+          </div>
         )}
       </div>
     </>

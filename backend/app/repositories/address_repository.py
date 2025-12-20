@@ -5,6 +5,7 @@ from typing import List, Optional, cast
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.address import InstructorServiceArea, NYCNeighborhood, UserAddress
+from ..models.region_boundary import RegionBoundary
 from .base_repository import BaseRepository
 
 
@@ -56,6 +57,42 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
         if active_only:
             query = query.filter(InstructorServiceArea.is_active.is_(True))
         return self._execute_query(query)
+
+    def list_for_instructors(
+        self, instructor_ids: List[str], active_only: bool = True
+    ) -> dict[str, List[InstructorServiceArea]]:
+        """
+        Fetch service areas for multiple instructors in a single query.
+
+        This is an N+1 optimization method that batches service area lookups.
+
+        Args:
+            instructor_ids: List of instructor user IDs
+            active_only: If True, only return active service areas
+
+        Returns:
+            Dict mapping instructor_id -> List[InstructorServiceArea]
+        """
+        if not instructor_ids:
+            return {}
+
+        query = (
+            self._build_query()
+            .options(selectinload(InstructorServiceArea.neighborhood))
+            .filter(InstructorServiceArea.instructor_id.in_(instructor_ids))
+        )
+        if active_only:
+            query = query.filter(InstructorServiceArea.is_active.is_(True))
+
+        results = self._execute_query(query)
+
+        # Group by instructor_id
+        grouped: dict[str, List[InstructorServiceArea]] = {iid: [] for iid in instructor_ids}
+        for area in results:
+            if area.instructor_id in grouped:
+                grouped[area.instructor_id].append(area)
+
+        return grouped
 
     def replace_areas(self, instructor_id: str, neighborhood_ids: List[str]) -> int:
         # Soft-clear existing
@@ -131,3 +168,30 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
             )
             .all(),
         )
+
+    def get_primary_active_neighborhood_id(self, instructor_id: str) -> Optional[str]:
+        """
+        Best-effort primary neighborhood for an instructor (deterministic).
+
+        Used for self-learning click capture when a user clicks an instructor result after an
+        unresolved location search.
+        """
+        try:
+            row = (
+                self.db.query(InstructorServiceArea.neighborhood_id)
+                .join(RegionBoundary, RegionBoundary.id == InstructorServiceArea.neighborhood_id)
+                .filter(
+                    InstructorServiceArea.instructor_id == instructor_id,
+                    InstructorServiceArea.is_active.is_(True),
+                )
+                .order_by(RegionBoundary.region_name.asc())
+                .first()
+            )
+            neighborhood_id = getattr(row, "neighborhood_id", None) if row else None
+            return str(neighborhood_id) if neighborhood_id else None
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return None

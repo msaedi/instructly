@@ -4,7 +4,7 @@ Unit tests for student conflict validation in BookingService.
 """
 
 from datetime import date, datetime, time, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import MagicMock, Mock
 
 from backend.tests._utils.bitmap_avail import seed_day
 import pytest
@@ -196,7 +196,7 @@ class TestStudentConflictValidation:
             db=unit_db, repository=mock_repository, conflict_checker_repository=mock_conflict_checker_repository
         )
         service.availability_repository = mock_availability_repository
-        service.notification_service = AsyncMock()
+        service.notification_service = Mock()
         service.invalidate_cache = Mock()
         service.log_operation = Mock()
         service.event_outbox_repository = Mock()
@@ -206,8 +206,7 @@ class TestStudentConflictValidation:
         service.service_area_repository = service_area_repo
         return service
 
-    @pytest.mark.asyncio
-    async def test_student_cannot_double_book_same_time(self, booking_service, student, instructor, mock_repository):
+    def test_student_cannot_double_book_same_time(self, booking_service, student, instructor, mock_repository):
         """Test that a student cannot book two overlapping sessions."""
         # Setup: Student already has a booking at 3:00-4:00 PM
         existing_booking = Mock(spec=Booking)
@@ -242,11 +241,11 @@ class TestStudentConflictValidation:
         service.catalog_entry = Mock(name="Test Service")
         service.session_price = Mock(return_value=50.0)
         profile = Mock()
-        booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
+        booking_service._validate_booking_prerequisites = Mock(return_value=(service, profile))
 
         # Should raise ConflictException
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(
+            booking_service.create_booking(
                 student, booking_data, selected_duration=booking_data.selected_duration
             )
 
@@ -261,8 +260,7 @@ class TestStudentConflictValidation:
             exclude_booking_id=None,
         )
 
-    @pytest.mark.asyncio
-    async def test_student_can_book_adjacent_times(self, booking_service, student, instructor, mock_repository):
+    def test_student_can_book_adjacent_times(self, booking_service, student, instructor, mock_repository):
         """Test that a student can book adjacent non-overlapping sessions."""
         # Setup: Student has a booking at 3:00-4:00 PM
         existing_booking = Mock(spec=Booking)
@@ -319,10 +317,10 @@ class TestStudentConflictValidation:
         area = Mock()
         area.neighborhood = neighborhood
         profile.user = Mock(service_areas=[area])
-        booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
+        booking_service._validate_booking_prerequisites = Mock(return_value=(service, profile))
 
         # Should succeed
-        result = await booking_service.create_booking(
+        result = booking_service.create_booking(
             student, booking_data, selected_duration=booking_data.selected_duration
         )
         assert result.id == 101
@@ -331,8 +329,7 @@ class TestStudentConflictValidation:
         # Verify repository was called
         mock_repository.create.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_different_students_can_book_same_instructor_time(
+    def test_different_students_can_book_same_instructor_time(
         self, booking_service, instructor, mock_repository, mock_conflict_checker_repository
     ):
         """Test that different students can book the same instructor at different times."""
@@ -370,7 +367,7 @@ class TestStudentConflictValidation:
         area = Mock()
         area.neighborhood = neighborhood
         profile.user = Mock(service_areas=[area])
-        booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
+        booking_service._validate_booking_prerequisites = Mock(return_value=(service, profile))
 
         # Create bookings
         booking1 = Mock(spec=Booking)
@@ -410,7 +407,7 @@ class TestStudentConflictValidation:
             meeting_location="Online",
         )
 
-        result1 = await booking_service.create_booking(
+        result1 = booking_service.create_booking(
             student1, booking_data1, selected_duration=booking_data1.selected_duration
         )
         assert result1.id == 101
@@ -431,14 +428,13 @@ class TestStudentConflictValidation:
         )
 
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(
+            booking_service.create_booking(
                 student2, booking_data2, selected_duration=booking_data2.selected_duration
             )
 
         assert str(exc_info.value) == "Instructor already has a booking that overlaps this time"
 
-    @pytest.mark.asyncio
-    async def test_student_conflict_edge_case_one_minute_overlap(
+    def test_student_conflict_edge_case_one_minute_overlap(
         self, booking_service, student, instructor, mock_repository
     ):
         """Test edge case where bookings overlap by just one minute."""
@@ -460,7 +456,7 @@ class TestStudentConflictValidation:
         service = Mock()
         service.duration_options = [60]
         profile = Mock()
-        booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
+        booking_service._validate_booking_prerequisites = Mock(return_value=(service, profile))
 
         # Try to book 3:59-5:00 PM (1 minute overlap)
         booking_data = BookingCreate(
@@ -476,14 +472,13 @@ class TestStudentConflictValidation:
 
         # Should raise ConflictException
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(
+            booking_service.create_booking(
                 student, booking_data, selected_duration=booking_data.selected_duration
             )
 
         assert str(exc_info.value) == "Student already has a booking that overlaps this time"
 
-    @pytest.mark.asyncio
-    async def test_cancelled_bookings_not_considered_conflicts(
+    def test_cancelled_bookings_not_considered_conflicts(
         self, booking_service, student, instructor, mock_repository
     ):
         """Test that cancelled bookings are not considered as conflicts."""
@@ -503,7 +498,7 @@ class TestStudentConflictValidation:
         area = Mock()
         area.neighborhood = neighborhood
         profile.user = Mock(service_areas=[area])
-        booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
+        booking_service._validate_booking_prerequisites = Mock(return_value=(service, profile))
 
         # Create new booking
         new_booking = Mock(spec=Booking)
@@ -532,11 +527,13 @@ class TestStudentConflictValidation:
         )
 
         # Should succeed
-        result = await booking_service.create_booking(
+        result = booking_service.create_booking(
             student, booking_data, selected_duration=booking_data.selected_duration
         )
         assert result.id == 101
         assert result.status == BookingStatus.CONFIRMED
+
+
 @pytest.fixture(autouse=True)
 def _seed_conflict_validation_day(unit_db, instructor):
     """Ensure each mock instructor has availability bits covering the test windows."""

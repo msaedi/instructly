@@ -174,6 +174,18 @@ def upgrade() -> None:
                     "and re-run migrations. Original error: %s" % str(e)
                 )
 
+        # pg_trgm is required for trigram text search and fuzzy matching (idempotent)
+        print("Checking/Enabling pg_trgm extension (if not already enabled)...")
+        try:
+            _create_extension_prefer_extensions_schema("pg_trgm")
+            print("pg_trgm extension ensured")
+        except Exception as e:
+            raise RuntimeError(
+                "pg_trgm extension is not enabled on this PostgreSQL instance. "
+                "Enable it (e.g., 'CREATE EXTENSION pg_trgm;') and re-run migrations. "
+                "Original error: %s" % str(e)
+            )
+
     print("Creating platform_config table...")
     json_type = JSONB(astext_type=sa.Text()) if is_postgres else sa.JSON()
     op.create_table(
@@ -629,14 +641,59 @@ def upgrade() -> None:
     )
     op.create_index("ix_bgc_consent_instructor_id", "bgc_consent", ["instructor_id"])
 
+    # ======== CONVERSATIONS TABLE (Per-User-Pair Architecture) ========
+    # Create conversations table BEFORE messages so messages can reference it
+    print("Creating conversations table for per-user-pair messaging...")
+    op.create_table(
+        "conversations",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("student_id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("last_message_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["student_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        comment="One conversation per student-instructor pair",
+    )
+
+    # Add indexes for conversations
+    op.create_index("idx_conversations_student", "conversations", ["student_id"])
+    op.create_index("idx_conversations_instructor", "conversations", ["instructor_id"])
+    op.create_index("idx_conversations_last_message", "conversations", ["last_message_at"])
+
+    # Add unique index for pair uniqueness (PostgreSQL uses LEAST/GREATEST expressions)
+    if is_postgres:
+        op.execute(
+            """
+            CREATE UNIQUE INDEX idx_conversations_pair_unique
+            ON conversations (LEAST(student_id, instructor_id), GREATEST(student_id, instructor_id));
+            """
+        )
+    else:
+        # SQLite fallback: simple unique constraint on ordered pair
+        # Note: This doesn't prevent (A,B) and (B,A) but SQLite is only for testing
+        op.create_unique_constraint(
+            "conversations_pair_unique_sqlite",
+            "conversations",
+            ["student_id", "instructor_id"],
+        )
+
     # Add messages table for chat system
     print("Creating messages table for chat system...")
     op.create_table(
         "messages",
         sa.Column("id", sa.String(26), nullable=False),
-        sa.Column("booking_id", sa.String(26), nullable=False),
-        sa.Column("sender_id", sa.String(26), nullable=False),
+        # booking_id is now nullable (for pre-booking messages or conversation-only context)
+        sa.Column("booking_id", sa.String(26), nullable=True),
+        # sender_id is nullable for system messages (no human sender)
+        sa.Column("sender_id", sa.String(26), nullable=True),
         sa.Column("content", sa.String(1000), nullable=False),
+        # conversation_id for per-user-pair messaging
+        sa.Column("conversation_id", sa.String(26), nullable=False),
+        # message_type: 'user', 'system_booking_created', 'system_booking_cancelled', etc.
+        sa.Column("message_type", sa.String(50), nullable=False, server_default="user"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default="false"),
@@ -651,8 +708,9 @@ def upgrade() -> None:
             server_default=(sa.text("'[]'::jsonb") if is_postgres else sa.text("'[]'")),
             nullable=False,
         ),
-        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["sender_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["conversation_id"], ["conversations.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
 
@@ -663,35 +721,23 @@ def upgrade() -> None:
     op.create_index("ix_messages_deleted_at", "messages", ["deleted_at"])
     # Composite index for catch-up queries (booking_id.in_() with id range scan)
     op.create_index("ix_messages_booking_id_id", "messages", ["booking_id", "id"])
-
-    # Add conversation_state table for O(1) inbox queries
-    print("Creating conversation_state table for efficient inbox state...")
-    op.create_table(
-        "conversation_state",
-        sa.Column("id", sa.String(26), nullable=False),
-        sa.Column("booking_id", sa.String(26), nullable=False),
-        sa.Column("instructor_id", sa.String(26), nullable=False),
-        sa.Column("student_id", sa.String(26), nullable=False),
-        sa.Column("instructor_unread_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("student_unread_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("last_message_id", sa.String(26), nullable=True),
-        sa.Column("last_message_preview", sa.String(100), nullable=True),
-        sa.Column("last_message_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("last_message_sender_id", sa.String(26), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["student_id"], ["users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["last_message_id"], ["messages.id"], ondelete="SET NULL"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("booking_id", name="uq_conversation_state_booking"),
-    )
-
-    # Add indexes for conversation_state
-    op.create_index("ix_conversation_state_instructor_id", "conversation_state", ["instructor_id"])
-    op.create_index("ix_conversation_state_student_id", "conversation_state", ["student_id"])
-    op.create_index("ix_conversation_state_last_message_at", "conversation_state", ["last_message_at"])
+    # Index for conversation-based queries
+    op.create_index("ix_messages_conversation", "messages", ["conversation_id", "created_at"])
+    if is_postgres:
+        op.create_index(
+            "idx_messages_unread_lookup",
+            "messages",
+            ["conversation_id", "sender_id", "is_deleted"],
+            postgresql_where=sa.text("is_deleted = false"),
+        )
+    # Partial index for messages with booking_id (for backward compatibility queries)
+    if is_postgres:
+        op.create_index(
+            "ix_messages_booking_nullable",
+            "messages",
+            ["booking_id"],
+            postgresql_where=sa.text("booking_id IS NOT NULL"),
+        )
 
     # Add message_notifications table for tracking unread messages
     print("Creating message_notifications table...")
@@ -724,14 +770,11 @@ def upgrade() -> None:
             AS $$
             DECLARE
                 v_booking RECORD;
+                v_conversation RECORD;
                 v_payload JSONB;
                 v_sender_name TEXT;
                 v_delivered_at TIMESTAMP WITH TIME ZONE;
             BEGIN
-                -- Get booking participants
-                SELECT b.instructor_id, b.student_id INTO v_booking
-                FROM bookings b WHERE b.id = NEW.booking_id;
-
                 -- Get sender name for display
                 SELECT first_name INTO v_sender_name
                 FROM users WHERE id = NEW.sender_id;
@@ -740,33 +783,84 @@ def upgrade() -> None:
                 v_delivered_at := NOW();
                 UPDATE messages SET delivered_at = v_delivered_at WHERE id = NEW.id;
 
-                -- Build payload with conversation_id for client-side routing
-                v_payload := jsonb_build_object(
-                    'type', 'new_message',
-                    'conversation_id', NEW.booking_id,
-                    'message', jsonb_build_object(
-                        'id', NEW.id,
-                        'content', NEW.content,
-                        'sender_id', NEW.sender_id,
-                        'sender_name', v_sender_name,
-                        'created_at', NEW.created_at,
-                        'booking_id', NEW.booking_id,
-                        'is_deleted', NEW.is_deleted,
-                        'delivered_at', v_delivered_at
-                    )
-                );
+                -- Handle conversation-based messages (no booking_id)
+                IF NEW.conversation_id IS NOT NULL THEN
+                    -- Get conversation participants
+                    SELECT c.student_id, c.instructor_id INTO v_conversation
+                    FROM conversations c WHERE c.id = NEW.conversation_id;
 
-                -- Notify instructor's channel
-                PERFORM pg_notify(
-                    'user_' || v_booking.instructor_id || '_inbox',
-                    v_payload::text
-                );
+                    IF v_conversation IS NOT NULL THEN
+                        -- Build payload with conversation_id for client-side routing
+                        v_payload := jsonb_build_object(
+                            'type', 'new_message',
+                            'conversation_id', NEW.conversation_id,
+                            'message', jsonb_build_object(
+                                'id', NEW.id,
+                                'content', NEW.content,
+                                'sender_id', NEW.sender_id,
+                                'sender_name', v_sender_name,
+                                'created_at', NEW.created_at,
+                                'booking_id', NEW.booking_id,
+                                'is_deleted', NEW.is_deleted,
+                                'delivered_at', v_delivered_at
+                            )
+                        );
 
-                -- Notify student's channel
-                PERFORM pg_notify(
-                    'user_' || v_booking.student_id || '_inbox',
-                    v_payload::text
-                );
+                        -- Notify instructor's channel
+                        IF v_conversation.instructor_id IS NOT NULL THEN
+                            PERFORM pg_notify(
+                                'user_' || v_conversation.instructor_id || '_inbox',
+                                v_payload::text
+                            );
+                        END IF;
+
+                        -- Notify student's channel
+                        IF v_conversation.student_id IS NOT NULL THEN
+                            PERFORM pg_notify(
+                                'user_' || v_conversation.student_id || '_inbox',
+                                v_payload::text
+                            );
+                        END IF;
+                    END IF;
+                    RETURN NEW;
+                END IF;
+
+                -- Handle legacy booking-based messages
+                IF NEW.booking_id IS NOT NULL THEN
+                    -- Get booking participants
+                    SELECT b.instructor_id, b.student_id INTO v_booking
+                    FROM bookings b WHERE b.id = NEW.booking_id;
+
+                    IF v_booking IS NOT NULL THEN
+                        -- Build payload with conversation_id for client-side routing
+                        v_payload := jsonb_build_object(
+                            'type', 'new_message',
+                            'conversation_id', NEW.booking_id,
+                            'message', jsonb_build_object(
+                                'id', NEW.id,
+                                'content', NEW.content,
+                                'sender_id', NEW.sender_id,
+                                'sender_name', v_sender_name,
+                                'created_at', NEW.created_at,
+                                'booking_id', NEW.booking_id,
+                                'is_deleted', NEW.is_deleted,
+                                'delivered_at', v_delivered_at
+                            )
+                        );
+
+                        -- Notify instructor's channel
+                        PERFORM pg_notify(
+                            'user_' || v_booking.instructor_id || '_inbox',
+                            v_payload::text
+                        );
+
+                        -- Notify student's channel
+                        PERFORM pg_notify(
+                            'user_' || v_booking.student_id || '_inbox',
+                            v_payload::text
+                        );
+                    END IF;
+                END IF;
 
                 RETURN NEW;
             END;
@@ -836,71 +930,6 @@ def upgrade() -> None:
             AFTER UPDATE ON message_notifications
             FOR EACH ROW
             EXECUTE FUNCTION public.handle_message_read_receipt();
-            """
-        )
-
-        # Conversation state auto-update trigger
-        print("Creating conversation_state auto-update trigger (PostgreSQL only)...")
-        op.execute(
-            """
-            CREATE OR REPLACE FUNCTION public.update_conversation_state()
-            RETURNS TRIGGER
-            SET search_path = public
-            AS $$
-            DECLARE
-                v_booking RECORD;
-                v_preview TEXT;
-            BEGIN
-                -- Get booking info
-                SELECT instructor_id, student_id INTO v_booking
-                FROM bookings WHERE id = NEW.booking_id;
-
-                -- Truncate message for preview
-                v_preview := LEFT(NEW.content, 100);
-
-                -- Upsert conversation state
-                INSERT INTO conversation_state (
-                    id, booking_id, instructor_id, student_id,
-                    instructor_unread_count, student_unread_count,
-                    last_message_id, last_message_preview, last_message_at, last_message_sender_id,
-                    created_at, updated_at
-                )
-                SELECT
-                    substring(md5(random()::text || clock_timestamp()::text) from 1 for 26),
-                    NEW.booking_id, v_booking.instructor_id, v_booking.student_id,
-                    CASE WHEN NEW.sender_id = v_booking.student_id THEN 1 ELSE 0 END,
-                    CASE WHEN NEW.sender_id = v_booking.instructor_id THEN 1 ELSE 0 END,
-                    NEW.id, v_preview, NEW.created_at, NEW.sender_id,
-                    NOW(), NOW()
-                ON CONFLICT (booking_id) DO UPDATE SET
-                    instructor_unread_count = CASE
-                        WHEN NEW.sender_id = conversation_state.student_id
-                        THEN conversation_state.instructor_unread_count + 1
-                        ELSE conversation_state.instructor_unread_count
-                    END,
-                    student_unread_count = CASE
-                        WHEN NEW.sender_id = conversation_state.instructor_id
-                        THEN conversation_state.student_unread_count + 1
-                        ELSE conversation_state.student_unread_count
-                    END,
-                    last_message_id = NEW.id,
-                    last_message_preview = v_preview,
-                    last_message_at = NEW.created_at,
-                    last_message_sender_id = NEW.sender_id,
-                    updated_at = NOW();
-
-                RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql;
-            """
-        )
-
-        op.execute(
-            """
-            CREATE TRIGGER conversation_state_update
-            AFTER INSERT ON messages
-            FOR EACH ROW
-            EXECUTE FUNCTION public.update_conversation_state();
             """
         )
 
@@ -1247,6 +1276,70 @@ def upgrade() -> None:
         "state IN ('active', 'archived', 'trashed')",
     )
 
+    # Conversation user state: add conversation_id and migrate from booking_id
+    if not hasattr(sa, "Boolean"):  # pragma: no cover - defensive
+        pass
+    print("Adding conversation_id to conversation_user_state and migrating data...")
+    op.add_column(
+        "conversation_user_state",
+        sa.Column("conversation_id", sa.String(length=26), nullable=True),
+    )
+    op.drop_constraint(
+        "uq_conversation_user_state_user_booking",
+        "conversation_user_state",
+        type_="unique",
+    )
+    op.create_foreign_key(
+        "fk_conversation_user_state_conversation",
+        "conversation_user_state",
+        "conversations",
+        ["conversation_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+    op.execute(
+        """
+        UPDATE conversation_user_state cus
+        SET conversation_id = conv.id
+        FROM bookings b
+        JOIN conversations conv
+          ON conv.student_id = b.student_id
+         AND conv.instructor_id = b.instructor_id
+        WHERE cus.booking_id = b.id
+          AND cus.conversation_id IS NULL
+        """
+    )
+    conn = op.get_bind()
+    orphan_count = conn.execute(
+        sa.text(
+            """
+            SELECT COUNT(*)
+            FROM conversation_user_state
+            WHERE conversation_id IS NULL
+            """
+        )
+    ).scalar()
+    if orphan_count and orphan_count > 0:
+        raise RuntimeError(
+            "Found orphaned conversation_user_state records with conversation_id NULL. "
+            "Run `python scripts/fix_orphaned_conversation_states.py` before migrating."
+        )
+    # Delete orphaned records that couldn't be migrated (no matching conversation)
+    op.execute(
+        """
+        DELETE FROM conversation_user_state
+        WHERE conversation_id IS NULL
+        """
+    )
+    # Now safe to add NOT NULL constraint
+    op.alter_column("conversation_user_state", "conversation_id", nullable=False)
+    op.drop_column("conversation_user_state", "booking_id")
+    op.create_unique_constraint(
+        "uq_conversation_user_state_user_conversation",
+        "conversation_user_state",
+        ["user_id", "conversation_id"],
+    )
+
     if is_postgres:
         print("Enabling RLS (idempotent) with permissive policies on application tables...")
         exclude_tables = [
@@ -1280,6 +1373,636 @@ def upgrade() -> None:
             END$$;
             """
         )
+    )
+
+    # ======================================================================
+    # NL SEARCH PHASE 1: Database Schema for Natural Language Search
+    # ======================================================================
+    print("")
+    print("=== NL SEARCH PHASE 1: Adding search schema ===")
+
+    # --- 1. Add embedding_v2 columns to service_catalog ---
+    print("Adding OpenAI embedding columns to service_catalog...")
+    if is_postgres:
+        # Add 1536-dim embedding column for OpenAI text-embedding-3-small
+        op.execute("ALTER TABLE service_catalog ADD COLUMN IF NOT EXISTS embedding_v2 vector(1536)")
+        op.add_column(
+            "service_catalog",
+            sa.Column("embedding_model", sa.Text(), nullable=True),
+        )
+        op.add_column(
+            "service_catalog",
+            sa.Column("embedding_model_version", sa.Text(), nullable=True),
+        )
+        op.add_column(
+            "service_catalog",
+            sa.Column("embedding_updated_at", sa.DateTime(timezone=True), nullable=True),
+        )
+        op.add_column(
+            "service_catalog",
+            sa.Column("embedding_text_hash", sa.Text(), nullable=True),
+        )
+
+        # Create IVFFlat index on new embedding column (~300 services, lists=100)
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_service_catalog_embedding_v2
+            ON service_catalog USING ivfflat (embedding_v2 vector_cosine_ops)
+            WITH (lists = 100);
+            """
+        )
+
+        # Index for finding services needing re-embedding
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_service_catalog_embedding_model
+            ON service_catalog(embedding_model)
+            WHERE embedding_v2 IS NOT NULL;
+            """
+        )
+
+        # Trigram indexes for pg_trgm text search (name + description)
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_service_catalog_name_trgm
+            ON service_catalog USING gin (name gin_trgm_ops);
+            """
+        )
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_service_catalog_description_trgm
+            ON service_catalog USING gin (description gin_trgm_ops)
+            WHERE description IS NOT NULL;
+            """
+        )
+
+        # --- 1b. Add name_embedding to region_boundaries for semantic location resolution ---
+        print("Adding name_embedding column to region_boundaries for location resolution...")
+        op.execute("ALTER TABLE region_boundaries ADD COLUMN IF NOT EXISTS name_embedding vector(1536)")
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_region_boundaries_name_embedding
+            ON region_boundaries USING ivfflat (name_embedding vector_cosine_ops)
+            WITH (lists = 100);
+            """
+        )
+
+    # --- 2. Add ranking signal columns to instructor_profiles ---
+    print("Adding ranking signal columns to instructor_profiles...")
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("last_active_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("response_rate", sa.Numeric(5, 2), nullable=True),
+    )
+    op.add_column(
+        "instructor_profiles",
+        sa.Column("profile_completeness", sa.Numeric(3, 2), nullable=True),
+    )
+
+    # --- 3. Create search_queries table (NL search analytics) ---
+    print("Creating search_queries table for NL search analytics...")
+    op.create_table(
+        "search_queries",
+        sa.Column("id", sa.String(26), nullable=False),
+        # Query info
+        sa.Column("original_query", sa.Text(), nullable=False),
+        sa.Column("normalized_query", json_type, nullable=False),
+        # Parsing details
+        sa.Column("parsing_mode", sa.Text(), nullable=False),  # 'regex', 'llm', 'hybrid'
+        sa.Column("parsing_latency_ms", sa.Integer(), nullable=False),
+        # Results
+        sa.Column("result_count", sa.Integer(), nullable=False),
+        sa.Column("top_result_ids", sa.ARRAY(sa.Text()) if is_postgres else sa.JSON(), nullable=True),
+        # User context
+        sa.Column("user_id", sa.String(26), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("session_id", sa.Text(), nullable=True),
+        # Performance
+        sa.Column("total_latency_ms", sa.Integer(), nullable=False),
+        sa.Column("cache_hit", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("degraded", sa.Boolean(), nullable=False, server_default="false"),
+        # Timestamps
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("idx_search_queries_created", "search_queries", ["created_at"])
+    if is_postgres:
+        op.execute(
+            """
+            CREATE INDEX idx_search_queries_created_desc
+            ON search_queries (created_at DESC);
+            """
+        )
+    op.create_index("idx_search_queries_user", "search_queries", ["user_id"])
+
+    # --- 4. Create search_clicks table (conversion tracking) ---
+    print("Creating search_clicks table for conversion tracking...")
+    op.create_table(
+        "search_clicks",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("search_query_id", sa.String(26), sa.ForeignKey("search_queries.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("service_id", sa.String(26), sa.ForeignKey("service_catalog.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("instructor_id", sa.String(26), sa.ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("position", sa.Integer(), nullable=False),  # Rank in results (1-indexed)
+        sa.Column("action", sa.Text(), nullable=False),  # 'view', 'book', 'message', 'favorite'
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("idx_search_clicks_query", "search_clicks", ["search_query_id"])
+    op.create_index("idx_search_clicks_service", "search_clicks", ["service_id"])
+
+    # ============================================
+    # LOCATION ALIASES (multi-city + ambiguity + trust model)
+    # ============================================
+    print("Creating location_aliases table for location resolution...")
+    default_city_id = "01JDEFAULTNYC0000000000"
+    candidate_region_ids_type = sa.ARRAY(sa.String(26)) if is_postgres else json_type
+
+    op.create_table(
+        "location_aliases",
+        # Primary key
+        sa.Column("id", sa.String(26), nullable=False),
+        # Multi-city support (FK to cities table later)
+        sa.Column(
+            "city_id",
+            sa.String(26),
+            nullable=False,
+            server_default=default_city_id,
+        ),
+        # The alias text (normalized: lowercase, trimmed)
+        sa.Column("alias_normalized", sa.String(255), nullable=False),
+        # Resolution outcome - Pattern A: Resolved to single region
+        sa.Column(
+            "region_boundary_id",
+            sa.String(26),
+            sa.ForeignKey("region_boundaries.id", ondelete="CASCADE"),
+            nullable=True,
+        ),
+        # Resolution outcome - Pattern B: Ambiguous (requires clarification)
+        sa.Column(
+            "requires_clarification",
+            sa.Boolean(),
+            nullable=False,
+            server_default="false",
+        ),
+        sa.Column(
+            "candidate_region_ids",
+            candidate_region_ids_type,
+            nullable=True,
+        ),
+        # Trust model
+        sa.Column(
+            "status",
+            sa.String(20),
+            nullable=False,
+            server_default="active",  # pending_review|active|deprecated
+        ),
+        # Evidence tracking
+        sa.Column(
+            "confidence",
+            sa.Float(),
+            nullable=False,
+            server_default="1.0",
+        ),
+        sa.Column(
+            "source",
+            sa.String(50),
+            nullable=False,
+            server_default="manual",  # manual|fuzzy|embedding|llm|user_learning
+        ),
+        sa.Column(
+            "user_count",
+            sa.Integer(),
+            nullable=False,
+            server_default="1",
+        ),
+        # Classification
+        sa.Column("alias_type", sa.String(20), nullable=True),  # abbreviation|colloquial|landmark|typo
+        # Timestamps
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "deprecated_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+    # Composite uniqueness for multi-city
+    op.create_unique_constraint(
+        "uq_location_aliases_city_alias",
+        "location_aliases",
+        ["city_id", "alias_normalized"],
+    )
+
+    # Index for fast lookups (excluding deprecated)
+    if is_postgres:
+        op.execute(
+            """
+            CREATE INDEX idx_location_aliases_lookup
+            ON location_aliases(city_id, alias_normalized)
+            WHERE status != 'deprecated';
+            """
+        )
+    else:
+        op.create_index(
+            "idx_location_aliases_lookup",
+            "location_aliases",
+            ["city_id", "alias_normalized"],
+        )
+
+    # Index for status filtering
+    op.create_index("idx_location_aliases_status", "location_aliases", ["status"])
+
+    # Check constraint for valid resolution patterns
+    op.create_check_constraint(
+        "location_aliases_valid_resolution",
+        "location_aliases",
+        # Pattern A: Resolved to single region
+        "(region_boundary_id IS NOT NULL AND requires_clarification = FALSE)"
+        " OR "
+        # Pattern B: Ambiguous with candidates
+        "(region_boundary_id IS NULL AND requires_clarification = TRUE AND candidate_region_ids IS NOT NULL)"
+        " OR "
+        # Pattern C: Cached unresolved
+        "(region_boundary_id IS NULL AND requires_clarification = FALSE AND candidate_region_ids IS NULL)",
+    )
+
+    # ============================================
+    # UNRESOLVED LOCATION QUERIES (for analysis/improvement)
+    # ============================================
+    print("Creating unresolved_location_queries table for location analysis...")
+    sample_original_queries_type = (
+        sa.ARRAY(sa.String(500)) if is_postgres else json_type
+    )
+    empty_array_default = (
+        sa.text("'{}'") if is_postgres else sa.text("'[]'")
+    )
+    click_region_counts_default = (
+        sa.text("'{}'::jsonb") if is_postgres else sa.text("'{}'")
+    )
+
+    op.create_table(
+        "unresolved_location_queries",
+        sa.Column("id", sa.String(26), nullable=False),
+        # Multi-city support (FK to cities table later)
+        sa.Column(
+            "city_id",
+            sa.String(26),
+            nullable=False,
+            server_default=default_city_id,
+        ),
+        # The query text (normalized)
+        sa.Column("query_normalized", sa.String(255), nullable=False),
+        # Original queries (for debugging)
+        sa.Column(
+            "sample_original_queries",
+            sample_original_queries_type,
+            nullable=False,
+            server_default=empty_array_default,
+        ),
+        # Counters
+        sa.Column(
+            "search_count",
+            sa.Integer(),
+            nullable=False,
+            server_default="1",
+        ),
+        sa.Column(
+            "unique_user_count",
+            sa.Integer(),
+            nullable=False,
+            server_default="1",
+        ),
+        # Click-learning (best-effort; populated via /search/click when location was not found)
+        sa.Column(
+            "click_region_counts",
+            json_type,
+            nullable=False,
+            server_default=click_region_counts_default,
+        ),
+        sa.Column(
+            "click_count",
+            sa.Integer(),
+            nullable=False,
+            server_default="0",
+        ),
+        sa.Column(
+            "last_clicked_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+        # Resolution status for self-learning loop
+        sa.Column(
+            "status",
+            sa.String(20),
+            nullable=False,
+            server_default="pending",  # pending|learned|rejected|manual_review
+        ),
+        sa.Column(
+            "resolved_region_boundary_id",
+            sa.String(26),
+            sa.ForeignKey("region_boundaries.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
+            "resolved_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
+        # Timestamps
+        sa.Column(
+            "first_seen_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "last_seen_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        # Admin review tracking
+        sa.Column(
+            "reviewed",
+            sa.Boolean(),
+            nullable=False,
+            server_default="false",
+        ),
+        sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("reviewed_by", sa.String(26), nullable=True),
+        sa.Column("review_notes", sa.Text(), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+    # Composite uniqueness for multi-city
+    op.create_unique_constraint(
+        "uq_unresolved_queries_city_query",
+        "unresolved_location_queries",
+        ["city_id", "query_normalized"],
+    )
+
+    # Index for frequency-based admin view
+    if is_postgres:
+        op.create_index(
+            "idx_unresolved_queries_frequency",
+            "unresolved_location_queries",
+            [sa.text("unique_user_count DESC")],
+        )
+        op.create_index(
+            "idx_unresolved_queries_click_count",
+            "unresolved_location_queries",
+            [sa.text("click_count DESC")],
+        )
+        op.create_index(
+            "idx_unresolved_queries_status",
+            "unresolved_location_queries",
+            ["status"],
+        )
+        # Index for unreviewed queries
+        op.execute(
+            """
+            CREATE INDEX idx_unresolved_queries_unreviewed
+            ON unresolved_location_queries(unique_user_count DESC)
+            WHERE reviewed = FALSE;
+            """
+        )
+    else:
+        op.create_index(
+            "idx_unresolved_queries_frequency",
+            "unresolved_location_queries",
+            ["unique_user_count"],
+        )
+        op.create_index(
+            "idx_unresolved_queries_click_count",
+            "unresolved_location_queries",
+            ["click_count"],
+        )
+        op.create_index(
+            "idx_unresolved_queries_status",
+            "unresolved_location_queries",
+            ["status"],
+        )
+        op.create_index(
+            "idx_unresolved_queries_reviewed",
+            "unresolved_location_queries",
+            ["reviewed"],
+        )
+
+    # --- 5b. Create region_settings table (per-region configuration) ---
+    print("Creating region_settings table for per-region configuration...")
+    op.create_table(
+        "region_settings",
+        sa.Column("id", sa.Text(), nullable=False),
+        sa.Column("region_code", sa.Text(), nullable=False),
+        sa.Column("region_name", sa.Text(), nullable=False),
+        sa.Column("country_code", sa.Text(), nullable=False, server_default="us"),
+        sa.Column("timezone", sa.Text(), nullable=False),
+        sa.Column("price_floor_in_person", sa.Integer(), nullable=False),
+        sa.Column("price_floor_remote", sa.Integer(), nullable=False),
+        sa.Column("currency_code", sa.Text(), nullable=False, server_default="USD"),
+        sa.Column("student_fee_percent", sa.Numeric(5, 2), nullable=False, server_default="12.0"),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("launch_date", sa.Date(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("region_code", name="uq_region_settings_region_code"),
+    )
+
+    # Seed region settings
+    print("Seeding region_settings with initial regions...")
+    op.execute(
+        """
+        INSERT INTO region_settings (id, region_code, region_name, timezone, price_floor_in_person, price_floor_remote, is_active)
+        VALUES
+            ('rs_nyc', 'nyc', 'New York City', 'America/New_York', 80, 60, true),
+            ('rs_chicago', 'chicago', 'Chicago', 'America/Chicago', 60, 45, false),
+            ('rs_la', 'la', 'Los Angeles', 'America/Los_Angeles', 75, 55, false),
+            ('rs_sf', 'sf', 'San Francisco', 'America/Los_Angeles', 85, 65, false)
+        ON CONFLICT (id) DO NOTHING;
+        """
+    )
+
+    # --- 6. Create price_thresholds table (configuration with region support) ---
+    print("Creating price_thresholds table for price intent mapping...")
+    op.create_table(
+        "price_thresholds",
+        sa.Column("id", sa.Text(), nullable=False),
+        sa.Column("region_code", sa.Text(), nullable=False, server_default="nyc"),
+        sa.Column("category", sa.Text(), nullable=False),  # 'music', 'tutoring', 'sports', 'language', 'general'
+        sa.Column("intent", sa.Text(), nullable=False),  # 'budget', 'standard', 'premium'
+        sa.Column("max_price", sa.Integer(), nullable=True),  # For budget/standard
+        sa.Column("min_price", sa.Integer(), nullable=True),  # For premium
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("region_code", "category", "intent", name="uq_price_thresholds_region_category_intent"),
+    )
+
+    # Seed price thresholds (NYC and global fallback)
+    print("Seeding price_thresholds with NYC and global defaults...")
+    op.execute(
+        """
+        -- NYC thresholds (floor is $80, budget = $100)
+        INSERT INTO price_thresholds (id, region_code, category, intent, max_price, min_price) VALUES
+          ('pt_nyc_music_budget', 'nyc', 'music', 'budget', 100, NULL),
+          ('pt_nyc_music_standard', 'nyc', 'music', 'standard', 150, 100),
+          ('pt_nyc_music_premium', 'nyc', 'music', 'premium', NULL, 150),
+          ('pt_nyc_tutoring_budget', 'nyc', 'tutoring', 'budget', 100, NULL),
+          ('pt_nyc_tutoring_standard', 'nyc', 'tutoring', 'standard', 150, 100),
+          ('pt_nyc_tutoring_premium', 'nyc', 'tutoring', 'premium', NULL, 150),
+          ('pt_nyc_sports_budget', 'nyc', 'sports', 'budget', 100, NULL),
+          ('pt_nyc_sports_standard', 'nyc', 'sports', 'standard', 150, 100),
+          ('pt_nyc_sports_premium', 'nyc', 'sports', 'premium', NULL, 150),
+          ('pt_nyc_language_budget', 'nyc', 'language', 'budget', 100, NULL),
+          ('pt_nyc_language_standard', 'nyc', 'language', 'standard', 150, 100),
+          ('pt_nyc_language_premium', 'nyc', 'language', 'premium', NULL, 150),
+          ('pt_nyc_general_budget', 'nyc', 'general', 'budget', 100, NULL),
+          ('pt_nyc_general_standard', 'nyc', 'general', 'standard', 150, 100),
+          ('pt_nyc_general_premium', 'nyc', 'general', 'premium', NULL, 150),
+          -- Global fallback thresholds
+          ('pt_global_general_budget', 'global', 'general', 'budget', 80, NULL),
+          ('pt_global_general_standard', 'global', 'general', 'standard', 130, 80),
+          ('pt_global_general_premium', 'global', 'general', 'premium', NULL, 130)
+        ON CONFLICT (id) DO NOTHING;
+        """
+    )
+
+    # --- 7. Create PostgreSQL functions for availability checking ---
+    if is_postgres:
+        print("Creating check_availability function...")
+        # Adapted for availability_days table (48-bit, 30-min resolution)
+        op.execute(
+            """
+            CREATE OR REPLACE FUNCTION check_availability(
+              p_instructor_id TEXT,
+              p_date DATE,
+              p_time_after TIME DEFAULT NULL,  -- NULL means start of day (00:00)
+              p_time_before TIME DEFAULT NULL, -- NULL means end of day (23:59)
+              p_duration_minutes INT DEFAULT 60
+            ) RETURNS BOOLEAN AS $$
+            DECLARE
+              v_bits BYTEA;
+              v_start_slot INT;
+              v_end_slot INT;
+              v_duration_slots INT;
+              v_contiguous_slots INT := 0;
+              v_bit_value INT;
+              v_byte_idx INT;
+              v_bit_idx INT;
+            BEGIN
+              -- Load bitmap (6 bytes = 48 bits for 30-min slots)
+              SELECT bits INTO v_bits
+              FROM availability_days
+              WHERE instructor_id = p_instructor_id AND day_date = p_date;
+
+              IF v_bits IS NULL THEN
+                RETURN FALSE;
+              END IF;
+
+              -- Calculate slot range (30-min slots, 0-47)
+              v_start_slot := COALESCE(
+                (EXTRACT(HOUR FROM p_time_after)::INT * 2) + (EXTRACT(MINUTE FROM p_time_after)::INT / 30),
+                0  -- 00:00 if null
+              );
+              v_end_slot := COALESCE(
+                (EXTRACT(HOUR FROM p_time_before)::INT * 2) + (EXTRACT(MINUTE FROM p_time_before)::INT / 30) - 1,
+                47  -- 23:30 slot if null
+              );
+
+              -- Duration in 30-min slots (round up)
+              v_duration_slots := CEIL(p_duration_minutes::FLOAT / 30);
+
+              -- Check for contiguous availability
+              FOR i IN v_start_slot..v_end_slot LOOP
+                v_byte_idx := i / 8;
+                v_bit_idx := 7 - (i % 8);  -- MSB first
+                v_bit_value := (get_byte(v_bits, v_byte_idx) >> v_bit_idx) & 1;
+
+                IF v_bit_value = 1 THEN
+                  v_contiguous_slots := v_contiguous_slots + 1;
+                  IF v_contiguous_slots >= v_duration_slots THEN
+                    RETURN TRUE;
+                  END IF;
+                ELSE
+                  v_contiguous_slots := 0;
+                END IF;
+              END LOOP;
+
+              RETURN FALSE;
+            END;
+            $$ LANGUAGE plpgsql;
+            """
+        )
+
+        print("Creating clear_availability_bits function...")
+        op.execute(
+            """
+            CREATE OR REPLACE FUNCTION clear_availability_bits(
+              p_instructor_id TEXT,
+              p_booking_date DATE,
+              p_start_slot INT,  -- 0-47 (30-min slots)
+              p_end_slot INT     -- exclusive
+            ) RETURNS BOOLEAN AS $$
+            DECLARE
+              v_bits BYTEA;
+              v_byte_idx INT;
+              v_bit_idx INT;
+              v_mask INT;
+            BEGIN
+              SELECT bits INTO v_bits
+              FROM availability_days
+              WHERE instructor_id = p_instructor_id AND day_date = p_booking_date;
+
+              IF v_bits IS NULL THEN
+                RETURN FALSE;
+              END IF;
+
+              -- Clear each bit in the range
+              FOR i IN p_start_slot..(p_end_slot - 1) LOOP
+                v_byte_idx := i / 8;
+                v_bit_idx := 7 - (i % 8);  -- MSB first
+                v_mask := 255 - (1 << v_bit_idx);
+                v_bits := set_byte(v_bits, v_byte_idx, get_byte(v_bits, v_byte_idx) & v_mask);
+              END LOOP;
+
+              UPDATE availability_days
+              SET bits = v_bits, updated_at = NOW()
+              WHERE instructor_id = p_instructor_id AND day_date = p_booking_date;
+
+              RETURN FOUND;
+            END;
+            $$ LANGUAGE plpgsql;
+            """
+        )
+
+    print("NL Search Phase 1 schema complete!")
+
+    # Missing indexes for performance (from PR review)
+    op.create_index("ix_reviews_student_id", "reviews", ["student_id"])
+    op.create_index(
+        "ix_message_reactions_message_id",
+        "message_reactions",
+        ["message_id"],
+    )
+    op.create_index(
+        "ix_search_clicks_instructor_id",
+        "search_clicks",
+        ["instructor_id"],
     )
 
     # Add schema documentation
@@ -1323,6 +2046,94 @@ def downgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name if bind is not None else "postgresql"
     is_postgres = dialect_name == "postgresql"
+
+    op.drop_index("ix_search_clicks_instructor_id", table_name="search_clicks")
+    op.drop_index(
+        "ix_message_reactions_message_id",
+        table_name="message_reactions",
+    )
+    op.drop_index("ix_reviews_student_id", table_name="reviews")
+
+    # ======================================================================
+    # NL SEARCH PHASE 1: Drop search schema (reverse order)
+    # ======================================================================
+    print("")
+    print("=== NL SEARCH PHASE 1: Dropping search schema ===")
+
+    # Drop PostgreSQL functions
+    if is_postgres:
+        print("Dropping availability functions...")
+        op.execute("DROP FUNCTION IF EXISTS clear_availability_bits(TEXT, DATE, INT, INT);")
+        op.execute("DROP FUNCTION IF EXISTS check_availability(TEXT, DATE, TIME, TIME, INT);")
+
+    # Drop price_thresholds table
+    print("Dropping price_thresholds table...")
+    op.drop_table("price_thresholds")
+
+    # Drop region_settings table
+    print("Dropping region_settings table...")
+    op.drop_table("region_settings")
+
+    # Drop unresolved_location_queries table
+    print("Dropping unresolved_location_queries table...")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS idx_unresolved_queries_unreviewed;")
+        op.execute("DROP INDEX IF EXISTS idx_unresolved_queries_click_count;")
+    if not is_postgres:
+        op.drop_index("idx_unresolved_queries_reviewed", table_name="unresolved_location_queries")
+    op.drop_index("idx_unresolved_queries_frequency", table_name="unresolved_location_queries")
+    op.drop_index("idx_unresolved_queries_status", table_name="unresolved_location_queries")
+    if not is_postgres:
+        op.drop_index(
+            "idx_unresolved_queries_click_count", table_name="unresolved_location_queries"
+        )
+    op.drop_table("unresolved_location_queries")
+
+    # Drop location_aliases table
+    print("Dropping location_aliases table...")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS idx_location_aliases_lookup;")
+    else:
+        op.drop_index("idx_location_aliases_lookup", table_name="location_aliases")
+    op.drop_index("idx_location_aliases_status", table_name="location_aliases")
+    op.drop_table("location_aliases")
+
+    # Drop search_clicks table
+    print("Dropping search_clicks table...")
+    op.drop_index("idx_search_clicks_service", table_name="search_clicks")
+    op.drop_index("idx_search_clicks_query", table_name="search_clicks")
+    op.drop_table("search_clicks")
+
+    # Drop search_queries table
+    print("Dropping search_queries table...")
+    op.drop_index("idx_search_queries_user", table_name="search_queries")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS idx_search_queries_created_desc;")
+    op.drop_index("idx_search_queries_created", table_name="search_queries")
+    op.drop_table("search_queries")
+
+    # Drop ranking signal columns from instructor_profiles
+    print("Dropping ranking signal columns from instructor_profiles...")
+    op.drop_column("instructor_profiles", "profile_completeness")
+    op.drop_column("instructor_profiles", "response_rate")
+    op.drop_column("instructor_profiles", "last_active_at")
+
+    # Drop embedding_v2 columns from service_catalog
+    if is_postgres:
+        print("Dropping OpenAI embedding columns from service_catalog...")
+        op.execute("DROP INDEX IF EXISTS idx_service_catalog_description_trgm;")
+        op.execute("DROP INDEX IF EXISTS idx_service_catalog_name_trgm;")
+        op.execute("DROP INDEX IF EXISTS idx_service_catalog_embedding_model;")
+        op.execute("DROP INDEX IF EXISTS idx_service_catalog_embedding_v2;")
+        op.drop_column("service_catalog", "embedding_text_hash")
+        op.drop_column("service_catalog", "embedding_updated_at")
+        op.drop_column("service_catalog", "embedding_model_version")
+        op.drop_column("service_catalog", "embedding_model")
+        op.execute("ALTER TABLE service_catalog DROP COLUMN IF EXISTS embedding_v2;")
+        op.execute("DROP INDEX IF EXISTS idx_region_boundaries_name_embedding;")
+        op.execute("ALTER TABLE region_boundaries DROP COLUMN IF EXISTS name_embedding;")
+
+    print("NL Search Phase 1 schema dropped!")
 
     if is_postgres:
         print("Disabling RLS and removing permissive policies (idempotent)...")
@@ -1451,6 +2262,28 @@ def downgrade() -> None:
     op.drop_constraint("check_price_non_negative", "bookings", type_="check")
     op.drop_constraint("check_duration_positive", "bookings", type_="check")
 
+    # Revert conversation_user_state back to booking-based linkage
+    op.drop_constraint(
+        "uq_conversation_user_state_user_conversation",
+        "conversation_user_state",
+        type_="unique",
+    )
+    op.drop_constraint(
+        "fk_conversation_user_state_conversation",
+        "conversation_user_state",
+        type_="foreignkey",
+    )
+    op.add_column(
+        "conversation_user_state",
+        sa.Column("booking_id", sa.String(length=26), nullable=True),
+    )
+    op.create_unique_constraint(
+        "uq_conversation_user_state_user_booking",
+        "conversation_user_state",
+        ["user_id", "booking_id"],
+    )
+    op.drop_column("conversation_user_state", "conversation_id")
+
     # Drop message notification trigger and function
     if is_postgres:
         print("Dropping message notification trigger and function (PostgreSQL only)...")
@@ -1462,19 +2295,6 @@ def downgrade() -> None:
         print("Dropping read receipt trigger and function (PostgreSQL only)...")
         op.execute("DROP TRIGGER IF EXISTS message_read_receipt_notify ON message_notifications;")
         op.execute("DROP FUNCTION IF EXISTS public.handle_message_read_receipt();")
-
-    # Drop conversation_state trigger and function
-    if is_postgres:
-        print("Dropping conversation_state trigger and function (PostgreSQL only)...")
-        op.execute("DROP TRIGGER IF EXISTS conversation_state_update ON messages;")
-        op.execute("DROP FUNCTION IF EXISTS public.update_conversation_state();")
-
-    # Drop conversation_state table (before messages since it has FK to messages)
-    print("Dropping conversation_state table...")
-    op.drop_index("ix_conversation_state_last_message_at", "conversation_state")
-    op.drop_index("ix_conversation_state_student_id", "conversation_state")
-    op.drop_index("ix_conversation_state_instructor_id", "conversation_state")
-    op.drop_table("conversation_state")
 
     # Drop Phase 2 tables that depend on messages first
     print("Dropping message_reactions and message_edits tables...")
@@ -1494,7 +2314,23 @@ def downgrade() -> None:
     op.drop_index("ix_messages_booking_created", "messages")
     op.drop_index("ix_messages_deleted_at", "messages")
     op.drop_index("ix_messages_booking_id_id", "messages")
+    op.drop_index("ix_messages_conversation", "messages")
+    if is_postgres:
+        op.drop_index("idx_messages_unread_lookup", "messages")
+    if is_postgres:
+        op.drop_index("ix_messages_booking_nullable", "messages")
     op.drop_table("messages")
+
+    # Drop conversations table
+    print("Dropping conversations table...")
+    op.drop_index("idx_conversations_last_message", "conversations")
+    op.drop_index("idx_conversations_instructor", "conversations")
+    op.drop_index("idx_conversations_student", "conversations")
+    if is_postgres:
+        op.execute("DROP INDEX IF EXISTS idx_conversations_pair_unique;")
+    else:
+        op.drop_constraint("conversations_pair_unique_sqlite", "conversations", type_="unique")
+    op.drop_table("conversations")
 
     print("Dropping bgc_webhook_log table...")
     op.drop_index("ix_bgc_webhook_log_http_status", table_name="bgc_webhook_log")

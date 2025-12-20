@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -38,24 +35,21 @@ import type {
   CopyWeekResponse,
   DeleteBlackoutResponse,
   DeleteWindowResponse,
-  GetAllAvailabilityInstructorsAvailabilityGetParams,
-  GetWeekAvailabilityInstructorsAvailabilityWeekGetParams,
-  GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetParams,
+  GetAllAvailabilityApiV1InstructorsAvailabilityGetParams,
+  GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetParams,
+  GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetParams,
   HTTPValidationError,
-  SaveWeekAvailabilityInstructorsAvailabilityWeekPostParams,
+  SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams,
   SpecificDateAvailabilityCreate,
   ValidateWeekRequest,
   WeekAvailabilityResponse,
   WeekAvailabilityUpdateResponse,
   WeekSpecificScheduleCreate,
-  WeekValidationResponse
+  WeekValidationResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Get all availability windows.
@@ -64,672 +58,1020 @@ CLEAN ARCHITECTURE: Returns only meaningful fields.
 No legacy patterns.
  * @summary Get All Availability
  */
-export const getAllAvailabilityInstructorsAvailabilityGet = (
-    params?: GetAllAvailabilityInstructorsAvailabilityGetParams,
- signal?: AbortSignal
+export const getAllAvailabilityApiV1InstructorsAvailabilityGet = (
+  params?: GetAllAvailabilityApiV1InstructorsAvailabilityGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<AvailabilityWindowResponse[]>({
+    url: `/api/v1/instructors/availability`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<AvailabilityWindowResponse[]>(
-      {url: `/instructors/availability/`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetAllAvailabilityInstructorsAvailabilityGetQueryKey = (params?: GetAllAvailabilityInstructorsAvailabilityGetParams,) => {
-    return [
-    `/instructors/availability/`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetAllAvailabilityInstructorsAvailabilityGetQueryOptions = <TData = Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetAllAvailabilityInstructorsAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError, TData>>, }
+export const getGetAllAvailabilityApiV1InstructorsAvailabilityGetQueryKey = (
+  params?: GetAllAvailabilityApiV1InstructorsAvailabilityGetParams
 ) => {
+  return [`/api/v1/instructors/availability`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetAllAvailabilityApiV1InstructorsAvailabilityGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params?: GetAllAvailabilityApiV1InstructorsAvailabilityGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetAllAvailabilityInstructorsAvailabilityGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAllAvailabilityApiV1InstructorsAvailabilityGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>
+  > = ({ signal }) => getAllAvailabilityApiV1InstructorsAvailabilityGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>> = ({ signal }) => getAllAvailabilityInstructorsAvailabilityGet(params, signal);
+export type GetAllAvailabilityApiV1InstructorsAvailabilityGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>
+>;
+export type GetAllAvailabilityApiV1InstructorsAvailabilityGetQueryError =
+  ErrorType<void | HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetAllAvailabilityInstructorsAvailabilityGetQueryResult = NonNullable<Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>>
-export type GetAllAvailabilityInstructorsAvailabilityGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetAllAvailabilityInstructorsAvailabilityGet<TData = Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetAllAvailabilityInstructorsAvailabilityGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError, TData>> & Pick<
+export function useGetAllAvailabilityApiV1InstructorsAvailabilityGet<
+  TData = Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: undefined | GetAllAvailabilityApiV1InstructorsAvailabilityGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>,
+          Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
           TError,
-          Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAllAvailabilityInstructorsAvailabilityGet<TData = Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetAllAvailabilityInstructorsAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError, TData>> & Pick<
+          Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetAllAvailabilityApiV1InstructorsAvailabilityGet<
+  TData = Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params?: GetAllAvailabilityApiV1InstructorsAvailabilityGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>,
+          Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
           TError,
-          Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAllAvailabilityInstructorsAvailabilityGet<TData = Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetAllAvailabilityInstructorsAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetAllAvailabilityApiV1InstructorsAvailabilityGet<
+  TData = Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params?: GetAllAvailabilityApiV1InstructorsAvailabilityGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get All Availability
  */
 
-export function useGetAllAvailabilityInstructorsAvailabilityGet<TData = Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetAllAvailabilityInstructorsAvailabilityGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAllAvailabilityInstructorsAvailabilityGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetAllAvailabilityApiV1InstructorsAvailabilityGet<
+  TData = Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params?: GetAllAvailabilityApiV1InstructorsAvailabilityGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getAllAvailabilityApiV1InstructorsAvailabilityGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetAllAvailabilityApiV1InstructorsAvailabilityGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetAllAvailabilityInstructorsAvailabilityGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Apply a week's pattern to a date range.
  * @summary Apply To Date Range
  */
-export const applyToDateRangeInstructorsAvailabilityApplyToDateRangePost = (
-    applyToDateRangeRequest: ApplyToDateRangeRequest,
- signal?: AbortSignal
+export const applyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePost = (
+  applyToDateRangeRequest: ApplyToDateRangeRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<ApplyToDateRangeResponse>({
+    url: `/api/v1/instructors/availability/apply-to-date-range`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: applyToDateRangeRequest,
+    signal,
+  });
+};
 
+export const getApplyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof applyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePost>>,
+    TError,
+    { data: ApplyToDateRangeRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof applyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePost>>,
+  TError,
+  { data: ApplyToDateRangeRequest },
+  TContext
+> => {
+  const mutationKey = ['applyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<ApplyToDateRangeResponse>(
-      {url: `/instructors/availability/apply-to-date-range`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: applyToDateRangeRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof applyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePost>>,
+    { data: ApplyToDateRangeRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return applyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getApplyToDateRangeInstructorsAvailabilityApplyToDateRangePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyToDateRangeInstructorsAvailabilityApplyToDateRangePost>>, TError,{data: ApplyToDateRangeRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof applyToDateRangeInstructorsAvailabilityApplyToDateRangePost>>, TError,{data: ApplyToDateRangeRequest}, TContext> => {
+export type ApplyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof applyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePost>>
+  >;
+export type ApplyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePostMutationBody =
+  ApplyToDateRangeRequest;
+export type ApplyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['applyToDateRangeInstructorsAvailabilityApplyToDateRangePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyToDateRangeInstructorsAvailabilityApplyToDateRangePost>>, {data: ApplyToDateRangeRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  applyToDateRangeInstructorsAvailabilityApplyToDateRangePost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ApplyToDateRangeInstructorsAvailabilityApplyToDateRangePostMutationResult = NonNullable<Awaited<ReturnType<typeof applyToDateRangeInstructorsAvailabilityApplyToDateRangePost>>>
-    export type ApplyToDateRangeInstructorsAvailabilityApplyToDateRangePostMutationBody = ApplyToDateRangeRequest
-    export type ApplyToDateRangeInstructorsAvailabilityApplyToDateRangePostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Apply To Date Range
  */
-export const useApplyToDateRangeInstructorsAvailabilityApplyToDateRangePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyToDateRangeInstructorsAvailabilityApplyToDateRangePost>>, TError,{data: ApplyToDateRangeRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof applyToDateRangeInstructorsAvailabilityApplyToDateRangePost>>,
-        TError,
-        {data: ApplyToDateRangeRequest},
-        TContext
-      > => {
+export const useApplyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof applyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePost>>,
+      TError,
+      { data: ApplyToDateRangeRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof applyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePost>>,
+  TError,
+  { data: ApplyToDateRangeRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getApplyToDateRangeApiV1InstructorsAvailabilityApplyToDateRangePostMutationOptions(options);
 
-      const mutationOptions = getApplyToDateRangeInstructorsAvailabilityApplyToDateRangePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get instructor's blackout dates.
  * @summary Get Blackout Dates
  */
-export const getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet = (
-
- signal?: AbortSignal
+export const getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet = (
+  signal?: AbortSignal
 ) => {
+  return customFetch<BlackoutDateResponse[]>({
+    url: `/api/v1/instructors/availability/blackout-dates`,
+    method: 'GET',
+    signal,
+  });
+};
 
+export const getGetBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGetQueryKey = () => {
+  return [`/api/v1/instructors/availability/blackout-dates`] as const;
+};
 
-      return customFetch<BlackoutDateResponse[]>(
-      {url: `/instructors/availability/blackout-dates`, method: 'GET', signal
-    },
-      );
-    }
+export const getGetBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGetQueryKey();
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>
+  > = ({ signal }) => getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet(signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-export const getGetBlackoutDatesInstructorsAvailabilityBlackoutDatesGetQueryKey = () => {
-    return [
-    `/instructors/availability/blackout-dates`
-    ] as const;
-    }
+export type GetBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>
+>;
+export type GetBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGetQueryError =
+  ErrorType<void>;
 
-
-export const getGetBlackoutDatesInstructorsAvailabilityBlackoutDatesGetQueryOptions = <TData = Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError, TData>>, }
-) => {
-
-const {query: queryOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetBlackoutDatesInstructorsAvailabilityBlackoutDatesGetQueryKey();
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>> = ({ signal }) => getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetBlackoutDatesInstructorsAvailabilityBlackoutDatesGetQueryResult = NonNullable<Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>>
-export type GetBlackoutDatesInstructorsAvailabilityBlackoutDatesGetQueryError = ErrorType<unknown>
-
-
-export function useGetBlackoutDatesInstructorsAvailabilityBlackoutDatesGet<TData = Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError, TData>> & Pick<
+export function useGetBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet<
+  TData = Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+  TError = ErrorType<void>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>,
+          Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
           TError,
-          Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBlackoutDatesInstructorsAvailabilityBlackoutDatesGet<TData = Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError, TData>> & Pick<
+          Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet<
+  TData = Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>,
+          Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
           TError,
-          Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetBlackoutDatesInstructorsAvailabilityBlackoutDatesGet<TData = Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet<
+  TData = Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Blackout Dates
  */
 
-export function useGetBlackoutDatesInstructorsAvailabilityBlackoutDatesGet<TData = Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getBlackoutDatesInstructorsAvailabilityBlackoutDatesGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet<
+  TData = Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetBlackoutDatesApiV1InstructorsAvailabilityBlackoutDatesGetQueryOptions(options);
 
-  const queryOptions = getGetBlackoutDatesInstructorsAvailabilityBlackoutDatesGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Add a blackout date (vacation/unavailable).
  * @summary Add Blackout Date
  */
-export const addBlackoutDateInstructorsAvailabilityBlackoutDatesPost = (
-    blackoutDateCreate: BlackoutDateCreate,
- signal?: AbortSignal
+export const addBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPost = (
+  blackoutDateCreate: BlackoutDateCreate,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BlackoutDateResponse>({
+    url: `/api/v1/instructors/availability/blackout-dates`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: blackoutDateCreate,
+    signal,
+  });
+};
 
+export const getAddBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPost>>,
+    TError,
+    { data: BlackoutDateCreate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPost>>,
+  TError,
+  { data: BlackoutDateCreate },
+  TContext
+> => {
+  const mutationKey = ['addBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<BlackoutDateResponse>(
-      {url: `/instructors/availability/blackout-dates`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: blackoutDateCreate, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPost>>,
+    { data: BlackoutDateCreate }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return addBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getAddBlackoutDateInstructorsAvailabilityBlackoutDatesPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addBlackoutDateInstructorsAvailabilityBlackoutDatesPost>>, TError,{data: BlackoutDateCreate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof addBlackoutDateInstructorsAvailabilityBlackoutDatesPost>>, TError,{data: BlackoutDateCreate}, TContext> => {
+export type AddBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof addBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPost>>
+  >;
+export type AddBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPostMutationBody =
+  BlackoutDateCreate;
+export type AddBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['addBlackoutDateInstructorsAvailabilityBlackoutDatesPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addBlackoutDateInstructorsAvailabilityBlackoutDatesPost>>, {data: BlackoutDateCreate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  addBlackoutDateInstructorsAvailabilityBlackoutDatesPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type AddBlackoutDateInstructorsAvailabilityBlackoutDatesPostMutationResult = NonNullable<Awaited<ReturnType<typeof addBlackoutDateInstructorsAvailabilityBlackoutDatesPost>>>
-    export type AddBlackoutDateInstructorsAvailabilityBlackoutDatesPostMutationBody = BlackoutDateCreate
-    export type AddBlackoutDateInstructorsAvailabilityBlackoutDatesPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Add Blackout Date
  */
-export const useAddBlackoutDateInstructorsAvailabilityBlackoutDatesPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addBlackoutDateInstructorsAvailabilityBlackoutDatesPost>>, TError,{data: BlackoutDateCreate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof addBlackoutDateInstructorsAvailabilityBlackoutDatesPost>>,
-        TError,
-        {data: BlackoutDateCreate},
-        TContext
-      > => {
+export const useAddBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof addBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPost>>,
+      TError,
+      { data: BlackoutDateCreate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof addBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPost>>,
+  TError,
+  { data: BlackoutDateCreate },
+  TContext
+> => {
+  const mutationOptions =
+    getAddBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesPostMutationOptions(options);
 
-      const mutationOptions = getAddBlackoutDateInstructorsAvailabilityBlackoutDatesPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Delete a blackout date.
  * @summary Delete Blackout Date
  */
-export const deleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDelete = (
-    blackoutId: string,
- ) => {
+export const deleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDelete = (
+  blackoutId: string
+) => {
+  return customFetch<DeleteBlackoutResponse>({
+    url: `/api/v1/instructors/availability/blackout-dates/${blackoutId}`,
+    method: 'DELETE',
+  });
+};
 
+export const getDeleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDeleteMutationOptions =
+  <TError = ErrorType<void | HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof deleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDelete
+        >
+      >,
+      TError,
+      { blackoutId: string },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof deleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDelete>
+    >,
+    TError,
+    { blackoutId: string },
+    TContext
+  > => {
+    const mutationKey = [
+      'deleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDelete',
+    ];
+    const { mutation: mutationOptions } = options
+      ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
 
-      return customFetch<DeleteBlackoutResponse>(
-      {url: `/instructors/availability/blackout-dates/${blackoutId}`, method: 'DELETE'
-    },
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof deleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDelete
+        >
+      >,
+      { blackoutId: string }
+    > = (props) => {
+      const { blackoutId } = props ?? {};
+
+      return deleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDelete(
+        blackoutId
       );
-    }
+    };
 
+    return { mutationFn, ...mutationOptions };
+  };
 
+export type DeleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDeleteMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof deleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDelete>
+    >
+  >;
 
-export const getDeleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDeleteMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDelete>>, TError,{blackoutId: string}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof deleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDelete>>, TError,{blackoutId: string}, TContext> => {
+export type DeleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDeleteMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['deleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDelete'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDelete>>, {blackoutId: string}> = (props) => {
-          const {blackoutId} = props ?? {};
-
-          return  deleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDelete(blackoutId,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDelete>>>
-
-    export type DeleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDeleteMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Delete Blackout Date
  */
-export const useDeleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDelete = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDelete>>, TError,{blackoutId: string}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDelete>>,
-        TError,
-        {blackoutId: string},
-        TContext
-      > => {
+export const useDeleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDelete = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof deleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDelete
+        >
+      >,
+      TError,
+      { blackoutId: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof deleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDelete>
+  >,
+  TError,
+  { blackoutId: string },
+  TContext
+> => {
+  const mutationOptions =
+    getDeleteBlackoutDateApiV1InstructorsAvailabilityBlackoutDatesBlackoutIdDeleteMutationOptions(
+      options
+    );
 
-      const mutationOptions = getDeleteBlackoutDateInstructorsAvailabilityBlackoutDatesBlackoutIdDeleteMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Bulk update availability slots.
  * @summary Bulk Update Availability
  */
-export const bulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatch = (
-    bulkUpdateRequest: BulkUpdateRequest,
- ) => {
+export const bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch = (
+  bulkUpdateRequest: BulkUpdateRequest
+) => {
+  return customFetch<BulkUpdateResponse>({
+    url: `/api/v1/instructors/availability/bulk-update`,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    data: bulkUpdateRequest,
+  });
+};
 
+export const getBulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatchMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>,
+    TError,
+    { data: BulkUpdateRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>,
+  TError,
+  { data: BulkUpdateRequest },
+  TContext
+> => {
+  const mutationKey = ['bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<BulkUpdateResponse>(
-      {url: `/instructors/availability/bulk-update`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: bulkUpdateRequest
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>,
+    { data: BulkUpdateRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getBulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatchMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatch>>, TError,{data: BulkUpdateRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatch>>, TError,{data: BulkUpdateRequest}, TContext> => {
+export type BulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatchMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>
+  >;
+export type BulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatchMutationBody =
+  BulkUpdateRequest;
+export type BulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatchMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['bulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatch'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatch>>, {data: BulkUpdateRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  bulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatch(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type BulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatchMutationResult = NonNullable<Awaited<ReturnType<typeof bulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatch>>>
-    export type BulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatchMutationBody = BulkUpdateRequest
-    export type BulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatchMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Bulk Update Availability
  */
-export const useBulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatch = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatch>>, TError,{data: BulkUpdateRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof bulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatch>>,
-        TError,
-        {data: BulkUpdateRequest},
-        TContext
-      > => {
+export const useBulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>,
+      TError,
+      { data: BulkUpdateRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof bulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatch>>,
+  TError,
+  { data: BulkUpdateRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getBulkUpdateAvailabilityApiV1InstructorsAvailabilityBulkUpdatePatchMutationOptions(options);
 
-      const mutationOptions = getBulkUpdateAvailabilityInstructorsAvailabilityBulkUpdatePatchMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Copy availability from one week to another.
  * @summary Copy Week Availability
  */
-export const copyWeekAvailabilityInstructorsAvailabilityCopyWeekPost = (
-    copyWeekRequest: CopyWeekRequest,
- signal?: AbortSignal
+export const copyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPost = (
+  copyWeekRequest: CopyWeekRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<CopyWeekResponse>({
+    url: `/api/v1/instructors/availability/copy-week`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: copyWeekRequest,
+    signal,
+  });
+};
 
+export const getCopyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof copyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPost>>,
+    TError,
+    { data: CopyWeekRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof copyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPost>>,
+  TError,
+  { data: CopyWeekRequest },
+  TContext
+> => {
+  const mutationKey = ['copyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<CopyWeekResponse>(
-      {url: `/instructors/availability/copy-week`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: copyWeekRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof copyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPost>>,
+    { data: CopyWeekRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return copyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getCopyWeekAvailabilityInstructorsAvailabilityCopyWeekPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof copyWeekAvailabilityInstructorsAvailabilityCopyWeekPost>>, TError,{data: CopyWeekRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof copyWeekAvailabilityInstructorsAvailabilityCopyWeekPost>>, TError,{data: CopyWeekRequest}, TContext> => {
+export type CopyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof copyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPost>>
+  >;
+export type CopyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPostMutationBody =
+  CopyWeekRequest;
+export type CopyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['copyWeekAvailabilityInstructorsAvailabilityCopyWeekPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof copyWeekAvailabilityInstructorsAvailabilityCopyWeekPost>>, {data: CopyWeekRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  copyWeekAvailabilityInstructorsAvailabilityCopyWeekPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CopyWeekAvailabilityInstructorsAvailabilityCopyWeekPostMutationResult = NonNullable<Awaited<ReturnType<typeof copyWeekAvailabilityInstructorsAvailabilityCopyWeekPost>>>
-    export type CopyWeekAvailabilityInstructorsAvailabilityCopyWeekPostMutationBody = CopyWeekRequest
-    export type CopyWeekAvailabilityInstructorsAvailabilityCopyWeekPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Copy Week Availability
  */
-export const useCopyWeekAvailabilityInstructorsAvailabilityCopyWeekPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof copyWeekAvailabilityInstructorsAvailabilityCopyWeekPost>>, TError,{data: CopyWeekRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof copyWeekAvailabilityInstructorsAvailabilityCopyWeekPost>>,
-        TError,
-        {data: CopyWeekRequest},
-        TContext
-      > => {
+export const useCopyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof copyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPost>>,
+      TError,
+      { data: CopyWeekRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof copyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPost>>,
+  TError,
+  { data: CopyWeekRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getCopyWeekAvailabilityApiV1InstructorsAvailabilityCopyWeekPostMutationOptions(options);
 
-      const mutationOptions = getCopyWeekAvailabilityInstructorsAvailabilityCopyWeekPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Add availability for a specific date.
 
 Returns clean response using schema.
  * @summary Add Specific Date Availability
  */
-export const addSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePost = (
-    specificDateAvailabilityCreate: SpecificDateAvailabilityCreate,
- signal?: AbortSignal
+export const addSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePost = (
+  specificDateAvailabilityCreate: SpecificDateAvailabilityCreate,
+  signal?: AbortSignal
 ) => {
+  return customFetch<AvailabilityWindowResponse>({
+    url: `/api/v1/instructors/availability/specific-date`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: specificDateAvailabilityCreate,
+    signal,
+  });
+};
 
+export const getAddSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePostMutationOptions =
+  <TError = ErrorType<void | HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof addSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePost>
+      >,
+      TError,
+      { data: SpecificDateAvailabilityCreate },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof addSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePost>
+    >,
+    TError,
+    { data: SpecificDateAvailabilityCreate },
+    TContext
+  > => {
+    const mutationKey = ['addSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePost'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
 
-      return customFetch<AvailabilityWindowResponse>(
-      {url: `/instructors/availability/specific-date`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: specificDateAvailabilityCreate, signal
-    },
-      );
-    }
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof addSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePost>
+      >,
+      { data: SpecificDateAvailabilityCreate }
+    > = (props) => {
+      const { data } = props ?? {};
 
+      return addSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePost(data);
+    };
 
+    return { mutationFn, ...mutationOptions };
+  };
 
-export const getAddSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePost>>, TError,{data: SpecificDateAvailabilityCreate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof addSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePost>>, TError,{data: SpecificDateAvailabilityCreate}, TContext> => {
+export type AddSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof addSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePost>
+    >
+  >;
+export type AddSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePostMutationBody =
+  SpecificDateAvailabilityCreate;
+export type AddSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['addSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePost>>, {data: SpecificDateAvailabilityCreate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  addSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type AddSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePostMutationResult = NonNullable<Awaited<ReturnType<typeof addSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePost>>>
-    export type AddSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePostMutationBody = SpecificDateAvailabilityCreate
-    export type AddSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Add Specific Date Availability
  */
-export const useAddSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePost>>, TError,{data: SpecificDateAvailabilityCreate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof addSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePost>>,
-        TError,
-        {data: SpecificDateAvailabilityCreate},
-        TContext
-      > => {
+export const useAddSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof addSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePost>
+      >,
+      TError,
+      { data: SpecificDateAvailabilityCreate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof addSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePost>
+  >,
+  TError,
+  { data: SpecificDateAvailabilityCreate },
+  TContext
+> => {
+  const mutationOptions =
+    getAddSpecificDateAvailabilityApiV1InstructorsAvailabilitySpecificDatePostMutationOptions(
+      options
+    );
 
-      const mutationOptions = getAddSpecificDateAvailabilityInstructorsAvailabilitySpecificDatePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get availability for a specific week.
 
 Returns clean data structure without legacy fields.
  * @summary Get Week Availability
  */
-export const getWeekAvailabilityInstructorsAvailabilityWeekGet = (
-    params: GetWeekAvailabilityInstructorsAvailabilityWeekGetParams,
- signal?: AbortSignal
+export const getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet = (
+  params: GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<WeekAvailabilityResponse>({
+    url: `/api/v1/instructors/availability/week`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<WeekAvailabilityResponse>(
-      {url: `/instructors/availability/week`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetWeekAvailabilityInstructorsAvailabilityWeekGetQueryKey = (params?: GetWeekAvailabilityInstructorsAvailabilityWeekGetParams,) => {
-    return [
-    `/instructors/availability/week`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetWeekAvailabilityInstructorsAvailabilityWeekGetQueryOptions = <TData = Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError = ErrorType<HTTPValidationError>>(params: GetWeekAvailabilityInstructorsAvailabilityWeekGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError, TData>>, }
+export const getGetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetQueryKey = (
+  params?: GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetParams
 ) => {
+  return [`/api/v1/instructors/availability/week`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetWeekAvailabilityInstructorsAvailabilityWeekGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>
+  > = ({ signal }) => getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>> = ({ signal }) => getWeekAvailabilityInstructorsAvailabilityWeekGet(params, signal);
+export type GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>
+>;
+export type GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetQueryError =
+  ErrorType<void | HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetWeekAvailabilityInstructorsAvailabilityWeekGetQueryResult = NonNullable<Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>>
-export type GetWeekAvailabilityInstructorsAvailabilityWeekGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetWeekAvailabilityInstructorsAvailabilityWeekGet<TData = Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetWeekAvailabilityInstructorsAvailabilityWeekGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError, TData>> & Pick<
+export function useGetWeekAvailabilityApiV1InstructorsAvailabilityWeekGet<
+  TData = Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>,
+          Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
           TError,
-          Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetWeekAvailabilityInstructorsAvailabilityWeekGet<TData = Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetWeekAvailabilityInstructorsAvailabilityWeekGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError, TData>> & Pick<
+          Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetWeekAvailabilityApiV1InstructorsAvailabilityWeekGet<
+  TData = Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>,
+          Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
           TError,
-          Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetWeekAvailabilityInstructorsAvailabilityWeekGet<TData = Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetWeekAvailabilityInstructorsAvailabilityWeekGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetWeekAvailabilityApiV1InstructorsAvailabilityWeekGet<
+  TData = Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Week Availability
  */
 
-export function useGetWeekAvailabilityInstructorsAvailabilityWeekGet<TData = Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetWeekAvailabilityInstructorsAvailabilityWeekGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeekAvailabilityInstructorsAvailabilityWeekGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetWeekAvailabilityApiV1InstructorsAvailabilityWeekGet<
+  TData = Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: GetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getWeekAvailabilityApiV1InstructorsAvailabilityWeekGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetWeekAvailabilityApiV1InstructorsAvailabilityWeekGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetWeekAvailabilityInstructorsAvailabilityWeekGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Save availability for specific dates in a week.
@@ -737,358 +1079,575 @@ export function useGetWeekAvailabilityInstructorsAvailabilityWeekGet<TData = Awa
 Clean implementation with proper cache warming.
  * @summary Save Week Availability
  */
-export const saveWeekAvailabilityInstructorsAvailabilityWeekPost = (
-    weekSpecificScheduleCreate: WeekSpecificScheduleCreate,
-    params?: SaveWeekAvailabilityInstructorsAvailabilityWeekPostParams,
- signal?: AbortSignal
+export const saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost = (
+  weekSpecificScheduleCreate: WeekSpecificScheduleCreate,
+  params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<WeekAvailabilityUpdateResponse>({
+    url: `/api/v1/instructors/availability/week`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: weekSpecificScheduleCreate,
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<WeekAvailabilityUpdateResponse>(
-      {url: `/instructors/availability/week`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: weekSpecificScheduleCreate,
-        params, signal
+export const getSaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>,
+    TError,
+    {
+      data: WeekSpecificScheduleCreate;
+      params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams;
     },
-      );
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>,
+  TError,
+  {
+    data: WeekSpecificScheduleCreate;
+    params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams;
+  },
+  TContext
+> => {
+  const mutationKey = ['saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>,
+    {
+      data: WeekSpecificScheduleCreate;
+      params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams;
     }
+  > = (props) => {
+    const { data, params } = props ?? {};
 
+    return saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost(data, params);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getSaveWeekAvailabilityInstructorsAvailabilityWeekPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveWeekAvailabilityInstructorsAvailabilityWeekPost>>, TError,{data: WeekSpecificScheduleCreate;params?: SaveWeekAvailabilityInstructorsAvailabilityWeekPostParams}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof saveWeekAvailabilityInstructorsAvailabilityWeekPost>>, TError,{data: WeekSpecificScheduleCreate;params?: SaveWeekAvailabilityInstructorsAvailabilityWeekPostParams}, TContext> => {
+export type SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>
+>;
+export type SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutationBody =
+  WeekSpecificScheduleCreate;
+export type SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['saveWeekAvailabilityInstructorsAvailabilityWeekPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveWeekAvailabilityInstructorsAvailabilityWeekPost>>, {data: WeekSpecificScheduleCreate;params?: SaveWeekAvailabilityInstructorsAvailabilityWeekPostParams}> = (props) => {
-          const {data,params} = props ?? {};
-
-          return  saveWeekAvailabilityInstructorsAvailabilityWeekPost(data,params,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type SaveWeekAvailabilityInstructorsAvailabilityWeekPostMutationResult = NonNullable<Awaited<ReturnType<typeof saveWeekAvailabilityInstructorsAvailabilityWeekPost>>>
-    export type SaveWeekAvailabilityInstructorsAvailabilityWeekPostMutationBody = WeekSpecificScheduleCreate
-    export type SaveWeekAvailabilityInstructorsAvailabilityWeekPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Save Week Availability
  */
-export const useSaveWeekAvailabilityInstructorsAvailabilityWeekPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveWeekAvailabilityInstructorsAvailabilityWeekPost>>, TError,{data: WeekSpecificScheduleCreate;params?: SaveWeekAvailabilityInstructorsAvailabilityWeekPostParams}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof saveWeekAvailabilityInstructorsAvailabilityWeekPost>>,
-        TError,
-        {data: WeekSpecificScheduleCreate;params?: SaveWeekAvailabilityInstructorsAvailabilityWeekPostParams},
-        TContext
-      > => {
+export const useSaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>,
+      TError,
+      {
+        data: WeekSpecificScheduleCreate;
+        params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams;
+      },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof saveWeekAvailabilityApiV1InstructorsAvailabilityWeekPost>>,
+  TError,
+  {
+    data: WeekSpecificScheduleCreate;
+    params?: SaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostParams;
+  },
+  TContext
+> => {
+  const mutationOptions =
+    getSaveWeekAvailabilityApiV1InstructorsAvailabilityWeekPostMutationOptions(options);
 
-      const mutationOptions = getSaveWeekAvailabilityInstructorsAvailabilityWeekPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get all booked slots for a week with preview information.
  * @summary Get Week Booked Slots
  */
-export const getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet = (
-    params: GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetParams,
- signal?: AbortSignal
+export const getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet = (
+  params: GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookedSlotsResponse>({
+    url: `/api/v1/instructors/availability/week/booked-slots`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<BookedSlotsResponse>(
-      {url: `/instructors/availability/week/booked-slots`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetQueryKey = (params?: GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetParams,) => {
-    return [
-    `/instructors/availability/week/booked-slots`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetQueryOptions = <TData = Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError = ErrorType<HTTPValidationError>>(params: GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError, TData>>, }
+export const getGetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetQueryKey = (
+  params?: GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetParams
 ) => {
+  return [
+    `/api/v1/instructors/availability/week/booked-slots`,
+    ...(params ? [params] : []),
+  ] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+  >,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>>
+  > = ({ signal }) =>
+    getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>> = ({ signal }) => getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet(params, signal);
+export type GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>>
+  >;
+export type GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetQueryError =
+  ErrorType<void | HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>>
-export type GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet<TData = Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError, TData>> & Pick<
+export function useGetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet<
+  TData = Awaited<
+    ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+  >,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>,
+          Awaited<
+            ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet<TData = Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError, TData>> & Pick<
+          Awaited<
+            ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet<
+  TData = Awaited<
+    ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+  >,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>,
+          Awaited<
+            ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet<TData = Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<
+            ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet<
+  TData = Awaited<
+    ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+  >,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Week Booked Slots
  */
 
-export function useGetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet<TData = Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: GetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet<
+  TData = Awaited<
+    ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+  >,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetQueryOptions(
+      params,
+      options
+    );
 
-  const queryOptions = getGetWeekBookedSlotsInstructorsAvailabilityWeekBookedSlotsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Validate planned changes to week availability.
  * @summary Validate Week Changes
  */
-export const validateWeekChangesInstructorsAvailabilityWeekValidateChangesPost = (
-    validateWeekRequest: ValidateWeekRequest,
- signal?: AbortSignal
+export const validateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPost = (
+  validateWeekRequest: ValidateWeekRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<WeekValidationResponse>({
+    url: `/api/v1/instructors/availability/week/validate-changes`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: validateWeekRequest,
+    signal,
+  });
+};
 
+export const getValidateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPostMutationOptions =
+  <TError = ErrorType<void | HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof validateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPost>
+      >,
+      TError,
+      { data: ValidateWeekRequest },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof validateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPost>
+    >,
+    TError,
+    { data: ValidateWeekRequest },
+    TContext
+  > => {
+    const mutationKey = ['validateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPost'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
 
-      return customFetch<WeekValidationResponse>(
-      {url: `/instructors/availability/week/validate-changes`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: validateWeekRequest, signal
-    },
-      );
-    }
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof validateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPost>
+      >,
+      { data: ValidateWeekRequest }
+    > = (props) => {
+      const { data } = props ?? {};
 
+      return validateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPost(data);
+    };
 
+    return { mutationFn, ...mutationOptions };
+  };
 
-export const getValidateWeekChangesInstructorsAvailabilityWeekValidateChangesPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateWeekChangesInstructorsAvailabilityWeekValidateChangesPost>>, TError,{data: ValidateWeekRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof validateWeekChangesInstructorsAvailabilityWeekValidateChangesPost>>, TError,{data: ValidateWeekRequest}, TContext> => {
+export type ValidateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof validateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPost>
+    >
+  >;
+export type ValidateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPostMutationBody =
+  ValidateWeekRequest;
+export type ValidateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['validateWeekChangesInstructorsAvailabilityWeekValidateChangesPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof validateWeekChangesInstructorsAvailabilityWeekValidateChangesPost>>, {data: ValidateWeekRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  validateWeekChangesInstructorsAvailabilityWeekValidateChangesPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ValidateWeekChangesInstructorsAvailabilityWeekValidateChangesPostMutationResult = NonNullable<Awaited<ReturnType<typeof validateWeekChangesInstructorsAvailabilityWeekValidateChangesPost>>>
-    export type ValidateWeekChangesInstructorsAvailabilityWeekValidateChangesPostMutationBody = ValidateWeekRequest
-    export type ValidateWeekChangesInstructorsAvailabilityWeekValidateChangesPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Validate Week Changes
  */
-export const useValidateWeekChangesInstructorsAvailabilityWeekValidateChangesPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof validateWeekChangesInstructorsAvailabilityWeekValidateChangesPost>>, TError,{data: ValidateWeekRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof validateWeekChangesInstructorsAvailabilityWeekValidateChangesPost>>,
-        TError,
-        {data: ValidateWeekRequest},
-        TContext
-      > => {
+export const useValidateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof validateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPost>
+      >,
+      TError,
+      { data: ValidateWeekRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof validateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPost>
+  >,
+  TError,
+  { data: ValidateWeekRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getValidateWeekChangesApiV1InstructorsAvailabilityWeekValidateChangesPostMutationOptions(
+      options
+    );
 
-      const mutationOptions = getValidateWeekChangesInstructorsAvailabilityWeekValidateChangesPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Delete an availability window.
 
 DEPRECATED: Individual window deletion not supported in bitmap storage.
-Use POST /instructors/availability/week to remove windows from days.
+Use POST /api/v1/instructors/availability/week to remove windows from days.
  * @summary Delete Availability Window
  */
-export const deleteAvailabilityWindowInstructorsAvailabilityWindowIdDelete = (
-    windowId: string,
- ) => {
+export const deleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDelete = (
+  windowId: string
+) => {
+  return customFetch<DeleteWindowResponse>({
+    url: `/api/v1/instructors/availability/${windowId}`,
+    method: 'DELETE',
+  });
+};
 
+export const getDeleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDeleteMutationOptions =
+  <TError = ErrorType<void | HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof deleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDelete>
+      >,
+      TError,
+      { windowId: string },
+      TContext
+    >;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDelete>>,
+    TError,
+    { windowId: string },
+    TContext
+  > => {
+    const mutationKey = ['deleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDelete'];
+    const { mutation: mutationOptions } = options
+      ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey } };
 
-      return customFetch<DeleteWindowResponse>(
-      {url: `/instructors/availability/${windowId}`, method: 'DELETE'
-    },
-      );
-    }
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof deleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDelete>
+      >,
+      { windowId: string }
+    > = (props) => {
+      const { windowId } = props ?? {};
 
+      return deleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDelete(windowId);
+    };
 
+    return { mutationFn, ...mutationOptions };
+  };
 
-export const getDeleteAvailabilityWindowInstructorsAvailabilityWindowIdDeleteMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAvailabilityWindowInstructorsAvailabilityWindowIdDelete>>, TError,{windowId: string}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof deleteAvailabilityWindowInstructorsAvailabilityWindowIdDelete>>, TError,{windowId: string}, TContext> => {
+export type DeleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDeleteMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof deleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDelete>>
+  >;
 
-const mutationKey = ['deleteAvailabilityWindowInstructorsAvailabilityWindowIdDelete'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type DeleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDeleteMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAvailabilityWindowInstructorsAvailabilityWindowIdDelete>>, {windowId: string}> = (props) => {
-          const {windowId} = props ?? {};
-
-          return  deleteAvailabilityWindowInstructorsAvailabilityWindowIdDelete(windowId,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteAvailabilityWindowInstructorsAvailabilityWindowIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAvailabilityWindowInstructorsAvailabilityWindowIdDelete>>>
-
-    export type DeleteAvailabilityWindowInstructorsAvailabilityWindowIdDeleteMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Delete Availability Window
  */
-export const useDeleteAvailabilityWindowInstructorsAvailabilityWindowIdDelete = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAvailabilityWindowInstructorsAvailabilityWindowIdDelete>>, TError,{windowId: string}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteAvailabilityWindowInstructorsAvailabilityWindowIdDelete>>,
-        TError,
-        {windowId: string},
-        TContext
-      > => {
+export const useDeleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDelete = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof deleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDelete>
+      >,
+      TError,
+      { windowId: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDelete>>,
+  TError,
+  { windowId: string },
+  TContext
+> => {
+  const mutationOptions =
+    getDeleteAvailabilityWindowApiV1InstructorsAvailabilityWindowIdDeleteMutationOptions(options);
 
-      const mutationOptions = getDeleteAvailabilityWindowInstructorsAvailabilityWindowIdDeleteMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Update an availability window.
 
 DEPRECATED: Individual window updates not supported in bitmap storage.
-Use POST /instructors/availability/week to update entire days.
+Use POST /api/v1/instructors/availability/week to update entire days.
  * @summary Update Availability Window
  */
-export const updateAvailabilityWindowInstructorsAvailabilityWindowIdPatch = (
-    windowId: string,
-    availabilityWindowUpdate: AvailabilityWindowUpdate,
- ) => {
+export const updateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatch = (
+  windowId: string,
+  availabilityWindowUpdate: AvailabilityWindowUpdate
+) => {
+  return customFetch<AvailabilityWindowResponse>({
+    url: `/api/v1/instructors/availability/${windowId}`,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    data: availabilityWindowUpdate,
+  });
+};
 
+export const getUpdateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatchMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatch>>,
+    TError,
+    { windowId: string; data: AvailabilityWindowUpdate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatch>>,
+  TError,
+  { windowId: string; data: AvailabilityWindowUpdate },
+  TContext
+> => {
+  const mutationKey = ['updateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatch'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<AvailabilityWindowResponse>(
-      {url: `/instructors/availability/${windowId}`, method: 'PATCH',
-      headers: {'Content-Type': 'application/json', },
-      data: availabilityWindowUpdate
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatch>>,
+    { windowId: string; data: AvailabilityWindowUpdate }
+  > = (props) => {
+    const { windowId, data } = props ?? {};
 
+    return updateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatch(windowId, data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getUpdateAvailabilityWindowInstructorsAvailabilityWindowIdPatchMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAvailabilityWindowInstructorsAvailabilityWindowIdPatch>>, TError,{windowId: string;data: AvailabilityWindowUpdate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof updateAvailabilityWindowInstructorsAvailabilityWindowIdPatch>>, TError,{windowId: string;data: AvailabilityWindowUpdate}, TContext> => {
+export type UpdateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatchMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof updateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatch>>
+  >;
+export type UpdateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatchMutationBody =
+  AvailabilityWindowUpdate;
+export type UpdateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatchMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['updateAvailabilityWindowInstructorsAvailabilityWindowIdPatch'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAvailabilityWindowInstructorsAvailabilityWindowIdPatch>>, {windowId: string;data: AvailabilityWindowUpdate}> = (props) => {
-          const {windowId,data} = props ?? {};
-
-          return  updateAvailabilityWindowInstructorsAvailabilityWindowIdPatch(windowId,data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdateAvailabilityWindowInstructorsAvailabilityWindowIdPatchMutationResult = NonNullable<Awaited<ReturnType<typeof updateAvailabilityWindowInstructorsAvailabilityWindowIdPatch>>>
-    export type UpdateAvailabilityWindowInstructorsAvailabilityWindowIdPatchMutationBody = AvailabilityWindowUpdate
-    export type UpdateAvailabilityWindowInstructorsAvailabilityWindowIdPatchMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Update Availability Window
  */
-export const useUpdateAvailabilityWindowInstructorsAvailabilityWindowIdPatch = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAvailabilityWindowInstructorsAvailabilityWindowIdPatch>>, TError,{windowId: string;data: AvailabilityWindowUpdate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof updateAvailabilityWindowInstructorsAvailabilityWindowIdPatch>>,
-        TError,
-        {windowId: string;data: AvailabilityWindowUpdate},
-        TContext
-      > => {
+export const useUpdateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatch = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatch>>,
+      TError,
+      { windowId: string; data: AvailabilityWindowUpdate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatch>>,
+  TError,
+  { windowId: string; data: AvailabilityWindowUpdate },
+  TContext
+> => {
+  const mutationOptions =
+    getUpdateAvailabilityWindowApiV1InstructorsAvailabilityWindowIdPatchMutationOptions(options);
 
-      const mutationOptions = getUpdateAvailabilityWindowInstructorsAvailabilityWindowIdPatchMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
+  return useMutation(mutationOptions, queryClient);
+};

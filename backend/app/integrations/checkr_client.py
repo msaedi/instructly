@@ -31,7 +31,7 @@ class CheckrError(RuntimeError):
 
 
 class CheckrClient:
-    """Thin async client for the Checkr REST API."""
+    """Thin client for the Checkr REST API."""
 
     def __init__(
         self,
@@ -53,7 +53,7 @@ class CheckrClient:
         # Keeping a BasicAuth instance ensures every request carries the correct Authorization header.
         self._auth = httpx.BasicAuth(self._api_key, "")
 
-    async def create_candidate(
+    def create_candidate(
         self,
         *,
         idempotency_key: str | None = None,
@@ -63,22 +63,22 @@ class CheckrClient:
 
         body: Dict[str, Any] = {key: value for key, value in payload.items() if value is not None}
         headers = {"Idempotency-Key": idempotency_key} if idempotency_key else None
-        return await self.request("POST", "/candidates", json_body=body, headers=headers)
+        return self.request("POST", "/candidates", json_body=body, headers=headers)
 
-    async def create_invitation(self, **payload: Any) -> Dict[str, Any]:
+    def create_invitation(self, **payload: Any) -> Dict[str, Any]:
         """Create a hosted invitation for a candidate."""
 
         body: Dict[str, Any] = {key: value for key, value in payload.items() if value is not None}
-        return await self.request("POST", "/invitations", json_body=body)
+        return self.request("POST", "/invitations", json_body=body)
 
-    async def get_report(self, report_id: str) -> Dict[str, Any]:
+    def get_report(self, report_id: str) -> Dict[str, Any]:
         """Fetch a Checkr report by identifier."""
 
         if not report_id:
             raise ValueError("report_id must be provided")
-        return await self.request("GET", f"/reports/{report_id}")
+        return self.request("GET", f"/reports/{report_id}")
 
-    async def request(
+    def request(
         self,
         method: str,
         path: str,
@@ -90,7 +90,7 @@ class CheckrClient:
         """Perform a raw Checkr API request and return the parsed JSON payload."""
 
         url = f"{self._base_url}{path}"
-        async with httpx.AsyncClient(
+        with httpx.Client(
             timeout=self._timeout,
             transport=self._transport,
             auth=self._auth,
@@ -116,7 +116,7 @@ class CheckrClient:
                     },
                 )
             try:
-                response = await client.send(request)
+                response = client.send(request)
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
                 status = exc.response.status_code
@@ -164,7 +164,7 @@ class FakeCheckrClient(CheckrClient):
         super().__init__(api_key="fake-checkr-key", base_url="https://api.checkr.com/v1")
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    async def create_candidate(
+    def create_candidate(
         self,
         *,
         idempotency_key: str | None = None,
@@ -178,7 +178,7 @@ class FakeCheckrClient(CheckrClient):
             **{k: v for k, v in payload.items() if v is not None},
         }
 
-    async def create_invitation(self, **payload: Any) -> Dict[str, Any]:
+    def create_invitation(self, **payload: Any) -> Dict[str, Any]:
         candidate_id = payload.get("candidate_id") or f"fake-candidate-{uuid4().hex}"
         package = payload.get("package", "basic_plus")
         report_id = f"rpt_fake_{uuid4().hex}"
@@ -196,7 +196,7 @@ class FakeCheckrClient(CheckrClient):
             **{k: v for k, v in payload.items() if v is not None},
         }
 
-    async def get_report(self, report_id: str) -> Dict[str, Any]:
+    def get_report(self, report_id: str) -> Dict[str, Any]:
         resolved_id = report_id or f"rpt_fake_{uuid4().hex}"
         return {
             "id": resolved_id,

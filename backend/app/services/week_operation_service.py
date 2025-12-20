@@ -68,7 +68,9 @@ class WeekOperationService(BaseService):
         availability_repository: Optional["AvailabilityRepository"] = None,
     ):
         """Initialize week operation service."""
-        super().__init__(db, cache=cache_service)
+        # WeekOperationService performs async cache warming; do not pass an async cache service to
+        # BaseService (which expects a synchronous invalidation interface).
+        super().__init__(db, cache=None)
         self.logger = logging.getLogger(__name__)
 
         # Initialize repositories

@@ -387,10 +387,11 @@ class TestFavoritesService:
 
     def test_caching_works(self, db: Session, test_student, test_instructor):
         """Test that favorite status is cached."""
-        from app.services.cache_service import CacheService
+        from app.services.cache_service import CacheService, CacheServiceSyncAdapter
 
         cache = CacheService(db)
-        service = FavoritesService(db, cache_service=cache)
+        cache_sync = CacheServiceSyncAdapter(cache)
+        service = FavoritesService(db, cache_service=cache_sync)
 
         # Add favorite
         service.add_favorite(test_student.id, test_instructor.id)
@@ -409,7 +410,7 @@ class TestFavoritesService:
 
         # Clear cache and check again
         cache_key = f"favorites:{test_student.id}:{test_instructor.id}"
-        cache.delete(cache_key)
+        cache_sync.delete(cache_key)
 
         # Now should return False (from DB)
         is_fav3 = service.is_favorited(test_student.id, test_instructor.id)

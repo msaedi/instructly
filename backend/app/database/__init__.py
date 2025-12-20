@@ -5,6 +5,7 @@ Database engine, session factory, and metadata shared across the application.
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 from datetime import datetime
 import logging
 import random
@@ -37,20 +38,33 @@ logger = logging.getLogger(__name__)
 _DEFAULT_CONNECT_ARGS: dict[str, Any] = {
     "sslmode": "require",
     "keepalives": 1,
-    "keepalives_idle": 30,
-    "keepalives_interval": 10,
-    "keepalives_count": 5,
-    "options": "-c statement_timeout=30000",
-    "connect_timeout": 10,
-    "application_name": "instainstru_backend",
+    # Aggressive keepalive to detect dead connections faster
+    "keepalives_idle": 15,
+    "keepalives_interval": 5,
+    "keepalives_count": 3,
+    # Statement timeout: 15s (was 30s) - fail fast on slow queries
+    "options": "-c statement_timeout=15000",
+    # Connection timeout: 5s (was 10s) - fail fast when pool is exhausted
+    "connect_timeout": 5,
+    "application_name": "instainstru_render",
 }
 
 _DEFAULT_POOL_KWARGS: dict[str, Any] = {
-    "pool_size": 10,
-    "max_overflow": 20,
-    "pool_timeout": 10,
-    "pool_recycle": 300,
+    # AGGRESSIVE pool sizing for Supabase transaction pooler (port 6543):
+    # - Supabase Pro tier: ~60 connections on transaction pooler
+    # - With 2 uvicorn workers: (pool_size + max_overflow) × 2 must be < 60
+    # - CONSERVATIVE config: 3 + 5 = 8 per worker × 2 = 16 total (73% headroom)
+    # - Extra headroom needed for SSE manual sessions and Celery workers
+    "pool_size": 3,
+    "max_overflow": 5,
+    # Fail FAST when pool exhausted - return 503 instead of blocking for seconds
+    # Under load, waiting for connections causes cascade failures
+    "pool_timeout": 2,
+    # Supavisor Transaction Mode (port 6543) times out idle connections at ~60s.
+    # Recycle at 30s to stay well ahead of Supabase's timeout and avoid stale connections.
+    "pool_recycle": 30,
     "pool_pre_ping": True,
+    # LIFO: Reuse most recently used connection (more likely to be healthy)
     "pool_use_lifo": True,
     "future": True,
 }
@@ -74,10 +88,17 @@ def _build_engine_kwargs(db_url: str) -> dict[str, Any]:
     connect_args = dict(_DEFAULT_CONNECT_ARGS)
 
     if DATABASE_POOL_CONFIG:
+        # Production mode: use explicit config from config_production.py
         config = dict(DATABASE_POOL_CONFIG)
         supplied_connect_args = config.pop("connect_args", {})
         kwargs.update(config)
         connect_args.update(supplied_connect_args or {})
+    elif not _should_require_ssl(db_url):
+        # Local development (non-Supabase): use larger pool since local PostgreSQL
+        # has no connection limits. The instructor dashboard makes 10+ parallel
+        # requests which exhaust the conservative Supabase-friendly pool (3+5=8).
+        kwargs["pool_size"] = 10
+        kwargs["max_overflow"] = 20
 
     if not _should_require_ssl(db_url):
         connect_args.pop("sslmode", None)
@@ -122,6 +143,30 @@ def receive_checkin(dbapi_connection: Any, connection_record: Any) -> None:
     logger.debug("Connection returned to pool")
 
 
+@event.listens_for(engine, "invalidate")
+def receive_invalidate(dbapi_connection: Any, connection_record: Any, exception: Any) -> None:
+    """Handle pool connection invalidation (SSL drops, Supabase disconnects).
+
+    When Supabase/Supavisor drops a connection, SQLAlchemy invalidates it.
+    This handler logs the event and ensures metrics are tracked for observability.
+    """
+    logger.warning(
+        "Connection invalidated",
+        extra={
+            "event": "db_connection_invalidated",
+            "exception": str(exception) if exception else "unknown",
+            "pool_size": engine.pool.size(),
+            "checked_out": engine.pool.checkedout(),
+        },
+    )
+
+
+@event.listens_for(engine, "soft_invalidate")
+def receive_soft_invalidate(dbapi_connection: Any, connection_record: Any, exception: Any) -> None:
+    """Handle soft invalidation (connection recycled due to age)."""
+    logger.debug("Connection soft invalidated (recycled)")
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
 Base: DeclarativeMeta = declarative_base()
@@ -138,6 +183,99 @@ def get_db() -> Generator[Session, None, None]:
         raise
     finally:
         db.close()
+
+
+@contextmanager
+def get_db_session() -> Generator[Session, None, None]:
+    """
+    Context manager for short-lived DB operations.
+
+    Prefer this over storing SQLAlchemy sessions on long-lived service objects.
+    """
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def get_db_with_retry(max_attempts: int = 2) -> Generator[Session, None, None]:
+    """Get database session with automatic retry on transient Supabase disconnects.
+
+    This is a more resilient version of get_db() that handles the case where
+    Supabase/Supavisor drops SSL connections unexpectedly. It will retry
+    once with a fresh session if the initial checkout fails.
+
+    Use this for critical endpoints where you want higher resilience against
+    infrastructure hiccups, at the cost of slightly higher latency on retries.
+
+    Args:
+        max_attempts: Maximum number of connection attempts (default 2)
+
+    Yields:
+        SQLAlchemy Session
+    """
+    attempt = 1
+    last_exception = None
+
+    while attempt <= max_attempts:
+        db = None
+        try:
+            db = SessionLocal()
+            # Force a connection checkout to detect stale connections early
+            db.connection()
+            yield db
+            db.commit()
+            return  # Success, exit the retry loop
+        except OperationalError as exc:
+            last_exception = exc
+            if db is not None:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                try:
+                    db.close()
+                except Exception:
+                    pass
+
+            # Check if this is a retryable error
+            if attempt < max_attempts and _is_retryable_db_error(exc):
+                delay = _retry_delay(attempt)
+                logger.warning(
+                    "Transient DB failure in get_db, retrying",
+                    extra={
+                        "event": "get_db_retry",
+                        "attempt": attempt,
+                        "delay": delay,
+                        "error": str(exc),
+                    },
+                )
+                time.sleep(delay)
+                attempt += 1
+                continue
+
+            # Not retryable or max attempts reached
+            raise
+        except Exception:
+            if db is not None:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                try:
+                    db.close()
+                except Exception:
+                    pass
+            raise
+
+    # Should not reach here, but just in case
+    if last_exception:
+        raise last_exception
 
 
 def get_db_pool_status() -> dict[str, int]:
@@ -233,6 +371,7 @@ __all__ = [
     "SessionLocal",
     "engine",
     "get_db",
+    "get_db_with_retry",
     "get_db_pool_status",
     "with_db_retry",
     "with_db_retry_async",

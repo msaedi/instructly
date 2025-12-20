@@ -11,6 +11,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { withApiBase } from '@/lib/apiBase';
+import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import type {
   SSEEvent,
@@ -21,8 +22,9 @@ import type {
 } from '@/types/messaging';
 
 const SSE_ENDPOINT = '/api/v1/messages/stream';
+const SSE_TOKEN_ENDPOINT = '/api/v1/sse/token';
 const RECONNECT_DELAY = 3000;
-const HEARTBEAT_TIMEOUT = 45000; // 45 seconds (server sends every 30s)
+const HEARTBEAT_TIMEOUT = 45000; // 45 seconds (server sends every 10s, 4.5x buffer)
 
 // [MSG-DEBUG] Helper to get current timestamp
 const debugTimestamp = () => new Date().toISOString();
@@ -45,6 +47,7 @@ export function useUserMessageStream() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isConnectingRef = useRef(false);
 
   // Deduplication: Track recently processed message IDs to prevent duplicates
   // during reconnect race conditions (catch-up + Redis subscription overlap)
@@ -132,8 +135,12 @@ export function useUserMessageStream() {
       }
     }
 
-    // Then, notify the conversation-specific handler
+    // Phase 7: Route events by conversation_id only (NOT booking_id!)
+    // Frontend now subscribes using conversation_id, so direct lookup is sufficient.
+    // No fallback needed because both Chat.tsx and instructor messages page
+    // now fetch conversation_id before subscribing.
     const handlers = handlersRef.current.get(event.conversation_id);
+
     if (!handlers) {
       logger.debug('[MSG-DEBUG] SSE: No handler found for conversation', {
         conversationId: event.conversation_id,
@@ -232,182 +239,213 @@ export function useUserMessageStream() {
 
   // Connect to SSE
   const connect = useCallback(() => {
-    if (!isAuthenticated || eventSourceRef.current) {
+    if (!isAuthenticated || eventSourceRef.current || isConnectingRef.current) {
       logger.debug('[MSG-DEBUG] SSE: Skipping connect', {
         isAuthenticated,
         hasExistingConnection: !!eventSourceRef.current,
-        timestamp: debugTimestamp()
+        isConnecting: isConnectingRef.current,
+        timestamp: debugTimestamp(),
       });
       return;
     }
 
-    const url = withApiBase(SSE_ENDPOINT);
-    logger.debug('[MSG-DEBUG] SSE: Attempting connection', {
-      url,
-      timestamp: debugTimestamp()
-    });
-    logger.info('[SSE] Connecting to user inbox stream', { url });
+    isConnectingRef.current = true;
 
-    const eventSource = new EventSource(url, {
-      withCredentials: true,
-    } as EventSourceInit);
+    const connectWithToken = async () => {
+      const baseUrl = withApiBase(SSE_ENDPOINT);
+      let sseUrl = baseUrl;
 
-    logger.debug('[MSG-DEBUG] SSE: EventSource created', {
-      readyState: eventSource.readyState,
-      url: eventSource.url,
-      withCredentials: eventSource.withCredentials,
-      timestamp: debugTimestamp()
-    });
-
-    eventSource.addEventListener('connected', () => {
-      logger.debug('[MSG-DEBUG] SSE: Connection OPENED (connected event)', {
-        readyState: eventSource.readyState,
-        timestamp: debugTimestamp()
-      });
-      logger.info('[SSE] Connected to user inbox stream');
-      setIsConnected(true);
-      setConnectionError(null);
-      resetHeartbeat();
-    });
-
-    eventSource.addEventListener('keep-alive', () => {
-      logger.debug('[MSG-DEBUG] SSE: Keep-alive received', { timestamp: debugTimestamp() });
-      resetHeartbeat();
-    });
-
-    eventSource.addEventListener('heartbeat', () => {
-      logger.debug('[MSG-DEBUG] SSE: Heartbeat received', { timestamp: debugTimestamp() });
-      resetHeartbeat();
-    });
-
-    // Handle all event types
-    eventSource.addEventListener('new_message', (event) => {
-      resetHeartbeat();
       try {
-        const rawData = (event as MessageEvent).data;
-        logger.debug('[MSG-DEBUG] SSE: new_message event received', {
-          rawDataPreview: typeof rawData === 'string' ? rawData.substring(0, 200) : rawData,
-          timestamp: debugTimestamp()
-        });
-        const parsed = JSON.parse(rawData);
-        const data: SSEEvent = { ...parsed, type: 'new_message' };
-        logger.debug('[MSG-DEBUG] SSE: new_message parsed', {
-          type: data.type,
-          conversationId: data.conversation_id,
-          messageId: (data as { message?: { id?: string } }).message?.id,
-          isMine: (data as { is_mine?: boolean }).is_mine,
-          timestamp: debugTimestamp()
-        });
-        routeEvent(data);
+        const response = await fetchWithAuth(SSE_TOKEN_ENDPOINT, { method: 'POST' });
+        if (response.ok) {
+          const data = (await response.json()) as { token?: string };
+          if (data?.token) {
+            sseUrl = `${baseUrl}?sse_token=${encodeURIComponent(data.token)}`;
+          }
+        } else {
+          logger.warn('[SSE] Failed to fetch SSE token, falling back to cookie auth', {
+            status: response.status,
+            timestamp: debugTimestamp(),
+          });
+        }
       } catch (err) {
-        logger.error('[MSG-DEBUG] SSE: Failed to parse new_message', { err, timestamp: debugTimestamp() });
-      }
-    });
-
-    eventSource.addEventListener('typing_status', (event) => {
-      try {
-        const parsed = JSON.parse((event as MessageEvent).data);
-        const data: SSEEvent = { ...parsed, type: 'typing_status' };
-        logger.debug('[MSG-DEBUG] SSE: typing_status event', {
-          conversationId: data.conversation_id,
-          userId: (data as { user_id?: string }).user_id,
-          timestamp: debugTimestamp()
-        });
-        routeEvent(data);
-      } catch (err) {
-        logger.error('[MSG-DEBUG] SSE: Failed to parse typing_status', { err, timestamp: debugTimestamp() });
-      }
-    });
-
-    eventSource.addEventListener('read_receipt', (event) => {
-      try {
-        const parsed = JSON.parse((event as MessageEvent).data);
-        const data: SSEEvent = { ...parsed, type: 'read_receipt' };
-        logger.debug('[MSG-DEBUG] SSE: read_receipt event', {
-          conversationId: data.conversation_id,
-          messageIds: (data as { message_ids?: string[] }).message_ids,
-          timestamp: debugTimestamp()
-        });
-        routeEvent(data);
-      } catch (err) {
-        logger.error('[MSG-DEBUG] SSE: Failed to parse read_receipt', { err, timestamp: debugTimestamp() });
-      }
-    });
-
-    eventSource.addEventListener('reaction_update', (event) => {
-      try {
-        const parsed = JSON.parse((event as MessageEvent).data);
-        const data: SSEEvent = { ...parsed, type: 'reaction_update' };
-        logger.debug('[MSG-DEBUG] SSE: reaction_update event', {
-          conversationId: data.conversation_id,
-          messageId: (data as { message_id?: string }).message_id,
-          emoji: (data as { emoji?: string }).emoji,
-          action: (data as { action?: string }).action,
-          timestamp: debugTimestamp()
-        });
-        routeEvent(data);
-      } catch (err) {
-        logger.error('[MSG-DEBUG] SSE: Failed to parse reaction_update', { err, timestamp: debugTimestamp() });
-      }
-    });
-
-    eventSource.addEventListener('message_edited', (event) => {
-      resetHeartbeat();
-      try {
-        const parsed = JSON.parse((event as MessageEvent).data);
-        const data: SSEEvent = { ...parsed, type: 'message_edited' };
-        const editData = data as SSEMessageEditedEvent;
-        logger.debug('[MSG-DEBUG] SSE: message_edited event', {
-          conversationId: data.conversation_id,
-          messageId: editData.message_id,
-          newContent: editData.data?.content,
-          hasContent: !!editData.data?.content,
-          timestamp: debugTimestamp()
-        });
-        routeEvent(data);
-      } catch (err) {
-        logger.error('[MSG-DEBUG] SSE: Failed to parse message_edited', { err, timestamp: debugTimestamp() });
-      }
-    });
-
-    eventSource.addEventListener('message_deleted', (event) => {
-      resetHeartbeat();
-      try {
-        const parsed = JSON.parse((event as MessageEvent).data);
-        const data: SSEMessageDeletedEvent = { ...parsed, type: 'message_deleted' };
-        logger.debug('[MSG-DEBUG] SSE: message_deleted event', {
-          conversationId: data.conversation_id,
-          messageId: data.message_id,
+        logger.warn('[SSE] SSE token request failed, falling back to cookie auth', {
+          err,
           timestamp: debugTimestamp(),
         });
-        routeEvent(data);
-      } catch (err) {
-        logger.error('[MSG-DEBUG] SSE: Failed to parse message_deleted', { err, timestamp: debugTimestamp() });
       }
-    });
 
-    eventSource.onerror = (err) => {
-      logger.error('[MSG-DEBUG] SSE: Connection ERROR', {
+      logger.debug('[MSG-DEBUG] SSE: Attempting connection', {
+        url: sseUrl,
+        timestamp: debugTimestamp(),
+      });
+      logger.info('[SSE] Connecting to user inbox stream', { url: sseUrl });
+
+      const eventSource = new EventSource(sseUrl, {
+        withCredentials: true,
+      } as EventSourceInit);
+
+      logger.debug('[MSG-DEBUG] SSE: EventSource created', {
         readyState: eventSource.readyState,
-        readyStateText: ['CONNECTING', 'OPEN', 'CLOSED'][eventSource.readyState] || 'UNKNOWN',
-        error: err,
+        url: eventSource.url,
+        withCredentials: eventSource.withCredentials,
         timestamp: debugTimestamp()
       });
-      setIsConnected(false);
-      setConnectionError('Connection lost');
-      eventSource.close();
-      eventSourceRef.current = null;
 
-      // Reconnect after delay
-      logger.debug('[MSG-DEBUG] SSE: Will attempt reconnect in', { delayMs: RECONNECT_DELAY });
-      reconnectTimeoutRef.current = setTimeout(() => {
-        logger.debug('[MSG-DEBUG] SSE: Attempting reconnect...', { timestamp: debugTimestamp() });
-        logger.info('[SSE] Attempting reconnect...');
-        connect();
-      }, RECONNECT_DELAY);
+      eventSource.addEventListener('connected', () => {
+        logger.debug('[MSG-DEBUG] SSE: Connection OPENED (connected event)', {
+          readyState: eventSource.readyState,
+          timestamp: debugTimestamp()
+        });
+        logger.info('[SSE] Connected to user inbox stream');
+        setIsConnected(true);
+        setConnectionError(null);
+        resetHeartbeat();
+      });
+
+      eventSource.addEventListener('keep-alive', () => {
+        logger.debug('[MSG-DEBUG] SSE: Keep-alive received', { timestamp: debugTimestamp() });
+        resetHeartbeat();
+      });
+
+      eventSource.addEventListener('heartbeat', () => {
+        logger.debug('[MSG-DEBUG] SSE: Heartbeat received', { timestamp: debugTimestamp() });
+        resetHeartbeat();
+      });
+
+      // Handle all event types
+      eventSource.addEventListener('new_message', (event) => {
+        resetHeartbeat();
+        try {
+          const rawData = (event as MessageEvent).data;
+          logger.debug('[MSG-DEBUG] SSE: new_message event received', {
+            rawDataPreview: typeof rawData === 'string' ? rawData.substring(0, 200) : rawData,
+            timestamp: debugTimestamp()
+          });
+          const parsed = JSON.parse(rawData);
+          const data: SSEEvent = { ...parsed, type: 'new_message' };
+          logger.debug('[MSG-DEBUG] SSE: new_message parsed', {
+            type: data.type,
+            conversationId: data.conversation_id,
+            messageId: (data as { message?: { id?: string } }).message?.id,
+            isMine: (data as { is_mine?: boolean }).is_mine,
+            timestamp: debugTimestamp()
+          });
+          routeEvent(data);
+        } catch (err) {
+          logger.error('[MSG-DEBUG] SSE: Failed to parse new_message', { err, timestamp: debugTimestamp() });
+        }
+      });
+
+      eventSource.addEventListener('typing_status', (event) => {
+        try {
+          const parsed = JSON.parse((event as MessageEvent).data);
+          const data: SSEEvent = { ...parsed, type: 'typing_status' };
+          logger.debug('[MSG-DEBUG] SSE: typing_status event', {
+            conversationId: data.conversation_id,
+            userId: (data as { user_id?: string }).user_id,
+            timestamp: debugTimestamp()
+          });
+          routeEvent(data);
+        } catch (err) {
+          logger.error('[MSG-DEBUG] SSE: Failed to parse typing_status', { err, timestamp: debugTimestamp() });
+        }
+      });
+
+      eventSource.addEventListener('read_receipt', (event) => {
+        try {
+          const parsed = JSON.parse((event as MessageEvent).data);
+          const data: SSEEvent = { ...parsed, type: 'read_receipt' };
+          logger.debug('[MSG-DEBUG] SSE: read_receipt event', {
+            conversationId: data.conversation_id,
+            messageIds: (data as { message_ids?: string[] }).message_ids,
+            timestamp: debugTimestamp()
+          });
+          routeEvent(data);
+        } catch (err) {
+          logger.error('[MSG-DEBUG] SSE: Failed to parse read_receipt', { err, timestamp: debugTimestamp() });
+        }
+      });
+
+      eventSource.addEventListener('reaction_update', (event) => {
+        try {
+          const parsed = JSON.parse((event as MessageEvent).data);
+          const data: SSEEvent = { ...parsed, type: 'reaction_update' };
+          logger.debug('[MSG-DEBUG] SSE: reaction_update event', {
+            conversationId: data.conversation_id,
+            messageId: (data as { message_id?: string }).message_id,
+            emoji: (data as { emoji?: string }).emoji,
+            action: (data as { action?: string }).action,
+            timestamp: debugTimestamp()
+          });
+          routeEvent(data);
+        } catch (err) {
+          logger.error('[MSG-DEBUG] SSE: Failed to parse reaction_update', { err, timestamp: debugTimestamp() });
+        }
+      });
+
+      eventSource.addEventListener('message_edited', (event) => {
+        resetHeartbeat();
+        try {
+          const parsed = JSON.parse((event as MessageEvent).data);
+          const data: SSEEvent = { ...parsed, type: 'message_edited' };
+          const editData = data as SSEMessageEditedEvent;
+          logger.debug('[MSG-DEBUG] SSE: message_edited event', {
+            conversationId: data.conversation_id,
+            messageId: editData.message_id,
+            newContent: editData.data?.content,
+            hasContent: !!editData.data?.content,
+            timestamp: debugTimestamp()
+          });
+          routeEvent(data);
+        } catch (err) {
+          logger.error('[MSG-DEBUG] SSE: Failed to parse message_edited', { err, timestamp: debugTimestamp() });
+        }
+      });
+
+      eventSource.addEventListener('message_deleted', (event) => {
+        resetHeartbeat();
+        try {
+          const parsed = JSON.parse((event as MessageEvent).data);
+          const data: SSEMessageDeletedEvent = { ...parsed, type: 'message_deleted' };
+          logger.debug('[MSG-DEBUG] SSE: message_deleted event', {
+            conversationId: data.conversation_id,
+            messageId: data.message_id,
+            timestamp: debugTimestamp(),
+          });
+          routeEvent(data);
+        } catch (err) {
+          logger.error('[MSG-DEBUG] SSE: Failed to parse message_deleted', { err, timestamp: debugTimestamp() });
+        }
+      });
+
+      eventSource.onerror = (err) => {
+        logger.error('[MSG-DEBUG] SSE: Connection ERROR', {
+          readyState: eventSource.readyState,
+          readyStateText: ['CONNECTING', 'OPEN', 'CLOSED'][eventSource.readyState] || 'UNKNOWN',
+          error: err,
+          timestamp: debugTimestamp()
+        });
+        setIsConnected(false);
+        setConnectionError('Connection lost');
+        eventSource.close();
+        eventSourceRef.current = null;
+
+        // Reconnect after delay
+        logger.debug('[MSG-DEBUG] SSE: Will attempt reconnect in', { delayMs: RECONNECT_DELAY });
+        reconnectTimeoutRef.current = setTimeout(() => {
+          logger.debug('[MSG-DEBUG] SSE: Attempting reconnect...', { timestamp: debugTimestamp() });
+          logger.info('[SSE] Attempting reconnect...');
+          connect();
+        }, RECONNECT_DELAY);
+      };
+
+      eventSourceRef.current = eventSource;
     };
 
-    eventSourceRef.current = eventSource;
+    void connectWithToken().finally(() => {
+      isConnectingRef.current = false;
+    });
   }, [isAuthenticated, resetHeartbeat, routeEvent]);
 
   // Keep connectRef updated so heartbeat timeout can call it

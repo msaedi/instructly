@@ -81,6 +81,12 @@ class MockEventSource {
   }
 }
 
+const waitForEventSource = async () => {
+  await act(async () => {
+    await Promise.resolve();
+  });
+};
+
 describe('useUserMessageStream', () => {
   let mockEventSource: MockEventSource;
 
@@ -100,6 +106,13 @@ describe('useUserMessageStream', () => {
       isAuthenticated: true,
       user: { id: 'user1', email: 'test@example.com' },
     });
+
+    // Mock SSE token fetch
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ token: 'test-sse-token' }),
+    }) as jest.Mock;
   });
 
   afterEach(() => {
@@ -108,8 +121,9 @@ describe('useUserMessageStream', () => {
   });
 
   describe('subscription stability', () => {
-    it('should only create one EventSource connection per mount', () => {
+    it('should only create one EventSource connection per mount', async () => {
       const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
 
       act(() => {
         mockEventSource.simulateConnected();
@@ -127,8 +141,9 @@ describe('useUserMessageStream', () => {
       expect(global.EventSource).toHaveBeenCalledTimes(1);
     });
 
-    it('should not recreate subscription when handler reference changes', () => {
+    it('should not recreate subscription when handler reference changes', async () => {
       const { result, rerender } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
 
       act(() => {
         mockEventSource.simulateConnected();
@@ -152,8 +167,9 @@ describe('useUserMessageStream', () => {
   });
 
   describe('event routing', () => {
-    it('should route new_message events to correct conversation handler', () => {
+    it('should route new_message events to correct conversation handler', async () => {
       const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
       const handler1 = { onMessage: jest.fn() };
       const handler2 = { onMessage: jest.fn() };
 
@@ -188,8 +204,9 @@ describe('useUserMessageStream', () => {
       expect(handler2.onMessage).not.toHaveBeenCalled();
     });
 
-    it('should notify __global__ subscriber for all messages', () => {
+    it('should notify __global__ subscriber for all messages', async () => {
       const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
       const globalHandler = { onMessage: jest.fn() };
       const convHandler = { onMessage: jest.fn() };
 
@@ -221,8 +238,9 @@ describe('useUserMessageStream', () => {
   });
 
   describe('read receipt handling', () => {
-    it('should handle message_ids array format', () => {
+    it('should handle message_ids array format', async () => {
       const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
       const handler = { onReadReceipt: jest.fn() };
 
       act(() => {
@@ -245,8 +263,9 @@ describe('useUserMessageStream', () => {
       );
     });
 
-    it('should handle singular message_id format (backward compatibility)', () => {
+    it('should handle singular message_id format (backward compatibility)', async () => {
       const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
       const handler = { onReadReceipt: jest.fn() };
 
       act(() => {
@@ -271,8 +290,9 @@ describe('useUserMessageStream', () => {
   });
 
   describe('reaction handling', () => {
-    it('should include all required fields in reaction event', () => {
+    it('should include all required fields in reaction event', async () => {
       const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
       const handler = { onReaction: jest.fn() };
 
       act(() => {
@@ -296,8 +316,9 @@ describe('useUserMessageStream', () => {
   });
 
   describe('cleanup', () => {
-    it('should close EventSource on unmount', () => {
+    it('should close EventSource on unmount', async () => {
       const { unmount } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
 
       act(() => {
         mockEventSource.simulateConnected();
@@ -308,8 +329,9 @@ describe('useUserMessageStream', () => {
       expect(mockEventSource.close).toHaveBeenCalled();
     });
 
-    it('should remove handlers when unsubscribe is called', () => {
+    it('should remove handlers when unsubscribe is called', async () => {
       const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
       const handler = { onMessage: jest.fn() };
 
       act(() => {
@@ -347,8 +369,9 @@ describe('useUserMessageStream', () => {
   });
 
   describe('typing status handling', () => {
-    it('should route typing status events correctly', () => {
+    it('should route typing status events correctly', async () => {
       const { result } = renderHook(() => useUserMessageStream());
+      await waitForEventSource();
       const handler = { onTyping: jest.fn() };
 
       act(() => {

@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, status
 
+HTTP_422_UNPROCESSABLE: int = getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422)
+
 
 class DomainException(Exception):
     """Base exception for all domain-specific errors."""
@@ -84,7 +86,7 @@ class BusinessRuleException(DomainException):
 
     def to_http_exception(self) -> HTTPException:
         return HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=HTTP_422_UNPROCESSABLE,
             detail={
                 "message": self.message,
                 "code": self.code,
@@ -198,3 +200,36 @@ class RepositoryException(Exception):
     such as database connection issues, query failures, or
     constraint violations.
     """
+
+
+def is_db_pool_exhaustion(exc: Exception) -> bool:
+    """
+    Check if an exception indicates DB connection pool exhaustion.
+
+    This is a common failure mode under high load when all database
+    connections are in use and new requests time out waiting.
+    """
+    error_str = str(exc).lower()
+    return "queuepool" in error_str or (
+        "timeout" in error_str and ("connection" in error_str or "pool" in error_str)
+    )
+
+
+def raise_503_if_pool_exhaustion(exc: Exception) -> None:
+    """
+    Convert DB pool exhaustion errors to HTTP 503 (Service Unavailable).
+
+    Under high load, returning 503 with Retry-After header is more appropriate
+    than 500 because it signals to clients that the service is temporarily
+    overloaded and they should retry.
+
+    Raises:
+        HTTPException: 503 if pool exhaustion detected
+        Does not raise if not pool exhaustion (caller should re-raise original)
+    """
+    if is_db_pool_exhaustion(exc):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily overloaded. Please retry.",
+            headers={"Retry-After": "2"},
+        )

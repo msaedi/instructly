@@ -1,0 +1,190 @@
+name: Load Test Smoke
+
+# Run on manual trigger only
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: 'Number of concurrent users'
+        required: false
+        default: '10'
+      spawn_rate:
+        description: 'Users spawned per second'
+        required: false
+        default: '2'
+      duration:
+        description: 'Test duration (e.g., 30s, 2m)'
+        required: false
+        default: '2m'
+      environment:
+        description: 'Target environment'
+        required: false
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - local
+
+permissions:
+  contents: read
+
+jobs:
+  load-test:
+    name: Load Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Workflow inputs as environment variables (safe pattern)
+      INPUT_USERS: ${{ github.event.inputs.users || '10' }}
+      INPUT_SPAWN_RATE: ${{ github.event.inputs.spawn_rate || '2' }}
+      INPUT_DURATION: ${{ github.event.inputs.duration || '2m' }}
+      INPUT_ENVIRONMENT: ${{ github.event.inputs.environment || 'preview' }}
+      # Load test configuration
+      LOADTEST_USERS: ${{ secrets.LOADTEST_USERS }}
+      LOADTEST_PASSWORD: ${{ secrets.LOADTEST_PASSWORD }}
+      LOADTEST_BYPASS_TOKEN: ${{ secrets.LOADTEST_BYPASS_TOKEN }}
+      LOADTEST_SSE_HOLD_SECONDS: '25'
+
+    steps:
+      - name: Set target URLs based on environment
+        id: urls
+        run: |
+          if [ "$INPUT_ENVIRONMENT" = "local" ]; then
+            echo "LOADTEST_BASE_URL=http://localhost:8000" >> $GITHUB_ENV
+            echo "LOADTEST_FRONTEND_ORIGIN=http://localhost:3000" >> $GITHUB_ENV
+          else
+            echo "LOADTEST_BASE_URL=https://preview-api.instainstru.com" >> $GITHUB_ENV
+            echo "LOADTEST_FRONTEND_ORIGIN=https://preview.instainstru.com" >> $GITHUB_ENV
+          fi
+
+          # Set default test users if not provided via secrets
+          if [ -z "$LOADTEST_USERS" ]; then
+            echo "LOADTEST_USERS=sarah.chen@example.com,emma.johnson@example.com" >> $GITHUB_ENV
+          fi
+          if [ -z "$LOADTEST_PASSWORD" ]; then
+            echo "LOADTEST_PASSWORD=Test1234" >> $GITHUB_ENV
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          pip install locust httpx sseclient-py
+
+      - name: Verify target is healthy
+        run: |
+          set -e
+          echo "Checking health of $LOADTEST_BASE_URL..."
+          curl -fSs --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 5 \
+            "$LOADTEST_BASE_URL/health" | head -n 5
+          echo "Target is healthy!"
+
+      - name: Run load test smoke
+        id: loadtest
+        working-directory: backend/tests/load
+        run: |
+          set -e
+
+          echo "==================================="
+          echo "  CI Load Test Smoke"
+          echo "==================================="
+          echo "Target:     $LOADTEST_BASE_URL"
+          echo "Users:      $INPUT_USERS (spawn: $INPUT_SPAWN_RATE/sec)"
+          echo "Duration:   $INPUT_DURATION"
+          echo "SSE Hold:   ${LOADTEST_SSE_HOLD_SECONDS}s"
+          echo "==================================="
+
+          mkdir -p results/ci_smoke
+
+          locust -f locustfile.py \
+            --headless \
+            --host="$LOADTEST_BASE_URL" \
+            -u "$INPUT_USERS" \
+            -r "$INPUT_SPAWN_RATE" \
+            -t "$INPUT_DURATION" \
+            --csv=results/ci_smoke/results \
+            --html=results/ci_smoke/report.html \
+            2>&1 | tee loadtest_output.txt
+
+          echo ""
+          echo "Load test completed!"
+
+      - name: Parse and check results
+        id: check
+        working-directory: backend/tests/load
+        run: |
+          set -e
+
+          echo ""
+          echo "Parsing results..."
+          echo ""
+
+          python parse_load_results.py \
+            results/ci_smoke/results_stats.csv \
+            --check-thresholds \
+            --ci-mode \
+            --label "ci_smoke_$(date +%Y%m%d_%H%M%S)"
+
+          RESULT=$?
+
+          if [ $RESULT -eq 0 ]; then
+            echo "result=pass" >> $GITHUB_OUTPUT
+            echo ""
+            echo "LOAD TEST PASSED"
+          else
+            echo "result=fail" >> $GITHUB_OUTPUT
+            echo ""
+            echo "LOAD TEST FAILED - Threshold violations detected"
+            exit 1
+          fi
+
+      - name: Generate JSON summary
+        if: always()
+        working-directory: backend/tests/load
+        run: |
+          python parse_load_results.py \
+            results/ci_smoke/results_stats.csv \
+            --json \
+            --ci-mode > results/ci_smoke/summary.json 2>/dev/null || true
+
+          if [ -f results/ci_smoke/summary.json ]; then
+            echo "### Load Test Summary" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat results/ci_smoke/summary.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-results-${{ github.run_number }}
+          path: |
+            backend/tests/load/results/ci_smoke/
+            backend/tests/load/loadtest_output.txt
+          retention-days: 30
+
+      - name: Post summary
+        if: always()
+        env:
+          CHECK_RESULT: ${{ steps.check.outputs.result }}
+        run: |
+          echo "## Load Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Target | $LOADTEST_BASE_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Users | $INPUT_USERS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Duration | $INPUT_DURATION |" >> $GITHUB_STEP_SUMMARY
+          echo "| Result | ${CHECK_RESULT:-unknown} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See artifacts for detailed HTML report and CSV data." >> $GITHUB_STEP_SUMMARY

@@ -72,7 +72,7 @@ if TYPE_CHECKING:
     from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.bulk_operation_repository import BulkOperationRepository
     from ..repositories.conflict_checker_repository import ConflictCheckerRepository
-    from .cache_service import CacheService
+    from .cache_service import CacheServiceSyncAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +164,7 @@ class AvailabilityService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache_service: Optional["CacheService"] = None,
+        cache_service: Optional["CacheServiceSyncAdapter"] = None,
         repository: Optional["AvailabilityRepository"] = None,
         bulk_repository: Optional["BulkOperationRepository"] = None,
         conflict_repository: Optional["ConflictCheckerRepository"] = None,

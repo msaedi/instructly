@@ -16,10 +16,10 @@ Endpoints:
     GET /{instructor_id}/coverage - Get instructor service area coverage
 """
 
-from datetime import datetime, timezone
+import asyncio
 import logging
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 from fastapi.params import Path
 from sqlalchemy.orm import Session
 
@@ -29,12 +29,16 @@ from ...api.dependencies.auth import (
     require_beta_access,
 )
 from ...api.dependencies.services import (
-    get_cache_service_dep,
+    get_cache_service_sync_dep,
     get_favorites_service,
     get_instructor_service,
 )
-from ...core.enums import RoleName
-from ...core.exceptions import DomainException, ValidationException
+from ...core.exceptions import (
+    BusinessRuleException,
+    DomainException,
+    NotFoundException,
+    raise_503_if_pool_exhaustion,
+)
 from ...core.ulid_helper import is_valid_ulid
 from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit as legacy_rate_limit
@@ -49,12 +53,9 @@ from ...schemas.instructor import (
     InstructorProfileUpdate,
 )
 from ...services.address_service import AddressService
-from ...services.cache_service import CacheService
-from ...services.config_service import ConfigService
+from ...services.cache_service import CacheServiceSyncAdapter
 from ...services.favorites_service import FavoritesService
 from ...services.instructor_service import InstructorService
-from ...services.pricing_service import PricingService
-from ...services.stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,8 @@ async def list_instructors(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     # Get filtered instructors
-    result = instructor_service.get_instructors_filtered(
+    result = await asyncio.to_thread(
+        instructor_service.get_instructors_filtered,
         search=None,
         service_catalog_id=filters.service_catalog_id,
         min_price=filters.min_price,
@@ -157,8 +159,10 @@ async def create_profile(
 ) -> InstructorProfileResponse:
     """Create a new instructor profile."""
     try:
-        profile_data = instructor_service.create_instructor_profile(
-            user=current_user, profile_data=profile
+        profile_data = await asyncio.to_thread(
+            instructor_service.create_instructor_profile,
+            current_user,
+            profile,
         )
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
@@ -184,14 +188,16 @@ async def get_my_profile(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> InstructorProfileResponse:
     """Get current instructor's profile."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can access profiles",
         )
 
     try:
-        profile_data = instructor_service.get_instructor_profile(current_user.id)
+        profile_data = await asyncio.to_thread(
+            instructor_service.get_instructor_profile, current_user.id
+        )
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
         return InstructorProfileResponse(**profile_data)
@@ -215,10 +221,10 @@ async def update_profile(
     profile_update: InstructorProfileUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> InstructorProfileResponse:
     """Update instructor profile."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can update profiles",
@@ -228,8 +234,10 @@ async def update_profile(
         if not instructor_service.cache_service and cache_service:
             instructor_service.cache_service = cache_service
 
-        profile_data = instructor_service.update_instructor_profile(
-            user_id=current_user.id, update_data=profile_update
+        profile_data = await asyncio.to_thread(
+            instructor_service.update_instructor_profile,
+            current_user.id,
+            profile_update,
         )
         if hasattr(profile_data, "id"):
             return InstructorProfileResponse.from_orm(profile_data)
@@ -255,7 +263,6 @@ async def update_profile(
 async def go_live(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-    db: Session = Depends(get_db),
 ) -> InstructorProfileResponse:
     """
     Mark instructor profile as live if all prerequisites are met.
@@ -266,89 +273,23 @@ async def go_live(
     - At least one service configured
     - Background check passed
     """
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can perform this action",
         )
 
     try:
-        profile_data = instructor_service.get_instructor_profile(
-            current_user.id, include_inactive_services=False
-        )
-    except Exception as e:
-        if "not found" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-        raise
-
-    # Check prerequisites
-    config_service = ConfigService(db)
-    pricing_service = PricingService(db)
-    stripe_service = StripeService(
-        db, config_service=config_service, pricing_service=pricing_service
-    )
-    connect = (
-        stripe_service.check_account_status(profile_data["id"])
-        if profile_data.get("id")
-        else {"has_account": False, "onboarding_completed": False}
-    )
-
-    skills_ok = bool(profile_data.get("skills_configured")) or (
-        len(profile_data.get("services", [])) > 0
-    )
-    identity_ok = bool(profile_data.get("identity_verified_at"))
-    connect_ok = bool(connect.get("onboarding_completed"))
-
-    profile_record = instructor_service.profile_repository.find_one_by(user_id=current_user.id)
-    if not profile_record:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-
-    bgc_ok = (getattr(profile_record, "bgc_status", "") or "").lower() == "passed"
-
-    missing: list[str] = []
-    if not skills_ok:
-        missing.append("skills")
-    if not identity_ok:
-        missing.append("identity")
-    if not connect_ok:
-        missing.append("stripe_connect")
-    if not bgc_ok:
-        missing.append("background_check")
-
-    if missing:
-        raise ValidationException(
-            "Prerequisites not met",
-            code="GO_LIVE_PREREQUISITES",
-            details={"missing": missing},
-        ).to_http_exception()
-
-    # Set live
-    try:
-        with instructor_service.transaction():
-            profile = profile_record
-            if not getattr(profile, "onboarding_completed_at", None):
-                instructor_service.profile_repository.update(
-                    profile.id,
-                    is_live=True,
-                    onboarding_completed_at=datetime.now(timezone.utc),
-                    skills_configured=True
-                    if not getattr(profile, "skills_configured", False)
-                    else profile.skills_configured,
-                )
-            else:
-                instructor_service.profile_repository.update(profile.id, is_live=True)
-    except HTTPException:
-        raise
-    except Exception:
+        profile = await asyncio.to_thread(instructor_service.go_live, current_user.id)
+    except BusinessRuleException as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to go live"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": exc.message, "code": exc.code, "details": exc.details},
         )
+    except NotFoundException as exc:
+        raise exc.to_http_exception()
 
-    # Return updated profile
-    updated_profile = instructor_service.get_instructor_profile(current_user.id)
-    if hasattr(updated_profile, "id"):
-        return InstructorProfileResponse.from_orm(updated_profile)
-    return InstructorProfileResponse(**updated_profile)
+    return InstructorProfileResponse.from_orm(profile)
 
 
 @router.delete(
@@ -364,10 +305,10 @@ async def go_live(
 async def delete_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
-    cache_service: CacheService = Depends(get_cache_service_dep),
+    cache_service: CacheServiceSyncAdapter = Depends(get_cache_service_sync_dep),
 ) -> None:
     """Delete instructor profile and revert to student role."""
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can delete their profiles",
@@ -377,7 +318,8 @@ async def delete_profile(
         if not instructor_service.cache_service and cache_service:
             instructor_service.cache_service = cache_service
 
-        instructor_service.delete_instructor_profile(current_user.id)
+        # Run sync service call off the event loop so cache invalidation (sync adapter) executes.
+        await asyncio.to_thread(instructor_service.delete_instructor_profile, current_user.id)
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
@@ -397,38 +339,53 @@ async def delete_profile(
 async def get_instructor(
     instructor_id: str = Path(
         ...,
-        description="Instructor profile ULID",
+        description="Instructor user ULID (or instructor profile ULID)",
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
+    response: Response = None,
     instructor_service: InstructorService = Depends(get_instructor_service),
     favorites_service: FavoritesService = Depends(get_favorites_service),
     current_user: User = Depends(get_current_active_user_optional),
 ) -> InstructorProfileResponse:
     """Get a specific instructor's profile by ID with privacy protection and favorite status."""
     try:
-        profile_data = instructor_service.get_public_instructor_profile(instructor_id)
+        profile_data = await asyncio.to_thread(
+            instructor_service.get_public_instructor_profile, instructor_id
+        )
         if profile_data is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Instructor profile not found",
             )
 
-        response = InstructorProfileResponse(**profile_data)
+        instructor_user_id = str(profile_data.get("user_id") or instructor_id)
+        result = InstructorProfileResponse(**profile_data)
 
         # Add favorite status
         if current_user:
-            response.is_favorited = favorites_service.is_favorited(
-                student_id=current_user.id, instructor_id=instructor_id
+            result.is_favorited = await asyncio.to_thread(
+                favorites_service.is_favorited,
+                student_id=current_user.id,
+                instructor_id=instructor_user_id,
             )
         else:
-            response.is_favorited = None
+            result.is_favorited = None
 
-        stats = favorites_service.get_instructor_favorite_stats(instructor_id)
-        response.favorited_count = stats["favorite_count"]
+        stats = await asyncio.to_thread(
+            favorites_service.get_instructor_favorite_stats, instructor_user_id
+        )
+        result.favorited_count = stats["favorite_count"]
 
-        return response
+        # Set Cache-Control header (5 minutes to match backend cache TTL)
+        if response:
+            response.headers["Cache-Control"] = "public, max-age=300"
+
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
+        raise_503_if_pool_exhaustion(e)
         if "not found" in str(e).lower():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
@@ -447,17 +404,27 @@ async def get_instructor(
 async def get_coverage(
     instructor_id: str = Path(
         ...,
-        description="Instructor profile ULID",
+        description="Instructor user ULID (or instructor profile ULID)",
         pattern=ULID_PATH_PATTERN,
         examples=["01HF4G12ABCDEF3456789XYZAB"],
     ),
     address_service: AddressService = Depends(get_address_service),
+    instructor_service: InstructorService = Depends(get_instructor_service),
 ) -> CoverageFeatureCollectionResponse:
     """Get instructor service area coverage as GeoJSON."""
     if not is_valid_ulid(instructor_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid instructor ID")
 
-    geo = address_service.get_coverage_geojson_for_instructors([instructor_id])
+    try:
+        instructor_user = await asyncio.to_thread(
+            instructor_service.get_instructor_user, instructor_id
+        )
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
+
+    geo = await asyncio.to_thread(
+        address_service.get_coverage_geojson_for_instructors, [instructor_user.id]
+    )
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
     )

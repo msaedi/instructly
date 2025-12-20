@@ -14,7 +14,8 @@ Endpoints:
     POST /{booking_id}/dispute - Dispute completion status
 """
 
-from datetime import datetime, timedelta, timezone
+import asyncio
+from datetime import datetime, timezone
 import logging
 from typing import List, Optional
 
@@ -32,7 +33,7 @@ from ...ratelimit.dependency import rate_limit
 from ...repositories.factory import RepositoryFactory
 from ...schemas.base_responses import PaginatedResponse
 from ...schemas.booking import BookingResponse
-from ...services.badge_award_service import BadgeAwardService
+from ...services.booking_service import BookingService
 from ...services.permission_service import PermissionService
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["instructor-bookings-v1"])
 
 ULID_PATH_PATTERN = r"^[0-9A-HJKMNP-TV-Z]{26}$"
+
+
+def get_booking_service(db: Session = Depends(get_db)) -> BookingService:
+    """Get an instance of the booking service."""
+    return BookingService(db)
 
 
 def check_permission(user: User, permission: PermissionName, db: Session) -> None:
@@ -103,8 +109,10 @@ async def get_pending_completion_bookings(
 
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
-    bookings = booking_repo.get_instructor_bookings(
-        instructor_id=current_user.id, status=BookingStatus.CONFIRMED
+    bookings = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings,
+        instructor_id=current_user.id,
+        status=BookingStatus.CONFIRMED,
     )
 
     now = datetime.now(timezone.utc)
@@ -132,7 +140,8 @@ async def get_upcoming_bookings(
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
-    bookings = booking_repo.get_instructor_bookings(
+    bookings = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings,
         instructor_id=current_user.id,
         status=BookingStatus.CONFIRMED,
         upcoming_only=True,
@@ -155,7 +164,8 @@ async def get_completed_bookings(
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
-    bookings = booking_repo.get_instructor_bookings(
+    bookings = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings,
         instructor_id=current_user.id,
         status=BookingStatus.COMPLETED,
         upcoming_only=False,
@@ -189,7 +199,8 @@ async def list_instructor_bookings(
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
     booking_repo = RepositoryFactory.get_booking_repository(db)
 
-    bookings = booking_repo.get_instructor_bookings(
+    bookings = await asyncio.to_thread(
+        booking_repo.get_instructor_bookings,
         instructor_id=current_user.id,
         status=status,
         upcoming_only=upcoming,
@@ -219,6 +230,7 @@ async def mark_lesson_complete(
     notes: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingResponse:
     """
     Mark a lesson as completed by the instructor.
@@ -238,85 +250,28 @@ async def mark_lesson_complete(
         404: Booking not found
         422: Booking cannot be marked complete (wrong status, not instructor's booking)
     """
+    from ...core.exceptions import BusinessRuleException, NotFoundException, ValidationException
+
     check_permission(current_user, PermissionName.COMPLETE_BOOKINGS, db)
 
-    booking_repo = RepositoryFactory.get_booking_repository(db)
-    payment_repo = RepositoryFactory.get_payment_repository(db)
-
-    # Get the booking
-    booking = booking_repo.get_by_id(booking_id)
-    if not booking:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
-
-    # Verify this is the instructor's booking
-    if booking.instructor_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="You can only mark your own lessons as complete",
-        )
-
-    # Verify booking is in correct status
-    if booking.status != BookingStatus.CONFIRMED:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Cannot mark booking as complete. Current status: {booking.status}",
-        )
-
-    # Verify lesson has ended
-    now = datetime.now(timezone.utc)
-    lesson_end = datetime.combine(booking.booking_date, booking.end_time)
-    if lesson_end > now:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Cannot mark lesson as complete before it ends",
-        )
-
-    # Mark as completed
-    booking.status = BookingStatus.COMPLETED
-    booking.completed_at = now
-
-    if notes:
-        booking.instructor_note = notes
-
-    # Record completion event
-    payment_repo.create_payment_event(
-        booking_id=booking.id,
-        event_type="instructor_marked_complete",
-        event_data={
-            "instructor_id": current_user.id,
-            "completed_at": now.isoformat(),
-            "notes": notes,
-            "payment_capture_scheduled_for": (now + timedelta(hours=24)).isoformat(),
-        },
-    )
-
-    # Trigger badge checks before commit
-    badge_service = BadgeAwardService(db)
-    booked_at = booking.confirmed_at or booking.created_at or now
-    category_slug = None
     try:
-        instructor_service = booking.instructor_service
-        if instructor_service and instructor_service.catalog_entry:
-            category = instructor_service.catalog_entry.category
-            if category:
-                category_slug = category.slug
-    except AttributeError:
-        category_slug = None
-
-    badge_service.check_and_award_on_lesson_completed(
-        student_id=booking.student_id,
-        lesson_id=booking.id,
-        instructor_id=booking.instructor_id,
-        category_slug=category_slug,
-        booked_at_utc=booked_at,
-        completed_at_utc=now,
-    )
-
-    db.commit()
-
-    # Return the updated booking
-    db.refresh(booking)
-    return BookingResponse.from_booking(booking)
+        booking = await asyncio.to_thread(
+            booking_service.instructor_mark_complete,
+            booking_id=booking_id,
+            instructor=current_user,
+            notes=notes,
+        )
+        return BookingResponse.from_booking(booking)
+    except NotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422), detail=str(e)
+        )
+    except BusinessRuleException as e:
+        raise HTTPException(
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422), detail=str(e)
+        )
 
 
 @router.post(
@@ -335,6 +290,7 @@ async def dispute_completion(
     reason: str = Body(..., embed=True),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
 ) -> BookingResponse:
     """
     Dispute a lesson completion as an instructor.
@@ -349,40 +305,21 @@ async def dispute_completion(
     Returns:
         Updated booking information
     """
+    from ...core.exceptions import NotFoundException, ValidationException
+
     check_permission(current_user, PermissionName.COMPLETE_BOOKINGS, db)
 
-    booking_repo = RepositoryFactory.get_booking_repository(db)
-    payment_repo = RepositoryFactory.get_payment_repository(db)
-
-    booking = booking_repo.get_by_id(booking_id)
-    if not booking:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
-
-    # Verify this is the instructor's booking
-    if booking.instructor_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="You can only dispute your own lessons",
+    try:
+        booking = await asyncio.to_thread(
+            booking_service.instructor_dispute_completion,
+            booking_id=booking_id,
+            instructor=current_user,
+            reason=reason,
         )
-
-    # Record dispute event
-    payment_repo.create_payment_event(
-        booking_id=booking.id,
-        event_type="completion_disputed",
-        event_data={
-            "disputed_by": current_user.id,
-            "reason": reason,
-            "disputed_at": datetime.now(timezone.utc).isoformat(),
-            "payment_capture_paused": True,
-        },
-    )
-
-    # Update payment status to prevent capture
-    if booking.payment_status == "authorized":
-        booking.payment_status = "disputed"
-
-    db.commit()
-
-    # Return the updated booking
-    db.refresh(booking)
-    return BookingResponse.from_booking(booking)
+        return BookingResponse.from_booking(booking)
+    except NotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422), detail=str(e)
+        )

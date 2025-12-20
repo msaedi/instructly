@@ -5,11 +5,13 @@ V1 Privacy API endpoints for GDPR compliance.
 Provides user data export, deletion, and privacy management endpoints.
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from ...api.dependencies.services import get_auth_service
 from ...auth import get_current_user as auth_get_current_user
 from ...core.enums import PermissionName
 from ...database import get_db
@@ -22,6 +24,7 @@ from ...schemas.privacy import (
     UserDataDeletionRequest,
     UserDataDeletionResponse,
 )
+from ...services.auth_service import AuthService
 from ...services.privacy_service import PrivacyService
 
 logger = logging.getLogger(__name__)
@@ -32,14 +35,14 @@ router = APIRouter(tags=["privacy"])
 
 async def get_current_user(
     current_user_email: str = Depends(auth_get_current_user),
-    db: Session = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> User:
     """
     Get the current authenticated user as a User object.
 
     Args:
         current_user_email: Email from JWT token
-        db: Database session
+        auth_service: Auth service for user lookup
 
     Returns:
         User: The authenticated user object
@@ -47,7 +50,7 @@ async def get_current_user(
     Raises:
         HTTPException: If user not found
     """
-    user: User | None = db.query(User).filter(User.email == current_user_email).first()
+    user = await asyncio.to_thread(auth_service.get_user_by_email, current_user_email)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
@@ -66,7 +69,7 @@ async def export_my_data(
     privacy_service = PrivacyService(db)
 
     try:
-        user_data = privacy_service.export_user_data(current_user.id)
+        user_data = await asyncio.to_thread(privacy_service.export_user_data, current_user.id)
         return DataExportResponse(
             status="success",
             message="Data export completed successfully",
@@ -96,7 +99,9 @@ async def delete_my_data(
     try:
         if request.delete_account:
             # Full account deletion
-            deletion_stats = privacy_service.delete_user_data(current_user.id, delete_account=True)
+            deletion_stats = await asyncio.to_thread(
+                privacy_service.delete_user_data, current_user.id, delete_account=True
+            )
             return UserDataDeletionResponse(
                 status="success",
                 message="Account and all associated data deleted",
@@ -105,7 +110,7 @@ async def delete_my_data(
             )
         else:
             # Anonymize only
-            success = privacy_service.anonymize_user(current_user.id)
+            success = await asyncio.to_thread(privacy_service.anonymize_user, current_user.id)
             if success:
                 return UserDataDeletionResponse(
                     status="success",
@@ -140,7 +145,7 @@ async def get_privacy_statistics(
     privacy_service = PrivacyService(db)
 
     try:
-        stats = privacy_service.get_privacy_statistics()
+        stats = await asyncio.to_thread(privacy_service.get_privacy_statistics)
         return PrivacyStatisticsResponse(
             status="success",
             statistics=stats,
@@ -166,7 +171,7 @@ async def apply_retention_policies(
     privacy_service = PrivacyService(db)
 
     try:
-        retention_stats = privacy_service.apply_retention_policies()
+        retention_stats = await asyncio.to_thread(privacy_service.apply_retention_policies)
         return RetentionPolicyResponse(
             status="success",
             message="Retention policies applied",
@@ -194,7 +199,7 @@ async def export_user_data_admin(
     privacy_service = PrivacyService(db)
 
     try:
-        user_data = privacy_service.export_user_data(user_id)
+        user_data = await asyncio.to_thread(privacy_service.export_user_data, user_id)
         return DataExportResponse(
             status="success",
             message=f"Data export completed for user {user_id}",
@@ -228,8 +233,8 @@ async def delete_user_data_admin(
     privacy_service = PrivacyService(db)
 
     try:
-        deletion_stats = privacy_service.delete_user_data(
-            user_id, delete_account=request.delete_account
+        deletion_stats = await asyncio.to_thread(
+            privacy_service.delete_user_data, user_id, delete_account=request.delete_account
         )
         return UserDataDeletionResponse(
             status="success",

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Response, status
 from sqlalchemy import text
@@ -14,38 +17,44 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/ready", response_model=ReadyProbeResponse)
-def ready_probe(response_obj: Response) -> ReadyProbeResponse:
+async def ready_probe(response_obj: Response) -> ReadyProbeResponse:
     try:
-        with SessionLocal() as session:
-            session.execute(text("SELECT 1"))
+
+        def _db_probe() -> None:
+            with SessionLocal() as session:
+                session.execute(text("SELECT 1"))
+                session.rollback()  # Clean up transaction before returning to pool
+
+        await asyncio.to_thread(_db_probe)
     except Exception:
         response_obj.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadyProbeResponse(status="db_not_ready")
 
     try:
-        client = get_healthcheck_redis_client()
-        try:
-            client.ping()
-        finally:
-            pool = getattr(client, "connection_pool", None)
-            if pool is not None:
-                try:
-                    pool.disconnect()
-                except Exception:
-                    pass
+        client_candidate: Any = get_healthcheck_redis_client()
+        client: Any
+        if inspect.isawaitable(client_candidate):
+            client = await client_candidate
+        else:
+            client = client_candidate
+        if client is None:
+            raise RuntimeError("Redis unavailable")
+        ping_candidate: Any = client.ping()
+        if inspect.isawaitable(ping_candidate):
+            await ping_candidate
     except Exception:
         response_obj.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadyProbeResponse(status="cache_not_ready")
 
-    # Check Redis Pub/Sub messaging health (real-time messaging)
+    # Check Broadcaster health (real-time SSE messaging via multiplexer)
     notifications_healthy: bool | None = None
     try:
-        from app.services.messaging.redis_pubsub import pubsub_manager
+        from app.core.broadcast import is_broadcast_initialized
 
-        notifications_healthy = pubsub_manager.is_initialized
+        notifications_healthy = is_broadcast_initialized()
 
         if not notifications_healthy:
-            logger.warning("[MSG-DEBUG] /ready: Redis Pub/Sub manager not initialized")
+            logger.warning("[BROADCAST] /ready: SSE multiplexer not initialized")
             # Return degraded status but don't fail the probe
             return ReadyProbeResponse(
                 status="degraded",
@@ -53,7 +62,7 @@ def ready_probe(response_obj: Response) -> ReadyProbeResponse:
             )
     except Exception as e:
         # If messaging health can't be determined, log but don't fail
-        logger.debug(f"[MSG-DEBUG] /ready: Could not check messaging health: {e}")
+        logger.debug(f"[BROADCAST] /ready: Could not check messaging health: {e}")
         # notifications_healthy remains None (unknown)
 
     return ReadyProbeResponse(status="ok", notifications_healthy=notifications_healthy)

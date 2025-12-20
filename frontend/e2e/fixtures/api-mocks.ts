@@ -380,7 +380,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
   });
 
   // Mock the search endpoint FIRST (before the general instructors handler)
-  await routeContext.route('**/api/v1/search/instructors**', async (route: Route) => {
+  await routeContext.route('**/api/v1/search**', async (route: Route) => {
     // Reduce noisy logs
     const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
@@ -394,46 +394,58 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
         'Vary': 'Origin'
       },
       body: JSON.stringify({
-        query: 'piano',
-        parsed: {
-          services: ['piano'],
-          location: null,
-        },
-        total_found: 1,
         results: [
           {
+            instructor_id: TEST_ULIDS.user8,
             instructor: {
-              id: TEST_ULIDS.instructor8,
+              id: TEST_ULIDS.user8,
               first_name: 'Sarah',
               last_initial: 'C',
-              bio: 'Professional piano teacher with 10 years of experience',
-              profile_image_url: null,
-              location: 'Manhattan',
-              service_area_summary: 'Manhattan, Brooklyn',
-              service_area_boroughs: ['Manhattan', 'Brooklyn'],
-              service_area_neighborhoods: [],
+              profile_picture_url: null,
+              bio_snippet: 'Professional piano teacher with 10 years of experience',
+              verified: true,
               years_experience: 10,
             },
-            service: {
-              id: TEST_ULIDS.service1,
+            rating: {
+              average: 4.9,
+              count: 25,
+            },
+            coverage_areas: ['Manhattan', 'Brooklyn'],
+            best_match: {
+              service_id: TEST_ULIDS.service1,
+              service_catalog_id: TEST_ULIDS.service1,
               name: 'Piano',
-              actual_min_price: 120,
               description: 'Professional piano lessons',
+              price_per_hour: 120,
+              relevance_score: 0.95,
             },
-            offering: {
-              hourly_rate: 120,
-              description: 'Professional piano lessons',
-              duration_options: [30, 60, 90],
-            },
-            link: `/instructors/${TEST_ULIDS.instructor8}`,
-            match_score: 0.95,
-            availability_summary: 'Available this week',
-            rating: 4.9,
-            total_reviews: 25,
-            location: 'Manhattan',
-            distance_miles: null,
+            other_matches: [],
+            total_matching_services: 1,
+            relevance_score: 0.95,
           },
         ],
+        meta: {
+          query: 'piano',
+          search_query_id: '01J5TESTQUERY00000000000001',
+          corrected_query: null,
+          parsed: {
+            service_query: 'piano',
+            location: null,
+            max_price: null,
+            date: null,
+            time_after: null,
+            audience_hint: null,
+            skill_level: null,
+            urgency: null,
+          },
+          total_results: 1,
+          limit: 20,
+          latency_ms: 50,
+          cache_hit: false,
+          degraded: false,
+          degradation_reasons: [],
+          parsing_mode: 'regex',
+        },
       }),
     });
   });

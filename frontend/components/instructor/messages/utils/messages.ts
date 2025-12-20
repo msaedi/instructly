@@ -2,7 +2,6 @@
  * Message processing utilities
  */
 
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
 import type { Booking } from '@/features/shared/api/types';
 import type {
   ConversationEntry,
@@ -11,6 +10,19 @@ import type {
   ReadByEntry,
 } from '../types';
 import { formatRelativeTimestamp, formatTimeLabel } from '@/components/messaging/formatters';
+
+type MessageApiLike = {
+  id: string;
+  content?: string | null;
+  sender_id?: string | null;
+  created_at?: string;
+  delivered_at?: string | null;
+  read_by?: ReadByEntry[] | null;
+  edited_at?: string | null;
+  is_deleted?: boolean;
+  reactions?: unknown;
+  my_reactions?: string[] | null;
+};
 
 /**
  * Check if an error is an AbortError
@@ -41,7 +53,7 @@ export const getBookingActivityTimestamp = (booking: Booking): string | undefine
  * Map a MessageResponse to MessageWithAttachments format
  */
 export const mapMessageFromResponse = (
-  message: MessageResponse,
+  message: MessageApiLike,
   conversation: ConversationEntry | undefined,
   currentUserId: string
 ): MessageWithAttachments => {
@@ -57,31 +69,73 @@ export const mapMessageFromResponse = (
   let delivery: MessageDelivery | undefined;
   if (senderType === 'instructor') {
     const recipientId = conversation?.studentId ?? null;
-    const readByEntries = (message.read_by ?? []) as ReadByEntry[];
+    const readByEntries = message.read_by ?? [];
     const recipientRead = recipientId
       ? readByEntries.find((entry) => entry.user_id === recipientId && entry.read_at)
       : undefined;
     if (recipientRead) {
       delivery = {
         status: 'read',
-        timeLabel: formatTimeLabel(recipientRead.read_at ?? message.updated_at ?? message.created_at),
+        timeLabel: formatTimeLabel(recipientRead.read_at ?? message.created_at ?? ''),
       };
     } else if (message.delivered_at) {
       delivery = { status: 'delivered', timeLabel: formatTimeLabel(message.delivered_at) };
     } else {
-      delivery = { status: 'delivered', timeLabel: formatTimeLabel(message.created_at) };
+      delivery = { status: 'delivered', timeLabel: formatTimeLabel(message.created_at ?? '') };
     }
   }
 
-  const isDeleted = Boolean((message as { is_deleted?: boolean }).is_deleted);
+  const isDeleted = Boolean(message.is_deleted);
+
+  const reactionCounts: Record<string, number> | undefined = (() => {
+    const raw = message.reactions;
+    if (!raw) return undefined;
+
+    if (Array.isArray(raw)) {
+      const counts: Record<string, number> = {};
+      for (const item of raw) {
+        if (!item || typeof item !== 'object') continue;
+        const emoji = (item as { emoji?: unknown }).emoji;
+        if (typeof emoji !== 'string') continue;
+        counts[emoji] = (counts[emoji] ?? 0) + 1;
+      }
+      return counts;
+    }
+
+    if (typeof raw === 'object') {
+      return raw as Record<string, number>;
+    }
+
+    return undefined;
+  })();
+
+  const myReactions: string[] | undefined = (() => {
+    const explicit = message.my_reactions;
+    if (Array.isArray(explicit)) {
+      return explicit.filter((x): x is string => typeof x === 'string');
+    }
+
+    const raw = message.reactions;
+    if (!Array.isArray(raw)) return undefined;
+
+    const mine: string[] = [];
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue;
+      const userId = (item as { user_id?: unknown }).user_id;
+      const emoji = (item as { emoji?: unknown }).emoji;
+      if (userId === currentUserId && typeof emoji === 'string') {
+        mine.push(emoji);
+      }
+    }
+    return mine;
+  })();
+
   const mapped: MessageWithAttachments = {
     id: message.id,
     text: isDeleted ? 'This message was deleted' : message.content ?? '',
     sender: senderType,
-    timestamp: formatRelativeTimestamp(message.created_at),
+    timestamp: formatRelativeTimestamp(message.created_at ?? ''),
     isDeleted,
-    deletedAt: (message as { deleted_at?: string | null }).deleted_at || undefined,
-    deletedBy: (message as { deleted_by?: string | null }).deleted_by || undefined,
     isEdited: Boolean(message.edited_at),
     editedAt: message.edited_at || undefined,
   };
@@ -98,8 +152,8 @@ export const mapMessageFromResponse = (
   if (message.edited_at) {
     mapped.editedAt = message.edited_at;
   }
-  if (typeof (message as { is_deleted?: unknown }).is_deleted === 'boolean') {
-    mapped.isArchived = Boolean((message as { is_deleted?: boolean }).is_deleted);
+  if (typeof message.is_deleted === 'boolean') {
+    mapped.isArchived = message.is_deleted;
   }
 
   // Preserve delivered_at and read_by from API response
@@ -111,11 +165,9 @@ export const mapMessageFromResponse = (
   }
 
   // Preserve reaction fields from API response
-  const reactions = (message as { reactions?: Record<string, number> }).reactions;
-  if (reactions) {
-    mapped.reactions = reactions;
+  if (reactionCounts) {
+    mapped.reactions = reactionCounts;
   }
-  const myReactions = (message as { my_reactions?: string[] }).my_reactions;
   if (myReactions) {
     mapped.my_reactions = myReactions;
   }
@@ -127,14 +179,14 @@ export const mapMessageFromResponse = (
  * Compute unread count from messages for current user
  */
 export const computeUnreadFromMessages = (
-  messages: MessageResponse[] | undefined,
+  messages: MessageApiLike[] | undefined,
   conversation: ConversationEntry | undefined,
   currentUserId: string
 ): number => {
   if (!messages || !conversation) return 0;
   return messages.reduce((count, msg) => {
     if (msg.sender_id === currentUserId) return count;
-    const readByEntries = (msg.read_by ?? []) as ReadByEntry[];
+    const readByEntries = msg.read_by ?? [];
     const hasRead = readByEntries.some(
       (entry) => entry.user_id === currentUserId && !!entry.read_at
     );

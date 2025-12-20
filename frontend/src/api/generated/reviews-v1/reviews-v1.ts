@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -38,14 +35,11 @@ import type {
   ReviewResponseModel,
   ReviewSubmitRequest,
   ReviewSubmitResponse,
-  SearchRatingResponse
+  SearchRatingResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Submit a review for a completed booking.
@@ -55,67 +49,86 @@ Optionally include a tip amount for the instructor.
  * @summary Submit Review
  */
 export const submitReviewApiV1ReviewsPost = (
-    reviewSubmitRequest: ReviewSubmitRequest,
- signal?: AbortSignal
+  reviewSubmitRequest: ReviewSubmitRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<ReviewSubmitResponse>({
+    url: `/api/v1/reviews`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: reviewSubmitRequest,
+    signal,
+  });
+};
 
+export const getSubmitReviewApiV1ReviewsPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>,
+    TError,
+    { data: ReviewSubmitRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>,
+  TError,
+  { data: ReviewSubmitRequest },
+  TContext
+> => {
+  const mutationKey = ['submitReviewApiV1ReviewsPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<ReviewSubmitResponse>(
-      {url: `/api/v1/reviews`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: reviewSubmitRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>,
+    { data: ReviewSubmitRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return submitReviewApiV1ReviewsPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getSubmitReviewApiV1ReviewsPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>, TError,{data: ReviewSubmitRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>, TError,{data: ReviewSubmitRequest}, TContext> => {
+export type SubmitReviewApiV1ReviewsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>
+>;
+export type SubmitReviewApiV1ReviewsPostMutationBody = ReviewSubmitRequest;
+export type SubmitReviewApiV1ReviewsPostMutationError = ErrorType<HTTPValidationError>;
 
-const mutationKey = ['submitReviewApiV1ReviewsPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>, {data: ReviewSubmitRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  submitReviewApiV1ReviewsPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type SubmitReviewApiV1ReviewsPostMutationResult = NonNullable<Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>>
-    export type SubmitReviewApiV1ReviewsPostMutationBody = ReviewSubmitRequest
-    export type SubmitReviewApiV1ReviewsPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Submit Review
  */
-export const useSubmitReviewApiV1ReviewsPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>, TError,{data: ReviewSubmitRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>,
-        TError,
-        {data: ReviewSubmitRequest},
-        TContext
-      > => {
+export const useSubmitReviewApiV1ReviewsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>,
+      TError,
+      { data: ReviewSubmitRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof submitReviewApiV1ReviewsPost>>,
+  TError,
+  { data: ReviewSubmitRequest },
+  TContext
+> => {
+  const mutationOptions = getSubmitReviewApiV1ReviewsPostMutationOptions(options);
 
-      const mutationOptions = getSubmitReviewApiV1ReviewsPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Check which bookings already have reviews.
 
 Returns list of booking IDs that have existing reviews.
@@ -123,67 +136,89 @@ Only returns reviews for bookings owned by the current student.
  * @summary Get Existing Reviews For Bookings
  */
 export const getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost = (
-    getExistingReviewsForBookingsApiV1ReviewsBookingExistingPostBody: string[],
- signal?: AbortSignal
+  getExistingReviewsForBookingsApiV1ReviewsBookingExistingPostBody: string[],
+  signal?: AbortSignal
 ) => {
+  return customFetch<ExistingReviewIdsResponse>({
+    url: `/api/v1/reviews/booking/existing`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: getExistingReviewsForBookingsApiV1ReviewsBookingExistingPostBody,
+    signal,
+  });
+};
 
+export const getGetExistingReviewsForBookingsApiV1ReviewsBookingExistingPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>,
+    TError,
+    { data: string[] },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>,
+  TError,
+  { data: string[] },
+  TContext
+> => {
+  const mutationKey = ['getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<ExistingReviewIdsResponse>(
-      {url: `/api/v1/reviews/booking/existing`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: getExistingReviewsForBookingsApiV1ReviewsBookingExistingPostBody, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>,
+    { data: string[] }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getGetExistingReviewsForBookingsApiV1ReviewsBookingExistingPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>, TError,{data: string[]}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>, TError,{data: string[]}, TContext> => {
+export type GetExistingReviewsForBookingsApiV1ReviewsBookingExistingPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>
+  >;
+export type GetExistingReviewsForBookingsApiV1ReviewsBookingExistingPostMutationBody = string[];
+export type GetExistingReviewsForBookingsApiV1ReviewsBookingExistingPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>, {data: string[]}> = (props) => {
-          const {data} = props ?? {};
-
-          return  getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type GetExistingReviewsForBookingsApiV1ReviewsBookingExistingPostMutationResult = NonNullable<Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>>
-    export type GetExistingReviewsForBookingsApiV1ReviewsBookingExistingPostMutationBody = string[]
-    export type GetExistingReviewsForBookingsApiV1ReviewsBookingExistingPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Get Existing Reviews For Bookings
  */
-export const useGetExistingReviewsForBookingsApiV1ReviewsBookingExistingPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>, TError,{data: string[]}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>,
-        TError,
-        {data: string[]},
-        TContext
-      > => {
+export const useGetExistingReviewsForBookingsApiV1ReviewsBookingExistingPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>,
+      TError,
+      { data: string[] },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof getExistingReviewsForBookingsApiV1ReviewsBookingExistingPost>>,
+  TError,
+  { data: string[] },
+  TContext
+> => {
+  const mutationOptions =
+    getGetExistingReviewsForBookingsApiV1ReviewsBookingExistingPostMutationOptions(options);
 
-      const mutationOptions = getGetExistingReviewsForBookingsApiV1ReviewsBookingExistingPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get the review for a specific booking.
 
 Students can only view reviews they submitted.
@@ -191,93 +226,157 @@ Returns None if no review exists for the booking.
  * @summary Get Review For Booking
  */
 export const getReviewForBookingApiV1ReviewsBookingBookingIdGet = (
-    bookingId: string,
- signal?: AbortSignal
+  bookingId: string,
+  signal?: AbortSignal
 ) => {
+  return customFetch<GetReviewForBookingApiV1ReviewsBookingBookingIdGet200>({
+    url: `/api/v1/reviews/booking/${bookingId}`,
+    method: 'GET',
+    signal,
+  });
+};
 
-
-      return customFetch<GetReviewForBookingApiV1ReviewsBookingBookingIdGet200>(
-      {url: `/api/v1/reviews/booking/${bookingId}`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
-
-export const getGetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryKey = (bookingId?: string,) => {
-    return [
-    `/api/v1/reviews/booking/${bookingId}`
-    ] as const;
-    }
-
-
-export const getGetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryOptions = <TData = Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError = ErrorType<HTTPValidationError>>(bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError, TData>>, }
+export const getGetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryKey = (
+  bookingId?: string
 ) => {
+  return [`/api/v1/reviews/booking/${bookingId}`] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryKey(bookingId);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryKey(bookingId);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>
+  > = ({ signal }) => getReviewForBookingApiV1ReviewsBookingBookingIdGet(bookingId, signal);
 
+  return { queryKey, queryFn, enabled: !!bookingId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>> = ({ signal }) => getReviewForBookingApiV1ReviewsBookingBookingIdGet(bookingId, signal);
+export type GetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>
+>;
+export type GetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(bookingId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryResult = NonNullable<Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>>
-export type GetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetReviewForBookingApiV1ReviewsBookingBookingIdGet<TData = Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError, TData>> & Pick<
+export function useGetReviewForBookingApiV1ReviewsBookingBookingIdGet<
+  TData = Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  bookingId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
           TError,
           Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetReviewForBookingApiV1ReviewsBookingBookingIdGet<TData = Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetReviewForBookingApiV1ReviewsBookingBookingIdGet<
+  TData = Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
           TError,
           Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetReviewForBookingApiV1ReviewsBookingBookingIdGet<TData = Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetReviewForBookingApiV1ReviewsBookingBookingIdGet<
+  TData = Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Review For Booking
  */
 
-export function useGetReviewForBookingApiV1ReviewsBookingBookingIdGet<TData = Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError = ErrorType<HTTPValidationError>>(
- bookingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetReviewForBookingApiV1ReviewsBookingBookingIdGet<
+  TData = Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  bookingId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getReviewForBookingApiV1ReviewsBookingBookingIdGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryOptions(
+    bookingId,
+    options
+  );
 
-  const queryOptions = getGetReviewForBookingApiV1ReviewsBookingBookingIdGetQueryOptions(bookingId,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get rating statistics for an instructor.
@@ -287,93 +386,188 @@ Returns overall rating, per-service ratings, and rating distribution.
  * @summary Get Instructor Ratings
  */
 export const getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet = (
-    instructorId: string,
- signal?: AbortSignal
+  instructorId: string,
+  signal?: AbortSignal
 ) => {
+  return customFetch<InstructorRatingsResponse>({
+    url: `/api/v1/reviews/instructor/${instructorId}/ratings`,
+    method: 'GET',
+    signal,
+  });
+};
 
-
-      return customFetch<InstructorRatingsResponse>(
-      {url: `/api/v1/reviews/instructor/${instructorId}/ratings`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
-
-export const getGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryKey = (instructorId?: string,) => {
-    return [
-    `/api/v1/reviews/instructor/${instructorId}/ratings`
-    ] as const;
-    }
-
-
-export const getGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryOptions = <TData = Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError = ErrorType<HTTPValidationError>>(instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError, TData>>, }
+export const getGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryKey = (
+  instructorId?: string
 ) => {
+  return [`/api/v1/reviews/instructor/${instructorId}/ratings`] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryKey(instructorId);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryKey(instructorId);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>
+  > = ({ signal }) =>
+    getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet(instructorId, signal);
 
+  return { queryKey, queryFn, enabled: !!instructorId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>> = ({ signal }) => getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet(instructorId, signal);
+export type GetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>
+  >;
+export type GetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(instructorId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryResult = NonNullable<Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>>
-export type GetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet<TData = Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError, TData>> & Pick<
+export function useGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet<
+  TData = Awaited<
+    ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>,
+          Awaited<
+            ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet<TData = Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError, TData>> & Pick<
+          Awaited<
+            ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet<
+  TData = Awaited<
+    ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>,
+          Awaited<
+            ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet<TData = Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<
+            ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet<
+  TData = Awaited<
+    ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Instructor Ratings
  */
 
-export function useGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet<TData = Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet<
+  TData = Awaited<
+    ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryOptions(
+      instructorId,
+      options
+    );
 
-  const queryOptions = getGetInstructorRatingsApiV1ReviewsInstructorInstructorIdRatingsGetQueryOptions(instructorId,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get paginated list of recent reviews for an instructor.
@@ -383,101 +577,170 @@ Supports filtering by rating, service, and text presence.
  * @summary Get Recent Reviews
  */
 export const getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet = (
-    instructorId: string,
-    params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams,
- signal?: AbortSignal
+  instructorId: string,
+  params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<ReviewListPageResponse>({
+    url: `/api/v1/reviews/instructor/${instructorId}/recent`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<ReviewListPageResponse>(
-      {url: `/api/v1/reviews/instructor/${instructorId}/recent`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryKey = (instructorId?: string,
-    params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams,) => {
-    return [
-    `/api/v1/reviews/instructor/${instructorId}/recent`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryOptions = <TData = Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError = ErrorType<HTTPValidationError>>(instructorId: string,
-    params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError, TData>>, }
+export const getGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryKey = (
+  instructorId?: string,
+  params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams
 ) => {
+  return [
+    `/api/v1/reviews/instructor/${instructorId}/recent`,
+    ...(params ? [params] : []),
+  ] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryKey(instructorId,params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryKey(instructorId, params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>
+  > = ({ signal }) =>
+    getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet(instructorId, params, signal);
 
+  return { queryKey, queryFn, enabled: !!instructorId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>> = ({ signal }) => getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet(instructorId,params, signal);
+export type GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>
+>;
+export type GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(instructorId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryResult = NonNullable<Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>>
-export type GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet<TData = Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string,
-    params: undefined |  GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError, TData>> & Pick<
+export function useGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet<
+  TData = Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  params: undefined | GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
           TError,
           Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet<TData = Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string,
-    params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet<
+  TData = Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
           TError,
           Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet<TData = Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string,
-    params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet<
+  TData = Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Recent Reviews
  */
 
-export function useGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet<TData = Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string,
-    params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet<
+  TData = Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  params?: GetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryOptions(
+    instructorId,
+    params,
+    options
+  );
 
-  const queryOptions = getGetRecentReviewsApiV1ReviewsInstructorInstructorIdRecentGetQueryOptions(instructorId,params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get compact rating info for search results context.
@@ -487,101 +750,203 @@ Returns rating and review count optimized for search result display.
  * @summary Get Search Rating
  */
 export const getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet = (
-    instructorId: string,
-    params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams,
- signal?: AbortSignal
+  instructorId: string,
+  params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<SearchRatingResponse>({
+    url: `/api/v1/reviews/instructor/${instructorId}/search-rating`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<SearchRatingResponse>(
-      {url: `/api/v1/reviews/instructor/${instructorId}/search-rating`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryKey = (instructorId?: string,
-    params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams,) => {
-    return [
-    `/api/v1/reviews/instructor/${instructorId}/search-rating`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryOptions = <TData = Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError = ErrorType<HTTPValidationError>>(instructorId: string,
-    params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError, TData>>, }
+export const getGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryKey = (
+  instructorId?: string,
+  params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams
 ) => {
+  return [
+    `/api/v1/reviews/instructor/${instructorId}/search-rating`,
+    ...(params ? [params] : []),
+  ] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryKey(instructorId,params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryKey(
+      instructorId,
+      params
+    );
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>
+  > = ({ signal }) =>
+    getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet(instructorId, params, signal);
 
+  return { queryKey, queryFn, enabled: !!instructorId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>> = ({ signal }) => getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet(instructorId,params, signal);
+export type GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>
+  >;
+export type GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(instructorId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryResult = NonNullable<Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>>
-export type GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet<TData = Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string,
-    params: undefined |  GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError, TData>> & Pick<
+export function useGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet<
+  TData = Awaited<
+    ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  params: undefined | GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>,
+          Awaited<
+            ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet<TData = Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string,
-    params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError, TData>> & Pick<
+          Awaited<
+            ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet<
+  TData = Awaited<
+    ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>,
+          Awaited<
+            ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet<TData = Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string,
-    params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<
+            ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet<
+  TData = Awaited<
+    ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Search Rating
  */
 
-export function useGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet<TData = Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError = ErrorType<HTTPValidationError>>(
- instructorId: string,
-    params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet<
+  TData = Awaited<
+    ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  instructorId: string,
+  params?: GetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryOptions(
+      instructorId,
+      params,
+      options
+    );
 
-  const queryOptions = getGetSearchRatingApiV1ReviewsInstructorInstructorIdSearchRatingGetQueryOptions(instructorId,params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get ratings for multiple instructors in a single request.
@@ -590,131 +955,172 @@ Public endpoint - no authentication required.
  * @summary Get Ratings Batch
  */
 export const getRatingsBatchApiV1ReviewsRatingsBatchPost = (
-    ratingsBatchRequest: RatingsBatchRequest,
- signal?: AbortSignal
+  ratingsBatchRequest: RatingsBatchRequest,
+  signal?: AbortSignal
 ) => {
+  return customFetch<RatingsBatchResponse>({
+    url: `/api/v1/reviews/ratings/batch`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: ratingsBatchRequest,
+    signal,
+  });
+};
 
+export const getGetRatingsBatchApiV1ReviewsRatingsBatchPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>,
+    TError,
+    { data: RatingsBatchRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>,
+  TError,
+  { data: RatingsBatchRequest },
+  TContext
+> => {
+  const mutationKey = ['getRatingsBatchApiV1ReviewsRatingsBatchPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<RatingsBatchResponse>(
-      {url: `/api/v1/reviews/ratings/batch`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: ratingsBatchRequest, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>,
+    { data: RatingsBatchRequest }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return getRatingsBatchApiV1ReviewsRatingsBatchPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getGetRatingsBatchApiV1ReviewsRatingsBatchPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>, TError,{data: RatingsBatchRequest}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>, TError,{data: RatingsBatchRequest}, TContext> => {
+export type GetRatingsBatchApiV1ReviewsRatingsBatchPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>
+>;
+export type GetRatingsBatchApiV1ReviewsRatingsBatchPostMutationBody = RatingsBatchRequest;
+export type GetRatingsBatchApiV1ReviewsRatingsBatchPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['getRatingsBatchApiV1ReviewsRatingsBatchPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>, {data: RatingsBatchRequest}> = (props) => {
-          const {data} = props ?? {};
-
-          return  getRatingsBatchApiV1ReviewsRatingsBatchPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type GetRatingsBatchApiV1ReviewsRatingsBatchPostMutationResult = NonNullable<Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>>
-    export type GetRatingsBatchApiV1ReviewsRatingsBatchPostMutationBody = RatingsBatchRequest
-    export type GetRatingsBatchApiV1ReviewsRatingsBatchPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Get Ratings Batch
  */
-export const useGetRatingsBatchApiV1ReviewsRatingsBatchPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>, TError,{data: RatingsBatchRequest}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>,
-        TError,
-        {data: RatingsBatchRequest},
-        TContext
-      > => {
+export const useGetRatingsBatchApiV1ReviewsRatingsBatchPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>,
+      TError,
+      { data: RatingsBatchRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof getRatingsBatchApiV1ReviewsRatingsBatchPost>>,
+  TError,
+  { data: RatingsBatchRequest },
+  TContext
+> => {
+  const mutationOptions = getGetRatingsBatchApiV1ReviewsRatingsBatchPostMutationOptions(options);
 
-      const mutationOptions = getGetRatingsBatchApiV1ReviewsRatingsBatchPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Add an instructor response to a review.
 
 Only the instructor who received the review can respond.
  * @summary Respond To Review
  */
 export const respondToReviewApiV1ReviewsReviewIdRespondPost = (
-    reviewId: string,
-    bodyRespondToReviewApiV1ReviewsReviewIdRespondPost: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost,
- signal?: AbortSignal
+  reviewId: string,
+  bodyRespondToReviewApiV1ReviewsReviewIdRespondPost: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost,
+  signal?: AbortSignal
 ) => {
+  return customFetch<ReviewResponseModel>({
+    url: `/api/v1/reviews/${reviewId}/respond`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bodyRespondToReviewApiV1ReviewsReviewIdRespondPost,
+    signal,
+  });
+};
 
+export const getRespondToReviewApiV1ReviewsReviewIdRespondPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>,
+    TError,
+    { reviewId: string; data: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>,
+  TError,
+  { reviewId: string; data: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost },
+  TContext
+> => {
+  const mutationKey = ['respondToReviewApiV1ReviewsReviewIdRespondPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<ReviewResponseModel>(
-      {url: `/api/v1/reviews/${reviewId}/respond`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: bodyRespondToReviewApiV1ReviewsReviewIdRespondPost, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>,
+    { reviewId: string; data: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost }
+  > = (props) => {
+    const { reviewId, data } = props ?? {};
 
+    return respondToReviewApiV1ReviewsReviewIdRespondPost(reviewId, data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getRespondToReviewApiV1ReviewsReviewIdRespondPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>, TError,{reviewId: string;data: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>, TError,{reviewId: string;data: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost}, TContext> => {
+export type RespondToReviewApiV1ReviewsReviewIdRespondPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>
+>;
+export type RespondToReviewApiV1ReviewsReviewIdRespondPostMutationBody =
+  BodyRespondToReviewApiV1ReviewsReviewIdRespondPost;
+export type RespondToReviewApiV1ReviewsReviewIdRespondPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['respondToReviewApiV1ReviewsReviewIdRespondPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>, {reviewId: string;data: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost}> = (props) => {
-          const {reviewId,data} = props ?? {};
-
-          return  respondToReviewApiV1ReviewsReviewIdRespondPost(reviewId,data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type RespondToReviewApiV1ReviewsReviewIdRespondPostMutationResult = NonNullable<Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>>
-    export type RespondToReviewApiV1ReviewsReviewIdRespondPostMutationBody = BodyRespondToReviewApiV1ReviewsReviewIdRespondPost
-    export type RespondToReviewApiV1ReviewsReviewIdRespondPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Respond To Review
  */
-export const useRespondToReviewApiV1ReviewsReviewIdRespondPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>, TError,{reviewId: string;data: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>,
-        TError,
-        {reviewId: string;data: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost},
-        TContext
-      > => {
+export const useRespondToReviewApiV1ReviewsReviewIdRespondPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>,
+      TError,
+      { reviewId: string; data: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof respondToReviewApiV1ReviewsReviewIdRespondPost>>,
+  TError,
+  { reviewId: string; data: BodyRespondToReviewApiV1ReviewsReviewIdRespondPost },
+  TContext
+> => {
+  const mutationOptions = getRespondToReviewApiV1ReviewsReviewIdRespondPostMutationOptions(options);
 
-      const mutationOptions = getRespondToReviewApiV1ReviewsReviewIdRespondPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
+  return useMutation(mutationOptions, queryClient);
+};

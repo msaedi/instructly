@@ -5,8 +5,8 @@ import os
 import time
 
 from fastapi import Request, Response
-from redis import Redis
 
+from ..core import config as core_config
 from .config import BUCKETS, is_shadow_mode, settings
 from .gcra import Decision
 from .headers import set_policy_headers, set_rate_headers
@@ -39,6 +39,11 @@ def _is_testing_env() -> bool:
 def rate_limit(bucket: str) -> Callable[[Request, Response], Awaitable[None]]:
     # FastAPI dependency to attach on routes
     async def dep(request: Request, response: Response) -> None:
+        # Allow load-testing bypass token to skip rate limiting entirely
+        bypass_token = getattr(core_config.settings, "rate_limit_bypass_token", "") or ""
+        if bypass_token and request.headers.get("X-Rate-Limit-Bypass") == bypass_token:
+            return
+
         # Disable enforcement in tests but still emit standard headers for assertions
         if _is_testing_env():
             now_s = time.time()
@@ -75,7 +80,11 @@ def rate_limit(bucket: str) -> Callable[[Request, Response], Awaitable[None]]:
         burst = int(policy.get("burst", 0))
 
         # Call Redis Lua atomically
-        r: Redis = get_redis()
+        try:
+            r = await get_redis()
+        except Exception:
+            r = None
+
         key = _namespaced_key(bucket, identity)
         now_ms = int(time.time() * 1000)
         interval_ms = _compute_interval_ms(rate_per_min)
@@ -88,7 +97,9 @@ def rate_limit(bucket: str) -> Callable[[Request, Response], Awaitable[None]]:
         else:
             start_eval = time.perf_counter()
             try:
-                res = r.eval(GCRA_LUA, 1, key, now_ms, interval_ms, burst)
+                if r is None:
+                    raise RuntimeError("Redis unavailable")
+                res = await r.eval(GCRA_LUA, 1, key, now_ms, interval_ms, burst)
                 # res: [allowed, retry_after_ms, remaining, limit, reset_epoch_s, new_tat_ms]
                 allowed = bool(int(res[0]))
                 retry_after_s = float(res[1]) / 1000.0

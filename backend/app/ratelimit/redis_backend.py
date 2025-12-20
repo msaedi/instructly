@@ -1,15 +1,80 @@
+from __future__ import annotations
+
+import asyncio
+import logging
 from typing import Any
+import weakref
 
-from redis import Redis
+from redis.asyncio import Redis as AsyncRedis
 
-from .config import settings
+logger = logging.getLogger(__name__)
+
+_clients_by_loop: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, AsyncRedis]" = (
+    weakref.WeakKeyDictionary()
+)
+_locks_by_loop: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock]" = (
+    weakref.WeakKeyDictionary()
+)
 
 
-def get_redis(**kwargs: Any) -> Redis:
-    """Return a Redis client configured for rate limiting."""
+async def get_redis(**_kwargs: Any) -> AsyncRedis:
+    """
+    Return the async Redis client for rate limiting/idempotency.
 
-    options: dict[str, Any] = {"decode_responses": True, **kwargs}
-    return Redis.from_url(settings.redis_url, **options)
+    Decision: rate limiting uses `RATE_LIMIT_REDIS_URL` so it can be isolated from the
+    general cache Redis in production when desired (while still defaulting to localhost).
+    """
+    from . import config as rl_config
+
+    loop = asyncio.get_running_loop()
+
+    existing = _clients_by_loop.get(loop)
+    if existing is not None:
+        return existing
+
+    lock = _locks_by_loop.get(loop)
+    if lock is None:
+        lock = asyncio.Lock()
+        _locks_by_loop[loop] = lock
+
+    async with lock:
+        existing = _clients_by_loop.get(loop)
+        if existing is not None:
+            return existing
+
+        redis_url = rl_config.settings.redis_url
+        client = AsyncRedis.from_url(
+            redis_url,
+            encoding="utf-8",
+            decode_responses=True,
+        )
+
+        try:
+            await client.ping()
+        except Exception as exc:
+            logger.error("[REDIS-RATELIMIT] Async Redis client FAILED to connect: %s", exc)
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+            raise RuntimeError("Redis unavailable") from exc
+
+        _clients_by_loop[loop] = client
+        return client
+
+
+async def close_async_rate_limit_redis_client() -> None:
+    """Close the async rate limiting Redis client (separate from cache + pubsub)."""
+    loop = asyncio.get_running_loop()
+
+    client = _clients_by_loop.pop(loop, None)
+    if client is None:
+        return
+
+    try:
+        await client.aclose()
+    finally:
+        logger.info("[REDIS-RATELIMIT] Async Redis client closed")
 
 
 # Lua script implementing GCRA logic using TAT (Theoretical Arrival Time)
@@ -56,4 +121,4 @@ else
 end
 """
 
-__all__ = ["get_redis", "GCRA_LUA"]
+__all__ = ["get_redis", "close_async_rate_limit_redis_client", "GCRA_LUA"]

@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -31,14 +28,11 @@ import type {
   InstructorProfileResponse,
   InstructorProfileUpdate,
   ListInstructorsApiV1InstructorsGetParams,
-  PaginatedResponseInstructorProfileResponse
+  PaginatedResponseInstructorProfileResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Get instructors offering a specific service.
@@ -51,380 +45,493 @@ Returns a standardized paginated response with 'items' field.
  * @summary List Instructors
  */
 export const listInstructorsApiV1InstructorsGet = (
-    params: ListInstructorsApiV1InstructorsGetParams,
- signal?: AbortSignal
+  params: ListInstructorsApiV1InstructorsGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PaginatedResponseInstructorProfileResponse>({
+    url: `/api/v1/instructors`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<PaginatedResponseInstructorProfileResponse>(
-      {url: `/api/v1/instructors`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getListInstructorsApiV1InstructorsGetQueryKey = (params?: ListInstructorsApiV1InstructorsGetParams,) => {
-    return [
-    `/api/v1/instructors`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getListInstructorsApiV1InstructorsGetQueryOptions = <TData = Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError = ErrorType<HTTPValidationError>>(params: ListInstructorsApiV1InstructorsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData>>, }
+export const getListInstructorsApiV1InstructorsGetQueryKey = (
+  params?: ListInstructorsApiV1InstructorsGetParams
 ) => {
+  return [`/api/v1/instructors`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getListInstructorsApiV1InstructorsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: ListInstructorsApiV1InstructorsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData>
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListInstructorsApiV1InstructorsGetQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getListInstructorsApiV1InstructorsGetQueryKey(params);
 
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>> = ({
+    signal,
+  }) => listInstructorsApiV1InstructorsGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>> = ({ signal }) => listInstructorsApiV1InstructorsGet(params, signal);
+export type ListInstructorsApiV1InstructorsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>
+>;
+export type ListInstructorsApiV1InstructorsGetQueryError = ErrorType<void | HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListInstructorsApiV1InstructorsGetQueryResult = NonNullable<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>>
-export type ListInstructorsApiV1InstructorsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useListInstructorsApiV1InstructorsGet<TData = Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: ListInstructorsApiV1InstructorsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData>> & Pick<
+export function useListInstructorsApiV1InstructorsGet<
+  TData = Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: ListInstructorsApiV1InstructorsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>,
           TError,
           Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListInstructorsApiV1InstructorsGet<TData = Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: ListInstructorsApiV1InstructorsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInstructorsApiV1InstructorsGet<
+  TData = Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: ListInstructorsApiV1InstructorsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>,
           TError,
           Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListInstructorsApiV1InstructorsGet<TData = Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: ListInstructorsApiV1InstructorsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInstructorsApiV1InstructorsGet<
+  TData = Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: ListInstructorsApiV1InstructorsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary List Instructors
  */
 
-export function useListInstructorsApiV1InstructorsGet<TData = Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: ListInstructorsApiV1InstructorsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useListInstructorsApiV1InstructorsGet<
+  TData = Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  params: ListInstructorsApiV1InstructorsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listInstructorsApiV1InstructorsGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListInstructorsApiV1InstructorsGetQueryOptions(params, options);
 
-  const queryOptions = getListInstructorsApiV1InstructorsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Delete instructor profile and revert to student role.
  * @summary Delete Profile
  */
-export const deleteProfileApiV1InstructorsMeDelete = (
+export const deleteProfileApiV1InstructorsMeDelete = () => {
+  return customFetch<void>({ url: `/api/v1/instructors/me`, method: 'DELETE' });
+};
 
- ) => {
+export const getDeleteProfileApiV1InstructorsMeDeleteMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['deleteProfileApiV1InstructorsMeDelete'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>,
+    void
+  > = () => {
+    return deleteProfileApiV1InstructorsMeDelete();
+  };
 
-      return customFetch<void>(
-      {url: `/api/v1/instructors/me`, method: 'DELETE'
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type DeleteProfileApiV1InstructorsMeDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>
+>;
 
+export type DeleteProfileApiV1InstructorsMeDeleteMutationError = ErrorType<void>;
 
-export const getDeleteProfileApiV1InstructorsMeDeleteMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>, TError,void, TContext> => {
-
-const mutationKey = ['deleteProfileApiV1InstructorsMeDelete'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>, void> = () => {
-
-
-          return  deleteProfileApiV1InstructorsMeDelete()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DeleteProfileApiV1InstructorsMeDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>>
-
-    export type DeleteProfileApiV1InstructorsMeDeleteMutationError = ErrorType<void>
-
-    /**
+/**
  * @summary Delete Profile
  */
-export const useDeleteProfileApiV1InstructorsMeDelete = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useDeleteProfileApiV1InstructorsMeDelete = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteProfileApiV1InstructorsMeDelete>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions = getDeleteProfileApiV1InstructorsMeDeleteMutationOptions(options);
 
-      const mutationOptions = getDeleteProfileApiV1InstructorsMeDeleteMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get current instructor's profile.
  * @summary Get My Profile
  */
-export const getMyProfileApiV1InstructorsMeGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<InstructorProfileResponse>(
-      {url: `/api/v1/instructors/me`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const getMyProfileApiV1InstructorsMeGet = (signal?: AbortSignal) => {
+  return customFetch<InstructorProfileResponse>({
+    url: `/api/v1/instructors/me`,
+    method: 'GET',
+    signal,
+  });
+};
 
 export const getGetMyProfileApiV1InstructorsMeGetQueryKey = () => {
-    return [
-    `/api/v1/instructors/me`
-    ] as const;
-    }
+  return [`/api/v1/instructors/me`] as const;
+};
 
+export const getGetMyProfileApiV1InstructorsMeGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getGetMyProfileApiV1InstructorsMeGetQueryOptions = <TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getGetMyProfileApiV1InstructorsMeGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>> = ({
+    signal,
+  }) => getMyProfileApiV1InstructorsMeGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMyProfileApiV1InstructorsMeGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetMyProfileApiV1InstructorsMeGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>
+>;
+export type GetMyProfileApiV1InstructorsMeGetQueryError = ErrorType<void>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>> = ({ signal }) => getMyProfileApiV1InstructorsMeGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetMyProfileApiV1InstructorsMeGetQueryResult = NonNullable<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>>
-export type GetMyProfileApiV1InstructorsMeGetQueryError = ErrorType<void>
-
-
-export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<void>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>> & Pick<
+export function useGetMyProfileApiV1InstructorsMeGet<
+  TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>,
+  TError = ErrorType<void>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>,
           TError,
           Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetMyProfileApiV1InstructorsMeGet<
+  TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>,
           TError,
           Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetMyProfileApiV1InstructorsMeGet<
+  TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get My Profile
  */
 
-export function useGetMyProfileApiV1InstructorsMeGet<TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError = ErrorType<void>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetMyProfileApiV1InstructorsMeGet<
+  TData = Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>,
+  TError = ErrorType<void>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getMyProfileApiV1InstructorsMeGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetMyProfileApiV1InstructorsMeGetQueryOptions(options);
 
-  const queryOptions = getGetMyProfileApiV1InstructorsMeGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Create a new instructor profile.
  * @summary Create Profile
  */
 export const createProfileApiV1InstructorsMePost = (
-    instructorProfileCreate: InstructorProfileCreate,
- signal?: AbortSignal
+  instructorProfileCreate: InstructorProfileCreate,
+  signal?: AbortSignal
 ) => {
+  return customFetch<InstructorProfileResponse>({
+    url: `/api/v1/instructors/me`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: instructorProfileCreate,
+    signal,
+  });
+};
 
+export const getCreateProfileApiV1InstructorsMePostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>,
+    TError,
+    { data: InstructorProfileCreate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>,
+  TError,
+  { data: InstructorProfileCreate },
+  TContext
+> => {
+  const mutationKey = ['createProfileApiV1InstructorsMePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<InstructorProfileResponse>(
-      {url: `/api/v1/instructors/me`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: instructorProfileCreate, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>,
+    { data: InstructorProfileCreate }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return createProfileApiV1InstructorsMePost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getCreateProfileApiV1InstructorsMePostMutationOptions = <TError = ErrorType<void | HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>, TError,{data: InstructorProfileCreate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>, TError,{data: InstructorProfileCreate}, TContext> => {
+export type CreateProfileApiV1InstructorsMePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>
+>;
+export type CreateProfileApiV1InstructorsMePostMutationBody = InstructorProfileCreate;
+export type CreateProfileApiV1InstructorsMePostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['createProfileApiV1InstructorsMePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>, {data: InstructorProfileCreate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  createProfileApiV1InstructorsMePost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type CreateProfileApiV1InstructorsMePostMutationResult = NonNullable<Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>>
-    export type CreateProfileApiV1InstructorsMePostMutationBody = InstructorProfileCreate
-    export type CreateProfileApiV1InstructorsMePostMutationError = ErrorType<void | HTTPValidationError>
-
-    /**
+/**
  * @summary Create Profile
  */
-export const useCreateProfileApiV1InstructorsMePost = <TError = ErrorType<void | HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>, TError,{data: InstructorProfileCreate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>,
-        TError,
-        {data: InstructorProfileCreate},
-        TContext
-      > => {
+export const useCreateProfileApiV1InstructorsMePost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>,
+      TError,
+      { data: InstructorProfileCreate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof createProfileApiV1InstructorsMePost>>,
+  TError,
+  { data: InstructorProfileCreate },
+  TContext
+> => {
+  const mutationOptions = getCreateProfileApiV1InstructorsMePostMutationOptions(options);
 
-      const mutationOptions = getCreateProfileApiV1InstructorsMePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Update instructor profile.
  * @summary Update Profile
  */
 export const updateProfileApiV1InstructorsMePut = (
-    instructorProfileUpdate: InstructorProfileUpdate,
- ) => {
+  instructorProfileUpdate: InstructorProfileUpdate
+) => {
+  return customFetch<InstructorProfileResponse>({
+    url: `/api/v1/instructors/me`,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    data: instructorProfileUpdate,
+  });
+};
 
+export const getUpdateProfileApiV1InstructorsMePutMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>,
+    TError,
+    { data: InstructorProfileUpdate },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>,
+  TError,
+  { data: InstructorProfileUpdate },
+  TContext
+> => {
+  const mutationKey = ['updateProfileApiV1InstructorsMePut'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<InstructorProfileResponse>(
-      {url: `/api/v1/instructors/me`, method: 'PUT',
-      headers: {'Content-Type': 'application/json', },
-      data: instructorProfileUpdate
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>,
+    { data: InstructorProfileUpdate }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return updateProfileApiV1InstructorsMePut(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getUpdateProfileApiV1InstructorsMePutMutationOptions = <TError = ErrorType<void | HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>, TError,{data: InstructorProfileUpdate}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>, TError,{data: InstructorProfileUpdate}, TContext> => {
+export type UpdateProfileApiV1InstructorsMePutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>
+>;
+export type UpdateProfileApiV1InstructorsMePutMutationBody = InstructorProfileUpdate;
+export type UpdateProfileApiV1InstructorsMePutMutationError = ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['updateProfileApiV1InstructorsMePut'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>, {data: InstructorProfileUpdate}> = (props) => {
-          const {data} = props ?? {};
-
-          return  updateProfileApiV1InstructorsMePut(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdateProfileApiV1InstructorsMePutMutationResult = NonNullable<Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>>
-    export type UpdateProfileApiV1InstructorsMePutMutationBody = InstructorProfileUpdate
-    export type UpdateProfileApiV1InstructorsMePutMutationError = ErrorType<void | HTTPValidationError>
-
-    /**
+/**
  * @summary Update Profile
  */
-export const useUpdateProfileApiV1InstructorsMePut = <TError = ErrorType<void | HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>, TError,{data: InstructorProfileUpdate}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>,
-        TError,
-        {data: InstructorProfileUpdate},
-        TContext
-      > => {
+export const useUpdateProfileApiV1InstructorsMePut = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>,
+      TError,
+      { data: InstructorProfileUpdate },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateProfileApiV1InstructorsMePut>>,
+  TError,
+  { data: InstructorProfileUpdate },
+  TContext
+> => {
+  const mutationOptions = getUpdateProfileApiV1InstructorsMePutMutationOptions(options);
 
-      const mutationOptions = getUpdateProfileApiV1InstructorsMePutMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Mark instructor profile as live if all prerequisites are met.
 
 Prerequisites:
@@ -434,244 +541,383 @@ Prerequisites:
 - Background check passed
  * @summary Go Live
  */
-export const goLiveApiV1InstructorsMeGoLivePost = (
+export const goLiveApiV1InstructorsMeGoLivePost = (signal?: AbortSignal) => {
+  return customFetch<InstructorProfileResponse>({
+    url: `/api/v1/instructors/me/go-live`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getGoLiveApiV1InstructorsMeGoLivePostMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['goLiveApiV1InstructorsMeGoLivePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>,
+    void
+  > = () => {
+    return goLiveApiV1InstructorsMeGoLivePost();
+  };
 
-      return customFetch<InstructorProfileResponse>(
-      {url: `/api/v1/instructors/me/go-live`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type GoLiveApiV1InstructorsMeGoLivePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>
+>;
 
+export type GoLiveApiV1InstructorsMeGoLivePostMutationError = ErrorType<void>;
 
-export const getGoLiveApiV1InstructorsMeGoLivePostMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>, TError,void, TContext> => {
-
-const mutationKey = ['goLiveApiV1InstructorsMeGoLivePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>, void> = () => {
-
-
-          return  goLiveApiV1InstructorsMeGoLivePost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type GoLiveApiV1InstructorsMeGoLivePostMutationResult = NonNullable<Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>>
-
-    export type GoLiveApiV1InstructorsMeGoLivePostMutationError = ErrorType<void>
-
-    /**
+/**
  * @summary Go Live
  */
-export const useGoLiveApiV1InstructorsMeGoLivePost = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useGoLiveApiV1InstructorsMeGoLivePost = <TError = ErrorType<void>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof goLiveApiV1InstructorsMeGoLivePost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions = getGoLiveApiV1InstructorsMeGoLivePostMutationOptions(options);
 
-      const mutationOptions = getGoLiveApiV1InstructorsMeGoLivePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Get a specific instructor's profile by ID with privacy protection and favorite status.
  * @summary Get Instructor
  */
 export const getInstructorApiV1InstructorsInstructorIdGet = (
-    instructorId: string,
- signal?: AbortSignal
+  instructorId: string,
+  signal?: AbortSignal
 ) => {
+  return customFetch<InstructorProfileResponse>({
+    url: `/api/v1/instructors/${instructorId}`,
+    method: 'GET',
+    signal,
+  });
+};
 
+export const getGetInstructorApiV1InstructorsInstructorIdGetQueryKey = (instructorId?: string) => {
+  return [`/api/v1/instructors/${instructorId}`] as const;
+};
 
-      return customFetch<InstructorProfileResponse>(
-      {url: `/api/v1/instructors/${instructorId}`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
-
-export const getGetInstructorApiV1InstructorsInstructorIdGetQueryKey = (instructorId?: string,) => {
-    return [
-    `/api/v1/instructors/${instructorId}`
-    ] as const;
-    }
-
-
-export const getGetInstructorApiV1InstructorsInstructorIdGetQueryOptions = <TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<void | HTTPValidationError>>(instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>>, }
+export const getGetInstructorApiV1InstructorsInstructorIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
 ) => {
+  const { query: queryOptions } = options ?? {};
 
-const {query: queryOptions} = options ?? {};
+  const queryKey =
+    queryOptions?.queryKey ?? getGetInstructorApiV1InstructorsInstructorIdGetQueryKey(instructorId);
 
-  const queryKey =  queryOptions?.queryKey ?? getGetInstructorApiV1InstructorsInstructorIdGetQueryKey(instructorId);
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>
+  > = ({ signal }) => getInstructorApiV1InstructorsInstructorIdGet(instructorId, signal);
 
+  return { queryKey, queryFn, enabled: !!instructorId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type GetInstructorApiV1InstructorsInstructorIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>
+>;
+export type GetInstructorApiV1InstructorsInstructorIdGetQueryError =
+  ErrorType<void | HTTPValidationError>;
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>> = ({ signal }) => getInstructorApiV1InstructorsInstructorIdGet(instructorId, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(instructorId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetInstructorApiV1InstructorsInstructorIdGetQueryResult = NonNullable<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>>
-export type GetInstructorApiV1InstructorsInstructorIdGetQueryError = ErrorType<void | HTTPValidationError>
-
-
-export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
- instructorId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>> & Pick<
+export function useGetInstructorApiV1InstructorsInstructorIdGet<
+  TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
           TError,
           Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
- instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInstructorApiV1InstructorsInstructorIdGet<
+  TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
           TError,
           Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
- instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInstructorApiV1InstructorsInstructorIdGet<
+  TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Instructor
  */
 
-export function useGetInstructorApiV1InstructorsInstructorIdGet<TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError = ErrorType<void | HTTPValidationError>>(
- instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetInstructorApiV1InstructorsInstructorIdGet<
+  TData = Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInstructorApiV1InstructorsInstructorIdGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetInstructorApiV1InstructorsInstructorIdGetQueryOptions(
+    instructorId,
+    options
+  );
 
-  const queryOptions = getGetInstructorApiV1InstructorsInstructorIdGetQueryOptions(instructorId,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get instructor service area coverage as GeoJSON.
  * @summary Get Coverage
  */
 export const getCoverageApiV1InstructorsInstructorIdCoverageGet = (
-    instructorId: string,
- signal?: AbortSignal
+  instructorId: string,
+  signal?: AbortSignal
 ) => {
+  return customFetch<CoverageFeatureCollectionResponse>({
+    url: `/api/v1/instructors/${instructorId}/coverage`,
+    method: 'GET',
+    signal,
+  });
+};
 
-
-      return customFetch<CoverageFeatureCollectionResponse>(
-      {url: `/api/v1/instructors/${instructorId}/coverage`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
-
-export const getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryKey = (instructorId?: string,) => {
-    return [
-    `/api/v1/instructors/${instructorId}/coverage`
-    ] as const;
-    }
-
-
-export const getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryOptions = <TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<void | HTTPValidationError>>(instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>>, }
+export const getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryKey = (
+  instructorId?: string
 ) => {
+  return [`/api/v1/instructors/${instructorId}/coverage`] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryKey(instructorId);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryKey(instructorId);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>
+  > = ({ signal }) => getCoverageApiV1InstructorsInstructorIdCoverageGet(instructorId, signal);
 
+  return { queryKey, queryFn, enabled: !!instructorId, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>> = ({ signal }) => getCoverageApiV1InstructorsInstructorIdCoverageGet(instructorId, signal);
+export type GetCoverageApiV1InstructorsInstructorIdCoverageGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>
+>;
+export type GetCoverageApiV1InstructorsInstructorIdCoverageGetQueryError =
+  ErrorType<void | HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, enabled: !!(instructorId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetCoverageApiV1InstructorsInstructorIdCoverageGetQueryResult = NonNullable<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>>
-export type GetCoverageApiV1InstructorsInstructorIdCoverageGetQueryError = ErrorType<void | HTTPValidationError>
-
-
-export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<void | HTTPValidationError>>(
- instructorId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>> & Pick<
+export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<
+  TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
           TError,
           Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<void | HTTPValidationError>>(
- instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<
+  TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
           TError,
           Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<void | HTTPValidationError>>(
- instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<
+  TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Coverage
  */
 
-export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError = ErrorType<void | HTTPValidationError>>(
- instructorId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetCoverageApiV1InstructorsInstructorIdCoverageGet<
+  TData = Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+  TError = ErrorType<void | HTTPValidationError>,
+>(
+  instructorId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCoverageApiV1InstructorsInstructorIdCoverageGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryOptions(
+    instructorId,
+    options
+  );
 
-  const queryOptions = getGetCoverageApiV1InstructorsInstructorIdCoverageGetQueryOptions(instructorId,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

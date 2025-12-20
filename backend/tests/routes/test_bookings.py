@@ -17,7 +17,7 @@ TEST FAILURE ANALYSIS - test_bookings.py
 """
 
 from datetime import date, datetime, time, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from fastapi import status
 import pytest
@@ -73,7 +73,7 @@ class TestBookingRoutes:
 
     @pytest.fixture
     def mock_booking_service(self):
-        """Create mock booking service."""
+        """Create mock booking service (sync service methods)."""
         from app.services.booking_service import BookingService
 
         mock_service = MagicMock(spec=BookingService)
@@ -81,23 +81,16 @@ class TestBookingRoutes:
         # Mock the db attribute (needed by reschedule endpoint to instantiate payment services)
         mock_service.db = MagicMock()
 
-        # Mock common methods - Create async methods that return synchronously
-        async def async_create_booking(*args, **kwargs):
-            # This will be replaced per test
-            return None
-
-        async def async_cancel_booking(*args, **kwargs):
-            return None
-
-        mock_service.create_booking_with_payment_setup = AsyncMock()
-        mock_service.create_booking = AsyncMock()
+        # Core service methods are synchronous; configure return values per test
+        mock_service.create_booking_with_payment_setup = Mock()
+        mock_service.create_booking = Mock()
         mock_service.get_booking_for_user = Mock()
         mock_service.get_bookings_for_user = Mock()
-        mock_service.cancel_booking = AsyncMock()
+        mock_service.cancel_booking = Mock()
         mock_service.complete_booking = Mock()
-        mock_service.check_availability = AsyncMock()
+        mock_service.check_availability = Mock()
         mock_service.get_booking_stats_for_instructor = Mock()
-        mock_service.send_booking_reminders = AsyncMock()
+        mock_service.send_booking_reminders = Mock()
         mock_service.update_booking = Mock()
 
         return mock_service
@@ -187,7 +180,7 @@ class TestBookingRoutes:
         response = client_with_mock_booking_service.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Should return 422 due to extra field with extra='forbid'
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_create_booking_past_date(self, client, auth_headers_student, booking_data):
         """Test booking creation for past date fails."""
@@ -242,7 +235,7 @@ class TestBookingRoutes:
         response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Should fail validation
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_get_bookings_list(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test retrieving bookings list."""
@@ -429,7 +422,7 @@ class TestBookingRoutes:
         response = client.post(f"/api/v1/bookings/{booking_id}/cancel", json={}, headers=auth_headers_student)
 
         # Verify
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_complete_booking_instructor_only(
         self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
@@ -753,7 +746,7 @@ class TestBookingRoutes:
         )
         mock_booking.instructor_service = self._create_mock_instructor_service()
 
-        mock_booking_service.get_booking_for_user.return_value = mock_booking
+        mock_booking_service.get_booking_with_payment_summary.return_value = (mock_booking, None)
 
         response = client_with_mock_booking_service.get(f"/api/v1/bookings/{booking_id}", headers=auth_headers_student)
 
@@ -766,7 +759,7 @@ class TestBookingRoutes:
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
     ):
         """Test getting non-existent booking."""
-        mock_booking_service.get_booking_for_user.return_value = None
+        mock_booking_service.get_booking_with_payment_summary.return_value = None
 
         response = client_with_mock_booking_service.get("/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ0", headers=auth_headers_student)
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -809,11 +802,11 @@ class TestBookingRoutes:
         """Test invalid pagination parameters."""
         # Negative page
         response = client.get("/api/v1/bookings/?page=-1", headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
         # Per page too large
         response = client.get("/api/v1/bookings/?per_page=1000", headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_all_endpoints_require_auth(self, client):
         """Test that all booking endpoints require authentication."""
@@ -918,16 +911,16 @@ class TestBookingRoutes:
         # BusinessRuleException should be handled by handle_domain_exception
         from app.core.exceptions import BusinessRuleException
 
-        async def mock_cancel(*args, **kwargs):
+        def mock_cancel(*args, **kwargs):
             raise BusinessRuleException("Booking cannot be cancelled - current status: CANCELLED")
 
-        mock_booking_service.cancel_booking = AsyncMock(side_effect=mock_cancel)
+        mock_booking_service.cancel_booking = MagicMock(side_effect=mock_cancel)
 
         response = client_with_mock_booking_service.post(
             "/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/cancel", json={"reason": "Already cancelled"}, headers=auth_headers_student
         )
         # BusinessRuleException returns 422 in current implementation
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_complete_booking_already_completed(
         self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
@@ -942,7 +935,7 @@ class TestBookingRoutes:
 
         response = client_with_mock_booking_service.post("/api/v1/bookings/01HWRZZZZZZZZZZZZZZZZZZZZ1/complete", headers=auth_headers_instructor)
         # BusinessRuleException returns 422 in current implementation
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_update_booking_not_found(
         self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
@@ -984,7 +977,7 @@ class TestBookingRoutes:
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # send_booking_reminders is async
-        mock_booking_service.send_booking_reminders = AsyncMock(return_value=5)
+        mock_booking_service.send_booking_reminders = MagicMock(return_value=5)
 
         response = client_with_mock_booking_service.post("/api/v1/bookings/send-reminders", headers=admin_headers)
 
@@ -1003,13 +996,13 @@ class TestBookingRoutes:
         """Test booking with invalid location type."""
         booking_data["location_type"] = "invalid_type"
         response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_create_booking_missing_fields(self, client, auth_headers_student):
         """Test booking creation with missing required fields."""
         incomplete_data = {"instructor_id": 1}  # Missing other fields
         response = client.post("/api/v1/bookings/", json=incomplete_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_booking_validation_edge_cases(self, client, auth_headers_student):
         """Test various validation edge cases."""
@@ -1026,7 +1019,7 @@ class TestBookingRoutes:
             "student_note": "x" * 1001,  # Too long
         }
         response = client.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
 
     def test_create_booking_business_rule_violation(
         self, client_with_mock_booking_service, auth_headers_student, booking_data, mock_booking_service
@@ -1040,7 +1033,7 @@ class TestBookingRoutes:
 
         response = client_with_mock_booking_service.post("/api/v1/bookings/", json=booking_data, headers=auth_headers_student)
         # BusinessRuleException may return 422 (current implementation)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
         error_data = response.json()
         # Check in both 'detail' and 'message' fields
         assert "at least 2 hours" in str(error_data)
@@ -1254,15 +1247,17 @@ class TestBookingRoutes:
         new_booking.instructor_service = original.instructor_service
 
         # Mock availability check to return available
-        mock_booking_service.check_availability = AsyncMock(return_value={"available": True})
+        mock_booking_service.check_availability = MagicMock(return_value={"available": True})
 
-        # Mock repository method for student conflict check
-        mock_booking_service.repository = MagicMock()
-        mock_booking_service.repository.check_student_time_conflict.return_value = None
+        # Mock service method for student conflict check (no conflict)
+        mock_booking_service.check_student_time_conflict = MagicMock(return_value=False)
 
-        mock_booking_service.cancel_booking = AsyncMock()
-        mock_booking_service.create_booking_with_payment_setup = AsyncMock(return_value=new_booking)
-        mock_booking_service.confirm_booking_payment = AsyncMock(return_value=new_booking)
+        # Mock service method for payment method validation
+        mock_booking_service.validate_reschedule_payment_method = MagicMock(return_value=(True, "pm_test123"))
+
+        mock_booking_service.cancel_booking = MagicMock()
+        mock_booking_service.create_booking_with_payment_setup = MagicMock(return_value=new_booking)
+        mock_booking_service.confirm_booking_payment = MagicMock(return_value=new_booking)
 
         # Execute
         payload = {
@@ -1281,21 +1276,25 @@ class TestBookingRoutes:
         assert data["status"] == BookingStatus.CONFIRMED.value
 
         # Cancel called with reason 'Rescheduled'
-        mock_booking_service.cancel_booking.assert_awaited_once()
+        mock_booking_service.cancel_booking.assert_called_once()
         args, kwargs = mock_booking_service.cancel_booking.call_args
-        assert kwargs.get("reason") == "Rescheduled"
+        # Called positionally via asyncio.to_thread(service.cancel_booking, booking_id, user, "Rescheduled")
+        assert args[2] == "Rescheduled"
 
         # create_booking_with_payment_setup called with carried fields and default service id
-        mock_booking_service.create_booking_with_payment_setup.assert_awaited_once()
-        _, kwargs = mock_booking_service.create_booking_with_payment_setup.call_args
-        booking_data = kwargs.get("booking_data")
+        mock_booking_service.create_booking_with_payment_setup.assert_called_once()
+        args, kwargs = mock_booking_service.create_booking_with_payment_setup.call_args
+        booking_data = args[1] if len(args) > 1 else kwargs.get("booking_data")
         assert booking_data is not None
         assert booking_data.instructor_service_id == original.instructor_service_id
         assert booking_data.meeting_location == original.meeting_location
         assert booking_data.location_type == original.location_type
         assert booking_data.student_note == original.student_note
         # And linkage is passed for persistence
-        assert kwargs.get("rescheduled_from_booking_id") == original_id
+        if len(args) > 3:
+            assert args[3] == original_id
+        else:
+            assert kwargs.get("rescheduled_from_booking_id") == original_id
 
         # Ensure call order: cancel before create
         method_names = [m[0] for m in mock_booking_service.method_calls]
@@ -1357,23 +1356,25 @@ class TestBookingRoutes:
         mock_booking_service.get_booking_for_user.return_value = original
 
         # Mock availability check to return available
-        mock_booking_service.check_availability = AsyncMock(return_value={"available": True})
+        mock_booking_service.check_availability = MagicMock(return_value={"available": True})
 
-        # Mock repository method for student conflict check
-        mock_booking_service.repository = MagicMock()
-        mock_booking_service.repository.check_student_time_conflict.return_value = None
+        # Mock service method for student conflict check (no conflict)
+        mock_booking_service.check_student_time_conflict = MagicMock(return_value=False)
+
+        # Mock service method for payment method validation
+        mock_booking_service.validate_reschedule_payment_method = MagicMock(return_value=(True, "pm_test123"))
 
         # Mock create and confirm to succeed
         new_booking = Mock()
         new_booking.id = generate_ulid()
-        mock_booking_service.create_booking_with_payment_setup = AsyncMock(return_value=new_booking)
-        mock_booking_service.confirm_booking_payment = AsyncMock(return_value=new_booking)
+        mock_booking_service.create_booking_with_payment_setup = MagicMock(return_value=new_booking)
+        mock_booking_service.confirm_booking_payment = MagicMock(return_value=new_booking)
 
         # Cancel raises business rule exception
-        async def cancel_raise(*args, **kwargs):
+        def cancel_raise(*args, **kwargs):
             raise BusinessRuleException("Late reschedule not allowed")
 
-        mock_booking_service.cancel_booking = AsyncMock(side_effect=cancel_raise)
+        mock_booking_service.cancel_booking = MagicMock(side_effect=cancel_raise)
 
         payload = {
             "booking_date": (date.today() + timedelta(days=1)).isoformat(),
@@ -1384,7 +1385,7 @@ class TestBookingRoutes:
             f"/api/v1/bookings/{original.id}/reschedule", json=payload, headers=auth_headers_student
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == 422
         assert "late" in str(response.json()).lower()
 
 

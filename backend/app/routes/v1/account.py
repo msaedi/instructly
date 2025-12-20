@@ -12,6 +12,7 @@ Endpoints:
     GET /status                          → Check account status
 """
 
+import asyncio
 import logging
 from typing import Any, Dict
 
@@ -19,7 +20,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from ...api.dependencies.auth import get_current_active_user
 from ...api.dependencies.services import get_account_lifecycle_service
-from ...core.enums import RoleName
 from ...core.exceptions import BusinessRuleException, ValidationException
 from ...models.user import User
 from ...schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
@@ -44,18 +44,22 @@ async def suspend_account(
     - Cannot have any future bookings
     - Suspended instructors can still login but cannot receive new bookings
     """
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can suspend their accounts",
         )
 
     try:
-        result: Dict[str, Any] = account_service.suspend_instructor_account(current_user)
+        result: Dict[str, Any] = await asyncio.to_thread(
+            account_service.suspend_instructor_account, current_user
+        )
         return AccountStatusChangeResponse(**result)
     except BusinessRuleException as e:
         # Extract future bookings info if available
-        has_bookings, _future_bookings = account_service.has_future_bookings(current_user)
+        has_bookings, _future_bookings = await asyncio.to_thread(
+            account_service.has_future_bookings, current_user
+        )
         if has_bookings:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -76,18 +80,22 @@ async def deactivate_account(
     - Cannot have any future bookings
     - Deactivated instructors cannot login or be reactivated through the API
     """
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can deactivate their accounts",
         )
 
     try:
-        result: Dict[str, Any] = account_service.deactivate_instructor_account(current_user)
+        result: Dict[str, Any] = await asyncio.to_thread(
+            account_service.deactivate_instructor_account, current_user
+        )
         return AccountStatusChangeResponse(**result)
     except BusinessRuleException as e:
         # Extract future bookings info if available
-        has_bookings, _future_bookings = account_service.has_future_bookings(current_user)
+        has_bookings, _future_bookings = await asyncio.to_thread(
+            account_service.has_future_bookings, current_user
+        )
         if has_bookings:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -108,14 +116,16 @@ async def reactivate_account(
     - Account must be suspended (not deactivated)
     - Once reactivated, instructor can receive bookings again
     """
-    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
+    if not current_user.is_instructor:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can reactivate their accounts",
         )
 
     try:
-        result: Dict[str, Any] = account_service.reactivate_instructor_account(current_user)
+        result: Dict[str, Any] = await asyncio.to_thread(
+            account_service.reactivate_instructor_account, current_user
+        )
         return AccountStatusChangeResponse(**result)
     except ValidationException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -136,7 +146,9 @@ async def check_account_status(
     - Available status change options based on current state and future bookings
     """
     try:
-        result: Dict[str, Any] = account_service.get_account_status(current_user)
+        result: Dict[str, Any] = await asyncio.to_thread(
+            account_service.get_account_status, current_user
+        )
         return AccountStatusResponse(**result)
     except Exception as e:
         logger.error(f"Error checking account status: {str(e)}")

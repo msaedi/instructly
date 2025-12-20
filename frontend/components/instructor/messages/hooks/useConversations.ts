@@ -1,16 +1,17 @@
 /**
  * useConversations - Hook for loading and managing conversations
  *
- * Uses the new inbox-state endpoint with ETag caching for efficient polling.
+ * Phase 4: Updated to use the new per-user-pair conversation API.
+ * Uses /api/v1/conversations endpoint with React Query for caching.
  * Integrates with SSE to invalidate cache when new messages arrive.
  */
 
-import { useMemo, useEffect, useRef } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useInboxState } from '@/hooks/useInboxState';
+import { useMemo, useEffect, useRef, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMessageStream } from '@/providers/UserMessageStreamProvider';
 import { withApiBase } from '@/lib/apiBase';
 import type { ConversationEntry } from '../types';
+import type { ConversationListItem } from '@/types/conversation';
 import { getInitials, formatRelativeTimestamp } from '../utils';
 
 export type UseConversationsOptions = {
@@ -36,17 +37,94 @@ export type UseConversationsResult = {
   } | undefined;
 };
 
+// Query key factory for conversation queries
+const conversationKeys = {
+  all: ['conversations'] as const,
+  list: (state?: string | null) => [...conversationKeys.all, 'list', state] as const,
+};
+
+// Stale time for conversation list queries
+const STALE_TIME = 30 * 1000; // 30 seconds
+const REFETCH_INTERVAL = 30 * 1000; // 30 seconds
+
+// API fetch function for conversation list
+async function fetchConversations(stateFilter?: string | null): Promise<{
+  conversations: ConversationListItem[];
+  total_unread: number;
+  unread_conversations: number;
+  state_counts: { active: number; archived: number; trashed: number } | undefined;
+}> {
+  const params = new URLSearchParams();
+  if (stateFilter) {
+    params.set('state', stateFilter);
+  }
+  params.set('limit', '50'); // Reasonable default limit
+
+  const queryString = params.toString();
+  const url = queryString
+    ? `/api/v1/conversations?${queryString}`
+    : '/api/v1/conversations';
+
+  const response = await fetch(withApiBase(url), {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch conversations: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // Calculate unread counts from the response
+  const totalUnread = data.conversations?.reduce(
+    (sum: number, conv: ConversationListItem) => sum + conv.unread_count,
+    0
+  ) ?? 0;
+  const unreadConversations = data.conversations?.filter(
+    (conv: ConversationListItem) => conv.unread_count > 0
+  ).length ?? 0;
+
+  return {
+    conversations: data.conversations ?? [],
+    total_unread: totalUnread,
+    unread_conversations: unreadConversations,
+    // TODO: Backend should return state_counts in Phase 3
+    state_counts: undefined,
+  };
+}
+
 export function useConversations({
   currentUserId,
   isLoadingUser,
   stateFilter,
   typeFilter,
 }: UseConversationsOptions): UseConversationsResult {
-  const { data: inboxState, isLoading, isError, invalidate } = useInboxState({
-    stateFilter,
-    typeFilter,
+  const queryClient = useQueryClient();
+  const { subscribe, isConnected } = useMessageStream();
+
+  // Map state filter for API
+  const apiStateFilter = stateFilter === 'archived' ? 'archived'
+    : stateFilter === 'trashed' ? 'trashed'
+    : 'active';
+
+  // Query key for this specific filter
+  const queryKey = conversationKeys.list(apiStateFilter);
+
+  // Fetch conversations using React Query
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey,
+    queryFn: () => fetchConversations(apiStateFilter),
+    staleTime: STALE_TIME,
+    refetchInterval: isConnected ? false : REFETCH_INTERVAL,
+    enabled: !isLoadingUser,
   });
-  const { subscribe } = useMessageStream();
+
+  // Invalidate function for SSE callbacks
+  const invalidate = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+  }, [queryClient]);
 
   // Use ref to store latest invalidate to avoid re-render loop
   const invalidateRef = useRef(invalidate);
@@ -54,14 +132,11 @@ export function useConversations({
     invalidateRef.current = invalidate;
   }, [invalidate]);
 
-  // Invalidate inbox state when SSE receives a message for ANY conversation
+  // Invalidate conversation list when SSE receives a message for ANY conversation
   useEffect(() => {
-    // Subscribe to all conversations using a catch-all pattern
-    // Note: The current SSE implementation routes by conversation_id,
-    // so we'll subscribe with a special marker and update the hook if needed
     const unsubscribe = subscribe('__global__', {
       onMessage: () => {
-        // New message arrived - refresh inbox state
+        // New message arrived - refresh conversation list
         invalidateRef.current();
       },
       onMessageEdited: () => {
@@ -73,40 +148,68 @@ export function useConversations({
     return unsubscribe;
   }, [subscribe]);
 
-  // Transform backend ConversationSummary to frontend ConversationEntry format
+  // Transform backend ConversationListItem to frontend ConversationEntry format
   const conversations = useMemo<ConversationEntry[]>(() => {
-    if (!inboxState?.conversations) return [];
+    if (!data?.conversations) return [];
 
-    return inboxState.conversations.map((summary) => {
-      // Parse name to get first/last for initials
-      const nameParts = summary.other_user.name.split(' ');
-      const firstName = nameParts[0] ?? '';
-      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+    return data.conversations
+      .filter((_conv) => {
+        // Apply type filter if specified
+        if (typeFilter === 'platform') {
+          // Platform type not supported in new API yet
+          return false;
+        }
+        return true;
+      })
+      .map((conv) => {
+        // Build display name from other_user
+        const displayName = `${conv.other_user.first_name} ${conv.other_user.last_initial}.`;
 
-      return {
-        id: summary.id, // booking_id serves as conversation ID
-        name: summary.other_user.name,
-        lastMessage: summary.last_message?.preview ?? 'No messages yet',
-        timestamp: summary.last_message
-          ? formatRelativeTimestamp(summary.last_message.at)
-          : '',
-        unread: summary.unread_count,
-        avatar: getInitials(firstName, lastName),
-        type: 'student' as const,
-        bookingIds: [summary.id],
-        primaryBookingId: summary.id,
-        studentId: summary.other_user.id,
-        instructorId: currentUserId ?? null,
-        latestMessageAt: summary.last_message
-          ? new Date(summary.last_message.at).getTime()
-          : 0,
-        latestMessageId: summary.last_message ? summary.id : null,
-      };
-    });
-  }, [inboxState, currentUserId]);
+        // Get initials for avatar
+        const avatar = getInitials(
+          conv.other_user.first_name,
+          conv.other_user.last_initial
+        );
 
-  const totalUnread = inboxState?.total_unread ?? 0;
-  const unreadConversationsCount = inboxState?.unread_conversations ?? 0;
+        // Format timestamp from last message
+        const timestamp = conv.last_message?.created_at
+          ? formatRelativeTimestamp(conv.last_message.created_at)
+          : '';
+
+        // Get last message content
+        const lastMessage = conv.last_message?.content ?? 'No messages yet';
+
+        // The conversation ID is now the actual conversation ID (not booking ID)
+        // For backward compatibility, we keep the same structure
+        return {
+          id: conv.id,
+          name: displayName,
+          lastMessage: lastMessage.length > 100 ? `${lastMessage.slice(0, 100)}...` : lastMessage,
+          timestamp,
+          unread: conv.unread_count,
+          avatar,
+          type: 'student' as const,
+          // In the new model, a conversation spans all bookings between users
+          // Use upcoming_bookings array from API response
+          bookingIds: (conv.upcoming_bookings ?? []).map((b) => b.id),
+          primaryBookingId: conv.next_booking?.id ?? null,
+          studentId: conv.other_user.id,
+          instructorId: currentUserId ?? null,
+          latestMessageAt: conv.last_message?.created_at
+            ? new Date(conv.last_message.created_at).getTime()
+            : 0,
+          latestMessageId: null,
+          // New fields for the per-user-pair model
+          conversationId: conv.id,
+          nextBooking: conv.next_booking,
+          upcomingBookings: conv.upcoming_bookings ?? [],
+          upcomingBookingCount: conv.upcoming_booking_count,
+        };
+      });
+  }, [data, currentUserId, typeFilter]);
+
+  const totalUnread = data?.total_unread ?? 0;
+  const unreadConversationsCount = data?.unread_conversations ?? 0;
 
   const unreadConversations = useMemo(
     () => conversations.filter((convo) => convo.unread > 0),
@@ -114,16 +217,15 @@ export function useConversations({
   );
 
   // Dummy setConversations for compatibility with existing code
-  const setConversations = () => {
+  const setConversations = useCallback(() => {
     // No-op: conversations are now managed by React Query cache
     // This is here for backward compatibility
-  };
+  }, []);
 
-  // Dummy loadConversations for compatibility
-  const loadConversations = () => {
-    // Trigger a refresh of inbox state
-    invalidate();
-  };
+  // loadConversations triggers a refresh
+  const loadConversations = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   return {
     conversations,
@@ -134,7 +236,7 @@ export function useConversations({
     unreadConversations,
     unreadConversationsCount,
     loadConversations,
-    stateCounts: inboxState?.state_counts,
+    stateCounts: data?.state_counts,
   };
 }
 
@@ -142,21 +244,23 @@ export function useConversations({
  * useUpdateConversationState - Mutation hook for updating conversation state
  *
  * Allows archiving, trashing, or restoring conversations.
- * Automatically invalidates inbox-state queries to refresh the UI.
+ * Automatically invalidates conversation queries.
+ *
+ * Phase 4 Note: State updates now use /api/v1/conversations/{conversationId}/state only.
  */
 export function useUpdateConversationState() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
-      bookingId,
+      conversationId,
       state,
     }: {
-      bookingId: string;
+      conversationId: string;
       state: 'active' | 'archived' | 'trashed';
     }) => {
       const response = await fetch(
-        withApiBase(`/api/v1/messages/conversations/${bookingId}/state`),
+        withApiBase(`/api/v1/conversations/${conversationId}/state`),
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -172,8 +276,8 @@ export function useUpdateConversationState() {
       return response.json();
     },
     onSuccess: () => {
-      // Invalidate all inbox-state queries to refetch with updated state
-      void queryClient.invalidateQueries({ queryKey: ['inbox-state'] });
+      // Invalidate all conversation-related queries
+      void queryClient.invalidateQueries({ queryKey: conversationKeys.all });
     },
   });
 }

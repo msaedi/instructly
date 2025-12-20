@@ -407,7 +407,7 @@ class BackgroundCheckWorkflowService:
 
         self._schedule_final_adverse_action(profile_id, notice_id=notice_id, sent_at=sent_at)
 
-    async def resolve_dispute_and_resume_final_adverse(
+    def resolve_dispute_and_resume_final_adverse(
         self, instructor_id: str, *, note: str | None = None
     ) -> tuple[bool, datetime | None]:
         """Resume the final adverse workflow once a dispute is resolved.

@@ -4,7 +4,7 @@
  * Consolidated type definitions for messaging components, hooks, and utilities.
  */
 
-import type { MessageResponse } from '@/src/api/generated/instructly.schemas';
+import type { BookingSummary } from '@/types/conversation';
 
 /**
  * Message attachment metadata
@@ -64,6 +64,12 @@ export type MessageWithAttachments = MessageItem & {
 };
 
 /**
+ * Booking info for conversation context (Phase 4)
+ * Re-exported from @/types/conversation for backwards compatibility
+ */
+export type ConversationBooking = BookingSummary;
+
+/**
  * Conversation entry in the sidebar list
  */
 export type ConversationEntry = {
@@ -80,6 +86,11 @@ export type ConversationEntry = {
   instructorId: string | null;
   latestMessageAt: number;
   latestMessageId?: string | null;
+  // Phase 4: New fields for per-user-pair model
+  conversationId?: string | undefined;
+  nextBooking?: ConversationBooking | null | undefined;
+  upcomingBookings?: ConversationBooking[] | undefined;
+  upcomingBookingCount?: number | undefined;
 };
 
 /**
@@ -131,7 +142,18 @@ export type MailSection = 'inbox' | 'compose' | 'sent' | 'drafts' | 'templates';
 /**
  * SSE Message with ownership flag
  */
-export type SSEMessageWithOwnership = MessageResponse & {
-  is_mine?: boolean;
-  sender_id?: string;
+export type SSEMessageWithOwnership = {
+  id: string;
+  content: string;
+  sender_id: string | null;
+  sender_name?: string | null;
+  booking_id?: string | null;
+  created_at: string;
+  delivered_at?: string | null;
+  edited_at?: string | null;
+  is_deleted?: boolean;
+  read_by?: ReadByEntry[] | null;
+  reactions?: unknown;
+  my_reactions?: string[] | null;
+  is_mine: boolean;
 };

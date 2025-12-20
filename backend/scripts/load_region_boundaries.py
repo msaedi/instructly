@@ -219,7 +219,7 @@ def load_city(
     out = _add_ulids(out)
     engine = create_engine(settings.database_url)
     print("Writing to region_boundaries table…")
-    # Avoid to_postgis JSON typing issues; write with explicit INSERTs
+    # Avoid to_postgis JSON typing issues; write with batch INSERTs for performance
     inserted = 0
     with engine.begin() as conn:
         _assert_rb_unique_target_exists(conn)
@@ -242,14 +242,15 @@ def load_city(
                 updated_at = NOW()
             """
         )
+        # Build all parameters in memory first, then execute in batch
+        params_list = []
         for _, row in out.iterrows():
             # Access the actual geometry column by name ('boundary') to avoid Series.geometry error
             geom_obj = row["boundary"] if "boundary" in row else None
             geom = getattr(geom_obj, "__geo_interface__", None)
             if not geom:
                 continue
-            conn.execute(
-                sql,
+            params_list.append(
                 {
                     "id": row["id"],
                     "rtype": row.get("region_type") or cfg.get("region_type", city),
@@ -258,9 +259,12 @@ def load_city(
                     "parent": row.get("parent_region"),
                     "geom": json.dumps(geom),
                     "meta": json.dumps(row.get("region_metadata") or {}),
-                },
+                }
             )
-            inserted += 1
+        # Execute all inserts in a single batch (executemany)
+        if params_list:
+            conn.execute(sql, params_list)
+            inserted = len(params_list)
     print(f"Loaded {inserted} {city.upper()} regions into region_boundaries.")
     return inserted
 

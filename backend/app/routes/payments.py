@@ -877,14 +877,14 @@ async def create_checkout(
     """
     # Concurrency lock: one in-flight per user/route
     lock_key = f"{current_user.id}:checkout"
-    if not acquire_lock(lock_key, ttl_s=30):
+    if not await acquire_lock(lock_key, ttl_s=30):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Operation in progress"
         )
 
     # Idempotency: raw key from method+route+user+body hash
     raw_key = f"POST:/api/payments/checkout:user:{current_user.id}:booking:{payload.booking_id}"
-    cached = get_cached(raw_key)
+    cached = await get_cached(raw_key)
     if cached:
         # Return cached success response
         return CheckoutResponse(**model_filter(CheckoutResponse, cast(Dict[str, Any], cached)))
@@ -975,7 +975,7 @@ async def create_checkout(
         # Cache result for idempotency (success path)
         try:
             if payment_result["success"]:
-                set_cached(raw_key, response_payload.model_dump(), ttl_s=86400)
+                await set_cached(raw_key, response_payload.model_dump(), ttl_s=86400)
         except Exception:
             pass
         return response_payload
@@ -991,7 +991,7 @@ async def create_checkout(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process payment"
         )
     finally:
-        release_lock(lock_key)
+        await release_lock(lock_key)
 
 
 # ========== Analytics Routes (Admin/Instructor) ==========

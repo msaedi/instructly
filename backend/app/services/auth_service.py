@@ -9,22 +9,19 @@ FIXED: Added @measure_operation decorators to all public methods
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import Any, Dict, Optional, cast
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..auth import get_password_hash, verify_password
+from ..auth import DUMMY_HASH_FOR_TIMING_ATTACK, get_password_hash, verify_password
 from ..core.enums import RoleName
 from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..models.instructor import InstructorProfile
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
-from .base import BaseService
+from .base import BaseService, CacheInvalidationProtocol
 from .permission_service import PermissionService
-
-if TYPE_CHECKING:
-    from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +32,7 @@ class AuthService(BaseService):
     def __init__(
         self,
         db: Session,
-        cache_service: Optional["CacheService"] = None,
+        cache_service: Optional[CacheInvalidationProtocol] = None,
         user_repository: Any | None = None,
         instructor_repository: Any | None = None,
     ) -> None:
@@ -207,10 +204,72 @@ class AuthService(BaseService):
             self.logger.error(f"Error registering user {email}: {str(e)}")
             raise ValidationException(f"Error creating user: {str(e)}")
 
+    @BaseService.measure_operation("fetch_user_for_auth")
+    def fetch_user_for_auth(self, email: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch user data needed for authentication WITHOUT verifying password.
+
+        This method is designed to allow early DB connection release before
+        Argon2id verification. Returns user data as a dict so the ORM object
+        can be detached from the session.
+
+        PERFORMANCE: Call this, then close DB session, then verify password.
+        This reduces DB connection hold time from ~200ms to ~5-20ms.
+
+        Args:
+            email: User's email
+
+        Returns:
+            Dict with user data if found, None otherwise.
+            Dict contains: id, email, hashed_password, account_status, totp_enabled,
+                          first_name, last_name, and any other fields needed for login.
+        """
+        user = self.get_user_by_email(email)
+        if not user:
+            self.logger.debug(f"User not found for auth: {email}")
+            return None
+
+        # Extract all needed fields to memory so ORM object can be detached
+        result: Dict[str, Any] = {
+            "id": user.id,
+            "email": user.email,
+            "hashed_password": user.hashed_password,
+            "account_status": getattr(user, "account_status", None),
+            "totp_enabled": getattr(user, "totp_enabled", False),
+            "first_name": getattr(user, "first_name", ""),
+            "last_name": getattr(user, "last_name", ""),
+            "is_active": getattr(user, "is_active", True),
+            # Include user object reference for 2FA check (will be detached)
+            "_user_obj": user,
+        }
+
+        # Fetch beta claims here (in the same thread-wrapped call) to avoid
+        # create_access_token doing its own blocking DB lookup later
+        try:
+            from app.repositories.beta_repository import BetaAccessRepository
+
+            beta_repo = BetaAccessRepository(self.db)
+            beta = beta_repo.get_latest_for_user(user.id)
+            if beta:
+                result["_beta_claims"] = {
+                    "beta_access": True,
+                    "beta_role": beta.role,
+                    "beta_phase": beta.phase,
+                    "beta_invited_by": beta.invited_by_code,
+                }
+        except Exception as e:
+            self.logger.debug(f"Could not fetch beta claims: {e}")
+
+        return result
+
     @BaseService.measure_operation("authenticate_user")
     def authenticate_user(self, email: str, password: str) -> Optional[User]:
         """
-        Authenticate user by email and password.
+        Authenticate user by email and password (synchronous version).
+
+        NOTE: This method holds the DB connection during Argon2id verification.
+        For high-throughput scenarios, use fetch_user_for_auth() + verify_password_async()
+        with explicit DB release between them.
 
         Args:
             email: User's email
@@ -236,6 +295,44 @@ class AuthService(BaseService):
             return None
 
         self.logger.info(f"Successful authentication for user: {email}")
+        return user
+
+    @BaseService.measure_operation("authenticate_user_async")
+    async def authenticate_user_async(self, email: str, password: str) -> Optional[User]:
+        """
+        Authenticate user by email and password (async version - non-blocking).
+
+        Uses thread pool executor for Argon2id verification to avoid blocking
+        the event loop during password hashing. Use this in async route handlers.
+
+        Args:
+            email: User's email
+            password: Plain text password to verify
+
+        Returns:
+            User object if authentication successful, None otherwise
+        """
+        from ..auth import verify_password_async
+
+        self.logger.info(f"Authentication attempt (async) for user: {email}")
+
+        user = self.get_user_by_email(email)
+        if not user:
+            self.logger.warning(f"Authentication failed - user not found: {email}")
+            # Prevent timing attacks - still do a fake verification with proper Argon2id hash
+            await verify_password_async(password, DUMMY_HASH_FOR_TIMING_ATTACK)
+            return None
+
+        if not await verify_password_async(password, user.hashed_password):
+            self.logger.warning(f"Authentication failed - incorrect password: {email}")
+            return None
+
+        # Check account status - deactivated users cannot login
+        if hasattr(user, "account_status") and user.account_status == "deactivated":
+            self.logger.warning(f"Authentication failed - account deactivated: {email}")
+            return None
+
+        self.logger.info(f"Successful authentication (async) for user: {email}")
         return user
 
     @BaseService.measure_operation("get_user_by_email")
@@ -293,3 +390,16 @@ class AuthService(BaseService):
             raise NotFoundException("User not found")
 
         return user
+
+    @BaseService.measure_operation("release_connection")
+    def release_connection(self) -> None:
+        """
+        Release the database connection to free resources.
+
+        Used to release DB connection before CPU-intensive operations like bcrypt
+        to improve throughput under load. The connection will be returned to the pool.
+        """
+        try:
+            self.db.close()
+        except Exception:
+            pass  # Session may already be closed or in different state

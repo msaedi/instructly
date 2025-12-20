@@ -1,24 +1,49 @@
 #!/usr/bin/env python3
 """
-Generate embeddings for service catalog entries.
+DEPRECATED: Use generate_openai_embeddings.py instead.
 
-This script uses sentence-transformers to create semantic embeddings
-for all services in the catalog. The embeddings enable natural language
-search capabilities.
+This script used sentence-transformers which has been removed in favor
+of OpenAI embeddings for better semantic understanding.
 
-Usage:
-    python scripts/generate_service_embeddings.py
+To generate embeddings, run:
+    python scripts/generate_openai_embeddings.py
+
+For more information, see the migration notes in:
+    docs/temp-logs/nl-search-audit-fixes-and-migration.md
 """
+
+import sys
+
+print("=" * 70)
+print("ERROR: This script is deprecated.")
+print()
+print("The sentence-transformers package has been removed.")
+print("Use OpenAI embeddings instead:")
+print()
+print("    python scripts/generate_openai_embeddings.py")
+print()
+print("Make sure OPENAI_API_KEY is set in your environment.")
+print("=" * 70)
+sys.exit(1)
+
+# Original code preserved below for reference (will not execute)
+# ----------------------------------------------------------------
 
 import logging
 import os
 from pathlib import Path
-import sys
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sentence_transformers import SentenceTransformer
+# Note: sentence-transformers import will fail as package was removed
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    print("ERROR: sentence-transformers is no longer installed.")
+    print("Use: python scripts/generate_openai_embeddings.py")
+    sys.exit(1)
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -74,13 +99,15 @@ class EmbeddingGenerator:
         """
         Generate embeddings for all services without embeddings.
 
+        Optimized: sets attributes directly on loaded objects, no per-service SELECT.
+
         Args:
             batch_size: Number of services to process at once
 
         Returns:
             Number of services updated
         """
-        # Get all active services
+        # Get all active services (already loaded into session)
         services = self.catalog_repository.find_by(is_active=True)
 
         # Filter services without embeddings
@@ -92,31 +119,54 @@ class EmbeddingGenerator:
 
         logger.info(f"Found {len(services_to_update)} services without embeddings")
 
-        # Process in batches
-        updated_count = 0
-        for i in range(0, len(services_to_update), batch_size):
-            batch = services_to_update[i : i + batch_size]
+        # Process in batches - but generate all texts first for efficient encoding
+        all_texts = [self.generate_service_text(service) for service in services_to_update]
 
-            # Generate text for each service
-            texts = [self.generate_service_text(service) for service in batch]
+        # Generate all embeddings at once (most efficient for the model)
+        logger.info(f"Generating {len(all_texts)} embeddings in one batch...")
+        all_embeddings = self.model.encode(all_texts, convert_to_numpy=True, batch_size=batch_size)
 
-            # Generate embeddings
-            logger.info(f"Generating embeddings for batch {i//batch_size + 1}...")
-            embeddings = self.model.encode(texts, convert_to_numpy=True)
+        # Use native bulk UPDATE for performance (1 statement instead of 250)
+        # This avoids N round trips to the database
+        logger.info(f"Updating {len(services_to_update)} embeddings with bulk UPDATE...")
 
-            # Update services
-            for service, embedding in zip(batch, embeddings):
-                try:
-                    # Update the service with embedding
-                    self.catalog_repository.update(service.id, embedding=embedding.tolist())
-                    updated_count += 1
-                    logger.debug(f"Updated embedding for service: {service.name}")
-                except Exception as e:
-                    logger.error(f"Failed to update service {service.id}: {str(e)}")
+        # Build list of (id, embedding) tuples
+        update_data = []
+        for service, embedding in zip(services_to_update, all_embeddings):
+            update_data.append({"id": service.id, "embedding": embedding.tolist()})
 
-            # Commit batch
-            self.db.commit()
-            logger.info(f"Committed batch {i//batch_size + 1}")
+        # Use psycopg2's execute_values for true batch UPDATE (1 round trip)
+        # This is much faster than executemany which does N round trips
+        import json  # noqa: PLC0415 - import inside function for performance (only when needed)
+
+        from psycopg2.extras import execute_values
+
+        # Get raw psycopg2 connection
+        connection = self.db.connection().connection
+
+        # Build values list: (id, embedding_json_string)
+        values = [
+            (d["id"], json.dumps(d["embedding"]))
+            for d in update_data
+        ]
+
+        # Use execute_values with UPDATE ... FROM VALUES pattern
+        update_sql = """
+            UPDATE service_catalog AS t
+            SET embedding = CAST(v.embedding AS vector),
+                updated_at = NOW()
+            FROM (VALUES %s) AS v(id, embedding)
+            WHERE t.id = v.id
+        """
+
+        with connection.cursor() as cursor:
+            execute_values(cursor, update_sql, values, template="(%s, %s)",
+                           page_size=1000)
+
+        self.db.commit()
+
+        updated_count = len(update_data)
+        logger.info(f"Committed all {updated_count} embeddings in single bulk UPDATE")
 
         return updated_count
 
@@ -136,8 +186,8 @@ class EmbeddingGenerator:
             return False
 
         # Generate text and embedding
-        text = self.generate_service_text(service)
-        embedding = self.model.encode([text], convert_to_numpy=True)[0]
+        service_text = self.generate_service_text(service)
+        embedding = self.model.encode([service_text], convert_to_numpy=True)[0]
 
         # Update service
         try:
@@ -196,8 +246,12 @@ class EmbeddingGenerator:
         return stats
 
 
-def main():
-    """Main function to generate embeddings."""
+def main(skip_verify: bool = False):
+    """Main function to generate embeddings.
+
+    Args:
+        skip_verify: If True, skip embedding verification (faster for seeding)
+    """
     logger.info("Starting embedding generation...")
 
     # Determine database URL based on environment
@@ -222,6 +276,12 @@ def main():
         # Generate embeddings
         updated_count = generator.generate_embeddings()
         logger.info(f"Successfully generated {updated_count} embeddings")
+
+        # Skip verification if requested (faster for seeding)
+        if skip_verify or os.getenv("SKIP_EMBEDDING_VERIFY") == "1":
+            logger.info("Skipping embedding verification (--skip-verify or SKIP_EMBEDDING_VERIFY=1)")
+            logger.info("\nEmbedding generation complete!")
+            return
 
         # Verify embeddings
         logger.info("Verifying embeddings...")
@@ -249,4 +309,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate embeddings for service catalog")
+    parser.add_argument("--skip-verify", action="store_true", help="Skip embedding verification")
+    args = parser.parse_args()
+    main(skip_verify=args.skip_verify)

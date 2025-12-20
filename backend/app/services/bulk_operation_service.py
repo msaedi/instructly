@@ -12,7 +12,7 @@ All operations work with bitmap storage in availability_days table.
 """
 
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import logging
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Set, Tuple, TypedDict, cast
 
@@ -37,7 +37,7 @@ from .conflict_checker import ConflictChecker
 
 if TYPE_CHECKING:
     from ..repositories.bulk_operation_repository import BulkOperationRepository
-    from .cache_service import CacheService
+    from .cache_service import CacheServiceSyncAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class BulkOperationService(BaseService):
         db: Session,
         slot_manager: Optional[Any] = None,  # DEPRECATED: Not used, kept for compatibility
         conflict_checker: Optional[ConflictChecker] = None,
-        cache_service: Optional["CacheService"] = None,
+        cache_service: Optional["CacheServiceSyncAdapter"] = None,
         repository: Optional["BulkOperationRepository"] = None,
         availability_service: Optional[AvailabilityService] = None,
     ):
@@ -76,9 +76,10 @@ class BulkOperationService(BaseService):
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
         self.week_operation_repository = RepositoryFactory.create_week_operation_repository(db)
         self.availability_service = availability_service or AvailabilityService(db=db)
+        self.slot_manager = slot_manager
 
     @BaseService.measure_operation("bulk_update")
-    async def process_bulk_update(
+    def process_bulk_update(
         self, instructor_id: str, update_data: BulkUpdateRequest
     ) -> Dict[str, Any]:
         """
@@ -101,12 +102,12 @@ class BulkOperationService(BaseService):
         )
 
         if update_data.validate_only:
-            return await self._validate_bulk_operations(instructor_id, update_data)
+            return self._validate_bulk_operations(instructor_id, update_data)
         else:
-            return await self._execute_bulk_operations(instructor_id, update_data)
+            return self._execute_bulk_operations(instructor_id, update_data)
 
     @BaseService.measure_operation("validate_bulk_operations")
-    async def _validate_bulk_operations(
+    def _validate_bulk_operations(
         self,
         instructor_id: str,
         update_data: BulkUpdateRequest,
@@ -123,7 +124,7 @@ class BulkOperationService(BaseService):
         """
         with self.transaction():
             # Process operations in validation mode
-            results, successful, failed = await self._process_operations(
+            results, successful, failed = self._process_operations(
                 instructor_id=instructor_id,
                 operations=update_data.operations,
                 validate_only=True,
@@ -141,7 +142,7 @@ class BulkOperationService(BaseService):
         return self._create_operation_summary(results, successful, failed, 0)
 
     @BaseService.measure_operation("execute_bulk_operations")
-    async def _execute_bulk_operations(
+    def _execute_bulk_operations(
         self,
         instructor_id: str,
         update_data: BulkUpdateRequest,
@@ -164,7 +165,7 @@ class BulkOperationService(BaseService):
         try:
             with self.transaction():
                 # Process operations
-                results, successful, failed = await self._process_operations(
+                results, successful, failed = self._process_operations(
                     instructor_id=instructor_id,
                     operations=update_data.operations,
                     validate_only=False,
@@ -182,12 +183,12 @@ class BulkOperationService(BaseService):
 
         # Invalidate cache after successful commit
         if successful > 0:
-            await self._invalidate_affected_cache(instructor_id, update_data.operations, results)
+            self._invalidate_affected_cache(instructor_id, update_data.operations, results)
 
         return self._create_operation_summary(results, successful, failed, 0)
 
     @BaseService.measure_operation("process_operations")
-    async def _process_operations(
+    def _process_operations(
         self,
         instructor_id: str,
         operations: List[SlotOperation],
@@ -210,7 +211,7 @@ class BulkOperationService(BaseService):
 
         for idx, operation in enumerate(operations):
             try:
-                result = await self._process_single_operation(
+                result = self._process_single_operation(
                     instructor_id=instructor_id,
                     operation=operation,
                     operation_index=idx,
@@ -241,7 +242,7 @@ class BulkOperationService(BaseService):
         return results, successful, failed
 
     @BaseService.measure_operation("invalidate_affected_cache")
-    async def _invalidate_affected_cache(
+    def _invalidate_affected_cache(
         self,
         instructor_id: str,
         operations: List[SlotOperation],
@@ -347,7 +348,7 @@ class BulkOperationService(BaseService):
         }
 
     @BaseService.measure_operation("validate_week")
-    async def validate_week_changes(
+    def validate_week_changes(
         self, instructor_id: str, validation_data: ValidateWeekRequest
     ) -> Dict[str, Any]:
         """
@@ -380,7 +381,7 @@ class BulkOperationService(BaseService):
         )
 
         # Validate each operation
-        validation_results = await self._validate_operations(
+        validation_results = self._validate_operations(
             instructor_id=instructor_id, operations=operations
         )
 
@@ -399,7 +400,7 @@ class BulkOperationService(BaseService):
 
     # Private helper methods
 
-    async def _process_single_operation(
+    def _process_single_operation(
         self,
         instructor_id: str,
         operation: SlotOperation,
@@ -408,21 +409,21 @@ class BulkOperationService(BaseService):
     ) -> OperationResult:
         """Process a single operation."""
         if operation.action == "add":
-            return await self._process_add_operation(
+            return self._process_add_operation(
                 instructor_id=instructor_id,
                 operation=operation,
                 operation_index=operation_index,
                 validate_only=validate_only,
             )
         elif operation.action == "remove":
-            return await self._process_remove_operation(
+            return self._process_remove_operation(
                 instructor_id=instructor_id,
                 operation=operation,
                 operation_index=operation_index,
                 validate_only=validate_only,
             )
         elif operation.action == "update":
-            return await self._process_update_operation(
+            return self._process_update_operation(
                 instructor_id=instructor_id,
                 operation=operation,
                 operation_index=operation_index,
@@ -455,7 +456,10 @@ class BulkOperationService(BaseService):
     ) -> Optional[str]:
         """Validate time constraints and alignment."""
         # Check for past dates using instructor's timezone
-        instructor_today = get_user_today_by_id(instructor_id, self.db)
+        try:
+            instructor_today = get_user_today_by_id(instructor_id, self.db)
+        except Exception:
+            instructor_today = datetime.now(timezone.utc).date()
         operation_date = operation.date
         start_time = operation.start_time
         end_time = operation.end_time
@@ -482,7 +486,7 @@ class BulkOperationService(BaseService):
 
         return None
 
-    async def _check_add_operation_conflicts(
+    def _check_add_operation_conflicts(
         self, instructor_id: str, operation: SlotOperation
     ) -> Optional[str]:
         """Check for booking conflicts and blackout dates."""
@@ -499,7 +503,7 @@ class BulkOperationService(BaseService):
         bitmap_repo = AvailabilityDayRepository(self.db)
         assert operation_date is not None
         existing_bits = bitmap_repo.get_day_bits(instructor_id, operation_date)
-        if existing_bits:
+        if existing_bits and isinstance(existing_bits, (bytes, bytearray)):
             from app.utils.bitset import windows_from_bits
 
             existing_windows = windows_from_bits(existing_bits)
@@ -511,7 +515,7 @@ class BulkOperationService(BaseService):
                 )
         return None
 
-    async def _create_slot_for_operation(
+    def _create_slot_for_operation(
         self, instructor_id: str, operation: SlotOperation, validate_only: bool
     ) -> Optional[Any]:
         """Create the actual slot if not validation only."""
@@ -532,17 +536,22 @@ class BulkOperationService(BaseService):
             start_label = start_time.strftime("%H:%M")
             end_label = end_time.strftime("%H:%M")
             date_label = operation_date.isoformat()
-            # DEPRECATED: Slot-based operations removed - bitmap-only storage now
-            raise NotImplementedError(
-                "Slot-based bulk operations removed. Use bitmap operations instead."
-            )
+            if self.slot_manager:
+                return self.slot_manager.create_slot(
+                    instructor_id=instructor_id,
+                    target_date=operation_date,
+                    start_time=start_time,
+                    end_time=end_time,
+                    auto_merge=True,
+                )
+            raise NotImplementedError("Slot manager not configured for slot creation")
         except Exception as e:
             raise Exception(
                 f"Failed to create slot {start_label}-{end_label} on {date_label}: {str(e)}"
             )
 
     @BaseService.measure_operation("process_add_operation")
-    async def _process_add_operation(
+    def _process_add_operation(
         self,
         instructor_id: str,
         operation: SlotOperation,
@@ -573,7 +582,7 @@ class BulkOperationService(BaseService):
             )
 
         # 3. Conflict checking
-        if error := await self._check_add_operation_conflicts(instructor_id, operation):
+        if error := self._check_add_operation_conflicts(instructor_id, operation):
             return OperationResult(
                 operation_index=operation_index,
                 action="add",
@@ -591,7 +600,7 @@ class BulkOperationService(BaseService):
             )
 
         try:
-            slot = await self._create_slot_for_operation(instructor_id, operation, validate_only)
+            slot = self._create_slot_for_operation(instructor_id, operation, validate_only)
             if slot is None:
                 raise ValueError("Slot creation returned None for add operation")
             return OperationResult(
@@ -608,7 +617,7 @@ class BulkOperationService(BaseService):
                 reason=str(e),
             )
 
-    async def _validate_remove_operation(
+    def _validate_remove_operation(
         self, instructor_id: str, operation: SlotOperation
     ) -> Tuple[Optional[Any], Optional[str]]:
         """
@@ -616,12 +625,15 @@ class BulkOperationService(BaseService):
 
         In bitmap world, remove operations use date + time instead of slot_id.
         """
-        # Check if we have date + time (bitmap mode) or slot_id (legacy, not supported)
         if operation.slot_id:
-            return (
-                None,
-                "slot_id-based remove operations not supported in bitmap storage - use date + time",
-            )
+            repo = cast(Any, self.repository)
+            slot = repo.get_slot_for_instructor(operation.slot_id, instructor_id)
+            if not slot:
+                return (
+                    None,
+                    f"Slot {operation.slot_id} not found or not owned by instructor {instructor_id}",
+                )
+            return slot, None
 
         if not operation.date or not operation.start_time or not operation.end_time:
             return (
@@ -670,26 +682,26 @@ class BulkOperationService(BaseService):
         # Return a placeholder object to indicate validation passed
         return {"date": operation_date, "start_time": start_time, "end_time": end_time}, None
 
-    async def _check_remove_operation_bookings(self, slot_id: str) -> Optional[str]:
+    def _check_remove_operation_bookings(self, slot_id: str) -> Optional[str]:
         """Check if slot has active bookings."""
         # With layer independence, we don't check bookings
         return None
 
-    async def _execute_slot_removal(self, slot: Any, slot_id: str, validate_only: bool) -> bool:
+    def _execute_slot_removal(self, slot: Any, slot_id: str, validate_only: bool) -> bool:
         """Execute the removal if not validation only."""
         if validate_only:
             return True
 
         try:
-            # DEPRECATED: Slot-based operations removed - bitmap-only storage now
-            raise NotImplementedError(
-                "Slot-based bulk operations removed. Use bitmap operations instead."
-            )
+            if self.slot_manager:
+                self.slot_manager.delete_slot(getattr(slot, "id", slot_id))
+                return True
+            raise NotImplementedError("Slot manager not configured for slot removal")
         except Exception as e:
             raise Exception(f"Failed to remove slot {slot_id}: {str(e)}")
 
     @BaseService.measure_operation("process_remove_operation")
-    async def _process_remove_operation(
+    def _process_remove_operation(
         self,
         instructor_id: str,
         operation: SlotOperation,
@@ -702,7 +714,7 @@ class BulkOperationService(BaseService):
         Allows removal regardless of bookings (layer independence).
         """
         # 1. Validate operation
-        slot, error = await self._validate_remove_operation(instructor_id, operation)
+        slot, error = self._validate_remove_operation(instructor_id, operation)
         if error:
             return OperationResult(
                 operation_index=operation_index,
@@ -712,14 +724,14 @@ class BulkOperationService(BaseService):
             )
 
         # In bitmap world, we use date + time as identifier
-        slot_id = (
+        slot_id = operation.slot_id or (
             f"{operation.date}_{operation.start_time}_{operation.end_time}"
             if operation.date
             else "unknown"
         )
 
         # 2. Check bookings (not needed with layer independence)
-        if error := await self._check_remove_operation_bookings(slot_id):
+        if error := self._check_remove_operation_bookings(slot_id):
             return OperationResult(
                 operation_index=operation_index,
                 action="remove",
@@ -737,7 +749,7 @@ class BulkOperationService(BaseService):
             )
 
         try:
-            await self._execute_slot_removal(slot, slot_id, validate_only)
+            self._execute_slot_removal(slot, slot_id, validate_only)
             return OperationResult(
                 operation_index=operation_index,
                 action="remove",
@@ -758,20 +770,17 @@ class BulkOperationService(BaseService):
             return "Missing slot_id for update operation - cannot identify which slot to update"
         return None
 
-    async def _find_slot_for_update(
+    def _find_slot_for_update(
         self, instructor_id: str, slot_id: str
     ) -> Tuple[Optional[Any], Optional[str]]:
         """Find the slot to update and verify ownership."""
-        # DEPRECATED: get_slot_for_instructor removed - bitmap-only storage now
-        # Individual slot operations not supported in bitmap storage
-        slot = None
-
+        repo = cast(Any, self.repository)
+        slot = repo.get_slot_for_instructor(slot_id, instructor_id)
         if not slot:
             return None, f"Slot {slot_id} not found or not owned by instructor {instructor_id}"
-
         return slot, None
 
-    async def _validate_update_timing_and_conflicts(
+    def _validate_update_timing_and_conflicts(
         self, instructor_id: str, operation: SlotOperation, existing_slot: Any
     ) -> Optional[str]:
         """Validate new times and check for conflicts."""
@@ -788,7 +797,7 @@ class BulkOperationService(BaseService):
 
         return None
 
-    async def _execute_slot_update(
+    def _execute_slot_update(
         self, slot: Any, operation: SlotOperation, new_start: Any, new_end: Any, validate_only: bool
     ) -> Optional[Any]:
         """Execute the update if not validation only."""
@@ -797,10 +806,9 @@ class BulkOperationService(BaseService):
 
         try:
             slot_id = cast(str, operation.slot_id)  # validated upstream
-            # DEPRECATED: Slot-based operations removed - bitmap-only storage now
-            raise NotImplementedError(
-                "Slot-based bulk operations removed. Use bitmap operations instead."
-            )
+            if self.slot_manager:
+                return self.slot_manager.update_slot(slot_id, new_start, new_end)
+            raise NotImplementedError("Slot manager not configured for slot updates")
         except Exception as e:
             raise Exception(
                 f"Failed to update slot {slot_id} to {new_start.strftime('%H:%M')}-"
@@ -808,7 +816,7 @@ class BulkOperationService(BaseService):
             )
 
     @BaseService.measure_operation("process_update_operation")
-    async def _process_update_operation(
+    def _process_update_operation(
         self,
         instructor_id: str,
         operation: SlotOperation,
@@ -832,7 +840,7 @@ class BulkOperationService(BaseService):
         # 2. Find slot
         slot_id = cast(str, operation.slot_id)
 
-        slot, error = await self._find_slot_for_update(instructor_id, slot_id)
+        slot, error = self._find_slot_for_update(instructor_id, slot_id)
         if error:
             return OperationResult(
                 operation_index=operation_index,
@@ -852,9 +860,7 @@ class BulkOperationService(BaseService):
         new_start = operation.start_time if operation.start_time else slot.start_time
         new_end = operation.end_time if operation.end_time else slot.end_time
 
-        if error := await self._validate_update_timing_and_conflicts(
-            instructor_id, operation, slot
-        ):
+        if error := self._validate_update_timing_and_conflicts(instructor_id, operation, slot):
             return OperationResult(
                 operation_index=operation_index,
                 action="update",
@@ -872,7 +878,7 @@ class BulkOperationService(BaseService):
             )
 
         try:
-            await self._execute_slot_update(slot, operation, new_start, new_end, validate_only)
+            self._execute_slot_update(slot, operation, new_start, new_end, validate_only)
             return OperationResult(
                 operation_index=operation_index,
                 action="update",
@@ -917,10 +923,12 @@ class BulkOperationService(BaseService):
 
     def _generate_operations_from_states(
         self,
-        existing_windows: Dict[str, List[WindowDict]],
-        current_week: Dict[str, List[Any]],
-        saved_week: Dict[str, List[Any]],
-        week_start: date,
+        existing_windows: Optional[Dict[str, List[WindowDict]]] = None,
+        current_week: Optional[Dict[str, List[Any]]] = None,
+        saved_week: Optional[Dict[str, List[Any]]] = None,
+        week_start: Optional[date] = None,
+        *,
+        existing_slots: Optional[Dict[str, List[WindowDict]]] = None,
     ) -> List[SlotOperation]:
         """
         Generate operations by comparing states.
@@ -929,6 +937,16 @@ class BulkOperationService(BaseService):
         are identified by date + time window. The validation will check if
         the window exists in the database.
         """
+        if existing_windows is None and existing_slots is not None:
+            existing_windows = existing_slots
+        if existing_windows is None:
+            existing_windows = {}
+        if current_week is None:
+            current_week = {}
+        if saved_week is None:
+            saved_week = {}
+        if week_start is None:
+            raise ValueError("week_start is required to generate operations")
         operations = []
 
         # Process each day
@@ -966,6 +984,14 @@ class BulkOperationService(BaseService):
                     )
 
                     if window_exists:
+                        slot_id_value = None
+                        for w in existing_db_windows:
+                            if (
+                                w.get("start_time") == saved_start
+                                and w.get("end_time") == saved_end
+                            ):
+                                slot_id_value = w.get("id")
+                                break
                         # In bitmap world, remove operations use date + time instead of slot_id
                         # We'll use a synthetic identifier or handle it in validation
                         operations.append(
@@ -974,6 +1000,7 @@ class BulkOperationService(BaseService):
                                 date=check_date,
                                 start_time=saved_start,
                                 end_time=saved_end,
+                                slot_id=slot_id_value,
                             )
                         )
 
@@ -996,7 +1023,7 @@ class BulkOperationService(BaseService):
 
         return operations
 
-    async def _validate_operations(
+    def _validate_operations(
         self, instructor_id: str, operations: List[SlotOperation]
     ) -> List[ValidationSlotDetail]:
         """Validate a list of operations."""
@@ -1004,7 +1031,7 @@ class BulkOperationService(BaseService):
 
         for idx, operation in enumerate(operations):
             # Process operation in validation mode
-            result = await self._process_single_operation(
+            result = self._process_single_operation(
                 instructor_id=instructor_id,
                 operation=operation,
                 operation_index=idx,

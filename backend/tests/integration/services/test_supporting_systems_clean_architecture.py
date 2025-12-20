@@ -12,7 +12,7 @@ FIXED: Dynamic date checking instead of hardcoded day names for timezone compati
 
 from datetime import date, time, timedelta
 import os
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -72,8 +72,7 @@ class TestSupportingSystemsIntegration:
         db.refresh(booking)
         return booking
 
-    @pytest.mark.asyncio
-    async def test_booking_confirmation_flow_is_clean(self, db, full_booking):
+    def test_booking_confirmation_flow_is_clean(self, db, full_booking):
         """Test complete booking confirmation flow uses clean architecture."""
         # Create services
         notification_service = NotificationService(db)
@@ -82,7 +81,7 @@ class TestSupportingSystemsIntegration:
         _cache_service = CacheService(db)
 
         # Send booking confirmation
-        result = await notification_service.send_booking_confirmation(full_booking)
+        result = notification_service.send_booking_confirmation(full_booking)
         assert result is True
 
         # Verify emails were sent (2 - student and instructor)
@@ -127,7 +126,7 @@ class TestSupportingSystemsIntegration:
     async def test_reminder_and_cache_integration(self, db, full_booking):
         """Test reminders work with cached data using clean patterns."""
         # Mock cache service
-        mock_redis = Mock()
+        mock_redis = AsyncMock()
         mock_redis.get.return_value = None
         mock_redis.setex.return_value = True
         mock_redis.ping.return_value = True
@@ -158,10 +157,12 @@ class TestSupportingSystemsIntegration:
             ]
         }
 
-        cache_service.cache_week_availability(full_booking.instructor_id, week_start, availability_data)
+        await cache_service.cache_week_availability(
+            full_booking.instructor_id, week_start, availability_data
+        )
 
         # Send reminders
-        count = await notification_service.send_reminder_emails()
+        count = notification_service.send_reminder_emails()
 
         # Should find our booking
         assert count == 1
@@ -207,36 +208,43 @@ class TestSupportingSystemsIntegration:
 class TestErrorHandlingWithCleanArchitecture:
     """Test error handling doesn't expose removed concepts."""
 
-    @pytest.mark.asyncio
-    async def test_email_error_messages_are_clean(self, db):
+    def test_email_error_messages_are_clean(self, db):
         """Test email error messages don't reference removed concepts."""
         notification_service = NotificationService(db)
 
         # Force an error by passing None
         # The method might handle None gracefully or return False
-        result = await notification_service.send_booking_confirmation(None)
+        result = notification_service.send_booking_confirmation(None)
 
         # It should either return False or handle the error gracefully
         # without exposing removed concepts
         assert result is False or result is None
 
-    def test_cache_error_messages_are_clean(self, db):
+    @pytest.mark.asyncio
+    async def test_cache_error_messages_are_clean(self, db):
         """Test cache error messages don't reference removed concepts."""
         # Create cache service with failing Redis
         mock_redis = Mock()
         mock_redis.get.side_effect = Exception("Redis connection failed")
         mock_redis.ping.side_effect = Exception("Redis connection failed")
 
-        cache_service = CacheService(db, redis_client=None)  # Will use in-memory
+        previous_flag = os.environ.get("AVAILABILITY_TEST_MEMORY_CACHE")
+        os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = "1"
+        try:
+            cache_service = CacheService(db, redis_client=None)  # Force in-memory
 
-        # Try to cache something
-        result = cache_service.set("test:key", {"data": "value"})
+            # Try to cache something
+            result = await cache_service.set("test:key", {"data": "value"})
+        finally:
+            if previous_flag is None:
+                os.environ.pop("AVAILABILITY_TEST_MEMORY_CACHE", None)
+            else:
+                os.environ["AVAILABILITY_TEST_MEMORY_CACHE"] = previous_flag
 
         # Should handle gracefully without slot references
         assert result is True  # In-memory cache works
 
-    @pytest.mark.asyncio
-    async def test_reminder_handles_missing_data_cleanly(self, db):
+    def test_reminder_handles_missing_data_cleanly(self, db):
         """Test reminder system handles missing data without slot references."""
         notification_service = NotificationService(db)
         notification_service.email_service.send_email = Mock()
@@ -250,7 +258,7 @@ class TestErrorHandlingWithCleanArchitecture:
 
         # Should handle error gracefully
         try:
-            await notification_service._send_instructor_reminder(booking)
+            notification_service._send_instructor_reminder(booking)
         except AttributeError:
             pass  # Expected due to missing instructor
 
@@ -284,8 +292,7 @@ class TestPerformanceWithCleanArchitecture:
             assert not key.startswith(":")  # No waste
             assert not key.endswith(":")  # No waste
 
-    @pytest.mark.asyncio
-    async def test_reminder_query_is_efficient(self, db):
+    def test_reminder_query_is_efficient(self, db):
         """Test reminder query doesn't do unnecessary joins."""
         from app.services.notification_service import NotificationService
 
@@ -302,7 +309,7 @@ class TestPerformanceWithCleanArchitecture:
 
         # Run reminder query
         service = NotificationService(db)
-        await service.send_reminder_emails()
+        service.send_reminder_emails()
 
         # Should only query bookings table (1 query)
         assert query_count == 1

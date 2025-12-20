@@ -257,14 +257,9 @@ class TestRoutingInvariants:
             ("/api/v1/messages/{message_id}", "/api/v1/messages/unread-count"),
             ("/api/v1/messages/mark-read", "/api/v1/messages/{message_id}"),
             ("/api/v1/messages/{message_id}", "/api/v1/messages/mark-read"),
-            ("/api/v1/messages/send", "/api/v1/messages/{message_id}"),
-            ("/api/v1/messages/{message_id}", "/api/v1/messages/send"),
             # Phase 2: /stream (per-user SSE) defined before /{message_id}
             ("/api/v1/messages/stream", "/api/v1/messages/{message_id}"),
             ("/api/v1/messages/{message_id}", "/api/v1/messages/stream"),
-            # Phase 3: /inbox-state defined before /{message_id}
-            ("/api/v1/messages/inbox-state", "/api/v1/messages/{message_id}"),
-            ("/api/v1/messages/{message_id}", "/api/v1/messages/inbox-state"),
             # Reviews v1: Static routes defined before dynamic {booking_id}
             ("/api/v1/reviews/booking/existing", "/api/v1/reviews/booking/{booking_id}"),
             ("/api/v1/reviews/booking/{booking_id}", "/api/v1/reviews/booking/existing"),
@@ -293,6 +288,9 @@ class TestRoutingInvariants:
             ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/bulk-update"),
             ("/api/v1/instructors/availability/blackout-dates", "/api/v1/instructors/availability/{window_id}"),
             ("/api/v1/instructors/availability/{window_id}", "/api/v1/instructors/availability/blackout-dates"),
+            # Admin auth-blocks: /summary static route defined before /{email} dynamic route
+            ("/api/v1/admin/auth-blocks/summary", "/api/v1/admin/auth-blocks/{email}"),
+            ("/api/v1/admin/auth-blocks/{email}", "/api/v1/admin/auth-blocks/summary"),
         }
 
         for path1, path2 in combinations(v1_paths, 2):
@@ -511,10 +509,7 @@ class TestRoutingInvariants:
             "/api/v1/messages/config",  # GET
             "/api/v1/messages/unread-count",  # GET
             "/api/v1/messages/mark-read",  # POST
-            "/api/v1/messages/send",  # POST
             "/api/v1/messages/stream",  # GET (SSE - per-user inbox, Phase 2)
-            "/api/v1/messages/history/{booking_id}",  # GET
-            "/api/v1/messages/typing/{booking_id}",  # POST
             "/api/v1/messages/{message_id}",  # PATCH, DELETE
             "/api/v1/messages/{message_id}/reactions",  # POST, DELETE
         ]
@@ -693,7 +688,7 @@ class TestRoutingInvariants:
         paths = {route.path for route in routes}
 
         expected_search_endpoints = [
-            "/api/v1/search/instructors",  # GET
+            "/api/v1/search",  # GET - NL search endpoint
         ]
 
         missing = []

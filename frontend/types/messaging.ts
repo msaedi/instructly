@@ -16,15 +16,16 @@ export type SSEEventType =
 
 export interface SSEMessageEvent {
   type: 'new_message';
-  conversation_id: string;
+  conversation_id: string; // PRIMARY key for SSE routing (Phase 7)
+  booking_id?: string; // Optional context for which booking this message is about
   is_mine: boolean;
   message: {
     id: string;
     content: string;
-    sender_id: string;
-    sender_name: string;
+    sender_id: string | null;
+    sender_name: string | null;
     created_at: string;
-    booking_id: string;
+    booking_id?: string;
     delivered_at?: string | null;
   };
 }

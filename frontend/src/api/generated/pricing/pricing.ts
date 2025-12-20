@@ -5,90 +5,105 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation
-} from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import type {
   MutationFunction,
   QueryClient,
   UseMutationOptions,
-  UseMutationResult
+  UseMutationResult,
 } from '@tanstack/react-query';
 
 import type {
   HTTPValidationError,
   PricingPreviewIn,
-  PricingPreviewOut
+  PricingPreviewOut,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Return pricing preview for a booking selection without a persisted draft.
  * @summary Preview Selection Pricing
  */
 export const previewSelectionPricingApiV1PricingPreviewPost = (
-    pricingPreviewIn: PricingPreviewIn,
- signal?: AbortSignal
+  pricingPreviewIn: PricingPreviewIn,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PricingPreviewOut>({
+    url: `/api/v1/pricing/preview`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: pricingPreviewIn,
+    signal,
+  });
+};
 
+export const getPreviewSelectionPricingApiV1PricingPreviewPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>,
+    TError,
+    { data: PricingPreviewIn },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>,
+  TError,
+  { data: PricingPreviewIn },
+  TContext
+> => {
+  const mutationKey = ['previewSelectionPricingApiV1PricingPreviewPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<PricingPreviewOut>(
-      {url: `/api/v1/pricing/preview`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: pricingPreviewIn, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>,
+    { data: PricingPreviewIn }
+  > = (props) => {
+    const { data } = props ?? {};
 
+    return previewSelectionPricingApiV1PricingPreviewPost(data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getPreviewSelectionPricingApiV1PricingPreviewPostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>, TError,{data: PricingPreviewIn}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>, TError,{data: PricingPreviewIn}, TContext> => {
+export type PreviewSelectionPricingApiV1PricingPreviewPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>
+>;
+export type PreviewSelectionPricingApiV1PricingPreviewPostMutationBody = PricingPreviewIn;
+export type PreviewSelectionPricingApiV1PricingPreviewPostMutationError =
+  ErrorType<HTTPValidationError>;
 
-const mutationKey = ['previewSelectionPricingApiV1PricingPreviewPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>, {data: PricingPreviewIn}> = (props) => {
-          const {data} = props ?? {};
-
-          return  previewSelectionPricingApiV1PricingPreviewPost(data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type PreviewSelectionPricingApiV1PricingPreviewPostMutationResult = NonNullable<Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>>
-    export type PreviewSelectionPricingApiV1PricingPreviewPostMutationBody = PricingPreviewIn
-    export type PreviewSelectionPricingApiV1PricingPreviewPostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Preview Selection Pricing
  */
-export const usePreviewSelectionPricingApiV1PricingPreviewPost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>, TError,{data: PricingPreviewIn}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>,
-        TError,
-        {data: PricingPreviewIn},
-        TContext
-      > => {
+export const usePreviewSelectionPricingApiV1PricingPreviewPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>,
+      TError,
+      { data: PricingPreviewIn },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof previewSelectionPricingApiV1PricingPreviewPost>>,
+  TError,
+  { data: PricingPreviewIn },
+  TContext
+> => {
+  const mutationOptions = getPreviewSelectionPricingApiV1PricingPreviewPostMutationOptions(options);
 
-      const mutationOptions = getPreviewSelectionPricingApiV1PricingPreviewPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
+  return useMutation(mutationOptions, queryClient);
+};

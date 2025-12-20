@@ -361,5 +361,7 @@ prometheus_metrics = PrometheusMetrics()
 # before any observations are recorded by the app/tests.
 try:
     service_operation_duration_seconds.labels(service="bootstrap", operation="init").observe(0.0)
+    notifications_dispatch_seconds.labels(event_type="bootstrap").observe(0.0)
+    audit_log_list_seconds.observe(0.0)
 except Exception:
     pass

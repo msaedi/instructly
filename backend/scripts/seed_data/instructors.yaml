@@ -21,9 +21,9 @@ instructors:
       - Piano or Keyboard
       - Music Stand
       levels_taught:
-      - Beginner
-      - Intermediate
-      - Advanced
+      - beginner
+      - intermediate
+      - advanced
       age_groups:
       - Kids
       - Teens
@@ -56,8 +56,8 @@ instructors:
       - 45
       experience_level: intermediate
       levels_taught:
-      - Beginner
-      - Intermediate
+      - beginner
+      - intermediate
       age_groups:
       - Kids
       - Teens
@@ -158,8 +158,8 @@ instructors:
       - 60
       experience_level: expert
       levels_taught:
-      - Intermediate
-      - Advanced
+      - intermediate
+      - advanced
       location_types:
       - in-person
   availability_pattern: weekends_only
@@ -284,7 +284,7 @@ instructors:
       - 60
       experience_level: expert
       levels_taught:
-      - K-5
+      - beginner
       age_groups:
       - Kids
       location_types:
@@ -311,7 +311,7 @@ instructors:
       - 30
       - 45
       levels_taught:
-      - K-5
+      - beginner
       age_groups:
       - Kids
       location_types:
@@ -494,7 +494,7 @@ instructors:
       - 45
       - 60
       levels_taught:
-      - K-5
+      - beginner
       age_groups:
       - Kids
       location_types:
@@ -1065,8 +1065,8 @@ instructors:
       - 60
       - 90
       levels_taught:
-      - Intermediate
-      - Advanced
+      - intermediate
+      - advanced
       age_groups:
       - Kids
       - Teens
@@ -1605,7 +1605,7 @@ instructors:
       age_groups:
       - Kids
       levels_taught:
-      - Beginner
+      - beginner
       location_types:
       - in-person
     - name: Jazz Dance

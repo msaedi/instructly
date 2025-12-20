@@ -20,7 +20,7 @@ This repository handles:
 
 from datetime import date, datetime, time, timedelta, timezone
 import logging
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -546,6 +546,38 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting student bookings: {str(e)}")
             raise RepositoryException(f"Failed to get student bookings: {str(e)}")
 
+    def get_bookings_by_student_and_instructor(
+        self,
+        student_id: str,
+        instructor_id: str,
+    ) -> List[Booking]:
+        """
+        Get all bookings for a specific student-instructor pair.
+
+        Used for SSE routing - when a conversation has multiple bookings,
+        we need all booking IDs so the frontend can match any of them.
+
+        Args:
+            student_id: The student's user ID
+            instructor_id: The instructor's user ID
+
+        Returns:
+            List of bookings for this pair (may be empty)
+        """
+        try:
+            return cast(
+                List[Booking],
+                self.db.query(Booking)
+                .filter(
+                    Booking.student_id == student_id,
+                    Booking.instructor_id == instructor_id,
+                )
+                .all(),
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting bookings by pair: {str(e)}")
+            raise RepositoryException(f"Failed to get bookings by pair: {str(e)}")
+
     def get_instructor_bookings(
         self,
         instructor_id: str,
@@ -768,6 +800,50 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error getting bookings for service catalog: {str(e)}")
             raise RepositoryException(f"Failed to get service catalog bookings: {str(e)}")
+
+    def get_all_bookings_by_service_catalog(
+        self,
+        from_date: date,
+        to_date: Optional[date] = None,
+    ) -> Dict[str, List[Booking]]:
+        """
+        Get all bookings grouped by service_catalog_id in a single query.
+
+        Optimized for analytics: loads all bookings once instead of per-service queries.
+
+        Args:
+            from_date: Start date for the query
+            to_date: Optional end date (defaults to today)
+
+        Returns:
+            Dict mapping service_catalog_id -> list of bookings
+        """
+        try:
+            from collections import defaultdict
+
+            from ..models.service_catalog import InstructorService
+
+            query = (
+                self.db.query(Booking, InstructorService.service_catalog_id)
+                .join(InstructorService, Booking.instructor_service_id == InstructorService.id)
+                .filter(Booking.booking_date >= from_date)
+            )
+
+            if to_date:
+                query = query.filter(Booking.booking_date <= to_date)
+
+            results = query.all()
+
+            # Group by service_catalog_id
+            grouped: Dict[str, List[Booking]] = defaultdict(list)
+            for booking, service_catalog_id in results:
+                grouped[str(service_catalog_id)].append(booking)
+
+            return dict(grouped)
+
+        except Exception as e:
+            self.logger.error(f"Error getting all bookings by service catalog: {str(e)}")
+            raise RepositoryException(f"Failed to get bookings by service catalog: {str(e)}")
 
     # Detailed Booking Queries (unchanged)
 
@@ -1374,3 +1450,115 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error filtering owned booking ids: {e}")
             return []
+
+    # Per-user-pair conversation support
+    def find_upcoming_for_pair(
+        self,
+        student_id: str,
+        instructor_id: str,
+        limit: int = 5,
+    ) -> List[Booking]:
+        """
+        Find upcoming bookings for a student-instructor pair.
+
+        Used for conversation context to show next/upcoming bookings.
+
+        Args:
+            student_id: The student's user ID
+            instructor_id: The instructor's user ID
+            limit: Maximum number of bookings to return
+
+        Returns:
+            List of upcoming bookings ordered by date/time ascending
+        """
+        try:
+            # Use student's local time since bookings are stored in local time
+            user_now = get_user_now_by_id(student_id, self.db)
+            return cast(
+                List[Booking],
+                self.db.query(Booking)
+                .options(joinedload(Booking.instructor_service))
+                .filter(
+                    Booking.student_id == student_id,
+                    Booking.instructor_id == instructor_id,
+                    Booking.status == BookingStatus.CONFIRMED,
+                    or_(
+                        Booking.booking_date > user_now.date(),
+                        and_(
+                            Booking.booking_date == user_now.date(),
+                            Booking.start_time > user_now.time(),
+                        ),
+                    ),
+                )
+                .order_by(Booking.booking_date.asc(), Booking.start_time.asc())
+                .limit(limit)
+                .all(),
+            )
+        except Exception as e:
+            self.logger.error(f"Error finding upcoming bookings for pair: {str(e)}")
+            raise RepositoryException(f"Failed to find upcoming bookings for pair: {str(e)}")
+
+    def batch_find_upcoming_for_pairs(
+        self,
+        pairs: List[Tuple[str, str]],
+        user_id: str,
+        limit_per_pair: int = 5,
+    ) -> Dict[Tuple[str, str], List[Booking]]:
+        """
+        Find upcoming bookings for multiple student-instructor pairs in a single query.
+
+        Args:
+            pairs: List of (student_id, instructor_id) tuples
+            user_id: The requesting user's ID (for timezone)
+            limit_per_pair: Maximum bookings per pair
+
+        Returns:
+            Dict mapping (student_id, instructor_id) to list of bookings
+        """
+        if not pairs:
+            return {}
+
+        try:
+            # Get user's timezone for filtering
+            user_now = get_user_now_by_id(user_id, self.db)
+            today = user_now.date()
+            now_time = user_now.time()
+
+            # Build OR conditions for all pairs
+            pair_conditions = [
+                and_(Booking.student_id == s_id, Booking.instructor_id == i_id)
+                for s_id, i_id in pairs
+            ]
+
+            # Single query for all pairs
+            all_bookings = cast(
+                List[Booking],
+                self.db.query(Booking)
+                .options(joinedload(Booking.instructor_service))
+                .filter(
+                    or_(*pair_conditions),
+                    Booking.status == BookingStatus.CONFIRMED,
+                    or_(
+                        Booking.booking_date > today,
+                        and_(
+                            Booking.booking_date == today,
+                            Booking.start_time > now_time,
+                        ),
+                    ),
+                )
+                .order_by(Booking.booking_date.asc(), Booking.start_time.asc())
+                .all(),
+            )
+
+            # Group by pair and limit
+            result: Dict[Tuple[str, str], List[Booking]] = {pair: [] for pair in pairs}
+            for booking in all_bookings:
+                pair_key = (booking.student_id, booking.instructor_id)
+                if pair_key in result and len(result[pair_key]) < limit_per_pair:
+                    result[pair_key].append(booking)
+
+            return result
+        except Exception as e:
+            self.logger.error(f"Error in batch_find_upcoming_for_pairs: {str(e)}")
+            # Return empty lists on error rather than failing
+            return {pair: [] for pair in pairs}

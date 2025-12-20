@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,7 +18,7 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 import type {
@@ -33,202 +30,326 @@ import type {
   HTTPValidationError,
   ListInstructorBookingsApiV1InstructorBookingsGetParams,
   MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams,
-  PaginatedResponseBookingResponse
+  PaginatedResponseBookingResponse,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * List instructor bookings with filters.
  * @summary List Instructor Bookings
  */
 export const listInstructorBookingsApiV1InstructorBookingsGet = (
-    params?: ListInstructorBookingsApiV1InstructorBookingsGetParams,
- signal?: AbortSignal
+  params?: ListInstructorBookingsApiV1InstructorBookingsGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PaginatedResponseBookingResponse>({
+    url: `/api/v1/instructor-bookings`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<PaginatedResponseBookingResponse>(
-      {url: `/api/v1/instructor-bookings`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getListInstructorBookingsApiV1InstructorBookingsGetQueryKey = (params?: ListInstructorBookingsApiV1InstructorBookingsGetParams,) => {
-    return [
-    `/api/v1/instructor-bookings`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getListInstructorBookingsApiV1InstructorBookingsGetQueryOptions = <TData = Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError = ErrorType<HTTPValidationError>>(params?: ListInstructorBookingsApiV1InstructorBookingsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError, TData>>, }
+export const getListInstructorBookingsApiV1InstructorBookingsGetQueryKey = (
+  params?: ListInstructorBookingsApiV1InstructorBookingsGetParams
 ) => {
+  return [`/api/v1/instructor-bookings`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getListInstructorBookingsApiV1InstructorBookingsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListInstructorBookingsApiV1InstructorBookingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListInstructorBookingsApiV1InstructorBookingsGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getListInstructorBookingsApiV1InstructorBookingsGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>
+  > = ({ signal }) => listInstructorBookingsApiV1InstructorBookingsGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>> = ({ signal }) => listInstructorBookingsApiV1InstructorBookingsGet(params, signal);
+export type ListInstructorBookingsApiV1InstructorBookingsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>
+>;
+export type ListInstructorBookingsApiV1InstructorBookingsGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListInstructorBookingsApiV1InstructorBookingsGetQueryResult = NonNullable<Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>>
-export type ListInstructorBookingsApiV1InstructorBookingsGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useListInstructorBookingsApiV1InstructorBookingsGet<TData = Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  ListInstructorBookingsApiV1InstructorBookingsGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError, TData>> & Pick<
+export function useListInstructorBookingsApiV1InstructorBookingsGet<
+  TData = Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ListInstructorBookingsApiV1InstructorBookingsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
           TError,
           Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListInstructorBookingsApiV1InstructorBookingsGet<TData = Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: ListInstructorBookingsApiV1InstructorBookingsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInstructorBookingsApiV1InstructorBookingsGet<
+  TData = Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListInstructorBookingsApiV1InstructorBookingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
           TError,
           Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListInstructorBookingsApiV1InstructorBookingsGet<TData = Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: ListInstructorBookingsApiV1InstructorBookingsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInstructorBookingsApiV1InstructorBookingsGet<
+  TData = Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListInstructorBookingsApiV1InstructorBookingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary List Instructor Bookings
  */
 
-export function useListInstructorBookingsApiV1InstructorBookingsGet<TData = Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: ListInstructorBookingsApiV1InstructorBookingsGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useListInstructorBookingsApiV1InstructorBookingsGet<
+  TData = Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListInstructorBookingsApiV1InstructorBookingsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInstructorBookingsApiV1InstructorBookingsGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListInstructorBookingsApiV1InstructorBookingsGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getListInstructorBookingsApiV1InstructorBookingsGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get instructor's completed bookings.
  * @summary Get Completed Bookings
  */
 export const getCompletedBookingsApiV1InstructorBookingsCompletedGet = (
-    params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,
- signal?: AbortSignal
+  params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PaginatedResponseBookingResponse>({
+    url: `/api/v1/instructor-bookings/completed`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<PaginatedResponseBookingResponse>(
-      {url: `/api/v1/instructor-bookings/completed`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryKey = (params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,) => {
-    return [
-    `/api/v1/instructor-bookings/completed`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryOptions = <TData = Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError, TData>>, }
+export const getGetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryKey = (
+  params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams
 ) => {
+  return [`/api/v1/instructor-bookings/completed`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>
+  > = ({ signal }) => getCompletedBookingsApiV1InstructorBookingsCompletedGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>> = ({ signal }) => getCompletedBookingsApiV1InstructorBookingsCompletedGet(params, signal);
+export type GetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>
+>;
+export type GetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryResult = NonNullable<Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>>
-export type GetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetCompletedBookingsApiV1InstructorBookingsCompletedGet<TData = Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError, TData>> & Pick<
+export function useGetCompletedBookingsApiV1InstructorBookingsCompletedGet<
+  TData = Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
           TError,
           Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCompletedBookingsApiV1InstructorBookingsCompletedGet<TData = Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCompletedBookingsApiV1InstructorBookingsCompletedGet<
+  TData = Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
           TError,
           Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCompletedBookingsApiV1InstructorBookingsCompletedGet<TData = Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCompletedBookingsApiV1InstructorBookingsCompletedGet<
+  TData = Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Completed Bookings
  */
 
-export function useGetCompletedBookingsApiV1InstructorBookingsCompletedGet<TData = Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetCompletedBookingsApiV1InstructorBookingsCompletedGet<
+  TData = Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetCompletedBookingsApiV1InstructorBookingsCompletedGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCompletedBookingsApiV1InstructorBookingsCompletedGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetCompletedBookingsApiV1InstructorBookingsCompletedGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Get all bookings that are pending completion by the instructor.
@@ -240,188 +361,364 @@ Returns bookings that:
  * @summary Get Pending Completion Bookings
  */
 export const getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet = (
+  params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams,
+  signal?: AbortSignal
+) => {
+  return customFetch<PaginatedResponseBookingResponse>({
+    url: `/api/v1/instructor-bookings/pending-completion`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
+
+export const getGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryKey = (
+  params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams
+) => {
+  return [`/api/v1/instructor-bookings/pending-completion`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
     params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams,
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<PaginatedResponseBookingResponse>(
-      {url: `/api/v1/instructor-bookings/pending-completion`, method: 'GET',
-        params, signal
-    },
-      );
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
     }
+  ) => {
+    const { query: queryOptions } = options ?? {};
 
+    const queryKey =
+      queryOptions?.queryKey ??
+      getGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryKey(params);
 
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+      >
+    > = ({ signal }) =>
+      getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet(params, signal);
 
+    return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
 
-export const getGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryKey = (params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams,) => {
-    return [
-    `/api/v1/instructor-bookings/pending-completion`, ...(params ? [params]: [])
-    ] as const;
-    }
+export type GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+    >
+  >;
+export type GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-export const getGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryOptions = <TData = Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError, TData>>, }
-) => {
-
-const {query: queryOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryKey(params);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>> = ({ signal }) => getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet(params, signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryResult = NonNullable<Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>>
-export type GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet<TData = Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError, TData>> & Pick<
+export function useGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet<
+  TData = Awaited<
+    ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>,
+          Awaited<
+            ReturnType<
+              typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet
+            >
+          >,
           TError,
-          Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet<TData = Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError, TData>> & Pick<
+          Awaited<
+            ReturnType<
+              typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet<
+  TData = Awaited<
+    ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>,
+          Awaited<
+            ReturnType<
+              typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet
+            >
+          >,
           TError,
-          Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet<TData = Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+          Awaited<
+            ReturnType<
+              typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet
+            >
+          >
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet<
+  TData = Awaited<
+    ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Pending Completion Bookings
  */
 
-export function useGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet<TData = Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet<
+  TData = Awaited<
+    ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryOptions(
+      params,
+      options
+    );
 
-  const queryOptions = getGetPendingCompletionBookingsApiV1InstructorBookingsPendingCompletionGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Return instructor's upcoming confirmed bookings.
  * @summary Get Upcoming Bookings
  */
 export const getUpcomingBookingsApiV1InstructorBookingsUpcomingGet = (
-    params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,
- signal?: AbortSignal
+  params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<PaginatedResponseBookingResponse>({
+    url: `/api/v1/instructor-bookings/upcoming`,
+    method: 'GET',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<PaginatedResponseBookingResponse>(
-      {url: `/api/v1/instructor-bookings/upcoming`, method: 'GET',
-        params, signal
-    },
-      );
-    }
-
-
-
-
-export const getGetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryKey = (params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,) => {
-    return [
-    `/api/v1/instructor-bookings/upcoming`, ...(params ? [params]: [])
-    ] as const;
-    }
-
-
-export const getGetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryOptions = <TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError = ErrorType<HTTPValidationError>>(params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError, TData>>, }
+export const getGetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryKey = (
+  params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams
 ) => {
+  return [`/api/v1/instructor-bookings/upcoming`, ...(params ? [params] : [])] as const;
+};
 
-const {query: queryOptions} = options ?? {};
+export const getGetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+        TError,
+        TData
+      >
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryKey(params);
 
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>
+  > = ({ signal }) => getUpcomingBookingsApiV1InstructorBookingsUpcomingGet(params, signal);
 
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>> = ({ signal }) => getUpcomingBookingsApiV1InstructorBookingsUpcomingGet(params, signal);
+export type GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>
+>;
+export type GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryResult = NonNullable<Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>>
-export type GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryError = ErrorType<HTTPValidationError>
-
-
-export function useGetUpcomingBookingsApiV1InstructorBookingsUpcomingGet<TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError = ErrorType<HTTPValidationError>>(
- params: undefined |  GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError, TData>> & Pick<
+export function useGetUpcomingBookingsApiV1InstructorBookingsUpcomingGet<
+  TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
           TError,
           Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetUpcomingBookingsApiV1InstructorBookingsUpcomingGet<TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetUpcomingBookingsApiV1InstructorBookingsUpcomingGet<
+  TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
           TError,
           Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetUpcomingBookingsApiV1InstructorBookingsUpcomingGet<TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetUpcomingBookingsApiV1InstructorBookingsUpcomingGet<
+  TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Get Upcoming Bookings
  */
 
-export function useGetUpcomingBookingsApiV1InstructorBookingsUpcomingGet<TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError = ErrorType<HTTPValidationError>>(
- params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useGetUpcomingBookingsApiV1InstructorBookingsUpcomingGet<
+  TData = Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: GetUpcomingBookingsApiV1InstructorBookingsUpcomingGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getUpcomingBookingsApiV1InstructorBookingsUpcomingGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryOptions(
+    params,
+    options
+  );
 
-  const queryOptions = getGetUpcomingBookingsApiV1InstructorBookingsUpcomingGetQueryOptions(params,options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }
-
-
-
 
 /**
  * Mark a lesson as completed by the instructor.
@@ -443,67 +740,104 @@ Raises:
  * @summary Mark Lesson Complete
  */
 export const markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost = (
-    bookingId: string,
-    params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams,
- signal?: AbortSignal
+  bookingId: string,
+  params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookingResponse>({
+    url: `/api/v1/instructor-bookings/${bookingId}/complete`,
+    method: 'POST',
+    params,
+    signal,
+  });
+};
 
-
-      return customFetch<BookingResponse>(
-      {url: `/api/v1/instructor-bookings/${bookingId}/complete`, method: 'POST',
-        params, signal
+export const getMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>,
+    TError,
+    {
+      bookingId: string;
+      params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams;
     },
-      );
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>,
+  TError,
+  {
+    bookingId: string;
+    params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams;
+  },
+  TContext
+> => {
+  const mutationKey = ['markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>,
+    {
+      bookingId: string;
+      params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams;
     }
+  > = (props) => {
+    const { bookingId, params } = props ?? {};
 
+    return markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost(bookingId, params);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>, TError,{bookingId: string;params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>, TError,{bookingId: string;params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams}, TContext> => {
+export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>
+  >;
 
-const mutationKey = ['markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
+export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>, {bookingId: string;params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams}> = (props) => {
-          const {bookingId,params} = props ?? {};
-
-          return  markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost(bookingId,params,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutationResult = NonNullable<Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>>
-
-    export type MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Mark Lesson Complete
  */
-export const useMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>, TError,{bookingId: string;params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>,
-        TError,
-        {bookingId: string;params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams},
-        TContext
-      > => {
+export const useMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>,
+      TError,
+      {
+        bookingId: string;
+        params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams;
+      },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof markLessonCompleteApiV1InstructorBookingsBookingIdCompletePost>>,
+  TError,
+  {
+    bookingId: string;
+    params?: MarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostParams;
+  },
+  TContext
+> => {
+  const mutationOptions =
+    getMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutationOptions(options);
 
-      const mutationOptions = getMarkLessonCompleteApiV1InstructorBookingsBookingIdCompletePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Dispute a lesson completion as an instructor.
 
 Used when a student marks a lesson as complete but the instructor disagrees.
@@ -518,64 +852,87 @@ Returns:
  * @summary Dispute Completion
  */
 export const disputeCompletionApiV1InstructorBookingsBookingIdDisputePost = (
-    bookingId: string,
-    bodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost,
- signal?: AbortSignal
+  bookingId: string,
+  bodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost,
+  signal?: AbortSignal
 ) => {
+  return customFetch<BookingResponse>({
+    url: `/api/v1/instructor-bookings/${bookingId}/dispute`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost,
+    signal,
+  });
+};
 
+export const getDisputeCompletionApiV1InstructorBookingsBookingIdDisputePostMutationOptions = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>,
+    TError,
+    { bookingId: string; data: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>,
+  TError,
+  { bookingId: string; data: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost },
+  TContext
+> => {
+  const mutationKey = ['disputeCompletionApiV1InstructorBookingsBookingIdDisputePost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
-      return customFetch<BookingResponse>(
-      {url: `/api/v1/instructor-bookings/${bookingId}/dispute`, method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      data: bodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost, signal
-    },
-      );
-    }
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>,
+    { bookingId: string; data: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost }
+  > = (props) => {
+    const { bookingId, data } = props ?? {};
 
+    return disputeCompletionApiV1InstructorBookingsBookingIdDisputePost(bookingId, data);
+  };
 
+  return { mutationFn, ...mutationOptions };
+};
 
-export const getDisputeCompletionApiV1InstructorBookingsBookingIdDisputePostMutationOptions = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>, TError,{bookingId: string;data: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost}, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>, TError,{bookingId: string;data: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost}, TContext> => {
+export type DisputeCompletionApiV1InstructorBookingsBookingIdDisputePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>
+  >;
+export type DisputeCompletionApiV1InstructorBookingsBookingIdDisputePostMutationBody =
+  BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost;
+export type DisputeCompletionApiV1InstructorBookingsBookingIdDisputePostMutationError =
+  ErrorType<void | HTTPValidationError>;
 
-const mutationKey = ['disputeCompletionApiV1InstructorBookingsBookingIdDisputePost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>, {bookingId: string;data: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost}> = (props) => {
-          const {bookingId,data} = props ?? {};
-
-          return  disputeCompletionApiV1InstructorBookingsBookingIdDisputePost(bookingId,data,)
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DisputeCompletionApiV1InstructorBookingsBookingIdDisputePostMutationResult = NonNullable<Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>>
-    export type DisputeCompletionApiV1InstructorBookingsBookingIdDisputePostMutationBody = BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost
-    export type DisputeCompletionApiV1InstructorBookingsBookingIdDisputePostMutationError = ErrorType<HTTPValidationError>
-
-    /**
+/**
  * @summary Dispute Completion
  */
-export const useDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost = <TError = ErrorType<HTTPValidationError>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>, TError,{bookingId: string;data: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost}, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>,
-        TError,
-        {bookingId: string;data: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost},
-        TContext
-      > => {
+export const useDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost = <
+  TError = ErrorType<void | HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>,
+      TError,
+      { bookingId: string; data: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof disputeCompletionApiV1InstructorBookingsBookingIdDisputePost>>,
+  TError,
+  { bookingId: string; data: BodyDisputeCompletionApiV1InstructorBookingsBookingIdDisputePost },
+  TContext
+> => {
+  const mutationOptions =
+    getDisputeCompletionApiV1InstructorBookingsBookingIdDisputePostMutationOptions(options);
 
-      const mutationOptions = getDisputeCompletionApiV1InstructorBookingsBookingIdDisputePostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
+  return useMutation(mutationOptions, queryClient);
+};
