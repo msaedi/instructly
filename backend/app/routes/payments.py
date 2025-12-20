@@ -1058,6 +1058,17 @@ async def get_instructor_earnings(
                 return float(tiers[0].get("pct", 0.15))
             return 0.15
 
+        def _map_payment_status(stripe_status: Optional[str]) -> str:
+            """Map Stripe payment status to display status."""
+            status_mapping = {
+                "succeeded": "paid",
+                "requires_capture": "authorized",
+                "canceled": "cancelled",  # Normalize to UK spelling
+                "requires_payment_method": "pending",
+                "processing": "pending",
+            }
+            return status_mapping.get(stripe_status or "", stripe_status or "pending")
+
         student_fee_pct = float(pricing_config.get("student_fee_pct", 0.12))
         instructor_tier_pct = _get_instructor_tier_pct()
 
@@ -1122,7 +1133,7 @@ async def get_instructor_earnings(
                     total_paid_cents=total_paid_cents,
                     tip_cents=tip_cents,
                     instructor_share_cents=instructor_share_cents,
-                    status="paid" if payment.status == "succeeded" else payment.status,
+                    status=_map_payment_status(payment.status),
                     created_at=payment.created_at,
                     # Instructor-centric clarity fields
                     lesson_price_cents=lesson_price_cents,

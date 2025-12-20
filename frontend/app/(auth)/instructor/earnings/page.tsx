@@ -255,7 +255,23 @@ function EarningsPageImpl() {
                         // Use backend-calculated platform fee (no frontend calculation)
                         const platformFeeRate = invoice.platform_fee_rate ?? 0;
                         const platformFeePct = Math.round(platformFeeRate * 100);
-                        const statusColor = invoice.status === 'authorized' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700';
+                        // Status color mapping for payment states
+                        const getStatusColor = (status?: string) => {
+                          switch (status) {
+                            case 'authorized':
+                              return 'bg-amber-50 text-amber-700';  // Pending capture
+                            case 'paid':
+                              return 'bg-emerald-50 text-emerald-700';  // Successfully captured
+                            case 'failed':
+                              return 'bg-red-50 text-red-700';  // Payment failed
+                            case 'refunded':
+                            case 'cancelled':
+                              return 'bg-gray-50 text-gray-600';  // Reversed/cancelled
+                            default:
+                              return 'bg-gray-50 text-gray-600';  // Unknown status
+                          }
+                        };
+                        const statusColor = getStatusColor(invoice.status);
                         return (
                           <tr key={`${invoice.booking_id}-${invoice.created_at}`}>
                             <td className="py-3 pr-4 text-gray-900">

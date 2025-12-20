@@ -608,12 +608,15 @@ class StripeService(BaseService):
             total_platform_fees += platform_fee_cents
 
             # Map payment status for display
-            if payment.status == "succeeded":
-                display_status = "paid"
-            elif payment.status == "requires_capture":
-                display_status = "authorized"
-            else:
-                display_status = payment.status or "pending"
+            # Stripe statuses: requires_capture, succeeded, canceled, requires_payment_method
+            status_mapping = {
+                "succeeded": "paid",
+                "requires_capture": "authorized",
+                "canceled": "cancelled",  # Normalize to UK spelling
+                "requires_payment_method": "pending",
+                "processing": "pending",
+            }
+            display_status = status_mapping.get(payment.status or "", payment.status or "pending")
 
             invoices.append(
                 InstructorInvoiceSummary(
