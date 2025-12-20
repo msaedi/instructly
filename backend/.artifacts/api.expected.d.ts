@@ -1327,6 +1327,38 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/search-config": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_search_config_admin_api_v1_admin_search_config_get"];
+ put?: never;
+ post: operations["update_search_config_admin_api_v1_admin_search_config_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/admin/search-config/reset": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["reset_search_config_admin_api_v1_admin_search_config_reset_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/auth/change-password": {
  parameters: {
  query?: never;
@@ -2575,6 +2607,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/payments/payouts": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_instructor_payouts_api_v1_payments_payouts_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/payments/transactions": {
  parameters: {
  query?: never;
@@ -3786,6 +3834,34 @@ export type components = {
  };
  top_referrers: components["schemas"]["TopReferrerOut"][];
  };
+ AdminSearchConfigResponse: {
+ available_embedding_models: components["schemas"]["ModelOption"][];
+ available_parsing_models: components["schemas"]["ModelOption"][];
+ current_in_flight_requests: number;
+ embedding_model: string;
+ embedding_timeout_ms: number;
+ high_load_budget_ms: number;
+ high_load_threshold: number;
+ location_model: string;
+ location_timeout_ms: number;
+ openai_max_retries: number;
+ parsing_model: string;
+ parsing_timeout_ms: number;
+ search_budget_ms: number;
+ uncached_concurrency: number;
+ };
+ AdminSearchConfigUpdate: {
+ embedding_timeout_ms?: number | null;
+ high_load_budget_ms?: number | null;
+ high_load_threshold?: number | null;
+ location_model?: string | null;
+ location_timeout_ms?: number | null;
+ openai_max_retries?: number | null;
+ parsing_model?: string | null;
+ parsing_timeout_ms?: number | null;
+ search_budget_ms?: number | null;
+ uncached_concurrency?: number | null;
+ };
  AlertAcknowledgeResponse: {
  alert_type: string;
  status: string;
@@ -4297,6 +4373,13 @@ export type components = {
  instructor_note?: string | null;
  meeting_location?: string | null;
  };
+ BudgetInfo: {
+ degradation_level: string;
+ initial_ms: number;
+ over_budget: boolean;
+ remaining_ms: number;
+ skipped_operations?: string[];
+ };
  BulkUpdateRequest: {
  operations: components["schemas"]["SlotOperation"][];
  validate_only: boolean;
@@ -4648,6 +4731,9 @@ export type components = {
  service_count?: number | null;
  total_earned?: number | null;
  total_fees?: number | null;
+ total_lesson_value?: number | null;
+ total_platform_fees?: number | null;
+ total_tips?: number | null;
  };
  EditMessageRequest: {
  content: string;
@@ -4765,9 +4851,13 @@ export type components = {
  duration_minutes?: number | null;
  instructor_share_cents: number;
  lesson_date: string;
+ lesson_price_cents: number;
+ platform_fee_cents: number;
+ platform_fee_rate: number;
  service_name?: string | null;
  start_time?: string | null;
  status: string;
+ student_fee_cents: number;
  student_name?: string | null;
  tip_cents: number;
  total_paid_cents: number;
@@ -4944,6 +5034,22 @@ export type components = {
  count: number;
  minutes: number;
  };
+ LocationResolutionInfo: {
+ query: string;
+ resolved_name?: string | null;
+ resolved_regions?: string[] | null;
+ successful_tier?: number | null;
+ tiers?: components["schemas"]["LocationTierResult"][];
+ };
+ LocationTierResult: {
+ attempted: boolean;
+ confidence?: number | null;
+ details?: string | null;
+ duration_ms: number;
+ result?: string | null;
+ status: components["schemas"]["StageStatus"];
+ tier: number;
+ };
  LoginResponse: {
  access_token?: string | null;
  requires_2fa: boolean;
@@ -5013,6 +5119,7 @@ export type components = {
  corrected_query?: string | null;
  degradation_reasons?: string[];
  degraded: boolean;
+ diagnostics?: components["schemas"]["SearchDiagnostics"] | null;
  filter_stats?: {
  [key: string]: number;
  } | null;
@@ -5025,6 +5132,7 @@ export type components = {
  parsing_mode: string;
  query: string;
  search_query_id?: string | null;
+ skipped_operations?: string[];
  soft_filter_message?: string | null;
  soft_filtering_used: boolean;
  total_results: number;
@@ -5187,12 +5295,27 @@ export type components = {
  tip_status?: string | null;
  total_paid: number;
  };
+ PayoutHistoryResponse: {
+ payout_count: number;
+ payouts?: components["schemas"]["PayoutSummary"][];
+ total_paid_cents: number;
+ total_pending_cents: number;
+ };
  PayoutScheduleResponse: {
  account_id?: string | null;
  ok: boolean;
  settings?: {
  [key: string]: unknown;
  } | null;
+ };
+ PayoutSummary: {
+ amount_cents: number;
+ arrival_date?: string | null;
+ created_at: string;
+ failure_code?: string | null;
+ failure_message?: string | null;
+ id: string;
+ status: string;
  };
  PerformanceMetrics: {
  avg_results_per_search: number;
@@ -5218,6 +5341,14 @@ export type components = {
  message: string;
  severity: string;
  type: string;
+ };
+ PipelineStage: {
+ details?: {
+ [key: string]: unknown;
+ } | null;
+ duration_ms: number;
+ name: string;
+ status: components["schemas"]["StageStatus"];
  };
  PlaceDetails: {
  city?: string | null;
@@ -5308,7 +5439,7 @@ export type components = {
  application_fee_cents: number;
  base_price_cents: number;
  credit_applied_cents: number;
- instructor_commission_cents: number;
+ instructor_platform_fee_cents: number;
  instructor_tier_pct: number;
  line_items: components["schemas"]["LineItem"][];
  student_fee_cents: number;
@@ -5603,6 +5734,23 @@ export type components = {
  parsing_model?: string | null;
  parsing_timeout_ms?: number | null;
  };
+ SearchDiagnostics: {
+ after_availability_filter: number;
+ after_location_filter: number;
+ after_price_filter: number;
+ after_text_search: number;
+ after_vector_search: number;
+ budget: components["schemas"]["BudgetInfo"];
+ cache_hit: boolean;
+ embedding_used: boolean;
+ final_results: number;
+ initial_candidates: number;
+ location_resolution?: components["schemas"]["LocationResolutionInfo"] | null;
+ parsing_mode: string;
+ pipeline_stages?: components["schemas"]["PipelineStage"][];
+ total_latency_ms: number;
+ vector_search_used: boolean;
+ };
  SearchEffectiveness: {
  avg_results_per_search: number;
  median_results: number;
@@ -5840,6 +5988,7 @@ export type components = {
  specific_date: string;
  start_time: string;
  };
+ StageStatus: "success" | "skipped" | "timeout" | "error" | "cache_hit" | "miss" | "cancelled";
  StudentBadgeView: {
  awarded_at?: string | null;
  confirmed_at?: string | null;
@@ -8610,6 +8759,75 @@ export interface operations {
  };
  };
  };
+ get_search_config_admin_api_v1_admin_search_config_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminSearchConfigResponse"];
+ };
+ };
+ };
+ };
+ update_search_config_admin_api_v1_admin_search_config_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AdminSearchConfigUpdate"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminSearchConfigResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ reset_search_config_admin_api_v1_admin_search_config_reset_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminSearchConfigResponse"];
+ };
+ };
+ };
+ };
  change_password_api_v1_auth_change_password_post: {
  parameters: {
  query?: never;
@@ -11233,7 +11451,7 @@ export interface operations {
  stream_user_messages_api_v1_messages_stream_get: {
  parameters: {
  query?: {
- token?: string | null;
+ sse_token?: string | null;
  };
  header?: never;
  path?: never;
@@ -11883,6 +12101,35 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["app__schemas__payment_schemas__DeleteResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_instructor_payouts_api_v1_payments_payouts_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PayoutHistoryResponse"];
  };
  };
  422: {
@@ -12597,6 +12844,12 @@ export interface operations {
  lng?: number | null;
  region?: string;
  limit?: number;
+ diagnostics?: boolean;
+ force_skip_tier5?: boolean;
+ force_skip_tier4?: boolean;
+ force_skip_vector?: boolean;
+ force_skip_embedding?: boolean;
+ force_high_load?: boolean;
  };
  header?: never;
  path?: never;
