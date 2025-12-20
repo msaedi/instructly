@@ -1,150 +1,298 @@
-# `feat/conversation-architecture` branch summary
+# `feat/conversation-architecture` Branch Summary
 
-This branch is a large architectural and feature migration centered on messaging, real‑time delivery, and clean‑architecture enforcement, with substantial auth hardening and performance work across the stack. Net diff: ~26.7k insertions / ~10.8k deletions across 267 files.
+## Overview
+- Total commits: 166
+- Files changed: 509
+- Net diff: +96,910 / -35,799 lines
 
-## 1. Per‑user‑pair conversation architecture (backend + frontend)
+---
 
-- Introduced a new `Conversation` domain model (`backend/app/models/conversation.py`) and `conversations` table:
-  - One conversation per student–instructor pair regardless of bookings.
+## 1. Per-User-Pair Conversation Architecture
+
+- Introduced `Conversation` domain model and `conversations` table:
+  - One conversation per student–instructor pair.
   - ULID primary key, indexed by student/instructor/last_message_at.
-  - DB‑level uniqueness enforced via a LEAST/GREATEST pair unique index.
-- Messages are now primarily keyed by `conversation_id` (booking remains optional context):
+  - DB-level uniqueness enforced via LEAST/GREATEST pair index.
+- Messages are keyed by `conversation_id` (booking context optional):
   - `messages.conversation_id` FK to `conversations.id`.
-  - `booking_id` kept nullable for contextual filtering/display.
-- Added full repository/service/routing stack for conversations:
-  - `ConversationRepository` with idempotent `get_or_create`, cursor pagination, unread counts, and state filtering via JOINs.
-  - `ConversationService` for business logic: list/detail, message send w/ booking tagging, typing, unread batching, per‑user state (active/archived/trashed), batch upcoming bookings, N+1 avoidance.
-  - New versioned routes under `/api/v1/conversations` (`backend/app/routes/v1/conversations.py`) with zero direct DB access in routes.
-- Completed multi‑phase migration from `booking_id`‑based messaging to `conversation_id`:
-  - REST APIs updated for conversation list, thread fetch, send/edit/delete, reactions, read receipts, typing, unread totals.
-  - Removed legacy booking‑based endpoints and dead code (e.g., old `backend/app/routes/messages.py`).
-  - Updated all SSE routing and payloads to include `conversation_id` for client‑side targeting.
-- Added booking lifecycle system messages:
-  - Backend `SystemMessageService` generates system messages on booking created/cancelled/rescheduled/completed.
-  - Frontend `SystemMessage` component renders these alongside user messages.
-- Enabled pre‑booking messaging:
-  - Backend POST `/api/v1/conversations` creates/returns pair conversation and can accept an initial message.
-  - Frontend `MessageInstructorButton` + `useCreateConversation` allow users to start a chat before booking and navigate directly to inbox.
+  - `booking_id` retained as nullable for context and display.
+- New conversation repository/service/route layer:
+  - `ConversationRepository` with idempotent get/create, pagination, unread counts.
+  - `ConversationService` handles listing, state, read receipts, upcoming bookings, N+1 avoidance.
+  - Versioned routes under `/api/v1/conversations` with zero direct DB access in routes.
+- Full multi-phase migration from booking-based messaging to conversation-based:
+  - REST APIs updated for list/thread/send/edit/delete/reactions/read receipts.
+  - SSE payloads and routing updated to use `conversation_id`.
+  - Legacy booking-based routes removed.
+- Booking lifecycle system messages:
+  - Server-side `SystemMessageService` publishes booking created/cancelled/rescheduled/completed messages.
+  - Frontend renders system messages alongside user messages.
+- Pre-booking messaging:
+  - `/api/v1/conversations` supports creating a conversation and sending first message.
+  - UI hooks (`MessageInstructorButton`, `useCreateConversation`) open inbox directly.
 
-## 2. Scalable SSE stack (v4.0 Broadcaster fan‑out)
+---
 
-- Replaced per‑client Redis PubSub connections with a shared Broadcaster multiplexer:
-  - New `backend/app/core/broadcast.py` holds a single `Broadcast(redis_url)` per worker.
-  - Startup/shutdown lifecycle connects/disconnects the broadcast instance; readiness checks updated.
-- SSE stream refactor (`backend/app/services/messaging/sse_stream.py`):
-  - DB‑free streaming after prefetch to prevent “idle in transaction” leaks.
-  - Uses Broadcaster subscribe → internal asyncio queue → SSE events fan‑out.
-  - Supports `Last-Event-ID` catch‑up, heartbeat, safe disconnect handling (`GeneratorExit`), no busy‑wait.
-- Publishing refactor (`backend/app/services/messaging/publisher.py` + `events.py`):
-  - Strongly typed event builders (`new_message`, `reaction_update`, `read_receipt`, `typing_status`, `message_edited`, `message_deleted`).
-  - Recipients derived server‑side from conversation participants (defense‑in‑depth).
-  - All sync DB lookups wrapped in `asyncio.to_thread` before publish.
+## 2. Scalable SSE Stack
 
-## 3. Clean‑architecture enforcement + async blocking elimination
+- Replaced per-client Redis PubSub with a shared Broadcaster multiplexer:
+  - `backend/app/core/broadcast.py` holds one `Broadcast(redis_url)` per worker.
+  - Startup/shutdown connect/disconnect; readiness checks updated.
+- SSE streaming refactor (`backend/app/services/messaging/sse_stream.py`):
+  - DB-free streaming after prefetch to avoid idle-in-transaction leaks.
+  - Broadcaster subscribe -> internal queue -> SSE events fan-out.
+  - Supports `Last-Event-ID`, heartbeat, and safe disconnect handling.
+- Publisher refactor (`publisher.py` + `events.py`):
+  - Strongly typed event builders with server-side recipient selection.
+  - Sync DB lookups wrapped in `asyncio.to_thread` before publish.
 
-- Massive refactor to enforce “routes → services → repositories”:
-  - Routes no longer call `db.query()` directly; all DB access moved into repositories/services.
-  - Updated/added repositories across domains (booking, message, conversation_state, availability, instructor_profile, user, alerts, metrics, payment monitoring, search analytics, jobs).
-  - Added `RepositoryFactory` to centralize repository instantiation.
-- Added pre‑commit guardrails:
-  - `check-repository-pattern` blocks DB access from services.
-  - `check-no-db-in-routes` blocks DB access from routes.
-  - `check-async-blocking` flags sync blocking calls inside async functions lacking `asyncio.to_thread`.
-  - `check_service_metrics` enforces `@BaseService.measure_operation` on public service methods.
-- Phased wrapping of remaining sync operations in `asyncio.to_thread` to keep the event loop responsive under load:
-  - Messaging, auth, permissions, bookings, analytics, notifications, background checks, etc.
+---
 
-## 4. Auth performance improvements + safety fixes
+## 3. Clean-Architecture Enforcement
 
-- Added Redis‑backed auth caching (`backend/app/core/auth_cache.py`):
-  - Non‑blocking user lookups for auth dependencies and SSE auth.
-  - Cache stores user dict incl. roles/permissions; transient ORM objects built from dicts avoid `DetachedInstanceError`.
-  - Cache TTL increased to 30 minutes; graceful fallback if Redis unavailable.
-- Optimized `/auth/me` and core auth deps:
-  - Removed redundant DB lookups/eager‑loading cascades.
-  - Permission checks use cached permissions to avoid hot‑path DB queries.
-- Fixed SSE auth/session leaks:
-  - Explicit rollbacks before close.
-  - Correct Redis imports and cleanup.
-  - Handle disconnects cleanly to avoid generator/runtime errors.
+- Enforced routes -> services -> repositories:
+  - Routes no longer perform direct DB queries.
+  - Repository pattern expanded across bookings, messaging, analytics, monitoring, search, and more.
+- Added pre-commit guardrails:
+  - Blocks sync calls inside async functions without `asyncio.to_thread`.
+  - Prevents DB access in routes.
+  - Enforces `@BaseService.measure_operation` on public service methods.
+- Phased elimination of async blocking across hot paths (auth, permissions, bookings, analytics, messaging).
 
-## 5. Login hardening: rate limiting, lockout, CAPTCHA
+---
 
-- Added `backend/app/core/login_protection.py`:
-  - Global concurrency semaphore with queue timeout.
-  - Per‑account (email) rate limits per minute/hour.
-  - Progressive lockout thresholds with `Retry-After`.
-  - Turnstile CAPTCHA verification when required.
-  - Prometheus counters/histograms for all outcomes.
-- Integrated into login endpoint (`/api/v1/auth/login`) and related auth flows.
-- Frontend login UI updated (`frontend/app/(shared)/login/LoginClient.tsx`):
-  - Renders Turnstile widget when backend signals CAPTCHA requirement.
-  - Includes `captcha_token` on retry.
-  - Displays rate‑limit cooldown UI.
-- Added comprehensive unit tests for lockouts, CAPTCHA gating, and login concurrency slots.
+## 4. Auth Performance + Safety
 
-## 6. Event‑driven notification architecture
+- Redis-backed auth caching:
+  - User/permission lookups cached for `/auth/me` and SSE auth.
+  - Transient ORM objects built from cached dicts to avoid detached instances.
+- Reduced redundant DB queries:
+  - Avoid eager-loading cascades in auth dependencies.
+  - Permission checks use cached values when available.
+- SSE auth fixes:
+  - Explicit rollbacks and safe disconnect handling.
+  - Import and session cleanup fixes to prevent pool leaks.
 
-- Introduced booking domain events (`BookingCreated`, `BookingCancelled`, `BookingReminder`, `BookingCompleted`) and `EventPublisher`.
-- Background worker now processes `event:*` jobs via centralized handlers (`backend/app/events/handlers.py`), delegating to `NotificationService`.
-- Booking flows updated to publish events rather than sending emails inline.
-- Worker moved to a dedicated thread and poll interval increased to 60s for stability.
+---
 
-## 7. Monitoring + analytics + platform config
+## 5. Login Hardening
 
-- Added monitoring persistence and APIs:
-  - New `alert_history` table plus `AlertsRepository`.
-  - New `/api/monitoring/alerts/*` routes secured by a monitoring API key.
-  - New metrics/payment monitoring repositories feeding monitoring routes.
-- Added `platform_config` table for dynamic server‑side configuration.
+- Concurrency slots + queue timeout for login verification.
+- Per-account rate limits (minute/hour) with `Retry-After` headers.
+- Progressive lockout thresholds.
+- Turnstile CAPTCHA enforcement when thresholds hit.
+- Prometheus metrics for all outcomes.
+- Frontend login UI updated to surface CAPTCHA/lockout states.
+
+---
+
+## 6. Event-Driven Notifications
+
+- Booking domain events introduced (`BookingCreated`, `Cancelled`, `Reminder`, `Completed`).
+- Event worker processes `event:*` jobs via centralized handlers.
+- Booking flows publish events rather than sending emails inline.
+- Background worker moved to dedicated thread; poll interval increased for stability.
+
+---
+
+## 7. Monitoring + Analytics
+
+- New monitoring persistence:
+  - `alert_history` table + `AlertsRepository`.
+  - Monitoring routes secured by API key.
+- Platform config surfaced via `platform_config` table.
 - Search analytics overhaul:
-  - New `SearchAnalyticsRepository` with aggregate queries.
-  - New `SearchAnalyticsService`.
-  - `/api/v1/analytics/search/*` routes rewritten to use service/repo layer and non‑blocking `to_thread`.
-- Added `metrics_history.json` artifact (historical perf/load results).
+  - `SearchAnalyticsRepository` + `SearchAnalyticsService` for aggregate queries.
+  - `/api/v1/analytics/search/*` routes reworked to use service/repo pattern.
+- Background analytics logging hardened:
+  - Fire-and-forget writes now guarded by load threshold and a short timeout.
+  - Pool exhaustion returns 503 (with `Retry-After`) instead of 500 for retriable failure.
+- Added `metrics_history.json` for historical perf/load snapshots.
 
-## 8. Load testing harness + CI
+---
 
-- Added Locust load tests under `backend/tests/load/`:
-  - Scenarios S0–S4 (smoke, capacity, throughput, burst, soak).
-  - Measures login success, SSE TTFE, and cross‑user E2E delivery latency.
-  - Threshold checks and a parser for CSV/HTML results.
-- New GitHub Actions workflow `.github/workflows/load-test.yml` for manual CI smoke load tests.
-- Added a rate‑limit bypass token specifically for load testing.
+## 8. Load Testing Harness
 
-## 9. Database, infra, and dependency changes
+- Locust load tests under `backend/tests/load/`:
+  - Messaging flows, SSE TTFE, cross-user E2E latency.
+  - NL Search specific load test (`locustfile_search.py`).
+  - Scenario scripts S0–S4 (smoke, capacity, throughput, burst, soak).
+  - CSV/HTML parsing helpers and thresholds.
+- CI workflow for on-demand load testing: `.github/workflows/load-test.yml`.
+- Rate-limit bypass token supported for load tests.
 
-- Alembic migrations updated to:
-  - Create `conversations` table before `messages`.
-  - Add/migrate `messages.conversation_id`, update triggers to publish `conversation_id` in SSE payloads.
-  - Migrate `conversation_user_state` from booking to conversation, add unique constraints/indexes.
-  - Add final schema constraints, monitoring/outbox tables, RLS policies, and performance indexes.
-- Hardened DB session/pool behavior:
-  - Rollback‑before‑close everywhere on hot paths to avoid Supabase/Supavisor idle‑transaction kills.
-  - Tuned pool sizes and recycle settings; added “zombie protection.”
-- Added Gunicorn for production worker recycling (`--max-requests` pattern).
-- Backend deps: `argon2-cffi` (Argon2id hashing), `broadcaster[redis]` (SSE fan‑out), `locust` (load tests), `gunicorn`.
-- Frontend deps: upgraded Next.js to `15.5.7` for CVE‑2025‑55182; added Turnstile React wrapper.
-- Redis config and `.gitignore` updated for new artifacts/results.
-- Fixed misc issues: Checkr client typing, seeding overlap detection, Alembic `statement_timeout` connect_args, admin BGC tests, readiness probe, session isolation.
+---
 
-## 10. Frontend messaging/UI migration
+## 9. Database/Infra Changes
 
-- Conversation‑first API service layer added (`frontend/src/api/services/conversations.ts`) plus strongly typed interfaces (`frontend/types/conversation.ts`).
-- Instructor inbox/hooks updated to new conversation list API and SSE invalidation (`useConversations`, `useConversationMessages`, etc.).
-- Chat UI updated:
-  - Fetches history by `conversation_id` (not booking).
-  - Handles system messages, reactions, read receipts, typing indicators, delivered/edited states.
-  - Shows booking context and supports read‑only mode for closed chats.
-- Removed legacy inbox state and generated message clients (`useInboxState`, old `messages-v1` Orval output, outdated tests).
-- Added new tests for `MessageInstructorButton` and updated chat/conversation hooks tests.
+- Alembic migrations:
+  - Messaging migration (conversations table, conversation_user_state, message FK).
+  - Search schema additions: `region_boundaries`, `location_aliases`, `instructor_service_areas`.
+  - Monitoring/outbox tables and performance indexes.
+- DB session hardening:
+  - Rollback-before-close on hot paths to prevent idle-in-transaction leaks.
+  - Pool exhaustion now returns 503 (retriable) instead of 500.
+- Production reliability:
+  - Gunicorn worker recycling (`--max-requests`).
+  - Supavisor connection resilience improvements.
+- Dependency upgrades:
+  - Next.js upgraded for CVE fix.
+  - Broadcaster + Locust added; Redis cache moved async.
 
-## 11. Notable deletions/cleanup
+---
 
-- Deleted legacy messaging routes, repositories, services, and tests tied to booking‑based architecture.
-- Removed deprecated `conversation_state` model (replaced by per‑user `conversation_user_state`).
+## 10. Frontend Messaging Migration
+
+- New conversation-first API service layer (`frontend/src/api/services/conversations.ts`).
+- Hooks updated for conversation list, thread fetch, read receipts, and SSE invalidation.
+- Chat UI migrated to `conversation_id`:
+  - System message rendering, reactions, typing indicators, read receipts.
+  - Booking context displayed when relevant.
+- Legacy inbox code removed; tests updated to match conversation schema.
+
+---
+
+## 11. NL Search Performance Optimizations (NEW/EXPAND)
+
+### Baseline Search Architecture (foundational work)
+- Multi-city support and location alias architecture (`region_boundaries`, `location_aliases`).
+- Hybrid retrieval (pgvector + pg_trgm) with ranking and filtering.
+- Location resolution tiers 1–5 (exact, alias, fuzzy, embedding, LLM).
+- Self-learning aliases from user behavior and click feedback.
+
+### Phase 0: Stability Patches
+- Dedicated concurrency controls and better failure modes for overloaded paths.
+- Pool exhaustion converted to 503 (retriable) rather than 500.
+- Embedding request coalescing and Redis singleflight to reduce duplicate OpenAI calls.
+
+### Phase 1: AsyncOpenAI Conversion
+- Location embedding and LLM services switched to `AsyncOpenAI`.
+- Embedding provider and parser align with async OpenAI usage.
+
+### Phase 2: DB Session Two-Burst Pattern
+- DB operations split into pre-OpenAI and post-OpenAI bursts.
+- Avoids holding DB connections during OpenAI calls.
+
+### Phase 3: Pipeline Parallelization
+- Parallelized Burst 1 + embedding generation to reduce tail latency.
+
+### Phase 3.5: Early Tier 5 After Tier 1–3 Miss
+- Tier 5 LLM call can start immediately after a Tier 1–3 miss.
+- Uses top-k fuzzy candidates to keep prompt small and focused.
+
+### Phase 4: Request Budget + Progressive Degradation
+- RequestBudget governs Tier 4/5, vector search, hydration.
+- Budget metadata surfaced to clients (degraded/skipped operations).
+
+### Semaphore Strategy (Per-OpenAI Throttling)
+- Full-pipeline semaphore replaced with per-OpenAI gating.
+- OpenAI calls now gated by `OPENAI_CALL_CONCURRENCY`.
+- Soft uncached search limit retained for overall backpressure.
+
+### Tier 5 Fixes
+- Timeout enforcement for Tier 5 requests.
+- Runtime model selection (default `gpt-4o-mini`).
+- Last-chance Tier 5 attempt when Tiers 1–4 miss and budget remains.
+- LLM prompt logging for diagnostics.
+
+### Diagnostics + Observability
+- Stage-level timing instrumentation across parse, burst1, embedding, location, burst2.
+- Location tier breakdown and candidate funnel counts in diagnostics payload.
+
+---
+
+## 12. Admin Dashboard (NEW/EXPAND)
+
+- Search diagnostics page (`/admin/nl-search`):
+  - Pipeline timeline visualization with per-stage timing and status.
+  - Location tier breakdown (tiers 1–5 with confidence and duration).
+  - Request budget visualization and skipped operations.
+  - Candidate funnel (text -> vector -> filters -> final).
+- Runtime config controls (`/api/v1/admin/search-config`):
+  - Parsing model, embedding model (read-only), location model.
+  - Parsing/embedding/location timeouts.
+  - Budget and high-load settings.
+  - OpenAI max retries and uncached concurrency limit.
+- Testing overrides:
+  - Force skip Tier 4/5, skip embedding/vector, simulate high load.
+
+---
+
+## 13. Load Test Results (NEW/EXPAND)
+
+- Capacity observations recorded in `metrics_history.json`:
+  - 25 users: stable baseline.
+  - 150 users: stable with expected load shedding.
+  - 175+ users: instability due to CPU saturation.
+- Key fixes reflected in test results:
+  - Pool exhaustion now returns 503 with `Retry-After`.
+  - Analytics writes skip under high load to prevent pool starvation.
+  - OpenAI call concurrency gated separately from fast-path queries.
+
+---
+
+## 14. Configuration Reference (NEW)
+
+### Search + OpenAI
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENAI_PARSING_MODEL` | `gpt-5-nano` | Query parsing model |
+| `OPENAI_PARSING_TIMEOUT_MS` | `1000` | Parsing timeout |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
+| `OPENAI_EMBEDDING_TIMEOUT_MS` | `2000` | Embedding timeout |
+| `OPENAI_LOCATION_MODEL` | `gpt-4o-mini` | Tier 5 location model |
+| `OPENAI_LOCATION_TIMEOUT_MS` | `3000` | Tier 5 timeout |
+| `OPENAI_MAX_RETRIES` | `2` | OpenAI retries |
+| `OPENAI_TIMEOUT_S` | `2.0` | Legacy OpenAI timeout (some providers) |
+| `OPENAI_CALL_CONCURRENCY` | `3` | Per-worker OpenAI call concurrency |
+| `SEARCH_BUDGET_MS` | `500` | Default request budget |
+| `SEARCH_HIGH_LOAD_BUDGET_MS` | `300` | Budget under load |
+| `SEARCH_HIGH_LOAD_THRESHOLD` | `10` | High-load threshold |
+| `UNCACHED_SEARCH_CONCURRENCY` | `6` | Soft cap per worker |
+| `SEARCH_ANALYTICS_TIMEOUT_S` | `0.5` | Analytics write timeout |
+| `EMBEDDING_PROVIDER` | `openai` | Embedding provider (`openai` or `mock`) |
+| `EMBEDDING_DIMENSIONS` | `1536` | Embedding vector size |
+
+### Search Tuning (Advanced)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOCATION_LLM_TOP_K` | `5` | Top-k candidates for Tier 5 prompt |
+| `LOCATION_TIER4_HIGH_CONFIDENCE` | `0.85` | Tier 4 confidence threshold |
+| `LOCATION_LLM_CONFIDENCE_THRESHOLD` | `0.7` | Tier 5 confidence threshold |
+| `LOCATION_LLM_EMBEDDING_THRESHOLD` | `0.7` | Threshold for LLM embedding candidates |
+| `NL_SEARCH_TEXT_SKIP_VECTOR_SCORE_THRESHOLD` | `0.60` | Skip vector if text is strong |
+| `NL_SEARCH_TEXT_SKIP_VECTOR_MIN_RESULTS` | `10` | Minimum text matches for skip |
+| `NL_SEARCH_TEXT_REQUIRE_TEXT_MATCH_SCORE_THRESHOLD` | `0.45` | Require text support for vector-only |
+| `NL_SEARCH_EMBEDDING_SOFT_TIMEOUT_MS` | unset | Soft timeout for embeddings |
+| `NL_SEARCH_PERF_LOG` | unset | Enable perf logging |
+| `NL_SEARCH_PERF_LOG_SLOW_MS` | `0` | Slow log threshold |
+
+### Load Testing
+| Variable | Description |
+|----------|-------------|
+| `LOADTEST_BYPASS_TOKEN` | Bypass rate limits in load tests |
+| `LOADTEST_USERS` | Comma-separated load test users |
+| `LOADTEST_PASSWORD` | Shared password for test users |
+| `LOADTEST_BASE_URL` | Target API base URL |
+| `LOADTEST_FRONTEND_ORIGIN` | Frontend origin for CSRF |
+| `LOADTEST_SSE_HOLD_SECONDS` | SSE hold duration |
+| `LOADTEST_E2E_TIMEOUT_SECONDS` | E2E timeout |
+
+---
+
+## 15. Deletions/Cleanup
+
+- Removed legacy booking-based messaging routes, repositories, and tests.
+- Removed deprecated conversation_state model in favor of `conversation_user_state`.
 - Cleaned up dead code and fixed Knip config to avoid false positives.
+- Replaced full-pipeline search semaphore with per-OpenAI gating.
 
-## 12. Local note
+---
 
-- Your working tree currently has an uncommitted change in `backend/tests/integration/availability/test_week_etag_and_conflicts.py`; it is not part of the branch history.
+## 16. Migration Notes
+
+- Messaging: clients must use `conversation_id` and updated SSE payloads.
+- Search: location resolution tiers and diagnostics now surfaced in metadata.
+- Admin UI: new `/api/v1/admin/search-config` endpoint for runtime tuning.
+- Load testing: requires `LOADTEST_BYPASS_TOKEN` to avoid rate limits.
+- Rollback: revert NL search phases in reverse (budget -> parallel -> two-burst -> async OpenAI).
