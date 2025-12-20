@@ -325,3 +325,31 @@ class EarningsResponse(StrictModel):
         None, description="Total platform fees deducted from instructor earnings"
     )
     total_tips: Optional[int] = Field(None, description="Total tips received")
+
+
+# ========== Payout Response Models ==========
+
+
+class PayoutSummary(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    """Individual payout record from Stripe."""
+
+    id: str = Field(..., description="Payout ID (Stripe)")
+    amount_cents: int = Field(..., description="Amount in cents")
+    status: str = Field(
+        ..., description="Payout status (pending, in_transit, paid, failed, canceled)"
+    )
+    arrival_date: Optional[datetime] = Field(None, description="Expected arrival date")
+    failure_code: Optional[str] = Field(None, description="Failure code if payout failed")
+    failure_message: Optional[str] = Field(None, description="Failure message if payout failed")
+    created_at: datetime = Field(..., description="When the payout was created")
+
+
+class PayoutHistoryResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    """Response for instructor payout history."""
+
+    payouts: List[PayoutSummary] = Field(default_factory=list, description="List of payouts")
+    total_paid_cents: int = Field(default=0, description="Total amount successfully paid out")
+    total_pending_cents: int = Field(default=0, description="Total amount pending payout")
+    payout_count: int = Field(default=0, description="Number of payouts")

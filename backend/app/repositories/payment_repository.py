@@ -403,6 +403,36 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.logger.error(f"Failed to record payout event: {str(e)}")
             raise RepositoryException(f"Failed to record payout event: {str(e)}")
 
+    def get_instructor_payout_history(
+        self,
+        instructor_profile_id: str,
+        limit: int = 50,
+    ) -> List[InstructorPayoutEvent]:
+        """
+        Get payout history for an instructor.
+
+        Args:
+            instructor_profile_id: Instructor profile ID
+            limit: Maximum number of payouts to return
+
+        Returns:
+            List of InstructorPayoutEvent objects ordered by created_at DESC
+        """
+        try:
+            return cast(
+                List[InstructorPayoutEvent],
+                (
+                    self.db.query(InstructorPayoutEvent)
+                    .filter(InstructorPayoutEvent.instructor_profile_id == instructor_profile_id)
+                    .order_by(InstructorPayoutEvent.created_at.desc())
+                    .limit(limit)
+                    .all()
+                ),
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get instructor payout history: {str(e)}")
+            raise RepositoryException(f"Failed to get instructor payout history: {str(e)}")
+
     # Helper to resolve Stripe account to instructor profile via connected account record
     def get_connected_account_by_stripe_id(
         self, stripe_account_id: str

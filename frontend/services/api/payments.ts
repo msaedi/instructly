@@ -103,6 +103,23 @@ export interface InstructorInvoice {
   student_fee_cents: number;
 }
 
+export interface PayoutSummary {
+  id: string;
+  amount_cents: number;
+  status: string;
+  arrival_date?: string | null;
+  failure_code?: string | null;
+  failure_message?: string | null;
+  created_at: string;
+}
+
+export interface PayoutHistoryResponse {
+  payouts: PayoutSummary[];
+  total_paid_cents: number;
+  total_pending_cents: number;
+  payout_count: number;
+}
+
 class PaymentService {
   private basePath = `/api/v1/payments`;
 
@@ -223,6 +240,16 @@ class PaymentService {
       return await this.request<EarningsResponse>('/earnings');
     } catch (error) {
       logger.error('Failed to get earnings:', error);
+      throw error;
+    }
+  }
+
+  // Payouts
+  async getPayouts(limit = 50): Promise<PayoutHistoryResponse> {
+    try {
+      return await this.request<PayoutHistoryResponse>(`/payouts?limit=${limit}`);
+    } catch (error) {
+      logger.error('Failed to get payouts:', error);
       throw error;
     }
   }

@@ -46,7 +46,9 @@ from ..schemas.payment_schemas import (
     InstructorInvoiceSummary,
     OnboardingResponse,
     OnboardingStatusResponse,
+    PayoutHistoryResponse,
     PayoutScheduleResponse,
+    PayoutSummary,
     TransactionHistoryItem,
 )
 from .base import BaseService
@@ -657,6 +659,57 @@ class StripeService(BaseService):
             "total_tips": total_tips,
         }
         return EarningsResponse(**response_payload)
+
+    @BaseService.measure_operation("stripe_get_instructor_payout_history")
+    def get_instructor_payout_history(
+        self, *, user: User, limit: int = 50
+    ) -> PayoutHistoryResponse:
+        """
+        Get payout history for an instructor.
+
+        Returns recorded payout events from the instructor's Stripe connected account.
+        """
+        profile = self.instructor_repository.get_by_user_id(user.id)
+        if not profile:
+            raise ServiceException("Instructor profile not found", code="not_found")
+
+        payout_events = self.payment_repository.get_instructor_payout_history(
+            instructor_profile_id=profile.id,
+            limit=limit,
+        )
+
+        payouts: List[PayoutSummary] = []
+        total_paid_cents = 0
+        total_pending_cents = 0
+
+        for event in payout_events:
+            amount_cents = event.amount_cents or 0
+            payout_status = event.status or "unknown"
+
+            # Track totals
+            if payout_status == "paid":
+                total_paid_cents += amount_cents
+            elif payout_status in ("pending", "in_transit"):
+                total_pending_cents += amount_cents
+
+            payouts.append(
+                PayoutSummary(
+                    id=event.payout_id,
+                    amount_cents=amount_cents,
+                    status=payout_status,
+                    arrival_date=event.arrival_date,
+                    failure_code=event.failure_code,
+                    failure_message=event.failure_message,
+                    created_at=event.created_at,
+                )
+            )
+
+        return PayoutHistoryResponse(
+            payouts=payouts,
+            total_paid_cents=total_paid_cents,
+            total_pending_cents=total_pending_cents,
+            payout_count=len(payouts),
+        )
 
     @BaseService.measure_operation("stripe_get_user_transaction_history")
     def get_user_transaction_history(

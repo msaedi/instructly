@@ -9,6 +9,7 @@ import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
+import { useInstructorPayouts } from '@/hooks/queries/useInstructorPayouts';
 
 function EarningsPageImpl() {
   const embedded = useEmbedded();
@@ -78,6 +79,7 @@ function EarningsPageImpl() {
     );
   }
   const { data: earnings, isLoading: isLoadingEarnings } = useInstructorEarnings(true);
+  const { data: payoutsData, isLoading: isLoadingPayouts } = useInstructorPayouts(true);
   const [activeTab, setActiveTab] = useState<'invoices' | 'payouts'>('invoices');
   const [exportOpen, setExportOpen] = useState(false);
   const [exportYear, setExportYear] = useState<string>('');
@@ -299,9 +301,74 @@ function EarningsPageImpl() {
                   </table>
                 </div>
               )
-            ) : (
+            ) : isLoadingPayouts ? (
+              <div className="text-sm text-gray-600">Loading payouts...</div>
+            ) : !payoutsData?.payouts || payoutsData.payouts.length === 0 ? (
               <div className="text-sm text-gray-600">
-                Payouts are coming soon. Your lesson earnings are tracked above and will be sent automatically when payouts launch.
+                No payouts yet. Your lesson earnings will be sent to your bank account automatically.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="mb-4 flex gap-6 text-sm">
+                  <div>
+                    <span className="text-gray-600">Total Paid: </span>
+                    <span className="font-semibold text-emerald-700">{formatCents(payoutsData.total_paid_cents)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Pending: </span>
+                    <span className="font-semibold text-amber-700">{formatCents(payoutsData.total_pending_cents)}</span>
+                  </div>
+                </div>
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead>
+                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <th className="py-2 pr-4">Date</th>
+                      <th className="py-2 pr-4">Amount</th>
+                      <th className="py-2 pr-4">Status</th>
+                      <th className="py-2 pr-4">Arrival Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {payoutsData.payouts.map((payout) => {
+                      const getPayoutStatusColor = (status?: string) => {
+                        switch (status) {
+                          case 'paid':
+                            return 'bg-emerald-50 text-emerald-700';
+                          case 'pending':
+                          case 'in_transit':
+                            return 'bg-amber-50 text-amber-700';
+                          case 'failed':
+                          case 'canceled':
+                            return 'bg-red-50 text-red-700';
+                          default:
+                            return 'bg-gray-50 text-gray-600';
+                        }
+                      };
+                      const statusColor = getPayoutStatusColor(payout.status);
+                      const createdDate = new Date(payout.created_at);
+                      const arrivalDate = payout.arrival_date ? new Date(payout.arrival_date) : null;
+                      return (
+                        <tr key={payout.id}>
+                          <td className="py-3 pr-4 text-gray-900">
+                            {createdDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td className="py-3 pr-4 font-semibold text-[#7E22CE]">{formatCents(payout.amount_cents)}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}>
+                              {formatStatusLabel(payout.status)}
+                            </span>
+                            {payout.failure_message && (
+                              <span className="ml-2 text-xs text-red-600">{payout.failure_message}</span>
+                            )}
+                          </td>
+                          <td className="py-3 pr-4 text-gray-700">
+                            {arrivalDate ? arrivalDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

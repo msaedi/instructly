@@ -59,6 +59,7 @@ from ...schemas.payment_schemas import (
     OnboardingResponse,
     OnboardingStatusResponse,
     PaymentMethodResponse,
+    PayoutHistoryResponse,
     PayoutScheduleResponse,
     SavePaymentMethodRequest,
     TransactionHistoryItem,
@@ -585,6 +586,31 @@ async def get_instructor_earnings(
     return await asyncio.to_thread(
         stripe_service.get_instructor_earnings_summary,
         user=current_user,
+    )
+
+
+@router.get("/payouts", response_model=PayoutHistoryResponse)
+async def get_instructor_payouts(
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+    limit: int = 50,
+) -> PayoutHistoryResponse:
+    """
+    Get payout history for an instructor.
+
+    Returns Stripe payout events recorded for the instructor's connected account.
+
+    Returns:
+        PayoutHistoryResponse with list of payouts and totals
+
+    Raises:
+        HTTPException: If fetching payouts fails
+    """
+    validate_instructor_role(current_user)
+    return await asyncio.to_thread(
+        stripe_service.get_instructor_payout_history,
+        user=current_user,
+        limit=limit,
     )
 
 
