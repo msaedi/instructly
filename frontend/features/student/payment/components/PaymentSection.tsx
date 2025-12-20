@@ -1294,7 +1294,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
             );
           }
 
-          if (checkoutResult.status !== 'succeeded' && checkoutResult.status !== 'processing') {
+          // Valid success states:
+          // - 'succeeded': Payment fully captured
+          // - 'requires_capture': Pre-authorized, will be captured after lesson (Phase 2)
+          // - 'processing': Still processing (rare)
+          const isSuccessStatus = ['succeeded', 'requires_capture', 'processing'].includes(checkoutResult.status);
+          if (!isSuccessStatus) {
             throw new Error(`Payment failed with status: ${checkoutResult.status}`);
           }
         } else if (amountDue > 0) {
