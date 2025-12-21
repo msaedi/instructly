@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import type { InstructorProfile } from '@/types/instructor';
 import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
+import { BGCBadge } from '@/components/ui/BGCBadge';
 
 interface InstructorHeaderProps {
   instructor: InstructorProfile;
@@ -36,12 +37,11 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   };
 
   const displayName = getDisplayName();
-  const bgcStatus = typeof (instructor as { bgc_status?: string }).bgc_status === 'string'
-    ? ((instructor as { bgc_status?: string }).bgc_status || '').toLowerCase()
-    : undefined;
-  const backgroundCheckPassed = bgcStatus === 'passed';
-  const shouldShowMockedBadge = backgroundCheckPassed || !bgcStatus;
-  const verificationLabel = backgroundCheckPassed ? 'Background Check Verified' : 'Background Check Pending';
+  const bgcStatusValue = (instructor as { bgc_status?: string | null }).bgc_status;
+  const bgcStatus = typeof bgcStatusValue === 'string' ? bgcStatusValue.toLowerCase() : '';
+  const isLive = Boolean(instructor.is_live);
+  const showBGCBadge = isLive || bgcStatus === 'pending';
+  const backgroundCheckVerified = isLive || bgcStatus === 'passed';
   const isFoundingInstructor = Boolean(instructor.is_founding_instructor);
   const [shareCopied, setShareCopied] = useState(false);
   const handleShare = async () => {
@@ -172,15 +172,10 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                 </div>
               </div>
 
-              {(isFoundingInstructor || shouldShowMockedBadge) && (
+              {(isFoundingInstructor || showBGCBadge) && (
                 <div className="flex flex-wrap items-center gap-2">
                   {isFoundingInstructor && <FoundingBadge size="md" />}
-                  {shouldShowMockedBadge && (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                      <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>{verificationLabel}</span>
-                    </span>
-                  )}
+                  {showBGCBadge && <BGCBadge isLive={isLive} bgcStatus={bgcStatusValue ?? null} />}
                 </div>
               )}
 
@@ -205,7 +200,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
               )}
 
               {/* Background Check Badge */}
-              {backgroundCheckPassed && (
+              {backgroundCheckVerified && (
                 <div className="flex items-center gap-2 text-emerald-700">
                   <ShieldCheck className="h-4 w-4" />
                   <span className="text-sm">Background check cleared</span>

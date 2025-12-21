@@ -354,6 +354,7 @@ function SearchPageContent() {
                   last_initial: lastInitial,
                 },
                 is_founding_instructor: isFoundingInstructor,
+                is_live: true,
                 services,
                 verified,
                 rating: avgRating || undefined,

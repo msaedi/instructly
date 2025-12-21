@@ -283,6 +283,9 @@ export interface Instructor {
   /** Founding instructor flag */
   is_founding_instructor?: boolean;
 
+  /** Whether the instructor is live */
+  is_live?: boolean;
+
   /** Ordered list of borough labels derived from service areas */
   service_area_boroughs?: string[];
 
