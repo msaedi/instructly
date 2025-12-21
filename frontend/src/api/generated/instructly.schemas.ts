@@ -4112,6 +4112,29 @@ export interface PlaceSuggestion {
   types?: string[];
 }
 
+export interface PlatformFees {
+  /**
+   * Platform fee for founding instructors
+   */
+  founding_instructor: number;
+  /**
+   * Student booking protection fee
+   */
+  student_booking_fee: number;
+  /**
+   * Entry tier platform fee
+   */
+  tier_1: number;
+  /**
+   * Second tier platform fee
+   */
+  tier_2: number;
+  /**
+   * Third tier platform fee
+   */
+  tier_3: number;
+}
+
 /**
  * List of popular search queries.
  */
@@ -4381,6 +4404,13 @@ export type ProxyUploadResponseUrl = string | null;
 export interface ProxyUploadResponse {
   ok: boolean;
   url?: ProxyUploadResponseUrl;
+}
+
+export type PublicConfigResponseUpdatedAt = string | null;
+
+export interface PublicConfigResponse {
+  fees: PlatformFees;
+  updated_at?: PublicConfigResponseUpdatedAt;
 }
 
 /**

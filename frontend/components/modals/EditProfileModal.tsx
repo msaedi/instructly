@@ -19,7 +19,9 @@ import { buildProfileUpdateBody } from '@/lib/profileSchemaDebug';
 import type { ServiceAreaNeighborhood } from '@/types/instructor';
 import { SelectedNeighborhoodChips, type SelectedNeighborhood } from '@/features/shared/components/SelectedNeighborhoodChips';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
+import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
 import { evaluatePriceFloorViolations, FloorViolation, formatCents } from '@/lib/pricing/priceFloors';
+import { usePlatformFees } from '@/hooks/usePlatformConfig';
 type EditableService = {
   service_catalog_id?: string;
   service_catalog_name?: string | null;
@@ -252,20 +254,29 @@ export default function EditProfileModal({
   const { data: instructorProfileFromHook } = useInstructorProfileMe(isOpen && variant === 'services');
 
   const { config: pricingConfig } = usePricingConfig();
+  const { fees } = usePlatformFees();
   const pricingFloors = pricingConfig?.price_floor_cents ?? null;
-  const entryTierPct = useMemo(() => {
-    const tiers = pricingConfig?.instructor_tiers ?? [];
-    if (!tiers.length) return null;
-    const sorted = [...tiers].sort((a, b) => (a.min ?? 0) - (b.min ?? 0));
-    const pct = sorted[0]?.pct;
-    return typeof pct === 'number' ? pct : null;
-  }, [pricingConfig]);
-  const instructorTakeHomePct = entryTierPct != null ? 1 - entryTierPct : null;
-  const platformFeeLabel = useMemo(() => {
-    if (entryTierPct == null) return null;
-    const percent = entryTierPct * 100;
-    return percent % 1 === 0 ? `${percent.toFixed(0)}%` : `${percent.toFixed(1)}%`;
-  }, [entryTierPct]);
+  const profileFeeContext = useMemo(() => {
+    const record = (instructorProfile ?? instructorProfileFromHook) as Record<string, unknown> | null;
+    const currentTierRaw = record?.['current_tier_pct'];
+    const currentTierPct =
+      typeof currentTierRaw === 'number' && Number.isFinite(currentTierRaw) ? currentTierRaw : null;
+    return {
+      isFoundingInstructor: Boolean(record?.['is_founding_instructor']),
+      currentTierPct,
+    };
+  }, [instructorProfile, instructorProfileFromHook]);
+  const platformFeeRate = useMemo(
+    () =>
+      resolvePlatformFeeRate({
+        fees,
+        isFoundingInstructor: profileFeeContext.isFoundingInstructor,
+        currentTierPct: profileFeeContext.currentTierPct,
+      }),
+    [fees, profileFeeContext]
+  );
+  const instructorTakeHomePct = useMemo(() => resolveTakeHomePct(platformFeeRate), [platformFeeRate]);
+  const platformFeeLabel = useMemo(() => formatPlatformFeeLabel(platformFeeRate), [platformFeeRate]);
   const serviceFloorViolations = useMemo(() => {
     const map = new Map<string, FloorViolation[]>();
     if (!pricingFloors) return map;
@@ -1962,17 +1973,11 @@ export default function EditProfileModal({
                             </div>
                             {s.hourly_rate && Number(s.hourly_rate) > 0 && (
                               <div className="mt-2 text-xs text-gray-600">
-                                {instructorTakeHomePct != null ? (
-                                  <>
-                                    You&apos;ll earn{' '}
-                                    <span className="font-semibold text-[#7E22CE]">
-                                      ${(Number(s.hourly_rate) * instructorTakeHomePct).toFixed(2)}
-                                    </span>{' '}
-                                    after the {platformFeeLabel ?? 'platform'} fee
-                                  </>
-                                ) : (
-                                  <>Platform fee details will appear once pricing config loads.</>
-                                )}
+                                You&apos;ll earn{' '}
+                                <span className="font-semibold text-[#7E22CE]">
+                                  ${(Number(s.hourly_rate) * instructorTakeHomePct).toFixed(2)}
+                                </span>{' '}
+                                after the {platformFeeLabel} platform fee
                               </div>
                             )}
                             {violations.length > 0 && (

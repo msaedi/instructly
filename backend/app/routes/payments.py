@@ -1055,10 +1055,14 @@ async def get_instructor_earnings(
 
         def _get_instructor_tier_pct() -> float:
             """Get instructor's platform fee tier percentage."""
-            tiers = pricing_config.get("instructor_tiers", [])
+            tiers = pricing_config.get("instructor_tiers") or PRICING_DEFAULTS.get(
+                "instructor_tiers", []
+            )
             if tiers:
-                return float(tiers[0].get("pct", 0.15))
-            return 0.15
+                entry_tier = min(tiers, key=lambda tier: tier.get("min", 0))
+                default_entry_pct = PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0)
+                return float(entry_tier.get("pct", default_entry_pct))
+            return float(PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0))
 
         student_fee_pct = float(
             pricing_config.get("student_fee_pct", PRICING_DEFAULTS["student_fee_pct"])

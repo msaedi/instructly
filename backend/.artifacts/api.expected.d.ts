@@ -1695,6 +1695,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/config/public": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_public_config_api_v1_config_public_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/conversations": {
  parameters: {
  query?: never;
@@ -5414,6 +5430,13 @@ export type components = {
  text: string;
  types: string[];
  };
+ PlatformFees: {
+ founding_instructor: number;
+ student_booking_fee: number;
+ tier_1: number;
+ tier_2: number;
+ tier_3: number;
+ };
  PopularQueriesResponse: {
  queries: components["schemas"]["PopularQueryItem"][];
  };
@@ -5517,6 +5540,10 @@ export type components = {
  ProxyUploadResponse: {
  ok: boolean;
  url?: string | null;
+ };
+ PublicConfigResponse: {
+ fees: components["schemas"]["PlatformFees"];
+ updated_at?: string | null;
  };
  PublicDayAvailability: {
  available_slots?: components["schemas"]["PublicTimeSlot"][];
@@ -9657,6 +9684,25 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["PricingConfigResponse"];
+ };
+ };
+ };
+ };
+ get_public_config_api_v1_config_public_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PublicConfigResponse"];
  };
  };
  };

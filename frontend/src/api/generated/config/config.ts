@@ -18,7 +18,7 @@ import type {
   UseQueryResult,
 } from '@tanstack/react-query';
 
-import type { PricingConfigResponse } from '../instructly.schemas';
+import type { PricingConfigResponse, PublicConfigResponse } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
@@ -153,6 +153,137 @@ export function useGetPublicPricingConfigApiV1ConfigPricingGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetPublicPricingConfigApiV1ConfigPricingGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+/**
+ * Return public platform configuration for frontend display.
+ * @summary Get Public Config
+ */
+export const getPublicConfigApiV1ConfigPublicGet = (signal?: AbortSignal) => {
+  return customFetch<PublicConfigResponse>({ url: `/api/v1/config/public`, method: 'GET', signal });
+};
+
+export const getGetPublicConfigApiV1ConfigPublicGetQueryKey = () => {
+  return [`/api/v1/config/public`] as const;
+};
+
+export const getGetPublicConfigApiV1ConfigPublicGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>, TError, TData>
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPublicConfigApiV1ConfigPublicGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>> = ({
+    signal,
+  }) => getPublicConfigApiV1ConfigPublicGet(signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetPublicConfigApiV1ConfigPublicGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>
+>;
+export type GetPublicConfigApiV1ConfigPublicGetQueryError = ErrorType<unknown>;
+
+export function useGetPublicConfigApiV1ConfigPublicGet<
+  TData = Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPublicConfigApiV1ConfigPublicGet<
+  TData = Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+          TError,
+          Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetPublicConfigApiV1ConfigPublicGet<
+  TData = Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Public Config
+ */
+
+export function useGetPublicConfigApiV1ConfigPublicGet<
+  TData = Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPublicConfigApiV1ConfigPublicGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetPublicConfigApiV1ConfigPublicGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

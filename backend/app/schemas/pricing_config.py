@@ -7,6 +7,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field, PositiveInt, model_validator
 
+from app.constants.pricing_defaults import PRICING_DEFAULTS
+
 
 class TierConfig(BaseModel):
     min: int = Field(..., ge=0, description="Minimum completed sessions for this tier")
@@ -44,16 +46,17 @@ class PricingConfig(BaseModel):
         ..., gt=0, lt=1, description="Student booking protection fee as decimal"
     )
     founding_instructor_rate_pct: float = Field(
-        0.08,
+        PRICING_DEFAULTS["founding_instructor_rate_pct"],
         gt=0,
         lt=1,
         description="Platform fee percentage for founding instructors",
     )
     founding_instructor_cap: PositiveInt = Field(
-        100, description="Maximum number of founding instructors"
+        PRICING_DEFAULTS["founding_instructor_cap"],
+        description="Maximum number of founding instructors",
     )
     founding_search_boost: float = Field(
-        1.5,
+        PRICING_DEFAULTS["founding_search_boost"],
         gt=0,
         description="Search ranking multiplier for founding instructors",
     )

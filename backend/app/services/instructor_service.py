@@ -905,6 +905,7 @@ class InstructorService(BaseService):
             "background_check_uploaded_at": getattr(profile, "background_check_uploaded_at", None),
             "onboarding_completed_at": getattr(profile, "onboarding_completed_at", None),
             "is_live": getattr(profile, "is_live", False),
+            "is_founding_instructor": getattr(profile, "is_founding_instructor", False),
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
             "user": {

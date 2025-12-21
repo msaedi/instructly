@@ -2315,6 +2315,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/config/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Config
+         * @description Return public platform configuration for frontend display.
+         */
+        get: operations["get_public_config_api_v1_config_public_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations": {
         parameters: {
             query?: never;
@@ -10723,6 +10743,34 @@ export type components = {
              */
             types: string[];
         };
+        /** PlatformFees */
+        PlatformFees: {
+            /**
+             * Founding Instructor
+             * @description Platform fee for founding instructors
+             */
+            founding_instructor: number;
+            /**
+             * Student Booking Fee
+             * @description Student booking protection fee
+             */
+            student_booking_fee: number;
+            /**
+             * Tier 1
+             * @description Entry tier platform fee
+             */
+            tier_1: number;
+            /**
+             * Tier 2
+             * @description Second tier platform fee
+             */
+            tier_2: number;
+            /**
+             * Tier 3
+             * @description Third tier platform fee
+             */
+            tier_3: number;
+        };
         /**
          * PopularQueriesResponse
          * @description List of popular search queries.
@@ -11042,6 +11090,12 @@ export type components = {
             ok: boolean;
             /** Url */
             url?: string | null;
+        };
+        /** PublicConfigResponse */
+        PublicConfigResponse: {
+            fees: components["schemas"]["PlatformFees"];
+            /** Updated At */
+            updated_at?: string | null;
         };
         /**
          * PublicDayAvailability
@@ -17502,6 +17556,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PricingConfigResponse"];
+                };
+            };
+        };
+    };
+    get_public_config_api_v1_config_public_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicConfigResponse"];
                 };
             };
         };

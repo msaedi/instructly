@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.constants.pricing_defaults import PRICING_DEFAULTS
 from app.core.exceptions import (
     BusinessRuleException,
     DomainException,
@@ -379,14 +380,18 @@ class PricingService(BaseService):
     ) -> Decimal:
         # NOTE: Founding instructors are immune to tier changes; always use founding rate.
         if instructor_profile and getattr(instructor_profile, "is_founding_instructor", False):
+            fallback_rate = DEFAULT_PRICING_CONFIG.get(
+                "founding_instructor_rate_pct",
+                PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0),
+            )
             rate_value = pricing_config.get(
                 "founding_instructor_rate_pct",
-                DEFAULT_PRICING_CONFIG.get("founding_instructor_rate_pct", 0.08),
+                fallback_rate,
             )
             try:
                 return Decimal(str(rate_value)).quantize(Decimal("0.0001"))
             except (InvalidOperation, TypeError, ValueError):
-                return Decimal("0.0800")
+                return Decimal(str(fallback_rate)).quantize(Decimal("0.0001"))
 
         tiers = sorted(
             pricing_config.get("instructor_tiers", []), key=lambda tier: tier.get("min", 0)
@@ -481,8 +486,10 @@ class PricingService(BaseService):
             pct = entry_tier.get("pct", 0)
             return Decimal(str(pct)).quantize(Decimal("0.0001"))
         # Fallback to the default config's entry tier (only used when no pricing config exists)
-        default_tiers = DEFAULT_PRICING_CONFIG.get("instructor_tiers", [])
-        fallback_pct = default_tiers[0].get("pct", 0.15) if default_tiers else 0.15
+        default_tiers = DEFAULT_PRICING_CONFIG.get("instructor_tiers") or PRICING_DEFAULTS.get(
+            "instructor_tiers", []
+        )
+        fallback_pct = default_tiers[0].get("pct", 0) if default_tiers else 0
         return Decimal(str(fallback_pct)).quantize(Decimal("0.0001"))
 
     @staticmethod

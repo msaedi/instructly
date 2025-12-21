@@ -4,11 +4,17 @@ import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { httpGet } from '@/lib/http';
+import { usePlatformFees } from '@/hooks/usePlatformConfig';
+import { formatPlatformFeeLabel } from '@/lib/pricing/platformFees';
 
 function WelcomeInner() {
   const params = useSearchParams();
   const [code, setCode] = useState('');
   const email = params.get('email') || '';
+  const { fees } = usePlatformFees();
+  const foundingLabel = formatPlatformFeeLabel(fees.founding_instructor);
+  const tier1Label = formatPlatformFeeLabel(fees.tier_1);
+  const tier2Label = formatPlatformFeeLabel(fees.tier_2);
 
   useEffect(() => {
     const rawParam = params.get('invite_code') || '';
@@ -87,12 +93,12 @@ function WelcomeInner() {
             <ul className="space-y-3">
               {[
                 {
-                  title: 'Lifetime 8% Platform Fee',
-                  detail: 'Founding Instructors lock in our lowest commission rate—just 8%, guaranteed for life.',
+                  title: `Lifetime ${foundingLabel} Platform Fee`,
+                  detail: `Founding Instructors lock in our lowest commission rate—just ${foundingLabel}, guaranteed for life.`,
                 },
                 {
                   title: 'Skip the Higher Tiers',
-                  detail: 'Founding Instructors permanently bypass the 15% and 12% commission tiers.',
+                  detail: `Founding Instructors permanently bypass the ${tier1Label} and ${tier2Label} commission tiers.`,
                 },
                 {
                   title: 'No Activity Requirements',

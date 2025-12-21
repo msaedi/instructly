@@ -551,16 +551,22 @@ class StripeService(BaseService):
             """Get instructor's platform fee tier percentage."""
             is_founding = getattr(instructor_profile, "is_founding_instructor", False)
             if is_founding is True:
+                default_founding_rate = PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0)
                 raw_rate = config.get(
                     "founding_instructor_rate_pct",
-                    PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0.08),
+                    default_founding_rate,
                 )
                 try:
                     return float(Decimal(str(raw_rate)))
                 except Exception:
-                    return 0.08
-            tiers = config.get("instructor_tiers", [])
-            default_pct = float(tiers[0].get("pct", 0.15)) if tiers else 0.15
+                    return float(default_founding_rate)
+            tiers = config.get("instructor_tiers") or PRICING_DEFAULTS.get("instructor_tiers", [])
+            if tiers:
+                entry_tier = min(tiers, key=lambda tier: tier.get("min", 0))
+                default_entry_pct = PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0)
+                default_pct = float(entry_tier.get("pct", default_entry_pct))
+            else:
+                default_pct = float(PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0))
 
             raw_pct = getattr(instructor_profile, "current_tier_pct", None)
             if raw_pct is None:
@@ -699,16 +705,22 @@ class StripeService(BaseService):
             """Get instructor's platform fee tier percentage."""
             is_founding = getattr(instructor_profile, "is_founding_instructor", False)
             if is_founding is True:
+                default_founding_rate = PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0)
                 raw_rate = config.get(
                     "founding_instructor_rate_pct",
-                    PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0.08),
+                    default_founding_rate,
                 )
                 try:
                     return float(Decimal(str(raw_rate)))
                 except Exception:
-                    return 0.08
-            tiers = config.get("instructor_tiers", [])
-            default_pct = float(tiers[0].get("pct", 0.15)) if tiers else 0.15
+                    return float(default_founding_rate)
+            tiers = config.get("instructor_tiers") or PRICING_DEFAULTS.get("instructor_tiers", [])
+            if tiers:
+                entry_tier = min(tiers, key=lambda tier: tier.get("min", 0))
+                default_entry_pct = PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0)
+                default_pct = float(entry_tier.get("pct", default_entry_pct))
+            else:
+                default_pct = float(PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0))
 
             raw_pct = getattr(instructor_profile, "current_tier_pct", None)
             if raw_pct is None:

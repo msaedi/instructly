@@ -15,6 +15,9 @@ export type PricingTierConfig = {
 
 export type PricingConfig = {
   student_fee_pct: number;
+  founding_instructor_rate_pct?: number;
+  founding_instructor_cap?: number;
+  founding_search_boost?: number;
   instructor_tiers: PricingTierConfig[];
   price_floor_cents: PriceFloorConfig;
   tier_activity_window_days?: number;

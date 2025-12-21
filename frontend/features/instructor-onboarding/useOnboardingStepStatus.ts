@@ -13,6 +13,8 @@ type ProfileData = {
   bgc_status?: string;
   background_check_status?: string;
   is_live?: boolean;
+  is_founding_instructor?: boolean;
+  current_tier_pct?: number | null;
 };
 
 type UserData = {
