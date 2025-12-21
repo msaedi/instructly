@@ -146,7 +146,7 @@ const CREDIT_STORAGE_KEY = 'insta:credits:last:booking-1';
 const buildPreview = (baseCents: number, feeCents: number, creditCents: number): PricingPreviewResponse => ({
   base_price_cents: baseCents,
   student_fee_cents: feeCents,
-  instructor_commission_cents: 0,
+  instructor_platform_fee_cents: 0,
   credit_applied_cents: creditCents,
   student_pay_cents: baseCents + feeCents - creditCents,
   application_fee_cents: 0,
@@ -161,7 +161,7 @@ const buildPreview = (baseCents: number, feeCents: number, creditCents: number):
 const PREVIEW_WITH_CREDIT: PricingPreviewResponse = {
   base_price_cents: 22500,
   student_fee_cents: 2700,
-  instructor_commission_cents: 0,
+  instructor_platform_fee_cents: 0,
   credit_applied_cents: 4500,
   student_pay_cents: 20700,
   application_fee_cents: 0,
@@ -251,7 +251,7 @@ describe('Payment summary integration with pricing preview', () => {
     fetchPricingPreviewQuoteMock.mockResolvedValue({
       base_price_cents: 7500,
       student_fee_cents: 900,
-      instructor_commission_cents: 0,
+      instructor_platform_fee_cents: 0,
       credit_applied_cents: 0,
       student_pay_cents: 8400,
       application_fee_cents: 0,
@@ -285,7 +285,7 @@ describe('Payment summary integration with pricing preview', () => {
     fetchPricingPreviewMock.mockResolvedValue({
       base_price_cents: 9100,
       student_fee_cents: 1092,
-      instructor_commission_cents: 0,
+      instructor_platform_fee_cents: 0,
       credit_applied_cents: 0,
       student_pay_cents: 10192,
       application_fee_cents: 0,
@@ -503,7 +503,7 @@ describe('Payment summary preview', () => {
     const preview: PricingPreviewResponse = {
       base_price_cents: 15000,
       student_fee_cents: 2100,
-      instructor_commission_cents: 0,
+      instructor_platform_fee_cents: 0,
       credit_applied_cents: 0,
       student_pay_cents: 17100,
       application_fee_cents: 2100,

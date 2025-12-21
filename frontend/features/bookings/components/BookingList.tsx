@@ -7,6 +7,7 @@ export type BookingListItem = {
   id: string;
   booking_date: string;
   start_time: string;
+  end_time?: string;
   status: string;
   service_name: string;
   total_price?: number | null;
@@ -33,6 +34,7 @@ const STATUS_LABELS: Record<string, string> = {
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
   NO_SHOW: 'No-show',
+  IN_PROGRESS: 'In Progress',
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -40,7 +42,19 @@ const STATUS_STYLES: Record<string, string> = {
   COMPLETED: 'bg-blue-50 text-blue-700',
   CANCELLED: 'bg-rose-50 text-rose-700',
   NO_SHOW: 'bg-amber-50 text-amber-800',
+  IN_PROGRESS: 'bg-purple-50 text-purple-700',
 };
+
+/**
+ * Check if a booking is currently in progress (lesson has started but not ended).
+ */
+function isInProgress(booking: BookingListItem): boolean {
+  if (booking.status !== 'CONFIRMED' || !booking.end_time) return false;
+  const now = new Date();
+  const start = new Date(`${booking.booking_date}T${booking.start_time}`);
+  const end = new Date(`${booking.booking_date}T${booking.end_time}`);
+  return now >= start && now < end;
+}
 
 function formatLessonDate(date: string, time: string): { date: string; time: string } {
   const start = new Date(`${date}T${time}`);
@@ -93,9 +107,11 @@ export function BookingList({
     <div className="space-y-4" data-testid={dataTestId}>
       {data.map((booking) => {
         const { date, time } = formatLessonDate(booking.booking_date, booking.start_time);
-        const status = STATUS_LABELS[booking.status] ?? booking.status ?? 'Pending';
+        const inProgress = isInProgress(booking);
+        const displayStatus = inProgress ? 'IN_PROGRESS' : booking.status;
+        const status = STATUS_LABELS[displayStatus] ?? booking.status ?? 'Pending';
         const badgeClasses =
-          STATUS_STYLES[booking.status] ?? 'bg-gray-100 text-gray-700';
+          STATUS_STYLES[displayStatus] ?? 'bg-gray-100 text-gray-700';
         const studentName =
           booking.student?.first_name && booking.student?.last_name
             ? `${booking.student.first_name} ${booking.student.last_name}`

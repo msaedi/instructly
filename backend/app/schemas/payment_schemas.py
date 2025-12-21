@@ -7,7 +7,7 @@ and payment processing.
 """
 
 from datetime import date, datetime, time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,6 +41,18 @@ class CreateCheckoutRequest(StrictRequestModel):
         ge=0,
         description="Optional wallet credit amount (in cents) the student wants to apply",
     )
+
+
+class EarningsExportRequest(StrictRequestModel):
+    """Request to export instructor earnings."""
+
+    start_date: Optional[date] = Field(
+        default=None, description="Start date (inclusive) for the export"
+    )
+    end_date: Optional[date] = Field(
+        default=None, description="End date (inclusive) for the export"
+    )
+    format: Literal["csv", "pdf"] = Field(default="csv", description="Export format (csv or pdf)")
 
 
 # ========== Response Models ==========
@@ -282,6 +294,20 @@ class InstructorInvoiceSummary(StrictModel):
     status: str = Field(..., description="Invoice/payment status")
     created_at: datetime = Field(..., description="When the payment was completed")
 
+    # Instructor-centric clarity fields
+    lesson_price_cents: int = Field(
+        ..., description="Base lesson price (instructor's rate × duration)"
+    )
+    platform_fee_cents: int = Field(
+        ..., description="Platform fee deducted from instructor earnings"
+    )
+    platform_fee_rate: float = Field(
+        ..., description="Platform fee rate applied (e.g., 0.1 for 10%)"
+    )
+    student_fee_cents: int = Field(
+        ..., description="Booking protection fee added to student (not deducted from instructor)"
+    )
+
 
 class EarningsResponse(StrictModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
@@ -302,3 +328,40 @@ class EarningsResponse(StrictModel):
     )
     period_start: Optional[datetime] = Field(None, description="Start of period")
     period_end: Optional[datetime] = Field(None, description="End of period")
+
+    # Instructor-centric aggregate fields
+    total_lesson_value: Optional[int] = Field(
+        None, description="Total value of all lessons (before any fees)"
+    )
+    total_platform_fees: Optional[int] = Field(
+        None, description="Total platform fees deducted from instructor earnings"
+    )
+    total_tips: Optional[int] = Field(None, description="Total tips received")
+
+
+# ========== Payout Response Models ==========
+
+
+class PayoutSummary(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    """Individual payout record from Stripe."""
+
+    id: str = Field(..., description="Payout ID (Stripe)")
+    amount_cents: int = Field(..., description="Amount in cents")
+    status: str = Field(
+        ..., description="Payout status (pending, in_transit, paid, failed, canceled)"
+    )
+    arrival_date: Optional[datetime] = Field(None, description="Expected arrival date")
+    failure_code: Optional[str] = Field(None, description="Failure code if payout failed")
+    failure_message: Optional[str] = Field(None, description="Failure message if payout failed")
+    created_at: datetime = Field(..., description="When the payout was created")
+
+
+class PayoutHistoryResponse(StrictModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    """Response for instructor payout history."""
+
+    payouts: List[PayoutSummary] = Field(default_factory=list, description="List of payouts")
+    total_paid_cents: int = Field(default=0, description="Total amount successfully paid out")
+    total_pending_cents: int = Field(default=0, description="Total amount pending payout")
+    payout_count: int = Field(default=0, description="Number of payouts")

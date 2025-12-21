@@ -26,7 +26,7 @@ export type PricingConfig = {
 export type PricingPreviewResponse = {
   base_price_cents: number;
   student_fee_cents: number;
-  instructor_commission_cents: number;
+  instructor_platform_fee_cents: number;
   credit_applied_cents: number;
   student_pay_cents: number;
   application_fee_cents: number;

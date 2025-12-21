@@ -1734,6 +1734,41 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/search-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Search Config Admin */
+        get: operations["get_search_config_admin_api_v1_admin_search_config_get"];
+        put?: never;
+        /** Update Search Config Admin */
+        post: operations["update_search_config_admin_api_v1_admin_search_config_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/search-config/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Search Config Admin */
+        post: operations["reset_search_config_admin_api_v1_admin_search_config_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/change-password": {
         parameters: {
             query?: never;
@@ -3616,6 +3651,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/earnings/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Instructor Earnings
+         * @description Export instructor earnings history as CSV.
+         */
+        post: operations["export_instructor_earnings_api_v1_payments_earnings_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/identity/refresh": {
         parameters: {
             query?: never;
@@ -3722,6 +3777,34 @@ export type paths = {
          *         HTTPException: If payment method deletion fails
          */
         delete: operations["delete_payment_method_api_v1_payments_methods__method_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Instructor Payouts
+         * @description Get payout history for an instructor.
+         *
+         *     Returns Stripe payout events recorded for the instructor's connected account.
+         *
+         *     Returns:
+         *         PayoutHistoryResponse with list of payouts and totals
+         *
+         *     Raises:
+         *         HTTPException: If fetching payouts fails
+         */
+        get: operations["get_instructor_payouts_api_v1_payments_payouts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5592,6 +5675,138 @@ export type components = {
             top_referrers: components["schemas"]["TopReferrerOut"][];
         };
         /**
+         * AdminSearchConfigResponse
+         * @description Admin search configuration with runtime controls.
+         */
+        AdminSearchConfigResponse: {
+            /**
+             * Available Embedding Models
+             * @description Available embedding models
+             */
+            available_embedding_models: components["schemas"]["ModelOption"][];
+            /**
+             * Available Parsing Models
+             * @description Available parsing models
+             */
+            available_parsing_models: components["schemas"]["ModelOption"][];
+            /**
+             * Current In Flight Requests
+             * @description Current in-flight uncached searches
+             */
+            current_in_flight_requests: number;
+            /**
+             * Embedding Model
+             * @description Current embedding model
+             */
+            embedding_model: string;
+            /**
+             * Embedding Timeout Ms
+             * @description Embedding timeout in ms
+             */
+            embedding_timeout_ms: number;
+            /**
+             * High Load Budget Ms
+             * @description High load budget in ms
+             */
+            high_load_budget_ms: number;
+            /**
+             * High Load Threshold
+             * @description Concurrent requests to trigger high load
+             */
+            high_load_threshold: number;
+            /**
+             * Location Model
+             * @description Current location model
+             */
+            location_model: string;
+            /**
+             * Location Timeout Ms
+             * @description Location LLM timeout in ms
+             */
+            location_timeout_ms: number;
+            /**
+             * Openai Max Retries
+             * @description OpenAI max retries
+             */
+            openai_max_retries: number;
+            /**
+             * Parsing Model
+             * @description Current parsing model
+             */
+            parsing_model: string;
+            /**
+             * Parsing Timeout Ms
+             * @description Parsing timeout in ms
+             */
+            parsing_timeout_ms: number;
+            /**
+             * Search Budget Ms
+             * @description Default request budget in ms
+             */
+            search_budget_ms: number;
+            /**
+             * Uncached Concurrency
+             * @description Max concurrent uncached searches per worker
+             */
+            uncached_concurrency: number;
+        };
+        /**
+         * AdminSearchConfigUpdate
+         * @description Admin update payload for search runtime settings.
+         */
+        AdminSearchConfigUpdate: {
+            /**
+             * Embedding Timeout Ms
+             * @description New embedding timeout in ms
+             */
+            embedding_timeout_ms?: number | null;
+            /**
+             * High Load Budget Ms
+             * @description New high load budget in ms
+             */
+            high_load_budget_ms?: number | null;
+            /**
+             * High Load Threshold
+             * @description New high load threshold
+             */
+            high_load_threshold?: number | null;
+            /**
+             * Location Model
+             * @description New location model
+             */
+            location_model?: string | null;
+            /**
+             * Location Timeout Ms
+             * @description New location LLM timeout in ms
+             */
+            location_timeout_ms?: number | null;
+            /**
+             * Openai Max Retries
+             * @description New OpenAI max retries
+             */
+            openai_max_retries?: number | null;
+            /**
+             * Parsing Model
+             * @description New parsing model
+             */
+            parsing_model?: string | null;
+            /**
+             * Parsing Timeout Ms
+             * @description New parsing timeout in ms
+             */
+            parsing_timeout_ms?: number | null;
+            /**
+             * Search Budget Ms
+             * @description New request budget in ms
+             */
+            search_budget_ms?: number | null;
+            /**
+             * Uncached Concurrency
+             * @description New uncached concurrency limit
+             */
+            uncached_concurrency?: number | null;
+        };
+        /**
          * AlertAcknowledgeResponse
          * @description Alert acknowledgement response.
          * @example {
@@ -7007,6 +7222,37 @@ export type components = {
             meeting_location?: string | null;
         };
         /**
+         * BudgetInfo
+         * @description Request budget tracking.
+         */
+        BudgetInfo: {
+            /**
+             * Degradation Level
+             * @description Degradation level label
+             */
+            degradation_level: string;
+            /**
+             * Initial Ms
+             * @description Initial request budget in ms
+             */
+            initial_ms: number;
+            /**
+             * Over Budget
+             * @description Whether the budget was exceeded
+             */
+            over_budget: boolean;
+            /**
+             * Remaining Ms
+             * @description Remaining budget in ms
+             */
+            remaining_ms: number;
+            /**
+             * Skipped Operations
+             * @description Skipped operations due to budget
+             */
+            skipped_operations?: string[];
+        };
+        /**
          * BulkUpdateRequest
          * @description Request schema for bulk availability update.
          */
@@ -7962,6 +8208,29 @@ export type components = {
             /** Window Id */
             window_id: string;
         };
+        /**
+         * EarningsExportRequest
+         * @description Request to export instructor earnings.
+         */
+        EarningsExportRequest: {
+            /**
+             * End Date
+             * @description End date (inclusive) for the export
+             */
+            end_date?: string | null;
+            /**
+             * Format
+             * @description Export format (csv only for now)
+             * @default csv
+             * @constant
+             */
+            format: "csv";
+            /**
+             * Start Date
+             * @description Start date (inclusive) for the export
+             */
+            start_date?: string | null;
+        };
         /** EarningsResponse */
         EarningsResponse: {
             /**
@@ -8009,6 +8278,21 @@ export type components = {
              * @description Total fees in cents
              */
             total_fees?: number | null;
+            /**
+             * Total Lesson Value
+             * @description Total value of all lessons (before any fees)
+             */
+            total_lesson_value?: number | null;
+            /**
+             * Total Platform Fees
+             * @description Total platform fees deducted from instructor earnings
+             */
+            total_platform_fees?: number | null;
+            /**
+             * Total Tips
+             * @description Total tips received
+             */
+            total_tips?: number | null;
         };
         /** EditMessageRequest */
         EditMessageRequest: {
@@ -8501,6 +8785,21 @@ export type components = {
              */
             lesson_date: string;
             /**
+             * Lesson Price Cents
+             * @description Base lesson price (instructor's rate × duration)
+             */
+            lesson_price_cents: number;
+            /**
+             * Platform Fee Cents
+             * @description Platform fee deducted from instructor earnings
+             */
+            platform_fee_cents: number;
+            /**
+             * Platform Fee Rate
+             * @description Platform fee rate applied (e.g., 0.1 for 10%)
+             */
+            platform_fee_rate: number;
+            /**
              * Service Name
              * @description Name of the service taught
              */
@@ -8515,6 +8814,11 @@ export type components = {
              * @description Invoice/payment status
              */
             status: string;
+            /**
+             * Student Fee Cents
+             * @description Booking protection fee added to student (not deducted from instructor)
+             */
+            student_fee_cents: number;
             /**
              * Student Name
              * @description Student name (privacy aware)
@@ -9050,6 +9354,75 @@ export type components = {
              */
             minutes: number;
         };
+        /**
+         * LocationResolutionInfo
+         * @description Detailed location resolution breakdown.
+         */
+        LocationResolutionInfo: {
+            /**
+             * Query
+             * @description Original location query
+             */
+            query: string;
+            /**
+             * Resolved Name
+             * @description Resolved location name
+             */
+            resolved_name?: string | null;
+            /**
+             * Resolved Regions
+             * @description Resolved sub-regions if applicable
+             */
+            resolved_regions?: string[] | null;
+            /**
+             * Successful Tier
+             * @description Successful tier number if any
+             */
+            successful_tier?: number | null;
+            /**
+             * Tiers
+             * @description Per-tier results
+             */
+            tiers?: components["schemas"]["LocationTierResult"][];
+        };
+        /**
+         * LocationTierResult
+         * @description Result of a location resolution tier attempt.
+         */
+        LocationTierResult: {
+            /**
+             * Attempted
+             * @description Whether the tier was attempted
+             */
+            attempted: boolean;
+            /**
+             * Confidence
+             * @description Confidence score when available
+             */
+            confidence?: number | null;
+            /**
+             * Details
+             * @description Additional tier details
+             */
+            details?: string | null;
+            /**
+             * Duration Ms
+             * @description Tier duration in ms
+             */
+            duration_ms: number;
+            /**
+             * Result
+             * @description Resolved location name if any
+             */
+            result?: string | null;
+            /** @description Tier status */
+            status: components["schemas"]["StageStatus"];
+            /**
+             * Tier
+             * @description Location tier (0-5)
+             */
+            tier: number;
+        };
         /** LoginResponse */
         LoginResponse: {
             /** Access Token */
@@ -9320,6 +9693,8 @@ export type components = {
              * @default false
              */
             degraded: boolean;
+            /** @description Detailed diagnostics for admin tooling */
+            diagnostics?: components["schemas"]["SearchDiagnostics"] | null;
             /**
              * Filter Stats
              * @description Filter stage counts for debugging (optional)
@@ -9371,6 +9746,11 @@ export type components = {
              * @description Search query ID for click tracking
              */
             search_query_id?: string | null;
+            /**
+             * Skipped Operations
+             * @description Operations skipped during degradation
+             */
+            skipped_operations?: string[];
             /**
              * Soft Filter Message
              * @description User-facing message when constraints are relaxed
@@ -9851,7 +10231,7 @@ export type components = {
          *       "message": "Health check task has been queued",
          *       "status": "triggered",
          *       "task_id": "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6",
-         *       "timestamp": "2025-01-20T10:30:00.123456"
+         *       "timestamp": "2025-01-20T10:30:00.234567"
          *     }
          */
         PaymentHealthCheckTriggerResponse: {
@@ -9904,7 +10284,7 @@ export type components = {
          *         "payment_captured": 8
          *       },
          *       "status": "healthy",
-         *       "timestamp": "2025-01-20T10:30:00.123456"
+         *       "timestamp": "2025-01-20T10:30:00.234567"
          *     }
          */
         PaymentHealthResponse: {
@@ -10011,6 +10391,32 @@ export type components = {
             /** Total Paid */
             total_paid: number;
         };
+        /** PayoutHistoryResponse */
+        PayoutHistoryResponse: {
+            /**
+             * Payout Count
+             * @description Number of payouts
+             * @default 0
+             */
+            payout_count: number;
+            /**
+             * Payouts
+             * @description List of payouts
+             */
+            payouts?: components["schemas"]["PayoutSummary"][];
+            /**
+             * Total Paid Cents
+             * @description Total amount successfully paid out
+             * @default 0
+             */
+            total_paid_cents: number;
+            /**
+             * Total Pending Cents
+             * @description Total amount pending payout
+             * @default 0
+             */
+            total_pending_cents: number;
+        };
         /** PayoutScheduleResponse */
         PayoutScheduleResponse: {
             /**
@@ -10030,6 +10436,45 @@ export type components = {
             settings?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** PayoutSummary */
+        PayoutSummary: {
+            /**
+             * Amount Cents
+             * @description Amount in cents
+             */
+            amount_cents: number;
+            /**
+             * Arrival Date
+             * @description Expected arrival date
+             */
+            arrival_date?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When the payout was created
+             */
+            created_at: string;
+            /**
+             * Failure Code
+             * @description Failure code if payout failed
+             */
+            failure_code?: string | null;
+            /**
+             * Failure Message
+             * @description Failure message if payout failed
+             */
+            failure_message?: string | null;
+            /**
+             * Id
+             * @description Payout ID (Stripe)
+             */
+            id: string;
+            /**
+             * Status
+             * @description Payout status (pending, in_transit, paid, failed, canceled)
+             */
+            status: string;
         };
         /**
          * PerformanceMetrics
@@ -10164,6 +10609,31 @@ export type components = {
              * @description Recommendation type (database/cache/memory/requests)
              */
             type: string;
+        };
+        /**
+         * PipelineStage
+         * @description Timing and status for a pipeline stage.
+         */
+        PipelineStage: {
+            /**
+             * Details
+             * @description Stage details
+             */
+            details?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Duration Ms
+             * @description Stage duration in ms
+             */
+            duration_ms: number;
+            /**
+             * Name
+             * @description Stage name
+             */
+            name: string;
+            /** @description Stage status */
+            status: components["schemas"]["StageStatus"];
         };
         /** PlaceDetails */
         PlaceDetails: {
@@ -10415,8 +10885,8 @@ export type components = {
             base_price_cents: number;
             /** Credit Applied Cents */
             credit_applied_cents: number;
-            /** Instructor Commission Cents */
-            instructor_commission_cents: number;
+            /** Instructor Platform Fee Cents */
+            instructor_platform_fee_cents: number;
             /** Instructor Tier Pct */
             instructor_tier_pct: number;
             /** Line Items */
@@ -10723,7 +11193,7 @@ export type components = {
          * @example {
          *       "message": "Rate limit test successful",
          *       "note": "This endpoint is rate limited to 3 requests per minute",
-         *       "timestamp": "2025-01-20T10:30:00.123456"
+         *       "timestamp": "2025-01-20T10:30:00.234567"
          *     }
          */
         RateLimitTestResponse: {
@@ -11446,6 +11916,81 @@ export type components = {
              * @description New parsing timeout in ms
              */
             parsing_timeout_ms?: number | null;
+        };
+        /**
+         * SearchDiagnostics
+         * @description Full diagnostics for admin tooling.
+         */
+        SearchDiagnostics: {
+            /**
+             * After Availability Filter
+             * @description Candidates after availability filter
+             */
+            after_availability_filter: number;
+            /**
+             * After Location Filter
+             * @description Candidates after location filter
+             */
+            after_location_filter: number;
+            /**
+             * After Price Filter
+             * @description Candidates after price filter
+             */
+            after_price_filter: number;
+            /**
+             * After Text Search
+             * @description Candidates after text search
+             */
+            after_text_search: number;
+            /**
+             * After Vector Search
+             * @description Candidates after vector search
+             */
+            after_vector_search: number;
+            /** @description Budget tracking info */
+            budget: components["schemas"]["BudgetInfo"];
+            /**
+             * Cache Hit
+             * @description Whether cache was hit
+             */
+            cache_hit: boolean;
+            /**
+             * Embedding Used
+             * @description Whether query embedding was used
+             */
+            embedding_used: boolean;
+            /**
+             * Final Results
+             * @description Final result count
+             */
+            final_results: number;
+            /**
+             * Initial Candidates
+             * @description Initial candidate count
+             */
+            initial_candidates: number;
+            /** @description Location resolution details */
+            location_resolution?: components["schemas"]["LocationResolutionInfo"] | null;
+            /**
+             * Parsing Mode
+             * @description Parsing mode used
+             */
+            parsing_mode: string;
+            /**
+             * Pipeline Stages
+             * @description Pipeline stage timings
+             */
+            pipeline_stages?: components["schemas"]["PipelineStage"][];
+            /**
+             * Total Latency Ms
+             * @description Total latency in ms
+             */
+            total_latency_ms: number;
+            /**
+             * Vector Search Used
+             * @description Whether vector search was used
+             */
+            vector_search_used: boolean;
         };
         /**
          * SearchEffectiveness
@@ -12393,6 +12938,12 @@ export type components = {
              */
             start_time: string;
         };
+        /**
+         * StageStatus
+         * @description Status for pipeline stages and location tiers.
+         * @enum {string}
+         */
+        StageStatus: "success" | "skipped" | "timeout" | "error" | "cache_hit" | "miss" | "cancelled";
         /** StudentBadgeView */
         StudentBadgeView: {
             /** Awarded At */
@@ -15946,6 +16497,79 @@ export interface operations {
             };
         };
     };
+    get_search_config_admin_api_v1_admin_search_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSearchConfigResponse"];
+                };
+            };
+        };
+    };
+    update_search_config_admin_api_v1_admin_search_config_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSearchConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSearchConfigResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_search_config_admin_api_v1_admin_search_config_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSearchConfigResponse"];
+                };
+            };
+        };
+    };
     change_password_api_v1_auth_change_password_post: {
         parameters: {
             query?: never;
@@ -18836,7 +19460,7 @@ export interface operations {
     stream_user_messages_api_v1_messages_stream_get: {
         parameters: {
             query?: {
-                token?: string | null;
+                sse_token?: string | null;
             };
             header?: never;
             path?: never;
@@ -19426,6 +20050,39 @@ export interface operations {
             };
         };
     };
+    export_instructor_earnings_api_v1_payments_earnings_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["EarningsExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     refresh_identity_status_api_v1_payments_identity_refresh_post: {
         parameters: {
             query?: never;
@@ -19537,6 +20194,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["app__schemas__payment_schemas__DeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_instructor_payouts_api_v1_payments_payouts_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutHistoryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20308,6 +20996,18 @@ export interface operations {
                 region?: string;
                 /** @description Maximum results to return */
                 limit?: number;
+                /** @description Include detailed diagnostics (admin only) */
+                diagnostics?: boolean;
+                /** @description Force skip Tier 5 LLM (admin only) */
+                force_skip_tier5?: boolean;
+                /** @description Force skip Tier 4 embedding (admin only) */
+                force_skip_tier4?: boolean;
+                /** @description Force skip vector search (admin only) */
+                force_skip_vector?: boolean;
+                /** @description Force skip embeddings (admin only) */
+                force_skip_embedding?: boolean;
+                /** @description Force high-load budget (admin only) */
+                force_high_load?: boolean;
             };
             header?: never;
             path?: never;

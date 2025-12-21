@@ -538,7 +538,7 @@ def test_pricing_service_outputs_integer_cents(db, pricing_service, test_instruc
     monetary_keys = [
         "base_price_cents",
         "student_fee_cents",
-        "instructor_commission_cents",
+        "instructor_platform_fee_cents",
         "target_instructor_payout_cents",
         "credit_applied_cents",
         "student_pay_cents",

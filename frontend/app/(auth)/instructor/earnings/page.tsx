@@ -6,9 +6,12 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import Modal from '@/components/Modal';
 import { Download, DollarSign, Info, ArrowLeft } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+import { fetchWithAuth } from '@/lib/api';
+import { logger } from '@/lib/logger';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
+import { useInstructorPayouts } from '@/hooks/queries/useInstructorPayouts';
 
 function EarningsPageImpl() {
   const embedded = useEmbedded();
@@ -78,6 +81,7 @@ function EarningsPageImpl() {
     );
   }
   const { data: earnings, isLoading: isLoadingEarnings } = useInstructorEarnings(true);
+  const { data: payoutsData, isLoading: isLoadingPayouts } = useInstructorPayouts(true);
   const [activeTab, setActiveTab] = useState<'invoices' | 'payouts'>('invoices');
   const [exportOpen, setExportOpen] = useState(false);
   const [exportYear, setExportYear] = useState<string>('');
@@ -107,8 +111,9 @@ function EarningsPageImpl() {
       minute: '2-digit',
     });
   };
-  const grossVolume = (earnings?.total_earned ?? 0) + (earnings?.total_fees ?? 0);
-  const netVolume = earnings?.total_earned ?? 0;
+  // Use instructor-centric values from backend
+  const totalLessonValue = earnings?.total_lesson_value ?? 0;
+  const netEarnings = earnings?.total_earned ?? 0;
   const resolvedServiceCount = typeof earnings?.service_count === 'number'
     ? earnings.service_count
     : (typeof earnings?.booking_count === 'number' ? earnings.booking_count : 0);
@@ -125,6 +130,48 @@ function EarningsPageImpl() {
   const formatStatusLabel = (value?: string) => {
     if (!value) return '—';
     return value.charAt(0).toUpperCase() + value.slice(1);
+  };
+  const handleExport = async () => {
+    if (!exportYear || sendingExport) return;
+    if (!exportType) return;
+    setSendingExport(true);
+    const startDate = `${exportYear}-01-01`;
+    const endDate = `${exportYear}-12-31`;
+    try {
+          const response = await fetchWithAuth('/api/v1/payments/earnings/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              start_date: startDate,
+              end_date: endDate,
+              format: exportType,
+            }),
+          });
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const contentDisposition = response.headers.get('content-disposition') || '';
+      const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+      const contentType = response.headers.get('content-type') || '';
+      const resolvedExt = contentType.includes('application/pdf')
+        ? 'pdf'
+        : (exportType === 'pdf' ? 'pdf' : 'csv');
+      const filename = match?.[1] ?? `earnings_${startDate}_${endDate}.${resolvedExt}`;
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setExportOpen(false);
+    } catch (error) {
+      logger.error('Export failed', error);
+    } finally {
+      setSendingExport(false);
+    }
   };
 
   return (
@@ -181,12 +228,12 @@ function EarningsPageImpl() {
         {/* Stat Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Total earned</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(grossVolume)}</p>
+            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Total Lessons</h3>
+            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(totalLessonValue)}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
-            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Sent to bank</h3>
-            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(netVolume)}</p>
+            <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Net Earnings</h3>
+            <p className="text-3xl font-bold text-[#7E22CE] uppercase">{isLoadingEarnings ? '—' : formatAmount(netEarnings)}</p>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-5 sm:p-6">
             <h3 className="text-xs sm:text-sm font-medium text-gray-600 tracking-wide mb-2 uppercase">Service count</h3>
@@ -242,21 +289,35 @@ function EarningsPageImpl() {
                         <th className="py-2 pr-4">Student</th>
                         <th className="py-2 pr-4">Service</th>
                         <th className="py-2 pr-4">Duration</th>
-                        <th className="py-2 pr-4">Total Paid</th>
+                        <th className="py-2 pr-4">Lesson Price</th>
                         <th className="py-2 pr-4">Platform Fee</th>
-                        <th className="py-2 pr-4">Your Share</th>
+                        <th className="py-2 pr-4">Your Earnings</th>
                         <th className="py-2 pr-4">Tip</th>
                         <th className="py-2 pr-4">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {invoices.map((invoice) => {
-                        const platformFeeCents = Math.max(
-                          0,
-                          (invoice.total_paid_cents ?? 0) -
-                            (invoice.instructor_share_cents ?? 0) -
-                            (invoice.tip_cents ?? 0)
-                        );
+                        // Use backend-calculated platform fee (no frontend calculation)
+                        const platformFeeRate = invoice.platform_fee_rate ?? 0;
+                        const platformFeePct = Math.round(platformFeeRate * 100);
+                        // Keep status mapping aligned with backend/app/constants/payment_status.py.
+                        const getStatusColor = (status?: string) => {
+                          switch (status) {
+                            case 'authorized':
+                              return 'bg-amber-50 text-amber-700';  // Pending capture
+                            case 'paid':
+                              return 'bg-emerald-50 text-emerald-700';  // Successfully captured
+                            case 'failed':
+                              return 'bg-red-50 text-red-700';  // Payment failed
+                            case 'refunded':
+                            case 'cancelled':
+                              return 'bg-gray-50 text-gray-600';  // Reversed/cancelled
+                            default:
+                              return 'bg-gray-50 text-gray-600';  // Unknown status
+                          }
+                        };
+                        const statusColor = getStatusColor(invoice.status);
                         return (
                           <tr key={`${invoice.booking_id}-${invoice.created_at}`}>
                             <td className="py-3 pr-4 text-gray-900">
@@ -265,12 +326,15 @@ function EarningsPageImpl() {
                             <td className="py-3 pr-4 text-gray-700">{invoice.student_name ?? 'Student'}</td>
                             <td className="py-3 pr-4 text-gray-700">{invoice.service_name ?? 'Lesson'}</td>
                             <td className="py-3 pr-4 text-gray-700">{formatDuration(invoice.duration_minutes)}</td>
-                            <td className="py-3 pr-4 font-semibold text-gray-900">{formatCents(invoice.total_paid_cents)}</td>
-                            <td className="py-3 pr-4 text-gray-700">{formatCents(platformFeeCents)}</td>
-                            <td className="py-3 pr-4 text-gray-700">{formatCents(invoice.instructor_share_cents)}</td>
+                            <td className="py-3 pr-4 font-semibold text-gray-900">{formatCents(invoice.lesson_price_cents)}</td>
+                            <td className="py-3 pr-4 text-gray-700">
+                              {formatCents(invoice.platform_fee_cents)}
+                              <span className="text-gray-400 text-xs ml-1">({platformFeePct}%)</span>
+                            </td>
+                            <td className="py-3 pr-4 font-semibold text-[#7E22CE]">{formatCents(invoice.instructor_share_cents)}</td>
                             <td className="py-3 pr-4 text-gray-700">{formatCents(invoice.tip_cents)}</td>
                             <td className="py-3 pr-4">
-                              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}>
                                 {formatStatusLabel(invoice.status)}
                               </span>
                             </td>
@@ -281,9 +345,74 @@ function EarningsPageImpl() {
                   </table>
                 </div>
               )
-            ) : (
+            ) : isLoadingPayouts ? (
+              <div className="text-sm text-gray-600">Loading payouts...</div>
+            ) : !payoutsData?.payouts || payoutsData.payouts.length === 0 ? (
               <div className="text-sm text-gray-600">
-                Payouts are coming soon. Your lesson earnings are tracked above and will be sent automatically when payouts launch.
+                No payouts yet. Your lesson earnings will be sent to your bank account automatically.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="mb-4 flex gap-6 text-sm">
+                  <div>
+                    <span className="text-gray-600">Total Paid: </span>
+                    <span className="font-semibold text-emerald-700">{formatCents(payoutsData.total_paid_cents)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Pending: </span>
+                    <span className="font-semibold text-amber-700">{formatCents(payoutsData.total_pending_cents)}</span>
+                  </div>
+                </div>
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead>
+                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <th className="py-2 pr-4">Date</th>
+                      <th className="py-2 pr-4">Amount</th>
+                      <th className="py-2 pr-4">Status</th>
+                      <th className="py-2 pr-4">Arrival Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {payoutsData.payouts.map((payout) => {
+                      const getPayoutStatusColor = (status?: string) => {
+                        switch (status) {
+                          case 'paid':
+                            return 'bg-emerald-50 text-emerald-700';
+                          case 'pending':
+                          case 'in_transit':
+                            return 'bg-amber-50 text-amber-700';
+                          case 'failed':
+                          case 'canceled':
+                            return 'bg-red-50 text-red-700';
+                          default:
+                            return 'bg-gray-50 text-gray-600';
+                        }
+                      };
+                      const statusColor = getPayoutStatusColor(payout.status);
+                      const createdDate = new Date(payout.created_at);
+                      const arrivalDate = payout.arrival_date ? new Date(payout.arrival_date) : null;
+                      return (
+                        <tr key={payout.id}>
+                          <td className="py-3 pr-4 text-gray-900">
+                            {createdDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td className="py-3 pr-4 font-semibold text-[#7E22CE]">{formatCents(payout.amount_cents)}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor}`}>
+                              {formatStatusLabel(payout.status)}
+                            </span>
+                            {payout.failure_message && (
+                              <span className="ml-2 text-xs text-red-600">{payout.failure_message}</span>
+                            )}
+                          </td>
+                          <td className="py-3 pr-4 text-gray-700">
+                            {arrivalDate ? arrivalDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -367,10 +496,18 @@ function EarningsPageImpl() {
           </section>
         </div>
       </Modal>
-      <Modal isOpen={exportOpen} onClose={() => setExportOpen(false)} title="Export Transactions" size="md">
-        <div className="p-2 sm:p-0">
-          <p className="text-gray-700 mb-4">Choose a time range and a file type:</p>
-          <div className="space-y-4">
+      <Modal
+        isOpen={exportOpen}
+        onClose={() => setExportOpen(false)}
+        title="Export Transactions"
+        size="md"
+        allowOverflow
+        autoHeight
+        noPadding
+      >
+        <div className="px-5 py-4">
+          <p className="text-gray-700 mb-3">Choose a time range and a file type:</p>
+          <div className="space-y-3">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Year</label>
               <SimpleDropdown
@@ -394,23 +531,13 @@ function EarningsPageImpl() {
               />
             </div>
           </div>
-          <div className="mt-6 flex justify-end">
+          <div className="mt-4 flex justify-end">
             <button
               disabled={!exportYear || !exportType || sendingExport}
-              onClick={async () => {
-                setSendingExport(true);
-                try {
-                  // Placeholder: wire to backend export endpoint when available
-                  // e.g., await fetchWithAuth(`/api/payments/exports?year=${exportYear}&type=${exportType}`)
-                  setTimeout(() => {}, 300);
-                  setExportOpen(false);
-                } finally {
-                  setSendingExport(false);
-                }
-              }}
+              onClick={handleExport}
               className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-white disabled:opacity-50"
             >
-              {sendingExport ? 'Sending…' : 'Send to my Email'}
+              {sendingExport ? 'Exporting…' : 'Download Report'}
             </button>
           </div>
         </div>

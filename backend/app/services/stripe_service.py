@@ -20,7 +20,7 @@ Architecture:
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 import logging
 from types import SimpleNamespace
@@ -30,6 +30,8 @@ from urllib.parse import ParseResult, urljoin, urlparse
 from sqlalchemy.orm import Session
 import stripe
 
+from ..constants.payment_status import map_payment_status
+from ..constants.pricing_defaults import PRICING_DEFAULTS
 from ..core.config import settings
 from ..core.exceptions import ServiceException
 from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
@@ -46,7 +48,9 @@ from ..schemas.payment_schemas import (
     InstructorInvoiceSummary,
     OnboardingResponse,
     OnboardingStatusResponse,
+    PayoutHistoryResponse,
     PayoutScheduleResponse,
+    PayoutSummary,
     TransactionHistoryItem,
 )
 from .base import BaseService
@@ -66,7 +70,7 @@ class ChargeContext:
     applied_credit_cents: int
     base_price_cents: int
     student_fee_cents: int
-    instructor_commission_cents: int
+    instructor_platform_fee_cents: int
     target_instructor_payout_cents: int
     student_pay_cents: int
     application_fee_cents: int
@@ -462,8 +466,16 @@ class StripeService(BaseService):
             payload.requested_credit_cents,
         )
 
-        if payment_result["success"] and payment_result["status"] == "succeeded":
+        # With capture_method: "manual", successful authorization returns "requires_capture"
+        # We treat both "succeeded" (legacy/credits-only) and "requires_capture" as successful auth
+        if payment_result["success"] and payment_result["status"] in [
+            "succeeded",
+            "requires_capture",
+        ]:
             booking.status = "CONFIRMED"
+            # Set payment_status to reflect authorization state
+            if payment_result["status"] == "requires_capture":
+                booking.payment_status = "authorized"
             booking_service.repository.flush()
             try:
                 booking_service.invalidate_booking_cache(booking)
@@ -526,8 +538,41 @@ class StripeService(BaseService):
             except Exception:
                 return 0
 
+        def _compute_base_price_cents(hourly_rate: Any, duration_minutes: int) -> int:
+            """Calculate base lesson price from hourly rate and duration."""
+            try:
+                rate = Decimal(str(hourly_rate or 0))
+                cents_value = rate * Decimal(duration_minutes) * Decimal(100) / Decimal(60)
+                return int(cents_value.quantize(Decimal("1")))
+            except Exception:
+                return 0
+
+        def _get_instructor_tier_pct(config: Dict[str, Any], instructor_profile: Any) -> float:
+            """Get instructor's platform fee tier percentage."""
+            tiers = config.get("instructor_tiers", [])
+            default_pct = float(tiers[0].get("pct", 0.15)) if tiers else 0.15
+
+            raw_pct = getattr(instructor_profile, "current_tier_pct", None)
+            if raw_pct is None:
+                return default_pct
+            try:
+                pct_decimal = Decimal(str(raw_pct))
+                if pct_decimal > 1:
+                    pct_decimal = pct_decimal / Decimal("100")
+                return float(pct_decimal)
+            except Exception:
+                return default_pct
+
+        student_fee_pct = float(
+            pricing_config.get("student_fee_pct", PRICING_DEFAULTS["student_fee_pct"])
+        )
+        instructor_tier_pct = _get_instructor_tier_pct(pricing_config, profile)
+
         invoices: List[InstructorInvoiceSummary] = []
         total_minutes = 0
+        total_lesson_value = 0
+        total_platform_fees = 0
+        total_tips = 0
 
         for payment in instructor_payments:
             booking = payment.booking
@@ -557,6 +602,26 @@ class StripeService(BaseService):
 
             total_paid_cents = int(payment.amount or 0)
             tip_cents = _money_to_cents(summary.tip_paid if summary else None)
+            total_tips += tip_cents
+
+            # Calculate instructor-centric amounts for display
+            lesson_price_cents = _compute_base_price_cents(booking.hourly_rate, minutes)
+            platform_fee_cents = int(
+                Decimal(lesson_price_cents) * Decimal(str(instructor_tier_pct))
+            )
+            student_fee_cents_calc = int(
+                Decimal(lesson_price_cents) * Decimal(str(student_fee_pct))
+            )
+            # instructor_share_cents is the actual amount from payment records
+            instructor_share_cents = max(
+                0, int(payment.amount or 0) - int(payment.application_fee or 0)
+            )
+
+            # Aggregate totals
+            total_lesson_value += lesson_price_cents
+            total_platform_fees += platform_fee_cents
+
+            display_status = map_payment_status(payment.status)
 
             invoices.append(
                 InstructorInvoiceSummary(
@@ -568,12 +633,14 @@ class StripeService(BaseService):
                     duration_minutes=minutes or None,
                     total_paid_cents=total_paid_cents,
                     tip_cents=tip_cents,
-                    instructor_share_cents=max(
-                        0,
-                        int(payment.amount or 0) - int(payment.application_fee or 0),
-                    ),
-                    status="paid" if payment.status == "succeeded" else payment.status,
+                    instructor_share_cents=instructor_share_cents,
+                    status=display_status,
                     created_at=payment.created_at,
+                    # New instructor-centric fields
+                    lesson_price_cents=lesson_price_cents,
+                    platform_fee_cents=platform_fee_cents,
+                    platform_fee_rate=instructor_tier_pct,
+                    student_fee_cents=student_fee_cents_calc,
                 )
             )
 
@@ -589,8 +656,362 @@ class StripeService(BaseService):
             "period_start": earnings.get("period_start"),
             "period_end": earnings.get("period_end"),
             "invoices": invoices,
+            # New instructor-centric aggregate fields
+            "total_lesson_value": total_lesson_value,
+            "total_platform_fees": total_platform_fees,
+            "total_tips": total_tips,
         }
         return EarningsResponse(**response_payload)
+
+    def _build_earnings_export_rows(
+        self,
+        *,
+        instructor_id: str,
+        start_date: Optional[date],
+        end_date: Optional[date],
+    ) -> List[Dict[str, Any]]:
+        profile = self.instructor_repository.get_by_user_id(instructor_id)
+        if not profile:
+            raise ServiceException("Instructor profile not found", code="not_found")
+
+        pricing_config, _ = self.config_service.get_pricing_config()
+
+        def _compute_base_price_cents(hourly_rate: Any, duration_minutes: int) -> int:
+            """Calculate base lesson price from hourly rate and duration."""
+            try:
+                rate = Decimal(str(hourly_rate or 0))
+                cents_value = rate * Decimal(duration_minutes) * Decimal(100) / Decimal(60)
+                return int(cents_value.quantize(Decimal("1")))
+            except Exception:
+                return 0
+
+        def _get_instructor_tier_pct(config: Dict[str, Any], instructor_profile: Any) -> float:
+            """Get instructor's platform fee tier percentage."""
+            tiers = config.get("instructor_tiers", [])
+            default_pct = float(tiers[0].get("pct", 0.15)) if tiers else 0.15
+
+            raw_pct = getattr(instructor_profile, "current_tier_pct", None)
+            if raw_pct is None:
+                return default_pct
+            try:
+                pct_decimal = Decimal(str(raw_pct))
+                if pct_decimal > 1:
+                    pct_decimal = pct_decimal / Decimal("100")
+                return float(pct_decimal)
+            except Exception:
+                return default_pct
+
+        instructor_tier_pct = _get_instructor_tier_pct(pricing_config, profile)
+        earnings_rows = self.payment_repository.get_instructor_earnings_for_export(
+            instructor_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        computed_rows: List[Dict[str, Any]] = []
+        for row in earnings_rows:
+            lesson_price_cents = _compute_base_price_cents(
+                row.get("hourly_rate"), int(row.get("duration_minutes") or 0)
+            )
+            platform_fee_cents = int(
+                Decimal(lesson_price_cents) * Decimal(str(instructor_tier_pct))
+            )
+            net_earnings_cents = max(
+                0,
+                int(row.get("payment_amount_cents") or 0)
+                - int(row.get("application_fee_cents") or 0),
+            )
+            display_status = map_payment_status(row.get("status"))
+            status_label = display_status.replace("_", " ").title()
+
+            computed_rows.append(
+                {
+                    "lesson_date": row.get("lesson_date"),
+                    "student_name": row.get("student_name") or "Student",
+                    "service_name": row.get("service_name") or "Lesson",
+                    "duration_minutes": row.get("duration_minutes") or 0,
+                    "lesson_price_cents": lesson_price_cents,
+                    "platform_fee_cents": platform_fee_cents,
+                    "net_earnings_cents": net_earnings_cents,
+                    "status": status_label,
+                    "payment_id": row.get("payment_id") or "",
+                }
+            )
+
+        return computed_rows
+
+    @BaseService.measure_operation("stripe_generate_earnings_csv")
+    def generate_earnings_csv(
+        self,
+        *,
+        instructor_id: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> str:
+        """Generate CSV export for instructor earnings."""
+        import csv
+        import io
+
+        rows = self._build_earnings_export_rows(
+            instructor_id=instructor_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        output = io.StringIO(newline="")
+        writer = csv.writer(output)
+        writer.writerow(
+            [
+                "Date",
+                "Student",
+                "Service",
+                "Duration (min)",
+                "Lesson Price",
+                "Platform Fee",
+                "Net Earnings",
+                "Status",
+                "Payment ID",
+            ]
+        )
+
+        for row in rows:
+            lesson_date = row.get("lesson_date")
+            date_value = lesson_date.isoformat() if lesson_date else ""
+            writer.writerow(
+                [
+                    date_value,
+                    row.get("student_name"),
+                    row.get("service_name"),
+                    row.get("duration_minutes"),
+                    f"${row.get('lesson_price_cents', 0) / 100:.2f}",
+                    f"${row.get('platform_fee_cents', 0) / 100:.2f}",
+                    f"${row.get('net_earnings_cents', 0) / 100:.2f}",
+                    row.get("status"),
+                    row.get("payment_id"),
+                ]
+            )
+
+        return output.getvalue()
+
+    @BaseService.measure_operation("stripe_generate_earnings_pdf")
+    def generate_earnings_pdf(
+        self,
+        *,
+        instructor_id: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> bytes:
+        """Generate PDF export for instructor earnings."""
+        import io
+
+        rows = self._build_earnings_export_rows(
+            instructor_id=instructor_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        start_label = start_date.isoformat() if start_date else "N/A"
+        end_label = end_date.isoformat() if end_date else "N/A"
+
+        columns: List[Dict[str, Any]] = [
+            {"label": "Date", "width": 10, "align": "left"},
+            {"label": "Student", "width": 14, "align": "left"},
+            {"label": "Service", "width": 20, "align": "left"},
+            {"label": "Dur", "width": 5, "align": "right"},
+            {"label": "Lesson", "width": 10, "align": "right"},
+            {"label": "Fee", "width": 10, "align": "right"},
+            {"label": "Net", "width": 10, "align": "right"},
+            {"label": "Status", "width": 10, "align": "left"},
+            {"label": "Payment", "width": 10, "align": "left"},
+        ]
+
+        def _fit_cell(text: str, width: int, align: str) -> str:
+            if len(text) > width:
+                if width <= 3:
+                    text = text[:width]
+                else:
+                    text = f"{text[: width - 3]}..."
+            if align == "right":
+                return text.rjust(width)
+            return text.ljust(width)
+
+        def _format_row(values: List[str]) -> str:
+            parts: List[str] = []
+            for value, col in zip(values, columns):
+                parts.append(_fit_cell(value, col["width"], col["align"]))
+            return " ".join(parts)
+
+        header_row = _format_row([col["label"] for col in columns])
+        separator_row = "-" * len(header_row)
+        header_lines = [
+            "Earnings Report",
+            f"Range: {start_label} to {end_label}",
+            "",
+            header_row,
+            separator_row,
+        ]
+
+        body_lines: List[str] = []
+        if not rows:
+            body_lines.append("No earnings found for the selected range.")
+        else:
+            for row in rows:
+                lesson_date = row.get("lesson_date")
+                date_value = lesson_date.isoformat() if lesson_date else ""
+                body_lines.append(
+                    _format_row(
+                        [
+                            date_value,
+                            str(row.get("student_name") or ""),
+                            str(row.get("service_name") or ""),
+                            str(row.get("duration_minutes") or 0),
+                            f"${row.get('lesson_price_cents', 0) / 100:.2f}",
+                            f"${row.get('platform_fee_cents', 0) / 100:.2f}",
+                            f"${row.get('net_earnings_cents', 0) / 100:.2f}",
+                            str(row.get("status") or ""),
+                            str(row.get("payment_id") or ""),
+                        ]
+                    )
+                )
+
+        def _escape_pdf_text(value: str) -> str:
+            sanitized = value.encode("ascii", "replace").decode("ascii")
+            return (
+                sanitized.replace("\\", "\\\\")
+                .replace("(", "\\(")
+                .replace(")", "\\)")
+                .replace("\r", "")
+                .replace("\n", " ")
+            )
+
+        def _build_pdf(header: List[str], data_lines: List[str]) -> bytes:
+            page_width = 612
+            page_height = 792
+            left_margin = 40
+            top_margin = 742
+            line_height = 12
+            font_size = 9
+            usable_height = top_margin - 72
+            lines_per_page = max(1, int(usable_height / line_height))
+            header_count = len(header)
+            data_per_page = max(1, lines_per_page - header_count)
+
+            pages: List[List[str]] = []
+            if not data_lines:
+                pages = [header + [""]]
+            else:
+                for idx in range(0, len(data_lines), data_per_page):
+                    pages.append(header + data_lines[idx : idx + data_per_page])
+
+            page_obj_nums = [4 + i * 2 for i in range(len(pages))]
+            content_obj_nums = [5 + i * 2 for i in range(len(pages))]
+            kids = " ".join(f"{num} 0 R" for num in page_obj_nums)
+
+            objects: List[bytes] = []
+            objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
+            objects.append(f"<< /Type /Pages /Kids [{kids}] /Count {len(pages)} >>".encode("ascii"))
+            objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>")
+
+            for page_index, page_lines_chunk in enumerate(pages):
+                content_obj_num = content_obj_nums[page_index]
+                page_obj = (
+                    f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {page_width} {page_height}] "
+                    f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_obj_num} 0 R >>"
+                ).encode("ascii")
+                objects.append(page_obj)
+
+                content_lines = [
+                    "BT",
+                    f"/F1 {font_size} Tf",
+                    f"{left_margin} {top_margin} Td",
+                ]
+                for line_index, line in enumerate(page_lines_chunk):
+                    if line_index > 0:
+                        content_lines.append(f"0 -{line_height} Td")
+                    content_lines.append(f"({_escape_pdf_text(line)}) Tj")
+                content_lines.append("ET")
+                content_stream = "\n".join(content_lines).encode("ascii")
+                content_obj = (
+                    f"<< /Length {len(content_stream)} >>\nstream\n".encode("ascii")
+                    + content_stream
+                    + b"\nendstream"
+                )
+                objects.append(content_obj)
+
+            buffer = io.BytesIO()
+            buffer.write(b"%PDF-1.4\n")
+            offsets = [0]
+            for index, obj in enumerate(objects, start=1):
+                offsets.append(buffer.tell())
+                buffer.write(f"{index} 0 obj\n".encode("ascii"))
+                buffer.write(obj)
+                buffer.write(b"\nendobj\n")
+
+            xref_offset = buffer.tell()
+            buffer.write(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+            buffer.write(b"0000000000 65535 f \n")
+            for offset in offsets[1:]:
+                buffer.write(f"{offset:010d} 00000 n \n".encode("ascii"))
+
+            buffer.write(b"trailer\n")
+            buffer.write(f"<< /Size {len(objects) + 1} /Root 1 0 R >>\n".encode("ascii"))
+            buffer.write(b"startxref\n")
+            buffer.write(f"{xref_offset}\n".encode("ascii"))
+            buffer.write(b"%%EOF")
+            return buffer.getvalue()
+
+        return _build_pdf(header_lines, body_lines)
+
+    @BaseService.measure_operation("stripe_get_instructor_payout_history")
+    def get_instructor_payout_history(
+        self, *, user: User, limit: int = 50
+    ) -> PayoutHistoryResponse:
+        """
+        Get payout history for an instructor.
+
+        Returns recorded payout events from the instructor's Stripe connected account.
+        """
+        profile = self.instructor_repository.get_by_user_id(user.id)
+        if not profile:
+            raise ServiceException("Instructor profile not found", code="not_found")
+
+        payout_events = self.payment_repository.get_instructor_payout_history(
+            instructor_profile_id=profile.id,
+            limit=limit,
+        )
+
+        payouts: List[PayoutSummary] = []
+        total_paid_cents = 0
+        total_pending_cents = 0
+
+        for event in payout_events:
+            amount_cents = event.amount_cents or 0
+            payout_status = event.status or "unknown"
+
+            # Track totals
+            if payout_status == "paid":
+                total_paid_cents += amount_cents
+            elif payout_status in ("pending", "in_transit"):
+                total_pending_cents += amount_cents
+
+            payouts.append(
+                PayoutSummary(
+                    id=event.payout_id,
+                    amount_cents=amount_cents,
+                    status=payout_status,
+                    arrival_date=event.arrival_date,
+                    failure_code=event.failure_code,
+                    failure_message=event.failure_message,
+                    created_at=event.created_at,
+                )
+            )
+
+        return PayoutHistoryResponse(
+            payouts=payouts,
+            total_paid_cents=total_paid_cents,
+            total_pending_cents=total_pending_cents,
+            payout_count=len(payouts),
+        )
 
     @BaseService.measure_operation("stripe_get_user_transaction_history")
     def get_user_transaction_history(
@@ -794,7 +1215,7 @@ class StripeService(BaseService):
             "instructor_tier_pct": str(context.instructor_tier_pct),
             "base_price_cents": str(context.base_price_cents),
             "student_fee_cents": str(context.student_fee_cents),
-            "commission_cents": str(context.instructor_commission_cents),
+            "platform_fee_cents": str(context.instructor_platform_fee_cents),
             "applied_credit_cents": str(context.applied_credit_cents),
             "student_pay_cents": str(context.student_pay_cents),
             "application_fee_cents": str(context.application_fee_cents),
@@ -1049,7 +1470,7 @@ class StripeService(BaseService):
                 applied_credit_cents=applied_credit_cents,
                 base_price_cents=int(pricing.get("base_price_cents", 0)),
                 student_fee_cents=int(pricing.get("student_fee_cents", 0)),
-                instructor_commission_cents=int(pricing.get("instructor_commission_cents", 0)),
+                instructor_platform_fee_cents=int(pricing.get("instructor_platform_fee_cents", 0)),
                 target_instructor_payout_cents=int(
                     pricing.get("target_instructor_payout_cents", 0)
                 ),
@@ -1579,7 +2000,7 @@ class StripeService(BaseService):
                         "instructor_tier_pct": str(ctx.instructor_tier_pct),
                         "base_price_cents": str(ctx.base_price_cents),
                         "student_fee_cents": str(ctx.student_fee_cents),
-                        "commission_cents": str(ctx.instructor_commission_cents),
+                        "platform_fee_cents": str(ctx.instructor_platform_fee_cents),
                         "applied_credit_cents": str(ctx.applied_credit_cents),
                         "student_pay_cents": str(ctx.student_pay_cents),
                         "application_fee_cents": str(ctx.application_fee_cents),
@@ -1647,6 +2068,7 @@ class StripeService(BaseService):
                         "transfer_data": {"destination": destination_account_id},
                         "application_fee_amount": application_fee_cents,
                         "metadata": metadata,
+                        "capture_method": "manual",
                     }
                     if ctx is not None:
                         stripe_kwargs["transfer_group"] = f"booking:{booking_id}"
@@ -2063,6 +2485,11 @@ class StripeService(BaseService):
                     )
                 except Exception:
                     pass
+
+                # Set booking payment_intent_id and payment_status for capture task
+                booking.payment_intent_id = payment_record.stripe_payment_intent_id
+                if stripe_intent.status in {"requires_capture", "succeeded"}:
+                    booking.payment_status = "authorized"
 
                 requires_action = stripe_intent.status in [
                     "requires_action",
@@ -2594,7 +3021,24 @@ class StripeService(BaseService):
             payout_id = payout.get("id")
             amount = payout.get("amount")
             status = payout.get("status")
-            arrival_date = payout.get("arrival_date")
+            arrival_raw = payout.get("arrival_date")
+            arrival_date: Optional[datetime] = None
+            if isinstance(arrival_raw, datetime):
+                arrival_date = (
+                    arrival_raw.replace(tzinfo=timezone.utc)
+                    if arrival_raw.tzinfo is None
+                    else arrival_raw
+                )
+            elif isinstance(arrival_raw, (int, float)):
+                arrival_date = datetime.fromtimestamp(arrival_raw, tz=timezone.utc)
+            elif isinstance(arrival_raw, str):
+                try:
+                    parsed = datetime.fromisoformat(arrival_raw)
+                    arrival_date = (
+                        parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+                    )
+                except ValueError:
+                    arrival_date = None
             account_id = payout.get("destination") or payout.get("stripe_account")
 
             if event_type == "payout.created":
@@ -2614,7 +3058,7 @@ class StripeService(BaseService):
                                 payout_id=payout_id,
                                 amount_cents=amount,
                                 status=status,
-                                arrival_date=None,
+                                arrival_date=arrival_date,
                             )
                 except Exception as e:  # best-effort analytics only
                     self.logger.warning(f"Failed to persist payout.created analytics: {e}")
@@ -2636,7 +3080,7 @@ class StripeService(BaseService):
                                 payout_id=payout_id,
                                 amount_cents=amount,
                                 status=status,
-                                arrival_date=None,
+                                arrival_date=arrival_date,
                             )
                 except Exception as e:
                     self.logger.warning(f"Failed to persist payout.paid analytics: {e}")
@@ -2661,7 +3105,7 @@ class StripeService(BaseService):
                                 payout_id=payout_id,
                                 amount_cents=amount,
                                 status="failed",
-                                arrival_date=None,
+                                arrival_date=arrival_date,
                                 failure_code=failure_code,
                                 failure_message=failure_message,
                             )
@@ -2780,15 +3224,15 @@ class StripeService(BaseService):
     def _top_up_from_pi_metadata(pi: Any) -> Optional[int]:
         """Compute top-up from PaymentIntent metadata when available.
 
-        If PI metadata contains: base_price_cents, commission_cents, student_fee_cents,
+        If PI metadata contains: base_price_cents, platform_fee_cents, student_fee_cents,
         applied_credit_cents, compute deterministic top-up using the creation-time values:
 
             A = int(pi.amount)
             B = int(meta["base_price_cents"])
-            c = int(meta["commission_cents"])
+            f = int(meta["platform_fee_cents"])
             s = int(meta["student_fee_cents"])
             C = int(meta["applied_credit_cents"])
-            P = B - c
+            P = B - f
             top_up = max(0, P - A)
 
         Return top_up; return None if any value is missing/non-int.
@@ -2802,7 +3246,7 @@ class StripeService(BaseService):
 
         try:
             base_price_cents = int(str(metadata["base_price_cents"]))
-            commission_cents = int(str(metadata["commission_cents"]))
+            platform_fee_cents = int(str(metadata["platform_fee_cents"]))
             # student_fee_cents currently unused but validated for completeness
             _ = int(str(metadata["student_fee_cents"]))
             applied_credit_cents = int(str(metadata["applied_credit_cents"]))
@@ -2823,7 +3267,7 @@ class StripeService(BaseService):
         except (TypeError, ValueError):
             return None
 
-        target_instructor_payout = base_price_cents - commission_cents
+        target_instructor_payout = base_price_cents - platform_fee_cents
         top_up = target_instructor_payout - student_pay_cents
         if top_up <= 0:
             return 0

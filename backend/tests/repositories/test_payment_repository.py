@@ -220,6 +220,47 @@ class TestPaymentRepository:
         result = payment_repo.update_onboarding_status("nonexistent", True)
         assert result is None
 
+    def test_get_connected_account_by_stripe_id(
+        self, payment_repo: PaymentRepository, test_instructor: tuple
+    ):
+        """Lookup connected account by Stripe account ID."""
+        _, profile, _ = test_instructor
+        stripe_account_id = f"acct_{ulid.ULID()}"
+        created = payment_repo.create_connected_account_record(profile.id, stripe_account_id)
+
+        fetched = payment_repo.get_connected_account_by_stripe_id(stripe_account_id)
+        assert fetched is not None
+        assert fetched.id == created.id
+
+    def test_record_payout_event_and_history_ordering(
+        self, payment_repo: PaymentRepository, test_instructor: tuple, db: Session
+    ):
+        """Payout history should be returned newest-first."""
+        _, profile, _ = test_instructor
+        first = payment_repo.record_payout_event(
+            instructor_profile_id=profile.id,
+            stripe_account_id="acct_1",
+            payout_id="po_1",
+            amount_cents=1000,
+            status="pending",
+            arrival_date=None,
+        )
+        second = payment_repo.record_payout_event(
+            instructor_profile_id=profile.id,
+            stripe_account_id="acct_1",
+            payout_id="po_2",
+            amount_cents=2000,
+            status="paid",
+            arrival_date=None,
+        )
+        first.created_at = datetime.now() - timedelta(days=1)
+        second.created_at = datetime.now()
+        db.flush()
+
+        history = payment_repo.get_instructor_payout_history(profile.id, limit=10)
+        assert history
+        assert history[0].payout_id == "po_2"
+
     # ========== Payment Intent Management Tests ==========
 
     def test_create_payment_record(self, payment_repo: PaymentRepository, test_booking: Booking):
@@ -249,6 +290,10 @@ class TestPaymentRepository:
         assert updated is not None
         assert updated.status == "succeeded"
 
+    def test_update_payment_status_returns_none_when_missing(self, payment_repo: PaymentRepository) -> None:
+        """Missing payment intent should return None."""
+        assert payment_repo.update_payment_status("pi_missing", "succeeded") is None
+
     def test_get_payment_by_intent_id(self, payment_repo: PaymentRepository, test_booking: Booking):
         """Test retrieving payment by intent ID."""
         payment_intent_id = f"pi_{ulid.ULID()}"
@@ -258,6 +303,10 @@ class TestPaymentRepository:
         assert payment is not None
         assert payment.stripe_payment_intent_id == payment_intent_id
 
+    def test_get_payment_by_intent_id_missing(self, payment_repo: PaymentRepository) -> None:
+        """Missing payment intent should return None."""
+        assert payment_repo.get_payment_by_intent_id("pi_missing") is None
+
     def test_get_payment_by_booking_id(self, payment_repo: PaymentRepository, test_booking: Booking):
         """Test retrieving payment by booking ID."""
         payment_intent_id = f"pi_{ulid.ULID()}"
@@ -266,6 +315,70 @@ class TestPaymentRepository:
         payment = payment_repo.get_payment_by_booking_id(test_booking.id)
         assert payment is not None
         assert payment.booking_id == test_booking.id
+
+    def test_get_payment_by_booking_id_missing(self, payment_repo: PaymentRepository) -> None:
+        """Missing booking should return None."""
+        assert payment_repo.get_payment_by_booking_id("booking_missing") is None
+
+    def test_get_payment_intents_for_booking_orders_latest_first(
+        self, payment_repo: PaymentRepository, test_booking: Booking, db: Session
+    ):
+        """Payment intents should be returned newest-first."""
+        first = payment_repo.create_payment_record(
+            test_booking.id, f"pi_{ulid.ULID()}", 5000, 500, "succeeded"
+        )
+        second = payment_repo.create_payment_record(
+            test_booking.id, f"pi_{ulid.ULID()}", 6000, 600, "succeeded"
+        )
+
+        first.created_at = datetime.now() - timedelta(days=1)
+        second.created_at = datetime.now()
+        db.flush()
+
+        intents = payment_repo.get_payment_intents_for_booking(test_booking.id)
+        assert [intent.stripe_payment_intent_id for intent in intents[:2]] == [
+            second.stripe_payment_intent_id,
+            first.stripe_payment_intent_id,
+        ]
+
+    def test_find_payment_by_booking_and_amount_returns_latest(
+        self, payment_repo: PaymentRepository, test_booking: Booking, db: Session
+    ):
+        """Return the newest matching payment intent."""
+        older = payment_repo.create_payment_record(
+            test_booking.id, f"pi_{ulid.ULID()}", 5000, 500, "succeeded"
+        )
+        newer = payment_repo.create_payment_record(
+            test_booking.id, f"pi_{ulid.ULID()}", 5000, 500, "succeeded"
+        )
+
+        older.created_at = datetime.now() - timedelta(days=2)
+        newer.created_at = datetime.now()
+        db.flush()
+
+        match = payment_repo.find_payment_by_booking_and_amount(test_booking.id, 5000)
+        assert match is not None
+        assert match.stripe_payment_intent_id == newer.stripe_payment_intent_id
+        assert payment_repo.find_payment_by_booking_and_amount(test_booking.id, 9999) is None
+
+    def test_get_payment_by_booking_prefix_returns_latest(
+        self, payment_repo: PaymentRepository, test_booking: Booking, db: Session
+    ):
+        """Prefix lookup should return the latest matching payment intent."""
+        first = payment_repo.create_payment_record(
+            test_booking.id, f"pi_{ulid.ULID()}", 5000, 500, "succeeded"
+        )
+        second = payment_repo.create_payment_record(
+            test_booking.id, f"pi_{ulid.ULID()}", 6000, 600, "succeeded"
+        )
+        first.created_at = datetime.now() - timedelta(days=1)
+        second.created_at = datetime.now()
+        db.flush()
+
+        prefix = test_booking.id[:8]
+        result = payment_repo.get_payment_by_booking_prefix(prefix)
+        assert result is not None
+        assert result.stripe_payment_intent_id == second.stripe_payment_intent_id
 
     # ========== Payment Method Management Tests ==========
 
@@ -295,6 +408,18 @@ class TestPaymentRepository:
 
         assert method1.is_default is False
         assert method2.is_default is True
+
+    def test_save_payment_method_existing_updates_default(
+        self, payment_repo: PaymentRepository, test_user: User
+    ):
+        """Re-saving an existing method should update default flag."""
+        stripe_id = f"pm_{ulid.ULID()}"
+        existing = payment_repo.save_payment_method(test_user.id, stripe_id, "4242", "visa", is_default=False)
+
+        updated = payment_repo.save_payment_method(test_user.id, stripe_id, "4242", "visa", is_default=True)
+        payment_repo.db.refresh(existing)
+        assert updated.id == existing.id
+        assert updated.is_default is True
 
     def test_get_payment_methods_by_user(self, payment_repo: PaymentRepository, test_user: User):
         """Test retrieving all payment methods for a user."""
@@ -344,6 +469,39 @@ class TestPaymentRepository:
         # Verify it's not deleted
         methods = payment_repo.get_payment_methods_by_user(test_user.id)
         assert len(methods) == 1
+
+    def test_get_payment_method_by_stripe_id(self, payment_repo: PaymentRepository, test_user: User):
+        """Find payment method by Stripe payment method ID."""
+        stripe_id = f"pm_{ulid.ULID()}"
+        created = payment_repo.save_payment_method(test_user.id, stripe_id, "4242", "visa")
+
+        fetched = payment_repo.get_payment_method_by_stripe_id(stripe_id, test_user.id)
+        assert fetched is not None
+        assert fetched.id == created.id
+
+    def test_set_default_payment_method(self, payment_repo: PaymentRepository, test_user: User):
+        """Set default should flip previous defaults."""
+        method1 = payment_repo.save_payment_method(
+            test_user.id, f"pm_{ulid.ULID()}", "4242", "visa", is_default=True
+        )
+        method2 = payment_repo.save_payment_method(
+            test_user.id, f"pm_{ulid.ULID()}", "5555", "mastercard", is_default=False
+        )
+
+        assert payment_repo.set_default_payment_method(method2.id, test_user.id) is True
+        payment_repo.db.refresh(method1)
+        payment_repo.db.refresh(method2)
+        assert method1.is_default is False
+        assert method2.is_default is True
+
+    def test_delete_payment_method_by_stripe_id(self, payment_repo: PaymentRepository, test_user: User):
+        """Delete using Stripe payment method ID."""
+        stripe_id = f"pm_{ulid.ULID()}"
+        payment_repo.save_payment_method(test_user.id, stripe_id, "4242", "visa")
+
+        result = payment_repo.delete_payment_method(stripe_id, test_user.id)
+        assert result is True
+        assert payment_repo.get_payment_method_by_stripe_id(stripe_id, test_user.id) is None
 
     # ========== Analytics Tests ==========
 
@@ -406,6 +564,21 @@ class TestPaymentRepository:
 
         assert stats["payment_count"] == 1
 
+    def test_get_platform_revenue_stats_handles_none_result(
+        self, payment_repo: PaymentRepository, monkeypatch
+    ):
+        """Gracefully handle None query results."""
+        class FakeQuery:
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def first(self):
+                return None
+
+        monkeypatch.setattr(payment_repo.db, "query", lambda *_args, **_kwargs: FakeQuery())
+        stats = payment_repo.get_platform_revenue_stats()
+        assert stats["payment_count"] == 0
+
     def test_get_instructor_earnings(
         self, payment_repo: PaymentRepository, test_booking: Booking, test_instructor: tuple
     ):
@@ -422,6 +595,39 @@ class TestPaymentRepository:
         assert earnings["total_fees"] == 500
         assert earnings["booking_count"] == 1
         assert earnings["average_earning"] == 4500.0
+
+    def test_get_instructor_earnings_date_filters(
+        self, payment_repo: PaymentRepository, test_booking: Booking, test_instructor: tuple
+    ):
+        """Date filters should be applied when provided."""
+        payment_repo.create_payment_record(
+            test_booking.id, f"pi_{ulid.ULID()}", 5000, 500, "succeeded"
+        )
+
+        start_date = datetime.now() - timedelta(days=1)
+        end_date = datetime.now() + timedelta(days=1)
+        earnings = payment_repo.get_instructor_earnings(
+            test_booking.instructor_id, start_date=start_date, end_date=end_date
+        )
+        assert earnings["booking_count"] == 1
+
+    def test_get_instructor_earnings_handles_none_result(
+        self, payment_repo: PaymentRepository, monkeypatch
+    ):
+        """Gracefully handle None query results."""
+        class FakeQuery:
+            def join(self, *_args, **_kwargs):
+                return self
+
+            def filter(self, *_args, **_kwargs):
+                return self
+
+            def first(self):
+                return None
+
+        monkeypatch.setattr(payment_repo.db, "query", lambda *_args, **_kwargs: FakeQuery())
+        earnings = payment_repo.get_instructor_earnings("instructor-id")
+        assert earnings["booking_count"] == 0
 
     def test_get_instructor_earnings_multiple_bookings(
         self, payment_repo: PaymentRepository, test_instructor: tuple, db: Session, test_user: User
@@ -455,6 +661,148 @@ class TestPaymentRepository:
         assert earnings["total_fees"] == 1500  # 500 * 3
         assert earnings["booking_count"] == 3
         assert earnings["average_earning"] == 5500.0
+
+    def test_get_user_payment_history_filters_status_and_orders(
+        self, payment_repo: PaymentRepository, test_user: User, test_instructor: tuple, db: Session
+    ):
+        """Return only succeeded/processing payments ordered by newest first."""
+        instructor_user, _, instructor_service = test_instructor
+
+        booking_1 = create_booking_pg_safe(
+            db,
+            student_id=test_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            offset_index=1,
+        )
+        booking_2 = create_booking_pg_safe(
+            db,
+            student_id=test_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(11, 0),
+            end_time=time(12, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            offset_index=2,
+        )
+        booking_3 = create_booking_pg_safe(
+            db,
+            student_id=test_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(13, 0),
+            end_time=time(14, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            offset_index=3,
+        )
+
+        payment_1 = payment_repo.create_payment_record(
+            booking_1.id, f"pi_{ulid.ULID()}", 5000, 500, "succeeded"
+        )
+        payment_2 = payment_repo.create_payment_record(
+            booking_2.id, f"pi_{ulid.ULID()}", 6000, 600, "processing"
+        )
+        _payment_3 = payment_repo.create_payment_record(
+            booking_3.id, f"pi_{ulid.ULID()}", 7000, 700, "requires_payment_method"
+        )
+
+        payment_1.created_at = datetime.now() - timedelta(days=2)
+        payment_2.created_at = datetime.now()
+        db.flush()
+
+        history = payment_repo.get_user_payment_history(test_user.id, limit=10)
+        assert [p.stripe_payment_intent_id for p in history] == [
+            payment_2.stripe_payment_intent_id,
+            payment_1.stripe_payment_intent_id,
+        ]
+
+    def test_get_instructor_payment_history_filters_and_limits(
+        self, payment_repo: PaymentRepository, test_user: User, test_instructor: tuple, db: Session
+    ):
+        """Only succeeded payments should return, ordered newest-first."""
+        instructor_user, _, instructor_service = test_instructor
+
+        booking_1 = create_booking_pg_safe(
+            db,
+            student_id=test_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            offset_index=4,
+        )
+        booking_2 = create_booking_pg_safe(
+            db,
+            student_id=test_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(17, 0),
+            end_time=time(18, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            offset_index=5,
+        )
+        booking_3 = create_booking_pg_safe(
+            db,
+            student_id=test_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(19, 0),
+            end_time=time(20, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            offset_index=6,
+        )
+
+        older = payment_repo.create_payment_record(
+            booking_1.id, f"pi_{ulid.ULID()}", 5000, 500, "succeeded"
+        )
+        newer = payment_repo.create_payment_record(
+            booking_2.id, f"pi_{ulid.ULID()}", 6000, 600, "succeeded"
+        )
+        _processing = payment_repo.create_payment_record(
+            booking_3.id, f"pi_{ulid.ULID()}", 7000, 700, "processing"
+        )
+
+        older.created_at = datetime.now() - timedelta(days=2)
+        newer.created_at = datetime.now()
+        db.flush()
+
+        history = payment_repo.get_instructor_payment_history(instructor_user.id, limit=1)
+        assert len(history) == 1
+        assert history[0].stripe_payment_intent_id == newer.stripe_payment_intent_id
 
     # ========== Error Handling Tests ==========
 
@@ -779,6 +1127,87 @@ class TestPaymentRepository:
         )
         assert result["applied_cents"] == 0
 
+    def test_get_applied_credit_cents_for_booking_prefers_credit_used(
+        self, payment_repo: PaymentRepository, test_booking: Booking
+    ):
+        """credit_used events should take precedence over legacy credits_applied."""
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credit_used",
+            event_data={"used_cents": 200},
+        )
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credit_used",
+            event_data={"used_cents": "300"},
+        )
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credit_used",
+            event_data={"used_cents": "bad"},
+        )
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credits_applied",
+            event_data={"applied_cents": 999},
+        )
+
+        assert payment_repo.get_applied_credit_cents_for_booking(test_booking.id) == 500
+
+    def test_get_applied_credit_cents_for_booking_legacy_fallback(
+        self, payment_repo: PaymentRepository, test_booking: Booking
+    ):
+        """Legacy credits_applied should be summed when no credit_used events exist."""
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credits_applied",
+            event_data={"applied_cents": 250},
+        )
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credits_applied",
+            event_data={"applied_cents": "350"},
+        )
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credits_applied",
+            event_data={"applied_cents": "bad"},
+        )
+        assert payment_repo.get_applied_credit_cents_for_booking(test_booking.id) == 600
+
+    def test_get_credits_used_by_booking_filters_invalid(
+        self, payment_repo: PaymentRepository, test_booking: Booking
+    ):
+        """Only valid credit_used entries should be returned."""
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credit_used",
+            event_data={"credit_id": "c_1", "used_cents": 200},
+        )
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credit_used",
+            event_data={"credit_id": "c_2", "used_cents": "bad"},
+        )
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credit_used",
+            event_data={"credit_id": "c_4", "used_cents": None},
+        )
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credit_used",
+            event_data={"credit_id": None, "used_cents": 300},
+        )
+        payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="credit_used",
+            event_data={"credit_id": "c_3", "used_cents": -1},
+        )
+
+        used = payment_repo.get_credits_used_by_booking(test_booking.id)
+        assert used == [("c_1", 200)]
+
     def test_get_available_credits(self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking):
         """Test retrieving available credits for a user."""
         # Create multiple credits
@@ -832,6 +1261,39 @@ class TestPaymentRepository:
         total = payment_repo.get_total_available_credits(test_user.id)
         assert total == 5000  # 2000 + 3000
 
+    def test_get_credits_issued_for_source_and_delete(
+        self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking, db: Session
+    ):
+        """Credits for a source booking should return in created order and be deletable."""
+        credit_1 = payment_repo.create_platform_credit(
+            user_id=test_user.id,
+            amount_cents=1000,
+            reason="Source 1",
+            source_booking_id=test_booking.id,
+            expires_at=None,
+        )
+        credit_2 = payment_repo.create_platform_credit(
+            user_id=test_user.id,
+            amount_cents=2000,
+            reason="Source 2",
+            source_booking_id=test_booking.id,
+            expires_at=None,
+        )
+        credit_1.created_at = datetime.now() - timedelta(days=1)
+        credit_2.created_at = datetime.now()
+        db.flush()
+
+        issued = payment_repo.get_credits_issued_for_source(test_booking.id)
+        assert [c.id for c in issued] == [credit_1.id, credit_2.id]
+
+        payment_repo.delete_platform_credit(credit_1.id)
+        remaining = payment_repo.get_credits_issued_for_source(test_booking.id)
+        assert [c.id for c in remaining] == [credit_2.id]
+
+    def test_delete_platform_credit_noop_when_missing(self, payment_repo: PaymentRepository) -> None:
+        """Deleting a missing credit should be a no-op."""
+        payment_repo.delete_platform_credit(str(ulid.ULID()))
+
     def test_mark_credit_used(self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking):
         """Test marking a credit as used."""
         # Create credit
@@ -857,3 +1319,267 @@ class TestPaymentRepository:
         """Test marking a non-existent credit as used."""
         with pytest.raises(RepositoryException, match="not found"):
             payment_repo.mark_credit_used(str(ulid.ULID()), str(ulid.ULID()))
+
+    def test_save_payment_method_existing_no_default_change(
+        self, payment_repo: PaymentRepository, test_user: User
+    ):
+        """Re-saving an existing method without default change should keep flags intact."""
+        stripe_id = f"pm_{ulid.ULID()}"
+        created = payment_repo.save_payment_method(test_user.id, stripe_id, "4242", "visa", is_default=False)
+
+        updated = payment_repo.save_payment_method(test_user.id, stripe_id, "4242", "visa", is_default=False)
+
+        assert updated.id == created.id
+        assert updated.is_default is False
+
+    def test_get_platform_revenue_stats_end_date_filter(
+        self, payment_repo: PaymentRepository, test_booking: Booking
+    ):
+        """End date filters should be applied when provided."""
+        payment_repo.create_payment_record(
+            test_booking.id, f"pi_{ulid.ULID()}", 5000, 500, "succeeded"
+        )
+
+        end_date = datetime.now() + timedelta(days=1)
+        stats = payment_repo.get_platform_revenue_stats(end_date=end_date)
+
+        assert stats["payment_count"] == 1
+
+    def test_get_instructor_payment_history_without_limit(
+        self, payment_repo: PaymentRepository, test_user: User, test_instructor: tuple, db: Session
+    ):
+        """Limit=0 should return all matching payments."""
+        instructor_user, _, instructor_service = test_instructor
+
+        booking_1 = create_booking_pg_safe(
+            db,
+            student_id=test_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            offset_index=10,
+        )
+        booking_2 = create_booking_pg_safe(
+            db,
+            student_id=test_user.id,
+            instructor_id=instructor_user.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(11, 0),
+            end_time=time(12, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            offset_index=11,
+        )
+
+        payment_repo.create_payment_record(
+            booking_1.id, f"pi_{ulid.ULID()}", 5000, 500, "succeeded"
+        )
+        payment_repo.create_payment_record(
+            booking_2.id, f"pi_{ulid.ULID()}", 6000, 600, "succeeded"
+        )
+
+        history = payment_repo.get_instructor_payment_history(instructor_user.id, limit=0)
+        assert len(history) == 2
+
+    def test_apply_credits_for_booking_breaks_when_remaining_zero(
+        self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking
+    ):
+        """Credits beyond needed should be skipped once remaining is zero."""
+        c1 = payment_repo.create_platform_credit(user_id=test_user.id, amount_cents=1000, reason="c1", expires_at=None)
+        c2 = payment_repo.create_platform_credit(user_id=test_user.id, amount_cents=1000, reason="c2", expires_at=None)
+        c3 = payment_repo.create_platform_credit(user_id=test_user.id, amount_cents=1000, reason="c3", expires_at=None)
+
+        result = payment_repo.apply_credits_for_booking(
+            user_id=test_user.id, booking_id=test_booking.id, amount_cents=1500
+        )
+
+        assert result["applied_cents"] == 1500
+        assert set(result["used_credit_ids"]) == {c1.id, c2.id}
+
+        payment_repo.db.refresh(c3)
+        assert c3.used_at is None
+
+    def test_apply_credits_for_booking_no_available_credits(
+        self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking
+    ):
+        """No available credits should result in zero applied and no events."""
+        result = payment_repo.apply_credits_for_booking(
+            user_id=test_user.id, booking_id=test_booking.id, amount_cents=500
+        )
+
+        assert result["applied_cents"] == 0
+        assert result["used_credit_ids"] == []
+        assert result["remainder_credit_id"] is None
+
+        events = payment_repo.get_payment_events_for_booking(test_booking.id)
+        assert events == []
+
+    def test_apply_credits_for_booking_raises_repository_exception(
+        self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking, monkeypatch
+    ):
+        """Exceptions during credit application should be wrapped."""
+        def boom(*_args, **_kwargs):
+            raise Exception("boom")
+
+        monkeypatch.setattr(payment_repo, "get_available_credits", boom)
+
+        with pytest.raises(RepositoryException):
+            payment_repo.apply_credits_for_booking(
+                user_id=test_user.id, booking_id=test_booking.id, amount_cents=500
+            )
+
+    def test_create_payment_event_handles_timestamp_failure(
+        self, payment_repo: PaymentRepository, test_booking: Booking, monkeypatch
+    ):
+        """Timestamp assignment failure should not prevent event creation."""
+        from app.repositories import payment_repository as payment_repo_module
+
+        class BrokenDateTime:
+            @staticmethod
+            def now(_tz=None):
+                raise RuntimeError("boom")
+
+        monkeypatch.setattr(payment_repo_module, "datetime", BrokenDateTime)
+
+        event = payment_repo.create_payment_event(
+            booking_id=test_booking.id,
+            event_type="auth_scheduled",
+            event_data={"attempt": 1},
+        )
+
+        assert event.id is not None
+
+    def test_create_payment_event_raises_repository_exception_on_db_error(
+        self, payment_repo: PaymentRepository, test_booking: Booking, monkeypatch
+    ):
+        """Database errors should be wrapped in RepositoryException."""
+        def boom(*_args, **_kwargs):
+            raise Exception("boom")
+
+        monkeypatch.setattr(payment_repo.db, "add", boom)
+
+        with pytest.raises(RepositoryException):
+            payment_repo.create_payment_event(
+                booking_id=test_booking.id,
+                event_type="auth_failed",
+                event_data={"error": "declined"},
+            )
+
+    def test_create_connected_account_record_raises_repository_exception_on_flush(
+        self, payment_repo: PaymentRepository, monkeypatch
+    ):
+        """Flush errors should surface as RepositoryException."""
+        def boom(*_args, **_kwargs):
+            raise Exception("boom")
+
+        monkeypatch.setattr(payment_repo.db, "flush", boom)
+
+        with pytest.raises(RepositoryException):
+            payment_repo.create_connected_account_record("profile_id", "acct_test")
+
+    def test_create_payment_record_raises_repository_exception_on_flush(
+        self, payment_repo: PaymentRepository, monkeypatch
+    ):
+        """Flush errors should surface as RepositoryException."""
+        def boom(*_args, **_kwargs):
+            raise Exception("boom")
+
+        monkeypatch.setattr(payment_repo.db, "flush", boom)
+
+        with pytest.raises(RepositoryException):
+            payment_repo.create_payment_record("booking_id", "pi_test", 1000, 100, "succeeded")
+
+    def test_record_payout_event_raises_repository_exception_on_flush(
+        self, payment_repo: PaymentRepository, monkeypatch
+    ):
+        """Flush errors should surface as RepositoryException."""
+        def boom(*_args, **_kwargs):
+            raise Exception("boom")
+
+        monkeypatch.setattr(payment_repo.db, "flush", boom)
+
+        with pytest.raises(RepositoryException):
+            payment_repo.record_payout_event(
+                instructor_profile_id="profile_id",
+                stripe_account_id="acct_test",
+                payout_id="po_test",
+                amount_cents=1000,
+                status="pending",
+                arrival_date=None,
+            )
+
+    def test_create_platform_credit_raises_repository_exception_on_flush(
+        self, payment_repo: PaymentRepository, monkeypatch
+    ):
+        """Flush errors should surface as RepositoryException."""
+        def boom(*_args, **_kwargs):
+            raise Exception("boom")
+
+        monkeypatch.setattr(payment_repo.db, "flush", boom)
+
+        with pytest.raises(RepositoryException):
+            payment_repo.create_platform_credit(
+                user_id="user_id",
+                amount_cents=1000,
+                reason="test",
+                expires_at=None,
+            )
+
+    @pytest.mark.parametrize(
+        ("method_name", "args"),
+        [
+            ("get_customer_by_user_id", ("user_id",)),
+            ("get_customer_by_stripe_id", ("cus_test",)),
+            ("get_connected_account_by_instructor_id", ("profile_id",)),
+            ("update_onboarding_status", ("acct_test", True)),
+            ("update_payment_status", ("pi_test", "succeeded")),
+            ("get_payment_by_intent_id", ("pi_test",)),
+            ("get_payment_by_booking_id", ("booking_id",)),
+            ("get_payment_intents_for_booking", ("booking_id",)),
+            ("find_payment_by_booking_and_amount", ("booking_id", 1000)),
+            ("get_payment_by_booking_prefix", ("book",)),
+            ("get_instructor_payout_history", ("profile_id",)),
+            ("get_connected_account_by_stripe_id", ("acct_test",)),
+            ("save_payment_method", ("user_id", "pm_test", "4242", "visa")),
+            ("get_payment_methods_by_user", ("user_id",)),
+            ("get_default_payment_method", ("user_id",)),
+            ("get_payment_method_by_stripe_id", ("pm_test", "user_id")),
+            ("set_default_payment_method", ("pm_db_id", "user_id")),
+            ("delete_payment_method", ("pm_test", "user_id")),
+            ("get_platform_revenue_stats", ()),
+            ("get_instructor_earnings", ("instructor_id",)),
+            ("get_user_payment_history", ("user_id",)),
+            ("get_instructor_payment_history", ("instructor_id",)),
+            ("get_payment_events_for_booking", ("booking_id",)),
+            ("get_latest_payment_event", ("booking_id",)),
+            ("get_applied_credit_cents_for_booking", ("booking_id",)),
+            ("get_available_credits", ("user_id",)),
+            ("delete_platform_credit", ("credit_id",)),
+            ("get_credits_issued_for_source", ("booking_id",)),
+            ("get_credits_used_by_booking", ("booking_id",)),
+            ("get_total_available_credits", ("user_id",)),
+            ("mark_credit_used", ("credit_id", "booking_id")),
+        ],
+    )
+    def test_repository_query_errors_raise_repository_exception(
+        self, payment_repo: PaymentRepository, monkeypatch, method_name: str, args: tuple
+    ):
+        """All query failures should surface as RepositoryException."""
+        def boom(*_args, **_kwargs):
+            raise Exception("boom")
+
+        monkeypatch.setattr(payment_repo.db, "query", boom)
+
+        with pytest.raises(RepositoryException):
+            getattr(payment_repo, method_name)(*args)

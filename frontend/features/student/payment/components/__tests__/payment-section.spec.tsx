@@ -112,7 +112,7 @@ function buildPreviewResponse(creditCents = 0) {
   return {
     base_price_cents: 4500,
     student_fee_cents: 0,
-    instructor_commission_cents: 0,
+    instructor_platform_fee_cents: 0,
     credit_applied_cents: creditCents,
     student_pay_cents: Math.max(0, 4500 - creditCents),
     application_fee_cents: 0,

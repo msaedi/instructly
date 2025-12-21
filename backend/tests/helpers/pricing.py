@@ -36,8 +36,8 @@ def instructor_tier_pct(db_session, tier_index: int = 0) -> Decimal:
     return Decimal(str(pct_value))
 
 
-def instructor_commission_cents(db_session, amount_cents: int, tier_index: int = 0) -> int:
-    """Compute instructor commission cents for a base amount using tier pct."""
+def instructor_platform_fee_cents(db_session, amount_cents: int, tier_index: int = 0) -> int:
+    """Compute instructor platform fee cents for a base amount using tier pct."""
     pct = instructor_tier_pct(db_session, tier_index)
     return cents_from_pct(amount_cents, pct)
 

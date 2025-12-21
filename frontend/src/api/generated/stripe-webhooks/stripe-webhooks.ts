@@ -5,10 +5,7 @@
  * iNSTAiNSTRU - NYC's Premier Instructor Marketplace
  * OpenAPI spec version: 1.0.0
  */
-import {
-  useMutation,
-  useQuery
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
@@ -21,18 +18,13 @@ import type {
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
-  UseQueryResult
+  UseQueryResult,
 } from '@tanstack/react-query';
 
-import type {
-  WebhookResponse
-} from '../instructly.schemas';
+import type { WebhookResponse } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
-
-
-
 
 /**
  * Handle Stripe Connect account-related webhook events.
@@ -49,66 +41,81 @@ Raises:
     HTTPException: If webhook processing fails
  * @summary Handle Account Events
  */
-export const handleAccountEventsWebhooksStripeAccountEventsPost = (
+export const handleAccountEventsWebhooksStripeAccountEventsPost = (signal?: AbortSignal) => {
+  return customFetch<WebhookResponse>({
+    url: `/webhooks/stripe/account-events`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getHandleAccountEventsWebhooksStripeAccountEventsPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['handleAccountEventsWebhooksStripeAccountEventsPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>,
+    void
+  > = () => {
+    return handleAccountEventsWebhooksStripeAccountEventsPost();
+  };
 
-      return customFetch<WebhookResponse>(
-      {url: `/webhooks/stripe/account-events`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type HandleAccountEventsWebhooksStripeAccountEventsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>
+>;
 
+export type HandleAccountEventsWebhooksStripeAccountEventsPostMutationError = ErrorType<unknown>;
 
-export const getHandleAccountEventsWebhooksStripeAccountEventsPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>, TError,void, TContext> => {
-
-const mutationKey = ['handleAccountEventsWebhooksStripeAccountEventsPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>, void> = () => {
-
-
-          return  handleAccountEventsWebhooksStripeAccountEventsPost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type HandleAccountEventsWebhooksStripeAccountEventsPostMutationResult = NonNullable<Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>>
-
-    export type HandleAccountEventsWebhooksStripeAccountEventsPostMutationError = ErrorType<unknown>
-
-    /**
+/**
  * @summary Handle Account Events
  */
-export const useHandleAccountEventsWebhooksStripeAccountEventsPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useHandleAccountEventsWebhooksStripeAccountEventsPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof handleAccountEventsWebhooksStripeAccountEventsPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions =
+    getHandleAccountEventsWebhooksStripeAccountEventsPostMutationOptions(options);
 
-      const mutationOptions = getHandleAccountEventsWebhooksStripeAccountEventsPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Handle Stripe payment-related webhook events.
 
 Processes events like:
@@ -124,66 +131,81 @@ Raises:
     HTTPException: If webhook processing fails
  * @summary Handle Payment Events
  */
-export const handlePaymentEventsWebhooksStripePaymentEventsPost = (
+export const handlePaymentEventsWebhooksStripePaymentEventsPost = (signal?: AbortSignal) => {
+  return customFetch<WebhookResponse>({
+    url: `/webhooks/stripe/payment-events`,
+    method: 'POST',
+    signal,
+  });
+};
 
- signal?: AbortSignal
-) => {
+export const getHandlePaymentEventsWebhooksStripePaymentEventsPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>,
+    TError,
+    void,
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ['handlePaymentEventsWebhooksStripePaymentEventsPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
 
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>,
+    void
+  > = () => {
+    return handlePaymentEventsWebhooksStripePaymentEventsPost();
+  };
 
-      return customFetch<WebhookResponse>(
-      {url: `/webhooks/stripe/payment-events`, method: 'POST', signal
-    },
-      );
-    }
+  return { mutationFn, ...mutationOptions };
+};
 
+export type HandlePaymentEventsWebhooksStripePaymentEventsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>
+>;
 
+export type HandlePaymentEventsWebhooksStripePaymentEventsPostMutationError = ErrorType<unknown>;
 
-export const getHandlePaymentEventsWebhooksStripePaymentEventsPostMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>, TError,void, TContext> => {
-
-const mutationKey = ['handlePaymentEventsWebhooksStripePaymentEventsPost'];
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>, void> = () => {
-
-
-          return  handlePaymentEventsWebhooksStripePaymentEventsPost()
-        }
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type HandlePaymentEventsWebhooksStripePaymentEventsPostMutationResult = NonNullable<Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>>
-
-    export type HandlePaymentEventsWebhooksStripePaymentEventsPostMutationError = ErrorType<unknown>
-
-    /**
+/**
  * @summary Handle Payment Events
  */
-export const useHandlePaymentEventsWebhooksStripePaymentEventsPost = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>,
-        TError,
-        void,
-        TContext
-      > => {
+export const useHandlePaymentEventsWebhooksStripePaymentEventsPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>,
+      TError,
+      void,
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof handlePaymentEventsWebhooksStripePaymentEventsPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationOptions =
+    getHandlePaymentEventsWebhooksStripePaymentEventsPostMutationOptions(options);
 
-      const mutationOptions = getHandlePaymentEventsWebhooksStripePaymentEventsPostMutationOptions(options);
-
-      return useMutation(mutationOptions, queryClient);
-    }
-    /**
+  return useMutation(mutationOptions, queryClient);
+};
+/**
  * Test endpoint to verify webhook endpoint is accessible.
 
 This endpoint can be used to test that the webhook route is working
@@ -193,88 +215,133 @@ Returns:
     Simple success message
  * @summary Test Webhook Endpoint
  */
-export const testWebhookEndpointWebhooksStripeTestGet = (
-
- signal?: AbortSignal
-) => {
-
-
-      return customFetch<WebhookResponse>(
-      {url: `/webhooks/stripe/test`, method: 'GET', signal
-    },
-      );
-    }
-
-
-
+export const testWebhookEndpointWebhooksStripeTestGet = (signal?: AbortSignal) => {
+  return customFetch<WebhookResponse>({ url: `/webhooks/stripe/test`, method: 'GET', signal });
+};
 
 export const getTestWebhookEndpointWebhooksStripeTestGetQueryKey = () => {
-    return [
-    `/webhooks/stripe/test`
-    ] as const;
-    }
+  return [`/webhooks/stripe/test`] as const;
+};
 
+export const getTestWebhookEndpointWebhooksStripeTestGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
 
-export const getTestWebhookEndpointWebhooksStripeTestGetQueryOptions = <TData = Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError, TData>>, }
-) => {
+  const queryKey = queryOptions?.queryKey ?? getTestWebhookEndpointWebhooksStripeTestGetQueryKey();
 
-const {query: queryOptions} = options ?? {};
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>
+  > = ({ signal }) => testWebhookEndpointWebhooksStripeTestGet(signal);
 
-  const queryKey =  queryOptions?.queryKey ?? getTestWebhookEndpointWebhooksStripeTestGetQueryKey();
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
 
+export type TestWebhookEndpointWebhooksStripeTestGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>
+>;
+export type TestWebhookEndpointWebhooksStripeTestGetQueryError = ErrorType<unknown>;
 
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>> = ({ signal }) => testWebhookEndpointWebhooksStripeTestGet(signal);
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type TestWebhookEndpointWebhooksStripeTestGetQueryResult = NonNullable<Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>>
-export type TestWebhookEndpointWebhooksStripeTestGetQueryError = ErrorType<unknown>
-
-
-export function useTestWebhookEndpointWebhooksStripeTestGet<TData = Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError = ErrorType<unknown>>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError, TData>> & Pick<
+export function useTestWebhookEndpointWebhooksStripeTestGet<
+  TData = Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
           TError,
           Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useTestWebhookEndpointWebhooksStripeTestGet<TData = Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError, TData>> & Pick<
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useTestWebhookEndpointWebhooksStripeTestGet<
+  TData = Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
           TError,
           Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useTestWebhookEndpointWebhooksStripeTestGet<TData = Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useTestWebhookEndpointWebhooksStripeTestGet<
+  TData = Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Test Webhook Endpoint
  */
 
-export function useTestWebhookEndpointWebhooksStripeTestGet<TData = Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError = ErrorType<unknown>>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+export function useTestWebhookEndpointWebhooksStripeTestGet<
+  TData = Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof testWebhookEndpointWebhooksStripeTestGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getTestWebhookEndpointWebhooksStripeTestGetQueryOptions(options);
 
-  const queryOptions = getTestWebhookEndpointWebhooksStripeTestGetQueryOptions(options)
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  query.queryKey = queryOptions.queryKey ;
+  query.queryKey = queryOptions.queryKey;
 
   return query;
 }

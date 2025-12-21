@@ -78,6 +78,10 @@ export interface EarningsResponse {
   period_start?: string;
   period_end?: string;
   invoices?: InstructorInvoice[];
+  // Instructor-centric aggregate fields
+  total_lesson_value?: number;
+  total_platform_fees?: number;
+  total_tips?: number;
 }
 
 export interface InstructorInvoice {
@@ -92,6 +96,28 @@ export interface InstructorInvoice {
   instructor_share_cents: number;
   status: string;
   created_at: string;
+  // Instructor-centric clarity fields
+  lesson_price_cents: number;
+  platform_fee_cents: number;
+  platform_fee_rate: number;
+  student_fee_cents: number;
+}
+
+export interface PayoutSummary {
+  id: string;
+  amount_cents: number;
+  status: string;
+  arrival_date?: string | null;
+  failure_code?: string | null;
+  failure_message?: string | null;
+  created_at: string;
+}
+
+export interface PayoutHistoryResponse {
+  payouts: PayoutSummary[];
+  total_paid_cents: number;
+  total_pending_cents: number;
+  payout_count: number;
 }
 
 class PaymentService {
@@ -214,6 +240,16 @@ class PaymentService {
       return await this.request<EarningsResponse>('/earnings');
     } catch (error) {
       logger.error('Failed to get earnings:', error);
+      throw error;
+    }
+  }
+
+  // Payouts
+  async getPayouts(limit = 50): Promise<PayoutHistoryResponse> {
+    try {
+      return await this.request<PayoutHistoryResponse>(`/payouts?limit=${limit}`);
+    } catch (error) {
+      logger.error('Failed to get payouts:', error);
       throw error;
     }
   }

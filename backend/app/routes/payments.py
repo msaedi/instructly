@@ -26,6 +26,8 @@ from starlette.concurrency import run_in_threadpool
 import stripe
 
 from ..api.dependencies.auth import get_current_active_user
+from ..constants.payment_status import map_payment_status
+from ..constants.pricing_defaults import PRICING_DEFAULTS
 from ..core.config import settings
 from ..core.exceptions import ServiceException
 from ..database import get_db
@@ -1042,6 +1044,27 @@ async def get_instructor_earnings(
             except Exception:
                 return 0
 
+        def _compute_base_price_cents(hourly_rate: Optional[Any], duration_minutes: int) -> int:
+            """Compute lesson base price in cents from hourly rate and duration."""
+            try:
+                rate = Decimal(str(hourly_rate or 0))
+                cents_value = rate * Decimal(duration_minutes) * Decimal(100) / Decimal(60)
+                return int(cents_value.quantize(Decimal("1")))
+            except Exception:
+                return 0
+
+        def _get_instructor_tier_pct() -> float:
+            """Get instructor's platform fee tier percentage."""
+            tiers = pricing_config.get("instructor_tiers", [])
+            if tiers:
+                return float(tiers[0].get("pct", 0.15))
+            return 0.15
+
+        student_fee_pct = float(
+            pricing_config.get("student_fee_pct", PRICING_DEFAULTS["student_fee_pct"])
+        )
+        instructor_tier_pct = _get_instructor_tier_pct()
+
         invoices: List[InstructorInvoiceSummary] = []
         total_minutes = 0
 
@@ -1079,6 +1102,19 @@ async def get_instructor_earnings(
             total_paid_cents = int(payment.amount or 0)
             tip_cents = _money_to_cents(summary.tip_paid if summary else None)
 
+            # Calculate instructor-centric amounts for display
+            lesson_price_cents = _compute_base_price_cents(booking.hourly_rate, minutes)
+            platform_fee_cents = int(
+                Decimal(lesson_price_cents) * Decimal(str(instructor_tier_pct))
+            )
+            student_fee_cents_calc = int(
+                Decimal(lesson_price_cents) * Decimal(str(student_fee_pct))
+            )
+            # instructor_share_cents is the actual amount from payment records
+            instructor_share_cents = max(
+                0, int(payment.amount or 0) - int(payment.application_fee or 0)
+            )
+
             invoices.append(
                 InstructorInvoiceSummary(
                     booking_id=booking.id,
@@ -1089,12 +1125,14 @@ async def get_instructor_earnings(
                     duration_minutes=minutes or None,
                     total_paid_cents=total_paid_cents,
                     tip_cents=tip_cents,
-                    instructor_share_cents=max(
-                        0,
-                        int(payment.amount or 0) - int(payment.application_fee or 0),
-                    ),
-                    status="paid" if payment.status == "succeeded" else payment.status,
+                    instructor_share_cents=instructor_share_cents,
+                    status=map_payment_status(payment.status),
                     created_at=payment.created_at,
+                    # Instructor-centric clarity fields
+                    lesson_price_cents=lesson_price_cents,
+                    platform_fee_cents=platform_fee_cents,
+                    platform_fee_rate=instructor_tier_pct,
+                    student_fee_cents=student_fee_cents_calc,
                 )
             )
 
