@@ -228,14 +228,19 @@ class StripeService(BaseService):
             try:
                 parsed_candidate = urlparse(candidate)
                 host = (parsed_candidate.hostname or "").lower()
+                scheme = (parsed_candidate.scheme or "").lower()
                 if host in {"localhost", "127.0.0.1"}:
-                    return True
-                if host.endswith(".instainstru.com"):
                     return True
                 if host == "beta-local.instainstru.com":
                     return True
                 # Allow LAN/IP access in local dev
                 if host and all(part.isdigit() for part in host.split(".")):
+                    return True
+                if scheme != "https":
+                    return False
+                if host in {"instainstru.com", "www.instainstru.com"}:
+                    return True
+                if host.endswith(".instainstru.com"):
                     return True
             except Exception:
                 return False
