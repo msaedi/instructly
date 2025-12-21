@@ -101,10 +101,29 @@ function AvailabilityPageImpl() {
   const [activeDay, setActiveDay] = useState(0);
   const [repeatWeeks, setRepeatWeeks] = useState<number>(4);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Initialize hour range with defaults (will sync from cookie in effect)
   const [startHour, setStartHour] = useState<number>(AVAILABILITY_CONSTANTS.DEFAULT_START_HOUR);
   const [endHour, setEndHour] = useState<number>(AVAILABILITY_CONSTANTS.DEFAULT_END_HOUR);
   const [lastUpdatedLocal, setLastUpdatedLocal] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Refs to track current hour range for auto-expand logic (avoids dependency array issues)
+  const startHourRef = useRef(startHour);
+  const endHourRef = useRef(endHour);
+
+  // Cookie helper functions for hour range persistence
+  const getCookie = useCallback((name: string): string | null => {
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie.split('; ').find((c) => c.startsWith(`${name}=`));
+    return match ? decodeURIComponent(match.split('=')[1] ?? '') : null;
+  }, []);
+
+  const setCookie = useCallback((name: string, value: string, days = 365) => {
+    if (typeof document === 'undefined') return;
+    const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  }, []);
   const [conflictState, setConflictState] = useState<{ serverVersion?: string } | null>(null);
   const [isConflictRefreshing, setIsConflictRefreshing] = useState(false);
   const [isConflictOverwriting, setIsConflictOverwriting] = useState(false);
@@ -174,6 +193,66 @@ function AvailabilityPageImpl() {
     }
   }, [lastModified, version]);
 
+  // Keep refs in sync with current values
+  useEffect(() => {
+    startHourRef.current = startHour;
+    endHourRef.current = endHour;
+  }, [startHour, endHour]);
+
+  // Initialize hour range from cookies on mount
+  useEffect(() => {
+    const storedStart = getCookie('availability_start_hour');
+    const storedEnd = getCookie('availability_end_hour');
+    if (storedStart) {
+      const parsed = parseInt(storedStart, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 23) {
+        setStartHour(parsed);
+      }
+    }
+    if (storedEnd) {
+      const parsed = parseInt(storedEnd, 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 24) {
+        setEndHour(parsed);
+      }
+    }
+  }, [getCookie]);
+
+  // Persist hour range preference to cookies
+  useEffect(() => {
+    setCookie('availability_start_hour', startHour.toString());
+    setCookie('availability_end_hour', endHour.toString());
+  }, [startHour, endHour, setCookie]);
+
+  // Auto-expand hour range when availability exists outside visible window
+  useEffect(() => {
+    if (isLoading || Object.keys(weekBits).length === 0) return;
+
+    let minHourWithData = 24;
+    let maxHourWithData = 0;
+
+    for (const dayBits of Object.values(weekBits)) {
+      if (!dayBits) continue;
+      for (let slotIdx = 0; slotIdx < 48; slotIdx++) {
+        const byteIdx = Math.floor(slotIdx / 8);
+        const bitIdx = slotIdx % 8;
+        const byteVal = dayBits[byteIdx] ?? 0;
+        if ((byteVal >> bitIdx) & 1) {
+          const hour = Math.floor(slotIdx / 2);
+          minHourWithData = Math.min(minHourWithData, hour);
+          maxHourWithData = Math.max(maxHourWithData, hour + 1); // +1 because slot spans the hour
+        }
+      }
+    }
+
+    // Only expand, never contract (to preserve user's manual preference)
+    // Use refs to get current values without adding to dependency array (prevents infinite loop)
+    if (minHourWithData < 24 && minHourWithData < startHourRef.current) {
+      setStartHour(minHourWithData);
+    }
+    if (maxHourWithData > 0 && maxHourWithData > endHourRef.current) {
+      setEndHour(Math.min(maxHourWithData, 24));
+    }
+  }, [weekBits, isLoading]);
 
   function formatHour(h: number): string {
     if (h === 24) {
