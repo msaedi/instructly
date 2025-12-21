@@ -2543,6 +2543,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/payments/earnings/export": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["export_instructor_earnings_api_v1_payments_earnings_export_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/payments/identity/refresh": {
  parameters: {
  query?: never;
@@ -4720,6 +4736,11 @@ export type components = {
  DeleteWindowResponse: {
  message: string;
  window_id: string;
+ };
+ EarningsExportRequest: {
+ end_date?: string | null;
+ format: "csv";
+ start_date?: string | null;
  };
  EarningsResponse: {
  average_earning?: number | null;
@@ -11992,6 +12013,37 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["EarningsResponse"];
+ };
+ };
+ };
+ };
+ export_instructor_earnings_api_v1_payments_earnings_export_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: {
+ content: {
+ "application/json": components["schemas"]["EarningsExportRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": unknown;
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
  };
  };
  };

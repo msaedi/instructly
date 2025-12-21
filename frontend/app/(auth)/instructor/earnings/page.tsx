@@ -6,6 +6,8 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import Modal from '@/components/Modal';
 import { Download, DollarSign, Info, ArrowLeft } from 'lucide-react';
 import { SectionHeroCard } from '@/components/dashboard/SectionHeroCard';
+import { fetchWithAuth } from '@/lib/api';
+import { logger } from '@/lib/logger';
 
 import { useEmbedded } from '../_embedded/EmbeddedContext';
 import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
@@ -128,6 +130,48 @@ function EarningsPageImpl() {
   const formatStatusLabel = (value?: string) => {
     if (!value) return '—';
     return value.charAt(0).toUpperCase() + value.slice(1);
+  };
+  const handleExport = async () => {
+    if (!exportYear || sendingExport) return;
+    if (!exportType) return;
+    setSendingExport(true);
+    const startDate = `${exportYear}-01-01`;
+    const endDate = `${exportYear}-12-31`;
+    try {
+          const response = await fetchWithAuth('/api/v1/payments/earnings/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              start_date: startDate,
+              end_date: endDate,
+              format: exportType,
+            }),
+          });
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const contentDisposition = response.headers.get('content-disposition') || '';
+      const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+      const contentType = response.headers.get('content-type') || '';
+      const resolvedExt = contentType.includes('application/pdf')
+        ? 'pdf'
+        : (exportType === 'pdf' ? 'pdf' : 'csv');
+      const filename = match?.[1] ?? `earnings_${startDate}_${endDate}.${resolvedExt}`;
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setExportOpen(false);
+    } catch (error) {
+      logger.error('Export failed', error);
+    } finally {
+      setSendingExport(false);
+    }
   };
 
   return (
@@ -452,10 +496,18 @@ function EarningsPageImpl() {
           </section>
         </div>
       </Modal>
-      <Modal isOpen={exportOpen} onClose={() => setExportOpen(false)} title="Export Transactions" size="md">
-        <div className="p-2 sm:p-0">
-          <p className="text-gray-700 mb-4">Choose a time range and a file type:</p>
-          <div className="space-y-4">
+      <Modal
+        isOpen={exportOpen}
+        onClose={() => setExportOpen(false)}
+        title="Export Transactions"
+        size="md"
+        allowOverflow
+        autoHeight
+        noPadding
+      >
+        <div className="px-5 py-4">
+          <p className="text-gray-700 mb-3">Choose a time range and a file type:</p>
+          <div className="space-y-3">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Year</label>
               <SimpleDropdown
@@ -479,24 +531,13 @@ function EarningsPageImpl() {
               />
             </div>
           </div>
-          <div className="mt-6 flex justify-end">
+          <div className="mt-4 flex justify-end">
             <button
               disabled={!exportYear || !exportType || sendingExport}
-              onClick={async () => {
-                setSendingExport(true);
-                try {
-                  // TODO: Implement export endpoint (POST /api/v1/payments/earnings/export).
-                  // This should generate a CSV/PDF of earnings history.
-                  // Tracked in: future work.
-                  setTimeout(() => {}, 300);
-                  setExportOpen(false);
-                } finally {
-                  setSendingExport(false);
-                }
-              }}
+              onClick={handleExport}
               className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-[#7E22CE] text-white disabled:opacity-50"
             >
-              {sendingExport ? 'Sending…' : 'Send to my Email'}
+              {sendingExport ? 'Exporting…' : 'Download Report'}
             </button>
           </div>
         </div>

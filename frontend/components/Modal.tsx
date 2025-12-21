@@ -34,10 +34,16 @@ interface ModalProps {
   closeOnEscape?: boolean;
   /** Additional CSS classes to apply to the modal container */
   className?: string;
+  /** Additional CSS classes to apply to the modal content wrapper */
+  contentClassName?: string;
   /** Whether to apply default content padding (can be disabled for custom layouts) */
   noPadding?: boolean;
   /** Optional footer content (will be styled appropriately) */
   footer?: React.ReactNode;
+  /** Allow content to overflow the modal container */
+  allowOverflow?: boolean;
+  /** Let the modal height fit its content */
+  autoHeight?: boolean;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -51,8 +57,11 @@ const Modal: React.FC<ModalProps> = ({
   closeOnBackdrop = true,
   closeOnEscape = true,
   className = '',
+  contentClassName = '',
   noPadding = false,
   footer,
+  allowOverflow = false,
+  autoHeight = false,
 }) => {
   // Note: Radix Dialog manages focus trap, aria-hiding, and body scroll lock.
 
@@ -67,6 +76,11 @@ const Modal: React.FC<ModalProps> = ({
 
   const accessibleTitle = title ?? 'Modal';
   const accessibleDescription = description ?? 'Dialog content';
+
+  const heightClasses = autoHeight ? 'h-auto sm:h-auto' : 'h-full sm:h-[min(90vh,calc(100vh-4rem))]';
+  const containerOverflow = allowOverflow ? 'overflow-visible' : 'overflow-hidden';
+  const contentOverflow = allowOverflow ? 'overflow-visible' : 'overflow-y-auto scrollbar-hide';
+  const contentFlex = autoHeight ? 'flex-none' : 'flex-1';
 
   return (
     <Dialog.Root
@@ -99,8 +113,8 @@ const Modal: React.FC<ModalProps> = ({
           </VisuallyHidden>
           <div
             className={`
-              pointer-events-auto flex h-full sm:h-[min(90vh,calc(100vh-4rem))] w-full ${sizeClasses[size]}
-              flex-col overflow-hidden bg-white shadow-xl
+              pointer-events-auto flex ${heightClasses} w-full ${sizeClasses[size]}
+              flex-col ${containerOverflow} bg-white shadow-xl
               transform transition-all duration-200 ease-out
               relative sm:rounded-2xl dark:bg-gray-800 ${className}
             `}
@@ -142,8 +156,9 @@ const Modal: React.FC<ModalProps> = ({
             )}
             <div
               className={`
-                flex-1 overflow-y-auto scrollbar-hide
+                ${contentFlex} ${contentOverflow}
                 ${noPadding ? '' : 'p-6'}
+                ${contentClassName}
               `}
             >
               {children}

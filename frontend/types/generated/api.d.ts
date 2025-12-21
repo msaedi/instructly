@@ -3651,6 +3651,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/earnings/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Instructor Earnings
+         * @description Export instructor earnings history as CSV.
+         */
+        post: operations["export_instructor_earnings_api_v1_payments_earnings_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/identity/refresh": {
         parameters: {
             query?: never;
@@ -8187,6 +8207,29 @@ export type components = {
             message: string;
             /** Window Id */
             window_id: string;
+        };
+        /**
+         * EarningsExportRequest
+         * @description Request to export instructor earnings.
+         */
+        EarningsExportRequest: {
+            /**
+             * End Date
+             * @description End date (inclusive) for the export
+             */
+            end_date?: string | null;
+            /**
+             * Format
+             * @description Export format (csv only for now)
+             * @default csv
+             * @constant
+             */
+            format: "csv";
+            /**
+             * Start Date
+             * @description Start date (inclusive) for the export
+             */
+            start_date?: string | null;
         };
         /** EarningsResponse */
         EarningsResponse: {
@@ -20003,6 +20046,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EarningsResponse"];
+                };
+            };
+        };
+    };
+    export_instructor_earnings_api_v1_payments_earnings_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["EarningsExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

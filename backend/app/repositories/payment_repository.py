@@ -14,7 +14,7 @@ This repository handles:
 - Instructor earnings calculations
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import logging
 from typing import Any, Dict, List, Optional, Tuple, cast
 
@@ -873,6 +873,75 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         except Exception as e:
             self.logger.error(f"Failed to get instructor payment history: {str(e)}")
             raise RepositoryException(f"Failed to get instructor payment history: {str(e)}")
+
+    def get_instructor_earnings_for_export(
+        self,
+        instructor_id: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get earnings data for CSV export.
+
+        Args:
+            instructor_id: Instructor user ID
+            start_date: Optional booking start date filter
+            end_date: Optional booking end date filter
+        """
+        try:
+            query = (
+                self.db.query(PaymentIntent)
+                .join(Booking, PaymentIntent.booking_id == Booking.id)
+                .options(
+                    joinedload(PaymentIntent.booking).joinedload(Booking.student),
+                    joinedload(PaymentIntent.booking).joinedload(Booking.instructor_service),
+                )
+                .filter(
+                    PaymentIntent.status == "succeeded",
+                    Booking.instructor_id == instructor_id,
+                )
+                .order_by(Booking.booking_date.desc(), PaymentIntent.created_at.desc())
+            )
+
+            if start_date:
+                query = query.filter(Booking.booking_date >= start_date)
+            if end_date:
+                query = query.filter(Booking.booking_date <= end_date)
+
+            results: List[Dict[str, Any]] = []
+            for payment in query.all():
+                booking = payment.booking
+                if not booking:
+                    continue
+
+                student = getattr(booking, "student", None)
+                student_name = None
+                if student:
+                    last_initial = (student.last_name or "").strip()[:1]
+                    student_name = (
+                        f"{student.first_name} {last_initial}."
+                        if last_initial
+                        else student.first_name
+                    )
+
+                results.append(
+                    {
+                        "lesson_date": booking.booking_date,
+                        "student_name": student_name,
+                        "service_name": booking.service_name,
+                        "duration_minutes": booking.duration_minutes,
+                        "hourly_rate": booking.hourly_rate,
+                        "payment_amount_cents": payment.amount,
+                        "application_fee_cents": payment.application_fee,
+                        "status": payment.status,
+                        "payment_id": payment.stripe_payment_intent_id,
+                    }
+                )
+
+            return results
+        except Exception as e:
+            self.logger.error(f"Failed to get instructor earnings export data: {str(e)}")
+            raise RepositoryException(f"Failed to get instructor earnings export data: {str(e)}")
 
     # ========== Payment Events (Phase 1.1) ==========
 

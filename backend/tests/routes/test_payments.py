@@ -9,7 +9,7 @@ Comprehensive test suite verifying:
 - Webhook endpoint functionality
 """
 
-from datetime import datetime, time
+from datetime import date, datetime, time
 from typing import Dict
 from unittest.mock import AsyncMock, MagicMock, call, patch
 from urllib.parse import urljoin
@@ -60,6 +60,7 @@ class TestPaymentRoutes:
             "/api/v1/payments/connect/status",
             "/api/v1/payments/connect/dashboard",
             "/api/v1/payments/earnings",
+            "/api/v1/payments/earnings/export",
             "/api/v1/payments/payouts",
             # Student endpoints
             "/api/v1/payments/methods",
@@ -95,6 +96,7 @@ class TestPaymentRoutes:
             "/api/v1/payments/connect/status": ["GET"],
             "/api/v1/payments/connect/dashboard": ["GET"],
             "/api/v1/payments/earnings": ["GET"],
+            "/api/v1/payments/earnings/export": ["POST"],
             "/api/v1/payments/payouts": ["GET"],
             "/api/v1/payments/methods": ["GET", "POST"],
             "/api/v1/payments/checkout": ["POST"],
@@ -117,6 +119,7 @@ class TestPaymentRoutes:
             ("/api/v1/payments/connect/status", "GET"),
             ("/api/v1/payments/connect/dashboard", "GET"),
             ("/api/v1/payments/earnings", "GET"),
+            ("/api/v1/payments/earnings/export", "POST"),
             ("/api/v1/payments/payouts", "GET"),
         ]
 
@@ -1080,6 +1083,129 @@ class TestEarningsAndPayoutsEndpoints:
         )
 
         assert response.status_code == HTTP_422_STATUS
+
+
+class TestEarningsExport:
+    """Tests for earnings export endpoint."""
+
+    @patch("app.services.stripe_service.StripeService.generate_earnings_csv")
+    def test_export_returns_csv(
+        self,
+        mock_export,
+        client: TestClient,
+        auth_headers_instructor: Dict[str, str],
+    ):
+        mock_export.return_value = (
+            "Date,Student,Service,Duration (min),Lesson Price,Platform Fee,Net Earnings,Status,Payment ID\n"
+        )
+
+        response = client.post(
+            "/api/v1/payments/earnings/export",
+            headers=auth_headers_instructor,
+            json={},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers["content-type"].startswith("text/csv")
+        assert "attachment" in response.headers["content-disposition"]
+        assert response.text.startswith("Date,Student,Service")
+
+    @patch("app.services.stripe_service.StripeService.generate_earnings_pdf")
+    def test_export_returns_pdf(
+        self,
+        mock_export,
+        client: TestClient,
+        auth_headers_instructor: Dict[str, str],
+    ):
+        mock_export.return_value = b"%PDF-1.4\n%EOF"
+
+        response = client.post(
+            "/api/v1/payments/earnings/export",
+            headers=auth_headers_instructor,
+            json={"format": "pdf"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers["content-type"].startswith("application/pdf")
+        assert "attachment" in response.headers["content-disposition"]
+        assert response.content.startswith(b"%PDF-1.4")
+
+    def test_export_requires_instructor_role(
+        self, client: TestClient, auth_headers_student: Dict[str, str]
+    ):
+        response = client.post(
+            "/api/v1/payments/earnings/export",
+            headers=auth_headers_student,
+            json={},
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    @patch("app.services.stripe_service.StripeService.generate_earnings_csv")
+    def test_export_with_date_range(
+        self,
+        mock_export,
+        client: TestClient,
+        auth_headers_instructor: Dict[str, str],
+    ):
+        mock_export.return_value = "Date,Student,Service\n"
+
+        response = client.post(
+            "/api/v1/payments/earnings/export",
+            headers=auth_headers_instructor,
+            json={"start_date": "2025-01-01", "end_date": "2025-01-31"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        _, kwargs = mock_export.call_args
+        assert kwargs["start_date"] == date(2025, 1, 1)
+        assert kwargs["end_date"] == date(2025, 1, 31)
+
+    @patch("app.services.stripe_service.StripeService.generate_earnings_csv")
+    def test_export_csv_has_correct_columns(
+        self,
+        mock_export,
+        client: TestClient,
+        auth_headers_instructor: Dict[str, str],
+    ):
+        mock_export.return_value = (
+            "Date,Student,Service,Duration (min),Lesson Price,Platform Fee,Net Earnings,Status,Payment ID\n"
+        )
+
+        response = client.post(
+            "/api/v1/payments/earnings/export",
+            headers=auth_headers_instructor,
+            json={},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        first_line = response.text.split("\n")[0]
+        assert "Date" in first_line
+        assert "Student" in first_line
+        assert "Lesson Price" in first_line
+        assert "Platform Fee" in first_line
+        assert "Net Earnings" in first_line
+
+    @patch("app.services.stripe_service.StripeService.generate_earnings_csv")
+    def test_export_empty_when_no_earnings(
+        self,
+        mock_export,
+        client: TestClient,
+        auth_headers_instructor: Dict[str, str],
+    ):
+        mock_export.return_value = (
+            "Date,Student,Service,Duration (min),Lesson Price,Platform Fee,Net Earnings,Status,Payment ID\n"
+        )
+
+        response = client.post(
+            "/api/v1/payments/earnings/export",
+            headers=auth_headers_instructor,
+            json={},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        lines = response.text.strip().split("\n")
+        assert len(lines) >= 1
 
 
 class TestPaymentMethodEndpoints:

@@ -28,11 +28,13 @@ Endpoints:
 """
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, Dict, List, Optional, cast
 from urllib.parse import urljoin, urlparse
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 import stripe
@@ -52,6 +54,7 @@ from ...schemas.payment_schemas import (
     CreditBalanceResponse,
     DashboardLinkResponse,
     DeleteResponse,
+    EarningsExportRequest,
     EarningsResponse,
     IdentityRefreshResponse,
     IdentitySessionResponse,
@@ -586,6 +589,63 @@ async def get_instructor_earnings(
     return await asyncio.to_thread(
         stripe_service.get_instructor_earnings_summary,
         user=current_user,
+    )
+
+
+@router.post(
+    "/earnings/export",
+    response_model=None,
+    dependencies=[Depends(rate_limit("read"))],
+)
+async def export_instructor_earnings(
+    request: EarningsExportRequest = Body(default_factory=EarningsExportRequest),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> StreamingResponse:
+    """Export instructor earnings history as CSV."""
+    validate_instructor_role(current_user)
+
+    resolved_end = request.end_date or datetime.now(timezone.utc).date()
+    resolved_start = request.start_date or (resolved_end - timedelta(days=90))
+    if resolved_start > resolved_end:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="start_date must be on or before end_date",
+        )
+
+    export_format = request.format
+    if export_format == "pdf":
+        pdf_content = await asyncio.to_thread(
+            stripe_service.generate_earnings_pdf,
+            instructor_id=current_user.id,
+            start_date=resolved_start,
+            end_date=resolved_end,
+        )
+        filename = f"earnings_{resolved_start}_{resolved_end}.pdf"
+        return StreamingResponse(
+            iter([pdf_content]),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
+
+    csv_content = await asyncio.to_thread(
+        stripe_service.generate_earnings_csv,
+        instructor_id=current_user.id,
+        start_date=resolved_start,
+        end_date=resolved_end,
+    )
+
+    filename = f"earnings_{resolved_start}_{resolved_end}.csv"
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
     )
 
 

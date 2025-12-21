@@ -2271,6 +2271,28 @@ export interface DeleteWindowResponse {
 }
 
 /**
+ * End date (inclusive) for the export
+ */
+export type EarningsExportRequestEndDate = string | null;
+
+/**
+ * Start date (inclusive) for the export
+ */
+export type EarningsExportRequestStartDate = string | null;
+
+/**
+ * Request to export instructor earnings.
+ */
+export interface EarningsExportRequest {
+  /** End date (inclusive) for the export */
+  end_date?: EarningsExportRequestEndDate;
+  /** Export format (csv only for now) */
+  format?: 'csv';
+  /** Start date (inclusive) for the export */
+  start_date?: EarningsExportRequestStartDate;
+}
+
+/**
  * Average earning per booking
  */
 export type EarningsResponseAverageEarning = number | null;

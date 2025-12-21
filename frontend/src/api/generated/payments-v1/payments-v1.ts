@@ -27,6 +27,7 @@ import type {
   CreateCheckoutRequest,
   CreditBalanceResponse,
   DashboardLinkResponse,
+  EarningsExportRequest,
   EarningsResponse,
   GetInstructorPayoutsApiV1PaymentsPayoutsGetParams,
   GetTransactionHistoryApiV1PaymentsTransactionsGetParams,
@@ -979,6 +980,93 @@ export function useGetInstructorEarningsApiV1PaymentsEarningsGet<
   return query;
 }
 
+/**
+ * Export instructor earnings history as CSV.
+ * @summary Export Instructor Earnings
+ */
+export const exportInstructorEarningsApiV1PaymentsEarningsExportPost = (
+  earningsExportRequest: EarningsExportRequest,
+  signal?: AbortSignal
+) => {
+  return customFetch<unknown>({
+    url: `/api/v1/payments/earnings/export`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: earningsExportRequest,
+    signal,
+  });
+};
+
+export const getExportInstructorEarningsApiV1PaymentsEarningsExportPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof exportInstructorEarningsApiV1PaymentsEarningsExportPost>>,
+    TError,
+    { data: EarningsExportRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof exportInstructorEarningsApiV1PaymentsEarningsExportPost>>,
+  TError,
+  { data: EarningsExportRequest },
+  TContext
+> => {
+  const mutationKey = ['exportInstructorEarningsApiV1PaymentsEarningsExportPost'];
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof exportInstructorEarningsApiV1PaymentsEarningsExportPost>>,
+    { data: EarningsExportRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return exportInstructorEarningsApiV1PaymentsEarningsExportPost(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ExportInstructorEarningsApiV1PaymentsEarningsExportPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof exportInstructorEarningsApiV1PaymentsEarningsExportPost>>
+>;
+export type ExportInstructorEarningsApiV1PaymentsEarningsExportPostMutationBody =
+  EarningsExportRequest;
+export type ExportInstructorEarningsApiV1PaymentsEarningsExportPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Export Instructor Earnings
+ */
+export const useExportInstructorEarningsApiV1PaymentsEarningsExportPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof exportInstructorEarningsApiV1PaymentsEarningsExportPost>>,
+      TError,
+      { data: EarningsExportRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof exportInstructorEarningsApiV1PaymentsEarningsExportPost>>,
+  TError,
+  { data: EarningsExportRequest },
+  TContext
+> => {
+  const mutationOptions =
+    getExportInstructorEarningsApiV1PaymentsEarningsExportPostMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
 /**
  * Fetch latest Stripe Identity status and persist verification on success.
 

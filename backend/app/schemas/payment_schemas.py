@@ -7,7 +7,7 @@ and payment processing.
 """
 
 from datetime import date, datetime, time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,6 +41,18 @@ class CreateCheckoutRequest(StrictRequestModel):
         ge=0,
         description="Optional wallet credit amount (in cents) the student wants to apply",
     )
+
+
+class EarningsExportRequest(StrictRequestModel):
+    """Request to export instructor earnings."""
+
+    start_date: Optional[date] = Field(
+        default=None, description="Start date (inclusive) for the export"
+    )
+    end_date: Optional[date] = Field(
+        default=None, description="End date (inclusive) for the export"
+    )
+    format: Literal["csv", "pdf"] = Field(default="csv", description="Export format (csv or pdf)")
 
 
 # ========== Response Models ==========
