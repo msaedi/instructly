@@ -3,18 +3,13 @@
 import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Check as CheckIcon } from 'lucide-react';
 import { httpGet } from '@/lib/http';
-import { usePlatformFees } from '@/hooks/usePlatformConfig';
-import { formatPlatformFeeLabel } from '@/lib/pricing/platformFees';
 
 function WelcomeInner() {
   const params = useSearchParams();
   const [code, setCode] = useState('');
   const email = params.get('email') || '';
-  const { fees } = usePlatformFees();
-  const foundingLabel = formatPlatformFeeLabel(fees.founding_instructor);
-  const tier1Label = formatPlatformFeeLabel(fees.tier_1);
-  const tier2Label = formatPlatformFeeLabel(fees.tier_2);
 
   useEffect(() => {
     const rawParam = params.get('invite_code') || '';
@@ -88,38 +83,57 @@ function WelcomeInner() {
             </p>
           </div>
 
-          <div className="space-y-3 text-gray-900 dark:text-gray-100 text-left">
-            <p className="text-lg font-semibold text-gray-800 dark:text-gray-200">Founding Instructor Perks</p>
-            <ul className="space-y-3">
-              {[
-                {
-                  title: `Lifetime ${foundingLabel} Platform Fee`,
-                  detail: `Founding Instructors lock in our lowest commission rate—just ${foundingLabel}, guaranteed for life.`,
-                },
-                {
-                  title: 'Skip the Higher Tiers',
-                  detail: `Founding Instructors permanently bypass the ${tier1Label} and ${tier2Label} commission tiers.`,
-                },
-                {
-                  title: 'No Activity Requirements',
-                  detail: 'No rolling 30-day thresholds, no step-downs, and no inactivity penalties.',
-                },
-                {
-                  title: 'All Standard Benefits Included',
-                  detail: 'Instant bookings, secure Stripe payments, verified-background badge, reviews & ratings, wallet credits, and referral rewards—all included from day one.',
-                },
-              ].map((perk) => (
-                <li key={perk.title} className="flex items-start gap-2">
-                  <span className="mt-1 text-[#7E22CE]" aria-hidden="true">✓</span>
-                  <div>
-                    <p className="text-sm font-semibold">{perk.title}</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-300 leading-snug">{perk.detail}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <p className="text-xs text-gray-500">
-              Perks apply once onboarding is complete. Limited to the first 100 Founding Instructors.
+          <div className="space-y-4 text-gray-900 dark:text-gray-100 text-left">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Founding Instructor Perks</h2>
+
+            <div className="space-y-4">
+              <div className="flex gap-3">
+                <CheckIcon className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Lifetime Lowest Rate</h3>
+                  <p className="text-gray-600 text-sm">
+                    Lock in our lowest rate—permanently. Whatever the floor is, you&apos;re on it. Forever.
+                    Currently that&apos;s 8%. Standard instructors start at 15% and work their way down. You don&apos;t.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <CheckIcon className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Founding Instructor Badge</h3>
+                  <p className="text-gray-600 text-sm">
+                    A Founding Instructor badge on your profile marks you as one of the first 100.
+                    It can&apos;t be achieved later.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <CheckIcon className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Priority Visibility</h3>
+                  <p className="text-gray-600 text-sm">
+                    Higher placement in search results during our NYC launch. More visibility means
+                    more bookings while we grow together.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <CheckIcon className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-gray-900">Availability Commitment</h3>
+                  <p className="text-gray-600 text-sm">
+                    Founding Instructors commit to posting availability—10 hours per week, across 3+ days,
+                    during 8am–8pm. This ensures students always find real options when they search.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-600 italic mt-6">
+              Only 100 founding instructors will ever exist.
             </p>
           </div>
 
@@ -133,12 +147,11 @@ function WelcomeInner() {
           </div>
 
           <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-300">
-            <p className="text-xs text-gray-500">
-              Need the fine print?{' '}
-              <a className="text-[#7E22CE] hover:underline" href="/legal">
-                See perk details
+            <p className="text-sm text-gray-500">
+              Have questions? Email us at{' '}
+              <a href="mailto:hello@instainstru.com" className="text-purple-600 hover:underline">
+                hello@instainstru.com
               </a>
-              .
             </p>
           </div>
         </div>
