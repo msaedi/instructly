@@ -153,6 +153,8 @@ async def start_onboarding(
         user=current_user,
         request_host=request.headers.get("host", ""),
         request_scheme=request.url.scheme,
+        request_origin=request.headers.get("origin"),
+        request_referer=request.headers.get("referer"),
         return_to=return_to,
     )
 

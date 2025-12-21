@@ -5,8 +5,10 @@ Ensures duplicate clicks do not create duplicate Stripe account records.
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.instructor import InstructorProfile
 from app.models.payment import StripeConnectedAccount
 from app.services.config_service import ConfigService
@@ -131,3 +133,115 @@ def test_payment_setup_return_url(
 
     _, kwargs = mock_create_link.call_args
     assert kwargs["return_url"].endswith("/instructor/onboarding/payment-setup")
+
+
+@pytest.mark.parametrize(
+    ("origin", "expected_prefix"),
+    [
+        ("http://beta-local.instainstru.com:3000", "http://beta-local.instainstru.com:3000"),
+        ("http://localhost:3000", "http://localhost:3000"),
+        ("http://127.0.0.1:3000", "http://127.0.0.1:3000"),
+    ],
+)
+@patch("app.services.stripe_service.StripeService.create_account_link")
+@patch("stripe.Account.create")
+def test_return_url_uses_allowed_origin(
+    mock_account_create: MagicMock,
+    mock_create_link: MagicMock,
+    db: Session,
+    test_instructor,
+    origin: str,
+    expected_prefix: str,
+) -> None:
+    """Allowed origin should be used for Stripe return URLs."""
+    mock_account_create.return_value = MagicMock(id="acct_origin_allowed")
+    mock_create_link.return_value = "https://connect.stripe.com/setup/test"
+
+    service = StripeService(
+        db,
+        config_service=ConfigService(db),
+        pricing_service=PricingService(db),
+    )
+
+    service.start_instructor_onboarding(
+        user=test_instructor,
+        request_host="api.beta.instainstru.com",
+        request_scheme="https",
+        request_origin=origin,
+        return_to="/instructor/onboarding/payment-setup",
+    )
+
+    _, kwargs = mock_create_link.call_args
+    return_url = kwargs["return_url"]
+    assert return_url.startswith(expected_prefix)
+
+
+@patch("app.services.stripe_service.StripeService.create_account_link")
+@patch("stripe.Account.create")
+def test_return_url_falls_back_to_settings_when_no_origin(
+    mock_account_create: MagicMock,
+    mock_create_link: MagicMock,
+    db: Session,
+    test_instructor,
+    monkeypatch,
+) -> None:
+    """When no origin/referer provided, use settings.frontend_url."""
+    mock_account_create.return_value = MagicMock(id="acct_origin_fallback")
+    mock_create_link.return_value = "https://connect.stripe.com/setup/test"
+
+    monkeypatch.setattr(settings, "frontend_url", "https://frontend.example.test", raising=False)
+
+    service = StripeService(
+        db,
+        config_service=ConfigService(db),
+        pricing_service=PricingService(db),
+    )
+
+    service.start_instructor_onboarding(
+        user=test_instructor,
+        request_host="api.frontend.example.test",
+        request_scheme="https",
+        request_origin=None,
+        request_referer=None,
+        return_to="/instructor/onboarding/payment-setup",
+    )
+
+    _, kwargs = mock_create_link.call_args
+    return_url = kwargs["return_url"]
+    assert return_url.startswith("https://frontend.example.test")
+
+
+@patch("app.services.stripe_service.StripeService.create_account_link")
+@patch("stripe.Account.create")
+def test_return_url_rejects_disallowed_origin(
+    mock_account_create: MagicMock,
+    mock_create_link: MagicMock,
+    db: Session,
+    test_instructor,
+    monkeypatch,
+) -> None:
+    """Disallowed origins should not be used in return URLs."""
+    mock_account_create.return_value = MagicMock(id="acct_origin_disallowed")
+    mock_create_link.return_value = "https://connect.stripe.com/setup/test"
+
+    monkeypatch.setattr(settings, "frontend_url", "https://frontend.example.test", raising=False)
+
+    service = StripeService(
+        db,
+        config_service=ConfigService(db),
+        pricing_service=PricingService(db),
+    )
+
+    service.start_instructor_onboarding(
+        user=test_instructor,
+        request_host="api.frontend.example.test",
+        request_scheme="https",
+        request_origin="https://evil-site.com",
+        request_referer="https://evil-site.com/phishing",
+        return_to="/instructor/onboarding/payment-setup",
+    )
+
+    _, kwargs = mock_create_link.call_args
+    return_url = kwargs["return_url"]
+    assert "evil-site.com" not in return_url
+    assert return_url.startswith("https://frontend.example.test")

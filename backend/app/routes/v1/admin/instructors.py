@@ -90,7 +90,7 @@ async def founding_instructor_count(
     """Return founding instructor count and remaining capacity."""
 
     config_service = ConfigService(repo.db)
-    pricing_config, _ = await asyncio.to_thread(config_service.get_pricing_config)
+    pricing_config, _updated_at = await asyncio.to_thread(config_service.get_pricing_config)
     cap_raw = pricing_config.get("founding_instructor_cap", 100)
     try:
         cap = int(cap_raw)

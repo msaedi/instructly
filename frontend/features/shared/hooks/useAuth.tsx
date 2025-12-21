@@ -184,6 +184,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     clearGuestSession();
 
+    const nav = typeof navigator !== 'undefined'
+      ? (navigator as Navigator & { userActivation?: { isActive?: boolean; hasBeenActive?: boolean } })
+      : null;
+    const hasActivationSignal = Boolean(nav?.userActivation);
+    const userActivated = !hasActivationSignal
+      || nav?.userActivation?.isActive
+      || nav?.userActivation?.hasBeenActive;
+
+    if (!userActivated) {
+      logger.warn('Suppressing server logout without user activation');
+      if (typeof window !== 'undefined') {
+        window.location.assign('/');
+      } else {
+        router.replace('/');
+      }
+      return;
+    }
+
     // Request backend to clear cookies
     http('POST', '/api/v1/public/logout')
       .catch(() => {})

@@ -188,8 +188,43 @@ async def start_onboarding(
                 return raw.rstrip("/")
             return None
 
+        def origin_from_header(value: Optional[str]) -> Optional[str]:
+            if not value:
+                return None
+            try:
+                parsed_header = urlparse(value)
+                if parsed_header.scheme in {"http", "https"} and parsed_header.netloc:
+                    return f"{parsed_header.scheme}://{parsed_header.netloc}".rstrip("/")
+            except Exception:
+                return None
+            return None
+
+        def origin_is_allowed(candidate: Optional[str]) -> bool:
+            if not candidate:
+                return False
+            try:
+                parsed_candidate = urlparse(candidate)
+                host = (parsed_candidate.hostname or "").lower()
+                if host in {"localhost", "127.0.0.1"}:
+                    return True
+                if host.endswith(".instainstru.com"):
+                    return True
+                if host == "beta-local.instainstru.com":
+                    return True
+                if host and all(part.isdigit() for part in host.split(".")):
+                    return True
+            except Exception:
+                return False
+            return False
+
         origin: Optional[str] = None
         origin_candidates: list[str] = []
+
+        header_origin = origin_from_header(request.headers.get("origin")) or origin_from_header(
+            request.headers.get("referer")
+        )
+        if header_origin and origin_is_allowed(header_origin):
+            origin_candidates.append(header_origin)
 
         if configured_frontend:
             origin_candidates.append(configured_frontend)
