@@ -6,7 +6,7 @@ from app.main import fastapi_app as app
 
 def test_health_headers_present():
     client = TestClient(app)
-    r = client.get("/health")
+    r = client.get("/api/v1/health")
     assert r.status_code == 200
     # Headers should exist even if values are defaults
     assert "x-site-mode" in r.headers

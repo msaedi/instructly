@@ -15,24 +15,24 @@ from fastapi.responses import PlainTextResponse
 import psutil
 from sqlalchemy.orm import Session
 
-from ..api.dependencies.authz import require_roles
-from ..api.dependencies.services import (
+from app.api.dependencies.authz import require_roles
+from app.api.dependencies.services import (
     get_auth_service,
     get_availability_service,
     get_booking_service,
     get_cache_service_dep,
     get_conflict_checker,
 )
-from ..auth import get_current_user_optional as auth_get_current_user_optional
-from ..core.config import settings
-from ..database import get_db, get_db_pool_status
-from ..metrics import retention_metrics
-from ..middleware import rate_limiter as rate_limiter_module
-from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ..models.user import User
-from ..repositories.metrics_repository import MetricsRepository
-from ..schemas.base_responses import HealthCheckResponse, SuccessResponse
-from ..schemas.monitoring_responses import (
+from app.auth import get_current_user_optional as auth_get_current_user_optional
+from app.core.config import settings
+from app.database import get_db, get_db_pool_status
+from app.metrics import retention_metrics
+from app.middleware import rate_limiter as rate_limiter_module
+from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
+from app.models.user import User
+from app.repositories.metrics_repository import MetricsRepository
+from app.schemas.base_responses import HealthCheckResponse, SuccessResponse
+from app.schemas.monitoring_responses import (
     AvailabilityCacheMetricsResponse,
     CacheMetricsResponse,
     PerformanceMetricsResponse,
@@ -41,12 +41,11 @@ from ..schemas.monitoring_responses import (
     RateLimitTestResponse,
     SlowQueriesResponse,
 )
-from ..services.auth_service import AuthService
-from ..services.cache_service import CacheService
+from app.services.auth_service import AuthService
+from app.services.cache_service import CacheService
 
-router = APIRouter(prefix="/ops", tags=["monitoring"])
+router = APIRouter(tags=["monitoring"])
 metrics_lite_router = APIRouter(
-    prefix="/ops",
     tags=["ops-internal"],
     dependencies=[Depends(require_roles("admin"))],
 )

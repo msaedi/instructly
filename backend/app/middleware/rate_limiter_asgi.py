@@ -106,7 +106,7 @@ class RateLimitMiddlewareASGI:
 
         # Skip rate limiting for health checks and SSE endpoints
         # SSE connections are long-lived and should never be rate-limited
-        if path == "/health" or path.startswith(SSE_PATH_PREFIX):
+        if path == "/api/v1/health" or path.startswith(SSE_PATH_PREFIX):
             await self.app(scope, receive, send)
             return
 
@@ -155,7 +155,7 @@ class RateLimitMiddlewareASGI:
                 await self.app(scope, receive, send)
                 return
 
-        if path == "/internal/metrics":
+        if path == "/api/v1/internal/metrics":
             metrics_limit = getattr(settings, "metrics_rate_limit_per_min", 6)
             if metrics_limit > 0:
                 allowed_metrics, _, retry_after_metrics = await self.rate_limiter.check_rate_limit(

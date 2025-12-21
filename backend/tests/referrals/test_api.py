@@ -67,7 +67,7 @@ def test_referral_redirect_records_click(db, client, referral_service):
     code.vanity_slug = "p-slope"
     db.commit()
 
-    response = client.get(f"/r/{code.vanity_slug}", follow_redirects=False)
+    response = client.get(f"/api/v1/r/{code.vanity_slug}", follow_redirects=False)
 
     assert response.status_code == status.HTTP_302_FOUND
     expected_url = _normalize_referral_landing_url(settings.frontend_referral_landing_url)
@@ -82,7 +82,7 @@ def test_referral_redirect_json_mode(db, client, referral_service):
     referrer = _create_user(db, "referrer_json@example.com")
     code = referral_service.issue_code(referrer_user_id=referrer.id)
 
-    response = client.get(f"/r/{code.code}", headers={"accept": "application/json"}, follow_redirects=False)
+    response = client.get(f"/api/v1/r/{code.code}", headers={"accept": "application/json"}, follow_redirects=False)
 
     assert response.status_code == status.HTTP_200_OK
     payload = response.json()
@@ -134,7 +134,7 @@ def test_slug_redirects_to_referral_landing_html(db, client, referral_service, m
         "https://preview.instainstru.com/referrals/",
     )
 
-    response = client.get(f"/r/{code.code}", follow_redirects=False)
+    response = client.get(f"/api/v1/r/{code.code}", follow_redirects=False)
 
     assert response.status_code == status.HTTP_302_FOUND
     assert response.headers["location"] == "https://preview.instainstru.com/referral"
@@ -152,7 +152,7 @@ def test_slug_redirects_to_referral_landing_json(db, client, referral_service, m
     )
 
     response = client.get(
-        f"/r/{code.code}",
+        f"/api/v1/r/{code.code}",
         headers={"accept": "application/json"},
         follow_redirects=False,
     )

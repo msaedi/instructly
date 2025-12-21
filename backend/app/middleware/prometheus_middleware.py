@@ -35,8 +35,8 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
         # Skip metrics collection for the metrics endpoint itself and SSE endpoints
         # SSE endpoints need direct passthrough to avoid interference with streaming
         if request.url.path in {
-            "/metrics/prometheus",
-            "/internal/metrics",
+            "/api/v1/metrics/prometheus",
+            "/api/v1/internal/metrics",
         } or request.url.path.startswith(SSE_PATH_PREFIX):
             return await call_next(request)
 

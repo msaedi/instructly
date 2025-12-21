@@ -247,7 +247,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Apply rate limiting to incoming requests."""
 
         # Skip rate limiting for health checks
-        if request.url.path == "/health":
+        if request.url.path == "/api/v1/health":
             return await call_next(request)
 
         # Get client identifier (IP address)

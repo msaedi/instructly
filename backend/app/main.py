@@ -84,18 +84,10 @@ from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY, prometheus
 from .ratelimit.identity import resolve_identity
 from .repositories.background_job_repository import BackgroundJobRepository
 from .repositories.instructor_profile_repository import InstructorProfileRepository
-from .routes import (
-    alerts,
-    gated,
-    internal,
-    metrics,
-    monitoring,
-    prometheus,
-    ready,
-)
 from .routes.v1 import (
     account as account_v1,
     addresses as addresses_v1,
+    alerts as alerts_v1,
     analytics as analytics_v1,
     auth as auth_v1,
     availability_windows as availability_windows_v1,
@@ -106,15 +98,22 @@ from .routes.v1 import (
     conversations as conversations_v1,
     database_monitor as database_monitor_v1,
     favorites as favorites_v1,
+    gated as gated_v1,
+    health as health_v1,
     instructor_bgc as instructor_bgc_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
+    internal as internal_v1,
     messages as messages_v1,
+    metrics as metrics_v1,
+    monitoring as monitoring_v1,
     password_reset as password_reset_v1,
     payments as payments_v1,
     pricing as pricing_v1,
     privacy as privacy_v1,
+    prometheus as prometheus_v1,
     public as public_v1,
+    ready as ready_v1,
     redis_monitor as redis_monitor_v1,
     referrals as referrals_v1,
     reviews as reviews_v1,
@@ -138,7 +137,7 @@ from .routes.v1.admin import (
     location_learning as admin_location_learning_v1,
     search_config as admin_search_config_v1,
 )
-from .schemas.main_responses import HealthLiteResponse, HealthResponse, RootResponse
+from .schemas.main_responses import RootResponse
 from .services.background_check_workflow_service import (
     FINAL_ADVERSE_JOB_TYPE,
     BackgroundCheckWorkflowService,
@@ -175,8 +174,6 @@ except Exception:  # pragma: no cover
 _METRICS_CACHE_TTL_SECONDS = 1.0
 _metrics_cache: Optional[Tuple[float, bytes]] = None
 _metrics_cache_lock = threading.Lock()
-
-metrics_router = APIRouter()
 
 
 def _metrics_auth_failure(reason: str) -> None:
@@ -334,7 +331,7 @@ async def app_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         with contextlib.suppress(Exception):
             transport = httpx.ASGITransport(app=app)
             async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-                await client.get("/health")
+                await client.get("/api/v1/health")
 
     # Log database selection (this will show which database is being used)
     from .core.database_config import DatabaseConfig
@@ -995,7 +992,7 @@ class SSEAwareGZipMiddleware(GZipMiddleware):
         # Skip compression for SSE endpoints
         path = scope.get("path", "")
         if scope["type"] == "http" and (
-            path.startswith(SSE_PATH_PREFIX) or path == "/internal/metrics"
+            path.startswith(SSE_PATH_PREFIX) or path == "/api/v1/internal/metrics"
         ):
             await self.app(scope, receive, send)
         else:
@@ -1058,13 +1055,11 @@ api_v1.include_router(beta_v1.router, prefix="/beta")  # type: ignore[attr-defin
 
 # Include routers
 PUBLIC_OPEN_PATHS = {
-    "/",
-    "/health",
-    "/ready",
-    # Legacy auth paths - DEPRECATED, use /api/v1/auth instead
-    # "/auth/login",
-    # "/auth/login-with-session",
-    # "/auth/register",
+    "/",  # Root endpoint (brand info)
+    # v1 health endpoints
+    "/api/v1/health",
+    "/api/v1/health/lite",
+    "/api/v1/ready",
     # v1 auth paths
     "/api/v1/auth/login",
     "/api/v1/auth/login-with-session",
@@ -1075,14 +1070,13 @@ PUBLIC_OPEN_PATHS = {
     "/api/v1/referrals/claim",
     # v1 payments webhook (signature-verified, no auth needed)
     "/api/v1/payments/webhooks/stripe",
+    # v1 prometheus metrics (public, no auth per Prometheus best practices)
+    "/api/v1/metrics/prometheus",
 }
 
 PUBLIC_OPEN_PREFIXES = (
-    # Legacy public paths - DEPRECATED, use /api/v1/public instead
-    # "/api/public",
-    # "/api/config",
     "/api/v1/password-reset/verify",  # v1 password reset token verification
-    "/r/",
+    "/api/v1/r/",  # Referral short URLs
     "/api/v1/instructors",  # v1 instructors endpoints are public (some require auth via dependency)
     "/api/v1/services",  # v1 services endpoints are public (catalog browsing)
     "/api/v1/search",  # v1 search endpoints are public (require_beta_phase_access via dependency)
@@ -1102,7 +1096,105 @@ public_guard_dependency = public_guard(
 )
 
 
-# Mount API v1 first
+# Infrastructure routes - now under /api/v1/*
+api_v1.include_router(health_v1.router, prefix="/health")  # type: ignore[attr-defined]
+api_v1.include_router(ready_v1.router, prefix="/ready")  # type: ignore[attr-defined]
+api_v1.include_router(prometheus_v1.router, prefix="/metrics")  # type: ignore[attr-defined]
+api_v1.include_router(gated_v1.router, prefix="/gated")  # type: ignore[attr-defined]
+api_v1.include_router(metrics_v1.router, prefix="/ops")  # type: ignore[attr-defined]
+if os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}:
+    api_v1.include_router(metrics_v1.metrics_lite_router, prefix="/ops", include_in_schema=False)  # type: ignore[attr-defined]
+api_v1.include_router(monitoring_v1.router, prefix="/monitoring")  # type: ignore[attr-defined]
+api_v1.include_router(alerts_v1.router, prefix="/monitoring/alerts")  # type: ignore[attr-defined]
+api_v1.include_router(internal_v1.router, prefix="/internal")  # type: ignore[attr-defined]
+
+# Internal metrics router - now serves under /api/v1/internal/metrics
+internal_metrics_router = APIRouter(tags=["internal"])
+
+
+@internal_metrics_router.get("/metrics", include_in_schema=False)
+def internal_metrics_endpoint(
+    request: Request, _: None = Depends(_check_metrics_basic_auth)
+) -> Response:
+    from app.core.config import settings as metrics_settings
+
+    allowlist = metrics_settings.metrics_ip_allowlist
+    if allowlist:
+        client_ip = _extract_metrics_client_ip(request)
+        if not _ip_allowed(client_ip, allowlist):
+            _metrics_auth_failure("forbidden")
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    global _metrics_cache
+    now = monotonic()
+    payload: Optional[bytes] = None
+
+    with _metrics_cache_lock:
+        if _metrics_cache is not None:
+            cached_at, cached_payload = _metrics_cache
+            if now - cached_at <= _METRICS_CACHE_TTL_SECONDS:
+                payload = cached_payload
+
+    if payload is None:
+        fresh = cast(bytes, generate_latest(PROM_REGISTRY))
+        if len(fresh) > metrics_settings.metrics_max_bytes:
+            return Response(
+                content=b"metrics payload exceeds configured limit",
+                status_code=HTTP_503_SERVICE_UNAVAILABLE,
+                media_type="text/plain; charset=utf-8",
+                headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+            )
+        with _metrics_cache_lock:
+            _metrics_cache = (now, fresh)
+        payload = fresh
+
+    return Response(
+        content=payload,
+        media_type=CONTENT_TYPE_LATEST,
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
+
+
+@internal_metrics_router.head("/metrics", include_in_schema=False)
+def internal_metrics_head() -> None:
+    _metrics_method_not_allowed()
+
+
+@internal_metrics_router.post("/metrics", include_in_schema=False)
+def internal_metrics_post() -> None:
+    _metrics_method_not_allowed()
+
+
+@internal_metrics_router.put("/metrics", include_in_schema=False)
+def internal_metrics_put() -> None:
+    _metrics_method_not_allowed()
+
+
+@internal_metrics_router.patch("/metrics", include_in_schema=False)
+def internal_metrics_patch() -> None:
+    _metrics_method_not_allowed()
+
+
+@internal_metrics_router.delete("/metrics", include_in_schema=False)
+def internal_metrics_delete() -> None:
+    _metrics_method_not_allowed()
+
+
+@internal_metrics_router.options("/metrics", include_in_schema=False)
+def internal_metrics_options() -> None:
+    _metrics_method_not_allowed()
+
+
+# Register internal metrics under /api/v1/internal
+api_v1.include_router(internal_metrics_router, prefix="/internal")
+
+# Referral short URLs - now under /api/v1/r/{slug}
+api_v1.include_router(referrals_v1.public_router, prefix="/r")  # type: ignore[attr-defined]
+
+# Referral admin - /api/v1/admin/referrals
+api_v1.include_router(referrals_v1.admin_router, prefix="/admin/referrals")  # type: ignore[attr-defined]
+
+# Mount API v1
 app.include_router(api_v1)
 
 # Legacy auth routes - DEPRECATED, use /api/v1/auth instead
@@ -1135,74 +1227,11 @@ app.include_router(api_v1)
 # app.include_router(pricing_preview.router, dependencies=[Depends(public_guard_dependency)])
 # app.include_router(pricing_config_public.router, dependencies=[Depends(public_guard_dependency)])
 # =============================================================================
-# INTENTIONALLY UNVERSIONED ROUTES
+# ALL ROUTES NOW UNDER /api/v1/*
 # =============================================================================
-# These routes are NOT versioned because:
-# 1. External services depend on fixed paths (health checks, webhooks, metrics)
-# 2. They are internal admin/ops routes not part of the public API contract
-# 3. They require special authentication (API keys, HMAC, permissions)
-#
-# DO NOT change these paths without updating dependent external service configs.
-# For full documentation, see: docs/architecture/unversioned-routes.md
+# Phase 2 migration complete - all infrastructure routes are now versioned.
+# See previous git history for the old unversioned route structure.
 # =============================================================================
-
-# -----------------------------------------------------------------------------
-# INFRASTRUCTURE ROUTES - External Dependencies
-# These endpoints have fixed paths that external services depend on.
-# Changing them would break load balancers, Kubernetes, and Prometheus.
-# -----------------------------------------------------------------------------
-
-# Readiness probe - Kubernetes depends on /ready for pod readiness checks
-app.include_router(ready.router)
-
-# Prometheus metrics - Standard /metrics/prometheus path for Prometheus scraping
-# This is a PUBLIC endpoint (no auth) following Prometheus best practices
-app.include_router(prometheus.router)
-
-# Gated probe - CI smoke tests depend on /v1/gated/ping (already v1 versioned)
-app.include_router(gated.router)
-
-# -----------------------------------------------------------------------------
-# ADMIN OPS/MONITORING ROUTES - Internal Admin Dashboard
-# These endpoints serve the internal admin dashboard and ops tools.
-# They require admin permissions, API keys, or HMAC signatures.
-# Not part of the public API contract - used by internal tools only.
-# -----------------------------------------------------------------------------
-
-# Performance metrics - /ops/* - Admin-only internal ops metrics
-app.include_router(metrics.router)
-if os.getenv("AVAILABILITY_PERF_DEBUG", "0").lower() in {"1", "true", "yes"}:
-    app.include_router(metrics.metrics_lite_router, include_in_schema=False)
-
-# Monitoring dashboard - /api/monitoring/* - API key protected
-app.include_router(monitoring.router)
-
-# Alert management - /api/monitoring/alerts/* - API key protected
-app.include_router(alerts.router)
-
-# Internal config reload - /internal/* - HMAC signature protected
-# Used for hot-reloading rate limiter config without deployment
-app.include_router(internal.router)
-
-# -----------------------------------------------------------------------------
-# MIGRATED TO v1 (Phase 24.5)
-# These routes are now served from /api/v1/* paths:
-# - Admin analytics: /api/v1/analytics/* (was /api/analytics/*)
-# - Codebase metrics: /api/v1/analytics/codebase/* (was /api/analytics/codebase/*)
-# - Redis monitoring: /api/v1/redis/* (was /api/redis/*)
-# - Database monitoring: /api/v1/database/* (was /api/database/*)
-# - Beta management: /api/v1/beta/* (was /api/beta/*)
-# -----------------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# REFERRALS - Special Short URL + Admin Routes
-# -----------------------------------------------------------------------------
-
-# Referral short URLs - /r/{slug} - Not versioned (short URL redirects)
-app.include_router(referrals_v1.public_router, dependencies=[Depends(public_guard_dependency)])
-
-# Referral admin - /api/v1/admin/referrals - Already v1 versioned
-app.include_router(referrals_v1.admin_router, prefix="/api/v1/admin/referrals")
 
 # =============================================================================
 # DEPRECATED LEGACY ROUTES - Commented out, use v1 equivalents
@@ -1264,141 +1293,7 @@ def read_root() -> RootResponse:
     )
 
 
-def _apply_health_headers(response: Response) -> None:
-    import os as _os
-
-    site_mode = _os.getenv("SITE_MODE", "").lower().strip() or "unset"
-    response.headers["X-Site-Mode"] = site_mode
-    response.headers["X-Phase"] = _os.getenv("BETA_PHASE", "beta")
-    response.headers["X-Commit-Sha"] = _os.getenv("COMMIT_SHA", "dev")
-    try:
-        if site_mode == "local" and bool(getattr(settings, "is_testing", False)):
-            response.headers["X-Testing"] = "1"
-    except Exception:
-        pass
-
-
-def _health_payload() -> HealthResponse:
-    return HealthResponse(
-        status="healthy",
-        service=f"{BRAND_NAME.lower()}-api",
-        version=API_VERSION,
-        environment=settings.environment,
-        timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-    )
-
-
-@app.get("/health", response_model=HealthResponse, include_in_schema=False)
-def health_check(response: Response) -> HealthResponse:
-    _apply_health_headers(response)
-    return _health_payload()
-
-
-@app.get("/api/health", response_model=HealthResponse)
-def api_health(response: Response) -> HealthResponse:
-    _apply_health_headers(response)
-    return _health_payload()
-
-
-@app.get("/health/lite", response_model=HealthLiteResponse)
-def health_check_lite() -> HealthLiteResponse:
-    """Lightweight health check that doesn't hit database"""
-    return HealthLiteResponse(status="ok")
-
-
-@metrics_router.get("/internal/metrics", include_in_schema=False)
-def internal_metrics_endpoint(
-    request: Request, _: None = Depends(_check_metrics_basic_auth)
-) -> Response:
-    from app.core.config import settings as metrics_settings
-
-    allowlist = metrics_settings.metrics_ip_allowlist
-    if allowlist:
-        client_ip = _extract_metrics_client_ip(request)
-        if not _ip_allowed(client_ip, allowlist):
-            _metrics_auth_failure("forbidden")
-            raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="Forbidden")
-
-    global _metrics_cache
-    now = monotonic()
-    payload: Optional[bytes] = None
-
-    with _metrics_cache_lock:
-        if _metrics_cache is not None:
-            cached_at, cached_payload = _metrics_cache
-            if now - cached_at <= _METRICS_CACHE_TTL_SECONDS:
-                payload = cached_payload
-
-    if payload is None:
-        fresh = cast(bytes, generate_latest(PROM_REGISTRY))
-        if len(fresh) > metrics_settings.metrics_max_bytes:
-            return Response(
-                content=b"metrics payload exceeds configured limit",
-                status_code=HTTP_503_SERVICE_UNAVAILABLE,
-                media_type="text/plain; charset=utf-8",
-                headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
-            )
-        with _metrics_cache_lock:
-            _metrics_cache = (now, fresh)
-        payload = fresh
-
-    return Response(
-        content=payload,
-        media_type=CONTENT_TYPE_LATEST,
-        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
-    )
-
-
-@metrics_router.head("/internal/metrics", include_in_schema=False)
-def internal_metrics_head() -> None:
-    _metrics_method_not_allowed()
-
-
-@metrics_router.post("/internal/metrics", include_in_schema=False)
-def internal_metrics_post() -> None:
-    _metrics_method_not_allowed()
-
-
-@metrics_router.put("/internal/metrics", include_in_schema=False)
-def internal_metrics_put() -> None:
-    _metrics_method_not_allowed()
-
-
-@metrics_router.patch("/internal/metrics", include_in_schema=False)
-def internal_metrics_patch() -> None:
-    _metrics_method_not_allowed()
-
-
-@metrics_router.delete("/internal/metrics", include_in_schema=False)
-def internal_metrics_delete() -> None:
-    _metrics_method_not_allowed()
-
-
-@metrics_router.options("/internal/metrics", include_in_schema=False)
-def internal_metrics_options() -> None:
-    _metrics_method_not_allowed()
-
-
-@metrics_router.get("/metrics", include_in_schema=False)
-def deprecated_metrics_endpoint() -> None:
-    raise HTTPException(status_code=404)
-
-
-@metrics_router.head("/metrics", include_in_schema=False)
-def deprecated_metrics_head() -> None:
-    raise HTTPException(status_code=404)
-
-
-@metrics_router.api_route(
-    "/metrics/{rest:path}",
-    methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    include_in_schema=False,
-)
-def metrics_legacy_catch_all(rest: str) -> None:
-    raise HTTPException(status_code=404)
-
-
-app.include_router(metrics_router)
+# Health endpoints moved to v1/health.py - available at /api/v1/health and /api/v1/health/lite
 
 
 # Keep the original FastAPI app for tools/tests that need access to routes
@@ -1411,7 +1306,7 @@ def _prewarm_metrics_cache() -> None:
     prometheus_metrics.prewarm()
 
     try:
-        from .routes.prometheus import warm_prometheus_metrics_response_cache
+        from .routes.v1.prometheus import warm_prometheus_metrics_response_cache
 
         warm_prometheus_metrics_response_cache()
     except Exception:

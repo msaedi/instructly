@@ -1,11 +1,7 @@
-# Infrastructure routes (intentionally unversioned)
-# All application routes are in v1/
-from . import (
-    alerts as alerts,
-    gated as gated,
-    internal as internal,
-    metrics as metrics,
-    monitoring as monitoring,
-    prometheus as prometheus,
-    ready as ready,
-)
+# backend/app/routes/__init__.py
+"""
+Routes Package
+
+All API routes are now under v1/ for versioned API endpoints.
+See app/routes/v1/__init__.py for the complete list of routes.
+"""

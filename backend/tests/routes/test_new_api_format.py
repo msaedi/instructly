@@ -428,7 +428,7 @@ def test_debug_database_connections(client, db, auth_headers_student):
     session.close()
 
     # Make a simple API call
-    response = client.get("/health")
+    response = client.get("/api/v1/health")
     print(f"Health check response: {response.status_code}")
 
     # Try to get current user

@@ -40,57 +40,14 @@ def _is_excluded_path(path: str) -> bool:
     Excluded paths:
     - Root path "/"
     - Documentation paths (/docs, /redoc, /openapi.json)
-    - Health check paths (/health, /ready, /api/health)
-    - Internal monitoring (/internal/*, /metrics/*)
-    - Legacy non-JSON endpoints (to be migrated later)
+
+    NOTE: All routes have been migrated to /api/v1/* as of Phase 2 infrastructure migration.
+    The only non-v1 routes should be documentation paths and the root path.
     """
     excluded_prefixes = (
         "/docs",
         "/redoc",
         "/openapi",
-        "/health",
-        "/ready",
-        "/internal/",
-        "/metrics/",
-        "/prometheus/",
-        # Legacy paths - will be migrated in later phases
-        # "/auth/",  # Phase 17: Auth migrated to /api/v1/auth
-        # "/api/auth/",  # Phase 17: Auth migrated to /api/v1/auth
-        # "/api/public/",  # Phase 18: Public migrated to /api/v1/public
-        # "/api/config/",  # Phase 18: Config migrated to /api/v1/config
-        # "/api/search/",  # Phase 14: Search migrated to /api/v1/search
-        # "/api/search-history/",  # Phase 14: Search history migrated to /api/v1/search-history
-        # "/api/analytics/",  # Phase 24.5: Analytics migrated to /api/v1/analytics
-        # "/api/privacy/",  # Phase 18: Privacy migrated to /api/v1/privacy
-        # "/api/payments/",  # Phase 17: Payments migrated to /api/v1/payments
-        # "/api/favorites/",  # Phase 13: Favorites migrated to /api/v1/favorites
-        # "/api/messages/",  # Phase 10: Messages migrated to /api/v1/messages
-        # "/api/uploads/",  # Phase 18: Uploads migrated to /api/v1/uploads
-        "/api/reviews/",
-        # "/api/webhooks/",  # Phase 23: Webhooks migrated to /api/v1/webhooks
-        # "/api/admin/",  # Phase 19: Admin migrated to /api/v1/admin
-        # "/api/referrals/",  # Phase 15: Referrals migrated to /api/v1/referrals
-        # "/api/account/",  # Phase 15: Account migrated to /api/v1/account
-        # "/api/addresses/",  # Phase 14: Addresses migrated to /api/v1/addresses
-        # "/api/services/",  # Phase 13: Services migrated to /api/v1/services
-        # "/api/availability-windows/",  # Phase 23: Availability migrated to /api/v1/instructors/availability
-        # "/api/pricing/",  # Phase 18: Pricing migrated to /api/v1/pricing
-        "/api/instructor/",
-        # "/api/instructors/{instructor_id}/bgc/",  # Phase 23: BGC migrated to /api/v1/instructors/{id}/bgc
-        # "/instructors/",  # Phase 23: Legacy non-versioned availability migrated
-        "/availability/",
-        "/password-reset/",
-        "/admin/",
-        "/monitoring/",
-        "/alerts/",
-        "/codebase/",
-        "/redis/",
-        "/database/",
-        "/beta/",
-        "/gated/",
-        "/r/",  # Referral short links
-        # "/users/",  # Phase 18: Users profile-picture migrated to /api/v1/users
-        "/student/",
     )
 
     if path == "/" or path == "":

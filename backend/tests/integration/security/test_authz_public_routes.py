@@ -8,7 +8,7 @@ import pytest
 
 @pytest.mark.integration
 def test_open_route_allows_anonymous(client: TestClient) -> None:
-    response = client.get("/health")
+    response = client.get("/api/v1/health")
     assert response.status_code == 200
 
 

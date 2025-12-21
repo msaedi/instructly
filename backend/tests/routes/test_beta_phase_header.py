@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 
 
 def test_beta_phase_header_default_instructor_only(client: TestClient, db):
-    res = client.get("/health")
+    res = client.get("/api/v1/health")
     assert res.status_code == 200
     # Default repo.get_singleton() returns instructor_only when not disabled
     assert res.headers.get("x-beta-phase") in ("instructor_only", "disabled", "open_beta")
@@ -19,6 +19,6 @@ def test_beta_phase_header_respects_disabled(client: TestClient, db):
     # Invalidate in-memory cache so middleware reads fresh DB value
     invalidate_beta_settings_cache()
 
-    res = client.get("/health")
+    res = client.get("/api/v1/health")
     assert res.status_code == 200
     assert res.headers.get("x-beta-phase") == "disabled"

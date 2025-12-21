@@ -7,7 +7,7 @@ from app.main import app as asgi_app
 def test_rl_metrics_present_in_prometheus_exposition():
     client = TestClient(asgi_app)
     # Hitting a read route in test mode will emit synthetic headers, but we just need /metrics
-    resp = client.get("/internal/metrics")
+    resp = client.get("/api/v1/internal/metrics")
     assert resp.status_code == 200
     text = resp.text
 

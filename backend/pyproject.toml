@@ -128,7 +128,7 @@ plugins = ["pydantic.mypy"]
 mypy_path = "typings"
 files = [
   "app/schemas/**",
-  "app/routes/internal.py",
+  "app/routes/v1/internal.py",
   "app/services/base.py",
   "app/services/stripe_service.py",
 ]

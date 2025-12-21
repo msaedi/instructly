@@ -218,6 +218,6 @@ class TestCleanArchitectureValidation:
 # Basic API health check
 def test_api_is_running(client):
     """Basic test to ensure the API is running."""
-    response = client.get("/health")
+    response = client.get("/api/v1/health")
     assert response.status_code == 200
     assert response.json()["status"] == "healthy"

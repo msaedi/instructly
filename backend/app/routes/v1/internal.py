@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from app.ratelimit.config import get_effective_policy, reload_config
 from app.schemas.base import StrictModel
 
-router = APIRouter(prefix="/internal", tags=["internal"], include_in_schema=False)
+router = APIRouter(tags=["internal"], include_in_schema=False)
 
 
 class InternalReloadResponse(StrictModel):

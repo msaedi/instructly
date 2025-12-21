@@ -22,5 +22,5 @@ def test_personal_asset_service_falls_back_to_null_storage(monkeypatch, db):
     assert isinstance(injected.storage, NullStorageClient)
 
     with TestClient(app) as client:
-        resp = client.get("/health")
+        resp = client.get("/api/v1/health")
         assert resp.status_code == 200

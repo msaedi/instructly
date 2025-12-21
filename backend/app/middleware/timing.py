@@ -22,7 +22,7 @@ class TimingMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         # Skip timing for health and metrics endpoints
-        if request.url.path == "/health":
+        if request.url.path == "/api/v1/health":
             return await call_next(request)
 
         start_time = time.time()

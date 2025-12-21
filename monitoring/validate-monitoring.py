@@ -187,7 +187,7 @@ class MonitoringValidator:
     async def check_backend_connection(self) -> bool:
         """Check if backend is accessible"""
         try:
-            response = await self.backend_client.get("/health")
+            response = await self.backend_client.get("/api/v1/health")
             if response.status_code == 200:
                 self.validation_results["backend_connection"] = True
                 return True
@@ -268,19 +268,19 @@ class MonitoringValidator:
 
         endpoints = [
             # Successful requests
-            ("GET", "/health", 200),
-            ("GET", "/api/instructors", 200),
-            ("GET", "/api/public/instructors", 200),
-            ("GET", "/metrics/prometheus", 200),
+            ("GET", "/api/v1/health", 200),
+            ("GET", "/api/v1/instructors", 200),
+            ("GET", "/api/v1/public/instructors", 200),
+            ("GET", "/api/v1/metrics/prometheus", 200),
 
             # Error requests
-            ("GET", "/api/nonexistent", 404),
-            ("POST", "/api/auth/login", 422),  # Invalid payload
-            ("GET", "/api/admin/users", 401),  # Unauthorized
+            ("GET", "/api/v1/nonexistent", 404),
+            ("POST", "/api/v1/auth/login", 422),  # Invalid payload
+            ("GET", "/api/v1/admin/users", 401),  # Unauthorized
 
             # Instructor operations
-            ("GET", "/api/public/instructors/01J5TESTINSTR0000000000001/availability", 200),
-            ("GET", "/api/instructors/profile", 401),  # Needs auth
+            ("GET", "/api/v1/public/instructors/01J5TESTINSTR0000000000001/availability", 200),
+            ("GET", "/api/v1/instructors/profile", 401),  # Needs auth
         ]
 
         tasks = []

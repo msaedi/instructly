@@ -20,14 +20,14 @@ class TestPrometheusFormat:
         return TestClient(app)
 
     def test_metrics_endpoint_exists(self, client):
-        """Test that /metrics/prometheus endpoint exists"""
+        """Test that /api/v1/metrics/prometheus endpoint exists"""
         # Warm-up to reduce first-request latency that can flake in CI
-        client.get("/metrics/prometheus")
+        client.get("/api/v1/metrics/prometheus")
 
         response = None
         for attempt in range(3):
             try:
-                response = client.get("/metrics/prometheus")
+                response = client.get("/api/v1/metrics/prometheus")
                 if response.status_code == 200:
                     break
             except Exception:
@@ -43,7 +43,7 @@ class TestPrometheusFormat:
 
     def test_metrics_format_is_valid_prometheus(self, client):
         """Test that metrics are in valid Prometheus format"""
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         assert response.status_code == 200
 
         # Parse the metrics to verify format
@@ -70,7 +70,7 @@ class TestPrometheusFormat:
 
     def test_metrics_include_help_text(self, client):
         """Test that metrics include HELP documentation"""
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         metrics_text = response.text
 
         # Check for HELP lines (using actual metric names)
@@ -83,7 +83,7 @@ class TestPrometheusFormat:
 
     def test_metrics_include_type_info(self, client):
         """Test that metrics include TYPE information"""
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         metrics_text = response.text
 
         # Check for TYPE lines (using actual metric names)
@@ -98,10 +98,10 @@ class TestPrometheusFormat:
     def test_histogram_metrics_have_buckets(self, client):
         """Test that histogram metrics include bucket information"""
         # Make a request to generate some metrics
-        client.get("/health")
+        client.get("/api/v1/health")
 
         # Get metrics
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         metrics_text = response.text
 
         # Parse metrics
@@ -147,22 +147,22 @@ class TestPrometheusFormat:
     def test_counter_metrics_increment(self, client):
         """Test that counter metrics increment correctly"""
         # Get initial metrics
-        resp1 = client.get("/metrics/prometheus")
+        resp1 = client.get("/api/v1/metrics/prometheus")
         m1 = self._as_map(self._parse(resp1.text))
 
         # Get metrics again (this increments the scrape counter)
-        resp2 = client.get("/metrics/prometheus")
+        resp2 = client.get("/api/v1/metrics/prometheus")
         m2 = self._as_map(self._parse(resp2.text))
 
         # Assert on the scrape counter that always increments
         assert m2["instainstru_prometheus_scrapes_total"] == m1["instainstru_prometheus_scrapes_total"] + 1
 
         # Make some requests to increment counters
-        client.get("/health")
+        client.get("/api/v1/health")
         client.get("/api/nonexistent")  # 404
 
         # Get metrics again
-        response2 = client.get("/metrics/prometheus")
+        response2 = client.get("/api/v1/metrics/prometheus")
         families2 = {f.name: f for f in text_string_to_metric_families(response2.text)}
 
         # Check that request counter increased (using correct metric name)
@@ -184,15 +184,15 @@ class TestPrometheusFormat:
                 for s in families2[http_metric_name].samples
             }
 
-            # Check /health counter increased
-            health_key = ("/health", "200")
+            # Check /api/v1/health counter increased
+            health_key = ("/api/v1/health", "200")
             if health_key in samples1 and health_key in samples2:
                 assert samples2[health_key] > samples1[health_key]
 
     @pytest.mark.skip(reason="Using custom registry without default process metrics")
     def test_metrics_have_process_info(self, client):
         """Test that standard process metrics are included"""
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         metrics_text = response.text
 
         # Should include standard Python process metrics
@@ -217,7 +217,7 @@ class TestPrometheusFormat:
         # Make a request with special characters
         client.get('/api/test"path')
 
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         metrics_text = response.text
 
         # Labels with quotes should be escaped
@@ -240,11 +240,11 @@ class TestPrometheusFormat:
 
         # Generate some metrics first
         for _ in range(10):
-            client.get("/health")
+            client.get("/api/v1/health")
 
         # Time the metrics endpoint
         start = time.time()
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         duration = time.time() - start
 
         assert response.status_code == 200
@@ -253,7 +253,7 @@ class TestPrometheusFormat:
 
     def test_metrics_are_atomic(self, client):
         """Test that metrics are consistent within a single scrape"""
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         families = list(text_string_to_metric_families(response.text))
 
         # Find histogram metrics

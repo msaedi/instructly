@@ -8,11 +8,11 @@ in prod/beta when the phase is not open or beta checks are enforced.
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from ..api.dependencies.auth import require_beta_phase_access
-from ..schemas.gated_responses import GatedPingResponse
-from ..utils.strict import model_filter
+from app.api.dependencies.auth import require_beta_phase_access
+from app.schemas.gated_responses import GatedPingResponse
+from app.utils.strict import model_filter
 
-router = APIRouter(prefix="/v1/gated", tags=["gated"])
+router = APIRouter(tags=["gated"])
 
 
 def _enforce_no_query_params(request: Request) -> None:

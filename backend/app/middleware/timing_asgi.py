@@ -38,7 +38,7 @@ class TimingMiddlewareASGI:
         method = scope.get("method", "")
 
         # Skip timing for health and metrics endpoints
-        if path == "/health" or path == "/internal/metrics":
+        if path == "/api/v1/health" or path == "/api/v1/internal/metrics":
             await self.app(scope, receive, send)
             return
 

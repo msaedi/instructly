@@ -50,7 +50,7 @@ All checks are non-functional changes focused on type safety, async hygiene, sec
 
 #### Backend
 - Ruff fail-gate (F+I) on `backend/app`: `ruff check app --select F,I`
-- MyPy fail-gate (scoped): `mypy app/schemas app/routes/internal.py`
+- MyPy fail-gate (scoped): `mypy app/schemas app/routes/v1/internal.py`
   - Runs as fail-gate in CI and in `scripts/prepush.sh`.
 
 #### Local hooks and pre-push
