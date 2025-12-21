@@ -357,7 +357,6 @@ class TestResponseModelCoverage:
             "DateRange",
             "LiveAlertItem",
             "ServiceOffering",
-            "ComponentHealth",
             "ErrorDetail",
             "InstructorInfo",
             "PerformanceMetrics",

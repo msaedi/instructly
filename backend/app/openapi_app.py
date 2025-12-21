@@ -8,48 +8,26 @@ Sentry, etc. that are not needed for schema generation.
 # Import only the routers, not the full main app
 from fastapi import APIRouter, FastAPI
 
+# Infrastructure routes (intentionally unversioned)
 from app.routes import (
-    # account_management - DEPRECATED, use /api/v1/account instead
-    # addresses - DEPRECATED, use /api/v1/addresses instead
-    # admin_config - DEPRECATED, use /api/v1/admin/config instead
     alerts,
-    analytics,
-    # auth - DEPRECATED, use /api/v1/auth instead
-    # availability_windows - DEPRECATED, use /api/v1/instructors/availability instead
-    beta,
-    # bookings - DEPRECATED, use /api/v1/bookings instead
-    codebase_metrics,
-    database_monitor,
-    # favorites - DEPRECATED, use /api/v1/favorites instead
     gated,
-    # instructor_bookings - DEPRECATED, use /api/v1/instructor-bookings instead
-    # messages - DEPRECATED, use /api/v1/messages instead
     metrics,
     monitoring,
-    # password_reset - DEPRECATED, use /api/v1/password-reset instead
-    # payments - DEPRECATED, use /api/v1/payments instead
-    # privacy - DEPRECATED, use /api/v1/privacy instead
     prometheus,
-    # public - DEPRECATED, use /api/v1/public instead
-    redis_monitor,
-    # referrals - DEPRECATED, use /api/v1/referrals instead
-    # reviews - DEPRECATED, use /api/v1/reviews instead
-    # search - DEPRECATED, use /api/v1/search instead
-    # search_history - DEPRECATED, use /api/v1/search-history instead
-    # services - DEPRECATED, use /api/v1/services instead
-    # stripe_webhooks - DEPRECATED, use /api/v1/payments/webhooks/stripe instead
-    # two_factor_auth - DEPRECATED, use /api/v1/2fa instead
-    # uploads - DEPRECATED, use /api/v1/uploads instead
-    # users_profile_picture - DEPRECATED, use /api/v1/users instead
 )
 from app.routes.v1 import (
     account as account_v1,
     addresses as addresses_v1,
+    analytics as analytics_v1,
     auth as auth_v1,
     availability_windows as availability_windows_v1,
+    beta as beta_v1,
     bookings as bookings_v1,
+    codebase_metrics as codebase_metrics_v1,
     config as config_v1,
     conversations as conversations_v1,
+    database_monitor as database_monitor_v1,
     favorites as favorites_v1,
     instructor_bgc as instructor_bgc_v1,
     instructor_bookings as instructor_bookings_v1,
@@ -60,6 +38,7 @@ from app.routes.v1 import (
     pricing as pricing_v1,
     privacy as privacy_v1,
     public as public_v1,
+    redis_monitor as redis_monitor_v1,
     referrals as referrals_v1,
     reviews as reviews_v1,
     search as search_v1,
@@ -130,6 +109,12 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
     # Phase 23 v1 webhooks router
     api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
+    # Phase 24.5 v1 monitoring routers
+    api_v1.include_router(analytics_v1.router, prefix="/analytics")  # type: ignore[attr-defined]
+    api_v1.include_router(codebase_metrics_v1.router, prefix="/analytics/codebase")  # type: ignore[attr-defined]
+    api_v1.include_router(redis_monitor_v1.router, prefix="/redis")  # type: ignore[attr-defined]
+    api_v1.include_router(database_monitor_v1.router, prefix="/database")  # type: ignore[attr-defined]
+    api_v1.include_router(beta_v1.router, prefix="/beta")  # type: ignore[attr-defined]
 
     # Mount v1 API first
     app.include_router(api_v1)
@@ -162,8 +147,7 @@ def build_openapi_app() -> FastAPI:
     app.include_router(metrics.router)
     app.include_router(monitoring.router)
     app.include_router(alerts.router)
-    app.include_router(analytics.router, prefix="/api", tags=["analytics"])
-    app.include_router(codebase_metrics.router)
+    # Analytics and codebase_metrics now in /api/v1/analytics/*
     # Legacy public - now /api/v1/public
     # app.include_router(public.router)
     # Legacy referrals - now /api/v1/referrals
@@ -179,8 +163,7 @@ def build_openapi_app() -> FastAPI:
     # app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
     # Legacy addresses - now /api/v1/addresses
     # app.include_router(addresses.router)
-    app.include_router(redis_monitor.router)
-    app.include_router(database_monitor.router)
+    # Redis and database monitors now in /api/v1/redis/* and /api/v1/database/*
     # Legacy admin_config - now /api/v1/admin/config
     # app.include_router(admin_config.router)
     # Legacy privacy - now /api/v1/privacy
@@ -192,7 +175,7 @@ def build_openapi_app() -> FastAPI:
     # app.include_router(uploads.router)
     # Legacy users profile picture - now /api/v1/users
     # app.include_router(users_profile_picture.router)
-    app.include_router(beta.router)
+    # Beta now in /api/v1/beta/*
     # Legacy reviews - now /api/v1/reviews
     # app.include_router(reviews.router)
     app.include_router(gated.router)

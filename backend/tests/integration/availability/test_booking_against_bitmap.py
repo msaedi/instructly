@@ -18,8 +18,8 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService
 from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-import app.routes.availability_windows as availability_routes
-import app.routes.bookings as booking_routes
+import app.routes.v1.availability_windows as availability_routes
+import app.routes.v1.bookings as booking_routes
 import app.services.availability_service as availability_service_module
 import app.services.booking_service as booking_service_module
 import app.services.week_operation_service as week_operation_service_module

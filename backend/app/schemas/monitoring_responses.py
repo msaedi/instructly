@@ -504,57 +504,6 @@ class RateLimitTestResponse(StrictModel):
     )
 
 
-class ComponentHealth(BaseModel):
-    """Health status of a system component."""
-
-    status: str = Field(description="Component status (healthy/degraded/unhealthy)")
-    type: Optional[str] = Field(default=None, description="Component type")
-    details: Optional[Dict[str, Any]] = Field(
-        default=None, description="Additional component details"
-    )
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "status": "healthy",
-                "type": "postgresql",
-                "details": {"user_count": 150, "connection_pool": "healthy"},
-            }
-        }
-    )
-
-
-class DetailedHealthCheckResponse(StrictModel):
-    """Detailed health check response with component statuses."""
-
-    status: str = Field(description="Overall system status")
-    environment: str = Field(description="Current environment")
-    components: Dict[str, ComponentHealth] = Field(description="Component health statuses")
-    cache_stats: Optional[Dict[str, Any]] = Field(default=None, description="Cache statistics")
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "status": "healthy",
-                "environment": "production",
-                "components": {
-                    "database": {
-                        "status": "healthy",
-                        "type": "postgresql",
-                        "details": {"user_count": 150},
-                    },
-                    "cache": {
-                        "status": "healthy",
-                        "type": "redis",
-                        "details": {"hits": 8500, "misses": 1500},
-                    },
-                },
-                "cache_stats": {"hits": 8500, "misses": 1500, "hit_rate": "85.0%"},
-            }
-        }
-    )
-
-
 class PaymentHealthResponse(StrictModel):
     """Payment system health monitoring response."""
 

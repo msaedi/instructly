@@ -29,7 +29,7 @@ def client(monkeypatch):
 
     import app.api.dependencies as api_dependencies
     import app.main as main
-    import app.routes.bookings as bookings_routes
+    import app.routes.v1.bookings as bookings_routes
     import app.schemas.base as base
     import app.schemas.booking as booking_schemas
 

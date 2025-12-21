@@ -1,7 +1,11 @@
+# Infrastructure routes (intentionally unversioned)
+# All application routes are in v1/
 from . import (
-    auth as auth,
-    availability_windows as availability_windows,
-    instructors as instructors,
-    services as services,
+    alerts as alerts,
+    gated as gated,
+    internal as internal,
+    metrics as metrics,
+    monitoring as monitoring,
+    prometheus as prometheus,
+    ready as ready,
 )
-from .bookings import router as router

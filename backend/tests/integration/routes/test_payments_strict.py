@@ -12,7 +12,7 @@ def client(_enable_strict):
     from importlib import reload
 
     import app.main as main
-    import app.routes.payments as routes
+    import app.routes.v1.payments as routes
     import app.schemas.base as base
 
     reload(base)

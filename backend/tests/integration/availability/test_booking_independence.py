@@ -16,7 +16,7 @@ from app.core.config import settings
 import app.main
 from app.models import Booking, BookingStatus, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-import app.routes.availability_windows as availability_routes
+import app.routes.v1.availability_windows as availability_routes
 import app.services.availability_service as availability_service_module
 
 try:

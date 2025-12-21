@@ -15,7 +15,7 @@ import app.core.timezone_utils as timezone_utils_module
 import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-import app.routes.availability_windows as availability_routes
+import app.routes.v1.availability_windows as availability_routes
 import app.services.availability_service as availability_service_module
 from app.services.booking_service import BookingService
 import app.services.week_operation_service as week_operation_service_module

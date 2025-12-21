@@ -15,7 +15,7 @@ from app.core.config import settings
 import app.main
 from app.models import AuditLog, AvailabilityDay, EventOutbox
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-import app.routes.availability_windows as availability_routes
+import app.routes.v1.availability_windows as availability_routes
 import app.services.availability_service as availability_service_module
 import app.services.week_operation_service as week_operation_service_module
 from app.utils.bitset import bits_from_windows, windows_from_bits
