@@ -590,6 +590,7 @@ def upgrade() -> None:
         sa.Column("code", sa.String(16), nullable=False),
         sa.Column("email", sa.String(255), nullable=True),
         sa.Column("role", sa.String(32), nullable=False, server_default="instructor_beta"),
+        sa.Column("grant_founding_status", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),

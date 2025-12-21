@@ -55,7 +55,10 @@ class StripeConnectedAccount(Base):
 
     id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     instructor_profile_id: Mapped[str] = mapped_column(
-        String(26), ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False
+        String(26),
+        ForeignKey("instructor_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
     stripe_account_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

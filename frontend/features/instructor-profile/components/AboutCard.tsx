@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { User, Globe, Award } from 'lucide-react';
 import type { InstructorProfile } from '@/types/instructor';
+import { BGCBadge } from '@/components/ui/BGCBadge';
 
 interface AboutCardProps {
   instructor: InstructorProfile;
@@ -11,6 +12,10 @@ export function AboutCard({ instructor }: AboutCardProps) {
   // Mock data for languages and education - replace with real data when available
   const languages = ['English', 'Spanish'];
   const education = 'BA Music Education, NYU';
+  const bgcStatusValue = (instructor as { bgc_status?: string | null }).bgc_status;
+  const bgcStatus = typeof bgcStatusValue === 'string' ? bgcStatusValue.toLowerCase() : '';
+  const isLive = Boolean(instructor.is_live);
+  const showBGCBadge = isLive || bgcStatus === 'pending';
 
   return (
     <Card>
@@ -73,11 +78,7 @@ export function AboutCard({ instructor }: AboutCardProps) {
               Verified
             </Badge>
           )}
-          {instructor.background_check_completed && (
-            <Badge variant="secondary" className="text-xs">
-              Background Check
-            </Badge>
-          )}
+          {showBGCBadge && <BGCBadge isLive={isLive} bgcStatus={bgcStatusValue ?? null} />}
         </div>
       </CardContent>
     </Card>

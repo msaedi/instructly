@@ -1263,6 +1263,22 @@ export type paths = {
  patch: operations["update_pricing_config_api_v1_admin_config_pricing_patch"];
  trace?: never;
  };
+ "/api/v1/admin/instructors/founding/count": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["founding_instructor_count_api_v1_admin_instructors_founding_count_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/instructors/{instructor_id}": {
  parameters: {
  query?: never;
@@ -1671,6 +1687,22 @@ export type paths = {
  cookie?: never;
  };
  get: operations["get_public_pricing_config_api_v1_config_pricing_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/config/public": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_public_config_api_v1_config_public_get"];
  put?: never;
  post?: never;
  delete?: never;
@@ -3970,6 +4002,7 @@ export type components = {
  AuthUserResponse: {
  email: string;
  first_name: string;
+ founding_instructor_granted?: boolean | null;
  has_profile_picture: boolean | null;
  id: string;
  is_active: boolean;
@@ -3988,6 +4021,7 @@ export type components = {
  beta_role?: string | null;
  email: string;
  first_name: string;
+ founding_instructor_granted?: boolean | null;
  has_profile_picture: boolean | null;
  id: string;
  is_active: boolean;
@@ -4739,7 +4773,7 @@ export type components = {
  };
  EarningsExportRequest: {
  end_date?: string | null;
- format: "csv";
+ format: "csv" | "pdf";
  start_date?: string | null;
  };
  EarningsResponse: {
@@ -4806,6 +4840,11 @@ export type components = {
  };
  FinalizeProfilePictureRequest: {
  object_key: string;
+ };
+ FoundingCountResponse: {
+ cap: number;
+ count: number;
+ remaining: number;
  };
  GatedPingResponse: {
  ok: boolean;
@@ -4901,6 +4940,7 @@ export type components = {
  identity_verification_session_id?: string | null;
  identity_verified_at?: string | null;
  is_favorited?: boolean | null;
+ is_founding_instructor: boolean;
  is_live: boolean;
  min_advance_booking_hours: number;
  onboarding_completed_at?: string | null;
@@ -4956,6 +4996,7 @@ export type components = {
  bio_snippet?: string | null;
  first_name: string;
  id: string;
+ is_founding_instructor: boolean;
  last_initial: string;
  profile_picture_url?: string | null;
  verified: boolean;
@@ -5015,6 +5056,7 @@ export type components = {
  InviteSendRequest: {
  base_url?: string | null;
  expires_in_days: number;
+ grant_founding_status: boolean;
  role: string;
  source?: string | null;
  to_email: string;
@@ -5390,6 +5432,13 @@ export type components = {
  text: string;
  types: string[];
  };
+ PlatformFees: {
+ founding_instructor: number;
+ student_booking_fee: number;
+ tier_1: number;
+ tier_2: number;
+ tier_3: number;
+ };
  PopularQueriesResponse: {
  queries: components["schemas"]["PopularQueryItem"][];
  };
@@ -5425,6 +5474,9 @@ export type components = {
  private_remote: number;
  };
  PricingConfig: {
+ founding_instructor_cap: number;
+ founding_instructor_rate_pct: number;
+ founding_search_boost: number;
  instructor_tiers: components["schemas"]["TierConfig"][];
  price_floor_cents: components["schemas"]["PriceFloorConfig"];
  student_credit_cycle: components["schemas"]["StudentCreditCycle"];
@@ -5434,6 +5486,9 @@ export type components = {
  tier_stepdown_max: number;
  };
  PricingConfigPayload: {
+ founding_instructor_cap: number;
+ founding_instructor_rate_pct: number;
+ founding_search_boost: number;
  instructor_tiers: components["schemas"]["TierConfig"][];
  price_floor_cents: components["schemas"]["PriceFloorConfig"];
  student_credit_cycle: components["schemas"]["StudentCreditCycle"];
@@ -5487,6 +5542,10 @@ export type components = {
  ProxyUploadResponse: {
  ok: boolean;
  url?: string | null;
+ };
+ PublicConfigResponse: {
+ fees: components["schemas"]["PlatformFees"];
+ updated_at?: string | null;
  };
  PublicDayAvailability: {
  available_slots?: components["schemas"]["PublicTimeSlot"][];
@@ -8694,6 +8753,25 @@ export interface operations {
  };
  };
  };
+ founding_instructor_count_api_v1_admin_instructors_founding_count_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["FoundingCountResponse"];
+ };
+ };
+ };
+ };
  admin_instructor_detail_api_v1_admin_instructors__instructor_id__get: {
  parameters: {
  query?: never;
@@ -9608,6 +9686,25 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["PricingConfigResponse"];
+ };
+ };
+ };
+ };
+ get_public_config_api_v1_config_public_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PublicConfigResponse"];
  };
  };
  };

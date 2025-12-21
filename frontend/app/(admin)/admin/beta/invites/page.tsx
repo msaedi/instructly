@@ -10,6 +10,13 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as Select from '@radix-ui/react-select';
 import { ChevronDown, Check } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+
+type FoundingCount = {
+  count: number;
+  cap: number;
+  remaining: number;
+};
 
 export default function BetaInvitesAdminPage() {
   const { isAdmin, isLoading } = useAdminAuth();
@@ -18,6 +25,7 @@ export default function BetaInvitesAdminPage() {
   const [role, setRole] = useState('instructor_beta');
   const [days, setDays] = useState(14);
   const [source, setSource] = useState('admin_ui');
+  const [grantFoundingStatus, setGrantFoundingStatus] = useState(true);
   const [result, setResult] = useState<{ code: string; join_url: string; welcome_url: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -28,6 +36,23 @@ export default function BetaInvitesAdminPage() {
   const [showDetails, setShowDetails] = useState(false);
 
   // Cookies carry auth; avoid localStorage for security and SSR safety
+  const { data: foundingCount } = useQuery<FoundingCount>({
+    queryKey: ['admin', 'founding-count'],
+    queryFn: async () => {
+      const res = await fetch(withApiBase('/api/v1/admin/instructors/founding/count'), { credentials: 'include' });
+      if (!res.ok) {
+        throw new Error(`Failed to load founding count (${res.status})`);
+      }
+      return (await res.json()) as FoundingCount;
+    },
+    enabled: isAdmin,
+  });
+
+  const foundingUsed = foundingCount?.count ?? 0;
+  const foundingCap = foundingCount?.cap ?? 100;
+  const foundingRemaining = foundingCount?.remaining ?? 100;
+  const foundingAtCap =
+    foundingCount?.remaining !== undefined && foundingCount.remaining <= 0;
 
   useEffect(() => {
     async function fetchSummary() {
@@ -46,6 +71,12 @@ export default function BetaInvitesAdminPage() {
     }
     void fetchSummary();
   }, []);
+
+  useEffect(() => {
+    if (foundingAtCap) {
+      setGrantFoundingStatus(false);
+    }
+  }, [foundingAtCap]);
 
   useEffect(() => {
     if (!asyncTaskId) return;
@@ -92,7 +123,7 @@ export default function BetaInvitesAdminPage() {
       const res = await fetch(withApiBase(`/api/v1/beta/invites/send`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to_email: email, role, expires_in_days: days, source }),
+        body: JSON.stringify({ to_email: email, role, expires_in_days: days, source, grant_founding_status: grantFoundingStatus }),
         credentials: 'include',
       });
       if (!res.ok) throw new Error((await res.text()) || `Failed to send invite (${res.status})`);
@@ -138,6 +169,20 @@ export default function BetaInvitesAdminPage() {
           </aside>
           <section className="col-span-12 md:col-span-9 lg:col-span-9">
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="rounded-2xl p-6 shadow-sm ring-1 ring-indigo-200/70 dark:ring-indigo-700/60 bg-indigo-50/80 dark:bg-indigo-900/30 backdrop-blur order-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-indigo-900 dark:text-indigo-200">Founding Instructor Spots</h2>
+                    <p className="text-sm text-indigo-700 dark:text-indigo-300">
+                      {foundingUsed} / {foundingCap} spots used
+                    </p>
+                  </div>
+                  <div className="text-3xl font-semibold text-indigo-600 dark:text-indigo-200">
+                    {foundingRemaining}
+                    <span className="ml-1 text-sm font-normal text-indigo-700 dark:text-indigo-300">remaining</span>
+                  </div>
+                </div>
+              </div>
               {/* Beta summary card - order 4 */}
               <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur order-4">
                 <h2 className="mb-2 text-lg font-semibold">Beta Summary</h2>
@@ -209,6 +254,22 @@ export default function BetaInvitesAdminPage() {
                       <label className="block text-sm font-medium mb-1">Source</label>
                       <input value={source} onChange={(e) => setSource(e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800" />
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="founding-status"
+                      checked={grantFoundingStatus}
+                      onChange={(e) => setGrantFoundingStatus(e.target.checked)}
+                      disabled={foundingAtCap}
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="founding-status" className="text-sm text-gray-700 dark:text-gray-300">
+                      Grant Founding Instructor status
+                    </label>
+                    {foundingAtCap ? (
+                      <span className="text-xs text-red-600 dark:text-red-400">(cap reached)</span>
+                    ) : null}
                   </div>
                   <Tooltip.Provider delayDuration={200}>
                     <Tooltip.Root>

@@ -69,6 +69,7 @@ class RankingRepository:
                 ip.last_active_at,
                 ip.response_rate,
                 ip.profile_completeness,
+                ip.is_founding_instructor,
                 -- Photo check from users table
                 u.profile_picture_key IS NOT NULL as has_photo,
                 -- Bio check (>= 100 chars)
@@ -105,6 +106,7 @@ class RankingRepository:
                 "review_count": int(row.review_count) if row.review_count else 0,
                 "last_active_at": row.last_active_at,
                 "response_rate": float(row.response_rate) if row.response_rate else 0.0,
+                "is_founding_instructor": bool(row.is_founding_instructor),
                 "has_photo": bool(row.has_photo),
                 "has_bio": bool(row.has_bio),
                 "has_background_check": bool(row.has_background_check),

@@ -647,6 +647,11 @@ export interface AuditLogView {
   occurred_at: string;
 }
 
+/**
+ * True if founding instructor status was granted during registration
+ */
+export type AuthUserResponseFoundingInstructorGranted = boolean | null;
+
 export type AuthUserResponseHasProfilePicture = boolean | null;
 
 export type AuthUserResponsePhone = string | null;
@@ -663,6 +668,8 @@ export type AuthUserResponseZipCode = string | null;
 export interface AuthUserResponse {
   email: string;
   first_name: string;
+  /** True if founding instructor status was granted during registration */
+  founding_instructor_granted?: AuthUserResponseFoundingInstructorGranted;
   has_profile_picture?: AuthUserResponseHasProfilePicture;
   id: string;
   is_active?: boolean;
@@ -682,6 +689,11 @@ export type AuthUserWithPermissionsResponseBetaInvitedBy = string | null;
 export type AuthUserWithPermissionsResponseBetaPhase = string | null;
 
 export type AuthUserWithPermissionsResponseBetaRole = string | null;
+
+/**
+ * True if founding instructor status was granted during registration
+ */
+export type AuthUserWithPermissionsResponseFoundingInstructorGranted = boolean | null;
 
 export type AuthUserWithPermissionsResponseHasProfilePicture = boolean | null;
 
@@ -703,6 +715,8 @@ export interface AuthUserWithPermissionsResponse {
   beta_role?: AuthUserWithPermissionsResponseBetaRole;
   email: string;
   first_name: string;
+  /** True if founding instructor status was granted during registration */
+  founding_instructor_granted?: AuthUserWithPermissionsResponseFoundingInstructorGranted;
   has_profile_picture?: AuthUserWithPermissionsResponseHasProfilePicture;
   id: string;
   is_active?: boolean;
@@ -2276,6 +2290,18 @@ export interface DeleteWindowResponse {
 export type EarningsExportRequestEndDate = string | null;
 
 /**
+ * Export format (csv or pdf)
+ */
+export type EarningsExportRequestFormat =
+  (typeof EarningsExportRequestFormat)[keyof typeof EarningsExportRequestFormat];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const EarningsExportRequestFormat = {
+  csv: 'csv',
+  pdf: 'pdf',
+} as const;
+
+/**
  * Start date (inclusive) for the export
  */
 export type EarningsExportRequestStartDate = string | null;
@@ -2286,8 +2312,8 @@ export type EarningsExportRequestStartDate = string | null;
 export interface EarningsExportRequest {
   /** End date (inclusive) for the export */
   end_date?: EarningsExportRequestEndDate;
-  /** Export format (csv only for now) */
-  format?: 'csv';
+  /** Export format (csv or pdf) */
+  format?: EarningsExportRequestFormat;
   /** Start date (inclusive) for the export */
   start_date?: EarningsExportRequestStartDate;
 }
@@ -2523,6 +2549,15 @@ export interface FinalizeProfilePicturePayload {
 export interface FinalizeProfilePictureRequest {
   /** Temporary upload object key from signed PUT */
   object_key: string;
+}
+
+/**
+ * Summary of founding instructor utilization.
+ */
+export interface FoundingCountResponse {
+  cap: number;
+  count: number;
+  remaining: number;
 }
 
 /**
@@ -2807,6 +2842,8 @@ export interface InstructorProfileResponse {
   identity_verified_at?: InstructorProfileResponseIdentityVerifiedAt;
   /** Whether the current user has favorited this instructor */
   is_favorited?: InstructorProfileResponseIsFavorited;
+  /** Whether the instructor is a founding instructor */
+  is_founding_instructor?: boolean;
   is_live?: boolean;
   /**
    * Minimum hours in advance for bookings
@@ -2957,6 +2994,8 @@ export interface InstructorSummary {
   first_name: string;
   /** Instructor user ID */
   id: string;
+  /** Founding instructor status */
+  is_founding_instructor?: boolean;
   /** Last name initial for privacy (e.g., 'D') */
   last_initial: string;
   /** Profile picture URL */
@@ -3057,6 +3096,7 @@ export interface InviteSendRequest {
    * @maximum 180
    */
   expires_in_days?: number;
+  grant_founding_status?: boolean;
   role?: string;
   source?: InviteSendRequestSource;
   to_email: string;
@@ -4086,6 +4126,29 @@ export interface PlaceSuggestion {
   types?: string[];
 }
 
+export interface PlatformFees {
+  /**
+   * Platform fee for founding instructors
+   */
+  founding_instructor: number;
+  /**
+   * Student booking protection fee
+   */
+  student_booking_fee: number;
+  /**
+   * Entry tier platform fee
+   */
+  tier_1: number;
+  /**
+   * Second tier platform fee
+   */
+  tier_2: number;
+  /**
+   * Third tier platform fee
+   */
+  tier_3: number;
+}
+
 /**
  * List of popular search queries.
  */
@@ -4188,6 +4251,18 @@ export interface PriceFloorConfig {
 }
 
 export interface PricingConfig {
+  /**
+   * Maximum number of founding instructors
+   */
+  founding_instructor_cap?: number;
+  /**
+   * Platform fee percentage for founding instructors
+   */
+  founding_instructor_rate_pct?: number;
+  /**
+   * Search ranking multiplier for founding instructors
+   */
+  founding_search_boost?: number;
   instructor_tiers: TierConfig[];
   price_floor_cents: PriceFloorConfig;
   student_credit_cycle: StudentCreditCycle;
@@ -4214,6 +4289,18 @@ export interface PricingConfig {
  * Alias for request payload compatibility.
  */
 export interface PricingConfigPayload {
+  /**
+   * Maximum number of founding instructors
+   */
+  founding_instructor_cap?: number;
+  /**
+   * Platform fee percentage for founding instructors
+   */
+  founding_instructor_rate_pct?: number;
+  /**
+   * Search ranking multiplier for founding instructors
+   */
+  founding_search_boost?: number;
   instructor_tiers: TierConfig[];
   price_floor_cents: PriceFloorConfig;
   student_credit_cycle: StudentCreditCycle;
@@ -4331,6 +4418,13 @@ export type ProxyUploadResponseUrl = string | null;
 export interface ProxyUploadResponse {
   ok: boolean;
   url?: ProxyUploadResponseUrl;
+}
+
+export type PublicConfigResponseUpdatedAt = string | null;
+
+export interface PublicConfigResponse {
+  fees: PlatformFees;
+  updated_at?: PublicConfigResponseUpdatedAt;
 }
 
 /**

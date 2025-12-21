@@ -2156,6 +2156,7 @@ class NLSearchService:
                 profile_picture_url=self._build_photo_url(profile.get("profile_picture_key")),
                 bio_snippet=profile.get("bio_snippet"),
                 verified=bool(profile.get("verified", False)),
+                is_founding_instructor=bool(profile.get("is_founding_instructor", False)),
                 years_experience=profile.get("years_experience"),
             )
 
@@ -2478,6 +2479,7 @@ class NLSearchService:
                 profile_picture_url=self._build_photo_url(row.get("profile_picture_key")),
                 bio_snippet=row.get("bio_snippet"),
                 verified=bool(row.get("verified", False)),
+                is_founding_instructor=bool(row.get("is_founding_instructor", False)),
                 years_experience=row.get("years_experience"),
             )
 

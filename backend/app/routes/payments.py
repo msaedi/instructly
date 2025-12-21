@@ -64,6 +64,7 @@ from ..services.payment_summary_service import build_student_payment_summary
 from ..services.pricing_service import PricingService
 from ..services.stripe_service import StripeService
 from ..utils.strict import model_filter
+from ..utils.url_validation import is_allowed_origin, origin_from_header
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +191,12 @@ async def start_onboarding(
 
         origin: Optional[str] = None
         origin_candidates: list[str] = []
+
+        header_origin = origin_from_header(request.headers.get("origin")) or origin_from_header(
+            request.headers.get("referer")
+        )
+        if header_origin and is_allowed_origin(header_origin):
+            origin_candidates.append(header_origin)
 
         if configured_frontend:
             origin_candidates.append(configured_frontend)
@@ -1055,10 +1062,14 @@ async def get_instructor_earnings(
 
         def _get_instructor_tier_pct() -> float:
             """Get instructor's platform fee tier percentage."""
-            tiers = pricing_config.get("instructor_tiers", [])
+            tiers = pricing_config.get("instructor_tiers") or PRICING_DEFAULTS.get(
+                "instructor_tiers", []
+            )
             if tiers:
-                return float(tiers[0].get("pct", 0.15))
-            return 0.15
+                entry_tier = min(tiers, key=lambda tier: tier.get("min", 0))
+                default_entry_pct = PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0)
+                return float(entry_tier.get("pct", default_entry_pct))
+            return float(PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0))
 
         student_fee_pct = float(
             pricing_config.get("student_fee_pct", PRICING_DEFAULTS["student_fee_pct"])

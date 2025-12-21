@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 import logging
 from typing import Optional
@@ -12,7 +13,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.dependencies.auth import require_admin
 from app.api.dependencies.repositories import get_instructor_repo
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
-from app.schemas.admin_instructor_responses import AdminInstructorDetailResponse
+from app.schemas.admin_instructor_responses import (
+    AdminInstructorDetailResponse,
+    FoundingCountResponse,
+)
+from app.services.config_service import ConfigService
 from app.utils.strict import model_filter
 
 logger = logging.getLogger(__name__)
@@ -75,3 +80,24 @@ async def admin_instructor_detail(
     return AdminInstructorDetailResponse(
         **model_filter(AdminInstructorDetailResponse, response_payload)
     )
+
+
+@router.get("/founding/count", response_model=FoundingCountResponse)
+async def founding_instructor_count(
+    repo: InstructorProfileRepository = Depends(get_instructor_repo),
+    _: None = Depends(require_admin),
+) -> FoundingCountResponse:
+    """Return founding instructor count and remaining capacity."""
+
+    config_service = ConfigService(repo.db)
+    pricing_config, _updated_at = await asyncio.to_thread(config_service.get_pricing_config)
+    cap_raw = pricing_config.get("founding_instructor_cap", 100)
+    try:
+        cap = int(cap_raw)
+    except (TypeError, ValueError):
+        cap = 100
+
+    count = await asyncio.to_thread(repo.count_founding_instructors)
+    remaining = max(0, cap - count)
+    response_payload = {"count": count, "cap": cap, "remaining": remaining}
+    return FoundingCountResponse(**model_filter(FoundingCountResponse, response_payload))

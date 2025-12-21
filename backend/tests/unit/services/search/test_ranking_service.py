@@ -519,3 +519,105 @@ class TestRankingWithBoosts:
 
         assert svc_001_result.skill_boost == SKILL_BOOST
         assert svc_002_result.skill_boost == SKILL_BOOST
+
+
+class TestFoundingBoost:
+    """Tests for founding instructor ranking boost."""
+
+    def test_founding_instructor_gets_search_boost(self, ranking_service: RankingService) -> None:
+        """Founding instructors should have scores multiplied by the boost."""
+        candidate = FilteredCandidate(
+            service_id="svc_founding",
+            service_catalog_id="cat_founding",
+            instructor_id="inst_founding",
+            hybrid_score=0.75,
+            name="Founding Lessons",
+            description="Test founding boost",
+            price_per_hour=75,
+        )
+        base_metrics: Dict[str, Any] = {
+            "avg_rating": 4.4,
+            "review_count": 12,
+            "last_active_at": datetime.now(timezone.utc),
+            "response_rate": 90,
+            "has_photo": True,
+            "has_bio": True,
+            "has_background_check": True,
+            "has_identity_verified": True,
+        }
+        query = ParsedQuery(
+            original_query="piano",
+            service_query="piano",
+            parsing_mode="regex",
+        )
+
+        regular = ranking_service._score_candidate(
+            candidate,
+            base_metrics,
+            "both",
+            ["all"],
+            None,
+            query,
+            founding_boost=1.5,
+        )
+        founder_metrics = {**base_metrics, "is_founding_instructor": True}
+        founder = ranking_service._score_candidate(
+            candidate,
+            founder_metrics,
+            "both",
+            ["all"],
+            None,
+            query,
+            founding_boost=1.5,
+        )
+
+        assert founder.final_score == pytest.approx(regular.final_score * 1.5)
+
+    def test_founding_boost_configurable(self, ranking_service: RankingService) -> None:
+        """Founding boost should use the configured value."""
+        candidate = FilteredCandidate(
+            service_id="svc_founding",
+            service_catalog_id="cat_founding",
+            instructor_id="inst_founding",
+            hybrid_score=0.75,
+            name="Founding Lessons",
+            description="Test founding boost",
+            price_per_hour=75,
+        )
+        metrics: Dict[str, Any] = {
+            "avg_rating": 4.4,
+            "review_count": 12,
+            "last_active_at": datetime.now(timezone.utc),
+            "response_rate": 90,
+            "has_photo": True,
+            "has_bio": True,
+            "has_background_check": True,
+            "has_identity_verified": True,
+            "is_founding_instructor": True,
+        }
+        query = ParsedQuery(
+            original_query="piano",
+            service_query="piano",
+            parsing_mode="regex",
+        )
+
+        regular = ranking_service._score_candidate(
+            candidate,
+            {**metrics, "is_founding_instructor": False},
+            "both",
+            ["all"],
+            None,
+            query,
+            founding_boost=1.0,
+        )
+        boosted = ranking_service._score_candidate(
+            candidate,
+            metrics,
+            "both",
+            ["all"],
+            None,
+            query,
+            founding_boost=2.0,
+        )
+
+        assert boosted.final_score == pytest.approx(regular.final_score * 2.0)

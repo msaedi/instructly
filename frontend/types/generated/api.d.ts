@@ -1654,6 +1654,26 @@ export type paths = {
         patch: operations["update_pricing_config_api_v1_admin_config_pricing_patch"];
         trace?: never;
     };
+    "/api/v1/admin/instructors/founding/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Founding Instructor Count
+         * @description Return founding instructor count and remaining capacity.
+         */
+        get: operations["founding_instructor_count_api_v1_admin_instructors_founding_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/instructors/{instructor_id}": {
         parameters: {
             query?: never;
@@ -2287,6 +2307,26 @@ export type paths = {
          * @description Return the current pricing configuration for client consumption.
          */
         get: operations["get_public_pricing_config_api_v1_config_pricing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/config/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Config
+         * @description Return public platform configuration for frontend display.
+         */
+        get: operations["get_public_config_api_v1_config_public_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6103,6 +6143,11 @@ export type components = {
             /** First Name */
             first_name: string;
             /**
+             * Founding Instructor Granted
+             * @description True if founding instructor status was granted during registration
+             */
+            founding_instructor_granted?: boolean | null;
+            /**
              * Has Profile Picture
              * @default false
              */
@@ -6152,6 +6197,11 @@ export type components = {
             email: string;
             /** First Name */
             first_name: string;
+            /**
+             * Founding Instructor Granted
+             * @description True if founding instructor status was granted during registration
+             */
+            founding_instructor_granted?: boolean | null;
             /**
              * Has Profile Picture
              * @default false
@@ -8220,11 +8270,11 @@ export type components = {
             end_date?: string | null;
             /**
              * Format
-             * @description Export format (csv only for now)
+             * @description Export format (csv or pdf)
              * @default csv
-             * @constant
+             * @enum {string}
              */
-            format: "csv";
+            format: "csv" | "pdf";
             /**
              * Start Date
              * @description Start date (inclusive) for the export
@@ -8539,6 +8589,18 @@ export type components = {
              * @description Temporary upload object key from signed PUT
              */
             object_key: string;
+        };
+        /**
+         * FoundingCountResponse
+         * @description Summary of founding instructor utilization.
+         */
+        FoundingCountResponse: {
+            /** Cap */
+            cap: number;
+            /** Count */
+            count: number;
+            /** Remaining */
+            remaining: number;
         };
         /**
          * GatedPingResponse
@@ -8916,6 +8978,12 @@ export type components = {
              */
             is_favorited?: boolean | null;
             /**
+             * Is Founding Instructor
+             * @description Whether the instructor is a founding instructor
+             * @default false
+             */
+            is_founding_instructor: boolean;
+            /**
              * Is Live
              * @default false
              */
@@ -9089,6 +9157,12 @@ export type components = {
              */
             id: string;
             /**
+             * Is Founding Instructor
+             * @description Founding instructor status
+             * @default false
+             */
+            is_founding_instructor: boolean;
+            /**
              * Last Initial
              * @description Last name initial for privacy (e.g., 'D')
              */
@@ -9239,6 +9313,11 @@ export type components = {
              * @default 14
              */
             expires_in_days: number;
+            /**
+             * Grant Founding Status
+             * @default true
+             */
+            grant_founding_status: boolean;
             /**
              * Role
              * @default instructor_beta
@@ -10674,6 +10753,34 @@ export type components = {
              */
             types: string[];
         };
+        /** PlatformFees */
+        PlatformFees: {
+            /**
+             * Founding Instructor
+             * @description Platform fee for founding instructors
+             */
+            founding_instructor: number;
+            /**
+             * Student Booking Fee
+             * @description Student booking protection fee
+             */
+            student_booking_fee: number;
+            /**
+             * Tier 1
+             * @description Entry tier platform fee
+             */
+            tier_1: number;
+            /**
+             * Tier 2
+             * @description Second tier platform fee
+             */
+            tier_2: number;
+            /**
+             * Tier 3
+             * @description Third tier platform fee
+             */
+            tier_3: number;
+        };
         /**
          * PopularQueriesResponse
          * @description List of popular search queries.
@@ -10797,6 +10904,24 @@ export type components = {
         };
         /** PricingConfig */
         PricingConfig: {
+            /**
+             * Founding Instructor Cap
+             * @description Maximum number of founding instructors
+             * @default 100
+             */
+            founding_instructor_cap: number;
+            /**
+             * Founding Instructor Rate Pct
+             * @description Platform fee percentage for founding instructors
+             * @default 0.08
+             */
+            founding_instructor_rate_pct: number;
+            /**
+             * Founding Search Boost
+             * @description Search ranking multiplier for founding instructors
+             * @default 1.5
+             */
+            founding_search_boost: number;
             /** Instructor Tiers */
             instructor_tiers: components["schemas"]["TierConfig"][];
             price_floor_cents: components["schemas"]["PriceFloorConfig"];
@@ -10827,6 +10952,24 @@ export type components = {
          * @description Alias for request payload compatibility.
          */
         PricingConfigPayload: {
+            /**
+             * Founding Instructor Cap
+             * @description Maximum number of founding instructors
+             * @default 100
+             */
+            founding_instructor_cap: number;
+            /**
+             * Founding Instructor Rate Pct
+             * @description Platform fee percentage for founding instructors
+             * @default 0.08
+             */
+            founding_instructor_rate_pct: number;
+            /**
+             * Founding Search Boost
+             * @description Search ranking multiplier for founding instructors
+             * @default 1.5
+             */
+            founding_search_boost: number;
             /** Instructor Tiers */
             instructor_tiers: components["schemas"]["TierConfig"][];
             price_floor_cents: components["schemas"]["PriceFloorConfig"];
@@ -10957,6 +11100,12 @@ export type components = {
             ok: boolean;
             /** Url */
             url?: string | null;
+        };
+        /** PublicConfigResponse */
+        PublicConfigResponse: {
+            fees: components["schemas"]["PlatformFees"];
+            /** Updated At */
+            updated_at?: string | null;
         };
         /**
          * PublicDayAvailability
@@ -16406,6 +16555,26 @@ export interface operations {
             };
         };
     };
+    founding_instructor_count_api_v1_admin_instructors_founding_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoundingCountResponse"];
+                };
+            };
+        };
+    };
     admin_instructor_detail_api_v1_admin_instructors__instructor_id__get: {
         parameters: {
             query?: never;
@@ -17397,6 +17566,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PricingConfigResponse"];
+                };
+            };
+        };
+    };
+    get_public_config_api_v1_config_public_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicConfigResponse"];
                 };
             };
         };

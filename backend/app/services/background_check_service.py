@@ -321,8 +321,10 @@ class BackgroundCheckService(BaseService):
         country_entry = _find("country")
         state_value = self._normalize_state((region_entry or {}).get("text"))
         country_value = (
-            (country_entry or {}).get("short_code") or (country_entry or {}).get("text") or "US"
-        ).strip()
+            ((country_entry or {}).get("short_code") or (country_entry or {}).get("text") or "US")
+            .strip()
+            .upper()
+        )  # Checkr expects uppercase country codes (e.g., "US" not "us")
         if len(country_value) > 3:
             country_value = "US"
 

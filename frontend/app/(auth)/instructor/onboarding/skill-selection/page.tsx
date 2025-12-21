@@ -10,8 +10,10 @@ import type { CatalogService, ServiceCategory } from '@/features/shared/api/clie
 import { logger } from '@/lib/logger';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
 import { FloorViolation, evaluatePriceFloorViolations, formatCents } from '@/lib/pricing/priceFloors';
+import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
 import { OnboardingProgressHeader } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
+import { usePlatformFees } from '@/hooks/usePlatformConfig';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 
@@ -47,11 +49,22 @@ function Step3SkillsPricingInner() {
   const isInstructorLive = rawData.profile?.is_live === true;
   // Single pricing config fetch - derive floors from config to avoid duplicate API calls
   const { config: pricingConfig } = usePricingConfig();
+  const { fees } = usePlatformFees();
   const pricingFloors = pricingConfig?.price_floor_cents ?? null;
-  const defaultInstructorTierPct = useMemo(() => {
-    const pct = pricingConfig?.instructor_tiers?.[0]?.pct;
-    return typeof pct === 'number' ? pct : null;
-  }, [pricingConfig]);
+  const isFoundingInstructor = Boolean(rawData.profile?.is_founding_instructor);
+  const currentTierPct =
+    typeof rawData.profile?.current_tier_pct === 'number' ? rawData.profile.current_tier_pct : null;
+  const platformFeeRate = useMemo(
+    () =>
+      resolvePlatformFeeRate({
+        fees,
+        isFoundingInstructor,
+        currentTierPct,
+      }),
+    [currentTierPct, fees, isFoundingInstructor]
+  );
+  const platformFeeLabel = useMemo(() => formatPlatformFeeLabel(platformFeeRate), [platformFeeRate]);
+  const instructorTakeHomePct = useMemo(() => resolveTakeHomePct(platformFeeRate), [platformFeeRate]);
 
   const floorViolationsByService = useMemo(() => {
     const map = new Map<string, FloorViolation[]>();
@@ -552,13 +565,13 @@ function Step3SkillsPricingInner() {
                       <span className="text-gray-500">/hr</span>
                     </div>
                   </div>
-                  {s.hourly_rate && Number(s.hourly_rate) > 0 && defaultInstructorTierPct !== null && (
+                  {s.hourly_rate && Number(s.hourly_rate) > 0 && (
                     <div className="mt-2 text-xs text-gray-600">
                       You&apos;ll earn{' '}
                       <span className="font-semibold text-[#7E22CE]">
-                        ${Number(Number(s.hourly_rate) * (1 - defaultInstructorTierPct)).toFixed(2)}
+                        ${Number(Number(s.hourly_rate) * instructorTakeHomePct).toFixed(2)}
                       </span>{' '}
-                      after the {(defaultInstructorTierPct * 100).toFixed(1).replace(/\.0$/, '')}% platform fee
+                      after the {platformFeeLabel} platform fee
                     </div>
                   )}
                   {violations.length > 0 && (

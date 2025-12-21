@@ -37,6 +37,9 @@ type StudentCreditCycle = {
 
 type PricingConfig = {
   student_fee_pct: number;
+  founding_instructor_rate_pct: number;
+  founding_instructor_cap: number;
+  founding_search_boost: number;
   instructor_tiers: TierConfig[];
   tier_activity_window_days: number;
   tier_stepdown_max: number;
@@ -52,6 +55,9 @@ type PricingConfigResponse = {
 
 const DEFAULT_CONFIG: PricingConfig = {
   student_fee_pct: 0.12,
+  founding_instructor_rate_pct: 0.08,
+  founding_instructor_cap: 100,
+  founding_search_boost: 1.5,
   instructor_tiers: [
     { min: 1, max: 4, pct: 0.15 },
     { min: 5, max: 10, pct: 0.12 },
@@ -221,6 +227,17 @@ export default function PricingSettingsPage() {
     }));
   };
 
+  const updateFoundingConfig = (
+    field: 'founding_instructor_rate_pct' | 'founding_instructor_cap' | 'founding_search_boost',
+    value: string,
+  ) => {
+    const numeric = Number(value);
+    setConfig((prev) => ({
+      ...prev,
+      [field]: Number.isNaN(numeric) ? prev[field] : numeric,
+    }));
+  };
+
   const configSnapshot = useMemo(() => JSON.stringify(config), [config]);
   const isDirty = Boolean(initialConfigRef.current && initialConfigRef.current !== configSnapshot);
 
@@ -241,6 +258,17 @@ export default function PricingSettingsPage() {
 
     const studentFeeValid =
       Number.isFinite(config.student_fee_pct) && config.student_fee_pct >= 0 && config.student_fee_pct <= 1;
+
+    const foundingRateValid =
+      Number.isFinite(config.founding_instructor_rate_pct) &&
+      config.founding_instructor_rate_pct >= 0 &&
+      config.founding_instructor_rate_pct <= 1;
+    const foundingCapValid =
+      Number.isFinite(config.founding_instructor_cap) && config.founding_instructor_cap >= 1;
+    const foundingBoostValid =
+      Number.isFinite(config.founding_search_boost) &&
+      config.founding_search_boost >= 1 &&
+      config.founding_search_boost <= 3;
 
     const floorsValid =
       config.price_floor_cents.private_in_person >= 0 &&
@@ -264,6 +292,9 @@ export default function PricingSettingsPage() {
 
     const hasErrors =
       !studentFeeValid ||
+      !foundingRateValid ||
+      !foundingCapValid ||
+      !foundingBoostValid ||
       hasTierErrors ||
       !floorsValid ||
       hasCreditErrors ||
@@ -274,6 +305,9 @@ export default function PricingSettingsPage() {
     return {
       errors: {
         studentFee: studentFeeValid ? null : 'Enter a decimal between 0 and 1.',
+        foundingRate: foundingRateValid ? null : 'Enter a decimal between 0 and 1.',
+        foundingCap: foundingCapValid ? null : 'Must be at least 1.',
+        foundingBoost: foundingBoostValid ? null : 'Enter a decimal between 1 and 3.',
         tiers: tierErrors,
         floors: floorsValid ? null : 'Floors must be non-negative.',
         credit: creditErrors,
@@ -592,6 +626,79 @@ export default function PricingSettingsPage() {
                         />
                         {validation.errors.inactivity ? (
                           <p className="mt-1 text-xs text-destructive">{validation.errors.inactivity}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </section>
+
+                  <Separator className="my-6 bg-muted/30" />
+
+                  <section className="space-y-3">
+                    <div>
+                      <h3 className="text-sm font-medium text-foreground">Founding Instructor Program</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Settings for founding instructors who receive special lifetime benefits.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-12 gap-4">
+                      <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
+                        <Label htmlFor="founding-rate" className="text-sm font-medium text-foreground">
+                          Founding rate
+                        </Label>
+                        <div className="mt-1 flex items-center gap-2">
+                          <input
+                            id="founding-rate"
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            max={1}
+                            value={config.founding_instructor_rate_pct}
+                            onChange={(e) => updateFoundingConfig('founding_instructor_rate_pct', e.target.value)}
+                            className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                          />
+                          <Badge variant="secondary" className="shrink-0 px-1.5 text-[11px]">
+                            decimal
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">0.08 = 8%</p>
+                        {validation.errors.foundingRate ? (
+                          <p className="mt-1 text-xs text-destructive">{validation.errors.foundingRate}</p>
+                        ) : null}
+                      </div>
+                      <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
+                        <Label htmlFor="founding-cap" className="text-sm font-medium text-foreground">
+                          Founding cap
+                        </Label>
+                        <input
+                          id="founding-cap"
+                          type="number"
+                          min={1}
+                          value={config.founding_instructor_cap}
+                          onChange={(e) => updateFoundingConfig('founding_instructor_cap', e.target.value)}
+                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">Max founding instructors</p>
+                        {validation.errors.foundingCap ? (
+                          <p className="mt-1 text-xs text-destructive">{validation.errors.foundingCap}</p>
+                        ) : null}
+                      </div>
+                      <div className="col-span-12 sm:col-span-6 md:col-span-4 xl:col-span-3">
+                        <Label htmlFor="founding-boost" className="text-sm font-medium text-foreground">
+                          Search boost
+                        </Label>
+                        <input
+                          id="founding-boost"
+                          type="number"
+                          step="0.1"
+                          min={1}
+                          max={3}
+                          value={config.founding_search_boost}
+                          onChange={(e) => updateFoundingConfig('founding_search_boost', e.target.value)}
+                          className="mt-1 w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">Ranking multiplier (1.0-3.0)</p>
+                        {validation.errors.foundingBoost ? (
+                          <p className="mt-1 text-xs text-destructive">{validation.errors.foundingBoost}</p>
                         ) : null}
                       </div>
                     </div>

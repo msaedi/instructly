@@ -480,6 +480,9 @@ class InstructorProfileResponse(InstructorProfileBase):
     background_check_uploaded_at: Optional[datetime] = Field(default=None)
     onboarding_completed_at: Optional[datetime] = Field(default=None)
     is_live: bool = Field(default=False)
+    is_founding_instructor: bool = Field(
+        default=False, description="Whether the instructor is a founding instructor"
+    )
     preferred_teaching_locations: List[PreferredTeachingLocationOut] = Field(default_factory=list)
     preferred_public_spaces: List[PreferredPublicSpaceOut] = Field(default_factory=list)
     service_area_neighborhoods: List[ServiceAreaNeighborhoodOut] = Field(default_factory=list)
@@ -653,6 +656,7 @@ class InstructorProfileResponse(InstructorProfileBase):
             ),
             onboarding_completed_at=getattr(instructor_profile, "onboarding_completed_at", None),
             is_live=getattr(instructor_profile, "is_live", False),
+            is_founding_instructor=getattr(instructor_profile, "is_founding_instructor", False),
             preferred_teaching_locations=teaching_locations,
             preferred_public_spaces=public_spaces,
             service_area_neighborhoods=neighborhoods_output,

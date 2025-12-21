@@ -58,6 +58,7 @@ class InviteSendRequest(StrictRequestModel):
     to_email: EmailStr
     role: str = Field(default="instructor_beta")
     expires_in_days: int = Field(default=14, ge=1, le=180)
+    grant_founding_status: bool = Field(default=True)
     source: Optional[str] = None
     base_url: Optional[str] = None
 

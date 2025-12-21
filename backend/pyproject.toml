@@ -194,6 +194,7 @@ ignore_missing_imports = false
 follow_imports = "normal"
 
 [tool.pytest.ini_options]
+addopts = "--durations=10 --durations-min=1.0"
 markers = [
     "schemathesis: Schemathesis-based API contract tests (run with: pytest -m schemathesis)",
     "unit: Unit tests",

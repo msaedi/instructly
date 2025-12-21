@@ -551,6 +551,92 @@ def test_pricing_service_outputs_integer_cents(db, pricing_service, test_instruc
 
     assert isinstance(result["line_items"], list)
     assert all(isinstance(item["amount_cents"], int) for item in result["line_items"])
+
+
+def test_founding_instructor_gets_founding_rate(
+    db, pricing_service, test_instructor, test_student, instructor_service
+):
+    """Founding instructors should use the founding rate regardless of tier."""
+
+    profile = test_instructor.instructor_profile
+    profile.is_founding_instructor = True
+    profile.current_tier_pct = 15
+    db.flush()
+
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("80.00"),
+        duration_minutes=60,
+    )
+
+    config = deepcopy(DEFAULT_PRICING_CONFIG)
+    config["founding_instructor_rate_pct"] = 0.08
+    rate = pricing_service._resolve_instructor_tier_pct(
+        booking=booking, instructor_profile=profile, pricing_config=config
+    )
+
+    assert rate == Decimal("0.0800")
+
+
+def test_regular_instructor_uses_tier_rate(
+    db, pricing_service, test_instructor, test_student, instructor_service
+):
+    """Non-founding instructors should use tier-based rates."""
+
+    profile = test_instructor.instructor_profile
+    profile.is_founding_instructor = False
+    profile.current_tier_pct = 15
+    db.flush()
+
+    completed_booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("80.00"),
+        duration_minutes=60,
+        status=BookingStatus.COMPLETED,
+    )
+
+    config = deepcopy(DEFAULT_PRICING_CONFIG)
+    rate = pricing_service._resolve_instructor_tier_pct(
+        booking=completed_booking, instructor_profile=profile, pricing_config=config
+    )
+
+    assert rate == Decimal("0.1500")
+
+
+def test_founding_instructor_immune_to_tier_update(db, pricing_service, test_instructor):
+    """Founding instructors should not have their tier updated."""
+    profile = test_instructor.instructor_profile
+    original_tier = profile.current_tier_pct
+    original_eval = profile.last_tier_eval_at
+    profile.is_founding_instructor = True
+    db.flush()
+
+    result = pricing_service.update_instructor_tier(profile, new_tier_pct=0.10)
+
+    assert result is False
+    assert profile.current_tier_pct == original_tier
+    assert profile.last_tier_eval_at == original_eval
+
+
+def test_regular_instructor_tier_can_be_updated(db, pricing_service, test_instructor):
+    """Non-founding instructors should allow tier updates."""
+    profile = test_instructor.instructor_profile
+    profile.is_founding_instructor = False
+    db.flush()
+
+    result = pricing_service.update_instructor_tier(profile, new_tier_pct=0.10)
+
+    assert result is True
+    assert float(profile.current_tier_pct) == pytest.approx(10.0)
+    assert profile.last_tier_eval_at is not None
+
+
 @pytest.fixture(autouse=True)
 def _restore_default_price_floors(db):
     config_service = ConfigService(db)

@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
 from app.database import get_db_session
 from app.repositories.ranking_repository import RankingRepository
+from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +199,10 @@ class RankingService:
         metrics_start = time_module.perf_counter()
         instructor_metrics = self.repository.get_instructor_metrics(instructor_ids)
         perf["instructor_metrics_ms"] = int((time_module.perf_counter() - metrics_start) * 1000)
+        pricing_config = DEFAULT_PRICING_CONFIG
+        if isinstance(self.repository, RankingRepository):
+            pricing_config, _ = ConfigService(self.repository.db).get_pricing_config()
+        founding_boost = self._resolve_founding_boost(pricing_config)
         # Audience + skill are boosts only; skip these queries unless hints are present.
         service_audiences: Dict[str, str] = {}
         service_skills: Dict[str, List[str]] = {}
@@ -234,6 +239,7 @@ class RankingService:
                 skills,
                 distance_km,
                 parsed_query,
+                founding_boost,
             )
             scored.append(result)
         perf["scoring_ms"] = int((time_module.perf_counter() - scoring_start) * 1000)
@@ -294,6 +300,7 @@ class RankingService:
         skills: List[str],
         distance_km: Optional[float],
         parsed_query: "ParsedQuery",
+        founding_boost: float,
     ) -> RankedResult:
         """Calculate all scores for a single candidate."""
 
@@ -336,6 +343,13 @@ class RankingService:
         skill_boost = self._calculate_skill_boost(skills, parsed_query.skill_level)
 
         final_score = base_score + audience_boost + skill_boost
+        if metrics.get("is_founding_instructor"):
+            final_score *= founding_boost
+            logger.debug(
+                "Applied founding boost %s to instructor %s",
+                founding_boost,
+                candidate.instructor_id,
+            )
 
         return RankedResult(
             service_id=candidate.service_id,
@@ -359,6 +373,17 @@ class RankingService:
             available_dates=list(candidate.available_dates),
             earliest_available=candidate.earliest_available,
         )
+
+    @staticmethod
+    def _resolve_founding_boost(pricing_config: Dict[str, Any]) -> float:
+        raw_value = pricing_config.get(
+            "founding_search_boost",
+            DEFAULT_PRICING_CONFIG.get("founding_search_boost", 1.0),
+        )
+        try:
+            return float(raw_value)
+        except (TypeError, ValueError):
+            return float(DEFAULT_PRICING_CONFIG.get("founding_search_boost", 1.0))
 
     def _calculate_quality_score(
         self,

@@ -6,6 +6,9 @@ from typing import Any, Dict
 
 PRICING_DEFAULTS: Dict[str, Any] = {
     "student_fee_pct": 0.12,
+    "founding_instructor_rate_pct": 0.08,
+    "founding_instructor_cap": 100,
+    "founding_search_boost": 1.5,
     "instructor_tiers": [
         {"min": 1, "max": 4, "pct": 0.15},
         {"min": 5, "max": 10, "pct": 0.12},

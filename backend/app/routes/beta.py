@@ -260,7 +260,7 @@ def consume_invite(
     payload: InviteConsumeRequest, db: Session = Depends(get_db)
 ) -> AccessGrantResponse:
     svc = BetaService(db)
-    grant, reason = svc.consume_and_grant(
+    grant, reason, _invite = svc.consume_and_grant(
         code=payload.code, user_id=payload.user_id, role=payload.role, phase=payload.phase
     )
     if not grant:
@@ -287,6 +287,7 @@ def send_invite(
         expires_in_days=payload.expires_in_days,
         source=payload.source,
         base_url=payload.base_url,
+        grant_founding_status=payload.grant_founding_status,
     )
     return InviteSendResponse(
         id=invite.id,

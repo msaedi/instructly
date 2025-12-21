@@ -29,4 +29,12 @@ class AdminInstructorDetailResponse(StrictModel):
     bgc_dispute_resolved_at: Optional[datetime] = None
 
 
-__all__ = ["AdminInstructorDetailResponse"]
+class FoundingCountResponse(StrictModel):
+    """Summary of founding instructor utilization."""
+
+    count: int
+    cap: int
+    remaining: int
+
+
+__all__ = ["AdminInstructorDetailResponse", "FoundingCountResponse"]

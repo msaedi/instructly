@@ -25,10 +25,12 @@ from ..auth import (
     verify_password_async,
 )
 from ..core.config import settings
+from ..core.enums import RoleName
 from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.user import User
+from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..schemas import (
     UserCreate,
     UserLogin,
@@ -139,6 +141,7 @@ async def register(
                 # Don't fail registration if conversion fails
 
         # Beta invite consumption (server-side guarantee)
+        founding_instructor_granted: bool | None = None
         try:
             invite_code = None
             metadata_obj = getattr(payload, "metadata", None)
@@ -146,7 +149,7 @@ async def register(
                 invite_code = metadata_obj.get("invite_code")
             if invite_code:
                 svc = BetaService(db)
-                grant, reason = svc.consume_and_grant(
+                grant, reason, invite = svc.consume_and_grant(
                     code=str(invite_code),
                     user_id=db_user.id,
                     role=payload.role or "student",
@@ -158,6 +161,26 @@ async def register(
                     logger.warning(
                         f"Invite not consumed on register for user {db_user.id}: {reason}"
                     )
+                if grant and invite and getattr(invite, "grant_founding_status", False):
+                    role_name = (payload.role or RoleName.STUDENT).lower()
+                    if role_name == RoleName.INSTRUCTOR.value:
+                        repo = InstructorProfileRepository(db)
+                        profile = repo.get_by_user_id(db_user.id)
+                        if profile:
+                            granted, message = svc.try_grant_founding_status(profile.id)
+                            founding_instructor_granted = granted
+                            if granted:
+                                logger.info(
+                                    "Granted founding status for user %s: %s",
+                                    db_user.id,
+                                    message,
+                                )
+                            else:
+                                logger.info(
+                                    "Founding status not granted for user %s: %s",
+                                    db_user.id,
+                                    message,
+                                )
         except Exception as e:
             # Log only; do not block registration if invite handling fails
             logger.error(f"Error consuming invite on register for {db_user.id}: {e}")
@@ -175,6 +198,7 @@ async def register(
             "permissions": [],
             "profile_picture_version": getattr(db_user, "profile_picture_version", 0),
             "has_profile_picture": getattr(db_user, "has_profile_picture", False),
+            "founding_instructor_granted": founding_instructor_granted,
         }
         user_payload = AuthUserResponse(**model_filter(AuthUserResponse, response_data))
 

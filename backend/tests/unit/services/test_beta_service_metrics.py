@@ -30,6 +30,9 @@ def test_beta_service_methods_execute(db):
     db.commit()
     db.refresh(user)
 
-    grant, reason2 = svc.consume_and_grant(code=code, user_id=user.id, role="instructor_beta", phase="instructor_only")
+    grant, reason2, invite = svc.consume_and_grant(
+        code=code, user_id=user.id, role="instructor_beta", phase="instructor_only"
+    )
     assert grant is not None
     assert reason2 is None
+    assert invite is not None

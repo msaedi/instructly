@@ -277,14 +277,22 @@ class TestErrorHandling:
         notification_service_with_mocked_email.email_service.send_email.reset_mock()
         yield
 
-    def test_handles_email_service_failure(self, notification_service_with_mocked_email, test_booking):
+    @patch("app.services.notification_service.time.sleep")
+    def test_handles_email_service_failure(
+        self, mock_sleep, notification_service_with_mocked_email, test_booking
+    ):
         """Test graceful handling when email service fails."""
-        notification_service_with_mocked_email.email_service.send_email.side_effect = Exception("Email service down")
+        notification_service_with_mocked_email.email_service.send_email.side_effect = Exception(
+            "Email service down"
+        )
 
         result = notification_service_with_mocked_email.send_booking_confirmation(test_booking)
         assert result is False  # Should return False on failure
 
-    def test_handles_template_error(self, notification_service_with_mocked_email, test_booking, template_service):
+    @patch("app.services.notification_service.time.sleep")
+    def test_handles_template_error(
+        self, mock_sleep, notification_service_with_mocked_email, test_booking, template_service
+    ):
         """Test handling of template rendering errors."""
         # We need to patch the template service that's inside the notification service
         with patch.object(

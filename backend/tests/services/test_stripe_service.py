@@ -684,9 +684,15 @@ class TestStripeService:
         assert status.has_account is False
         assert status.onboarding_completed is False
 
+    @patch("app.services.stripe_service.StripeService.check_account_status")
     @patch("app.services.stripe_service.StripeService.create_account_link")
     def test_start_instructor_onboarding_reuses_existing_account(
-        self, mock_create_link, stripe_service: StripeService, test_instructor: tuple, monkeypatch
+        self,
+        mock_create_link,
+        mock_check_status,
+        stripe_service: StripeService,
+        test_instructor: tuple,
+        monkeypatch,
     ):
         """Existing Stripe accounts should be reused for onboarding."""
         user, profile, _ = test_instructor
@@ -694,6 +700,7 @@ class TestStripeService:
             profile.id, "acct_test123", onboarding_completed=False
         )
         mock_create_link.return_value = "https://stripe.test/onboard"
+        mock_check_status.return_value = {"onboarding_completed": False}
         monkeypatch.setattr(settings, "frontend_url", "https://app.test", raising=False)
 
         response = stripe_service.start_instructor_onboarding(
@@ -748,10 +755,12 @@ class TestStripeService:
                 request_scheme="https",
             )
 
+    @patch("app.services.stripe_service.StripeService.check_account_status")
     @patch("app.services.stripe_service.StripeService.create_account_link")
     def test_start_instructor_onboarding_parses_callback_from_instructor_path(
         self,
         mock_create_link,
+        mock_check_status,
         stripe_service: StripeService,
         test_instructor: tuple,
         monkeypatch,
@@ -761,6 +770,7 @@ class TestStripeService:
             profile.id, "acct_callback", onboarding_completed=False
         )
         mock_create_link.return_value = "https://stripe.test/onboard"
+        mock_check_status.return_value = {"onboarding_completed": False}
         monkeypatch.setattr(settings, "frontend_url", "not-a-url", raising=False)
         monkeypatch.setattr(settings, "local_beta_frontend_origin", "", raising=False)
 
@@ -775,10 +785,12 @@ class TestStripeService:
         _, kwargs = mock_create_link.call_args
         assert kwargs["return_url"].endswith("/instructor/onboarding/status/earnings")
 
+    @patch("app.services.stripe_service.StripeService.check_account_status")
     @patch("app.services.stripe_service.StripeService.create_account_link")
     def test_start_instructor_onboarding_parses_callback_from_last_segment(
         self,
         mock_create_link,
+        mock_check_status,
         stripe_service: StripeService,
         test_instructor: tuple,
         monkeypatch,
@@ -788,6 +800,7 @@ class TestStripeService:
             profile.id, "acct_callback2", onboarding_completed=False
         )
         mock_create_link.return_value = "https://stripe.test/onboard"
+        mock_check_status.return_value = {"onboarding_completed": False}
         monkeypatch.setattr(settings, "frontend_url", "https://app.test", raising=False)
 
         response = stripe_service.start_instructor_onboarding(
@@ -801,10 +814,12 @@ class TestStripeService:
         _, kwargs = mock_create_link.call_args
         assert kwargs["return_url"].endswith("/instructor/onboarding/status/bar")
 
+    @patch("app.services.stripe_service.StripeService.check_account_status")
     @patch("app.services.stripe_service.StripeService.create_account_link")
     def test_start_instructor_onboarding_sanitizes_callback_and_frontend_path(
         self,
         mock_create_link,
+        mock_check_status,
         stripe_service: StripeService,
         test_instructor: tuple,
         monkeypatch,
@@ -814,6 +829,7 @@ class TestStripeService:
             profile.id, "acct_sanitize", onboarding_completed=False
         )
         mock_create_link.return_value = "https://stripe.test/onboard"
+        mock_check_status.return_value = {"onboarding_completed": False}
         monkeypatch.setattr(settings, "frontend_url", "https:///app", raising=False)
         monkeypatch.setattr(settings, "local_beta_frontend_origin", "", raising=False)
 
@@ -3718,3 +3734,43 @@ class TestStripeService:
         # Verify no payment method was saved due to rollback
         final_count = len(stripe_service.payment_repository.get_payment_methods_by_user(test_user.id))
         assert final_count == initial_count
+
+    def test_earnings_export_uses_founding_rate(
+        self,
+        stripe_service: StripeService,
+        db: Session,
+        test_instructor: tuple[User, InstructorProfile, InstructorService],
+        monkeypatch,
+    ) -> None:
+        """Founding instructors should use the founding rate in earnings exports."""
+        instructor_user, profile, _service = test_instructor
+        profile.is_founding_instructor = True
+        db.flush()
+
+        rows = [
+            {
+                "lesson_date": datetime.now(timezone.utc).date(),
+                "student_name": "Student",
+                "service_name": "Lesson",
+                "duration_minutes": 60,
+                "hourly_rate": Decimal("100.00"),
+                "payment_amount_cents": 10000,
+                "application_fee_cents": 800,
+                "status": "succeeded",
+                "payment_id": "pay_123",
+            }
+        ]
+
+        monkeypatch.setattr(
+            stripe_service.payment_repository,
+            "get_instructor_earnings_for_export",
+            lambda instructor_id, start_date=None, end_date=None: rows,
+        )
+
+        result = stripe_service._build_earnings_export_rows(
+            instructor_id=instructor_user.id,
+            start_date=None,
+            end_date=None,
+        )
+
+        assert result[0]["platform_fee_cents"] == 800

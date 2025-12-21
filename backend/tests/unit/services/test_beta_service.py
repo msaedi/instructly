@@ -10,6 +10,7 @@ class FakeInvite:
         self.role = "instructor_beta"
         self.expires_at = expires_at
         self.used_at = used_at
+        self.grant_founding_status = True
 
 
 class FakeGrant:
@@ -127,11 +128,12 @@ def test_bulk_generate_creates_expected_records(service):
 def test_consume_and_grant_success(service):
     future = datetime.now(timezone.utc) + timedelta(days=2)
     service._fake_invites.set_invite(FakeInvite(code="OKOK0001", expires_at=future, used_at=None))
-    grant, reason = service.consume_and_grant(
+    grant, reason, invite = service.consume_and_grant(
         code="OKOK0001", user_id="U123", role="instructor_beta", phase="instructor_only"
     )
     assert reason is None
     assert grant is not None
+    assert invite is not None
     assert grant.user_id == "U123"
     assert service._fake_invites.mark_used_calls == [("OKOK0001", "U123")]
     assert service._fake_access.grants == [("U123", "instructor_beta", "instructor_only", "OKOK0001")]
@@ -139,11 +141,12 @@ def test_consume_and_grant_success(service):
 
 def test_consume_and_grant_failure(service):
     # No invite set → validate_invite will fail
-    grant, reason = service.consume_and_grant(
+    grant, reason, invite = service.consume_and_grant(
         code="BADCODE", user_id="U1", role="instructor_beta", phase="instructor_only"
     )
     assert grant is None
     assert reason in {"not_found", "expired", "used"}
+    assert invite is None
 
 
 def test_build_join_url_local(monkeypatch):

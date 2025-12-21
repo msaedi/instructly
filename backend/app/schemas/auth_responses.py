@@ -22,6 +22,10 @@ class AuthUserResponse(StrictModel):
     permissions: List[str] = Field(default_factory=list)
     profile_picture_version: Optional[int] = 0
     has_profile_picture: Optional[bool] = False
+    founding_instructor_granted: Optional[bool] = Field(
+        default=None,
+        description="True if founding instructor status was granted during registration",
+    )
 
 
 class AuthUserWithPermissionsResponse(AuthUserResponse):

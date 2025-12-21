@@ -13,6 +13,8 @@ type ProfileData = {
   bgc_status?: string;
   background_check_status?: string;
   is_live?: boolean;
+  is_founding_instructor?: boolean;
+  current_tier_pct?: number | null;
 };
 
 type UserData = {
@@ -75,6 +77,21 @@ export function useOnboardingStepStatus(options?: { skip?: boolean }) {
 
       const user: UserData | null = meRes?.ok ? await meRes.json() : null;
       const profile: ProfileData | null = profRes?.ok ? await profRes.json() : null;
+      let bgcStatus: string | null = null;
+      if (profile?.id) {
+        try {
+          const bgcRes = await fetchWithAuth(`/api/v1/instructors/${profile.id}/bgc/status`);
+          if (bgcRes.ok) {
+            const bgcData = await bgcRes.json();
+            const statusValue = bgcData?.status;
+            if (typeof statusValue === 'string') {
+              bgcStatus = statusValue.toLowerCase();
+            }
+          }
+        } catch {
+          // Swallow background check status errors; fall back to profile fields if present
+        }
+      }
       const areasData = areasRes?.ok ? await areasRes.json() : { items: [] };
       const serviceAreas = Array.isArray(areasData?.items) ? areasData.items : [];
 
@@ -93,12 +110,15 @@ export function useOnboardingStepStatus(options?: { skip?: boolean }) {
 
       // Store raw data for consumers that need it
       const bgcRaw = profile?.bgc_status || profile?.background_check_status || '';
+      if (!bgcStatus) {
+        bgcStatus = typeof bgcRaw === 'string' ? bgcRaw.toLowerCase() : null;
+      }
       setRawData({
         profile,
         user,
         serviceAreas,
         connectStatus: connectStatusRes,
-        bgcStatus: typeof bgcRaw === 'string' ? bgcRaw.toLowerCase() : null,
+        bgcStatus,
       });
 
       // Evaluate Account Setup (Step 1)
@@ -113,8 +133,10 @@ export function useOnboardingStepStatus(options?: { skip?: boolean }) {
 
       // Evaluate Verify Identity (Step 3)
       // identity_verified_at means Stripe verification is complete
-      // Note: BGC is tracked separately on the status page, so this step only checks identity
+      // This step is complete only after background check clears.
       const identityVerified = Boolean(profile?.identity_verified_at);
+      const bgcPassed = bgcStatus === 'passed' || bgcStatus === 'clear' || bgcStatus === 'eligible';
+      const verificationStepComplete = identityVerified && bgcPassed;
 
       // Evaluate Payment Setup (Step 4)
       const paymentSetupComplete = Boolean(connectStatusRes?.onboarding_completed);
@@ -123,9 +145,8 @@ export function useOnboardingStepStatus(options?: { skip?: boolean }) {
       setStepStatus({
         'account-setup': accountSetupComplete ? 'done' : 'failed',
         'skill-selection': hasSkills ? 'done' : 'failed',
-        // Verify identity step tracks Stripe identity verification
-        // BGC is tracked separately on the status page
-        'verify-identity': identityVerified ? 'done' : 'failed',
+        // Verify identity step requires BOTH identity verification and background check clearance
+        'verify-identity': verificationStepComplete ? 'done' : 'failed',
         'payment-setup': paymentSetupComplete ? 'done' : 'failed',
       });
     } catch {

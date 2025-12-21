@@ -6,9 +6,11 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { hydrateCatalogNameById, displayServiceName } from '@/lib/instructorServices';
 import { usePricingConfig } from '@/lib/pricing/usePricingFloors';
+import { formatPlatformFeeLabel, resolvePlatformFeeRate, resolveTakeHomePct } from '@/lib/pricing/platformFees';
 import { evaluatePriceFloorViolations, formatCents, type FloorViolation } from '@/lib/pricing/priceFloors';
 import { useServiceCategories, useAllServicesWithInstructors } from '@/hooks/queries/useServices';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
+import { usePlatformFees } from '@/hooks/usePlatformConfig';
 
 type CatalogService = { id: string; name: string };
 type ServiceCategory = { slug: string; name: string };
@@ -31,6 +33,8 @@ interface Props {
   /** Pre-fetched instructor profile to avoid duplicate API calls */
   instructorProfile?: {
     is_live?: boolean;
+    is_founding_instructor?: boolean;
+    current_tier_pct?: number | null;
     services?: unknown[];
   } | null;
 }
@@ -47,6 +51,7 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const [isInstructorLive, setIsInstructorLive] = useState(true);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const { config: pricingConfig } = usePricingConfig();
+  const { fees } = usePlatformFees();
   const pricingFloors = pricingConfig?.price_floor_cents ?? null;
 
   // Use React Query hooks for service data (prevents duplicate API calls)
@@ -58,19 +63,28 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
   const [requestedSkill, setRequestedSkill] = useState('');
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
-  const entryTierPct = useMemo(() => {
-    const tiers = pricingConfig?.instructor_tiers ?? [];
-    if (!tiers.length) return null;
-    const sorted = [...tiers].sort((a, b) => (a.min ?? 0) - (b.min ?? 0));
-    const pct = sorted[0]?.pct;
-    return typeof pct === 'number' ? pct : null;
-  }, [pricingConfig]);
-  const instructorTakeHomePct = entryTierPct != null ? 1 - entryTierPct : null;
-  const platformFeeLabel = useMemo(() => {
-    if (entryTierPct == null) return null;
-    const percent = entryTierPct * 100;
-    return percent % 1 === 0 ? `${percent.toFixed(0)}%` : `${percent.toFixed(1)}%`;
-  }, [entryTierPct]);
+  const profileFeeContext = useMemo(() => {
+    const profileData = instructorProfile ?? profileFromHook;
+    const record = profileData as Record<string, unknown> | null;
+    const currentTierRaw = record?.['current_tier_pct'];
+    const currentTierPct =
+      typeof currentTierRaw === 'number' && Number.isFinite(currentTierRaw) ? currentTierRaw : null;
+    return {
+      isFoundingInstructor: Boolean(record?.['is_founding_instructor']),
+      currentTierPct,
+    };
+  }, [instructorProfile, profileFromHook]);
+  const platformFeeRate = useMemo(
+    () =>
+      resolvePlatformFeeRate({
+        fees,
+        isFoundingInstructor: profileFeeContext.isFoundingInstructor,
+        currentTierPct: profileFeeContext.currentTierPct,
+      }),
+    [fees, profileFeeContext]
+  );
+  const instructorTakeHomePct = useMemo(() => resolveTakeHomePct(platformFeeRate), [platformFeeRate]);
+  const platformFeeLabel = useMemo(() => formatPlatformFeeLabel(platformFeeRate), [platformFeeRate]);
 
   const serviceFloorViolations = useMemo(() => {
     const map = new Map<string, FloorViolation[]>();
@@ -516,17 +530,11 @@ export default function SkillsPricingInline({ className, instructorProfile }: Pr
                   </div>
                   {s.hourly_rate && Number(s.hourly_rate) > 0 && (
                     <div className="mt-2 text-xs text-gray-600">
-                      {instructorTakeHomePct != null ? (
-                        <>
-                          You&apos;ll earn{' '}
-                          <span className="font-semibold text-[#7E22CE]">
-                            ${(Number(s.hourly_rate) * instructorTakeHomePct).toFixed(2)}
-                          </span>{' '}
-                          after the {platformFeeLabel ?? 'platform'} fee
-                        </>
-                      ) : (
-                        <>Platform fee details will appear once pricing config loads.</>
-                      )}
+                      You&apos;ll earn{' '}
+                      <span className="font-semibold text-[#7E22CE]">
+                        ${(Number(s.hourly_rate) * instructorTakeHomePct).toFixed(2)}
+                      </span>{' '}
+                      after the {platformFeeLabel} platform fee
                     </div>
                   )}
                 </div>

@@ -35,7 +35,13 @@ export async function bgcInvite(instructorId: string): Promise<BGCInviteResponse
 }
 
 export async function bgcStatus(instructorId: string): Promise<BGCStatusResponse> {
-  const response = await httpGet<RawBGCStatusResponse>(`/api/v1/instructors/${instructorId}/bgc/status`);
+  const response = await httpGet<RawBGCStatusResponse>(`/api/v1/instructors/${instructorId}/bgc/status`, {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  });
   const { bgc_includes_canceled, ...rest } = response;
   return {
     ...rest,

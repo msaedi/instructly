@@ -2,7 +2,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Star, Heart, Layers, MonitorSmartphone, Clock3, MapPin, ShieldCheck } from 'lucide-react';
+import { Star, Heart, Layers, MonitorSmartphone, Clock3, MapPin } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -24,6 +24,8 @@ import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { at } from '@/lib/ts/safe';
 import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
+import { FoundingBadge } from '@/components/ui/FoundingBadge';
+import { BGCBadge } from '@/components/ui/BGCBadge';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
 let catalogCache: ServiceCatalogItem[] | null = null;
@@ -170,6 +172,11 @@ export default function InstructorCard({
   const showRating = typeof rating === 'number' && reviewCount >= 3;
   const distanceMi = (instructor as { distance_mi?: number | null }).distance_mi;
   const showDistance = typeof distanceMi === 'number' && Number.isFinite(distanceMi);
+  const showFoundingBadge = Boolean(instructor.is_founding_instructor);
+  const bgcStatusValue = (instructor as { bgc_status?: string | null }).bgc_status;
+  const bgcStatus = typeof bgcStatusValue === 'string' ? bgcStatusValue.toLowerCase() : '';
+  const isLive = Boolean((instructor as { is_live?: boolean }).is_live);
+  const showBGCBadge = isLive || bgcStatus === 'pending';
 
   // Use React Query hook for recent reviews (prevents duplicate API calls)
   const { data: recentReviewsData } = useRecentReviews({
@@ -179,14 +186,6 @@ export default function InstructorCard({
   const recentReviews = recentReviewsData?.reviews ?? [];
   const serviceAreaBoroughs = getServiceAreaBoroughs(instructor);
   const serviceAreaDisplay = getServiceAreaDisplay(instructor) || 'NYC';
-  const bgcStatusValue = (instructor as { bgc_status?: string }).bgc_status;
-  const backgroundCheckCompleted = Boolean((instructor as { background_check_completed?: boolean }).background_check_completed);
-  const hasPassedBGC = typeof bgcStatusValue === 'string'
-    ? bgcStatusValue.toLowerCase() === 'passed'
-    : Boolean(backgroundCheckCompleted);
-  const shouldShowVerificationChip = hasPassedBGC || !bgcStatusValue;
-  const verificationLabel = hasPassedBGC ? 'Background Check Verified' : 'Background Check Pending';
-
   // Fetch service catalog on mount with simple de-duplication
   useEffect(() => {
     const fetchServiceCatalog = async () => {
@@ -440,14 +439,15 @@ const findNextAvailableSlot = (
                 </button>
               )}
 
-              {shouldShowVerificationChip ? (
-                <div
-                  className={`flex items-center gap-2 text-xs font-semibold text-emerald-600 ${
-                    showRating ? 'mt-1' : ''
-                  }`}
-                >
-                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{verificationLabel}</span>
+              {showFoundingBadge ? (
+                <div className={showRating ? 'mt-1' : ''}>
+                  <FoundingBadge size={compact ? 'sm' : 'md'} />
+                </div>
+              ) : null}
+
+              {showBGCBadge ? (
+                <div className={showRating || showFoundingBadge ? 'mt-1' : ''}>
+                  <BGCBadge isLive={isLive} bgcStatus={bgcStatusValue ?? null} />
                 </div>
               ) : null}
 

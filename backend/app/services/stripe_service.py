@@ -27,6 +27,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 from urllib.parse import ParseResult, urljoin, urlparse
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import stripe
 
@@ -53,6 +54,7 @@ from ..schemas.payment_schemas import (
     PayoutSummary,
     TransactionHistoryItem,
 )
+from ..utils.url_validation import is_allowed_origin, origin_from_header
 from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter
 from .config_service import ConfigService
@@ -163,6 +165,8 @@ class StripeService(BaseService):
         user: User,
         request_host: str,
         request_scheme: str,
+        request_origin: str | None = None,
+        request_referer: str | None = None,
         return_to: str | None = None,
     ) -> OnboardingResponse:
         """Create or reuse a Stripe Express account and return onboarding link."""
@@ -178,9 +182,16 @@ class StripeService(BaseService):
         )
         if existing_account and existing_account.stripe_account_id:
             account_id = existing_account.stripe_account_id
+            account_status = self.check_account_status(instructor_profile.id)
+            if account_status.get("onboarding_completed"):
+                return OnboardingResponse(
+                    account_id=account_id,
+                    onboarding_url="",
+                    already_onboarded=True,
+                )
         else:
             created_account = self.create_connected_account(instructor_profile.id, user.email)
-            account_id = created_account.id
+            account_id = created_account.stripe_account_id
 
         callback_from: str | None = None
         if return_to and return_to.startswith("/"):
@@ -218,6 +229,9 @@ class StripeService(BaseService):
             return None
 
         origin_candidates: list[str] = []
+        header_origin = origin_from_header(request_origin) or origin_from_header(request_referer)
+        if header_origin and is_allowed_origin(header_origin):
+            origin_candidates.append(header_origin)
         if configured_frontend:
             origin_candidates.append(configured_frontend)
 
@@ -247,24 +261,20 @@ class StripeService(BaseService):
         if not origin:
             origin = f"{request_scheme}://{request_host_clean}".rstrip("/")
 
-        success_path = (
-            f"/instructor/onboarding/status/{callback_from}"
-            if callback_from
-            else "/instructor/onboarding/status"
-        )
+        if callback_from == "payment-setup":
+            success_path = "/instructor/onboarding/payment-setup"
+        else:
+            success_path = (
+                f"/instructor/onboarding/status/{callback_from}"
+                if callback_from
+                else "/instructor/onboarding/status"
+            )
         refresh_path = "/instructor/onboarding/start"
         onboarding_link = self.create_account_link(
             instructor_profile_id=instructor_profile.id,
             refresh_url=urljoin(origin + "/", refresh_path.lstrip("/")),
             return_url=urljoin(origin + "/", success_path.lstrip("/")),
         )
-
-        if not existing_account:
-            self.payment_repository.create_connected_account_record(
-                instructor_profile_id=instructor_profile.id,
-                stripe_account_id=account_id,
-                onboarding_completed=False,
-            )
 
         return OnboardingResponse(
             account_id=account_id,
@@ -549,8 +559,24 @@ class StripeService(BaseService):
 
         def _get_instructor_tier_pct(config: Dict[str, Any], instructor_profile: Any) -> float:
             """Get instructor's platform fee tier percentage."""
-            tiers = config.get("instructor_tiers", [])
-            default_pct = float(tiers[0].get("pct", 0.15)) if tiers else 0.15
+            is_founding = getattr(instructor_profile, "is_founding_instructor", False)
+            if is_founding is True:
+                default_founding_rate = PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0)
+                raw_rate = config.get(
+                    "founding_instructor_rate_pct",
+                    default_founding_rate,
+                )
+                try:
+                    return float(Decimal(str(raw_rate)))
+                except Exception:
+                    return float(default_founding_rate)
+            tiers = config.get("instructor_tiers") or PRICING_DEFAULTS.get("instructor_tiers", [])
+            if tiers:
+                entry_tier = min(tiers, key=lambda tier: tier.get("min", 0))
+                default_entry_pct = PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0)
+                default_pct = float(entry_tier.get("pct", default_entry_pct))
+            else:
+                default_pct = float(PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0))
 
             raw_pct = getattr(instructor_profile, "current_tier_pct", None)
             if raw_pct is None:
@@ -687,8 +713,24 @@ class StripeService(BaseService):
 
         def _get_instructor_tier_pct(config: Dict[str, Any], instructor_profile: Any) -> float:
             """Get instructor's platform fee tier percentage."""
-            tiers = config.get("instructor_tiers", [])
-            default_pct = float(tiers[0].get("pct", 0.15)) if tiers else 0.15
+            is_founding = getattr(instructor_profile, "is_founding_instructor", False)
+            if is_founding is True:
+                default_founding_rate = PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0)
+                raw_rate = config.get(
+                    "founding_instructor_rate_pct",
+                    default_founding_rate,
+                )
+                try:
+                    return float(Decimal(str(raw_rate)))
+                except Exception:
+                    return float(default_founding_rate)
+            tiers = config.get("instructor_tiers") or PRICING_DEFAULTS.get("instructor_tiers", [])
+            if tiers:
+                entry_tier = min(tiers, key=lambda tier: tier.get("min", 0))
+                default_entry_pct = PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0)
+                default_pct = float(entry_tier.get("pct", default_entry_pct))
+            else:
+                default_pct = float(PRICING_DEFAULTS.get("instructor_tiers", [{}])[0].get("pct", 0))
 
             raw_pct = getattr(instructor_profile, "current_tier_pct", None)
             if raw_pct is None:
@@ -1723,59 +1765,100 @@ class StripeService(BaseService):
         Raises:
             ServiceException: If account creation fails
         """
-        try:
-            with self.transaction():
-                try:
-                    # Try real Stripe path first (allows tests to @patch)
-                    stripe_account = stripe.Account.create(
-                        type="express",
-                        email=email,
-                        capabilities={"transfers": {"requested": True}},
-                        metadata={"instructor_profile_id": instructor_profile_id},
-                    )
+        existing = self.payment_repository.get_connected_account_by_instructor_id(
+            instructor_profile_id
+        )
+        if existing:
+            return existing
 
-                    account_record = self.payment_repository.create_connected_account_record(
+        def _persist_connected_account(stripe_account_id: str) -> StripeConnectedAccount:
+            try:
+                with self.payment_repository.transaction():
+                    record = self.payment_repository.create_connected_account_record(
                         instructor_profile_id=instructor_profile_id,
-                        stripe_account_id=stripe_account.id,
+                        stripe_account_id=stripe_account_id,
                         onboarding_completed=False,
                     )
+                return record
+            except IntegrityError:
+                existing_record = self.payment_repository.get_connected_account_by_instructor_id(
+                    instructor_profile_id
+                )
+                if existing_record:
+                    return existing_record
+                raise
 
-                    # Set default payout schedule (best-effort)
-                    try:
-                        stripe.Account.modify(
-                            stripe_account.id,
-                            settings={
-                                "payouts": {
-                                    "schedule": {
-                                        "interval": "weekly",
-                                        "weekly_anchor": "tuesday",
-                                    }
-                                }
-                            },
-                        )
-                    except Exception:
-                        pass
+        try:
+            # Try real Stripe path first (allows tests to @patch)
+            stripe_account = stripe.Account.create(
+                type="express",
+                email=email,
+                capabilities={"transfers": {"requested": True}},
+                metadata={"instructor_profile_id": instructor_profile_id},
+            )
 
-                    self.logger.info(
-                        f"Created Stripe Express account {stripe_account.id} for instructor {instructor_profile_id}"
-                    )
-                    return account_record
-                except Exception as e:
-                    if not self.stripe_configured:
-                        self.logger.warning(
-                            f"Stripe not configured or call failed ({e}); using mock connected account for instructor {instructor_profile_id}"
-                        )
-                        return self.payment_repository.create_connected_account_record(
-                            instructor_profile_id=instructor_profile_id,
-                            stripe_account_id=f"mock_acct_{instructor_profile_id}",
-                            onboarding_completed=False,
-                        )
-                    raise
+            account_record = _persist_connected_account(stripe_account.id)
 
+            # Set default payout schedule (best-effort)
+            try:
+                stripe.Account.modify(
+                    stripe_account.id,
+                    settings={
+                        "payouts": {
+                            "schedule": {
+                                "interval": "weekly",
+                                "weekly_anchor": "tuesday",
+                            }
+                        }
+                    },
+                )
+            except Exception:
+                pass
+
+            self.logger.info(
+                f"Created Stripe Express account {stripe_account.id} for instructor {instructor_profile_id}"
+            )
+            return account_record
+        except IntegrityError as e:
+            self.logger.warning(
+                "Race detected creating connected account for instructor %s: %s",
+                instructor_profile_id,
+                str(e),
+            )
+            existing_record = self.payment_repository.get_connected_account_by_instructor_id(
+                instructor_profile_id
+            )
+            if existing_record:
+                return existing_record
+            raise ServiceException("Failed to create connected account due to conflict") from e
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error creating connected account: {str(e)}")
             raise ServiceException(f"Failed to create connected account: {str(e)}")
         except Exception as e:
+            if not self.stripe_configured:
+                self.logger.warning(
+                    "Stripe not configured or call failed (%s); using mock connected account for instructor %s",
+                    str(e),
+                    instructor_profile_id,
+                )
+                try:
+                    return _persist_connected_account(f"mock_acct_{instructor_profile_id}")
+                except IntegrityError as conflict:
+                    self.logger.warning(
+                        "Race detected creating mock account for instructor %s: %s",
+                        instructor_profile_id,
+                        str(conflict),
+                    )
+                    existing_record = (
+                        self.payment_repository.get_connected_account_by_instructor_id(
+                            instructor_profile_id
+                        )
+                    )
+                    if existing_record:
+                        return existing_record
+                    raise ServiceException(
+                        "Failed to create connected account due to conflict"
+                    ) from conflict
             self.logger.error(f"Error creating connected account: {str(e)}")
             raise ServiceException(f"Failed to create connected account: {str(e)}")
 

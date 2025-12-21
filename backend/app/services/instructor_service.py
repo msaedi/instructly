@@ -727,6 +727,10 @@ class InstructorService(BaseService):
                         f"- no bookings"
                     )
 
+        # Update skills_configured based on whether services exist after update
+        has_active_services = bool(services_data)
+        self.profile_repository.update(profile_id, skills_configured=has_active_services)
+
     def _replace_preferred_places(
         self,
         instructor_id: str,
@@ -901,6 +905,7 @@ class InstructorService(BaseService):
             "background_check_uploaded_at": getattr(profile, "background_check_uploaded_at", None),
             "onboarding_completed_at": getattr(profile, "onboarding_completed_at", None),
             "is_live": getattr(profile, "is_live", False),
+            "is_founding_instructor": getattr(profile, "is_founding_instructor", False),
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
             "user": {
@@ -925,6 +930,7 @@ class InstructorService(BaseService):
                     "description": service.description,
                     "age_groups": service.age_groups,
                     "levels_taught": service.levels_taught,
+                    "equipment_required": service.equipment_required,
                     "location_types": service.location_types,
                     "duration_options": service.duration_options,
                     "is_active": service.is_active,

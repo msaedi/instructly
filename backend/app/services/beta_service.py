@@ -12,7 +12,9 @@ from ..core.config import settings
 from ..core.constants import BRAND_NAME
 from ..models.beta import BetaAccess, BetaInvite
 from ..repositories.beta_repository import BetaAccessRepository, BetaInviteRepository
+from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..services.base import BaseService, CacheInvalidationProtocol
+from ..services.config_service import ConfigService
 from ..services.email import EmailService
 from ..services.email_subjects import EmailSubject
 from ..services.template_registry import TemplateRegistry
@@ -106,6 +108,7 @@ class BetaService(BaseService):
         expires_in_days: int,
         source: Optional[str],
         emails: Optional[list[str]],
+        grant_founding_status: bool = True,
     ) -> list[BetaInvite]:
         expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
         records = []
@@ -116,6 +119,7 @@ class BetaService(BaseService):
                 "code": generate_code(8),
                 "email": emails[i] if i < len(emails) else None,
                 "role": role,
+                "grant_founding_status": grant_founding_status,
                 "expires_at": expires_at,
                 "metadata_json": {"source": source} if source else None,
             }
@@ -125,10 +129,10 @@ class BetaService(BaseService):
     @BaseService.measure_operation("beta_invite_consumed")
     def consume_and_grant(
         self, code: str, user_id: str, role: str, phase: str
-    ) -> tuple[BetaAccess | None, Optional[str]]:
+    ) -> tuple[BetaAccess | None, Optional[str], Optional[BetaInvite]]:
         ok, reason, invite = self.validate_invite(code)
         if not ok:
-            return None, reason
+            return None, reason, invite
         self.invites.mark_used(code, user_id)
         grant = self.access.grant_access(
             user_id=user_id, role=role, phase=phase, invited_by_code=code
@@ -140,7 +144,7 @@ class BetaService(BaseService):
 
             invalidate_cached_user_by_id_sync(user_id, self.db)
 
-        return grant, None
+        return grant, None, invite
 
     @BaseService.measure_operation("beta_invite_sent")
     def send_invite_email(
@@ -150,9 +154,15 @@ class BetaService(BaseService):
         expires_in_days: int,
         source: str | None,
         base_url: str | None,
+        grant_founding_status: bool = True,
     ) -> tuple[BetaInvite, str, str]:
         created = self.bulk_generate(
-            count=1, role=role, expires_in_days=expires_in_days, source=source, emails=[to_email]
+            count=1,
+            role=role,
+            expires_in_days=expires_in_days,
+            source=source,
+            emails=[to_email],
+            grant_founding_status=grant_founding_status,
         )
         invite = created[0]
         join_url = build_join_url(invite.code, to_email, base_url)
@@ -208,3 +218,24 @@ class BetaService(BaseService):
             except Exception as e:
                 failed.append((em, str(e)))
         return sent, failed
+
+    @BaseService.measure_operation("beta_try_grant_founding_status")
+    def try_grant_founding_status(self, profile_id: str) -> tuple[bool, str]:
+        """Attempt to grant founding status atomically, honoring the configured cap."""
+        repo = InstructorProfileRepository(self.db)
+        profile = repo.get_by_id(profile_id, load_relationships=False)
+        if not profile:
+            return False, "Instructor profile not found"
+
+        config_service = ConfigService(self.db)
+        pricing_config, _ = config_service.get_pricing_config()
+        cap_raw = pricing_config.get("founding_instructor_cap", 100)
+        try:
+            cap = int(cap_raw)
+        except (TypeError, ValueError):
+            cap = 100
+
+        granted, current_count = repo.try_claim_founding_status(profile_id, cap)
+        if granted:
+            return True, f"Granted founding status ({current_count}/{cap})"
+        return False, f"Founding cap reached ({current_count}/{cap})"
