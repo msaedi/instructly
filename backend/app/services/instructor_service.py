@@ -727,6 +727,10 @@ class InstructorService(BaseService):
                         f"- no bookings"
                     )
 
+        # Update skills_configured based on whether services exist after update
+        has_active_services = bool(services_data)
+        self.profile_repository.update(profile_id, skills_configured=has_active_services)
+
     def _replace_preferred_places(
         self,
         instructor_id: str,
