@@ -272,18 +272,18 @@ export default function OnboardingStatusPage() {
           <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={<button onClick={enrollStripeConnect} className="text-[#7E22CE] hover:underline disabled:text-gray-400" disabled={!!connectStatus?.onboarding_completed || connectLoading}>{connectStatus?.onboarding_completed ? 'Completed' : (connectLoading ? 'Opening…' : 'Enroll')}</button>} />
         </div>
 
-        <div className="mt-8 flex justify-end">
-        <button
-          disabled={!canGoLive || saving}
-          onClick={goLive}
-          className={`px-5 py-2.5 rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm`}
-        >
-          {canGoLive ? 'Go live' : 'Complete required steps to go live'}
-        </button>
-        {pendingRequired.length === 0 && (
-          <p className="text-sm text-gray-500 mt-2 text-right w-full">All required steps complete.</p>
-        )}
-      </div>
+        <div className="mt-8 flex flex-col items-center justify-center gap-4">
+          {pendingRequired.length === 0 && (
+            <p className="text-lg text-emerald-600 font-medium">All required steps complete!</p>
+          )}
+          <button
+            disabled={!canGoLive || saving}
+            onClick={goLive}
+            className="px-8 py-4 text-lg rounded-lg text-white bg-[#7E22CE] hover:!bg-[#7E22CE] hover:!text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          >
+            {canGoLive ? '🎉 Go live' : 'Complete required steps to go live'}
+          </button>
+        </div>
       </div>
 
       {/* Animation CSS moved to global (app/globals.css) */}
