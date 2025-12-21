@@ -29,6 +29,7 @@ class InstructorSummary(BaseModel):
     profile_picture_url: Optional[str] = Field(None, description="Profile picture URL")
     bio_snippet: Optional[str] = Field(None, description="First 150 chars of bio")
     verified: bool = Field(False, description="Whether instructor is verified")
+    is_founding_instructor: bool = Field(False, description="Founding instructor status")
     years_experience: Optional[int] = Field(None, description="Years of experience")
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
     from app.repositories.instructor_profile_repository import InstructorProfileRepository
 from app.services.base import BaseService
 from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -374,6 +377,7 @@ class PricingService(BaseService):
         instructor_profile: Optional[InstructorProfile],
         pricing_config: Dict[str, Any],
     ) -> Decimal:
+        # NOTE: Founding instructors are immune to tier changes; always use founding rate.
         if instructor_profile and getattr(instructor_profile, "is_founding_instructor", False):
             rate_value = pricing_config.get(
                 "founding_instructor_rate_pct",
@@ -450,6 +454,22 @@ class PricingService(BaseService):
         stepdown = min(stepdown_spread, max(stepdown_max, 0))
         new_index = min(current_index + stepdown, required_index, len(ordered) - 1)
         return ordered[new_index].quantize(Decimal("0.0001"))
+
+    @BaseService.measure_operation("pricing.update_instructor_tier")
+    def update_instructor_tier(
+        self, instructor_profile: InstructorProfile, new_tier_pct: float
+    ) -> bool:
+        """Update instructor's tier. Founding instructors are immune."""
+        if getattr(instructor_profile, "is_founding_instructor", False):
+            logger.info("Skipping tier update for founding instructor %s", instructor_profile.id)
+            return False
+
+        pct_value = Decimal(str(new_tier_pct))
+        if pct_value <= 1:
+            pct_value *= Decimal("100")
+        instructor_profile.current_tier_pct = pct_value
+        instructor_profile.last_tier_eval_at = datetime.now(timezone.utc)
+        return True
 
     @staticmethod
     def _default_instructor_tier_pct(pricing_config: Dict[str, Any]) -> Decimal:

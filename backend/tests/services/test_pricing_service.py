@@ -609,6 +609,34 @@ def test_regular_instructor_uses_tier_rate(
     assert rate == Decimal("0.1500")
 
 
+def test_founding_instructor_immune_to_tier_update(db, pricing_service, test_instructor):
+    """Founding instructors should not have their tier updated."""
+    profile = test_instructor.instructor_profile
+    original_tier = profile.current_tier_pct
+    original_eval = profile.last_tier_eval_at
+    profile.is_founding_instructor = True
+    db.flush()
+
+    result = pricing_service.update_instructor_tier(profile, new_tier_pct=0.10)
+
+    assert result is False
+    assert profile.current_tier_pct == original_tier
+    assert profile.last_tier_eval_at == original_eval
+
+
+def test_regular_instructor_tier_can_be_updated(db, pricing_service, test_instructor):
+    """Non-founding instructors should allow tier updates."""
+    profile = test_instructor.instructor_profile
+    profile.is_founding_instructor = False
+    db.flush()
+
+    result = pricing_service.update_instructor_tier(profile, new_tier_pct=0.10)
+
+    assert result is True
+    assert float(profile.current_tier_pct) == pytest.approx(10.0)
+    assert profile.last_tier_eval_at is not None
+
+
 @pytest.fixture(autouse=True)
 def _restore_default_price_floors(db):
     config_service = ConfigService(db)

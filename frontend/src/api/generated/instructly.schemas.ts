@@ -2980,6 +2980,8 @@ export interface InstructorSummary {
   first_name: string;
   /** Instructor user ID */
   id: string;
+  /** Founding instructor status */
+  is_founding_instructor?: boolean;
   /** Last name initial for privacy (e.g., 'D') */
   last_initial: string;
   /** Profile picture URL */

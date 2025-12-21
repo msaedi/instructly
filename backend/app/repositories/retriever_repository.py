@@ -374,6 +374,7 @@ class RetrieverRepository:
                 ip.years_experience,
                 u.profile_picture_key,
                 (ip.identity_verified_at IS NOT NULL) as verified,
+                ip.is_founding_instructor,
                 rs.avg_rating,
                 COALESCE(rs.review_count, 0) as review_count,
                 COALESCE(c.coverage_areas, ARRAY[]::text[]) as coverage_areas
@@ -418,6 +419,7 @@ class RetrieverRepository:
                 else None,
                 "profile_picture_key": row.profile_picture_key,
                 "verified": bool(row.verified),
+                "is_founding_instructor": bool(row.is_founding_instructor),
                 "avg_rating": float(row.avg_rating) if row.avg_rating is not None else None,
                 "review_count": int(row.review_count or 0),
                 "coverage_areas": list(row.coverage_areas) if row.coverage_areas else [],
@@ -550,7 +552,8 @@ class RetrieverRepository:
                     ip.bio,
                     ip.years_experience,
                     u.profile_picture_key,
-                    (ip.identity_verified_at IS NOT NULL) as verified
+                    (ip.identity_verified_at IS NOT NULL) as verified,
+                    ip.is_founding_instructor
                 FROM instructor_matches im
                 JOIN instructor_profiles ip ON im.profile_id = ip.id
                 JOIN users u ON ip.user_id = u.id
@@ -588,6 +591,7 @@ class RetrieverRepository:
                 id.years_experience,
                 id.profile_picture_key,
                 id.verified,
+                id.is_founding_instructor,
                 id.matching_services,
                 id.best_score,
                 id.match_count,
@@ -621,6 +625,7 @@ class RetrieverRepository:
                 "years_experience": row.years_experience,
                 "profile_picture_key": row.profile_picture_key,
                 "verified": row.verified,
+                "is_founding_instructor": bool(row.is_founding_instructor),
                 "matching_services": row.matching_services,
                 "best_score": float(row.best_score),
                 "match_count": int(row.match_count),

@@ -9127,6 +9127,12 @@ export type components = {
              */
             id: string;
             /**
+             * Is Founding Instructor
+             * @description Founding instructor status
+             * @default false
+             */
+            is_founding_instructor: boolean;
+            /**
              * Last Initial
              * @description Last name initial for privacy (e.g., 'D')
              */

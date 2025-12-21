@@ -4978,6 +4978,7 @@ export type components = {
  bio_snippet?: string | null;
  first_name: string;
  id: string;
+ is_founding_instructor: boolean;
  last_initial: string;
  profile_picture_url?: string | null;
  verified: boolean;
