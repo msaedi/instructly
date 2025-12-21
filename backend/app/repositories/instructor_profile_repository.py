@@ -319,6 +319,48 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.logger.error("Failed to count founding instructors: %s", str(exc))
             raise RepositoryException("Failed to count founding instructors") from exc
 
+    def try_claim_founding_status(self, profile_id: str, cap: int) -> tuple[bool, int]:
+        """
+        Atomically attempt to grant founding instructor status.
+
+        Returns (success, current_count_after_attempt).
+        """
+        if cap <= 0:
+            return False, 0
+
+        try:
+            with self.db.begin_nested():
+                locked_rows = (
+                    self.db.query(
+                        InstructorProfile.id,
+                        InstructorProfile.is_founding_instructor,
+                    )
+                    .with_for_update()
+                    .all()
+                )
+                current_count = sum(1 for _, is_founding in locked_rows if is_founding)
+                if current_count >= cap:
+                    return False, current_count
+
+                profile = (
+                    self.db.query(InstructorProfile)
+                    .filter(InstructorProfile.id == profile_id)
+                    .with_for_update()
+                    .first()
+                )
+                if not profile:
+                    return False, current_count
+                if profile.is_founding_instructor:
+                    return True, current_count
+
+                profile.is_founding_instructor = True
+                profile.founding_granted_at = datetime.now(timezone.utc)
+                self.db.flush()
+                return True, current_count + 1
+        except SQLAlchemyError as exc:
+            self.logger.error("Failed to claim founding instructor status: %s", str(exc))
+            raise RepositoryException("Failed to claim founding instructor status") from exc
+
     def count_by_bgc_status(self, status: str) -> int:
         """Return total profiles matching a single background-check status."""
 

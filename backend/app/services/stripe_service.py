@@ -27,6 +27,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 from urllib.parse import ParseResult, urljoin, urlparse
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import stripe
 
@@ -1798,64 +1799,100 @@ class StripeService(BaseService):
         Raises:
             ServiceException: If account creation fails
         """
-        try:
-            existing = self.payment_repository.get_connected_account_by_instructor_id(
-                instructor_profile_id
-            )
-            if existing:
-                return existing
-            with self.transaction():
-                try:
-                    # Try real Stripe path first (allows tests to @patch)
-                    stripe_account = stripe.Account.create(
-                        type="express",
-                        email=email,
-                        capabilities={"transfers": {"requested": True}},
-                        metadata={"instructor_profile_id": instructor_profile_id},
-                    )
+        existing = self.payment_repository.get_connected_account_by_instructor_id(
+            instructor_profile_id
+        )
+        if existing:
+            return existing
 
-                    account_record = self.payment_repository.create_connected_account_record(
+        def _persist_connected_account(stripe_account_id: str) -> StripeConnectedAccount:
+            try:
+                with self.payment_repository.transaction():
+                    record = self.payment_repository.create_connected_account_record(
                         instructor_profile_id=instructor_profile_id,
-                        stripe_account_id=stripe_account.id,
+                        stripe_account_id=stripe_account_id,
                         onboarding_completed=False,
                     )
+                return record
+            except IntegrityError:
+                existing_record = self.payment_repository.get_connected_account_by_instructor_id(
+                    instructor_profile_id
+                )
+                if existing_record:
+                    return existing_record
+                raise
 
-                    # Set default payout schedule (best-effort)
-                    try:
-                        stripe.Account.modify(
-                            stripe_account.id,
-                            settings={
-                                "payouts": {
-                                    "schedule": {
-                                        "interval": "weekly",
-                                        "weekly_anchor": "tuesday",
-                                    }
-                                }
-                            },
-                        )
-                    except Exception:
-                        pass
+        try:
+            # Try real Stripe path first (allows tests to @patch)
+            stripe_account = stripe.Account.create(
+                type="express",
+                email=email,
+                capabilities={"transfers": {"requested": True}},
+                metadata={"instructor_profile_id": instructor_profile_id},
+            )
 
-                    self.logger.info(
-                        f"Created Stripe Express account {stripe_account.id} for instructor {instructor_profile_id}"
-                    )
-                    return account_record
-                except Exception as e:
-                    if not self.stripe_configured:
-                        self.logger.warning(
-                            f"Stripe not configured or call failed ({e}); using mock connected account for instructor {instructor_profile_id}"
-                        )
-                        return self.payment_repository.create_connected_account_record(
-                            instructor_profile_id=instructor_profile_id,
-                            stripe_account_id=f"mock_acct_{instructor_profile_id}",
-                            onboarding_completed=False,
-                        )
-                    raise
+            account_record = _persist_connected_account(stripe_account.id)
 
+            # Set default payout schedule (best-effort)
+            try:
+                stripe.Account.modify(
+                    stripe_account.id,
+                    settings={
+                        "payouts": {
+                            "schedule": {
+                                "interval": "weekly",
+                                "weekly_anchor": "tuesday",
+                            }
+                        }
+                    },
+                )
+            except Exception:
+                pass
+
+            self.logger.info(
+                f"Created Stripe Express account {stripe_account.id} for instructor {instructor_profile_id}"
+            )
+            return account_record
+        except IntegrityError as e:
+            self.logger.warning(
+                "Race detected creating connected account for instructor %s: %s",
+                instructor_profile_id,
+                str(e),
+            )
+            existing_record = self.payment_repository.get_connected_account_by_instructor_id(
+                instructor_profile_id
+            )
+            if existing_record:
+                return existing_record
+            raise ServiceException("Failed to create connected account due to conflict") from e
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error creating connected account: {str(e)}")
             raise ServiceException(f"Failed to create connected account: {str(e)}")
         except Exception as e:
+            if not self.stripe_configured:
+                self.logger.warning(
+                    "Stripe not configured or call failed (%s); using mock connected account for instructor %s",
+                    str(e),
+                    instructor_profile_id,
+                )
+                try:
+                    return _persist_connected_account(f"mock_acct_{instructor_profile_id}")
+                except IntegrityError as conflict:
+                    self.logger.warning(
+                        "Race detected creating mock account for instructor %s: %s",
+                        instructor_profile_id,
+                        str(conflict),
+                    )
+                    existing_record = (
+                        self.payment_repository.get_connected_account_by_instructor_id(
+                            instructor_profile_id
+                        )
+                    )
+                    if existing_record:
+                        return existing_record
+                    raise ServiceException(
+                        "Failed to create connected account due to conflict"
+                    ) from conflict
             self.logger.error(f"Error creating connected account: {str(e)}")
             raise ServiceException(f"Failed to create connected account: {str(e)}")
 

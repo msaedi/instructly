@@ -15,7 +15,7 @@ Endpoints:
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 import logging
 from typing import Any, Optional, cast
 
@@ -59,7 +59,6 @@ from ...schemas.user import (
 )
 from ...services.auth_service import AuthService
 from ...services.beta_service import BetaService
-from ...services.config_service import ConfigService
 from ...services.permission_service import PermissionService
 from ...services.search_history_service import SearchHistoryService
 from ...utils.cookies import (
@@ -196,23 +195,23 @@ async def register(
                     role_name = (payload.role or RoleName.STUDENT).lower()
                     if role_name == RoleName.INSTRUCTOR.value:
                         repo = InstructorProfileRepository(db)
-                        config_service = ConfigService(db)
-                        pricing_config, _ = await asyncio.to_thread(
-                            config_service.get_pricing_config
-                        )
-                        cap_raw = pricing_config.get("founding_instructor_cap", 100)
-                        try:
-                            cap = int(cap_raw)
-                        except (TypeError, ValueError):
-                            cap = 100
-
-                        count = await asyncio.to_thread(repo.count_founding_instructors)
-                        if count < cap:
-                            profile = await asyncio.to_thread(repo.get_by_user_id, db_user.id)
-                            if profile and not profile.is_founding_instructor:
-                                profile.is_founding_instructor = True
-                                profile.founding_granted_at = datetime.now(timezone.utc)
-                                await asyncio.to_thread(db.commit)
+                        profile = await asyncio.to_thread(repo.get_by_user_id, db_user.id)
+                        if profile:
+                            granted, message = await asyncio.to_thread(
+                                svc.try_grant_founding_status, profile.id
+                            )
+                            if granted:
+                                logger.info(
+                                    "Granted founding status for user %s: %s",
+                                    db_user.id,
+                                    message,
+                                )
+                            else:
+                                logger.info(
+                                    "Founding status not granted for user %s: %s",
+                                    db_user.id,
+                                    message,
+                                )
         except Exception as e:
             # Log only; do not block registration if invite handling fails
             logger.error(f"Error consuming invite on register for {db_user.id}: {e}")

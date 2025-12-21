@@ -12,7 +12,9 @@ from ..core.config import settings
 from ..core.constants import BRAND_NAME
 from ..models.beta import BetaAccess, BetaInvite
 from ..repositories.beta_repository import BetaAccessRepository, BetaInviteRepository
+from ..repositories.instructor_profile_repository import InstructorProfileRepository
 from ..services.base import BaseService, CacheInvalidationProtocol
+from ..services.config_service import ConfigService
 from ..services.email import EmailService
 from ..services.email_subjects import EmailSubject
 from ..services.template_registry import TemplateRegistry
@@ -216,3 +218,24 @@ class BetaService(BaseService):
             except Exception as e:
                 failed.append((em, str(e)))
         return sent, failed
+
+    @BaseService.measure_operation("beta_try_grant_founding_status")
+    def try_grant_founding_status(self, profile_id: str) -> tuple[bool, str]:
+        """Attempt to grant founding status atomically, honoring the configured cap."""
+        repo = InstructorProfileRepository(self.db)
+        profile = repo.get_by_id(profile_id, load_relationships=False)
+        if not profile:
+            return False, "Instructor profile not found"
+
+        config_service = ConfigService(self.db)
+        pricing_config, _ = config_service.get_pricing_config()
+        cap_raw = pricing_config.get("founding_instructor_cap", 100)
+        try:
+            cap = int(cap_raw)
+        except (TypeError, ValueError):
+            cap = 100
+
+        granted, current_count = repo.try_claim_founding_status(profile_id, cap)
+        if granted:
+            return True, f"Granted founding status ({current_count}/{cap})"
+        return False, f"Founding cap reached ({current_count}/{cap})"
