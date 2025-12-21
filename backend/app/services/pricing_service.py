@@ -374,6 +374,16 @@ class PricingService(BaseService):
         instructor_profile: Optional[InstructorProfile],
         pricing_config: Dict[str, Any],
     ) -> Decimal:
+        if instructor_profile and getattr(instructor_profile, "is_founding_instructor", False):
+            rate_value = pricing_config.get(
+                "founding_instructor_rate_pct",
+                DEFAULT_PRICING_CONFIG.get("founding_instructor_rate_pct", 0.08),
+            )
+            try:
+                return Decimal(str(rate_value)).quantize(Decimal("0.0001"))
+            except (InvalidOperation, TypeError, ValueError):
+                return Decimal("0.0800")
+
         tiers = sorted(
             pricing_config.get("instructor_tiers", []), key=lambda tier: tier.get("min", 0)
         )

@@ -15,7 +15,7 @@ Endpoints:
 """
 
 import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, Optional, cast
 
@@ -33,6 +33,7 @@ from ...auth import (
     verify_password_async,
 )
 from ...core.config import settings
+from ...core.enums import RoleName
 from ...core.exceptions import ConflictException, NotFoundException, ValidationException
 from ...core.login_protection import (
     account_lockout,
@@ -45,6 +46,7 @@ from ...core.login_protection import (
 from ...database import get_db
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
+from ...repositories.instructor_profile_repository import InstructorProfileRepository
 from ...schemas.auth_responses import (
     AuthUserResponse,
     AuthUserWithPermissionsResponse,
@@ -57,6 +59,7 @@ from ...schemas.user import (
 )
 from ...services.auth_service import AuthService
 from ...services.beta_service import BetaService
+from ...services.config_service import ConfigService
 from ...services.permission_service import PermissionService
 from ...services.search_history_service import SearchHistoryService
 from ...utils.cookies import (
@@ -176,7 +179,8 @@ async def register(
                 invite_code = metadata_obj.get("invite_code")
             if invite_code:
                 svc = BetaService(db)
-                grant, reason = svc.consume_and_grant(
+                grant, reason, invite = await asyncio.to_thread(
+                    svc.consume_and_grant,
                     code=str(invite_code),
                     user_id=db_user.id,
                     role=payload.role or "student",
@@ -188,6 +192,27 @@ async def register(
                     logger.warning(
                         f"Invite not consumed on register for user {db_user.id}: {reason}"
                     )
+                if grant and invite and getattr(invite, "grant_founding_status", False):
+                    role_name = (payload.role or RoleName.STUDENT).lower()
+                    if role_name == RoleName.INSTRUCTOR.value:
+                        repo = InstructorProfileRepository(db)
+                        config_service = ConfigService(db)
+                        pricing_config, _ = await asyncio.to_thread(
+                            config_service.get_pricing_config
+                        )
+                        cap_raw = pricing_config.get("founding_instructor_cap", 100)
+                        try:
+                            cap = int(cap_raw)
+                        except (TypeError, ValueError):
+                            cap = 100
+
+                        count = await asyncio.to_thread(repo.count_founding_instructors)
+                        if count < cap:
+                            profile = await asyncio.to_thread(repo.get_by_user_id, db_user.id)
+                            if profile and not profile.is_founding_instructor:
+                                profile.is_founding_instructor = True
+                                profile.founding_granted_at = datetime.now(timezone.utc)
+                                await asyncio.to_thread(db.commit)
         except Exception as e:
             # Log only; do not block registration if invite handling fails
             logger.error(f"Error consuming invite on register for {db_user.id}: {e}")

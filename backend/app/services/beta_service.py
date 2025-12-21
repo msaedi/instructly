@@ -127,10 +127,10 @@ class BetaService(BaseService):
     @BaseService.measure_operation("beta_invite_consumed")
     def consume_and_grant(
         self, code: str, user_id: str, role: str, phase: str
-    ) -> tuple[BetaAccess | None, Optional[str]]:
+    ) -> tuple[BetaAccess | None, Optional[str], Optional[BetaInvite]]:
         ok, reason, invite = self.validate_invite(code)
         if not ok:
-            return None, reason
+            return None, reason, invite
         self.invites.mark_used(code, user_id)
         grant = self.access.grant_access(
             user_id=user_id, role=role, phase=phase, invited_by_code=code
@@ -142,7 +142,7 @@ class BetaService(BaseService):
 
             invalidate_cached_user_by_id_sync(user_id, self.db)
 
-        return grant, None
+        return grant, None, invite
 
     @BaseService.measure_operation("beta_invite_sent")
     def send_invite_email(

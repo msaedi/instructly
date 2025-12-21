@@ -549,6 +549,16 @@ class StripeService(BaseService):
 
         def _get_instructor_tier_pct(config: Dict[str, Any], instructor_profile: Any) -> float:
             """Get instructor's platform fee tier percentage."""
+            is_founding = getattr(instructor_profile, "is_founding_instructor", False)
+            if is_founding is True:
+                raw_rate = config.get(
+                    "founding_instructor_rate_pct",
+                    PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0.08),
+                )
+                try:
+                    return float(Decimal(str(raw_rate)))
+                except Exception:
+                    return 0.08
             tiers = config.get("instructor_tiers", [])
             default_pct = float(tiers[0].get("pct", 0.15)) if tiers else 0.15
 
@@ -687,6 +697,16 @@ class StripeService(BaseService):
 
         def _get_instructor_tier_pct(config: Dict[str, Any], instructor_profile: Any) -> float:
             """Get instructor's platform fee tier percentage."""
+            is_founding = getattr(instructor_profile, "is_founding_instructor", False)
+            if is_founding is True:
+                raw_rate = config.get(
+                    "founding_instructor_rate_pct",
+                    PRICING_DEFAULTS.get("founding_instructor_rate_pct", 0.08),
+                )
+                try:
+                    return float(Decimal(str(raw_rate)))
+                except Exception:
+                    return 0.08
             tiers = config.get("instructor_tiers", [])
             default_pct = float(tiers[0].get("pct", 0.15)) if tiers else 0.15
 

@@ -3718,3 +3718,43 @@ class TestStripeService:
         # Verify no payment method was saved due to rollback
         final_count = len(stripe_service.payment_repository.get_payment_methods_by_user(test_user.id))
         assert final_count == initial_count
+
+    def test_earnings_export_uses_founding_rate(
+        self,
+        stripe_service: StripeService,
+        db: Session,
+        test_instructor: tuple[User, InstructorProfile, InstructorService],
+        monkeypatch,
+    ) -> None:
+        """Founding instructors should use the founding rate in earnings exports."""
+        instructor_user, profile, _service = test_instructor
+        profile.is_founding_instructor = True
+        db.flush()
+
+        rows = [
+            {
+                "lesson_date": datetime.now(timezone.utc).date(),
+                "student_name": "Student",
+                "service_name": "Lesson",
+                "duration_minutes": 60,
+                "hourly_rate": Decimal("100.00"),
+                "payment_amount_cents": 10000,
+                "application_fee_cents": 800,
+                "status": "succeeded",
+                "payment_id": "pay_123",
+            }
+        ]
+
+        monkeypatch.setattr(
+            stripe_service.payment_repository,
+            "get_instructor_earnings_for_export",
+            lambda instructor_id, start_date=None, end_date=None: rows,
+        )
+
+        result = stripe_service._build_earnings_export_rows(
+            instructor_id=instructor_user.id,
+            start_date=None,
+            end_date=None,
+        )
+
+        assert result[0]["platform_fee_cents"] == 800
