@@ -162,7 +162,10 @@ class TestNotificationService:
         assert template_calls[0][0][0] == "email/booking/confirmation_student.html"
         assert template_calls[1][0][0] == "email/booking/confirmation_instructor.html"
 
-    def test_send_booking_confirmation_student_email_fails(self, notification_service, sample_booking):
+    @patch("app.services.notification_service.time.sleep")
+    def test_send_booking_confirmation_student_email_fails(
+        self, mock_sleep, notification_service, sample_booking
+    ):
         notification_service.email_service.send_email.side_effect = [
             Exception("Email failed"),
             {"id": "test-email-id"},
@@ -170,7 +173,10 @@ class TestNotificationService:
         result = notification_service.send_booking_confirmation(sample_booking)
         assert result is False
 
-    def test_send_booking_confirmation_template_error(self, notification_service, sample_booking):
+    @patch("app.services.notification_service.time.sleep")
+    def test_send_booking_confirmation_template_error(
+        self, mock_sleep, notification_service, sample_booking
+    ):
         notification_service.template_service.render_template.side_effect = TemplateNotFound("template.html")
         with pytest.raises(ServiceException, match="Email template error"):
             notification_service.send_booking_confirmation(sample_booking)
@@ -301,15 +307,18 @@ class TestNotificationService:
     def test_send_cancellation_with_none_user(self, notification_service, sample_booking):
         assert notification_service.send_cancellation_notification(sample_booking, None) is False
 
-    def test_template_error_propagation(self, notification_service, sample_booking):
+    @patch("app.services.notification_service.time.sleep")
+    def test_template_error_propagation(self, mock_sleep, notification_service, sample_booking):
         notification_service.template_service.render_template.side_effect = TemplateNotFound("template.html")
         with pytest.raises(ServiceException, match="Email template error"):
             notification_service.send_booking_confirmation(sample_booking)
 
-    def test_email_sending_failure_handled_gracefully(self, notification_service, sample_booking):
+    @patch("app.services.notification_service.time.sleep")
+    def test_email_sending_failure_handled_gracefully(
+        self, mock_sleep, notification_service, sample_booking
+    ):
         notification_service.email_service.send_email.side_effect = RuntimeError("Email service down")
-        with patch("time.sleep"):
-            result = notification_service.send_booking_confirmation(sample_booking)
+        result = notification_service.send_booking_confirmation(sample_booking)
         assert result is False
 
     def test_cancellation_without_reason(self, notification_service, sample_booking):
