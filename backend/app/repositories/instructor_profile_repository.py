@@ -306,6 +306,19 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.logger.error(f"Error counting active profiles: {str(e)}")
             raise RepositoryException(f"Failed to count profiles: {str(e)}")
 
+    def count_founding_instructors(self) -> int:
+        """Count total founding instructors for cap enforcement."""
+        try:
+            total = (
+                self.db.query(func.count(InstructorProfile.id))
+                .filter(InstructorProfile.is_founding_instructor.is_(True))
+                .scalar()
+            )
+            return int(total or 0)
+        except SQLAlchemyError as exc:
+            self.logger.error("Failed to count founding instructors: %s", str(exc))
+            raise RepositoryException("Failed to count founding instructors") from exc
+
     def count_by_bgc_status(self, status: str) -> int:
         """Return total profiles matching a single background-check status."""
 

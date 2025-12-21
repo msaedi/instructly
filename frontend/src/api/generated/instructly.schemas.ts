@@ -2276,6 +2276,18 @@ export interface DeleteWindowResponse {
 export type EarningsExportRequestEndDate = string | null;
 
 /**
+ * Export format (csv or pdf)
+ */
+export type EarningsExportRequestFormat =
+  (typeof EarningsExportRequestFormat)[keyof typeof EarningsExportRequestFormat];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const EarningsExportRequestFormat = {
+  csv: 'csv',
+  pdf: 'pdf',
+} as const;
+
+/**
  * Start date (inclusive) for the export
  */
 export type EarningsExportRequestStartDate = string | null;
@@ -2286,8 +2298,8 @@ export type EarningsExportRequestStartDate = string | null;
 export interface EarningsExportRequest {
   /** End date (inclusive) for the export */
   end_date?: EarningsExportRequestEndDate;
-  /** Export format (csv only for now) */
-  format?: 'csv';
+  /** Export format (csv or pdf) */
+  format?: EarningsExportRequestFormat;
   /** Start date (inclusive) for the export */
   start_date?: EarningsExportRequestStartDate;
 }
@@ -2807,6 +2819,8 @@ export interface InstructorProfileResponse {
   identity_verified_at?: InstructorProfileResponseIdentityVerifiedAt;
   /** Whether the current user has favorited this instructor */
   is_favorited?: InstructorProfileResponseIsFavorited;
+  /** Whether the instructor is a founding instructor */
+  is_founding_instructor?: boolean;
   is_live?: boolean;
   /**
    * Minimum hours in advance for bookings
@@ -4188,6 +4202,18 @@ export interface PriceFloorConfig {
 }
 
 export interface PricingConfig {
+  /**
+   * Maximum number of founding instructors
+   */
+  founding_instructor_cap?: number;
+  /**
+   * Platform fee percentage for founding instructors
+   */
+  founding_instructor_rate_pct?: number;
+  /**
+   * Search ranking multiplier for founding instructors
+   */
+  founding_search_boost?: number;
   instructor_tiers: TierConfig[];
   price_floor_cents: PriceFloorConfig;
   student_credit_cycle: StudentCreditCycle;
@@ -4214,6 +4240,18 @@ export interface PricingConfig {
  * Alias for request payload compatibility.
  */
 export interface PricingConfigPayload {
+  /**
+   * Maximum number of founding instructors
+   */
+  founding_instructor_cap?: number;
+  /**
+   * Platform fee percentage for founding instructors
+   */
+  founding_instructor_rate_pct?: number;
+  /**
+   * Search ranking multiplier for founding instructors
+   */
+  founding_search_boost?: number;
   instructor_tiers: TierConfig[];
   price_floor_cents: PriceFloorConfig;
   student_credit_cycle: StudentCreditCycle;

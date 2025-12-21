@@ -89,6 +89,8 @@ class InstructorProfile(Base):
     min_advance_booking_hours = Column(Integer, nullable=False, default=24)
     buffer_time_minutes = Column(Integer, nullable=False, default=0)
     current_tier_pct = Column(Numeric(5, 2), nullable=False, default=15.00, server_default="15.00")
+    is_founding_instructor = Column(Boolean, default=False, nullable=False)
+    founding_granted_at = Column(DateTime(timezone=True), nullable=True)
     last_tier_eval_at = Column(DateTime(timezone=True), nullable=True)
 
     # Onboarding status fields

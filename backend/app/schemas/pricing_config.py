@@ -43,6 +43,20 @@ class PricingConfig(BaseModel):
     student_fee_pct: float = Field(
         ..., gt=0, lt=1, description="Student booking protection fee as decimal"
     )
+    founding_instructor_rate_pct: float = Field(
+        0.08,
+        gt=0,
+        lt=1,
+        description="Platform fee percentage for founding instructors",
+    )
+    founding_instructor_cap: PositiveInt = Field(
+        100, description="Maximum number of founding instructors"
+    )
+    founding_search_boost: float = Field(
+        1.5,
+        gt=0,
+        description="Search ranking multiplier for founding instructors",
+    )
     instructor_tiers: List[TierConfig]
     tier_activity_window_days: PositiveInt = Field(
         ..., description="Rolling window for tier activity"

@@ -8220,11 +8220,11 @@ export type components = {
             end_date?: string | null;
             /**
              * Format
-             * @description Export format (csv only for now)
+             * @description Export format (csv or pdf)
              * @default csv
-             * @constant
+             * @enum {string}
              */
-            format: "csv";
+            format: "csv" | "pdf";
             /**
              * Start Date
              * @description Start date (inclusive) for the export
@@ -8915,6 +8915,12 @@ export type components = {
              * @description Whether the current user has favorited this instructor
              */
             is_favorited?: boolean | null;
+            /**
+             * Is Founding Instructor
+             * @description Whether the instructor is a founding instructor
+             * @default false
+             */
+            is_founding_instructor: boolean;
             /**
              * Is Live
              * @default false
@@ -10797,6 +10803,24 @@ export type components = {
         };
         /** PricingConfig */
         PricingConfig: {
+            /**
+             * Founding Instructor Cap
+             * @description Maximum number of founding instructors
+             * @default 100
+             */
+            founding_instructor_cap: number;
+            /**
+             * Founding Instructor Rate Pct
+             * @description Platform fee percentage for founding instructors
+             * @default 0.08
+             */
+            founding_instructor_rate_pct: number;
+            /**
+             * Founding Search Boost
+             * @description Search ranking multiplier for founding instructors
+             * @default 1.5
+             */
+            founding_search_boost: number;
             /** Instructor Tiers */
             instructor_tiers: components["schemas"]["TierConfig"][];
             price_floor_cents: components["schemas"]["PriceFloorConfig"];
@@ -10827,6 +10851,24 @@ export type components = {
          * @description Alias for request payload compatibility.
          */
         PricingConfigPayload: {
+            /**
+             * Founding Instructor Cap
+             * @description Maximum number of founding instructors
+             * @default 100
+             */
+            founding_instructor_cap: number;
+            /**
+             * Founding Instructor Rate Pct
+             * @description Platform fee percentage for founding instructors
+             * @default 0.08
+             */
+            founding_instructor_rate_pct: number;
+            /**
+             * Founding Search Boost
+             * @description Search ranking multiplier for founding instructors
+             * @default 1.5
+             */
+            founding_search_boost: number;
             /** Instructor Tiers */
             instructor_tiers: components["schemas"]["TierConfig"][];
             price_floor_cents: components["schemas"]["PriceFloorConfig"];

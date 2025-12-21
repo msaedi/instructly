@@ -4739,7 +4739,7 @@ export type components = {
  };
  EarningsExportRequest: {
  end_date?: string | null;
- format: "csv";
+ format: "csv" | "pdf";
  start_date?: string | null;
  };
  EarningsResponse: {
@@ -4901,6 +4901,7 @@ export type components = {
  identity_verification_session_id?: string | null;
  identity_verified_at?: string | null;
  is_favorited?: boolean | null;
+ is_founding_instructor: boolean;
  is_live: boolean;
  min_advance_booking_hours: number;
  onboarding_completed_at?: string | null;
@@ -5425,6 +5426,9 @@ export type components = {
  private_remote: number;
  };
  PricingConfig: {
+ founding_instructor_cap: number;
+ founding_instructor_rate_pct: number;
+ founding_search_boost: number;
  instructor_tiers: components["schemas"]["TierConfig"][];
  price_floor_cents: components["schemas"]["PriceFloorConfig"];
  student_credit_cycle: components["schemas"]["StudentCreditCycle"];
@@ -5434,6 +5438,9 @@ export type components = {
  tier_stepdown_max: number;
  };
  PricingConfigPayload: {
+ founding_instructor_cap: number;
+ founding_instructor_rate_pct: number;
+ founding_search_boost: number;
  instructor_tiers: components["schemas"]["TierConfig"][];
  price_floor_cents: components["schemas"]["PriceFloorConfig"];
  student_credit_cycle: components["schemas"]["StudentCreditCycle"];

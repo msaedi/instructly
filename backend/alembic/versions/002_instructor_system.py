@@ -38,6 +38,10 @@ def upgrade() -> None:
         sa.Column("min_advance_booking_hours", sa.Integer(), nullable=False, server_default="2"),
         sa.Column("buffer_time_minutes", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("current_tier_pct", sa.Numeric(5, 2), nullable=False, server_default="15.00"),
+        sa.Column(
+            "is_founding_instructor", sa.Boolean(), nullable=False, server_default="false"
+        ),
+        sa.Column("founding_granted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_tier_eval_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("skills_configured", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("identity_verified_at", sa.DateTime(timezone=True), nullable=True),
