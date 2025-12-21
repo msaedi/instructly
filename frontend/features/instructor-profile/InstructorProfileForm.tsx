@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { User as UserIcon, Settings as SettingsIcon, BookOpen, ChevronDown, Info, Camera } from 'lucide-react';
@@ -12,6 +13,7 @@ import { withApiBase } from '@/lib/apiBase';
 import { logger } from '@/lib/logger';
 import { useInstructorProfileMe } from '@/hooks/queries/useInstructorProfileMe';
 import { useSession } from '@/src/api/hooks/useSession';
+import { queryKeys } from '@/src/api/queryKeys';
 import { useUserAddresses, useInvalidateUserAddresses } from '@/hooks/queries/useUserAddresses';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
@@ -155,6 +157,7 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
   const { data: userDataFromHook, isLoading: isUserLoading } = useSession();
   const { data: addressesDataFromHook, isLoading: isAddressesLoading } = useUserAddresses();
   const invalidateUserAddresses = useInvalidateUserAddresses();
+  const queryClient = useQueryClient();
   const [savingServiceAreas, setSavingServiceAreas] = useState(false);
   const [hasProfilePicture, setHasProfilePicture] = useState<boolean>(false);
   const shouldDefaultExpand = isOnboarding;
@@ -657,6 +660,12 @@ const InstructorProfileForm = forwardRef<InstructorProfileFormHandle, Instructor
           // Swallow here; page already reports via toast earlier
         }
       }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.instructors.me }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.auth.me }),
+        queryClient.invalidateQueries({ queryKey: ['instructor', 'service-areas'] }),
+      ]);
 
       toast.success('Profile saved', {
         style: {

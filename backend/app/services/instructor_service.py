@@ -930,6 +930,7 @@ class InstructorService(BaseService):
                     "description": service.description,
                     "age_groups": service.age_groups,
                     "levels_taught": service.levels_taught,
+                    "equipment_required": service.equipment_required,
                     "location_types": service.location_types,
                     "duration_options": service.duration_options,
                     "is_active": service.is_active,
