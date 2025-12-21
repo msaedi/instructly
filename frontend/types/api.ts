@@ -280,6 +280,9 @@ export interface Instructor {
   /** Brief bio/description */
   bio: string;
 
+  /** Founding instructor flag */
+  is_founding_instructor?: boolean;
+
   /** Ordered list of borough labels derived from service areas */
   service_area_boroughs?: string[];
 

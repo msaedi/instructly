@@ -24,6 +24,7 @@ import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
 import { at } from '@/lib/ts/safe';
 import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
+import { FoundingBadge } from '@/components/ui/FoundingBadge';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
 let catalogCache: ServiceCatalogItem[] | null = null;
@@ -170,6 +171,7 @@ export default function InstructorCard({
   const showRating = typeof rating === 'number' && reviewCount >= 3;
   const distanceMi = (instructor as { distance_mi?: number | null }).distance_mi;
   const showDistance = typeof distanceMi === 'number' && Number.isFinite(distanceMi);
+  const showFoundingBadge = Boolean(instructor.is_founding_instructor);
 
   // Use React Query hook for recent reviews (prevents duplicate API calls)
   const { data: recentReviewsData } = useRecentReviews({
@@ -440,10 +442,16 @@ const findNextAvailableSlot = (
                 </button>
               )}
 
+              {showFoundingBadge ? (
+                <div className={showRating ? 'mt-1' : ''}>
+                  <FoundingBadge size={compact ? 'sm' : 'md'} />
+                </div>
+              ) : null}
+
               {shouldShowVerificationChip ? (
                 <div
                   className={`flex items-center gap-2 text-xs font-semibold text-emerald-600 ${
-                    showRating ? 'mt-1' : ''
+                    showRating || showFoundingBadge ? 'mt-1' : ''
                   }`}
                 >
                   <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />

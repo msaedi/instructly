@@ -40,6 +40,9 @@ export interface InstructorBasic {
   /** Brief bio/description */
   bio: string;
 
+  /** Founding instructor flag */
+  is_founding_instructor?: boolean;
+
   /** Years of teaching experience */
   years_experience: number;
 
@@ -135,6 +138,9 @@ export interface InstructorProfile {
 
   /** Verification status (for future use) */
   is_verified?: boolean;
+
+  /** Founding instructor flag */
+  is_founding_instructor?: boolean;
 
   /** Background check status (for future use) */
   background_check_completed?: boolean;

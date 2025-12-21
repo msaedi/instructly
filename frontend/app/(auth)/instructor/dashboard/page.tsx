@@ -37,6 +37,7 @@ import { useInstructorEarnings } from '@/hooks/queries/useInstructorEarnings';
 import { useStripeConnectStatus } from '@/hooks/queries/useStripeConnectStatus';
 import { useQuery } from '@tanstack/react-query';
 import { withApiBase } from '@/lib/apiBase';
+import { FoundingBadge } from '@/components/ui/FoundingBadge';
 
 type NeighborhoodSelection = { neighborhood_id: string; name: string };
 type PreferredTeachingLocation = { address: string; label?: string };
@@ -1039,7 +1040,12 @@ export default function InstructorDashboardNew() {
                 </svg>
               </div>
               <div className="min-w-0">
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
+                <div className="flex flex-wrap items-center gap-3 mb-2">
+                  <h1 className="text-3xl font-bold text-gray-800">
+                    Welcome back, {profile.user?.first_name || 'Instructor'}!
+                  </h1>
+                  {profile?.is_founding_instructor && <FoundingBadge size="md" />}
+                </div>
                 <p className="text-gray-600 text-sm">Your profile, schedule, and earnings at a glance</p>
               </div>
             </div>

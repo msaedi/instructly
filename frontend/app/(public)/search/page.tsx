@@ -280,6 +280,7 @@ function SearchPageContent() {
               const bioSnippet = getString(instructorInfo, 'bio_snippet', '');
               const profilePictureUrl = getString(instructorInfo, 'profile_picture_url', '');
               const verified = Boolean(instructorInfo['verified']);
+              const isFoundingInstructor = Boolean(instructorInfo['is_founding_instructor']);
               const yearsExperience = getNumber(instructorInfo, 'years_experience', 0);
 
               // Extract embedded rating info
@@ -352,6 +353,7 @@ function SearchPageContent() {
                   first_name: firstName,
                   last_initial: lastInitial,
                 },
+                is_founding_instructor: isFoundingInstructor,
                 services,
                 verified,
                 rating: avgRating || undefined,

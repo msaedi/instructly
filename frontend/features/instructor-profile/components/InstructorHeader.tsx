@@ -10,6 +10,7 @@ import { useFavoriteStatus, useSetFavoriteStatus } from '@/hooks/queries/useFavo
 import { toast } from 'sonner';
 import type { InstructorProfile } from '@/types/instructor';
 import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
+import { FoundingBadge } from '@/components/ui/FoundingBadge';
 
 interface InstructorHeaderProps {
   instructor: InstructorProfile;
@@ -41,6 +42,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   const backgroundCheckPassed = bgcStatus === 'passed';
   const shouldShowMockedBadge = backgroundCheckPassed || !bgcStatus;
   const verificationLabel = backgroundCheckPassed ? 'Background Check Verified' : 'Background Check Pending';
+  const isFoundingInstructor = Boolean(instructor.is_founding_instructor);
   const [shareCopied, setShareCopied] = useState(false);
   const handleShare = async () => {
     try {
@@ -168,13 +170,19 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
                     <Share2 className="h-5 w-5 text-[#7E22CE]" />
                   </button>
                 </div>
-                {shouldShowMockedBadge ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>{verificationLabel}</span>
-                  </span>
-                ) : null}
               </div>
+
+              {(isFoundingInstructor || shouldShowMockedBadge) && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {isFoundingInstructor && <FoundingBadge size="md" />}
+                  {shouldShowMockedBadge && (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                      <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>{verificationLabel}</span>
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Rating and Reviews */}
               {typeof rating === 'number' && typeof reviewCount === 'number' && (
