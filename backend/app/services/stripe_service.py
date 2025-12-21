@@ -178,9 +178,16 @@ class StripeService(BaseService):
         )
         if existing_account and existing_account.stripe_account_id:
             account_id = existing_account.stripe_account_id
+            account_status = self.check_account_status(instructor_profile.id)
+            if account_status.get("onboarding_completed"):
+                return OnboardingResponse(
+                    account_id=account_id,
+                    onboarding_url="",
+                    already_onboarded=True,
+                )
         else:
             created_account = self.create_connected_account(instructor_profile.id, user.email)
-            account_id = created_account.id
+            account_id = created_account.stripe_account_id
 
         callback_from: str | None = None
         if return_to and return_to.startswith("/"):
@@ -247,24 +254,20 @@ class StripeService(BaseService):
         if not origin:
             origin = f"{request_scheme}://{request_host_clean}".rstrip("/")
 
-        success_path = (
-            f"/instructor/onboarding/status/{callback_from}"
-            if callback_from
-            else "/instructor/onboarding/status"
-        )
+        if callback_from == "payment-setup":
+            success_path = "/instructor/onboarding/payment-setup"
+        else:
+            success_path = (
+                f"/instructor/onboarding/status/{callback_from}"
+                if callback_from
+                else "/instructor/onboarding/status"
+            )
         refresh_path = "/instructor/onboarding/start"
         onboarding_link = self.create_account_link(
             instructor_profile_id=instructor_profile.id,
             refresh_url=urljoin(origin + "/", refresh_path.lstrip("/")),
             return_url=urljoin(origin + "/", success_path.lstrip("/")),
         )
-
-        if not existing_account:
-            self.payment_repository.create_connected_account_record(
-                instructor_profile_id=instructor_profile.id,
-                stripe_account_id=account_id,
-                onboarding_completed=False,
-            )
 
         return OnboardingResponse(
             account_id=account_id,
@@ -1756,6 +1759,11 @@ class StripeService(BaseService):
             ServiceException: If account creation fails
         """
         try:
+            existing = self.payment_repository.get_connected_account_by_instructor_id(
+                instructor_profile_id
+            )
+            if existing:
+                return existing
             with self.transaction():
                 try:
                     # Try real Stripe path first (allows tests to @patch)
