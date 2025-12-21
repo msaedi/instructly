@@ -23,6 +23,7 @@ class BetaInvite(Base):
 
     # Role: 'instructor_beta' | 'student_beta'
     role: str = Column(String(32), nullable=False, default="instructor_beta")
+    grant_founding_status = Column(Boolean, default=True, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)

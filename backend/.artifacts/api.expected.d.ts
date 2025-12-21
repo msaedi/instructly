@@ -1263,6 +1263,22 @@ export type paths = {
  patch: operations["update_pricing_config_api_v1_admin_config_pricing_patch"];
  trace?: never;
  };
+ "/api/v1/admin/instructors/founding/count": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["founding_instructor_count_api_v1_admin_instructors_founding_count_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/instructors/{instructor_id}": {
  parameters: {
  query?: never;
@@ -4807,6 +4823,11 @@ export type components = {
  FinalizeProfilePictureRequest: {
  object_key: string;
  };
+ FoundingCountResponse: {
+ cap: number;
+ count: number;
+ remaining: number;
+ };
  GatedPingResponse: {
  ok: boolean;
  };
@@ -5016,6 +5037,7 @@ export type components = {
  InviteSendRequest: {
  base_url?: string | null;
  expires_in_days: number;
+ grant_founding_status: boolean;
  role: string;
  source?: string | null;
  to_email: string;
@@ -8697,6 +8719,25 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ founding_instructor_count_api_v1_admin_instructors_founding_count_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["FoundingCountResponse"];
  };
  };
  };

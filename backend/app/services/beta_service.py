@@ -106,6 +106,7 @@ class BetaService(BaseService):
         expires_in_days: int,
         source: Optional[str],
         emails: Optional[list[str]],
+        grant_founding_status: bool = True,
     ) -> list[BetaInvite]:
         expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
         records = []
@@ -116,6 +117,7 @@ class BetaService(BaseService):
                 "code": generate_code(8),
                 "email": emails[i] if i < len(emails) else None,
                 "role": role,
+                "grant_founding_status": grant_founding_status,
                 "expires_at": expires_at,
                 "metadata_json": {"source": source} if source else None,
             }
@@ -150,9 +152,15 @@ class BetaService(BaseService):
         expires_in_days: int,
         source: str | None,
         base_url: str | None,
+        grant_founding_status: bool = True,
     ) -> tuple[BetaInvite, str, str]:
         created = self.bulk_generate(
-            count=1, role=role, expires_in_days=expires_in_days, source=source, emails=[to_email]
+            count=1,
+            role=role,
+            expires_in_days=expires_in_days,
+            source=source,
+            emails=[to_email],
+            grant_founding_status=grant_founding_status,
         )
         invite = created[0]
         join_url = build_join_url(invite.code, to_email, base_url)

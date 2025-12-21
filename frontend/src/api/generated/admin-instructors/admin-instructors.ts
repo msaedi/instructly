@@ -18,10 +18,159 @@ import type {
   UseQueryResult,
 } from '@tanstack/react-query';
 
-import type { AdminInstructorDetailResponse, HTTPValidationError } from '../instructly.schemas';
+import type {
+  AdminInstructorDetailResponse,
+  FoundingCountResponse,
+  HTTPValidationError,
+} from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
+
+/**
+ * Return founding instructor count and remaining capacity.
+ * @summary Founding Instructor Count
+ */
+export const foundingInstructorCountApiV1AdminInstructorsFoundingCountGet = (
+  signal?: AbortSignal
+) => {
+  return customFetch<FoundingCountResponse>({
+    url: `/api/v1/admin/instructors/founding/count`,
+    method: 'GET',
+    signal,
+  });
+};
+
+export const getFoundingInstructorCountApiV1AdminInstructorsFoundingCountGetQueryKey = () => {
+  return [`/api/v1/admin/instructors/founding/count`] as const;
+};
+
+export const getFoundingInstructorCountApiV1AdminInstructorsFoundingCountGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getFoundingInstructorCountApiV1AdminInstructorsFoundingCountGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>
+  > = ({ signal }) => foundingInstructorCountApiV1AdminInstructorsFoundingCountGet(signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type FoundingInstructorCountApiV1AdminInstructorsFoundingCountGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>
+>;
+export type FoundingInstructorCountApiV1AdminInstructorsFoundingCountGetQueryError =
+  ErrorType<unknown>;
+
+export function useFoundingInstructorCountApiV1AdminInstructorsFoundingCountGet<
+  TData = Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+          TError,
+          Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useFoundingInstructorCountApiV1AdminInstructorsFoundingCountGet<
+  TData = Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+          TError,
+          Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useFoundingInstructorCountApiV1AdminInstructorsFoundingCountGet<
+  TData = Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Founding Instructor Count
+ */
+
+export function useFoundingInstructorCountApiV1AdminInstructorsFoundingCountGet<
+  TData = Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof foundingInstructorCountApiV1AdminInstructorsFoundingCountGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getFoundingInstructorCountApiV1AdminInstructorsFoundingCountGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
 
 /**
  * Return administrative instructor detail including consent recency.

@@ -1654,6 +1654,26 @@ export type paths = {
         patch: operations["update_pricing_config_api_v1_admin_config_pricing_patch"];
         trace?: never;
     };
+    "/api/v1/admin/instructors/founding/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Founding Instructor Count
+         * @description Return founding instructor count and remaining capacity.
+         */
+        get: operations["founding_instructor_count_api_v1_admin_instructors_founding_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/instructors/{instructor_id}": {
         parameters: {
             query?: never;
@@ -8541,6 +8561,18 @@ export type components = {
             object_key: string;
         };
         /**
+         * FoundingCountResponse
+         * @description Summary of founding instructor utilization.
+         */
+        FoundingCountResponse: {
+            /** Cap */
+            cap: number;
+            /** Count */
+            count: number;
+            /** Remaining */
+            remaining: number;
+        };
+        /**
          * GatedPingResponse
          * @description Simple response indicating gated ping success.
          */
@@ -9245,6 +9277,11 @@ export type components = {
              * @default 14
              */
             expires_in_days: number;
+            /**
+             * Grant Founding Status
+             * @default true
+             */
+            grant_founding_status: boolean;
             /**
              * Role
              * @default instructor_beta
@@ -16444,6 +16481,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    founding_instructor_count_api_v1_admin_instructors_founding_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoundingCountResponse"];
                 };
             };
         };

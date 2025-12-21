@@ -287,6 +287,7 @@ def send_invite(
         expires_in_days=payload.expires_in_days,
         source=payload.source,
         base_url=payload.base_url,
+        grant_founding_status=payload.grant_founding_status,
     )
     return InviteSendResponse(
         id=invite.id,

@@ -2538,6 +2538,15 @@ export interface FinalizeProfilePictureRequest {
 }
 
 /**
+ * Summary of founding instructor utilization.
+ */
+export interface FoundingCountResponse {
+  cap: number;
+  count: number;
+  remaining: number;
+}
+
+/**
  * Simple response indicating gated ping success.
  */
 export interface GatedPingResponse {
@@ -3071,6 +3080,7 @@ export interface InviteSendRequest {
    * @maximum 180
    */
   expires_in_days?: number;
+  grant_founding_status?: boolean;
   role?: string;
   source?: InviteSendRequestSource;
   to_email: string;
