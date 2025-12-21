@@ -344,25 +344,26 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                     {"lock_key": self._FOUNDING_CLAIM_LOCK_KEY},
                 )
 
-                # Count founding instructors (now safe, we have exclusive access)
-                current_count = self.count_founding_instructors()
-
-                if current_count >= cap:
-                    return False, current_count
-
-                # Get the target profile
+                # Get the target profile first
                 profile = (
                     self.db.query(InstructorProfile)
                     .filter(InstructorProfile.id == profile_id)
                     .first()
                 )
 
+                # Count founding instructors (now safe, we have exclusive access)
+                current_count = self.count_founding_instructors()
+
                 if not profile:
                     return False, current_count
 
-                # Already a founding instructor
+                # Already a founding instructor - return success (idempotent)
                 if profile.is_founding_instructor:
                     return True, current_count
+
+                # Check cap AFTER checking if already a founder
+                if current_count >= cap:
+                    return False, current_count
 
                 # Grant founding status
                 profile.is_founding_instructor = True
