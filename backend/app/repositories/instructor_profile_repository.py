@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, Iterable, List, Optional, Sequence, cast
 
-from sqlalchemy import desc, func, or_
+from sqlalchemy import desc, func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Query, Session, joinedload, selectinload
 
@@ -319,9 +319,16 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             self.logger.error("Failed to count founding instructors: %s", str(exc))
             raise RepositoryException("Failed to count founding instructors") from exc
 
+    # Advisory lock key for founding instructor cap enforcement
+    # This ensures atomic claim operations across concurrent transactions
+    _FOUNDING_CLAIM_LOCK_KEY = 0x494E5354_464F554E  # "INSTFOUN" in hex
+
     def try_claim_founding_status(self, profile_id: str, cap: int) -> tuple[bool, int]:
         """
         Atomically attempt to grant founding instructor status.
+
+        Uses PostgreSQL advisory lock to serialize founding status claims.
+        This avoids table-level row locks while ensuring correct cap enforcement.
 
         Returns (success, current_count_after_attempt).
         """
@@ -330,29 +337,34 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
         try:
             with self.db.begin_nested():
-                locked_rows = (
-                    self.db.query(
-                        InstructorProfile.id,
-                        InstructorProfile.is_founding_instructor,
-                    )
-                    .with_for_update()
-                    .all()
+                # Acquire transaction-scoped advisory lock for founding claims
+                # This serializes all founding status attempts without locking any rows
+                self.db.execute(
+                    text("SELECT pg_advisory_xact_lock(:lock_key)"),
+                    {"lock_key": self._FOUNDING_CLAIM_LOCK_KEY},
                 )
-                current_count = sum(1 for _, is_founding in locked_rows if is_founding)
+
+                # Count founding instructors (now safe, we have exclusive access)
+                current_count = self.count_founding_instructors()
+
                 if current_count >= cap:
                     return False, current_count
 
+                # Get the target profile
                 profile = (
                     self.db.query(InstructorProfile)
                     .filter(InstructorProfile.id == profile_id)
-                    .with_for_update()
                     .first()
                 )
+
                 if not profile:
                     return False, current_count
+
+                # Already a founding instructor
                 if profile.is_founding_instructor:
                     return True, current_count
 
+                # Grant founding status
                 profile.is_founding_instructor = True
                 profile.founding_granted_at = datetime.now(timezone.utc)
                 self.db.flush()

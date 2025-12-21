@@ -54,6 +54,7 @@ from ..schemas.payment_schemas import (
     PayoutSummary,
     TransactionHistoryItem,
 )
+from ..utils.url_validation import is_allowed_origin, origin_from_header
 from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter
 from .config_service import ConfigService
@@ -212,41 +213,6 @@ class StripeService(BaseService):
             sanitized = "".join(ch for ch in callback_from if ch.isalnum() or ch in {"-", "_"})
             callback_from = sanitized or None
 
-        def _origin_from_header(value: str | None) -> str | None:
-            if not value:
-                return None
-            try:
-                parsed_header = urlparse(value)
-                if parsed_header.scheme in {"http", "https"} and parsed_header.netloc:
-                    return f"{parsed_header.scheme}://{parsed_header.netloc}".rstrip("/")
-            except Exception:
-                return None
-            return None
-
-        def _origin_is_allowed(candidate: str | None) -> bool:
-            if not candidate:
-                return False
-            try:
-                parsed_candidate = urlparse(candidate)
-                host = (parsed_candidate.hostname or "").lower()
-                scheme = (parsed_candidate.scheme or "").lower()
-                if host in {"localhost", "127.0.0.1"}:
-                    return True
-                if host == "beta-local.instainstru.com":
-                    return True
-                # Allow LAN/IP access in local dev
-                if host and all(part.isdigit() for part in host.split(".")):
-                    return True
-                if scheme != "https":
-                    return False
-                if host in {"instainstru.com", "www.instainstru.com"}:
-                    return True
-                if host.endswith(".instainstru.com"):
-                    return True
-            except Exception:
-                return False
-            return False
-
         configured_frontend = (settings.frontend_url or "").strip()
         local_frontend = (settings.local_beta_frontend_origin or "").strip()
         request_host_clean = (request_host or "").strip()
@@ -263,8 +229,8 @@ class StripeService(BaseService):
             return None
 
         origin_candidates: list[str] = []
-        header_origin = _origin_from_header(request_origin) or _origin_from_header(request_referer)
-        if header_origin and _origin_is_allowed(header_origin):
+        header_origin = origin_from_header(request_origin) or origin_from_header(request_referer)
+        if header_origin and is_allowed_origin(header_origin):
             origin_candidates.append(header_origin)
         if configured_frontend:
             origin_candidates.append(configured_frontend)

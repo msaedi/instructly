@@ -121,6 +121,14 @@ def upgrade() -> None:
         ["bgc_report_id"],
     )
 
+    # Partial index for founding instructor count queries (only indexes TRUE rows)
+    op.create_index(
+        "idx_instructor_profiles_founding_true",
+        "instructor_profiles",
+        ["is_founding_instructor"],
+        postgresql_where=sa.text("is_founding_instructor = true"),
+    )
+
     op.create_check_constraint(
         "check_years_experience_non_negative",
         "instructor_profiles",
@@ -467,6 +475,7 @@ def downgrade() -> None:
     op.drop_constraint("ck_instructor_profiles_bgc_env", "instructor_profiles", type_="check")
     op.drop_constraint("ck_instructor_profiles_bgc_status", "instructor_profiles", type_="check")
     op.drop_constraint("check_years_experience_non_negative", "instructor_profiles", type_="check")
+    op.drop_index("idx_instructor_profiles_founding_true", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_bgc_report_id", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_checkr_invitation_id", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_checkr_candidate_id", table_name="instructor_profiles")

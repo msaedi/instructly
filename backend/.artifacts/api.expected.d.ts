@@ -4002,6 +4002,7 @@ export type components = {
  AuthUserResponse: {
  email: string;
  first_name: string;
+ founding_instructor_granted?: boolean | null;
  has_profile_picture: boolean | null;
  id: string;
  is_active: boolean;
@@ -4020,6 +4021,7 @@ export type components = {
  beta_role?: string | null;
  email: string;
  first_name: string;
+ founding_instructor_granted?: boolean | null;
  has_profile_picture: boolean | null;
  id: string;
  is_active: boolean;

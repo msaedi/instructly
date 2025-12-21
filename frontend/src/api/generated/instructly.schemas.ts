@@ -647,6 +647,11 @@ export interface AuditLogView {
   occurred_at: string;
 }
 
+/**
+ * True if founding instructor status was granted during registration
+ */
+export type AuthUserResponseFoundingInstructorGranted = boolean | null;
+
 export type AuthUserResponseHasProfilePicture = boolean | null;
 
 export type AuthUserResponsePhone = string | null;
@@ -663,6 +668,8 @@ export type AuthUserResponseZipCode = string | null;
 export interface AuthUserResponse {
   email: string;
   first_name: string;
+  /** True if founding instructor status was granted during registration */
+  founding_instructor_granted?: AuthUserResponseFoundingInstructorGranted;
   has_profile_picture?: AuthUserResponseHasProfilePicture;
   id: string;
   is_active?: boolean;
@@ -682,6 +689,11 @@ export type AuthUserWithPermissionsResponseBetaInvitedBy = string | null;
 export type AuthUserWithPermissionsResponseBetaPhase = string | null;
 
 export type AuthUserWithPermissionsResponseBetaRole = string | null;
+
+/**
+ * True if founding instructor status was granted during registration
+ */
+export type AuthUserWithPermissionsResponseFoundingInstructorGranted = boolean | null;
 
 export type AuthUserWithPermissionsResponseHasProfilePicture = boolean | null;
 
@@ -703,6 +715,8 @@ export interface AuthUserWithPermissionsResponse {
   beta_role?: AuthUserWithPermissionsResponseBetaRole;
   email: string;
   first_name: string;
+  /** True if founding instructor status was granted during registration */
+  founding_instructor_granted?: AuthUserWithPermissionsResponseFoundingInstructorGranted;
   has_profile_picture?: AuthUserWithPermissionsResponseHasProfilePicture;
   id: string;
   is_active?: boolean;

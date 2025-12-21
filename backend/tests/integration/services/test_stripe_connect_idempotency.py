@@ -312,7 +312,10 @@ def test_create_connected_account_concurrent_requests_do_not_duplicate(
             session.close()
 
     with ThreadPoolExecutor(max_workers=5) as executor:
-        results = [executor.submit(_worker).result() for _ in range(5)]
+        # Submit all workers first, then collect results
+        # (previous code submitted one-at-a-time, causing 10s barrier timeout)
+        futures = [executor.submit(_worker) for _ in range(5)]
+        results = [f.result() for f in futures]
 
     assert all(isinstance(result, StripeConnectedAccount) for result in results)
 

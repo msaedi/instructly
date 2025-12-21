@@ -19,6 +19,7 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from sqlalchemy import and_, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 import ulid
 
@@ -150,6 +151,9 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             self.db.add(account)
             self.db.flush()
             return account
+        except IntegrityError:
+            # Let IntegrityError propagate for idempotency handling in service layer
+            raise
         except Exception as e:
             self.logger.error(f"Failed to create connected account: {str(e)}")
             raise RepositoryException(f"Failed to create connected account: {str(e)}")

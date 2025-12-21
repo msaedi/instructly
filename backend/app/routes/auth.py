@@ -141,6 +141,7 @@ async def register(
                 # Don't fail registration if conversion fails
 
         # Beta invite consumption (server-side guarantee)
+        founding_instructor_granted: bool | None = None
         try:
             invite_code = None
             metadata_obj = getattr(payload, "metadata", None)
@@ -167,6 +168,7 @@ async def register(
                         profile = repo.get_by_user_id(db_user.id)
                         if profile:
                             granted, message = svc.try_grant_founding_status(profile.id)
+                            founding_instructor_granted = granted
                             if granted:
                                 logger.info(
                                     "Granted founding status for user %s: %s",
@@ -196,6 +198,7 @@ async def register(
             "permissions": [],
             "profile_picture_version": getattr(db_user, "profile_picture_version", 0),
             "has_profile_picture": getattr(db_user, "has_profile_picture", False),
+            "founding_instructor_granted": founding_instructor_granted,
         }
         user_payload = AuthUserResponse(**model_filter(AuthUserResponse, response_data))
 

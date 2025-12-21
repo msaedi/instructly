@@ -12,7 +12,7 @@ FIXED: Dynamic date checking instead of hardcoded day names for timezone compati
 
 from datetime import date, time, timedelta
 import os
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -244,7 +244,8 @@ class TestErrorHandlingWithCleanArchitecture:
         # Should handle gracefully without slot references
         assert result is True  # In-memory cache works
 
-    def test_reminder_handles_missing_data_cleanly(self, db):
+    @patch("app.services.notification_service.time.sleep")
+    def test_reminder_handles_missing_data_cleanly(self, mock_sleep, db):
         """Test reminder system handles missing data without slot references."""
         notification_service = NotificationService(db)
         notification_service.email_service.send_email = Mock()

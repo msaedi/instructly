@@ -6143,6 +6143,11 @@ export type components = {
             /** First Name */
             first_name: string;
             /**
+             * Founding Instructor Granted
+             * @description True if founding instructor status was granted during registration
+             */
+            founding_instructor_granted?: boolean | null;
+            /**
              * Has Profile Picture
              * @default false
              */
@@ -6192,6 +6197,11 @@ export type components = {
             email: string;
             /** First Name */
             first_name: string;
+            /**
+             * Founding Instructor Granted
+             * @description True if founding instructor status was granted during registration
+             */
+            founding_instructor_granted?: boolean | null;
             /**
              * Has Profile Picture
              * @default false
