@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
 import { BGCStep } from '@/components/instructor/BGCStep';
 import { ShieldCheck } from 'lucide-react';
 import { BackgroundCheckDisclosureModal } from '@/components/consent/BackgroundCheckDisclosureModal';
-import { bgcConsent, type BGCConsentPayload } from '@/lib/api/bgc';
+import { bgcConsent, type BGCConsentPayload, type BGCStatus } from '@/lib/api/bgc';
 import { DISCLOSURE_VERSION } from '@/config/constants';
 import { OnboardingProgressHeader, type OnboardingStepStatus } from '@/features/instructor-onboarding/OnboardingProgressHeader';
 import { useOnboardingStepStatus } from '@/features/instructor-onboarding/useOnboardingStepStatus';
@@ -25,6 +25,8 @@ export default function Step4Verification() {
   const [refreshingIdentity, setRefreshingIdentity] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verificationComplete, setVerificationComplete] = useState(false);
+  const [identitySessionId, setIdentitySessionId] = useState<string | null>(null);
+  const [bgcStatusOverride, setBgcStatusOverride] = useState<BGCStatus | null>(null);
   const hasRefreshedRef = useRef(false);
   const [consentModalOpen, setConsentModalOpen] = useState(false);
   const [consentSubmitting, setConsentSubmitting] = useState(false);
@@ -36,18 +38,23 @@ export default function Step4Verification() {
   // Derive instructorProfileId from hook's rawData to avoid duplicate fetch
   const instructorProfileId = rawData.profile?.id ?? null;
 
-  // Use evaluated status directly, but override verify-identity to 'done' if locally verified
+  const bgcStatusRaw = bgcStatusOverride || rawData.bgcStatus || '';
+  const bgcStatus = typeof bgcStatusRaw === 'string' ? bgcStatusRaw.toLowerCase() : '';
+  const bgcPassed = bgcStatus === 'passed' || bgcStatus === 'clear' || bgcStatus === 'eligible';
+  const verifyIdentityComplete = verificationComplete && bgcPassed;
+  const identityInProgress = Boolean(identitySessionId) && !verificationComplete;
+
+  // Use evaluated status directly, but override verify-identity to 'done' once both checks pass
   // (handles immediate feedback when verification completes before hook refreshes)
   const stepStatus = useMemo(() => ({
     ...evaluatedStepStatus,
-    'verify-identity': verificationComplete ? 'done' as OnboardingStepStatus : evaluatedStepStatus['verify-identity'],
-  }), [evaluatedStepStatus, verificationComplete]);
+    'verify-identity': verifyIdentityComplete ? 'done' as OnboardingStepStatus : evaluatedStepStatus['verify-identity'],
+  }), [evaluatedStepStatus, verifyIdentityComplete]);
 
   // Sync verificationComplete from hook's rawData
   useEffect(() => {
-    if (rawData.profile?.identity_verified_at || rawData.profile?.identity_verification_session_id) {
-      setVerificationComplete(true);
-    }
+    setVerificationComplete(Boolean(rawData.profile?.identity_verified_at));
+    setIdentitySessionId(rawData.profile?.identity_verification_session_id ?? null);
   }, [rawData.profile]);
 
   const ensureConsent = useCallback(async () => {
@@ -116,9 +123,8 @@ export default function Step4Verification() {
         if (!active) return;
         if (res.ok) {
           const data = await res.json();
+          await refreshStepStatus();
           if (data?.verified) {
-            setVerificationComplete(true);
-            void refreshStepStatus(); // Refresh all step statuses
             toast.success('Identity check complete', {
               description: 'Next, start your background check.',
             });
@@ -179,8 +185,9 @@ export default function Step4Verification() {
     }
   };
 
-  const handleStatusUpdate = useCallback((snapshot: { consentRecent: boolean }) => {
+  const handleStatusUpdate = useCallback((snapshot: { consentRecent: boolean; status: BGCStatus | null }) => {
     setHasRecentConsent(snapshot.consentRecent);
+    setBgcStatusOverride(snapshot.status ?? null);
   }, []);
 
   const handleContinue = () => {
@@ -240,11 +247,14 @@ export default function Step4Verification() {
                   {verificationComplete && (
                     <p className="text-xs text-emerald-600">Identity verification completed.</p>
                   )}
+                  {!verificationComplete && identityInProgress && (
+                    <p className="text-xs text-amber-600">Identity verification in progress.</p>
+                  )}
                 </div>
 
                 <Button
                   onClick={startIdentity}
-                  disabled={identityLoading || verificationComplete}
+                  disabled={identityLoading || verificationComplete || identityInProgress}
                   aria-label="Start verification"
                   className="w-full sm:w-auto mt-4 sm:mt-0 rounded-lg sm:rounded-md text-base sm:text-sm h-auto sm:h-10 px-4 py-2 bg-[#7E22CE] hover:bg-[#7E22CE] text-white shadow-sm"
                 >
@@ -258,6 +268,8 @@ export default function Step4Verification() {
                     </>
                   ) : verificationComplete ? (
                     <>Verified</>
+                  ) : identityInProgress ? (
+                    <>Verification in progress</>
                   ) : (
                     <>Start verification</>
                   )}
@@ -282,8 +294,8 @@ export default function Step4Verification() {
               <BGCStep
                 instructorId={instructorProfileId}
                 ensureConsent={ensureConsent}
-                onStatusUpdate={({ consentRecent }) =>
-                  handleStatusUpdate({ consentRecent })
+                onStatusUpdate={({ consentRecent, status }) =>
+                  handleStatusUpdate({ consentRecent, status })
                 }
               />
             ) : (
