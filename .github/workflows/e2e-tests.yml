@@ -50,13 +50,13 @@ jobs:
 
     - name: Setup Node.js (admin)
       if: ${{ matrix.project == 'admin' }}
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '22.x'
 
     - name: Setup Node.js
       if: ${{ matrix.project != 'admin' }}
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '22.x'
         cache: 'npm'
@@ -423,7 +423,7 @@ jobs:
 
     # Frontend setup
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '22.x'
         cache: 'npm'
@@ -714,7 +714,7 @@ jobs:
           touch .artifacts/backend.log .artifacts/frontend.log
 
       - name: Use Node 22.x
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22.x'
           cache: 'npm'
@@ -908,7 +908,7 @@ jobs:
           touch .artifacts/backend.log .artifacts/frontend.log
 
       - name: Use Node 22.x
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22.x'
           cache: 'npm'
