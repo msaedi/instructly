@@ -53,10 +53,9 @@ else:
     user_obj = db.query(auth_service.get_user_model()).filter_by(email=email).first()
     if user_obj:
         print(f"   User exists: {user_obj.email}")
-        from passlib.context import CryptContext
+        from app.auth import verify_password
 
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        is_valid = pwd_context.verify(password, user_obj.hashed_password)
+        is_valid = verify_password(password, user_obj.hashed_password)
         print(f"   Password verification: {is_valid}")
     else:
         print("   User not found in database")

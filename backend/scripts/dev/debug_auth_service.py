@@ -47,10 +47,9 @@ def debug_authenticate_user(self, email: str, password: str):
         print(f"   Hash starts with: {user.hashed_password[:20]}...")
 
         # Try password verification
-        from passlib.context import CryptContext
+        from app.auth import verify_password
 
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        is_valid = pwd_context.verify(password, user.hashed_password)
+        is_valid = verify_password(password, user.hashed_password)
         print(f"   Password valid: {is_valid}")
     else:
         print("   ❌ User not found")

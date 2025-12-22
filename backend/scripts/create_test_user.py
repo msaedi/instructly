@@ -9,13 +9,9 @@ import sys
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from passlib.context import CryptContext
-
+from app.auth import get_password_hash
 from app.database import SessionLocal
 from app.models.user import User
-
-# Password context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def create_test_user():
@@ -30,12 +26,12 @@ def create_test_user():
         if existing:
             print(f"ℹ️  User {email} already exists")
             # Update password
-            existing.hashed_password = pwd_context.hash(password)
+            existing.hashed_password = get_password_hash(password)
             db.commit()
             print("✅ Updated password for existing user")
         else:
             # Create new user
-            hashed_password = pwd_context.hash(password)
+            hashed_password = get_password_hash(password)
             user = User(
                 email=email, hashed_password=hashed_password, full_name="Test User", role="student", is_active=True
             )

@@ -11,9 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from passlib.context import CryptContext
-
-# Now test authentication directly
+from app.auth import verify_password
 from app.database import SessionLocal
 from app.models.user import User
 from app.services.auth_service import AuthService
@@ -22,7 +20,6 @@ print("Direct authentication test:\n")
 
 db = SessionLocal()
 auth_service = AuthService(db)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Test sarah.chen
 email = "sarah.chen@example.com"
@@ -38,7 +35,7 @@ if user:
 
 # Step 2: Verify password directly
 if user:
-    is_valid = pwd_context.verify(password, user.hashed_password)
+    is_valid = verify_password(password, user.hashed_password)
     print(f"\n2. Direct password verification: {is_valid}")
 
 # Step 3: Test via auth service

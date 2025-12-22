@@ -51,10 +51,9 @@ def check_users():
         else:
             print("   ❌ Authentication failed!")
             # Try to verify password directly
-            from passlib.context import CryptContext
+            from app.auth import verify_password
 
-            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            is_valid = pwd_context.verify("password123", test_user.hashed_password)
+            is_valid = verify_password("password123", test_user.hashed_password)
             print(f"   Password verify result: {is_valid}")
     else:
         print(f"\n❌ Test user NOT found: {test_email}")

@@ -229,7 +229,12 @@ class TestPerformanceOverhead:
                 client.get(endpoint)
                 client.post(endpoint, json={})
 
-        # Measure metrics endpoint performance
+        # Warmup request - first request is slow due to initialization/cold start
+        # This ensures we measure steady-state performance, not cold start latency
+        warmup_response = client.get("/api/v1/metrics/prometheus")
+        assert warmup_response.status_code == 200
+
+        # Measure metrics endpoint performance (steady-state)
         times = []
         for _ in range(20):
             start = time.perf_counter()
