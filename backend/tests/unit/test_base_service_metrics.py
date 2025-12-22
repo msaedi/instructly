@@ -27,7 +27,7 @@ class ExampleService(BaseService):
     @BaseService.measure_operation("slow_operation")
     def slow_operation(self):
         """A slow operation that should trigger warning."""
-        time.sleep(1.1)  # 1.1 seconds
+        # Note: Actual slowness is simulated via time.time() mocking in test
         return "slow but successful"
 
     @BaseService.measure_operation("failing_operation")
@@ -87,7 +87,17 @@ class TestBaseServiceMetrics:
 
     def test_slow_operation_warning(self, test_service, caplog):
         """Test that slow operations trigger warnings."""
-        test_service.slow_operation()
+        from unittest.mock import patch
+
+        # Mock time.time() to simulate 1.5s elapsed time without actual sleep
+        call_count = [0]
+        def mock_time():
+            call_count[0] += 1
+            # First call returns start time, second call returns end time (1.5s later)
+            return 0.0 if call_count[0] == 1 else 1.5
+
+        with patch("time.time", side_effect=mock_time):
+            test_service.slow_operation()
 
         # Check that warning was logged
         assert "Slow operation detected" in caplog.text

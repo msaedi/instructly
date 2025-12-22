@@ -477,8 +477,8 @@ class TestAnalyticsDataQuality:
         response1 = client.post("/api/v1/search-history/", json=search1, headers=auth_headers)
         assert response1.status_code == 201
 
-        # Wait a moment
-        time.sleep(1)
+        # No sleep needed - returning user detection is based on previous search events existing,
+        # not on time elapsed between searches
 
         # Second search - returning user
         search2 = {
