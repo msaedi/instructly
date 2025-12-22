@@ -15,7 +15,7 @@ jobs:
     env:
       API: ${{ secrets.PREVIEW_API_BASE }}          # e.g. https://preview-api.instainstru.com
       ORIGIN: ${{ secrets.PREVIEW_ORIGIN }}          # e.g. https://preview.instainstru.com
-      GATED: ${{ secrets.GATED_ENDPOINT }}           # e.g. /v1/gated/ping
+      GATED: ${{ secrets.GATED_ENDPOINT }}           # e.g. /api/v1/gated/ping
       STRIPE_WEBHOOK: ${{ secrets.STRIPE_WEBHOOK_ENDPOINT }}  # e.g. /api/v1/payments/webhooks/stripe
       CHECKR_WEBHOOK: ${{ secrets.CHECKR_WEBHOOK_ENDPOINT }}  # e.g. /api/v1/webhooks/checkr
       MODE: preview
@@ -86,7 +86,7 @@ jobs:
     env:
       API: ${{ secrets.PROD_API_BASE }}             # e.g. https://api.instainstru.com
       ORIGIN: ${{ secrets.BETA_ORIGIN }}            # e.g. https://beta.instainstru.com
-      GATED: ${{ secrets.GATED_ENDPOINT }}          # e.g. /v1/gated/ping
+      GATED: ${{ secrets.GATED_ENDPOINT }}          # e.g. /api/v1/gated/ping
       STRIPE_WEBHOOK: ${{ secrets.STRIPE_WEBHOOK_ENDPOINT }}  # e.g. /api/v1/payments/webhooks/stripe
       CHECKR_WEBHOOK: ${{ secrets.CHECKR_WEBHOOK_ENDPOINT }}  # e.g. /api/v1/webhooks/checkr
       MODE: prod

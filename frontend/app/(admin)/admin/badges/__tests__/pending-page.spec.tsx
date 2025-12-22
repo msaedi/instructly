@@ -119,7 +119,7 @@ describe('AdminPendingBadgesPage', () => {
     await userEvent.click(confirmButton);
 
     await waitFor(() => {
-      expect(confirmAward).toHaveBeenCalledWith('award-1');
+      expect(confirmAward).toHaveBeenCalledWith('award-1', expect.anything());
     });
     await waitFor(() => {
       const row = screen.getByText('Explorer Badge').closest('tr');
@@ -143,7 +143,7 @@ describe('AdminPendingBadgesPage', () => {
     await userEvent.click(revokeButton);
 
     await waitFor(() => {
-      expect(revokeAward).toHaveBeenCalledWith('award-2');
+      expect(revokeAward).toHaveBeenCalledWith('award-2', expect.anything());
     });
     await screen.findByText(/revoked/i);
   });

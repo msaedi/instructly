@@ -91,7 +91,7 @@ export function SearchTypesChart({ summary, loading }: SearchTypesChartProps) {
               outerRadius={80}
               fill="#8884d8"
               dataKey="value"
-              label={({ percentage }) => `${percentage.toFixed(0)}%`}
+              label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
             >
               {chartData.map((entry, index) => {
                 const type = Object.keys(TYPE_LABELS).find(
