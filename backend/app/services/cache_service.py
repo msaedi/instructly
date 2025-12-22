@@ -833,19 +833,18 @@ class CacheService(BaseService):
         patterns = [
             f"avail:*:{instructor_id}:*",
             f"week:*:{instructor_id}:*",
-            f"conf:*:{instructor_id}:*",
+            f"con:*:{instructor_id}:*",  # Bug fix: was "conf:" but prefix is "con"
+            # Always invalidate public availability for this instructor (any date range)
+            f"public_availability:{instructor_id}:*",
         ]
 
         if dates:
-            # Also invalidate specific dates
+            # Also invalidate specific date patterns
             for d in dates:
                 patterns.extend(
                     [
                         f"*:{instructor_id}:{d.isoformat()}",
                         f"*:{instructor_id}:*:{d.isoformat()}",
-                        # Also invalidate public availability endpoints that include this date
-                        f"public_availability:{instructor_id}:{d.isoformat()}:*",
-                        f"public_availability:{instructor_id}:*:{d.isoformat()}:*",
                     ]
                 )
 
@@ -1196,6 +1195,25 @@ class CacheServiceSyncAdapter:
         self, instructor_id: str, dates: Optional[List[date]] = None
     ) -> None:
         if self._is_event_loop_thread():
+            # Bug fix: Instead of silently skipping, schedule as fire-and-forget task
+            try:
+                loop = asyncio.get_running_loop()
+                coro = self._cache_service.invalidate_instructor_availability(instructor_id, dates)
+                task: asyncio.Task[None] = loop.create_task(coro)
+
+                def _log_error(t: asyncio.Task[None]) -> None:
+                    if t.cancelled():
+                        return
+                    exc = t.exception()
+                    if exc:
+                        logger.warning(
+                            f"Async cache invalidation failed for {instructor_id}: {exc}"
+                        )
+
+                task.add_done_callback(_log_error)
+            except RuntimeError:
+                # No running loop available - skip gracefully
+                logger.debug(f"No event loop for cache invalidation: instructor {instructor_id}")
             return
         _run_cache_coroutine(
             self._cache_service.invalidate_instructor_availability(instructor_id, dates)
