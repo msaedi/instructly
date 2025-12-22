@@ -123,7 +123,12 @@ class StripeService(BaseService):
                 # Set sane network timeouts/retries to avoid blocking the server on Stripe calls
                 try:
                     # 8s overall timeout; 1 retry for transient failures
-                    stripe.default_http_client = stripe.http_client.RequestsClient(timeout=8)
+                    # Note: Stripe 14.x moved http_client to _http_client (private API)
+                    http_client_module = getattr(stripe, "_http_client", None) or getattr(
+                        stripe, "http_client", None
+                    )
+                    if http_client_module:
+                        stripe.default_http_client = http_client_module.RequestsClient(timeout=8)
                     stripe.max_network_retries = 1
                     stripe.verify_ssl_certs = True
                 except Exception:

@@ -211,11 +211,22 @@ class TestStripeService:
         assert service.stripe_configured is False
 
     def test_init_handles_http_client_error(self, db: Session, monkeypatch) -> None:
+        """Test that HTTP client errors during init are handled gracefully.
+
+        Note: Stripe 14.x moved http_client to _http_client (private API).
+        Production code and this test both use _http_client for consistency.
+        """
         secret = MagicMock()
         secret.get_secret_value = MagicMock(return_value="sk_test")
         monkeypatch.setattr(settings, "stripe_secret_key", secret, raising=False)
+        http_client_module = getattr(stripe, "_http_client", None) or getattr(
+            stripe, "http_client", None
+        )
+        assert http_client_module is not None
         monkeypatch.setattr(
-            stripe._http_client, "RequestsClient", MagicMock(side_effect=Exception("boom"))
+            http_client_module,
+            "RequestsClient",
+            MagicMock(side_effect=Exception("boom")),
         )
 
         service = StripeService(
