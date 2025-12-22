@@ -283,26 +283,17 @@ if __name__ == "__main__":
 
 
 def test_comprehensive_contract_violations():
-    """Run the comprehensive contract test to catch all violations."""
-    import subprocess
-    import sys
+    """Run the comprehensive contract test to catch all violations.
 
-    result = subprocess.run(
-        [sys.executable, "-m", "tests.test_api_contracts"],
-        cwd=BACKEND_DIR,
-        capture_output=True,
-        text=True,
-    )
+    Optimized: Import analyzer directly instead of spawning subprocess.
+    This saves ~2s of Python interpreter startup time.
+    """
+    from app.main import fastapi_app
+    from tests.test_api_contracts import APIContractAnalyzer
 
-    # Check if violations were found
-    if "Found" in result.stdout and "contract violations" in result.stdout:
-        # Extract violation count
-        import re
+    analyzer = APIContractAnalyzer(fastapi_app)
+    violations = analyzer.analyze_all_routes()
 
-        match = re.search(r"Found (\d+) contract violations", result.stdout)
-        if match:
-            count = int(match.group(1))
-            if count > 0:
-                # Get the violations text
-                violations_text = result.stdout[result.stdout.find("Found") :]
-                pytest.fail(f"{violations_text}")
+    if violations:
+        violation_messages = "\n".join(str(v) for v in violations)
+        pytest.fail(f"Found {len(violations)} contract violations:\n{violation_messages}")

@@ -17,18 +17,31 @@ from app.repositories.availability_day_repository import AvailabilityDayReposito
 from app.utils.bitset import bits_from_windows
 
 
-@pytest.fixture
-def perf_client(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("AVAILABILITY_PERF_DEBUG", "1")
-    reload(app.main)
-    app_instance = app.main.fastapi_app
-    if PerfCounterMiddleware not in {mw.cls for mw in app_instance.user_middleware}:
-        app_instance.add_middleware(PerfCounterMiddleware)
-    client = TestClient(app_instance, raise_server_exceptions=False)
+@pytest.fixture(scope="module")
+def perf_client():
+    """Module-scoped perf client to avoid app reload per test (~1s savings)."""
+    import os
+
+    # Set env var directly (can't use monkeypatch with module scope)
+    old_val = os.environ.get("AVAILABILITY_PERF_DEBUG")
+    os.environ["AVAILABILITY_PERF_DEBUG"] = "1"
+
     try:
-        yield client
+        reload(app.main)
+        app_instance = app.main.fastapi_app
+        if PerfCounterMiddleware not in {mw.cls for mw in app_instance.user_middleware}:
+            app_instance.add_middleware(PerfCounterMiddleware)
+        client = TestClient(app_instance, raise_server_exceptions=False)
+        try:
+            yield client
+        finally:
+            client.close()
     finally:
-        client.close()
+        # Restore env var
+        if old_val is None:
+            os.environ.pop("AVAILABILITY_PERF_DEBUG", None)
+        else:
+            os.environ["AVAILABILITY_PERF_DEBUG"] = old_val
 
 
 def _count_slots(db: Session, instructor_id: str) -> int:

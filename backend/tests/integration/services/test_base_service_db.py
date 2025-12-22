@@ -284,17 +284,25 @@ class TestBaseServicePerformanceMonitoring:
 
     def test_slow_operation_warning(self, db: Session, caplog):
         """Test slow operation warning logging."""
+        from unittest.mock import patch
+
         service = BaseService(db)
 
         # Use unique operation name
         slow_op_name = "test_slow_query_unique"
 
-        # Use the context manager with an actual slow operation
-        with caplog.at_level("WARNING"):
-            with service.measure_operation_context(slow_op_name):
-                import time
+        # Mock time.time to simulate elapsed time > 1s without actually sleeping
+        # This saves ~1s of test execution time
+        call_count = [0]
+        def mock_time():
+            call_count[0] += 1
+            # First call returns 0, second call returns 1.5 (simulating 1.5s elapsed)
+            return 0.0 if call_count[0] == 1 else 1.5
 
-                time.sleep(1.1)  # Sleep for more than 1 second to trigger warning
+        with caplog.at_level("WARNING"):
+            with patch("app.services.base.time.time", side_effect=mock_time):
+                with service.measure_operation_context(slow_op_name):
+                    pass  # No actual sleep needed
 
         # Verify warning was logged with correct format
         warning_found = any(

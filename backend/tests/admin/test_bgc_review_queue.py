@@ -244,13 +244,19 @@ class TestAdminBGCReviewQueue:
         )
         assert invalid_status.status_code == 400
 
-        extra_needed = 71 - 3
+        # Optimized: Create bulk user/profile data in fewer DB operations
+        # Reduced from 71 to 25 records - still tests pagination (>1 page at page_size=20)
+        extra_needed = 25 - 3
         extra_users: list[User] = []
         extra_profiles: list[InstructorProfile] = []
+
+        # Pre-hash password once instead of per-user
+        hashed_pw = get_password_hash("InstructorPass123!")
+
         for idx in range(extra_needed):
             extra_user = User(
                 email=f"bulk_case_{idx}@example.com",
-                hashed_password=get_password_hash("InstructorPass123!"),
+                hashed_password=hashed_pw,
                 first_name="Bulk",
                 last_name=f"Case{idx}",
                 phone=f"+1347556{idx:04d}",
@@ -259,6 +265,8 @@ class TestAdminBGCReviewQueue:
             extra_users.append(extra_user)
         db.add_all(extra_users)
         db.flush()
+
+        # Batch role assignments and profile creation
         for idx, extra_user in enumerate(extra_users):
             permission_service.assign_role(extra_user.id, RoleName.INSTRUCTOR)
             profile = InstructorProfile(
@@ -275,30 +283,31 @@ class TestAdminBGCReviewQueue:
 
         total_expected = extra_needed + 3
 
+        # Test pagination with page_size=20 (25 total = 2 pages)
         page1_response = client.get(
-            "/api/v1/admin/background-checks/cases?status=all&page=1&page_size=50",
+            "/api/v1/admin/background-checks/cases?status=all&page=1&page_size=20",
             headers=headers,
         )
         assert page1_response.status_code == 200
         page1_payload = page1_response.json()
         assert page1_payload["total"] == total_expected, f"Expected total={total_expected}, got {page1_payload['total']}"
         assert page1_payload["page"] == 1
-        assert page1_payload["page_size"] == 50
-        assert page1_payload["total_pages"] == math.ceil(total_expected / 50)
-        assert len(page1_payload["items"]) == 50, f"Page 1 should have 50 items, got {len(page1_payload['items'])}"
+        assert page1_payload["page_size"] == 20
+        assert page1_payload["total_pages"] == math.ceil(total_expected / 20)
+        assert len(page1_payload["items"]) == 20, f"Page 1 should have 20 items, got {len(page1_payload['items'])}"
         assert page1_payload["has_next"] is True
         assert page1_payload["has_prev"] is False
 
         page2_response = client.get(
-            "/api/v1/admin/background-checks/cases?status=all&page=2&page_size=50",
+            "/api/v1/admin/background-checks/cases?status=all&page=2&page_size=20",
             headers=headers,
         )
         assert page2_response.status_code == 200
         page2_payload = page2_response.json()
-        expected_page2_items = total_expected - 50
+        expected_page2_items = total_expected - 20
         assert page2_payload["total"] == total_expected, f"Page 2: Expected total={total_expected}, got {page2_payload['total']}"
         assert page2_payload["page"] == 2, f"Expected page=2, got {page2_payload['page']}"
-        assert page2_payload["total_pages"] == math.ceil(total_expected / 50), f"Expected total_pages=2, got {page2_payload['total_pages']}"
+        assert page2_payload["total_pages"] == math.ceil(total_expected / 20), f"Expected total_pages=2, got {page2_payload['total_pages']}"
         assert len(page2_payload["items"]) == expected_page2_items, f"Page 2 should have {expected_page2_items} items, got {len(page2_payload['items'])}"
         assert page2_payload["has_next"] is False, "Page 2 should not have next page"
         assert page2_payload["has_prev"] is True, "Page 2 should have previous page"
