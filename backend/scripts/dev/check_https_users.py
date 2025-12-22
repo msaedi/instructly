@@ -51,15 +51,9 @@ def check_users():
         else:
             print("   ❌ Authentication failed!")
             # Try to verify password directly
-            from argon2 import PasswordHasher
-            from argon2.exceptions import VerifyMismatchError
+            from app.auth import verify_password
 
-            ph = PasswordHasher()
-            try:
-                ph.verify(test_user.hashed_password, "password123")
-                is_valid = True
-            except VerifyMismatchError:
-                is_valid = False
+            is_valid = verify_password("password123", test_user.hashed_password)
             print(f"   Password verify result: {is_valid}")
     else:
         print(f"\n❌ Test user NOT found: {test_email}")

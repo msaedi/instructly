@@ -215,7 +215,7 @@ class TestStripeService:
         secret.get_secret_value = MagicMock(return_value="sk_test")
         monkeypatch.setattr(settings, "stripe_secret_key", secret, raising=False)
         monkeypatch.setattr(
-            stripe.http_client, "RequestsClient", MagicMock(side_effect=Exception("boom"))
+            stripe._http_client, "RequestsClient", MagicMock(side_effect=Exception("boom"))
         )
 
         service = StripeService(

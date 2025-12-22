@@ -11,10 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
-
-# Now test authentication directly
+from app.auth import verify_password
 from app.database import SessionLocal
 from app.models.user import User
 from app.services.auth_service import AuthService
@@ -23,7 +20,6 @@ print("Direct authentication test:\n")
 
 db = SessionLocal()
 auth_service = AuthService(db)
-ph = PasswordHasher()
 
 # Test sarah.chen
 email = "sarah.chen@example.com"
@@ -39,11 +35,7 @@ if user:
 
 # Step 2: Verify password directly
 if user:
-    try:
-        ph.verify(user.hashed_password, password)
-        is_valid = True
-    except VerifyMismatchError:
-        is_valid = False
+    is_valid = verify_password(password, user.hashed_password)
     print(f"\n2. Direct password verification: {is_valid}")
 
 # Step 3: Test via auth service

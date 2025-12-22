@@ -47,15 +47,9 @@ def debug_authenticate_user(self, email: str, password: str):
         print(f"   Hash starts with: {user.hashed_password[:20]}...")
 
         # Try password verification
-        from argon2 import PasswordHasher
-        from argon2.exceptions import VerifyMismatchError
+        from app.auth import verify_password
 
-        ph = PasswordHasher()
-        try:
-            ph.verify(user.hashed_password, password)
-            is_valid = True
-        except VerifyMismatchError:
-            is_valid = False
+        is_valid = verify_password(password, user.hashed_password)
         print(f"   Password valid: {is_valid}")
     else:
         print("   ❌ User not found")
