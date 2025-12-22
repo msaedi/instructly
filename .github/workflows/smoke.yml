@@ -23,7 +23,7 @@ jobs:
       - name: Health
         run: |
           set -e
-          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i "$API/health" | tee /tmp/health.txt
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i "$API/api/v1/health" | tee /tmp/health.txt
           grep -i "^x-site-mode: preview" /tmp/health.txt
           # Ensure no local testing header leaks into preview
           ! grep -qi '^x-testing: 1' /tmp/health.txt
@@ -59,7 +59,7 @@ jobs:
           grep -E "^HTTP/.* (400|401|403)" /tmp/checkr.txt
       - name: Metrics endpoint reachable
         run: |
-          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/metrics" | head -n 20
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/api/v1/metrics" | head -n 20
 
   smoke-preview-web:
     name: Preview Web gate (frontend)
@@ -94,7 +94,7 @@ jobs:
       - name: Health
         run: |
           set -e
-          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i "$API/health" | tee /tmp/health.txt
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i "$API/api/v1/health" | tee /tmp/health.txt
           grep -i "^x-site-mode: prod" /tmp/health.txt
           grep -Ei "^x-phase:\s*(beta|instructor_only)" /tmp/health.txt
           # Ensure no local testing header leaks into prod
@@ -138,4 +138,4 @@ jobs:
           grep -E "^HTTP/.* (400|401|403)" /tmp/checkr.txt
       - name: Metrics endpoint reachable
         run: |
-          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/metrics" | head -n 20
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/api/v1/metrics" | head -n 20
