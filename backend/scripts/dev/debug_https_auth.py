@@ -11,7 +11,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from passlib.context import CryptContext
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 
 # Now test authentication directly
 from app.database import SessionLocal
@@ -22,7 +23,7 @@ print("Direct authentication test:\n")
 
 db = SessionLocal()
 auth_service = AuthService(db)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+ph = PasswordHasher()
 
 # Test sarah.chen
 email = "sarah.chen@example.com"
@@ -38,7 +39,11 @@ if user:
 
 # Step 2: Verify password directly
 if user:
-    is_valid = pwd_context.verify(password, user.hashed_password)
+    try:
+        ph.verify(user.hashed_password, password)
+        is_valid = True
+    except VerifyMismatchError:
+        is_valid = False
     print(f"\n2. Direct password verification: {is_valid}")
 
 # Step 3: Test via auth service

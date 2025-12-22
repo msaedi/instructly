@@ -53,10 +53,15 @@ else:
     user_obj = db.query(auth_service.get_user_model()).filter_by(email=email).first()
     if user_obj:
         print(f"   User exists: {user_obj.email}")
-        from passlib.context import CryptContext
+        from argon2 import PasswordHasher
+        from argon2.exceptions import VerifyMismatchError
 
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        is_valid = pwd_context.verify(password, user_obj.hashed_password)
+        ph = PasswordHasher()
+        try:
+            ph.verify(user_obj.hashed_password, password)
+            is_valid = True
+        except VerifyMismatchError:
+            is_valid = False
         print(f"   Password verification: {is_valid}")
     else:
         print("   User not found in database")

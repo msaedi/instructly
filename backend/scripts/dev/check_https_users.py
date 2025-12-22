@@ -51,10 +51,15 @@ def check_users():
         else:
             print("   ❌ Authentication failed!")
             # Try to verify password directly
-            from passlib.context import CryptContext
+            from argon2 import PasswordHasher
+            from argon2.exceptions import VerifyMismatchError
 
-            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            is_valid = pwd_context.verify("password123", test_user.hashed_password)
+            ph = PasswordHasher()
+            try:
+                ph.verify(test_user.hashed_password, "password123")
+                is_valid = True
+            except VerifyMismatchError:
+                is_valid = False
             print(f"   Password verify result: {is_valid}")
     else:
         print(f"\n❌ Test user NOT found: {test_email}")
