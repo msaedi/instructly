@@ -133,7 +133,7 @@ def _normalize_referral_landing_url(raw_url: str) -> str:
 # --- Public Router: Slug Resolution ---
 
 
-@public_router.get("/r/{slug}", response_model=ReferralResolveResponse)
+@public_router.get("/{slug}", response_model=ReferralResolveResponse)
 async def resolve_referral_slug(
     slug: str,
     request: Request,

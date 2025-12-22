@@ -46,7 +46,7 @@ class TestRetryDecorator:
         """Test retry decorator succeeds after initial failures."""
         call_count = 0
 
-        @retry(max_attempts=3, backoff_seconds=0.1)
+        @retry(max_attempts=3, backoff_seconds=0.01)  # Reduced from 0.1 for faster tests
         def test_func():
             nonlocal call_count
             call_count += 1
@@ -62,7 +62,7 @@ class TestRetryDecorator:
         """Test retry decorator exhausts all attempts."""
         call_count = 0
 
-        @retry(max_attempts=3, backoff_seconds=0.1)
+        @retry(max_attempts=3, backoff_seconds=0.01)  # Reduced from 0.1 for faster tests
         def test_func():
             nonlocal call_count
             call_count += 1

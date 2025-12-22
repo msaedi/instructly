@@ -324,11 +324,11 @@ jobs:
 
         # Wait for backend to be healthy with retries
         for i in {1..20}; do
-          if curl -fS --retry 3 --retry-delay 2 --max-time 10 http://localhost:8000/health; then
+          if curl -fS --retry 3 --retry-delay 2 --max-time 10 http://localhost:8000/api/v1/health; then
             echo "✅ Backend is healthy (attempt $i/20)"
             # Verify expected headers
-            if ! curl -fsSI http://localhost:8000/health -o /tmp/health-headers.txt; then
-              curl -fsS -D - -o /dev/null http://localhost:8000/health > /tmp/health-headers.txt
+            if ! curl -fsSI http://localhost:8000/api/v1/health -o /tmp/health-headers.txt; then
+              curl -fsS -D - -o /dev/null http://localhost:8000/api/v1/health > /tmp/health-headers.txt
             fi
             cat /tmp/health-headers.txt
             if ! grep -qi '^x-site-mode: local' /tmp/health-headers.txt; then
@@ -344,7 +344,7 @@ jobs:
             echo "✅ Backend headers verified (X-Site-Mode: local, X-Testing: 1)"
 
             # Also verify JSON health response
-            if curl -fsS http://localhost:8000/health | jq -e '.status=="healthy"' > /dev/null; then
+            if curl -fsS http://localhost:8000/api/v1/health | jq -e '.status=="healthy"' > /dev/null; then
               echo "✅ Backend health JSON validated"
             else
               echo "⚠️ Backend health JSON format unexpected"
@@ -352,7 +352,7 @@ jobs:
 
             # Verify CORS preflight
             echo "Testing CORS preflight..."
-            if curl -fsS -i -X OPTIONS http://localhost:8000/health \
+            if curl -fsS -i -X OPTIONS http://localhost:8000/api/v1/health \
               -H 'Origin: http://localhost:3100' \
               -H 'Access-Control-Request-Method: GET' \
               -H 'Access-Control-Request-Headers: content-type,x-csrf-token' \
@@ -360,7 +360,7 @@ jobs:
               echo "✅ CORS preflight headers validated"
             else
               echo "❌ CORS preflight check failed"
-              curl -i -X OPTIONS http://localhost:8000/health \
+              curl -i -X OPTIONS http://localhost:8000/api/v1/health \
                 -H 'Origin: http://localhost:3100' \
                 -H 'Access-Control-Request-Method: GET' \
                 -H 'Access-Control-Request-Headers: content-type,x-csrf-token'
@@ -414,7 +414,7 @@ jobs:
         done
 
         # Fail if backend didn't start
-        if ! curl -fS --retry 3 --retry-delay 2 http://localhost:8000/health; then
+        if ! curl -fS --retry 3 --retry-delay 2 http://localhost:8000/api/v1/health; then
           echo "❌ Backend failed to start after 60 seconds"
           echo "=== Last 100 lines of backend log ==="
           tail -100 backend.log
@@ -814,7 +814,7 @@ jobs:
 
       - name: Wait for services
         run: |
-          npx --yes wait-on http://127.0.0.1:8000/health http://localhost:3000
+          npx --yes wait-on http://127.0.0.1:8000/api/v1/health http://localhost:3000
           curl -sSf http://beta-local.instainstru.com:3000 >/dev/null
 
       - name: Run invite redemption e2e
@@ -1008,7 +1008,7 @@ jobs:
 
       - name: Wait for services
         run: |
-          npx --yes wait-on http://127.0.0.1:8000/health http://localhost:3000
+          npx --yes wait-on http://127.0.0.1:8000/api/v1/health http://localhost:3000
           curl -sSf http://beta-local.instainstru.com:3000 >/dev/null
 
       - name: Run SameSite auth smoke

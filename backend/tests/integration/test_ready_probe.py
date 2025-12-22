@@ -5,7 +5,7 @@ from typing import Callable
 from fastapi.testclient import TestClient
 
 from app.core import broadcast as broadcast_module
-from app.routes import ready as ready_module
+from app.routes.v1 import ready as ready_module
 
 
 class DummySession:
@@ -58,7 +58,7 @@ def test_ready_probe_db_failure(client: TestClient, monkeypatch) -> None:
         session_factory=lambda: DummySession(fail=True),
         redis_factory=lambda: DummyRedis(fail=False),
     )
-    resp = client.get("/ready")
+    resp = client.get("/api/v1/ready")
     assert resp.status_code == 503
     assert resp.json() == {"status": "db_not_ready", "notifications_healthy": None}
 
@@ -69,7 +69,7 @@ def test_ready_probe_cache_failure(client: TestClient, monkeypatch) -> None:
         session_factory=lambda: DummySession(),
         redis_factory=lambda: DummyRedis(fail=True),
     )
-    resp = client.get("/ready")
+    resp = client.get("/api/v1/ready")
     assert resp.status_code == 503
     assert resp.json() == {"status": "cache_not_ready", "notifications_healthy": None}
 
@@ -81,7 +81,7 @@ def test_ready_probe_success(client: TestClient, monkeypatch) -> None:
         redis_factory=lambda: DummyRedis(),
         broadcast_initialized=True,
     )
-    resp = client.get("/ready")
+    resp = client.get("/api/v1/ready")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok", "notifications_healthy": True}
 
@@ -94,6 +94,6 @@ def test_ready_probe_messaging_degraded(client: TestClient, monkeypatch) -> None
         redis_factory=lambda: DummyRedis(),
         broadcast_initialized=False,
     )
-    resp = client.get("/ready")
+    resp = client.get("/api/v1/ready")
     assert resp.status_code == 200  # Still returns 200, just degraded
     assert resp.json() == {"status": "degraded", "notifications_healthy": False}

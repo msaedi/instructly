@@ -172,7 +172,7 @@ def simulate_production_scenario():
     monitor._active_requests[request_id] = {
         "start_time": time.time() - 6,  # 6 seconds ago
         "method": "GET",
-        "path": "/api/services/catalog",
+        "path": "/api/v1/services/catalog",
         "client": "127.0.0.1",
     }
     monitor.track_request_end(request_id, 200)

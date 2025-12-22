@@ -34,7 +34,7 @@ class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
     ) -> None:
         super().__init__(app)
         self.force_https = force_https
-        self.exclude_paths = exclude_paths or ["/health", "/metrics"]
+        self.exclude_paths = exclude_paths or ["/api/v1/health", "/api/v1/metrics/prometheus"]
 
     async def dispatch(
         self,

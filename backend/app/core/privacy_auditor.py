@@ -173,7 +173,13 @@ class PrivacyAuditor:
                 },
                 "instructor_self_view": {"allowed_fields": "*"},
             },
-            "skip_endpoints": ["/health", "/metrics", "/docs", "/openapi.json", "/redoc"],
+            "skip_endpoints": [
+                "/api/v1/health",
+                "/api/v1/metrics/prometheus",
+                "/docs",
+                "/openapi.json",
+                "/redoc",
+            ],
             "timeout": 300,  # 5 minutes max
         }
 

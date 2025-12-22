@@ -7,7 +7,7 @@ def test_smoke_rate_headers_present():
     client = TestClient(asgi_app)
 
     # health
-    r = client.get("/health")
+    r = client.get("/api/v1/health")
     assert r.status_code == 200
     assert "X-RateLimit-Limit" in r.headers
     assert "X-RateLimit-Remaining" in r.headers

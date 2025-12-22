@@ -2,9 +2,9 @@
 
 ROUTE_BUCKETS: dict[str, str] = {
     "/auth/me": "auth_bootstrap",
-    "/api/search/instructors": "read",
-    "/instructors": "read",
-    "/bookings": "read",
-    "/bookings/create": "write",
-    "/api/payments/checkout": "financial",
+    "/api/v1/search/instructors": "read",
+    "/api/v1/instructors": "read",
+    "/api/v1/bookings": "read",
+    "/api/v1/bookings/create": "write",
+    "/api/v1/payments/checkout": "financial",
 }

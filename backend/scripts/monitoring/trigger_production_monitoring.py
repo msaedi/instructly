@@ -75,11 +75,11 @@ def trigger_slow_requests():
                 return f"{endpoint}: Error - {str(e)}"
 
         endpoints = [
-            "/health",
-            "/services/catalog",
-            "/api/public/instructors/01J5TESTINSTR0000000000001/availability?start_date=2025-01-25&end_date=2025-02-01",
-            "/api/public/instructors/01J5TESTINSTR0000000000002/availability?start_date=2025-01-25&end_date=2025-02-01",
-            "/api/public/instructors/01J5TESTINSTR0000000000003/availability?start_date=2025-01-25&end_date=2025-02-01",
+            "/api/v1/health",
+            "/api/v1/services/catalog",
+            "/api/v1/public/instructors/01J5TESTINSTR0000000000001/availability?start_date=2025-01-25&end_date=2025-02-01",
+            "/api/v1/public/instructors/01J5TESTINSTR0000000000002/availability?start_date=2025-01-25&end_date=2025-02-01",
+            "/api/v1/public/instructors/01J5TESTINSTR0000000000003/availability?start_date=2025-01-25&end_date=2025-02-01",
         ]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:

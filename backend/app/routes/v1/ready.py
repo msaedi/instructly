@@ -16,7 +16,7 @@ router = APIRouter(tags=["internal"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/ready", response_model=ReadyProbeResponse)
+@router.get("", response_model=ReadyProbeResponse)
 async def ready_probe(response_obj: Response) -> ReadyProbeResponse:
     try:
 

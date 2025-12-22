@@ -32,14 +32,14 @@ class TestPrometheusFormatLock:
     def test_scrape_counter_increments_between_calls(self, client):
         """With PROMETHEUS_CACHE_IN_TESTS=0, scrape counter increments between calls."""
         # First call
-        response1 = client.get("/metrics/prometheus")
+        response1 = client.get("/api/v1/metrics/prometheus")
         assert response1.status_code == 200
 
         # Parse first response
         families1 = {f.name: f for f in text_string_to_metric_families(response1.text)}
 
         # Second call
-        response2 = client.get("/metrics/prometheus")
+        response2 = client.get("/api/v1/metrics/prometheus")
         assert response2.status_code == 200
 
         # Parse second response
@@ -93,7 +93,7 @@ class TestPrometheusFormatLock:
 
     def test_basic_format_sanity(self, client):
         """Basic format sanity: no duplicate HELP/TYPE, content non-empty."""
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         assert response.status_code == 200
 
         metrics_text = response.text

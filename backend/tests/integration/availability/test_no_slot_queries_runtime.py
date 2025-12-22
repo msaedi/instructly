@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 import app.api.dependencies.services as dependency_services
 import app.main
 from app.models.user import User
-import app.routes.availability_windows as availability_routes
+import app.routes.v1.availability_windows as availability_routes
 import app.services.availability_service as availability_service_module
 import app.services.week_operation_service as week_operation_service_module
 

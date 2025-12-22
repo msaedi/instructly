@@ -20,15 +20,12 @@ ALLOW_NON_API_PREFIXES = (
     "/auth",
     "/api/public",
     "/services/",
-    "/health",
-    "/internal",
-    "/ops/",
     "/webhooks/",
     "/api/v1/bookings",
     "/beta",
     "/stripe",
     "/instructors",
-    "/metrics",
+    # Note: /health, /internal, /ops/, /metrics are now under /api/v1/*
 )
 
 

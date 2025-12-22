@@ -26,5 +26,5 @@ scrape_configs:
     # Scrape the FastAPI backend metrics
     static_configs:
       - targets: ['host.docker.internal:8000'] # Use host.docker.internal to access host machine
-    metrics_path: '/internal/metrics'
+    metrics_path: '/api/v1/internal/metrics'
     scrape_interval: 15s

@@ -14,8 +14,8 @@ from typing import Optional, Tuple
 from fastapi import APIRouter, Request, Response
 from prometheus_client import Counter
 
-from ..core.config import settings
-from ..monitoring.prometheus_metrics import REGISTRY, prometheus_metrics
+from app.core.config import settings
+from app.monitoring.prometheus_metrics import REGISTRY, prometheus_metrics
 
 router = APIRouter()
 
@@ -106,9 +106,7 @@ def warm_prometheus_metrics_response_cache() -> None:
     _metrics_cache = (monotonic(), payload)
 
 
-@router.get(
-    "/metrics/prometheus", include_in_schema=False, response_class=Response, response_model=None
-)
+@router.get("/prometheus", include_in_schema=False, response_class=Response, response_model=None)
 async def get_prometheus_metrics(request: Request) -> Response:
     """
     Expose Prometheus metrics for scraping.

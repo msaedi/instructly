@@ -1,0 +1,63 @@
+# backend/app/routes/v1/health.py
+"""
+Health check endpoints for monitoring and load balancer probes.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import os
+
+from fastapi import APIRouter, Response
+
+from app.core.config import settings
+from app.core.constants import API_VERSION, BRAND_NAME
+from app.schemas.main_responses import HealthLiteResponse, HealthResponse
+
+router = APIRouter(tags=["health"])
+
+
+def _apply_health_headers(response: Response) -> None:
+    """Apply standard health check headers."""
+    site_mode = os.getenv("SITE_MODE", "").lower().strip() or "unset"
+    response.headers["X-Site-Mode"] = site_mode
+    response.headers["X-Phase"] = os.getenv("BETA_PHASE", "beta")
+    response.headers["X-Commit-Sha"] = os.getenv("COMMIT_SHA", "dev")
+    try:
+        if site_mode == "local" and bool(getattr(settings, "is_testing", False)):
+            response.headers["X-Testing"] = "1"
+    except Exception:
+        pass
+
+
+def _health_payload() -> HealthResponse:
+    """Generate the standard health response payload."""
+    return HealthResponse(
+        status="healthy",
+        service=f"{BRAND_NAME.lower()}-api",
+        version=API_VERSION,
+        environment=settings.environment,
+        timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    )
+
+
+@router.get("", response_model=HealthResponse)
+def health_check(response: Response) -> HealthResponse:
+    """
+    Health check endpoint.
+
+    Returns basic health status including service info and environment.
+    Used by load balancers and monitoring systems.
+    """
+    _apply_health_headers(response)
+    return _health_payload()
+
+
+@router.get("/lite", response_model=HealthLiteResponse)
+def health_check_lite() -> HealthLiteResponse:
+    """
+    Lightweight health check that doesn't hit database.
+
+    Use this for high-frequency health probes.
+    """
+    return HealthLiteResponse(status="ok")

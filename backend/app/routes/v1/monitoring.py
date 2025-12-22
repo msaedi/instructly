@@ -13,12 +13,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:
-    from ..repositories.payment_monitoring_repository import PaymentMonitoringRepository
+    from app.repositories.payment_monitoring_repository import PaymentMonitoringRepository
 
-from ..core.config import settings
-from ..database import get_db, get_db_pool_status
-from ..monitoring.production_monitor import monitor
-from ..schemas.monitoring_responses import (
+from app.core.config import settings
+from app.database import get_db, get_db_pool_status
+from app.monitoring.production_monitor import monitor
+from app.schemas.monitoring_responses import (
     AlertAcknowledgeResponse,
     ExtendedCacheStats,
     MonitoringDashboardResponse,
@@ -27,10 +27,9 @@ from ..schemas.monitoring_responses import (
     SlowQueriesResponse,
     SlowRequestsResponse,
 )
-from ..services.cache_service import get_cache_service
+from app.services.cache_service import get_cache_service
 
 router = APIRouter(
-    prefix="/api/monitoring",
     tags=["Monitoring"],
     responses={404: {"description": "Not found"}},
 )
@@ -223,7 +222,7 @@ def get_payment_monitoring_repository(
     db: Session = Depends(get_db),
 ) -> "PaymentMonitoringRepository":
     """Get an instance of the payment monitoring repository."""
-    from ..repositories.payment_monitoring_repository import PaymentMonitoringRepository
+    from app.repositories.payment_monitoring_repository import PaymentMonitoringRepository
 
     return PaymentMonitoringRepository(db)
 

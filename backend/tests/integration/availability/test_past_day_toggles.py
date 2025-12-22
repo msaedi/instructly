@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-import app.routes.availability_windows as availability_routes
+import app.routes.v1.availability_windows as availability_routes
 import app.routes.v1.availability_windows as availability_routes_v1
 import app.services.availability_service as availability_service_module
 from app.utils.bitset import windows_from_bits

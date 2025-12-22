@@ -96,9 +96,9 @@ _OPEN_PHASE_HINTS = {
     "public",
 }
 
-_PREVIEW_OPEN_PATHS = {"/bookings", "/bookings/"}
-_PREVIEW_OPEN_PREFIXES = ("/bookings", "/api/search")
-_OPEN_PHASE_OPEN_PREFIXES = ("/bookings", "/api/search")
+_PREVIEW_OPEN_PATHS = {"/api/v1/bookings", "/api/v1/bookings/"}
+_PREVIEW_OPEN_PREFIXES = ("/api/v1/bookings", "/api/v1/search")
+_OPEN_PHASE_OPEN_PREFIXES = ("/api/v1/bookings", "/api/v1/search")
 
 P = ParamSpec("P")
 R = TypeVar("R")

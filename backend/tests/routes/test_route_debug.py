@@ -85,7 +85,7 @@ def test_public_route_specific_check(client):
 def test_direct_import_check():
     """Test if we can import and inspect the public router directly."""
     try:
-        from app.routes.public import router
+        from app.routes.v1.public import router
 
         print("\n✅ Public router imported successfully")
         print(f"Prefix: {router.prefix}")

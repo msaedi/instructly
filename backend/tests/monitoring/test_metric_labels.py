@@ -25,12 +25,12 @@ class TestMetricLabels:
     def test_http_metrics_have_required_labels(self, client):
         """Test that HTTP metrics have method, endpoint, and status_code labels"""
         # Make various requests
-        client.get("/health")
+        client.get("/api/v1/health")
         client.post("/api/v1/auth/login", data={"username": "test@example.com", "password": "wrong"})
         client.get("/api/nonexistent")
 
         # Get metrics
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         families = {f.name: f for f in text_string_to_metric_families(response.text)}
 
         # Check http_requests (may be _total or not depending on prometheus_client version)
@@ -120,7 +120,7 @@ class TestMetricLabels:
         client.get("/api/test/nested/path")
 
         # Get metrics
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         families = {f.name: f for f in text_string_to_metric_families(response.text)}
 
         http_requests = families.get("instainstru_http_requests_total") or families.get("instainstru_http_requests")
@@ -137,10 +137,10 @@ class TestMetricLabels:
     def test_histogram_labels_include_le_for_buckets(self, client):
         """Test that histogram bucket metrics include 'le' label"""
         # Make a request to generate histogram data
-        client.get("/health")
+        client.get("/api/v1/health")
 
         # Get metrics
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         families = list(text_string_to_metric_families(response.text))
 
         # Find histogram metrics
@@ -164,7 +164,7 @@ class TestMetricLabels:
             client.get(f"/api/v1/users/{i}/profile-picture-url")  # Should normalize to /api/v1/users/{id}/profile-picture-url
 
         # Get metrics
-        response = client.get("/metrics/prometheus")
+        response = client.get("/api/v1/metrics/prometheus")
         families = {f.name: f for f in text_string_to_metric_families(response.text)}
 
         http_requests = families.get("instainstru_http_requests_total")

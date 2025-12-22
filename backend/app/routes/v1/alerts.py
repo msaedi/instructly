@@ -9,9 +9,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..repositories.alerts_repository import AlertsRepository
-from ..schemas.alert_responses import (
+from app.database import get_db
+from app.repositories.alerts_repository import AlertsRepository
+from app.schemas.alert_responses import (
     AlertDetail,
     AlertSummaryResponse,
     DailyAlertCount,
@@ -21,7 +21,6 @@ from ..schemas.alert_responses import (
 )
 
 router = APIRouter(
-    prefix="/api/monitoring/alerts",
     tags=["monitoring"],
 )
 

@@ -270,9 +270,8 @@ class TestAPIContracts:
         """Test that response fields follow consistent naming conventions."""
         # Test a sample of endpoints
         test_endpoints = [
-            "/ops/health",
-            "/api/health",
-            "/api/health/detailed",
+            "/api/v1/ops/health",
+            "/api/v1/health",
         ]
 
         for endpoint in test_endpoints:
@@ -357,7 +356,6 @@ class TestResponseModelCoverage:
             "DateRange",
             "LiveAlertItem",
             "ServiceOffering",
-            "ComponentHealth",
             "ErrorDetail",
             "InstructorInfo",
             "PerformanceMetrics",
@@ -518,9 +516,9 @@ class TestEndpointResponseValidation:
         """Test that actual responses match their declared response models."""
         # This test makes actual API calls and validates responses
         test_cases = [
-            ("/api/health", None),  # Public endpoint
-            ("/ops/health", admin_headers),
-            ("/ops/performance", admin_headers),
+            ("/api/v1/health", None),  # Public endpoint
+            ("/api/v1/ops/health", admin_headers),
+            ("/api/v1/ops/performance", admin_headers),
         ]
 
         for endpoint, headers in test_cases:
@@ -533,10 +531,10 @@ class TestEndpointResponseValidation:
                 assert data is not None
 
                 # Specific checks based on endpoint
-                if endpoint == "/api/health":
+                if endpoint == "/api/v1/health":
                     assert "status" in data
                     assert "timestamp" in data
-                elif endpoint == "/ops/performance":
+                elif endpoint == "/api/v1/ops/performance":
                     assert "availability_service" in data
                     assert "database" in data
 

@@ -97,7 +97,7 @@ class TestProdPhaseBehavior:
 
 def test_health_headers_reflect_mode_phase(monkeypatch, client: TestClient, db):
     _set_env("preview", "beta")
-    res = client.get("/health")
+    res = client.get("/api/v1/health")
     assert res.status_code == 200
     assert res.headers.get("X-Site-Mode") == "preview"
     assert res.headers.get("X-Phase") in {"beta", "instructor_only", "open_beta", "open"}

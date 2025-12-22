@@ -59,7 +59,7 @@ class TestPerformanceOverhead:
 
         # Warm up metrics endpoint to avoid cold caches
         with TestClient(app) as warm_client:
-            warm_client.get("/metrics/prometheus")
+            warm_client.get("/api/v1/metrics/prometheus")
 
         # Measure with metrics - use a more substantial operation to make overhead more realistic
         n_iterations = 100
@@ -178,18 +178,18 @@ class TestPerformanceOverhead:
 
         # Warm up caches and client connection
         for _ in range(5):
-            assert client.get("/health").status_code == 200
+            assert client.get("/api/v1/health").status_code == 200
 
         # Measure paired requests to minimize drift/noise between loops
         overhead_samples_ms = []
         for _ in range(100):
             start = time.perf_counter()
-            response = client.get("/health")
+            response = client.get("/api/v1/health")
             base = time.perf_counter() - start
             assert response.status_code == 200
 
             start = time.perf_counter()
-            response = client.get("/health")
+            response = client.get("/api/v1/health")
             with_monitoring = time.perf_counter() - start
             assert response.status_code == 200
 
@@ -220,7 +220,7 @@ class TestPerformanceOverhead:
             "/api/v1/bookings",
             "/api/v1/availability",
             "/api/v1/auth/login",
-            "/health",
+            "/api/v1/health",
         ]
 
         # Make many requests to create metric series
@@ -233,7 +233,7 @@ class TestPerformanceOverhead:
         times = []
         for _ in range(20):
             start = time.perf_counter()
-            response = client.get("/metrics/prometheus")
+            response = client.get("/api/v1/metrics/prometheus")
             times.append(time.perf_counter() - start)
             assert response.status_code == 200
 
@@ -345,7 +345,7 @@ class TestPerformanceOverhead:
 
             # Request should still complete quickly
             start = time.perf_counter()
-            response = client.get("/health")
+            response = client.get("/api/v1/health")
             duration = time.perf_counter() - start
 
             assert response.status_code == 200

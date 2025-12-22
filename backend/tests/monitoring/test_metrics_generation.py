@@ -255,20 +255,24 @@ class TestMetricsGeneration:
         class TestService(BaseService):
             @BaseService.measure_operation("slow_logged_operation")
             def slow_logged_operation(self):
-                # Simulate slow operation to trigger warning
-                import time
-
-                time.sleep(1.1)  # Over 1 second threshold
+                # Operation completes instantly - slowness simulated via time.time() mock
                 return "logged"
 
         # Create service instance with real logger to test logging
         db_mock = Mock()
         service = TestService(db_mock)
 
+        # Mock time.time() to simulate 1.5s elapsed time without actual sleep
+        call_count = [0]
+        def mock_time():
+            call_count[0] += 1
+            return 0.0 if call_count[0] == 1 else 1.5
+
         # Mock the logger to verify calls
         with patch.object(service, "logger") as mock_logger:
-            # Execute operation
-            result = service.slow_logged_operation()
+            with patch("time.time", side_effect=mock_time):
+                # Execute operation
+                result = service.slow_logged_operation()
 
             assert result == "logged"
 
@@ -276,4 +280,4 @@ class TestMetricsGeneration:
             mock_logger.warning.assert_called_once()
             call_args = mock_logger.warning.call_args[0][0]
             assert "slow_logged_operation took" in call_args
-            assert "1." in call_args  # Should contain duration around 1.1s
+            assert "1." in call_args  # Should contain duration around 1.5s

@@ -77,14 +77,15 @@ class TestLLMParser:
             parsing_mode="regex",
         )
 
-        async def slow_call(*args: object, **kwargs: object) -> None:
-            await asyncio.sleep(5)  # Longer than timeout
+        # Mock asyncio.wait_for to immediately raise TimeoutError
+        # This avoids waiting for the actual 1s timeout
+        async def mock_wait_for(coro: object, timeout: float) -> None:
+            # Cancel the coroutine to avoid warnings
+            if hasattr(coro, "close"):
+                coro.close()  # type: ignore[union-attr]
+            raise asyncio.TimeoutError()
 
-        with patch.object(
-            llm_parser, "_call_llm", new_callable=AsyncMock
-        ) as mock_call:
-            mock_call.side_effect = slow_call
-
+        with patch("asyncio.wait_for", side_effect=mock_wait_for):
             result = await llm_parser.parse(
                 "piano lessons in brooklyn", regex_result=regex_result
             )

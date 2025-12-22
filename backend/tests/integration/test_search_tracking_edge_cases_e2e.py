@@ -330,8 +330,10 @@ class TestConcurrencyAndPerformance:
         search_event_id = search_response.json()["search_event_id"]
 
         # Simulate rapid interactions (user quickly hovering over results)
+        # Optimized: Reduced from 10 iterations with 0.1s sleep to 5 with 0.02s
         start_time = time.time()
-        for i in range(10):
+        num_interactions = 5
+        for i in range(num_interactions):
             interaction_data = {
                 "search_event_id": search_event_id,
                 "interaction_type": "hover",
@@ -343,8 +345,8 @@ class TestConcurrencyAndPerformance:
             response = client.post("/api/v1/search-history/interaction", json=interaction_data, headers=auth_headers)
             assert response.status_code == 201
 
-            # Small delay to simulate realistic hovering
-            time.sleep(0.1)
+            # Small delay to simulate realistic hovering (reduced from 0.1s)
+            time.sleep(0.02)
 
         # Verify all interactions were recorded
         interactions = (
@@ -354,7 +356,7 @@ class TestConcurrencyAndPerformance:
             .all()
         )
 
-        assert len(interactions) == 10
+        assert len(interactions) == num_interactions
 
         # Verify times are increasing
         times = [i.time_to_interaction for i in interactions]
@@ -475,8 +477,8 @@ class TestAnalyticsDataQuality:
         response1 = client.post("/api/v1/search-history/", json=search1, headers=auth_headers)
         assert response1.status_code == 201
 
-        # Wait a moment
-        time.sleep(1)
+        # No sleep needed - returning user detection is based on previous search events existing,
+        # not on time elapsed between searches
 
         # Second search - returning user
         search2 = {

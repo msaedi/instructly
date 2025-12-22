@@ -2658,6 +2658,24 @@ export interface HealthCheckResponse {
   version: string;
 }
 
+export interface HealthLiteResponse {
+  /** Health status (ok/error) */
+  status: string;
+}
+
+export interface HealthResponse {
+  /** Environment name */
+  environment: string;
+  /** Service name */
+  service: string;
+  /** Health status */
+  status: string;
+  /** UTC ISO8601Z timestamp of the health response */
+  timestamp: string;
+  /** API version */
+  version: string;
+}
+
 export interface IdentityRefreshResponse {
   /** Latest verification status from Stripe */
   status: string;
@@ -4639,6 +4657,32 @@ export interface ReadReceiptEntry {
 }
 
 /**
+ * Health status of the notification service (real-time messaging)
+ */
+export type ReadyProbeResponseNotificationsHealthy = boolean | null;
+
+/**
+ * Overall readiness status
+ */
+export type ReadyProbeResponseStatus =
+  (typeof ReadyProbeResponseStatus)[keyof typeof ReadyProbeResponseStatus];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const ReadyProbeResponseStatus = {
+  ok: 'ok',
+  db_not_ready: 'db_not_ready',
+  cache_not_ready: 'cache_not_ready',
+  degraded: 'degraded',
+} as const;
+
+export interface ReadyProbeResponse {
+  /** Health status of the notification service (real-time messaging) */
+  notifications_healthy?: ReadyProbeResponseNotificationsHealthy;
+  /** Overall readiness status */
+  status: ReadyProbeResponseStatus;
+}
+
+/**
  * Response for recent alerts endpoint.
  */
 export interface RecentAlertsResponse {
@@ -6560,161 +6604,6 @@ export interface AppSchemasPaymentSchemasDeleteResponse {
   success: boolean;
 }
 
-export type ExportAnalyticsApiAnalyticsExportPostParams = {
-  format?: string;
-};
-
-export type CandidatesCategoryTrendsApiAnalyticsSearchCandidatesCategoryTrendsGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-};
-
-export type CandidateServiceQueriesApiAnalyticsSearchCandidatesQueriesGetParams = {
-  service_catalog_id: string;
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-  /**
-   * @minimum 1
-   * @maximum 200
-   */
-  limit?: number;
-};
-
-export type CandidatesScoreDistributionApiAnalyticsSearchCandidatesScoreDistributionGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-};
-
-export type CandidatesSummaryApiAnalyticsSearchCandidatesSummaryGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-};
-
-export type CandidatesTopServicesApiAnalyticsSearchCandidatesTopServicesGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  limit?: number;
-};
-
-export type GetConversionMetricsApiAnalyticsSearchConversionMetricsGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-};
-
-export type GetPopularSearchesApiAnalyticsSearchPopularSearchesGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  limit?: number;
-};
-
-export type GetSearchReferrersApiAnalyticsSearchReferrersGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-};
-
-export type GetSearchAnalyticsSummaryApiAnalyticsSearchSearchAnalyticsSummaryGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-};
-
-export type GetSearchPerformanceApiAnalyticsSearchSearchPerformanceGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-};
-
-export type GetSearchTrendsApiAnalyticsSearchSearchTrendsGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  days?: number;
-};
-
-export type GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetParams = {
-  task_id: string;
-};
-
-export type ValidateInviteApiBetaInvitesValidateGetParams = {
-  code?: string | null;
-  invite_code?: string | null;
-  email?: string | null;
-};
-
-export type GetLiveAlertsApiMonitoringAlertsLiveGetParams = {
-  /**
-   * Get alerts from last N minutes
-   */
-  minutes?: number;
-};
-
-export type GetRecentAlertsApiMonitoringAlertsRecentGetParams = {
-  /**
-   * Get alerts from last N hours
-   */
-  hours?: number;
-  /**
-   * Maximum number of alerts to return
-   */
-  limit?: number;
-  /**
-   * Filter by severity
-   */
-  severity?: string | null;
-};
-
-export type GetAlertSummaryApiMonitoringAlertsSummaryGetParams = {
-  /**
-   * Number of days to summarize
-   */
-  days?: number;
-};
-
-export type GetSlowQueriesApiMonitoringSlowQueriesGetParams = {
-  limit?: number;
-};
-
-export type GetSlowRequestsApiMonitoringSlowRequestsGetParams = {
-  limit?: number;
-};
-
 export type GetBulkCoverageGeojsonApiV1AddressesCoverageBulkGetParams = {
   ids: string;
 };
@@ -6860,6 +6749,124 @@ export type ListPendingAwardsApiV1AdminBadgesPendingGetParams = {
    * @minimum 0
    */
   offset?: number;
+};
+
+export type ExportAnalyticsApiV1AnalyticsExportPostParams = {
+  format?: string;
+};
+
+export type CandidatesCategoryTrendsApiV1AnalyticsSearchCandidatesCategoryTrendsGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+};
+
+export type CandidateServiceQueriesApiV1AnalyticsSearchCandidatesQueriesGetParams = {
+  service_catalog_id: string;
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+};
+
+export type CandidatesScoreDistributionApiV1AnalyticsSearchCandidatesScoreDistributionGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+};
+
+export type CandidatesSummaryApiV1AnalyticsSearchCandidatesSummaryGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+};
+
+export type CandidatesTopServicesApiV1AnalyticsSearchCandidatesTopServicesGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
+
+export type GetConversionMetricsApiV1AnalyticsSearchConversionMetricsGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+};
+
+export type GetPopularSearchesApiV1AnalyticsSearchPopularSearchesGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
+
+export type GetSearchReferrersApiV1AnalyticsSearchReferrersGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+};
+
+export type GetSearchAnalyticsSummaryApiV1AnalyticsSearchSearchAnalyticsSummaryGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+};
+
+export type GetSearchPerformanceApiV1AnalyticsSearchSearchPerformanceGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+};
+
+export type GetSearchTrendsApiV1AnalyticsSearchSearchTrendsGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 365
+   */
+  days?: number;
+};
+
+export type GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetParams = {
+  task_id: string;
+};
+
+export type ValidateInviteApiV1BetaInvitesValidateGetParams = {
+  code?: string | null;
+  invite_code?: string | null;
+  email?: string | null;
 };
 
 export type GetBookingsApiV1BookingsGetParams = {
@@ -7054,6 +7061,59 @@ export type GetWeekBookedSlotsApiV1InstructorsAvailabilityWeekBookedSlotsGetPara
 
 export type StreamUserMessagesApiV1MessagesStreamGetParams = {
   sse_token?: string | null;
+};
+
+export type GetLiveAlertsApiV1MonitoringAlertsLiveGetParams = {
+  /**
+   * Get alerts from last N minutes
+   */
+  minutes?: number;
+};
+
+export type GetRecentAlertsApiV1MonitoringAlertsRecentGetParams = {
+  /**
+   * Get alerts from last N hours
+   */
+  hours?: number;
+  /**
+   * Maximum number of alerts to return
+   */
+  limit?: number;
+  /**
+   * Filter by severity
+   */
+  severity?: string | null;
+};
+
+export type GetAlertSummaryApiV1MonitoringAlertsSummaryGetParams = {
+  /**
+   * Number of days to summarize
+   */
+  days?: number;
+};
+
+export type GetSlowQueriesApiV1MonitoringSlowQueriesGetParams = {
+  limit?: number;
+};
+
+export type GetSlowRequestsApiV1MonitoringSlowRequestsGetParams = {
+  limit?: number;
+};
+
+export type ResetRateLimitsApiV1OpsRateLimitsResetPostParams = {
+  /**
+   * Pattern to match (e.g., 'email_*', 'ip_192.168.*')
+   */
+  pattern: string;
+};
+
+export type TestRateLimitApiV1OpsRateLimitsTestGetParams = {
+  /**
+   * Number of requests to simulate
+   * @minimum 1
+   * @maximum 20
+   */
+  requests?: number;
 };
 
 export type StartOnboardingApiV1PaymentsConnectOnboardPostParams = {
@@ -7285,20 +7345,4 @@ export type GetProfilePictureUrlsBatchApiV1UsersProfilePictureUrlsGetParams = {
 
 export type GetProfilePictureUrlApiV1UsersUserIdProfilePictureUrlGetParams = {
   variant?: 'original' | 'display' | 'thumb' | null;
-};
-
-export type ResetRateLimitsOpsRateLimitsResetPostParams = {
-  /**
-   * Pattern to match (e.g., 'email_*', 'ip_192.168.*')
-   */
-  pattern: string;
-};
-
-export type TestRateLimitOpsRateLimitsTestGetParams = {
-  /**
-   * Number of requests to simulate
-   * @minimum 1
-   * @maximum 20
-   */
-  requests?: number;
 };

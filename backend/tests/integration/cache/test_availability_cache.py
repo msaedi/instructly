@@ -63,8 +63,10 @@ def test_availability_timing(db: Session, test_instructor_with_availability: Use
         print(f"   Saved {len(saved_windows)} windows")
 
     # Step 4: Test immediate and delayed fetches
+    # Reduced delays from [0, 0.1, 0.5, 1.0, 2.0] to speed up tests
+    # Cache behavior doesn't require multi-second waits
     print("\n3. Testing fetch timing...")
-    delays = [0, 0.1, 0.5, 1.0, 2.0]
+    delays = [0, 0.05, 0.1, 0.2]
 
     for delay in delays:
         if delay > 0:

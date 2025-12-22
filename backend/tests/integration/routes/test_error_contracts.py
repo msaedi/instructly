@@ -91,7 +91,7 @@ def test_payments_instructor_guard_problem_contract(monkeypatch):
     from types import SimpleNamespace
 
     import app.api.dependencies.auth as auth_deps
-    import app.routes.payments as payments_routes  # noqa: F401
+    import app.routes.v1.payments as payments_routes  # noqa: F401
 
     dummy_user = SimpleNamespace(id='user_123', roles=[], is_instructor=False, is_student=True)
 
@@ -102,7 +102,7 @@ def test_payments_instructor_guard_problem_contract(monkeypatch):
         auth_deps.get_current_active_user: lambda: dummy_user,
     }
 
-    from app.routes.payments import get_stripe_service  # type: ignore  # noqa: E402
+    from app.routes.v1.payments import get_stripe_service  # type: ignore  # noqa: E402
 
     overrides[get_stripe_service] = lambda: DummyStripeService()
 

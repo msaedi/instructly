@@ -19,7 +19,7 @@ def client(_enable_strict_schemas):
 
 def test_gated_ping_rejects_extra(client: TestClient):
     # Dependency enforces beta access; skip if blocked before validation
-    res = client.get("/v1/gated/ping", params={"unexpected": 1})
+    res = client.get("/api/v1/gated/ping", params={"unexpected": 1})
     if res.status_code in (401, 403):
         pytest.skip("Access control prevented schema validation here")
     assert res.status_code == 422
