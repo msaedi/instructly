@@ -39,13 +39,13 @@ jobs:
 
       - name: promtool check config
         run: |
-          docker run --rm -v "$PWD:/work" prom/prometheus:latest \
-            promtool check config /work/monitoring/prometheus/prometheus.yml
+          docker run --rm -v "$PWD:/work" --entrypoint promtool prom/prometheus:latest \
+            check config /work/monitoring/prometheus/prometheus.yml
 
       - name: promtool check rules
         run: |
-          docker run --rm -v "$PWD:/work" prom/prometheus:latest \
-            promtool check rules /work/monitoring/prometheus/alerts.yml
+          docker run --rm -v "$PWD:/work" --entrypoint promtool prom/prometheus:latest \
+            check rules /work/monitoring/prometheus/alerts.yml
 
       - name: amtool check-config
         run: |

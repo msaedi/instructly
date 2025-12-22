@@ -7,16 +7,16 @@ echo "🧹 Clearing cache..."
 redis-cli FLUSHALL > /dev/null
 
 echo "🔄 Warming up API..."
-curl -s "http://localhost:8000/health" -o /dev/null
+curl -s "http://localhost:8000/api/v1/health" -o /dev/null
 
 echo "📊 Resetting cache stats..."
-curl -X POST "http://localhost:8000/ops/cache/reset-stats" \
+curl -X POST "http://localhost:8000/api/v1/ops/cache/reset-stats" \
   -H "Authorization: Bearer $TOKEN" -s -o /dev/null
 
 echo -e "\n⚡ Performance Test Results:\n"
 
 echo "1️⃣ First request (cache MISS):"
-time curl -s "http://localhost:8000/instructors/availability/week?start_date=2025-06-16" \
+time curl -s "http://localhost:8000/api/v1/instructors/availability/week?start_date=2025-06-16" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Accept-Encoding: gzip" \
   -o /dev/null -w "   Response time: %{time_total}s\n   Compressed size: %{size_download} bytes\n   HTTP status: %{http_code}\n"
@@ -24,7 +24,7 @@ time curl -s "http://localhost:8000/instructors/availability/week?start_date=202
 echo -e "\n2️⃣ Cache HIT performance (10 requests):"
 total_time=0
 for i in {1..10}; do
-  response_time=$(curl -s "http://localhost:8000/instructors/availability/week?start_date=2025-06-16" \
+  response_time=$(curl -s "http://localhost:8000/api/v1/instructors/availability/week?start_date=2025-06-16" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Accept-Encoding: gzip" \
     -o /dev/null -w "%{time_total}")
@@ -36,9 +36,9 @@ avg_time=$(echo "scale=3; $total_time / 10" | bc)
 echo "   Average: ${avg_time}s"
 
 echo -e "\n3️⃣ Cache Statistics:"
-curl -s "http://localhost:8000/ops/cache" \
+curl -s "http://localhost:8000/api/v1/ops/cache" \
   -H "Authorization: Bearer $TOKEN" | jq '.cache | {hit_rate, total_requests, hits, misses, circuit_breaker}'
 
 echo -e "\n4️⃣ Database Pool Status:"
-curl -s "http://localhost:8000/ops/performance" \
+curl -s "http://localhost:8000/api/v1/ops/performance" \
   -H "Authorization: Bearer $TOKEN" | jq '.database.pool_status'
