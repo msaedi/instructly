@@ -68,7 +68,7 @@ pytest==9.0.2
 pytest-asyncio==1.3.0
 
 # Dev script dependencies (only used in scripts/dev/)
-matplotlib==3.9.4
+matplotlib==3.10.8
 networkx==3.2.1
 hiredis==3.3.0
 numpy==2.2.3
