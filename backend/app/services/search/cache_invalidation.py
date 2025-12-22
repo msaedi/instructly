@@ -12,8 +12,9 @@ This ensures proper Redis connection injection.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional
 
 from app.services.search.search_cache import SearchCacheService
 
@@ -21,6 +22,42 @@ if TYPE_CHECKING:
     from app.services.cache_service import CacheService
 
 logger = logging.getLogger(__name__)
+
+
+def _fire_and_forget(coro_fn: Callable[[], Coroutine[Any, Any, None]], context: str) -> None:
+    """
+    Fire-and-forget async execution with graceful fallback.
+
+    Handles the case when called from sync contexts without an event loop.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+
+        # Skip in tests to avoid event loop issues
+        from app.core.config import settings
+
+        if settings.is_testing:
+            logger.debug(f"Skipping async cache invalidation in tests: {context}")
+            return
+
+        task: asyncio.Task[None] = loop.create_task(coro_fn())
+
+        def _consume_task_exception(t: asyncio.Task[None]) -> None:
+            if t.cancelled():
+                return
+            exc = t.exception()
+            if exc:
+                logger.warning(f"Cache invalidation task failed: {context} - {exc}")
+
+        task.add_done_callback(_consume_task_exception)
+    except RuntimeError:
+        # No running event loop - we're in a sync context
+        # Best-effort: log and skip (don't block the caller)
+        logger.debug(f"No event loop for cache invalidation: {context}")
+    except Exception as e:
+        # Cache invalidation is best-effort, don't fail the operation
+        logger.warning(f"Cache invalidation error: {context} - {e}")
+
 
 # Global cache service instance (initialized on first use or via init)
 _cache_service: Optional[SearchCacheService] = None
@@ -79,14 +116,13 @@ def invalidate_on_service_change(
         change_type: "create", "update", or "delete"
     """
     cache = get_search_cache()
-    # Best-effort invalidation. Callers should await this function when possible.
-    import asyncio
+    context = f"service {change_type} ({service_id})"
 
     async def _invalidate() -> None:
         await cache.invalidate_response_cache()
 
-    asyncio.create_task(_invalidate())
-    logger.info(f"Search cache invalidated: service {change_type} ({service_id})")
+    _fire_and_forget(_invalidate, context)
+    logger.info(f"Search cache invalidated: {context}")
 
 
 def invalidate_on_availability_change(
@@ -101,13 +137,13 @@ def invalidate_on_availability_change(
         instructor_id: The instructor whose availability changed
     """
     cache = get_search_cache()
-    import asyncio
+    context = f"availability change ({instructor_id})"
 
     async def _invalidate() -> None:
         await cache.invalidate_response_cache()
 
-    asyncio.create_task(_invalidate())
-    logger.info(f"Search cache invalidated: availability change ({instructor_id})")
+    _fire_and_forget(_invalidate, context)
+    logger.info(f"Search cache invalidated: {context}")
 
 
 def invalidate_on_price_change(
@@ -124,13 +160,13 @@ def invalidate_on_price_change(
         service_id: Specific service that changed (optional)
     """
     cache = get_search_cache()
-    import asyncio
+    context = f"price change ({instructor_id})"
 
     async def _invalidate() -> None:
         await cache.invalidate_response_cache()
 
-    asyncio.create_task(_invalidate())
-    logger.info(f"Search cache invalidated: price change ({instructor_id})")
+    _fire_and_forget(_invalidate, context)
+    logger.info(f"Search cache invalidated: {context}")
 
 
 def invalidate_on_instructor_profile_change(
@@ -145,13 +181,13 @@ def invalidate_on_instructor_profile_change(
         instructor_id: The instructor whose profile changed
     """
     cache = get_search_cache()
-    import asyncio
+    context = f"profile change ({instructor_id})"
 
     async def _invalidate() -> None:
         await cache.invalidate_response_cache()
 
-    asyncio.create_task(_invalidate())
-    logger.info(f"Search cache invalidated: profile change ({instructor_id})")
+    _fire_and_forget(_invalidate, context)
+    logger.info(f"Search cache invalidated: {context}")
 
 
 def invalidate_on_review_change(
@@ -168,13 +204,13 @@ def invalidate_on_review_change(
         review_id: The review that changed (optional)
     """
     cache = get_search_cache()
-    import asyncio
+    context = f"review change ({instructor_id})"
 
     async def _invalidate() -> None:
         await cache.invalidate_response_cache()
 
-    asyncio.create_task(_invalidate())
-    logger.info(f"Search cache invalidated: review change ({instructor_id})")
+    _fire_and_forget(_invalidate, context)
+    logger.info(f"Search cache invalidated: {context}")
 
 
 async def invalidate_all_search_cache() -> int:

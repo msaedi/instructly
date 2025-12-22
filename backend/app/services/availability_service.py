@@ -65,6 +65,7 @@ from ..utils.bitset import (
 from ..utils.time_helpers import string_to_time, time_to_string
 from .audit_redaction import redact
 from .base import BaseService
+from .search.cache_invalidation import invalidate_on_availability_change
 
 # TYPE_CHECKING import to avoid circular dependencies
 if TYPE_CHECKING:
@@ -545,6 +546,9 @@ class AvailabilityService(BaseService):
                 )
 
         edited_date_strings = [d.isoformat() for d in changed_dates]
+
+        # Invalidate search cache (fire-and-forget via asyncio.create_task)
+        invalidate_on_availability_change(instructor_id)
 
         return SaveWeekBitsResult(
             rows_written=rows_written,
@@ -1588,6 +1592,9 @@ class AvailabilityService(BaseService):
 
             # Invalidate cache
             self._invalidate_availability_caches(instructor_id, [target_date])
+
+            # Invalidate search cache (fire-and-forget via asyncio.create_task)
+            invalidate_on_availability_change(instructor_id)
 
             # Return window-like dict for compatibility
             return {

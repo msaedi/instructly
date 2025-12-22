@@ -39,6 +39,10 @@ from .cache_service import CacheServiceSyncAdapter
 from .config_service import ConfigService
 from .geocoding.factory import create_geocoding_provider
 from .pricing_service import PricingService
+from .search.cache_invalidation import (
+    invalidate_on_instructor_profile_change,
+    invalidate_on_service_change,
+)
 from .stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
@@ -501,6 +505,9 @@ class InstructorService(BaseService):
         if self.cache_service:
             self._invalidate_instructor_caches(user_id)
 
+        # Invalidate search cache (fire-and-forget via asyncio.create_task)
+        invalidate_on_instructor_profile_change(user_id)
+
         # Return fresh data
         return self.get_instructor_profile(user_id)
 
@@ -547,6 +554,9 @@ class InstructorService(BaseService):
         # Invalidate caches
         if self.cache_service:
             self._invalidate_instructor_caches(user_id)
+
+        # Invalidate search cache (fire-and-forget via asyncio.create_task)
+        invalidate_on_instructor_profile_change(user_id)
 
         logger.info(f"Deleted instructor profile for user {user_id}")
 
@@ -1106,6 +1116,9 @@ class InstructorService(BaseService):
         # Invalidate caches
         if self.cache_service:
             self._invalidate_instructor_caches(instructor_id)
+
+        # Invalidate search cache (fire-and-forget via asyncio.create_task)
+        invalidate_on_service_change(service.id, "create")
 
         logger.info(f"Created service {catalog_service.name} for instructor {instructor_id}")
 
