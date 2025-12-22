@@ -173,7 +173,7 @@ jobs:
         run: echo "⚠️ Found ${{ steps.adopt.outputs.adHocAny }} ad-hoc/any API call-sites (see adoption artifacts)."
 
       - name: Upload contract audit artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: contract-audit
           path: |

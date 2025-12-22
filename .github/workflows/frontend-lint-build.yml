@@ -47,7 +47,7 @@ jobs:
           LOG_LEVEL: error
       - name: Upload build log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: next-build-log
           path: frontend/.artifacts/next-build.log
