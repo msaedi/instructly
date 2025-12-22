@@ -1,0 +1,3 @@
+10035	IGNORE	(Strict-Transport-Security Header Not Set - we set it in middleware)
+10098	IGNORE	(Cross-Domain Misconfiguration - expected for API)
+10020	IGNORE	(X-Frame-Options Header - set by frontend, not API)

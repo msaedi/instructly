@@ -75,6 +75,10 @@ class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
                 "Strict-Transport-Security"
             ] = "max-age=31536000; includeSubDomains; preload"
 
+        # Security headers for all responses (defense-in-depth for API)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+
         return response
 
 
