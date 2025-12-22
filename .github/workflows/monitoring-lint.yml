@@ -41,17 +41,24 @@ jobs:
         run: |
           docker run --rm \
             -v "$PWD/monitoring/prometheus:/etc/prometheus" \
-            --entrypoint promtool prom/prometheus:latest \
+            --entrypoint promtool \
+            prom/prometheus:latest \
             check config /etc/prometheus/prometheus.yml
 
       - name: promtool check rules
         run: |
           docker run --rm \
             -v "$PWD/monitoring/prometheus:/etc/prometheus" \
-            --entrypoint promtool prom/prometheus:latest \
+            --entrypoint promtool \
+            prom/prometheus:latest \
             check rules /etc/prometheus/alerts.yml
 
       - name: amtool check-config
         run: |
-          docker run --rm -v "$PWD:/work" prom/alertmanager:v0.27.0 \
-            amtool check-config /work/monitoring/alertmanager/alertmanager.yml
+          export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/placeholder/for/validation"
+          envsubst < monitoring/alertmanager/alertmanager.yml > /tmp/alertmanager-resolved.yml
+          docker run --rm \
+            -v "/tmp/alertmanager-resolved.yml:/etc/alertmanager/alertmanager.yml:ro" \
+            --entrypoint amtool \
+            prom/alertmanager:v0.27.0 \
+            check-config /etc/alertmanager/alertmanager.yml
