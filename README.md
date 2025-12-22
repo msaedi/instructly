@@ -1,309 +1,159 @@
 [![Env-contract](https://github.com/msaedi/instructly/actions/workflows/env-contract.yml/badge.svg)](https://github.com/msaedi/instructly/actions/workflows/env-contract.yml)
 [![Schemathesis](https://github.com/msaedi/instructly/actions/workflows/schemathesis.yml/badge.svg)](https://github.com/msaedi/instructly/actions/workflows/schemathesis.yml)
 
-## DB prep quickstart
-
-Use `backend/scripts/prep_db.py` with SITE_MODE:
-
-```bash
-# Defaults to int
-python backend/scripts/prep_db.py --migrate --dry-run
-
-# Local/staging
-python backend/scripts/prep_db.py stg --migrate --seed-all
-
-# Preview (system+mock allowed)
-python backend/scripts/prep_db.py preview --migrate --seed-all # or
-python backend/scripts/prep_db.py preview --migrate --seed-all --seed-mock-users
-
-# Production (system-only, requires --force and --yes)
-SITE_MODE=prod python backend/scripts/prep_db.py --migrate --seed-system-only --force --yes # or
-SITE_MODE=prod python backend/scripts/prep_db.py --migrate --seed-all-prod --force --yes
-```
-
 # InstaInstru
 
 The "Uber of instruction" - A marketplace platform for instantly booking private instructors in NYC.
 
-## 🚀 Tech Stack
+**Platform Status**: 100% Complete | **Tests**: 3,090+ | **Load Tested**: 150 users | **API**: 235 endpoints
 
-- **Backend**: FastAPI + PostgreSQL (Supabase) + SQLAlchemy
-- **Frontend**: Next.js 14 + TypeScript + Tailwind CSS
-- **Cache**: DragonflyDB (local) + Upstash Redis (production)
-- **Email**: Resend API
-- **Infrastructure**: Render Standard plan (backend) + Vercel (frontend)
-- **Monitoring**: Custom production monitoring middleware
+## Tech Stack
 
-## ✅ Recent Backend Updates
+| Layer | Technology |
+|-------|------------|
+| **Backend** | FastAPI + PostgreSQL 17 (Supabase) + SQLAlchemy 2.0 |
+| **Frontend** | Next.js 15 + TypeScript (strictest) + Tailwind CSS v4 |
+| **Cache** | Redis (caching + Celery broker) |
+| **Search** | pgvector + pg_trgm (NL Search with self-learning) |
+| **Payments** | Stripe Connect (pre-auth, payouts, credits) |
+| **Email** | Resend API |
+| **Infrastructure** | Render ($53/mo) + Vercel + Cloudflare R2 |
+| **Security** | Argon2id, JWT+RBAC (30 permissions), 2FA (TOTP) |
 
-- Bitmap availability now normalizes `"24:00:00"` windows at the helper level, so midnight ranges survive GET/booking flows.
-- `PATCH /instructors/availability/bulk-update` is deprecated and responds with `410 Gone`; use the week POST APIs instead.
-- Week-copy logic no longer probes the legacy slot repository—bitmap rows are always used when copying/applying patterns.
-- Retention purge logic now references `availability_days`, matching the bitmap tables described in [docs/architecture/availability-bitmap.md](docs/architecture/availability-bitmap.md).
+## Quick Start
 
-## 📋 Prerequisites
+### Database Setup
 
-- Python 3.9+
-- Node.js 18+
-- PostgreSQL or Supabase account
-- Redis/DragonflyDB
-- Resend API key for emails
+```bash
+# Defaults to INT database (safe)
+python backend/scripts/prep_db.py --migrate --seed-all
 
-## 🛠️ Setup
+# Staging (local dev)
+python backend/scripts/prep_db.py stg --migrate --seed-all
+
+# Preview environment
+python backend/scripts/prep_db.py preview --migrate --seed-all
+
+# Production (requires confirmation)
+SITE_MODE=prod python backend/scripts/prep_db.py --migrate --seed-system-only --force --yes
+```
 
 ### Backend Setup
 
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# Copy environment variables
-cp .env.example .env
-# Edit .env with your values
-
-# Run database migrations
+cp .env.example .env      # Edit with your values
 alembic upgrade head
-
-# Seed database (optional)
-python scripts/reset_and_seed_database_enhanced.py
-
-# Start the server
 uvicorn app.main:app --reload
 ```
+
 ### Frontend Setup
+
 ```bash
 cd frontend
 npm install
-
-# Copy environment variables
-cp .env.local.example .env.local
-# Edit .env.local with your values
-
-# Start the development server
+cp .env.local.example .env.local  # Edit with your values
 npm run dev
-
 ```
-### Cache Setup (DragonflyDB)
+
+### Redis Setup
+
 ```bash
-# Using Docker
 docker-compose up -d
-
-# Or install locally
-# See: https://dragonflydb.io/docs/getting-started
-
 ```
 
-## 🔐 Local Checkr Sandbox
+## Test Accounts
 
-Spin up the hosted-invite flow against Checkr's staging stack in three quick steps:
+After seeding (Password: `Test1234`):
+- **Instructors**: sarah.chen@example.com, michael.rodriguez@example.com
+- **Students**: john.smith@example.com, emma.johnson@example.com
 
-1. **Export the sandbox env vars** in `backend/.env` (restart the API afterwards):
-   ```
-   CHECKR_ENV=sandbox
-   CHECKR_FAKE=false
-   CHECKR_API_KEY=<staging secret from the Checkr dashboard>
-   CHECKR_DEFAULT_PACKAGE=basic_plus
-   CHECKR_WEBHOOK_USER=<basic-auth user you control>
-   CHECKR_WEBHOOK_PASS=<basic-auth password>
-   CHECKR_WEBHOOK_URL=https://USER:PASS@<trycloudflare>.trycloudflare.com/webhooks/checkr/
-   ```
-   `CHECKR_WEBHOOK_USER/PASS` gate the FastAPI endpoint, so keep them in sync with the `https://user:pass@...` tunnel URL you give Checkr.
-2. **Expose the webhook locally**: `cloudflared tunnel --url http://localhost:8000` (or use ngrok) and give Checkr the tunnel URL that terminates on `/webhooks/checkr/`. The backend accepts HTTP Basic Auth and returns immediately, so tunnels stay responsive.
-3. **Subscribe in the Checkr sandbox dashboard** to:
-   ```
-   invitation.created, invitation.completed,
-   report.created, report.updated, report.completed,
-   report.disputed, report.resumed, report.suspended,
-   report.canceled, report.upgrade_failed, report.deferred
-   ```
-   These are stored in `bgc_webhook_log` (last 200 events) and viewable at `/admin/bgc-webhooks`.
+## Testing
 
-To send a test invite, open `/admin/bgc-review`, pick any instructor row, and click the new **Invite** button (or `POST /api/instructors/{id}/bgc/invite`). Watch `/admin/bgc-webhooks` populate instantly, then confirm the status change on the instructor dashboard. This flow mirrors production and is the quickest way to sanity-check Checkr staging without touching FakeCheckr.
-## 📊 Monitoring
+```bash
+# Backend (3,090+ tests)
+cd backend && pytest tests/ -v
 
-InstaInstru includes a comprehensive monitoring stack with Prometheus and Grafana.
+# Frontend
+cd frontend && npm test
 
-### Quick Start
+# E2E (requires dev servers)
+cd frontend && CI_LOCAL_E2E=1 npx playwright test --project=instructor
+```
+
+## API Documentation
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **All endpoints under `/api/v1/*`** (235 total)
+
+## Project Structure
+
+```
+instructly/
+├── backend/
+│   ├── app/
+│   │   ├── routes/v1/    # All API endpoints (versioned)
+│   │   ├── services/     # Business logic (17+ services)
+│   │   ├── repositories/ # Data access (17+ repositories)
+│   │   ├── models/       # Database models
+│   │   └── schemas/      # Pydantic schemas
+│   └── tests/            # 2,600+ backend tests
+├── frontend/
+│   ├── app/              # Next.js 15 App Router
+│   ├── features/         # Feature modules
+│   ├── components/       # Shared React components
+│   └── e2e/              # Playwright E2E tests
+├── docs/                 # Comprehensive documentation
+│   └── PROJECT_DOCS_INDEX.md  # Documentation index
+└── docker-compose.yml    # Redis setup
+```
+
+## Key Features
+
+- **Instant Booking**: No approval process, book directly
+- **NL Search**: Natural language search with typo tolerance
+- **Bitmap Availability**: Efficient scheduling (70% storage reduction)
+- **Founding Instructors**: Lifetime 8% platform fee for early adopters
+- **Real-time Messaging**: SSE-based with archive/trash
+- **Background Checks**: Checkr integration with adverse action workflow
+- **Rate Limiting**: GCRA algorithm with runtime configuration
+
+## Documentation
+
+See `docs/PROJECT_DOCS_INDEX.md` for complete documentation map including:
+- Architecture decisions and patterns
+- System documentation (payments, search, rate limiting)
+- Runbooks and operations guides
+- API documentation and standards
+
+## CI/CD
+
+- **Custom CI Database**: PostgreSQL 14 with PostGIS + pgvector
+  - Image: `ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector`
+- **GitHub Actions**: Automated testing, type-checking, security scans
+- **Pre-commit Hooks**: Repository pattern, timezone checks
+
+## Deployment
+
+- **Backend**: Deploy to Render using `render.yaml`
+- **Frontend**: Deploy to Vercel via GitHub integration
+- **Environments**: Preview (preview.instainstru.com) + Beta (beta.instainstru.com)
+
+## Monitoring
+
 ```bash
 # Start monitoring stack
 ./monitoring/start-monitoring.sh
 
-# Stop monitoring stack
-./monitoring/stop-monitoring.sh
+# Access
+# Grafana: http://localhost:3003
+# Prometheus: http://localhost:9090
 ```
 
-### Access Points
-- **Grafana**: http://localhost:3003 - Dashboards and alerts
-- **Prometheus**: http://localhost:9090 - Metrics explorer
+## License
 
-### What's Being Monitored
-- 98 service operations tracked with `@measure_operation` decorators
-- 5 production-ready alert rules (response time, error rate, etc.)
-- 3 pre-configured dashboards (Service Performance, API Health, Business Metrics)
-
-See [monitoring/README.md](monitoring/README.md) for detailed setup and configuration.
-
-🧪 Testing
-```bash
-# Backend tests
-cd backend
-pytest tests/ -v
-
-# Frontend tests
-cd frontend
-npm test
-
-# Cross-origin invite e2e (requires dev servers running)
-cd frontend
-CI_LOCAL_E2E=1 npx --yes playwright test e2e/invites.invite-redemption.spec.ts --reporter=line
-
-```
-To exercise the same flow in GitHub Actions, run **e2e-tests → Run workflow** and
-enable the `invite_e2e` input. The workflow now seeds via
-`python scripts/prep_db.py int --migrate --seed-all --force --yes`, matching the
-rest of our end-to-end suites.
-
-### Playwright projects & skips
-We run the E2E suite in three Playwright projects (`instructor`, `admin`, `anon`). Specs are gated per project, so
-running all projects at once will still “discover” non-matching specs and mark them skipped. To keep local output tidy,
-target the project that matches your flow, e.g. `npx playwright test --project=instructor` for availability work or
-`--project=admin` for the invite suite. CI mirrors this in `.github/workflows/frontend-e2e.yml`, which fans out into a
-`{ instructor, admin, anon }` job matrix.
-
-### Contract types
-Regenerate the OpenAPI-generated declarations (and their minified snapshot) with:
-
-```bash
-cd frontend
-npm run contract:write:min
-```
-
-The script updates `frontend/types/generated/api.d.ts` and writes a minified copy to
-`backend/.artifacts/api.expected.d.ts`, keeping the tracked snapshot under the pre-commit size guardrails.
-
-Cross-origin E2E (SameSite smoke + admin invite redemption) are **off by default**. Enable them locally with:
-
-```bash
-cd frontend
-PLAYWRIGHT_BASE_URL=http://localhost:3100 \
-E2E_CROSS_ORIGIN=1 \
-E2E_BETA_BASE_URL=http://beta-local.instainstru.com:3100 \
-E2E_PREVIEW_BASE_URL=http://localhost:3100 \
-CI_LOCAL_E2E=1 \
-npx playwright test --project=instructor --reporter=line
-```
-
-You can also set `E2E_ENABLE_INVITES=1` instead of `CI_LOCAL_E2E=1` to exercise the invite redemption flow without
-affecting other smoke tests.
-
-📚 API Documentation
-Once the backend is running, visit:
-
-Swagger UI: http://localhost:8000/docs
-ReDoc: http://localhost:8000/redoc
-
-🔑 Default Test Accounts
-After seeding the database:
-
-Instructors: sarah.chen@example.com, michael.rodriguez@example.com
-Students: john.smith@example.com, emma.johnson@example.com
-Password: TestPassword123!
-
-🏗️ Project Structure
-
-instructly/
-├── backend/
-│   ├── app/
-│   │   ├── routes/      # API endpoints
-│   │   ├── services/    # Business logic
-│   │   ├── models/      # Database models
-│   │   └── schemas/     # Pydantic schemas
-│   └── tests/
-├── frontend/
-│   ├── app/            # Next.js app directory
-│   ├── components/     # React components
-│   ├── lib/           # Utilities
-│   └── types/         # TypeScript types
-└── docker-compose.yml  # DragonflyDB setup
-
-## 🚀 Production Configuration
-
-### Performance Optimizations
-- **Database Pooling**: Optimized for Render Standard (5 connections)
-- **Upstash Redis**: Auto-pipelining reduces API calls by 70%
-- **Response Times**: <100ms achieved with production monitoring
-- **Monitoring**: API key protected endpoints at `/api/monitoring/*`
-
-### CI/CD Infrastructure
-- **Custom Database Image**: PostgreSQL 14 with PostGIS + pgvector
-  - Required for spatial features and NL search testing
-  - Image: `ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector`
-  - See [CI Database Documentation](docs/infrastructure/ci-database.md)
-- **GitHub Actions**: Automated testing on all PRs
-- **Pre-commit Hooks**: Code quality enforcement
-
-### Deployment
-- **Backend**: Deploy to Render using `render.yaml`
-- **Frontend**: Deploy to Vercel via GitHub integration
-- **Environment Variables**: Set all production configs on platforms
-
-See `docs/infrastructure/` for detailed deployment instructions.
-
-#### Cloudflare + Vercel DNS (Admin/Beta)
-
-- Set Cloudflare DNS records to DNS-only (gray cloud) so Vercel serves traffic directly.
-- Avoid reverse proxy through Cloudflare to prevent TLS/proxy issues and unexpected caching.
-
-#### Admin Navigation Map
-
-Left sidebar groups:
-
-- Analytics: `/admin/analytics/search`, `/admin/analytics/candidates`
-- Ops: `/admin/ops/redis`, `/admin/ops/database`
-- Engineering: `/admin/engineering/codebase`
-- Beta: `/admin/beta/invites`, `/admin/beta/ui-preview`
-
-
-📝 License
-Copyright © 2024 InstaInstru. All rights reserved.
-
-```bash
-### 4. **Pre-commit Hooks**
-
-Pre-commit hooks run checks before each commit. Create `.pre-commit-config.yaml`:
-
-```yaml
-# .pre-commit-config.yaml
-repos:
-  # Python
-  - repo: https://github.com/psf/black
-    rev: 23.3.0
-    hooks:
-      - id: black
-        files: ^backend/
-
-  - repo: https://github.com/PyCQA/flake8
-    rev: 6.0.0
-    hooks:
-      - id: flake8
-        files: ^backend/
-        args: ['--max-line-length=100']
-
-  # TypeScript/JavaScript
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.0.0
-    hooks:
-      - id: prettier
-        files: ^frontend/
-        types_or: [javascript, jsx, ts, tsx, css, json]
-
-  # General
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-added-large-files
+Copyright 2024 InstaInstru. All rights reserved.

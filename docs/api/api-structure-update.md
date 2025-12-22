@@ -1,7 +1,9 @@
 # API Structure Update Documentation
 
-## Date: 2024-08-22
-## Version: 2.0.0
+## Date: 2024-08-22 (Updated December 2025)
+## Version: 3.0.0
+
+> **v121 Update**: ALL routes are now under `/api/v1/*`. The paths shown below should be prefixed with `/api/v1`. For example, `/instructors/` is now `/api/v1/instructors/`. ~14,000 lines of legacy code were removed in v121 to enforce this single rule.
 
 ## Overview
 This document outlines the updated API endpoint structure for InstaInstru, focusing on consistency, clarity, and proper separation of concerns.

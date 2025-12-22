@@ -1,5 +1,5 @@
 # InstaInstru Architecture Decisions
-*Last Updated: January 2025 (Session v117)*
+*Last Updated: December 2025 (Session v121)*
 
 ## Core Architecture Decisions
 
@@ -31,6 +31,13 @@
 | **Referral Fraud Detection** | ✅ Active | Device fingerprinting, household limits | Prevent abuse while enabling growth |
 | **Event-Driven Badges** | ✅ Active | Trigger-based achievement awarding | Gamification without manual tracking |
 | **Background Checks** | ✅ Active | Checkr integration, adverse action workflow | Trust & safety compliance |
+| **NL Search Hybrid Parsing** | ✅ Active | Regex fast-path + LLM for complex queries | 70%+ queries handled by regex (v118) |
+| **5-Tier Location Resolution** | ✅ Active | Exact → Alias → Fuzzy → Embed → LLM | Graceful degradation for locations (v118) |
+| **Self-Learning Aliases** | ✅ Active | Click tracking creates location aliases | System improves automatically (v119) |
+| **Request Budget** | ✅ Active | Progressive degradation under load | 150 user capacity verified (v120) |
+| **Advisory Locks for Cap** | ✅ Active | PostgreSQL advisory locks for founding cap | TOCTOU race condition prevention (v121) |
+| **Single API Version Rule** | ✅ Active | ALL routes under `/api/v1/*` | No confusion, single rule (v121) |
+| **Shared Origin Validation** | ✅ Active | Single `is_allowed_origin()` utility | Security-critical single implementation (v121) |
 
 ## Defensive Measures (Preventing Regression)
 
@@ -168,29 +175,110 @@ if conversation.state in ['archived', 'trashed']:
 - Current filter (Archived/Trash) shouldn't hide notifications
 - User never misses important messages
 
-**Implementation**:
-```typescript
-// Filtered query for current view
-const { conversations } = useConversations({ stateFilter, typeFilter });
+## NL Search Architecture Decisions (v118-v119)
 
-// Unfiltered query for global notifications
-const { globalUnreadConversations } = useConversations({
-  // No filters
-});
+### Hybrid Parsing
+**Decision**: Use regex fast-path for simple queries, LLM only for complex ones.
+
+**Rationale**:
+- 70%+ queries handled by regex (sub-10ms)
+- LLM only for complex multi-constraint queries
+- Cost and latency optimization
+
+### 5-Tier Location Resolution
+**Decision**: Graceful degradation through 5 location resolution tiers.
+
+**Tiers**:
+1. Exact match (instant)
+2. Alias lookup ("ues" → "Upper East Side")
+3. Fuzzy match (typo tolerance)
+4. Embedding similarity (semantic)
+5. LLM resolution (last resort)
+
+**Rationale**: Each tier faster/cheaper than next, fallback ensures resolution.
+
+### Self-Learning Aliases
+**Decision**: Click tracking creates location aliases automatically.
+
+**Flow**:
+1. User searches unresolved location
+2. Click tracked with resulting region
+3. After 5+ similar clicks (70%+ same region)
+4. Daily Celery task creates alias
+5. Future searches resolve instantly
+
+**Rationale**: System improves without manual intervention.
+
+### 6-Signal Ranking
+**Decision**: Multi-signal ranking formula for search results.
+
+**Formula**:
+```
+score = 0.35×relevance + 0.25×quality + 0.15×distance +
+        0.10×price + 0.10×freshness + 0.05×completeness +
+        audience_boost + skill_boost
 ```
 
-### Independent Audit Approach for Debugging
-**Decision**: Perform read-only audit before implementing fixes.
+**Rationale**: Balances multiple factors for best-fit instructors.
 
-**Methodology**:
-1. **Audit Phase**: Read all code, analyze root causes, document findings
-2. **Fix Phase**: Implement fixes based on audit
-3. **Validation Phase**: Run tests, verify no regressions
+## Production Hardening Decisions (v120)
 
-**Benefits**:
-- Prevents hasty fixes
-- Reveals cascading issues
-- Better documentation
-- Fewer regressions
+### Request Budget
+**Decision**: Progressive degradation under load via request budgets.
 
-**Results in v117**: Fixed 7 bugs through systematic audit, zero regressions.
+**Degradation Levels**:
+| Budget Remaining | Skip | Result |
+|------------------|------|--------|
+| >300ms | Nothing | Full semantic search |
+| 150-300ms | Tier 5 LLM | Tier 4 + text |
+| 80-150ms | Vector search | Text-only |
+| <80ms | Full Burst 2 | Minimal results |
+
+**Rationale**: Better partial results than timeouts/crashes.
+
+### Per-OpenAI Semaphore
+**Decision**: Separate semaphore for OpenAI calls, not full pipeline.
+
+**Before**: Fast queries blocked by slow Tier 4/5 queries.
+**After**: Only OpenAI calls gated, fast queries never blocked.
+
+**Config**:
+```
+UNCACHED_SEARCH_CONCURRENCY=6      # Soft limit per worker
+OPENAI_CALL_CONCURRENCY=3          # Hard limit on OpenAI calls
+```
+
+## Founding Instructor System Decisions (v121)
+
+### Advisory Locks for Cap
+**Decision**: PostgreSQL advisory lock instead of row-level locks.
+
+**Rationale**:
+- Row-level `FOR UPDATE` on all profiles causes table-wide contention
+- Advisory lock serializes founding claims without blocking other queries
+- Lock key: `0x494E5354_464F554E` ("INSTFOUN" in hex)
+
+### Shared Founding Logic
+**Decision**: Extract founding status granting to `BetaService.try_grant_founding_status()`.
+
+**Rationale**:
+- Logic was duplicated between `auth.py` and `v1/auth.py`
+- Single source of truth for cap enforcement
+- Returns `(granted: bool, message: str)` for observability
+
+### Single API Version Rule
+**Decision**: ALL routes under `/api/v1/*`, no exceptions.
+
+**Rationale**:
+- Pre-launch, no production traffic to break
+- Eliminates "is this migrated?" confusion
+- Infrastructure routes (health, ready, metrics) also moved
+- Only exceptions: `/docs`, `/redoc`, `/openapi.json`
+
+### Shared Origin Validation
+**Decision**: Create shared `app/utils/url_validation.py`.
+
+**Rationale**:
+- `is_allowed_origin()` was duplicated in payments.py and stripe_service.py
+- Security-critical code should have single implementation
+- Restricts to explicit allowed IPs only

@@ -1,5 +1,5 @@
 # InstaInstru Repository Pattern Architecture
-*Last Updated: November 2025 (Session v117)*
+*Last Updated: December 2025 (Session v121)*
 
 ## 🏗️ Repository Pattern Overview
 
@@ -70,7 +70,7 @@ Centralized creation of all repository instances:
 - `create_conversation_state_repository()`
 - `create_message_repository()`
 
-## 🔧 Implemented Repositories (13 Total)
+## 🔧 Implemented Repositories (17+ Total)
 
 ### Core Business Repositories
 1. **SlotManagerRepository** - 13 methods, 97% coverage
@@ -90,17 +90,23 @@ Centralized creation of all repository instances:
 13. **ConversationStateRepository** - Messaging archive/trash management (v117)
 14. **MessageRepository** - Message persistence with delivered_at/read_by (v117)
 
+### NL Search Repositories (v118)
+15. **RetrieverRepository** - Vector + text SQL for hybrid retrieval
+16. **FilterRepository** - PostGIS + availability filtering
+17. **RankingRepository** - Instructor metrics for ranking
+18. **SearchAnalyticsRepository** - Query tracking and analytics
+
 ## 📊 Service Coverage
 
-### Services with Dedicated Repositories (13)
+### Services with Dedicated Repositories (17+)
 All services properly use repositories for data access
 
-### Services Using BaseService Only (12)
+### Services Using BaseService Only
 These services only use inherited methods:
 - AuthService, CacheService, CategoryService
 - EmailService, LocationService, LoggingService
 - MetricsService, NotificationService, PaymentService
-- SearchService, StudentService, TokenService
+- StudentService, TokenService
 
 ## 🛡️ Defensive Measures
 

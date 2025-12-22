@@ -1,5 +1,5 @@
 # InstaInstru Architecture State
-*Last Updated: November 2025 (Session v117)*
+*Last Updated: December 2025 (Session v121)*
 
 ## 🗏 Service Layer Architecture (100% COMPLETE)
 
@@ -41,7 +41,7 @@ backend/app/services/
 Repository Pattern fully implemented across all services with pre-commit enforcement.
 
 ### Repository Status
-- **13 repositories** implemented
+- **17+ repositories** implemented
 - **100% service coverage**
 - **Zero direct DB queries** in services
 - **Pre-commit hooks** prevent regression
@@ -56,6 +56,10 @@ Repository Pattern fully implemented across all services with pre-commit enforce
 - FavoritesRepository (Student favorites)
 - ConversationStateRepository (Messaging archive/trash management)
 - MessageRepository (Message persistence with delivered_at/read_by)
+- RetrieverRepository (NL Search vector + text SQL, v118)
+- FilterRepository (PostGIS + availability filtering, v118)
+- RankingRepository (Instructor metrics, v118)
+- SearchAnalyticsRepository (Query tracking, v118)
 
 ## 🎨 Frontend Architecture (SERVICE-FIRST COMPLETE)
 
@@ -112,40 +116,32 @@ export const availabilityService = {
 
 ## 📌 API Architecture
 
-### API Versioning (v1 Migration Complete)
-All core API endpoints have been migrated to `/api/v1/`:
+### API Versioning (v121: Single Rule Achieved)
+**ALL routes under `/api/v1/*`** - No exceptions (except /docs, /redoc, /openapi.json).
 
-| Domain | v1 Path | Phase |
-|--------|---------|-------|
-| Instructors | `/api/v1/instructors` | Phase 8 |
-| Bookings | `/api/v1/bookings` | Phase 9 |
-| Instructor Bookings | `/api/v1/instructor-bookings` | Phase 9 |
-| Messages | `/api/v1/messages` | Phase 10 |
-| Reviews | `/api/v1/reviews` | Phase 12 |
-| Services | `/api/v1/services` | Phase 13 |
-| Favorites | `/api/v1/favorites` | Phase 13 |
-| Search | `/api/v1/search` | Phase 14 |
-| Search History | `/api/v1/search-history` | Phase 14 |
-| Addresses | `/api/v1/addresses` | Phase 14 |
+- **235 endpoints** total
+- **~14,000 LOC legacy code removed** (v121)
+- **36 dead route files deleted**
+- Infrastructure routes also migrated: `/api/v1/health`, `/api/v1/ready`, `/api/v1/metrics/*`
 
-### Route Organization
+### Route Organization (v121)
 ```
 backend/app/routes/
-├── v1/                         # Versioned API (v1)
-│   ├── addresses.py           # Address management (Phase 14)
+├── v1/                         # ALL API routes
+│   ├── addresses.py           # Address management
+│   ├── admin/                 # Admin operations
 │   ├── bookings.py            # Booking operations
 │   ├── favorites.py           # Student favorites
 │   ├── instructor_bookings.py # Instructor booking views
 │   ├── instructors.py         # Instructor profiles
 │   ├── messages.py            # Messaging system
 │   ├── reviews.py             # Review system
-│   ├── search.py              # NL instructor search (Phase 14)
-│   ├── search_history.py      # Search tracking (Phase 14)
-│   └── services.py            # Service catalog
-├── auth.py                     # Registration, login, current user
-├── availability_windows.py     # Availability management
-├── public_availability.py      # Public API endpoints (no auth)
-└── [legacy routes...]          # Legacy (commented out)
+│   ├── search.py              # NL instructor search
+│   ├── services.py            # Service catalog
+│   ├── health.py              # Health checks
+│   ├── metrics.py             # Prometheus metrics
+│   └── [other domains]        # All other v1 endpoints
+└── (legacy routes deleted)     # Cleaned up in v121
 ```
 
 ### Request/Response Flow
@@ -169,13 +165,16 @@ Client Response
 
 ### Implemented Patterns
 1. **Service Layer Pattern** - Business logic centralization
-2. **Repository Pattern** - Data access abstraction
+2. **Repository Pattern** - Data access abstraction (17+ repositories)
 3. **Factory Pattern** - Repository creation
-4. **Circuit Breaker** - Cache failure protection
+4. **Circuit Breaker** - Cache/OpenAI failure protection
 5. **Cache-Aside** - Check cache, load on miss
 6. **Layer Independence** - Availability and bookings separate
 7. **Dependency Injection** - No global instances
 8. **Service-First Frontend** - 270+ services
+9. **Hybrid NL Search** - Regex fast-path + LLM for complex queries (v118)
+10. **Request Budget** - Progressive degradation under load (v120)
+11. **Advisory Locks** - Founding cap atomicity (v121)
 
 ## 🔐 Security & Privacy
 
@@ -204,13 +203,18 @@ Client Response
 - **Response times** <100ms average
 - **Query monitoring** with slow query alerts
 
+### Load Testing Results (v120)
+- **150 concurrent users** - Stable with graceful degradation
+- **5.9% failure rate** at limit (all retriable 503s)
+- **Request budget** - Progressive degradation under load
+- **Per-OpenAI semaphore** - Fast queries never blocked
+
 ### Infrastructure
-- **Backend**: Render ($25/month)
-- **Frontend**: Vercel
+- **Backend**: Render ($53/month total)
+- **Frontend**: Vercel (Preview + Beta)
 - **Database**: Supabase PostgreSQL
-- **Cache**: Redis ($7/month)
+- **Cache**: Redis
 - **Celery**: Background workers
-- **Total Cost**: $53/month
 
 ## 🚨 Critical Architecture Issues
 
@@ -235,19 +239,20 @@ Client Response
 
 ### Backend: A+ Grade
 - Service Layer ✅
-- Repository Pattern ✅
+- Repository Pattern ✅ (17+ repositories)
 - Database Schema ✅
 - Caching Strategy ✅
 - Authentication/RBAC ✅
 - Error Handling ✅
-- Test Infrastructure ✅
+- Test Infrastructure ✅ (3,090+ tests)
 - Performance Monitoring ✅
+- Load Tested ✅ (150 users, v120)
 
 ### Frontend: A Grade
-- TypeScript Strictest Config ✅
+- TypeScript Strictest Config ✅ (0 errors)
 - Service-First Architecture (270+ services) ✅
 - React Query Integration ✅
-- Natural Language Search ✅
+- Natural Language Search ✅ (self-learning, v119)
 - API Contract Enforcement ✅
 
 ## 🏗️ Domain-Specific Architectures
@@ -274,8 +279,21 @@ Client Response
 - **Event-Driven**: Trigger-based awarding on booking/review events
 - **Hold Mechanism**: Quality badges require admin approval
 
+### NL Search (v118-v119)
+- **Hybrid Parsing**: Regex fast-path + GPT-4o-mini for complex queries
+- **5-Tier Location**: Exact → Alias → Substring → Fuzzy → Embedding → LLM
+- **Self-Learning**: Click tracking creates location aliases automatically
+- **6-Signal Ranking**: Relevance, quality, distance, price, freshness, completeness
+- **4-Layer Caching**: Response, parsed query, embedding, location
+
+### Founding Instructor System (v121)
+- **Lifetime 8% Platform Fee**: vs 15% standard
+- **Search Ranking Boost**: 1.5x multiplier
+- **Tier Immunity**: Exempt from commission downgrades
+- **Cap Enforcement**: PostgreSQL advisory locks for atomicity
+
 ## 📝 Architecture Decision Records
 
 *See `architecture-decisions.md` for full rationale and implementation details*
 
-Key decisions: ULID IDs, Bitmap Availability, 24hr Pre-Auth, Per-User State, GCRA Rate Limiting, API v1 Versioning, Dual Environments, Repository Pattern, Database Safety, Privacy Framework
+Key decisions: ULID IDs, Bitmap Availability, 24hr Pre-Auth, Per-User State, GCRA Rate Limiting, API v1 Versioning (single rule v121), Dual Environments, Repository Pattern, Database Safety, Privacy Framework, NL Search Hybrid Parsing (v118), Advisory Locks for Founding Cap (v121), Shared Origin Validation (v121)

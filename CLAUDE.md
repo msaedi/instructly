@@ -189,8 +189,46 @@ Every PR must pass these automated checks:
 - **Backend Types**: mypy strict compliance
 - **Bundle Size**: Within defined limits (size-limit)
 - **Security**: No High/Critical vulnerabilities (pip-audit, npm audit)
-- **Tests**: 100% passing (1452+ tests)
+- **Tests**: 100% passing (3,090+ tests)
 - **Pre-commit hooks**: Repository pattern, timezone usage
+
+## 🚨 MANDATORY: Post-Change Verification
+
+### After ANY Frontend Changes
+Run ALL of these commands and FIX any errors/warnings (do NOT ignore or suppress them):
+```bash
+cd frontend
+npm run test              # Jest tests
+npm run lint              # ESLint
+npm run typecheck         # Basic TypeScript check
+npm run typecheck:strict  # Strict TypeScript check
+npm run typecheck:strict-all  # Strictest TypeScript check (MUST PASS)
+```
+
+**CRITICAL**: If any command fails or shows warnings, you MUST fix them before committing. Do NOT:
+- Suppress warnings with `// @ts-ignore` or `eslint-disable`
+- Skip failing tests
+- Ignore type errors
+- "Fix later" - fix NOW
+
+### After ANY Backend Changes
+Run pre-commit hooks and FIX any errors (do NOT ignore them):
+```bash
+cd backend
+./venv/bin/pre-commit run --all-files
+```
+
+This runs:
+- Repository pattern compliance check
+- Timezone usage check
+- Code formatting (black, isort)
+- Type checking (mypy)
+
+**CRITICAL**: If pre-commit fails, you MUST fix the issues. Do NOT:
+- Use `--no-verify` to skip hooks
+- Add `# type: ignore` without justification
+- Leave `# repo-pattern-ignore` without valid reason
+- Commit with failing checks
 
 ### Environment Verification
 Automated env-contract workflows verify:
@@ -309,14 +347,26 @@ UserAddressRepository.create_with_geocoding(address_data)
 - **region_boundaries**: Generic regions (NYC neighborhoods ready)
 - **instructor_service_areas**: Service area preferences with regions
 
-## 🎯 Natural Language Search Excellence (v94)
+## 🎯 Natural Language Search Excellence (v118-v119)
 
 ### Search Capabilities
-- **Typo Tolerance**: Handles common misspellings using pg_trgm
-- **Morphology**: Word form normalization (teach/teacher/teaching)
-- **Hybrid Scoring**: Combines semantic vectors with text similarity
-- **Zero-Result Handling**: Shows related options via vector neighbors
-- **Performance**: Sub-50ms with GIN indexes
+- **Hybrid Parsing**: Regex fast-path (70%+ queries) + GPT-4o-mini for complex
+- **5-Tier Location Resolution**: Exact → Alias → Fuzzy → Embedding → LLM
+- **Self-Learning Aliases**: Click tracking auto-creates location aliases
+- **6-Signal Ranking**: Relevance, quality, distance, price, freshness, completeness
+- **Typo Tolerance**: pg_trgm with morphology (teach/teacher/teaching)
+- **Performance**: Sub-50ms with 4-layer caching
+
+### Search Architecture
+```
+Query → Hybrid Parser → Location Resolution → Filter Pipeline → Ranking → Results
+         (regex/LLM)      (5 tiers)            (PostGIS)        (6 signals)
+```
+
+### Production Hardening (v120)
+- **Request Budget**: Progressive degradation under load
+- **Per-OpenAI Semaphore**: Fast queries never blocked by slow LLM calls
+- **Circuit Breaker**: Graceful fallback when OpenAI unavailable
 
 ### PostgreSQL pg_trgm Extension
 ```sql
@@ -327,8 +377,9 @@ ORDER BY similarity(name, 'query') DESC
 
 ### Search Observability
 - Persists top-N candidates with scores
-- Admin dashboards for category trends
+- Admin dashboards for category trends and alias management
 - Query-level debugging and analysis
+- Self-learning alias review UI
 
 ## 🚨 CRITICAL: Client-Side Caching with React Query
 
@@ -385,9 +436,10 @@ useEffect(() => {
 
 ### Critical Context
 - **Mission**: Building for MEGAWATTS of energy allocation - quality over speed
-- **Platform Status**: 100% COMPLETE (All core systems operational, ready for beta launch)
-- **Test Coverage**: 2,130+ tests passing (100%), zero flakes, deterministic behavior
+- **Platform Status**: 100% COMPLETE + PRODUCTION HARDENED (ready for beta launch)
+- **Test Coverage**: 3,090+ tests passing (100%), zero flakes, deterministic behavior
 - **Engineering Quality**: TypeScript strictest mode (0 errors), mypy strict (~95%), automated guardrails
+- **Load Tested**: 150 concurrent users verified (v120)
 
 ### Platform Excellence Achieved
 - **Type Safety**: Frontend 100% strict TypeScript, Backend ~95% mypy strict
@@ -396,12 +448,13 @@ useEffect(() => {
 - **Operational Controls**: Runtime configuration, comprehensive metrics, battle-tested runbooks
 - **CI/CD**: Bulletproof with Node 22, security gates, automated proofs
 - **Zero Engineering Debt**: Platform is pristine with FAANG-level code quality
+- **NL Search**: Self-learning aliases, 5-tier location resolution (v118-v119)
+- **Founding Instructor System**: 8% lifetime fee, cap enforcement with advisory locks (v121)
 
 ### Pre-Launch Requirements
-1. **🔴 Load Testing**: Verify performance with all systems active (3-4 hours)
+1. **✅ Load Testing**: 150 concurrent users verified (v120)
 2. **🔴 Security Audit**: OWASP scan, penetration testing (1-2 days)
 3. **🟡 Beta Smoke Test**: Final manual verification (1 day)
-4. **🟢 Search Debounce**: 300ms frontend optimization (1 hour)
 
 ### Core Systems (All Complete ✅)
 
@@ -438,13 +491,17 @@ useEffect(() => {
 - Beta: Actual paying customers, production-grade reliability
 - Phased rollout: Preview → Beta → Full launch
 
-## 📋 API Versioning (v1)
+## 📋 API Versioning (v1) - SINGLE RULE
 
-**ALL API routes are versioned under `/api/v1/*`** (100+ endpoints migrated).
+**ALL API routes are under `/api/v1/*`** - 235 endpoints, NO exceptions (v121).
+
+This includes auth, admin, health, metrics - everything except `/docs`, `/redoc`, `/openapi.json`.
 
 **Structure:**
 ```
 /api/v1/
+├── auth/              # Authentication (login, register, 2FA)
+├── admin/             # Admin operations
 ├── bookings/          # Student booking operations
 ├── instructors/       # Instructor profiles & search
 ├── messages/          # Real-time messaging
@@ -453,18 +510,16 @@ useEffect(() => {
 ├── services/          # Service catalog
 ├── addresses/         # Address management
 ├── search/            # Natural language search
-├── search-history/    # Search tracking
-└── [other domains]/   # Additional features
-
-/api/auth/             # Authentication (not versioned)
-/api/admin/            # Admin operations (separate namespace)
+├── health/            # Health checks
+├── metrics/           # Prometheus metrics
+└── [other domains]/   # All other features
 ```
 
 **Key Points:**
 - Contract testing enforces OpenAPI compliance
 - Frontend uses generated types via shim (`frontend/features/shared/api/types.ts`)
 - Never import generated types directly - always use the shim
-- See "API Endpoint Migration Checklist" above for migration process
+- ~14,000 LOC of legacy routes removed in v121
 
 ## Key Architectural Decisions
 

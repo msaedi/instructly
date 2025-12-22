@@ -1,9 +1,9 @@
 # InstaInstru System Capabilities & State
-*Last Updated: January 2025 (Session v117)*
+*Last Updated: December 2025 (Session v121)*
 
-## 🚨 Platform State: 100% COMPLETE ✅
+## 🚨 Platform State: 100% COMPLETE + PRODUCTION HARDENED ✅
 
-All core systems operational. Platform ready for beta launch with load testing and security audit remaining.
+All core systems operational. Platform ready for beta launch with security audit remaining. Load testing verified (150 users).
 
 ---
 
@@ -11,7 +11,7 @@ All core systems operational. Platform ready for beta launch with load testing a
 
 | Feature | Status | Key Details |
 |---------|--------|-------------|
-| **Search** | ✅ Complete | Natural language, typo tolerance, morphology, PostGIS spatial |
+| **Search** | ✅ Complete | NL Search with self-learning aliases, 5-tier location, 6-signal ranking (v118-v119) |
 | **Booking** | ✅ Complete | Instant booking, 24hr pre-auth, conflict detection |
 | **Payments** | ✅ Complete | Stripe Connect, saved cards, platform credits |
 | **Profile** | ✅ Complete | View instructor profiles, photos, reviews, ratings |
@@ -41,6 +41,7 @@ All core systems operational. Platform ready for beta launch with load testing a
 | **Background Checks** | ✅ Complete | Checkr integration, adverse action workflow |
 | **2FA** | ✅ Complete | TOTP authenticator app, backup codes |
 | **Referrals** | ✅ Complete | Earn rewards for student sign-ups |
+| **Founding Status** | ✅ Complete | 8% lifetime fee, search boost, tier immunity (v121) |
 
 ---
 
@@ -78,12 +79,13 @@ All core systems operational. Platform ready for beta launch with load testing a
 ## 🏗️ Technical Architecture
 
 ### Backend (Grade: A+)
-- **Repository Pattern**: 100% (13 repositories)
-- **Service Layer**: 16 services, 8.5/10 avg quality
-- **Test Coverage**: 2,130+ tests, 100% pass rate
-- **API**: v1 complete with contract testing
+- **Repository Pattern**: 100% (17+ repositories)
+- **Service Layer**: 16+ services, 8.5/10 avg quality
+- **Test Coverage**: 3,090+ tests, 100% pass rate
+- **API**: ALL 235 endpoints under `/api/v1/*` (v121)
 - **Type Safety**: mypy strict ~95%
 - **Performance**: <100ms response times
+- **Load Tested**: 150 concurrent users (v120)
 - **Database**: 3-tier safety (INT/STG/PROD)
 
 ### Frontend (Grade: A)
@@ -99,24 +101,24 @@ All core systems operational. Platform ready for beta launch with load testing a
 
 | Metric | Value |
 |--------|-------|
-| **Tests** | 2,130+ (100% passing) |
-| **API Endpoints** | 100+ (all v1 versioned) |
+| **Tests** | 3,090+ (100% passing) |
+| **API Endpoints** | 235 (all `/api/v1/*`) |
+| **Load Capacity** | 150 concurrent users |
 | **Response Time** | <100ms average |
 | **Cache Hit Rate** | 80%+ |
 | **Infrastructure Cost** | $53/month |
-| **Repositories** | 13 (100% pattern compliance) |
-| **Services** | 16 backend, 270+ frontend |
+| **Repositories** | 17+ (100% pattern compliance) |
+| **Services** | 16+ backend, 270+ frontend |
 
 ---
 
 ## 🚀 Pre-Launch Requirements
 
-| Task | Priority | Effort | Notes |
+| Task | Priority | Status | Notes |
 |------|----------|--------|-------|
-| **Load Testing** | 🔴 High | 3-4 hours | Verify all systems under load |
-| **Security Audit** | 🔴 High | 1-2 days | OWASP, penetration testing |
-| **Beta Smoke Test** | 🟡 Medium | 1 day | Manual verification of critical flows |
-| **Search Debounce** | 🟢 Low | 1 hour | 300ms frontend optimization |
+| **Load Testing** | ✅ Complete | Done v120 | 150 users verified |
+| **Security Audit** | 🔴 High | Pending | OWASP, penetration testing |
+| **Beta Smoke Test** | 🟡 Medium | Ready | Manual verification of critical flows |
 
 ---
 
@@ -128,7 +130,6 @@ All core systems operational. Platform ready for beta launch with load testing a
 ### Minor
 - Reschedule flow needs polish
 - Some mobile optimization needed
-- 2 CI tests fail (timezone-related, non-blocking)
 
 ---
 
@@ -142,7 +143,10 @@ All core systems operational. Platform ready for beta launch with load testing a
 4. **24hr Pre-Authorization** - Reduce chargeback risk
 5. **Per-User Conversation State** - Independent archive/trash
 6. **GCRA Rate Limiting** - Consistent, observable protection
-7. **API Versioning** - All routes under `/api/v1/*`
+7. **API v1 Single Rule** - ALL routes under `/api/v1/*` (v121)
 8. **Repository Pattern** - 100% enforced via pre-commit hooks
 9. **Database Safety** - 3-tier with INT default
 10. **Schema-Owned Privacy** - Context-aware data visibility
+11. **NL Search Hybrid Parsing** - Regex + LLM for complex queries (v118)
+12. **Advisory Locks** - Founding cap atomicity (v121)
+13. **Shared Origin Validation** - Security-critical single implementation (v121)
