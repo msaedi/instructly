@@ -3,22 +3,17 @@
 
 This avoids importing heavyweight production dependencies like prometheus_client,
 Sentry, etc. that are not needed for schema generation.
+
+All routes are under /api/v1/* as of Phase 2 infrastructure migration.
 """
 
-# Import only the routers, not the full main app
 from fastapi import APIRouter, FastAPI
 
-# Infrastructure routes (intentionally unversioned)
-from app.routes import (
-    alerts,
-    gated,
-    metrics,
-    monitoring,
-    prometheus,
-)
+# All routes are now under v1
 from app.routes.v1 import (
     account as account_v1,
     addresses as addresses_v1,
+    alerts as alerts_v1,
     analytics as analytics_v1,
     auth as auth_v1,
     availability_windows as availability_windows_v1,
@@ -29,15 +24,22 @@ from app.routes.v1 import (
     conversations as conversations_v1,
     database_monitor as database_monitor_v1,
     favorites as favorites_v1,
+    gated as gated_v1,
+    health as health_v1,
     instructor_bgc as instructor_bgc_v1,
     instructor_bookings as instructor_bookings_v1,
     instructors as instructors_v1,
+    internal as internal_v1,
     messages as messages_v1,
+    metrics as metrics_v1,
+    monitoring as monitoring_v1,
     password_reset as password_reset_v1,
     payments as payments_v1,
     pricing as pricing_v1,
     privacy as privacy_v1,
+    prometheus as prometheus_v1,
     public as public_v1,
+    ready as ready_v1,
     redis_monitor as redis_monitor_v1,
     referrals as referrals_v1,
     reviews as reviews_v1,
@@ -71,10 +73,22 @@ def build_openapi_app() -> FastAPI:
         redoc_url=None,  # Don't need redoc for schema generation
     )
 
-    # Create API v1 router
+    # Create API v1 router - ALL routes are under /api/v1/*
     api_v1 = APIRouter(prefix="/api/v1")
+
+    # Infrastructure routes
+    api_v1.include_router(health_v1.router, prefix="/health")  # type: ignore[attr-defined]
+    api_v1.include_router(ready_v1.router, prefix="/ready")  # type: ignore[attr-defined]
+    api_v1.include_router(prometheus_v1.router, prefix="/metrics")  # type: ignore[attr-defined]
+    api_v1.include_router(gated_v1.router, prefix="/gated")  # type: ignore[attr-defined]
+    api_v1.include_router(metrics_v1.router, prefix="/ops")  # type: ignore[attr-defined]
+    api_v1.include_router(monitoring_v1.router, prefix="/monitoring")  # type: ignore[attr-defined]
+    api_v1.include_router(alerts_v1.router, prefix="/monitoring/alerts")  # type: ignore[attr-defined]
+    api_v1.include_router(internal_v1.router, prefix="/internal")  # type: ignore[attr-defined]
+
+    # Core business routes
     api_v1.include_router(instructors_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
-    api_v1.include_router(instructor_bgc_v1.router, prefix="/instructors")  # type: ignore[attr-defined]  # BGC endpoints
+    api_v1.include_router(instructor_bgc_v1.router, prefix="/instructors")  # type: ignore[attr-defined]
     api_v1.include_router(availability_windows_v1.router, prefix="/instructors/availability")  # type: ignore[attr-defined]
     api_v1.include_router(bookings_v1.router, prefix="/bookings")  # type: ignore[attr-defined]
     api_v1.include_router(instructor_bookings_v1.router, prefix="/instructor-bookings")  # type: ignore[attr-defined]
@@ -87,12 +101,17 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(search_v1.router, prefix="/search")  # type: ignore[attr-defined]
     api_v1.include_router(search_history_v1.router, prefix="/search-history")  # type: ignore[attr-defined]
     api_v1.include_router(referrals_v1.router, prefix="/referrals")  # type: ignore[attr-defined]
+
+    # Auth routes
     api_v1.include_router(account_v1.router, prefix="/account")  # type: ignore[attr-defined]
     api_v1.include_router(password_reset_v1.router, prefix="/password-reset")  # type: ignore[attr-defined]
     api_v1.include_router(two_factor_auth_v1.router, prefix="/2fa")  # type: ignore[attr-defined]
     api_v1.include_router(auth_v1.router, prefix="/auth")  # type: ignore[attr-defined]
+
+    # Payment routes
     api_v1.include_router(payments_v1.router, prefix="/payments")  # type: ignore[attr-defined]
-    # Phase 18 v1 routers
+
+    # User-facing routes
     api_v1.include_router(uploads_v1.router, prefix="/uploads")  # type: ignore[attr-defined]
     api_v1.include_router(users_v1.router, prefix="/users")  # type: ignore[attr-defined]
     api_v1.include_router(privacy_v1.router, prefix="/privacy")  # type: ignore[attr-defined]
@@ -100,85 +119,31 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(pricing_v1.router, prefix="/pricing")  # type: ignore[attr-defined]
     api_v1.include_router(config_v1.router, prefix="/config")  # type: ignore[attr-defined]
     api_v1.include_router(student_badges_v1.router, prefix="/students/badges")  # type: ignore[attr-defined]
-    # Phase 19 v1 admin routers
+
+    # Admin routes
     api_v1.include_router(admin_config_v1.router, prefix="/admin/config")  # type: ignore[attr-defined]
     api_v1.include_router(admin_search_config_v1.router, prefix="/admin")  # type: ignore[attr-defined]
     api_v1.include_router(admin_audit_v1.router, prefix="/admin/audit")  # type: ignore[attr-defined]
     api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
     api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
     api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
-    # Phase 23 v1 webhooks router
+    api_v1.include_router(referrals_v1.admin_router, prefix="/admin/referrals")  # type: ignore[attr-defined]
+
+    # Webhook routes
     api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]
-    # Phase 24.5 v1 monitoring routers
+
+    # Monitoring/analytics routes
     api_v1.include_router(analytics_v1.router, prefix="/analytics")  # type: ignore[attr-defined]
     api_v1.include_router(codebase_metrics_v1.router, prefix="/analytics/codebase")  # type: ignore[attr-defined]
     api_v1.include_router(redis_monitor_v1.router, prefix="/redis")  # type: ignore[attr-defined]
     api_v1.include_router(database_monitor_v1.router, prefix="/database")  # type: ignore[attr-defined]
     api_v1.include_router(beta_v1.router, prefix="/beta")  # type: ignore[attr-defined]
 
-    # Mount v1 API first
-    app.include_router(api_v1)
+    # Referral short URLs - /api/v1/r/{slug}
+    api_v1.include_router(referrals_v1.public_router, prefix="/r")  # type: ignore[attr-defined]
 
-    # Include all routers in the same order as main.py
-    # Legacy auth - now /api/v1/auth
-    # app.include_router(auth.router)
-    # Legacy two_factor_auth - now /api/v1/2fa
-    # app.include_router(two_factor_auth.router)
-    # Instructors v1 is mounted above in api_v1
-    # app.include_router(instructors.router)  # Legacy - now /api/v1/instructors
-    # Legacy instructor_bookings - now /api/v1/instructor-bookings
-    # app.include_router(instructor_bookings.router)  # Was: /instructors/bookings
-    # Legacy account_management - now /api/v1/account
-    # app.include_router(account_management.router)  # Was: /api/account
-    # Legacy services - now /api/v1/services
-    # app.include_router(services.router)  # Was: /services
-    # Legacy availability_windows - now /api/v1/instructors/availability
-    # app.include_router(availability_windows.router)
-    # Legacy password_reset - now /api/v1/password-reset
-    # app.include_router(password_reset.router)
-    # Legacy bookings - now /api/v1/bookings
-    # app.include_router(bookings.router)  # Was: /bookings
-    # Legacy favorites - now /api/v1/favorites
-    # app.include_router(favorites.router)  # Was: /api/favorites
-    # Legacy payments - now /api/v1/payments
-    # app.include_router(payments.router)
-    # Legacy messages - now /api/v1/messages
-    # app.include_router(messages.router)
-    app.include_router(metrics.router)
-    app.include_router(monitoring.router)
-    app.include_router(alerts.router)
-    # Analytics and codebase_metrics now in /api/v1/analytics/*
-    # Legacy public - now /api/v1/public
-    # app.include_router(public.router)
-    # Legacy referrals - now /api/v1/referrals
-    # app.include_router(referrals.public_router)  # Was: /r/{slug}
-    # app.include_router(referrals.router)  # Was: /api/referrals
-    # app.include_router(referrals.admin_router)  # Was: /api/admin/referrals
-    # Mount v1 referrals public router (slug redirect) and admin router
-    app.include_router(referrals_v1.public_router)
-    app.include_router(referrals_v1.admin_router, prefix="/api/v1/admin/referrals")
-    # Legacy search - now /api/v1/search
-    # app.include_router(search.router, prefix="/api/search", tags=["search"])
-    # Legacy search-history - now /api/v1/search-history
-    # app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
-    # Legacy addresses - now /api/v1/addresses
-    # app.include_router(addresses.router)
-    # Redis and database monitors now in /api/v1/redis/* and /api/v1/database/*
-    # Legacy admin_config - now /api/v1/admin/config
-    # app.include_router(admin_config.router)
-    # Legacy privacy - now /api/v1/privacy
-    # app.include_router(privacy.router, prefix="/api", tags=["privacy"])
-    # Legacy stripe_webhooks - now /api/v1/payments/webhooks/stripe
-    # app.include_router(stripe_webhooks.router)
-    app.include_router(prometheus.router)
-    # Legacy uploads - now /api/v1/uploads
-    # app.include_router(uploads.router)
-    # Legacy users profile picture - now /api/v1/users
-    # app.include_router(users_profile_picture.router)
-    # Beta now in /api/v1/beta/*
-    # Legacy reviews - now /api/v1/reviews
-    # app.include_router(reviews.router)
-    app.include_router(gated.router)
+    # Mount v1 API
+    app.include_router(api_v1)
 
     return app
 

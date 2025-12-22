@@ -1,708 +1,4 @@
 export type paths = {
- "/api/analytics/codebase/history": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_codebase_metrics_history_api_analytics_codebase_history_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/codebase/history/append": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["append_codebase_metrics_history_api_analytics_codebase_history_append_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/codebase/metrics": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_codebase_metrics_api_analytics_codebase_metrics_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/export": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["export_analytics_api_analytics_export_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/candidates/category-trends": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["candidates_category_trends_api_analytics_search_candidates_category_trends_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/candidates/queries": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["candidate_service_queries_api_analytics_search_candidates_queries_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/candidates/score-distribution": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["candidates_score_distribution_api_analytics_search_candidates_score_distribution_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/candidates/summary": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["candidates_summary_api_analytics_search_candidates_summary_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/candidates/top-services": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["candidates_top_services_api_analytics_search_candidates_top_services_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/conversion-metrics": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_conversion_metrics_api_analytics_search_conversion_metrics_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/popular-searches": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_popular_searches_api_analytics_search_popular_searches_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/referrers": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_search_referrers_api_analytics_search_referrers_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/search-analytics-summary": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_search_analytics_summary_api_analytics_search_search_analytics_summary_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/search-performance": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_search_performance_api_analytics_search_search_performance_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/analytics/search/search-trends": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_search_trends_api_analytics_search_search_trends_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/beta/invites/consume": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["consume_invite_api_beta_invites_consume_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/beta/invites/generate": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["generate_invites_api_beta_invites_generate_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/beta/invites/send": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["send_invite_api_beta_invites_send_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/beta/invites/send-batch": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["send_invite_batch_api_beta_invites_send_batch_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/beta/invites/send-batch-async": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["send_invite_batch_async_api_beta_invites_send_batch_async_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/beta/invites/send-batch-progress": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_invite_batch_progress_api_beta_invites_send_batch_progress_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/beta/invites/validate": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["validate_invite_api_beta_invites_validate_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/beta/invites/verified": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["invite_verified_api_beta_invites_verified_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/beta/metrics/summary": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_beta_metrics_summary_api_beta_metrics_summary_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/beta/settings": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_beta_settings_api_beta_settings_get"];
- put: operations["update_beta_settings_api_beta_settings_put"];
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/database/health": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["database_health_api_database_health_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/database/pool-status": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["database_pool_status_api_database_pool_status_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/database/stats": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["database_stats_api_database_stats_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/monitoring/alerts/acknowledge/{alert_type}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["acknowledge_alert_api_monitoring_alerts_acknowledge__alert_type__post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/monitoring/alerts/live": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_live_alerts_api_monitoring_alerts_live_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/monitoring/alerts/recent": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_recent_alerts_api_monitoring_alerts_recent_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/monitoring/alerts/summary": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_alert_summary_api_monitoring_alerts_summary_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/monitoring/cache/extended-stats": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_extended_cache_stats_api_monitoring_cache_extended_stats_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/monitoring/dashboard": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_monitoring_dashboard_api_monitoring_dashboard_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/monitoring/payment-health": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_payment_system_health_api_monitoring_payment_health_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/monitoring/slow-queries": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_slow_queries_api_monitoring_slow_queries_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/monitoring/slow-requests": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_slow_requests_api_monitoring_slow_requests_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/monitoring/trigger-payment-health-check": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["trigger_payment_health_check_api_monitoring_trigger_payment_health_check_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/redis/celery-queues": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["celery_queue_status_api_redis_celery_queues_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/redis/connection-audit": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["redis_connection_audit_api_redis_connection_audit_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/redis/flush-queues": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post?: never;
- delete: operations["flush_celery_queues_api_redis_flush_queues_delete"];
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/redis/health": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["redis_health_api_redis_health_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/redis/stats": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["redis_stats_api_redis_stats_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/api/redis/test": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["redis_test_api_redis_test_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
  "/api/v1/2fa/disable": {
  parameters: {
  query?: never;
@@ -1375,6 +671,246 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/analytics/codebase/history": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_codebase_metrics_history_api_v1_analytics_codebase_history_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/codebase/history/append": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["append_codebase_metrics_history_api_v1_analytics_codebase_history_append_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/codebase/metrics": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_codebase_metrics_api_v1_analytics_codebase_metrics_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/export": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["export_analytics_api_v1_analytics_export_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/candidates/category-trends": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["candidates_category_trends_api_v1_analytics_search_candidates_category_trends_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/candidates/queries": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["candidate_service_queries_api_v1_analytics_search_candidates_queries_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/candidates/score-distribution": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["candidates_score_distribution_api_v1_analytics_search_candidates_score_distribution_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/candidates/summary": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["candidates_summary_api_v1_analytics_search_candidates_summary_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/candidates/top-services": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["candidates_top_services_api_v1_analytics_search_candidates_top_services_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/conversion-metrics": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_conversion_metrics_api_v1_analytics_search_conversion_metrics_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/popular-searches": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_popular_searches_api_v1_analytics_search_popular_searches_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/referrers": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_search_referrers_api_v1_analytics_search_referrers_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/search-analytics-summary": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_search_analytics_summary_api_v1_analytics_search_search_analytics_summary_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/search-performance": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_search_performance_api_v1_analytics_search_search_performance_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/analytics/search/search-trends": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_search_trends_api_v1_analytics_search_search_trends_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/auth/change-password": {
  parameters: {
  query?: never;
@@ -1449,6 +985,166 @@ export type paths = {
  get?: never;
  put?: never;
  post: operations["register_api_v1_auth_register_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/beta/invites/consume": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["consume_invite_api_v1_beta_invites_consume_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/beta/invites/generate": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["generate_invites_api_v1_beta_invites_generate_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/beta/invites/send": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_invite_api_v1_beta_invites_send_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/beta/invites/send-batch": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_invite_batch_api_v1_beta_invites_send_batch_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/beta/invites/send-batch-async": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["send_invite_batch_async_api_v1_beta_invites_send_batch_async_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/beta/invites/send-batch-progress": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_invite_batch_progress_api_v1_beta_invites_send_batch_progress_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/beta/invites/validate": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["validate_invite_api_v1_beta_invites_validate_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/beta/invites/verified": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["invite_verified_api_v1_beta_invites_verified_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/beta/metrics/summary": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_beta_metrics_summary_api_v1_beta_metrics_summary_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/beta/settings": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_beta_settings_api_v1_beta_settings_get"];
+ put: operations["update_beta_settings_api_v1_beta_settings_put"];
+ post?: never;
  delete?: never;
  options?: never;
  head?: never;
@@ -1791,6 +1487,54 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/database/health": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["database_health_api_v1_database_health_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/database/pool-status": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["database_pool_status_api_v1_database_pool_status_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/database/stats": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["database_stats_api_v1_database_stats_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/favorites": {
  parameters: {
  query?: never;
@@ -1834,6 +1578,54 @@ export type paths = {
  put?: never;
  post: operations["add_favorite_api_v1_favorites__instructor_id__post"];
  delete: operations["remove_favorite_api_v1_favorites__instructor_id__delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/gated/ping": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["gated_ping_api_v1_gated_ping_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/health": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["health_check_api_v1_health_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/health/lite": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["health_check_lite_api_v1_health_lite_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
  options?: never;
  head?: never;
  patch?: never;
@@ -2399,6 +2191,310 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/monitoring/alerts/acknowledge/{alert_type}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["acknowledge_alert_api_v1_monitoring_alerts_acknowledge__alert_type__post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/monitoring/alerts/live": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_live_alerts_api_v1_monitoring_alerts_live_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/monitoring/alerts/recent": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_recent_alerts_api_v1_monitoring_alerts_recent_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/monitoring/alerts/summary": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_alert_summary_api_v1_monitoring_alerts_summary_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/monitoring/cache/extended-stats": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_extended_cache_stats_api_v1_monitoring_cache_extended_stats_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/monitoring/dashboard": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_monitoring_dashboard_api_v1_monitoring_dashboard_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/monitoring/payment-health": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_payment_system_health_api_v1_monitoring_payment_health_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/monitoring/slow-queries": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_slow_queries_api_v1_monitoring_slow_queries_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/monitoring/slow-requests": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_slow_requests_api_v1_monitoring_slow_requests_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/monitoring/trigger-payment-health-check": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["trigger_payment_health_check_api_v1_monitoring_trigger_payment_health_check_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/ops/cache": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_cache_metrics_api_v1_ops_cache_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/ops/cache/availability": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_availability_cache_metrics_api_v1_ops_cache_availability_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/ops/cache/reset-stats": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["reset_cache_stats_api_v1_ops_cache_reset_stats_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/ops/health": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["health_check_api_v1_ops_health_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/ops/performance": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_performance_metrics_api_v1_ops_performance_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/ops/rate-limits": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_rate_limit_stats_api_v1_ops_rate_limits_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/ops/rate-limits/reset": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["reset_rate_limits_api_v1_ops_rate_limits_reset_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/ops/rate-limits/test": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["test_rate_limit_api_v1_ops_rate_limits_test_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/ops/slow-queries": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["get_slow_queries_api_v1_ops_slow_queries_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/password-reset/confirm": {
  parameters: {
  query?: never;
@@ -2889,6 +2985,134 @@ export type paths = {
  get?: never;
  put?: never;
  post: operations["create_guest_session_api_v1_public_session_guest_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/r/{slug}": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["resolve_referral_slug_api_v1_r__slug__get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/ready": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["ready_probe_api_v1_ready_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/redis/celery-queues": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["celery_queue_status_api_v1_redis_celery_queues_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/redis/connection-audit": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["redis_connection_audit_api_v1_redis_connection_audit_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/redis/flush-queues": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post?: never;
+ delete: operations["flush_celery_queues_api_v1_redis_flush_queues_delete"];
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/redis/health": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["redis_health_api_v1_redis_health_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/redis/stats": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["redis_stats_api_v1_redis_stats_get"];
+ put?: never;
+ post?: never;
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
+ "/api/v1/redis/test": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get: operations["redis_test_api_v1_redis_test_get"];
+ put?: never;
+ post?: never;
  delete?: never;
  options?: never;
  head?: never;
@@ -3529,182 +3753,6 @@ export type paths = {
  get?: never;
  put?: never;
  post: operations["handle_checkr_webhook_api_v1_webhooks_checkr_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/ops/cache": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_cache_metrics_ops_cache_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/ops/cache/availability": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_availability_cache_metrics_ops_cache_availability_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/ops/cache/reset-stats": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["reset_cache_stats_ops_cache_reset_stats_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/ops/health": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["health_check_ops_health_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/ops/performance": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_performance_metrics_ops_performance_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/ops/rate-limits": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_rate_limit_stats_ops_rate_limits_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/ops/rate-limits/reset": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get?: never;
- put?: never;
- post: operations["reset_rate_limits_ops_rate_limits_reset_post"];
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/ops/rate-limits/test": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["test_rate_limit_ops_rate_limits_test_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/ops/slow-queries": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["get_slow_queries_ops_slow_queries_get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/r/{slug}": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["resolve_referral_slug_r__slug__get"];
- put?: never;
- post?: never;
- delete?: never;
- options?: never;
- head?: never;
- patch?: never;
- trace?: never;
- };
- "/v1/gated/ping": {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- get: operations["gated_ping_v1_gated_ping_get"];
- put?: never;
- post?: never;
  delete?: never;
  options?: never;
  head?: never;
@@ -4887,6 +4935,16 @@ export type components = {
  timestamp?: string;
  version: string;
  };
+ HealthLiteResponse: {
+ status: string;
+ };
+ HealthResponse: {
+ environment: string;
+ service: string;
+ status: string;
+ timestamp: string;
+ version: string;
+ };
  IdentityRefreshResponse: {
  status: string;
  verified: boolean;
@@ -5620,6 +5678,10 @@ export type components = {
  ReadReceiptEntry: {
  read_at: string;
  user_id: string;
+ };
+ ReadyProbeResponse: {
+ notifications_healthy?: boolean | null;
+ status: "ok" | "db_not_ready" | "cache_not_ready" | "degraded";
  };
  RecentAlertsResponse: {
  alerts: components["schemas"]["AlertDetail"][];
@@ -6391,1305 +6453,6 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
- get_codebase_metrics_history_api_analytics_codebase_history_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CodebaseHistoryResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- append_codebase_metrics_history_api_analytics_codebase_history_append_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AppendHistoryResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- get_codebase_metrics_api_analytics_codebase_metrics_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CodebaseMetricsResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- export_analytics_api_analytics_export_post: {
- parameters: {
- query?: {
- format?: string;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["ExportAnalyticsResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- candidates_category_trends_api_analytics_search_candidates_category_trends_get: {
- parameters: {
- query?: {
- days?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CandidateCategoryTrendsResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- candidate_service_queries_api_analytics_search_candidates_queries_get: {
- parameters: {
- query: {
- service_catalog_id: string;
- days?: number;
- limit?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CandidateServiceQueriesResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- candidates_score_distribution_api_analytics_search_candidates_score_distribution_get: {
- parameters: {
- query?: {
- days?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CandidateScoreDistributionResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- candidates_summary_api_analytics_search_candidates_summary_get: {
- parameters: {
- query?: {
- days?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CandidateSummaryResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- candidates_top_services_api_analytics_search_candidates_top_services_get: {
- parameters: {
- query?: {
- days?: number;
- limit?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CandidateTopServicesResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_conversion_metrics_api_analytics_search_conversion_metrics_get: {
- parameters: {
- query?: {
- days?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["ConversionMetricsResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_popular_searches_api_analytics_search_popular_searches_get: {
- parameters: {
- query?: {
- days?: number;
- limit?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PopularSearchesResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_search_referrers_api_analytics_search_referrers_get: {
- parameters: {
- query?: {
- days?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SearchReferrersResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_search_analytics_summary_api_analytics_search_search_analytics_summary_get: {
- parameters: {
- query?: {
- days?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SearchAnalyticsSummaryResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_search_performance_api_analytics_search_search_performance_get: {
- parameters: {
- query?: {
- days?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SearchPerformanceResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_search_trends_api_analytics_search_search_trends_get: {
- parameters: {
- query?: {
- days?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SearchTrendsResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- consume_invite_api_beta_invites_consume_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["InviteConsumeRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AccessGrantResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- generate_invites_api_beta_invites_generate_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["InviteGenerateRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InviteGenerateResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- send_invite_api_beta_invites_send_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["InviteSendRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InviteSendResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- send_invite_batch_api_beta_invites_send_batch_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["InviteBatchSendRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InviteBatchSendResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- send_invite_batch_async_api_beta_invites_send_batch_async_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["InviteBatchSendRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InviteBatchAsyncStartResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_invite_batch_progress_api_beta_invites_send_batch_progress_get: {
- parameters: {
- query: {
- task_id: string;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InviteBatchProgressResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- validate_invite_api_beta_invites_validate_get: {
- parameters: {
- query?: {
- code?: string | null;
- invite_code?: string | null;
- email?: string | null;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["InviteValidateResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- invite_verified_api_beta_invites_verified_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 204: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- get_beta_metrics_summary_api_beta_metrics_summary_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BetaMetricsSummaryResponse"];
- };
- };
- };
- };
- get_beta_settings_api_beta_settings_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BetaSettingsResponse"];
- };
- };
- };
- };
- update_beta_settings_api_beta_settings_put: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody: {
- content: {
- "application/json": components["schemas"]["BetaSettingsUpdateRequest"];
- };
- };
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["BetaSettingsResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- database_health_api_database_health_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["DatabaseHealthResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- database_pool_status_api_database_pool_status_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["DatabasePoolStatusResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- database_stats_api_database_stats_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["DatabaseStatsResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- acknowledge_alert_api_monitoring_alerts_acknowledge__alert_type__post: {
- parameters: {
- query?: never;
- header?: {
- "X-Monitoring-API-Key"?: string | null;
- };
- path: {
- alert_type: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AlertAcknowledgeResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_live_alerts_api_monitoring_alerts_live_get: {
- parameters: {
- query?: {
- minutes?: number;
- };
- header: {
- "x-api-key": string;
- };
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["LiveAlertsResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_recent_alerts_api_monitoring_alerts_recent_get: {
- parameters: {
- query?: {
- hours?: number;
- limit?: number;
- severity?: string | null;
- };
- header: {
- "x-api-key": string;
- };
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RecentAlertsResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_alert_summary_api_monitoring_alerts_summary_get: {
- parameters: {
- query?: {
- days?: number;
- };
- header: {
- "x-api-key": string;
- };
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AlertSummaryResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_extended_cache_stats_api_monitoring_cache_extended_stats_get: {
- parameters: {
- query?: never;
- header?: {
- "X-Monitoring-API-Key"?: string | null;
- };
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["ExtendedCacheStats"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_monitoring_dashboard_api_monitoring_dashboard_get: {
- parameters: {
- query?: never;
- header?: {
- "X-Monitoring-API-Key"?: string | null;
- };
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["MonitoringDashboardResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_payment_system_health_api_monitoring_payment_health_get: {
- parameters: {
- query?: never;
- header?: {
- "X-Monitoring-API-Key"?: string | null;
- };
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PaymentHealthResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_slow_queries_api_monitoring_slow_queries_get: {
- parameters: {
- query?: {
- limit?: number;
- };
- header?: {
- "X-Monitoring-API-Key"?: string | null;
- };
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SlowQueriesResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_slow_requests_api_monitoring_slow_requests_get: {
- parameters: {
- query?: {
- limit?: number;
- };
- header?: {
- "X-Monitoring-API-Key"?: string | null;
- };
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SlowRequestsResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- trigger_payment_health_check_api_monitoring_trigger_payment_health_check_post: {
- parameters: {
- query?: never;
- header?: {
- "X-Monitoring-API-Key"?: string | null;
- };
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PaymentHealthCheckTriggerResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- celery_queue_status_api_redis_celery_queues_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RedisCeleryQueuesResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- redis_connection_audit_api_redis_connection_audit_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RedisConnectionAuditResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- flush_celery_queues_api_redis_flush_queues_delete: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RedisFlushQueuesResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- redis_health_api_redis_health_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RedisHealthResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- redis_stats_api_redis_stats_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RedisStatsResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
- redis_test_api_redis_test_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RedisTestResponse"];
- };
- };
- 404: {
- headers: {
- [name: string]: unknown;
- };
- content?: never;
- };
- };
- };
  disable_api_v1_2fa_disable_post: {
  parameters: {
  query?: never;
@@ -8927,6 +7690,433 @@ export interface operations {
  };
  };
  };
+ get_codebase_metrics_history_api_v1_analytics_codebase_history_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CodebaseHistoryResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ append_codebase_metrics_history_api_v1_analytics_codebase_history_append_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AppendHistoryResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ get_codebase_metrics_api_v1_analytics_codebase_metrics_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CodebaseMetricsResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ export_analytics_api_v1_analytics_export_post: {
+ parameters: {
+ query?: {
+ format?: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ExportAnalyticsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ candidates_category_trends_api_v1_analytics_search_candidates_category_trends_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CandidateCategoryTrendsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ candidate_service_queries_api_v1_analytics_search_candidates_queries_get: {
+ parameters: {
+ query: {
+ service_catalog_id: string;
+ days?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CandidateServiceQueriesResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ candidates_score_distribution_api_v1_analytics_search_candidates_score_distribution_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CandidateScoreDistributionResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ candidates_summary_api_v1_analytics_search_candidates_summary_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CandidateSummaryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ candidates_top_services_api_v1_analytics_search_candidates_top_services_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CandidateTopServicesResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_conversion_metrics_api_v1_analytics_search_conversion_metrics_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ConversionMetricsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_popular_searches_api_v1_analytics_search_popular_searches_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ limit?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PopularSearchesResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_search_referrers_api_v1_analytics_search_referrers_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SearchReferrersResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_search_analytics_summary_api_v1_analytics_search_search_analytics_summary_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SearchAnalyticsSummaryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_search_performance_api_v1_analytics_search_search_performance_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SearchPerformanceResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_search_trends_api_v1_analytics_search_search_trends_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SearchTrendsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
  change_password_api_v1_auth_change_password_post: {
  parameters: {
  query?: never;
@@ -9089,6 +8279,307 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AuthUserResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ consume_invite_api_v1_beta_invites_consume_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["InviteConsumeRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AccessGrantResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ generate_invites_api_v1_beta_invites_generate_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["InviteGenerateRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InviteGenerateResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_invite_api_v1_beta_invites_send_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["InviteSendRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InviteSendResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_invite_batch_api_v1_beta_invites_send_batch_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["InviteBatchSendRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InviteBatchSendResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ send_invite_batch_async_api_v1_beta_invites_send_batch_async_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["InviteBatchSendRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InviteBatchAsyncStartResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_invite_batch_progress_api_v1_beta_invites_send_batch_progress_get: {
+ parameters: {
+ query: {
+ task_id: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InviteBatchProgressResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ validate_invite_api_v1_beta_invites_validate_get: {
+ parameters: {
+ query?: {
+ code?: string | null;
+ invite_code?: string | null;
+ email?: string | null;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["InviteValidateResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ invite_verified_api_v1_beta_invites_verified_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 204: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ get_beta_metrics_summary_api_v1_beta_metrics_summary_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BetaMetricsSummaryResponse"];
+ };
+ };
+ };
+ };
+ get_beta_settings_api_v1_beta_settings_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BetaSettingsResponse"];
+ };
+ };
+ };
+ };
+ update_beta_settings_api_v1_beta_settings_put: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["BetaSettingsUpdateRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["BetaSettingsResponse"];
  };
  };
  422: {
@@ -9932,6 +9423,81 @@ export interface operations {
  };
  };
  };
+ database_health_api_v1_database_health_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["DatabaseHealthResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ database_pool_status_api_v1_database_pool_status_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["DatabasePoolStatusResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ database_stats_api_v1_database_stats_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["DatabaseStatsResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
  get_favorites_api_v1_favorites_get: {
  parameters: {
  query?: never;
@@ -10034,6 +9600,63 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ gated_ping_api_v1_gated_ping_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["GatedPingResponse"];
+ };
+ };
+ };
+ };
+ health_check_api_v1_health_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HealthResponse"];
+ };
+ };
+ };
+ };
+ health_check_lite_api_v1_health_lite_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HealthLiteResponse"];
  };
  };
  };
@@ -11838,6 +11461,543 @@ export interface operations {
  };
  };
  };
+ acknowledge_alert_api_v1_monitoring_alerts_acknowledge__alert_type__post: {
+ parameters: {
+ query?: never;
+ header?: {
+ "X-Monitoring-API-Key"?: string | null;
+ };
+ path: {
+ alert_type: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AlertAcknowledgeResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_live_alerts_api_v1_monitoring_alerts_live_get: {
+ parameters: {
+ query?: {
+ minutes?: number;
+ };
+ header: {
+ "x-api-key": string;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["LiveAlertsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_recent_alerts_api_v1_monitoring_alerts_recent_get: {
+ parameters: {
+ query?: {
+ hours?: number;
+ limit?: number;
+ severity?: string | null;
+ };
+ header: {
+ "x-api-key": string;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RecentAlertsResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_alert_summary_api_v1_monitoring_alerts_summary_get: {
+ parameters: {
+ query?: {
+ days?: number;
+ };
+ header: {
+ "x-api-key": string;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AlertSummaryResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_extended_cache_stats_api_v1_monitoring_cache_extended_stats_get: {
+ parameters: {
+ query?: never;
+ header?: {
+ "X-Monitoring-API-Key"?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ExtendedCacheStats"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_monitoring_dashboard_api_v1_monitoring_dashboard_get: {
+ parameters: {
+ query?: never;
+ header?: {
+ "X-Monitoring-API-Key"?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["MonitoringDashboardResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_payment_system_health_api_v1_monitoring_payment_health_get: {
+ parameters: {
+ query?: never;
+ header?: {
+ "X-Monitoring-API-Key"?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaymentHealthResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_slow_queries_api_v1_monitoring_slow_queries_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: {
+ "X-Monitoring-API-Key"?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SlowQueriesResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_slow_requests_api_v1_monitoring_slow_requests_get: {
+ parameters: {
+ query?: {
+ limit?: number;
+ };
+ header?: {
+ "X-Monitoring-API-Key"?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SlowRequestsResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ trigger_payment_health_check_api_v1_monitoring_trigger_payment_health_check_post: {
+ parameters: {
+ query?: never;
+ header?: {
+ "X-Monitoring-API-Key"?: string | null;
+ };
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PaymentHealthCheckTriggerResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_cache_metrics_api_v1_ops_cache_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["CacheMetricsResponse"];
+ };
+ };
+ };
+ };
+ get_availability_cache_metrics_api_v1_ops_cache_availability_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AvailabilityCacheMetricsResponse"];
+ };
+ };
+ };
+ };
+ reset_cache_stats_api_v1_ops_cache_reset_stats_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SuccessResponse"];
+ };
+ };
+ };
+ };
+ health_check_api_v1_ops_health_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HealthCheckResponse"];
+ };
+ };
+ };
+ };
+ get_performance_metrics_api_v1_ops_performance_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["PerformanceMetricsResponse"];
+ };
+ };
+ };
+ };
+ get_rate_limit_stats_api_v1_ops_rate_limits_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RateLimitStats"];
+ };
+ };
+ };
+ };
+ reset_rate_limits_api_v1_ops_rate_limits_reset_post: {
+ parameters: {
+ query: {
+ pattern: string;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RateLimitResetResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ test_rate_limit_api_v1_ops_rate_limits_test_get: {
+ parameters: {
+ query?: {
+ requests?: number;
+ };
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RateLimitTestResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ get_slow_queries_api_v1_ops_slow_queries_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["SlowQueriesResponse"];
+ };
+ };
+ };
+ };
  confirm_password_reset_api_v1_password_reset_confirm_post: {
  parameters: {
  query?: never;
@@ -12650,6 +12810,204 @@ export interface operations {
  content: {
  "application/json": components["schemas"]["GuestSessionResponse"];
  };
+ };
+ };
+ };
+ resolve_referral_slug_api_v1_r__slug__get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ slug: string;
+ };
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ReferralResolveResponse"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ ready_probe_api_v1_ready_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["ReadyProbeResponse"];
+ };
+ };
+ };
+ };
+ celery_queue_status_api_v1_redis_celery_queues_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RedisCeleryQueuesResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ redis_connection_audit_api_v1_redis_connection_audit_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RedisConnectionAuditResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ flush_celery_queues_api_v1_redis_flush_queues_delete: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RedisFlushQueuesResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ redis_health_api_v1_redis_health_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RedisHealthResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ redis_stats_api_v1_redis_stats_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RedisStatsResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
+ };
+ };
+ };
+ redis_test_api_v1_redis_test_get: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ requestBody?: never;
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["RedisTestResponse"];
+ };
+ };
+ 404: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content?: never;
  };
  };
  };
@@ -13858,245 +14216,6 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["WebhookAckResponse"];
- };
- };
- };
- };
- get_cache_metrics_ops_cache_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["CacheMetricsResponse"];
- };
- };
- };
- };
- get_availability_cache_metrics_ops_cache_availability_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["AvailabilityCacheMetricsResponse"];
- };
- };
- };
- };
- reset_cache_stats_ops_cache_reset_stats_post: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SuccessResponse"];
- };
- };
- };
- };
- health_check_ops_health_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HealthCheckResponse"];
- };
- };
- };
- };
- get_performance_metrics_ops_performance_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["PerformanceMetricsResponse"];
- };
- };
- };
- };
- get_rate_limit_stats_ops_rate_limits_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RateLimitStats"];
- };
- };
- };
- };
- reset_rate_limits_ops_rate_limits_reset_post: {
- parameters: {
- query: {
- pattern: string;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RateLimitResetResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- test_rate_limit_ops_rate_limits_test_get: {
- parameters: {
- query?: {
- requests?: number;
- };
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["RateLimitTestResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- get_slow_queries_ops_slow_queries_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["SlowQueriesResponse"];
- };
- };
- };
- };
- resolve_referral_slug_r__slug__get: {
- parameters: {
- query?: never;
- header?: never;
- path: {
- slug: string;
- };
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["ReferralResolveResponse"];
- };
- };
- 422: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["HTTPValidationError"];
- };
- };
- };
- };
- gated_ping_v1_gated_ping_get: {
- parameters: {
- query?: never;
- header?: never;
- path?: never;
- cookie?: never;
- };
- requestBody?: never;
- responses: {
- 200: {
- headers: {
- [name: string]: unknown;
- };
- content: {
- "application/json": components["schemas"]["GatedPingResponse"];
  };
  };
  };

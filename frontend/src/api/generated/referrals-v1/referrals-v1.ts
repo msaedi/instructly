@@ -35,6 +35,128 @@ import { customFetch } from '../../orval-mutator';
 import type { ErrorType } from '../../orval-mutator';
 
 /**
+ * Resolve referral slug and redirect to landing page.
+ * @summary Resolve Referral Slug
+ */
+export const resolveReferralSlugApiV1RSlugGet = (slug: string, signal?: AbortSignal) => {
+  return customFetch<ReferralResolveResponse>({ url: `/api/v1/r/${slug}`, method: 'GET', signal });
+};
+
+export const getResolveReferralSlugApiV1RSlugGetQueryKey = (slug?: string) => {
+  return [`/api/v1/r/${slug}`] as const;
+};
+
+export const getResolveReferralSlugApiV1RSlugGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>, TError, TData>
+    >;
+  }
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getResolveReferralSlugApiV1RSlugGetQueryKey(slug);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>> = ({
+    signal,
+  }) => resolveReferralSlugApiV1RSlugGet(slug, signal);
+
+  return { queryKey, queryFn, enabled: !!slug, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ResolveReferralSlugApiV1RSlugGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>
+>;
+export type ResolveReferralSlugApiV1RSlugGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useResolveReferralSlugApiV1RSlugGet<
+  TData = Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  slug: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>,
+          TError,
+          Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useResolveReferralSlugApiV1RSlugGet<
+  TData = Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>,
+          TError,
+          Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useResolveReferralSlugApiV1RSlugGet<
+  TData = Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Resolve Referral Slug
+ */
+
+export function useResolveReferralSlugApiV1RSlugGet<
+  TData = Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugApiV1RSlugGet>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getResolveReferralSlugApiV1RSlugGetQueryOptions(slug, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+/**
  * Apply referral credit to a checkout order.
  * @summary Apply Referral Credit
  */
@@ -334,128 +456,6 @@ export function useGetMyReferralLedgerApiV1ReferralsMeGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetMyReferralLedgerApiV1ReferralsMeGetQueryOptions(options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  query.queryKey = queryOptions.queryKey;
-
-  return query;
-}
-
-/**
- * Resolve referral slug and redirect to landing page.
- * @summary Resolve Referral Slug
- */
-export const resolveReferralSlugRSlugGet = (slug: string, signal?: AbortSignal) => {
-  return customFetch<ReferralResolveResponse>({ url: `/r/${slug}`, method: 'GET', signal });
-};
-
-export const getResolveReferralSlugRSlugGetQueryKey = (slug?: string) => {
-  return [`/r/${slug}`] as const;
-};
-
-export const getResolveReferralSlugRSlugGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  slug: string,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>
-    >;
-  }
-) => {
-  const { query: queryOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getResolveReferralSlugRSlugGetQueryKey(slug);
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>> = ({
-    signal,
-  }) => resolveReferralSlugRSlugGet(slug, signal);
-
-  return { queryKey, queryFn, enabled: !!slug, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ResolveReferralSlugRSlugGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>
->;
-export type ResolveReferralSlugRSlugGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useResolveReferralSlugRSlugGet<
-  TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  slug: string,
-  options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
-          TError,
-          Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>
-        >,
-        'initialData'
-      >;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useResolveReferralSlugRSlugGet<
-  TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  slug: string,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
-          TError,
-          Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>
-        >,
-        'initialData'
-      >;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useResolveReferralSlugRSlugGet<
-  TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  slug: string,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>
-    >;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Resolve Referral Slug
- */
-
-export function useResolveReferralSlugRSlugGet<
-  TData = Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  slug: string,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof resolveReferralSlugRSlugGet>>, TError, TData>
-    >;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getResolveReferralSlugRSlugGetQueryOptions(slug, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

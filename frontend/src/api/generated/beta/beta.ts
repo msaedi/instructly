@@ -26,7 +26,7 @@ import type {
   BetaMetricsSummaryResponse,
   BetaSettingsResponse,
   BetaSettingsUpdateRequest,
-  GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetParams,
+  GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetParams,
   HTTPValidationError,
   InviteBatchAsyncStartResponse,
   InviteBatchProgressResponse,
@@ -38,7 +38,7 @@ import type {
   InviteSendRequest,
   InviteSendResponse,
   InviteValidateResponse,
-  ValidateInviteApiBetaInvitesValidateGetParams,
+  ValidateInviteApiV1BetaInvitesValidateGetParams,
 } from '../instructly.schemas';
 
 import { customFetch } from '../../orval-mutator';
@@ -47,12 +47,12 @@ import type { ErrorType } from '../../orval-mutator';
 /**
  * @summary Consume Invite
  */
-export const consumeInviteApiBetaInvitesConsumePost = (
+export const consumeInviteApiV1BetaInvitesConsumePost = (
   inviteConsumeRequest: InviteConsumeRequest,
   signal?: AbortSignal
 ) => {
   return customFetch<AccessGrantResponse>({
-    url: `/api/beta/invites/consume`,
+    url: `/api/v1/beta/invites/consume`,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     data: inviteConsumeRequest,
@@ -60,23 +60,23 @@ export const consumeInviteApiBetaInvitesConsumePost = (
   });
 };
 
-export const getConsumeInviteApiBetaInvitesConsumePostMutationOptions = <
+export const getConsumeInviteApiV1BetaInvitesConsumePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof consumeInviteApiBetaInvitesConsumePost>>,
+    Awaited<ReturnType<typeof consumeInviteApiV1BetaInvitesConsumePost>>,
     TError,
     { data: InviteConsumeRequest },
     TContext
   >;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof consumeInviteApiBetaInvitesConsumePost>>,
+  Awaited<ReturnType<typeof consumeInviteApiV1BetaInvitesConsumePost>>,
   TError,
   { data: InviteConsumeRequest },
   TContext
 > => {
-  const mutationKey = ['consumeInviteApiBetaInvitesConsumePost'];
+  const mutationKey = ['consumeInviteApiV1BetaInvitesConsumePost'];
   const { mutation: mutationOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -84,33 +84,33 @@ export const getConsumeInviteApiBetaInvitesConsumePostMutationOptions = <
     : { mutation: { mutationKey } };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof consumeInviteApiBetaInvitesConsumePost>>,
+    Awaited<ReturnType<typeof consumeInviteApiV1BetaInvitesConsumePost>>,
     { data: InviteConsumeRequest }
   > = (props) => {
     const { data } = props ?? {};
 
-    return consumeInviteApiBetaInvitesConsumePost(data);
+    return consumeInviteApiV1BetaInvitesConsumePost(data);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ConsumeInviteApiBetaInvitesConsumePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof consumeInviteApiBetaInvitesConsumePost>>
+export type ConsumeInviteApiV1BetaInvitesConsumePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof consumeInviteApiV1BetaInvitesConsumePost>>
 >;
-export type ConsumeInviteApiBetaInvitesConsumePostMutationBody = InviteConsumeRequest;
-export type ConsumeInviteApiBetaInvitesConsumePostMutationError = ErrorType<HTTPValidationError>;
+export type ConsumeInviteApiV1BetaInvitesConsumePostMutationBody = InviteConsumeRequest;
+export type ConsumeInviteApiV1BetaInvitesConsumePostMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Consume Invite
  */
-export const useConsumeInviteApiBetaInvitesConsumePost = <
+export const useConsumeInviteApiV1BetaInvitesConsumePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof consumeInviteApiBetaInvitesConsumePost>>,
+      Awaited<ReturnType<typeof consumeInviteApiV1BetaInvitesConsumePost>>,
       TError,
       { data: InviteConsumeRequest },
       TContext
@@ -118,24 +118,24 @@ export const useConsumeInviteApiBetaInvitesConsumePost = <
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof consumeInviteApiBetaInvitesConsumePost>>,
+  Awaited<ReturnType<typeof consumeInviteApiV1BetaInvitesConsumePost>>,
   TError,
   { data: InviteConsumeRequest },
   TContext
 > => {
-  const mutationOptions = getConsumeInviteApiBetaInvitesConsumePostMutationOptions(options);
+  const mutationOptions = getConsumeInviteApiV1BetaInvitesConsumePostMutationOptions(options);
 
   return useMutation(mutationOptions, queryClient);
 };
 /**
  * @summary Generate Invites
  */
-export const generateInvitesApiBetaInvitesGeneratePost = (
+export const generateInvitesApiV1BetaInvitesGeneratePost = (
   inviteGenerateRequest: InviteGenerateRequest,
   signal?: AbortSignal
 ) => {
   return customFetch<InviteGenerateResponse>({
-    url: `/api/beta/invites/generate`,
+    url: `/api/v1/beta/invites/generate`,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     data: inviteGenerateRequest,
@@ -143,23 +143,23 @@ export const generateInvitesApiBetaInvitesGeneratePost = (
   });
 };
 
-export const getGenerateInvitesApiBetaInvitesGeneratePostMutationOptions = <
+export const getGenerateInvitesApiV1BetaInvitesGeneratePostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof generateInvitesApiBetaInvitesGeneratePost>>,
+    Awaited<ReturnType<typeof generateInvitesApiV1BetaInvitesGeneratePost>>,
     TError,
     { data: InviteGenerateRequest },
     TContext
   >;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof generateInvitesApiBetaInvitesGeneratePost>>,
+  Awaited<ReturnType<typeof generateInvitesApiV1BetaInvitesGeneratePost>>,
   TError,
   { data: InviteGenerateRequest },
   TContext
 > => {
-  const mutationKey = ['generateInvitesApiBetaInvitesGeneratePost'];
+  const mutationKey = ['generateInvitesApiV1BetaInvitesGeneratePost'];
   const { mutation: mutationOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -167,33 +167,34 @@ export const getGenerateInvitesApiBetaInvitesGeneratePostMutationOptions = <
     : { mutation: { mutationKey } };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof generateInvitesApiBetaInvitesGeneratePost>>,
+    Awaited<ReturnType<typeof generateInvitesApiV1BetaInvitesGeneratePost>>,
     { data: InviteGenerateRequest }
   > = (props) => {
     const { data } = props ?? {};
 
-    return generateInvitesApiBetaInvitesGeneratePost(data);
+    return generateInvitesApiV1BetaInvitesGeneratePost(data);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type GenerateInvitesApiBetaInvitesGeneratePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof generateInvitesApiBetaInvitesGeneratePost>>
+export type GenerateInvitesApiV1BetaInvitesGeneratePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateInvitesApiV1BetaInvitesGeneratePost>>
 >;
-export type GenerateInvitesApiBetaInvitesGeneratePostMutationBody = InviteGenerateRequest;
-export type GenerateInvitesApiBetaInvitesGeneratePostMutationError = ErrorType<HTTPValidationError>;
+export type GenerateInvitesApiV1BetaInvitesGeneratePostMutationBody = InviteGenerateRequest;
+export type GenerateInvitesApiV1BetaInvitesGeneratePostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Generate Invites
  */
-export const useGenerateInvitesApiBetaInvitesGeneratePost = <
+export const useGenerateInvitesApiV1BetaInvitesGeneratePost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof generateInvitesApiBetaInvitesGeneratePost>>,
+      Awaited<ReturnType<typeof generateInvitesApiV1BetaInvitesGeneratePost>>,
       TError,
       { data: InviteGenerateRequest },
       TContext
@@ -201,24 +202,24 @@ export const useGenerateInvitesApiBetaInvitesGeneratePost = <
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof generateInvitesApiBetaInvitesGeneratePost>>,
+  Awaited<ReturnType<typeof generateInvitesApiV1BetaInvitesGeneratePost>>,
   TError,
   { data: InviteGenerateRequest },
   TContext
 > => {
-  const mutationOptions = getGenerateInvitesApiBetaInvitesGeneratePostMutationOptions(options);
+  const mutationOptions = getGenerateInvitesApiV1BetaInvitesGeneratePostMutationOptions(options);
 
   return useMutation(mutationOptions, queryClient);
 };
 /**
  * @summary Send Invite
  */
-export const sendInviteApiBetaInvitesSendPost = (
+export const sendInviteApiV1BetaInvitesSendPost = (
   inviteSendRequest: InviteSendRequest,
   signal?: AbortSignal
 ) => {
   return customFetch<InviteSendResponse>({
-    url: `/api/beta/invites/send`,
+    url: `/api/v1/beta/invites/send`,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     data: inviteSendRequest,
@@ -226,23 +227,23 @@ export const sendInviteApiBetaInvitesSendPost = (
   });
 };
 
-export const getSendInviteApiBetaInvitesSendPostMutationOptions = <
+export const getSendInviteApiV1BetaInvitesSendPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof sendInviteApiBetaInvitesSendPost>>,
+    Awaited<ReturnType<typeof sendInviteApiV1BetaInvitesSendPost>>,
     TError,
     { data: InviteSendRequest },
     TContext
   >;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof sendInviteApiBetaInvitesSendPost>>,
+  Awaited<ReturnType<typeof sendInviteApiV1BetaInvitesSendPost>>,
   TError,
   { data: InviteSendRequest },
   TContext
 > => {
-  const mutationKey = ['sendInviteApiBetaInvitesSendPost'];
+  const mutationKey = ['sendInviteApiV1BetaInvitesSendPost'];
   const { mutation: mutationOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -250,33 +251,33 @@ export const getSendInviteApiBetaInvitesSendPostMutationOptions = <
     : { mutation: { mutationKey } };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof sendInviteApiBetaInvitesSendPost>>,
+    Awaited<ReturnType<typeof sendInviteApiV1BetaInvitesSendPost>>,
     { data: InviteSendRequest }
   > = (props) => {
     const { data } = props ?? {};
 
-    return sendInviteApiBetaInvitesSendPost(data);
+    return sendInviteApiV1BetaInvitesSendPost(data);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SendInviteApiBetaInvitesSendPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof sendInviteApiBetaInvitesSendPost>>
+export type SendInviteApiV1BetaInvitesSendPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendInviteApiV1BetaInvitesSendPost>>
 >;
-export type SendInviteApiBetaInvitesSendPostMutationBody = InviteSendRequest;
-export type SendInviteApiBetaInvitesSendPostMutationError = ErrorType<HTTPValidationError>;
+export type SendInviteApiV1BetaInvitesSendPostMutationBody = InviteSendRequest;
+export type SendInviteApiV1BetaInvitesSendPostMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Send Invite
  */
-export const useSendInviteApiBetaInvitesSendPost = <
+export const useSendInviteApiV1BetaInvitesSendPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof sendInviteApiBetaInvitesSendPost>>,
+      Awaited<ReturnType<typeof sendInviteApiV1BetaInvitesSendPost>>,
       TError,
       { data: InviteSendRequest },
       TContext
@@ -284,24 +285,24 @@ export const useSendInviteApiBetaInvitesSendPost = <
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof sendInviteApiBetaInvitesSendPost>>,
+  Awaited<ReturnType<typeof sendInviteApiV1BetaInvitesSendPost>>,
   TError,
   { data: InviteSendRequest },
   TContext
 > => {
-  const mutationOptions = getSendInviteApiBetaInvitesSendPostMutationOptions(options);
+  const mutationOptions = getSendInviteApiV1BetaInvitesSendPostMutationOptions(options);
 
   return useMutation(mutationOptions, queryClient);
 };
 /**
  * @summary Send Invite Batch
  */
-export const sendInviteBatchApiBetaInvitesSendBatchPost = (
+export const sendInviteBatchApiV1BetaInvitesSendBatchPost = (
   inviteBatchSendRequest: InviteBatchSendRequest,
   signal?: AbortSignal
 ) => {
   return customFetch<InviteBatchSendResponse>({
-    url: `/api/beta/invites/send-batch`,
+    url: `/api/v1/beta/invites/send-batch`,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     data: inviteBatchSendRequest,
@@ -309,23 +310,23 @@ export const sendInviteBatchApiBetaInvitesSendBatchPost = (
   });
 };
 
-export const getSendInviteBatchApiBetaInvitesSendBatchPostMutationOptions = <
+export const getSendInviteBatchApiV1BetaInvitesSendBatchPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof sendInviteBatchApiBetaInvitesSendBatchPost>>,
+    Awaited<ReturnType<typeof sendInviteBatchApiV1BetaInvitesSendBatchPost>>,
     TError,
     { data: InviteBatchSendRequest },
     TContext
   >;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof sendInviteBatchApiBetaInvitesSendBatchPost>>,
+  Awaited<ReturnType<typeof sendInviteBatchApiV1BetaInvitesSendBatchPost>>,
   TError,
   { data: InviteBatchSendRequest },
   TContext
 > => {
-  const mutationKey = ['sendInviteBatchApiBetaInvitesSendBatchPost'];
+  const mutationKey = ['sendInviteBatchApiV1BetaInvitesSendBatchPost'];
   const { mutation: mutationOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -333,34 +334,34 @@ export const getSendInviteBatchApiBetaInvitesSendBatchPostMutationOptions = <
     : { mutation: { mutationKey } };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof sendInviteBatchApiBetaInvitesSendBatchPost>>,
+    Awaited<ReturnType<typeof sendInviteBatchApiV1BetaInvitesSendBatchPost>>,
     { data: InviteBatchSendRequest }
   > = (props) => {
     const { data } = props ?? {};
 
-    return sendInviteBatchApiBetaInvitesSendBatchPost(data);
+    return sendInviteBatchApiV1BetaInvitesSendBatchPost(data);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SendInviteBatchApiBetaInvitesSendBatchPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof sendInviteBatchApiBetaInvitesSendBatchPost>>
+export type SendInviteBatchApiV1BetaInvitesSendBatchPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendInviteBatchApiV1BetaInvitesSendBatchPost>>
 >;
-export type SendInviteBatchApiBetaInvitesSendBatchPostMutationBody = InviteBatchSendRequest;
-export type SendInviteBatchApiBetaInvitesSendBatchPostMutationError =
+export type SendInviteBatchApiV1BetaInvitesSendBatchPostMutationBody = InviteBatchSendRequest;
+export type SendInviteBatchApiV1BetaInvitesSendBatchPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Send Invite Batch
  */
-export const useSendInviteBatchApiBetaInvitesSendBatchPost = <
+export const useSendInviteBatchApiV1BetaInvitesSendBatchPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof sendInviteBatchApiBetaInvitesSendBatchPost>>,
+      Awaited<ReturnType<typeof sendInviteBatchApiV1BetaInvitesSendBatchPost>>,
       TError,
       { data: InviteBatchSendRequest },
       TContext
@@ -368,24 +369,24 @@ export const useSendInviteBatchApiBetaInvitesSendBatchPost = <
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof sendInviteBatchApiBetaInvitesSendBatchPost>>,
+  Awaited<ReturnType<typeof sendInviteBatchApiV1BetaInvitesSendBatchPost>>,
   TError,
   { data: InviteBatchSendRequest },
   TContext
 > => {
-  const mutationOptions = getSendInviteBatchApiBetaInvitesSendBatchPostMutationOptions(options);
+  const mutationOptions = getSendInviteBatchApiV1BetaInvitesSendBatchPostMutationOptions(options);
 
   return useMutation(mutationOptions, queryClient);
 };
 /**
  * @summary Send Invite Batch Async
  */
-export const sendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost = (
+export const sendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPost = (
   inviteBatchSendRequest: InviteBatchSendRequest,
   signal?: AbortSignal
 ) => {
   return customFetch<InviteBatchAsyncStartResponse>({
-    url: `/api/beta/invites/send-batch-async`,
+    url: `/api/v1/beta/invites/send-batch-async`,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     data: inviteBatchSendRequest,
@@ -393,23 +394,23 @@ export const sendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost = (
   });
 };
 
-export const getSendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPostMutationOptions = <
+export const getSendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof sendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost>>,
+    Awaited<ReturnType<typeof sendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPost>>,
     TError,
     { data: InviteBatchSendRequest },
     TContext
   >;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof sendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost>>,
+  Awaited<ReturnType<typeof sendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPost>>,
   TError,
   { data: InviteBatchSendRequest },
   TContext
 > => {
-  const mutationKey = ['sendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost'];
+  const mutationKey = ['sendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPost'];
   const { mutation: mutationOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -417,35 +418,35 @@ export const getSendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPostMutationOpti
     : { mutation: { mutationKey } };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof sendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost>>,
+    Awaited<ReturnType<typeof sendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPost>>,
     { data: InviteBatchSendRequest }
   > = (props) => {
     const { data } = props ?? {};
 
-    return sendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost(data);
+    return sendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPost(data);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof sendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost>>
+export type SendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPost>>
 >;
-export type SendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPostMutationBody =
+export type SendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPostMutationBody =
   InviteBatchSendRequest;
-export type SendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPostMutationError =
+export type SendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Send Invite Batch Async
  */
-export const useSendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost = <
+export const useSendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof sendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost>>,
+      Awaited<ReturnType<typeof sendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPost>>,
       TError,
       { data: InviteBatchSendRequest },
       TContext
@@ -453,46 +454,46 @@ export const useSendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost = <
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof sendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPost>>,
+  Awaited<ReturnType<typeof sendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPost>>,
   TError,
   { data: InviteBatchSendRequest },
   TContext
 > => {
   const mutationOptions =
-    getSendInviteBatchAsyncApiBetaInvitesSendBatchAsyncPostMutationOptions(options);
+    getSendInviteBatchAsyncApiV1BetaInvitesSendBatchAsyncPostMutationOptions(options);
 
   return useMutation(mutationOptions, queryClient);
 };
 /**
  * @summary Get Invite Batch Progress
  */
-export const getInviteBatchProgressApiBetaInvitesSendBatchProgressGet = (
-  params: GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetParams,
+export const getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet = (
+  params: GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetParams,
   signal?: AbortSignal
 ) => {
   return customFetch<InviteBatchProgressResponse>({
-    url: `/api/beta/invites/send-batch-progress`,
+    url: `/api/v1/beta/invites/send-batch-progress`,
     method: 'GET',
     params,
     signal,
   });
 };
 
-export const getGetInviteBatchProgressApiBetaInvitesSendBatchProgressGetQueryKey = (
-  params?: GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetParams
+export const getGetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetQueryKey = (
+  params?: GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetParams
 ) => {
-  return [`/api/beta/invites/send-batch-progress`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/beta/invites/send-batch-progress`, ...(params ? [params] : [])] as const;
 };
 
-export const getGetInviteBatchProgressApiBetaInvitesSendBatchProgressGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+export const getGetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetParams,
+  params: GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+        Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
         TError,
         TData
       >
@@ -503,82 +504,82 @@ export const getGetInviteBatchProgressApiBetaInvitesSendBatchProgressGetQueryOpt
 
   const queryKey =
     queryOptions?.queryKey ??
-    getGetInviteBatchProgressApiBetaInvitesSendBatchProgressGetQueryKey(params);
+    getGetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetQueryKey(params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>
-  > = ({ signal }) => getInviteBatchProgressApiBetaInvitesSendBatchProgressGet(params, signal);
+    Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>
+  > = ({ signal }) => getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet(params, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+    Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>
+export type GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>
 >;
-export type GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetQueryError =
+export type GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetInviteBatchProgressApiBetaInvitesSendBatchProgressGet<
-  TData = Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+export function useGetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet<
+  TData = Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetParams,
+  params: GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+        Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+          Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
           TError,
-          Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>
+          Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>
         >,
         'initialData'
       >;
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetInviteBatchProgressApiBetaInvitesSendBatchProgressGet<
-  TData = Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+export function useGetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet<
+  TData = Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetParams,
+  params: GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+        Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+          Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
           TError,
-          Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>
+          Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>
         >,
         'initialData'
       >;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetInviteBatchProgressApiBetaInvitesSendBatchProgressGet<
-  TData = Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+export function useGetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet<
+  TData = Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetParams,
+  params: GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+        Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
         TError,
         TData
       >
@@ -590,15 +591,15 @@ export function useGetInviteBatchProgressApiBetaInvitesSendBatchProgressGet<
  * @summary Get Invite Batch Progress
  */
 
-export function useGetInviteBatchProgressApiBetaInvitesSendBatchProgressGet<
-  TData = Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+export function useGetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet<
+  TData = Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: GetInviteBatchProgressApiBetaInvitesSendBatchProgressGetParams,
+  params: GetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInviteBatchProgressApiBetaInvitesSendBatchProgressGet>>,
+        Awaited<ReturnType<typeof getInviteBatchProgressApiV1BetaInvitesSendBatchProgressGet>>,
         TError,
         TData
       >
@@ -606,7 +607,7 @@ export function useGetInviteBatchProgressApiBetaInvitesSendBatchProgressGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetInviteBatchProgressApiBetaInvitesSendBatchProgressGetQueryOptions(
+  const queryOptions = getGetInviteBatchProgressApiV1BetaInvitesSendBatchProgressGetQueryOptions(
     params,
     options
   );
@@ -623,33 +624,33 @@ export function useGetInviteBatchProgressApiBetaInvitesSendBatchProgressGet<
 /**
  * @summary Validate Invite
  */
-export const validateInviteApiBetaInvitesValidateGet = (
-  params?: ValidateInviteApiBetaInvitesValidateGetParams,
+export const validateInviteApiV1BetaInvitesValidateGet = (
+  params?: ValidateInviteApiV1BetaInvitesValidateGetParams,
   signal?: AbortSignal
 ) => {
   return customFetch<InviteValidateResponse>({
-    url: `/api/beta/invites/validate`,
+    url: `/api/v1/beta/invites/validate`,
     method: 'GET',
     params,
     signal,
   });
 };
 
-export const getValidateInviteApiBetaInvitesValidateGetQueryKey = (
-  params?: ValidateInviteApiBetaInvitesValidateGetParams
+export const getValidateInviteApiV1BetaInvitesValidateGetQueryKey = (
+  params?: ValidateInviteApiV1BetaInvitesValidateGetParams
 ) => {
-  return [`/api/beta/invites/validate`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/beta/invites/validate`, ...(params ? [params] : [])] as const;
 };
 
-export const getValidateInviteApiBetaInvitesValidateGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+export const getValidateInviteApiV1BetaInvitesValidateGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ValidateInviteApiBetaInvitesValidateGetParams,
+  params?: ValidateInviteApiV1BetaInvitesValidateGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+        Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
         TError,
         TData
       >
@@ -659,81 +660,81 @@ export const getValidateInviteApiBetaInvitesValidateGetQueryOptions = <
   const { query: queryOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getValidateInviteApiBetaInvitesValidateGetQueryKey(params);
+    queryOptions?.queryKey ?? getValidateInviteApiV1BetaInvitesValidateGetQueryKey(params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>
-  > = ({ signal }) => validateInviteApiBetaInvitesValidateGet(params, signal);
+    Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>
+  > = ({ signal }) => validateInviteApiV1BetaInvitesValidateGet(params, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+    Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ValidateInviteApiBetaInvitesValidateGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>
+export type ValidateInviteApiV1BetaInvitesValidateGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>
 >;
-export type ValidateInviteApiBetaInvitesValidateGetQueryError = ErrorType<HTTPValidationError>;
+export type ValidateInviteApiV1BetaInvitesValidateGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useValidateInviteApiBetaInvitesValidateGet<
-  TData = Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+export function useValidateInviteApiV1BetaInvitesValidateGet<
+  TData = Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ValidateInviteApiBetaInvitesValidateGetParams,
+  params: undefined | ValidateInviteApiV1BetaInvitesValidateGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+        Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+          Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
           TError,
-          Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>
+          Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>
         >,
         'initialData'
       >;
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useValidateInviteApiBetaInvitesValidateGet<
-  TData = Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+export function useValidateInviteApiV1BetaInvitesValidateGet<
+  TData = Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ValidateInviteApiBetaInvitesValidateGetParams,
+  params?: ValidateInviteApiV1BetaInvitesValidateGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+        Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+          Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
           TError,
-          Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>
+          Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>
         >,
         'initialData'
       >;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useValidateInviteApiBetaInvitesValidateGet<
-  TData = Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+export function useValidateInviteApiV1BetaInvitesValidateGet<
+  TData = Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ValidateInviteApiBetaInvitesValidateGetParams,
+  params?: ValidateInviteApiV1BetaInvitesValidateGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+        Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
         TError,
         TData
       >
@@ -745,15 +746,15 @@ export function useValidateInviteApiBetaInvitesValidateGet<
  * @summary Validate Invite
  */
 
-export function useValidateInviteApiBetaInvitesValidateGet<
-  TData = Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+export function useValidateInviteApiV1BetaInvitesValidateGet<
+  TData = Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ValidateInviteApiBetaInvitesValidateGetParams,
+  params?: ValidateInviteApiV1BetaInvitesValidateGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof validateInviteApiBetaInvitesValidateGet>>,
+        Awaited<ReturnType<typeof validateInviteApiV1BetaInvitesValidateGet>>,
         TError,
         TData
       >
@@ -761,7 +762,7 @@ export function useValidateInviteApiBetaInvitesValidateGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getValidateInviteApiBetaInvitesValidateGetQueryOptions(params, options);
+  const queryOptions = getValidateInviteApiV1BetaInvitesValidateGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -775,21 +776,21 @@ export function useValidateInviteApiBetaInvitesValidateGet<
 /**
  * @summary Invite Verified
  */
-export const inviteVerifiedApiBetaInvitesVerifiedGet = (signal?: AbortSignal) => {
-  return customFetch<void>({ url: `/api/beta/invites/verified`, method: 'GET', signal });
+export const inviteVerifiedApiV1BetaInvitesVerifiedGet = (signal?: AbortSignal) => {
+  return customFetch<void>({ url: `/api/v1/beta/invites/verified`, method: 'GET', signal });
 };
 
-export const getInviteVerifiedApiBetaInvitesVerifiedGetQueryKey = () => {
-  return [`/api/beta/invites/verified`] as const;
+export const getInviteVerifiedApiV1BetaInvitesVerifiedGetQueryKey = () => {
+  return [`/api/v1/beta/invites/verified`] as const;
 };
 
-export const getInviteVerifiedApiBetaInvitesVerifiedGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+export const getInviteVerifiedApiV1BetaInvitesVerifiedGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: Partial<
     UseQueryOptions<
-      Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+      Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
       TError,
       TData
     >
@@ -797,78 +798,78 @@ export const getInviteVerifiedApiBetaInvitesVerifiedGetQueryOptions = <
 }) => {
   const { query: queryOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getInviteVerifiedApiBetaInvitesVerifiedGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getInviteVerifiedApiV1BetaInvitesVerifiedGetQueryKey();
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>
-  > = ({ signal }) => inviteVerifiedApiBetaInvitesVerifiedGet(signal);
+    Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>
+  > = ({ signal }) => inviteVerifiedApiV1BetaInvitesVerifiedGet(signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+    Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type InviteVerifiedApiBetaInvitesVerifiedGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>
+export type InviteVerifiedApiV1BetaInvitesVerifiedGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>
 >;
-export type InviteVerifiedApiBetaInvitesVerifiedGetQueryError = ErrorType<unknown>;
+export type InviteVerifiedApiV1BetaInvitesVerifiedGetQueryError = ErrorType<unknown>;
 
-export function useInviteVerifiedApiBetaInvitesVerifiedGet<
-  TData = Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+export function useInviteVerifiedApiV1BetaInvitesVerifiedGet<
+  TData = Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
   TError = ErrorType<unknown>,
 >(
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+        Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+          Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
           TError,
-          Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>
+          Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>
         >,
         'initialData'
       >;
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useInviteVerifiedApiBetaInvitesVerifiedGet<
-  TData = Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+export function useInviteVerifiedApiV1BetaInvitesVerifiedGet<
+  TData = Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+        Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+          Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
           TError,
-          Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>
+          Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>
         >,
         'initialData'
       >;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useInviteVerifiedApiBetaInvitesVerifiedGet<
-  TData = Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+export function useInviteVerifiedApiV1BetaInvitesVerifiedGet<
+  TData = Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+        Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
         TError,
         TData
       >
@@ -880,14 +881,14 @@ export function useInviteVerifiedApiBetaInvitesVerifiedGet<
  * @summary Invite Verified
  */
 
-export function useInviteVerifiedApiBetaInvitesVerifiedGet<
-  TData = Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+export function useInviteVerifiedApiV1BetaInvitesVerifiedGet<
+  TData = Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof inviteVerifiedApiBetaInvitesVerifiedGet>>,
+        Awaited<ReturnType<typeof inviteVerifiedApiV1BetaInvitesVerifiedGet>>,
         TError,
         TData
       >
@@ -895,7 +896,7 @@ export function useInviteVerifiedApiBetaInvitesVerifiedGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getInviteVerifiedApiBetaInvitesVerifiedGetQueryOptions(options);
+  const queryOptions = getInviteVerifiedApiV1BetaInvitesVerifiedGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -912,25 +913,25 @@ export function useInviteVerifiedApiBetaInvitesVerifiedGet<
 Note: Without Prometheus remote-read, we return cumulative counts observed since process start.
  * @summary Get Beta Metrics Summary
  */
-export const getBetaMetricsSummaryApiBetaMetricsSummaryGet = (signal?: AbortSignal) => {
+export const getBetaMetricsSummaryApiV1BetaMetricsSummaryGet = (signal?: AbortSignal) => {
   return customFetch<BetaMetricsSummaryResponse>({
-    url: `/api/beta/metrics/summary`,
+    url: `/api/v1/beta/metrics/summary`,
     method: 'GET',
     signal,
   });
 };
 
-export const getGetBetaMetricsSummaryApiBetaMetricsSummaryGetQueryKey = () => {
-  return [`/api/beta/metrics/summary`] as const;
+export const getGetBetaMetricsSummaryApiV1BetaMetricsSummaryGetQueryKey = () => {
+  return [`/api/v1/beta/metrics/summary`] as const;
 };
 
-export const getGetBetaMetricsSummaryApiBetaMetricsSummaryGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+export const getGetBetaMetricsSummaryApiV1BetaMetricsSummaryGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: Partial<
     UseQueryOptions<
-      Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+      Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
       TError,
       TData
     >
@@ -939,78 +940,78 @@ export const getGetBetaMetricsSummaryApiBetaMetricsSummaryGetQueryOptions = <
   const { query: queryOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getGetBetaMetricsSummaryApiBetaMetricsSummaryGetQueryKey();
+    queryOptions?.queryKey ?? getGetBetaMetricsSummaryApiV1BetaMetricsSummaryGetQueryKey();
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>
-  > = ({ signal }) => getBetaMetricsSummaryApiBetaMetricsSummaryGet(signal);
+    Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>
+  > = ({ signal }) => getBetaMetricsSummaryApiV1BetaMetricsSummaryGet(signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+    Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetBetaMetricsSummaryApiBetaMetricsSummaryGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>
+export type GetBetaMetricsSummaryApiV1BetaMetricsSummaryGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>
 >;
-export type GetBetaMetricsSummaryApiBetaMetricsSummaryGetQueryError = ErrorType<unknown>;
+export type GetBetaMetricsSummaryApiV1BetaMetricsSummaryGetQueryError = ErrorType<unknown>;
 
-export function useGetBetaMetricsSummaryApiBetaMetricsSummaryGet<
-  TData = Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+export function useGetBetaMetricsSummaryApiV1BetaMetricsSummaryGet<
+  TData = Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
   TError = ErrorType<unknown>,
 >(
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+        Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+          Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
           TError,
-          Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>
+          Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>
         >,
         'initialData'
       >;
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetBetaMetricsSummaryApiBetaMetricsSummaryGet<
-  TData = Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+export function useGetBetaMetricsSummaryApiV1BetaMetricsSummaryGet<
+  TData = Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+        Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+          Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
           TError,
-          Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>
+          Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>
         >,
         'initialData'
       >;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetBetaMetricsSummaryApiBetaMetricsSummaryGet<
-  TData = Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+export function useGetBetaMetricsSummaryApiV1BetaMetricsSummaryGet<
+  TData = Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+        Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
         TError,
         TData
       >
@@ -1022,14 +1023,14 @@ export function useGetBetaMetricsSummaryApiBetaMetricsSummaryGet<
  * @summary Get Beta Metrics Summary
  */
 
-export function useGetBetaMetricsSummaryApiBetaMetricsSummaryGet<
-  TData = Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+export function useGetBetaMetricsSummaryApiV1BetaMetricsSummaryGet<
+  TData = Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getBetaMetricsSummaryApiBetaMetricsSummaryGet>>,
+        Awaited<ReturnType<typeof getBetaMetricsSummaryApiV1BetaMetricsSummaryGet>>,
         TError,
         TData
       >
@@ -1037,7 +1038,7 @@ export function useGetBetaMetricsSummaryApiBetaMetricsSummaryGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetBetaMetricsSummaryApiBetaMetricsSummaryGetQueryOptions(options);
+  const queryOptions = getGetBetaMetricsSummaryApiV1BetaMetricsSummaryGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1051,87 +1052,99 @@ export function useGetBetaMetricsSummaryApiBetaMetricsSummaryGet<
 /**
  * @summary Get Beta Settings
  */
-export const getBetaSettingsApiBetaSettingsGet = (signal?: AbortSignal) => {
-  return customFetch<BetaSettingsResponse>({ url: `/api/beta/settings`, method: 'GET', signal });
+export const getBetaSettingsApiV1BetaSettingsGet = (signal?: AbortSignal) => {
+  return customFetch<BetaSettingsResponse>({ url: `/api/v1/beta/settings`, method: 'GET', signal });
 };
 
-export const getGetBetaSettingsApiBetaSettingsGetQueryKey = () => {
-  return [`/api/beta/settings`] as const;
+export const getGetBetaSettingsApiV1BetaSettingsGetQueryKey = () => {
+  return [`/api/v1/beta/settings`] as const;
 };
 
-export const getGetBetaSettingsApiBetaSettingsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>,
+export const getGetBetaSettingsApiV1BetaSettingsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>, TError, TData>
+    UseQueryOptions<Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>, TError, TData>
   >;
 }) => {
   const { query: queryOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetBetaSettingsApiBetaSettingsGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetBetaSettingsApiV1BetaSettingsGetQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>> = ({
     signal,
-  }) => getBetaSettingsApiBetaSettingsGet(signal);
+  }) => getBetaSettingsApiV1BetaSettingsGet(signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>,
+    Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetBetaSettingsApiBetaSettingsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>
+export type GetBetaSettingsApiV1BetaSettingsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>
 >;
-export type GetBetaSettingsApiBetaSettingsGetQueryError = ErrorType<unknown>;
+export type GetBetaSettingsApiV1BetaSettingsGetQueryError = ErrorType<unknown>;
 
-export function useGetBetaSettingsApiBetaSettingsGet<
-  TData = Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>,
+export function useGetBetaSettingsApiV1BetaSettingsGet<
+  TData = Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
   TError = ErrorType<unknown>,
 >(
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
+        TError,
+        TData
+      >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>,
+          Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
           TError,
-          Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>
+          Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>
         >,
         'initialData'
       >;
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetBetaSettingsApiBetaSettingsGet<
-  TData = Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>,
+export function useGetBetaSettingsApiV1BetaSettingsGet<
+  TData = Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
+        TError,
+        TData
+      >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>,
+          Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
           TError,
-          Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>
+          Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>
         >,
         'initialData'
       >;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetBetaSettingsApiBetaSettingsGet<
-  TData = Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>,
+export function useGetBetaSettingsApiV1BetaSettingsGet<
+  TData = Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
+        TError,
+        TData
+      >
     >;
   },
   queryClient?: QueryClient
@@ -1140,18 +1153,22 @@ export function useGetBetaSettingsApiBetaSettingsGet<
  * @summary Get Beta Settings
  */
 
-export function useGetBetaSettingsApiBetaSettingsGet<
-  TData = Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>,
+export function useGetBetaSettingsApiV1BetaSettingsGet<
+  TData = Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
   TError = ErrorType<unknown>,
 >(
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getBetaSettingsApiBetaSettingsGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getBetaSettingsApiV1BetaSettingsGet>>,
+        TError,
+        TData
+      >
     >;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetBetaSettingsApiBetaSettingsGetQueryOptions(options);
+  const queryOptions = getGetBetaSettingsApiV1BetaSettingsGetQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1165,34 +1182,34 @@ export function useGetBetaSettingsApiBetaSettingsGet<
 /**
  * @summary Update Beta Settings
  */
-export const updateBetaSettingsApiBetaSettingsPut = (
+export const updateBetaSettingsApiV1BetaSettingsPut = (
   betaSettingsUpdateRequest: BetaSettingsUpdateRequest
 ) => {
   return customFetch<BetaSettingsResponse>({
-    url: `/api/beta/settings`,
+    url: `/api/v1/beta/settings`,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     data: betaSettingsUpdateRequest,
   });
 };
 
-export const getUpdateBetaSettingsApiBetaSettingsPutMutationOptions = <
+export const getUpdateBetaSettingsApiV1BetaSettingsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateBetaSettingsApiBetaSettingsPut>>,
+    Awaited<ReturnType<typeof updateBetaSettingsApiV1BetaSettingsPut>>,
     TError,
     { data: BetaSettingsUpdateRequest },
     TContext
   >;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateBetaSettingsApiBetaSettingsPut>>,
+  Awaited<ReturnType<typeof updateBetaSettingsApiV1BetaSettingsPut>>,
   TError,
   { data: BetaSettingsUpdateRequest },
   TContext
 > => {
-  const mutationKey = ['updateBetaSettingsApiBetaSettingsPut'];
+  const mutationKey = ['updateBetaSettingsApiV1BetaSettingsPut'];
   const { mutation: mutationOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
       ? options
@@ -1200,33 +1217,33 @@ export const getUpdateBetaSettingsApiBetaSettingsPutMutationOptions = <
     : { mutation: { mutationKey } };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateBetaSettingsApiBetaSettingsPut>>,
+    Awaited<ReturnType<typeof updateBetaSettingsApiV1BetaSettingsPut>>,
     { data: BetaSettingsUpdateRequest }
   > = (props) => {
     const { data } = props ?? {};
 
-    return updateBetaSettingsApiBetaSettingsPut(data);
+    return updateBetaSettingsApiV1BetaSettingsPut(data);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateBetaSettingsApiBetaSettingsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateBetaSettingsApiBetaSettingsPut>>
+export type UpdateBetaSettingsApiV1BetaSettingsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBetaSettingsApiV1BetaSettingsPut>>
 >;
-export type UpdateBetaSettingsApiBetaSettingsPutMutationBody = BetaSettingsUpdateRequest;
-export type UpdateBetaSettingsApiBetaSettingsPutMutationError = ErrorType<HTTPValidationError>;
+export type UpdateBetaSettingsApiV1BetaSettingsPutMutationBody = BetaSettingsUpdateRequest;
+export type UpdateBetaSettingsApiV1BetaSettingsPutMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Beta Settings
  */
-export const useUpdateBetaSettingsApiBetaSettingsPut = <
+export const useUpdateBetaSettingsApiV1BetaSettingsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateBetaSettingsApiBetaSettingsPut>>,
+      Awaited<ReturnType<typeof updateBetaSettingsApiV1BetaSettingsPut>>,
       TError,
       { data: BetaSettingsUpdateRequest },
       TContext
@@ -1234,12 +1251,12 @@ export const useUpdateBetaSettingsApiBetaSettingsPut = <
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateBetaSettingsApiBetaSettingsPut>>,
+  Awaited<ReturnType<typeof updateBetaSettingsApiV1BetaSettingsPut>>,
   TError,
   { data: BetaSettingsUpdateRequest },
   TContext
 > => {
-  const mutationOptions = getUpdateBetaSettingsApiBetaSettingsPutMutationOptions(options);
+  const mutationOptions = getUpdateBetaSettingsApiV1BetaSettingsPutMutationOptions(options);
 
   return useMutation(mutationOptions, queryClient);
 };
