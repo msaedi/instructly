@@ -141,7 +141,7 @@ class RateLimitMiddlewareASGI:
         site_mode = getattr(settings, "site_mode", "local") or "local"
         if site_mode in {"local", "preview"}:
             # Public read-only endpoints that don't need rate limiting in dev
-            if path in {"/auth/me", "/api/public/session/guest"}:
+            if path in {"/auth/me", "/api/v1/public/session/guest"}:
                 await self.app(scope, receive, send)
                 return
             # Public v1 read-only endpoints (reviews, services, instructors)

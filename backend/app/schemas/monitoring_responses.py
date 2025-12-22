@@ -189,7 +189,7 @@ class SlowQueryInfo(BaseModel):
                 "query": "SELECT * FROM bookings WHERE ...",
                 "duration_ms": 523.4,
                 "timestamp": "2025-01-20T10:30:00Z",
-                "endpoint": "/api/bookings",
+                "endpoint": "/api/v1/bookings",
             }
         }
     )
@@ -209,7 +209,7 @@ class SlowQueriesResponse(StrictModel):
                         "query": "SELECT * FROM bookings WHERE ...",
                         "duration_ms": 523.4,
                         "timestamp": "2025-01-20T10:30:00Z",
-                        "endpoint": "/api/bookings",
+                        "endpoint": "/api/v1/bookings",
                     }
                 ],
                 "total_count": 42,
@@ -230,7 +230,7 @@ class SlowRequestInfo(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "path": "/api/instructors/search",
+                "path": "/api/v1/instructors/search",
                 "method": "GET",
                 "duration_ms": 1234.5,
                 "timestamp": "2025-01-20T10:30:00Z",
@@ -251,7 +251,7 @@ class SlowRequestsResponse(StrictModel):
             "example": {
                 "slow_requests": [
                     {
-                        "path": "/api/instructors/search",
+                        "path": "/api/v1/instructors/search",
                         "method": "GET",
                         "duration_ms": 1234.5,
                         "timestamp": "2025-01-20T10:30:00Z",
@@ -455,7 +455,7 @@ class RateLimitStats(StrictModel):
                 "total_keys": 42,
                 "breakdown_by_type": {"email": 15, "ip": 20, "global": 7},
                 "top_limited_clients": [
-                    {"key": "ip_192.168.1.100", "count": 50, "endpoint": "/api/search"}
+                    {"key": "ip_192.168.1.100", "count": 50, "endpoint": "/api/v1/search"}
                 ],
             }
         },

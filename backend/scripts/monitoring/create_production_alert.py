@@ -60,7 +60,7 @@ def create_test_alerts():
     monitor._active_requests[request_id] = {
         "start_time": datetime.now(timezone.utc).timestamp() - 6.5,  # 6.5 seconds ago
         "method": "GET",
-        "path": "/api/test/manual-slow-endpoint",
+        "path": "/api/v1/test/manual-slow-endpoint",
         "client": "create_production_alert.py",
     }
     # Then end it to trigger the alert
