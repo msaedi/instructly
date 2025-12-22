@@ -85,7 +85,7 @@
     "@stripe/react-stripe-js": "^4.0.0",
     "@stripe/stripe-js": "^7.9.0",
     "@tanstack/react-query": "^5.85.9",
-    "@tanstack/react-query-devtools": "^5.85.9",
+    "@tanstack/react-query-devtools": "^5.91.1",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
     "class-variance-authority": "^0.7.1",
