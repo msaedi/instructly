@@ -86,7 +86,7 @@ gunicorn==23.0.0
 vine==5.1.0
 wcwidth==0.2.13
 zipp==3.23.0
-sse-starlette==1.6.5
+sse-starlette==3.0.4
 asyncpg==0.30.0
 python-ulid==2.2.0
 geopandas==0.14.4
