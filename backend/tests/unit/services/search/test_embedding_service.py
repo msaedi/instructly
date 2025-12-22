@@ -301,7 +301,7 @@ class TestEmbeddingService:
             async def embed(self, text: str) -> list[float]:
                 with self._calls_lock:
                     self._calls += 1
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.05)  # Reduced from 0.2 for faster tests
                 return await super().embed(text)
 
         def _run_in_new_loop(coro: Any) -> Any:

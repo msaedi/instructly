@@ -448,9 +448,9 @@ class TestSearchInteractionE2E:
         search_event_id = search_result["search_event_id"]
         assert search_event_id is not None
 
-        # Step 2: Simulate time passing (reduced from 3s to 0.5s for faster tests)
+        # Step 2: Simulate time passing (reduced for faster tests)
         # The test verifies time_to_interaction is recorded, not exact timing
-        time.sleep(0.5)
+        time.sleep(0.1)
 
         # Step 3: Track interaction (click on result)
         interaction_data = {
@@ -458,7 +458,7 @@ class TestSearchInteractionE2E:
             "interaction_type": "click",
             "instructor_id": test_instructor.id,  # Use real instructor ID
             "result_position": 2,  # Second result
-            "time_to_interaction": 0.5,  # Match the actual sleep time
+            "time_to_interaction": 0.1,  # Match the actual sleep time
         }
 
         interaction_response = client.post("/api/v1/search-history/interaction", json=interaction_data, headers=headers)
@@ -471,7 +471,7 @@ class TestSearchInteractionE2E:
         assert interaction.interaction_type == "click"
         assert interaction.instructor_id == test_instructor.id
         assert interaction.result_position == 2
-        assert interaction.time_to_interaction == 0.5
+        assert interaction.time_to_interaction == 0.1
 
     def test_multiple_interaction_types(self, client, db, auth_headers, test_instructor):
         """Test different interaction types on same search."""
