@@ -458,12 +458,11 @@ class TestPaymentTasks:
 
         metadata = kwargs.get("metadata", {})
         base_price_cents = int(metadata.get("base_price_cents", kwargs.get("amount", 0)))
-        student_fee_pct = DEFAULT_PRICING_CONFIG["student_fee_pct"]
-        student_fee_cents = cents_from_pct(base_price_cents, student_fee_pct)
         platform_fee_cents = int(metadata.get("platform_fee_cents", 0))
-        applied_credit_cents = int(metadata.get("applied_credit_cents", "0"))
-        expected_fee = max(0, student_fee_cents + platform_fee_cents - applied_credit_cents)
-        assert kwargs["application_fee_amount"] == expected_fee
+        # With transfer_data[amount] architecture, we set transfer amount instead of application fee
+        expected_transfer_amount = base_price_cents - platform_fee_cents  # instructor payout
+        assert kwargs["transfer_data"]["amount"] == expected_transfer_amount
+        assert "application_fee_amount" not in kwargs
 
     @patch("app.tasks.payment_tasks.StripeService")
     @patch("app.database.SessionLocal")

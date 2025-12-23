@@ -234,9 +234,12 @@ def test_stripe_preview_amount_parity_e2e():
 
         pi_basic_remote = stripe.PaymentIntent.retrieve(pi_basic.stripe_payment_intent_id)
         assert pi_basic_remote.amount == preview_basic["student_pay_cents"]
+        # With transfer_data[amount] architecture, we don't use application_fee_amount
+        # Instead, transfer_data.amount specifies the instructor payout
+        assert pi_basic_remote.application_fee_amount is None
         assert (
-            pi_basic_remote.application_fee_amount
-            == preview_basic["application_fee_cents"]
+            pi_basic_remote.transfer_data.amount
+            == preview_basic["target_instructor_payout_cents"]
         )
         assert pi_basic_remote.metadata.get("base_price_cents") == str(
             preview_basic["base_price_cents"]

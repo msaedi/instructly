@@ -1265,7 +1265,9 @@ class TestStripeService:
         assert call_args["currency"] == "usd"
         assert call_args["customer"] == "cus_test123"
         assert call_args["transfer_data"]["destination"] == "acct_instructor123"
-        assert call_args["application_fee_amount"] == application_fee_cents
+        # With transfer_data[amount] architecture, we set transfer amount instead of application fee
+        assert call_args["transfer_data"]["amount"] == target_payout_cents
+        assert "application_fee_amount" not in call_args
         assert call_args["transfer_group"] == f"booking:{test_booking.id}"
 
         metadata = call_args["metadata"]
@@ -1347,8 +1349,11 @@ class TestStripeService:
         )
 
         call_args = mock_create.call_args[1]
-        expected_fee = int(amount_cents * stripe_service.platform_fee_percentage)
-        assert call_args["application_fee_amount"] == expected_fee
+        expected_platform_retained = int(amount_cents * stripe_service.platform_fee_percentage)
+        expected_transfer_amount = amount_cents - expected_platform_retained
+        # With transfer_data[amount] architecture, we set transfer amount instead of application fee
+        assert call_args["transfer_data"]["amount"] == expected_transfer_amount
+        assert "application_fee_amount" not in call_args
         assert call_args["capture_method"] == "manual"
         assert call_args["metadata"]["booking_id"] == test_booking.id
         assert call_args["metadata"]["applied_credit_cents"] == "0"
@@ -1532,7 +1537,9 @@ class TestStripeService:
         mock_create.assert_called_once()
         kwargs = mock_create.call_args[1]
         assert kwargs["amount"] == context.student_pay_cents
-        assert kwargs["application_fee_amount"] == context.application_fee_cents
+        # With transfer_data[amount] architecture, we set transfer amount instead of application fee
+        assert kwargs["transfer_data"]["amount"] == context.target_instructor_payout_cents
+        assert "application_fee_amount" not in kwargs
         assert kwargs["transfer_group"] == f"booking:{test_booking.id}"
         assert kwargs["capture_method"] == "manual"
         assert kwargs["payment_method"] == "pm_card123"
@@ -2407,7 +2414,9 @@ class TestStripeService:
         )
         create_kwargs = mock_create.call_args[1]
         assert create_kwargs["amount"] == 5000
-        assert create_kwargs["application_fee_amount"] == application_fee_cents
+        # With transfer_data[amount] architecture, we set transfer amount instead of application fee
+        assert create_kwargs["transfer_data"]["amount"] == target_instructor_payout_cents
+        assert "application_fee_amount" not in create_kwargs
         assert create_kwargs["transfer_group"] == f"booking:{test_booking.id}"
 
         # Verify result
@@ -2415,6 +2424,7 @@ class TestStripeService:
         assert result["payment_intent_id"] == "pi_test123"
         assert result["status"] == "succeeded"
         assert result["amount"] == 5000  # $50.00 in cents
+        # Platform retained amount stored in application_fee field
         assert result["application_fee"] == application_fee_cents
 
     def test_process_booking_payment_credit_only(

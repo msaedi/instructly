@@ -597,7 +597,8 @@ class StripeService(BaseService):
         student_fee_pct = float(
             pricing_config.get("student_fee_pct", PRICING_DEFAULTS["student_fee_pct"])
         )
-        instructor_tier_pct = _get_instructor_tier_pct(pricing_config, profile)
+        # Fallback tier for edge cases where calculation fails
+        fallback_tier_pct = _get_instructor_tier_pct(pricing_config, profile)
 
         invoices: List[InstructorInvoiceSummary] = []
         total_minutes = 0
@@ -637,15 +638,27 @@ class StripeService(BaseService):
 
             # Calculate instructor-centric amounts for display
             lesson_price_cents = _compute_base_price_cents(booking.hourly_rate, minutes)
-            platform_fee_cents = int(
-                Decimal(lesson_price_cents) * Decimal(str(instructor_tier_pct))
-            )
             student_fee_cents_calc = int(
                 Decimal(lesson_price_cents) * Decimal(str(student_fee_pct))
             )
             # instructor_share_cents is the actual amount from payment records
             instructor_share_cents = max(
                 0, int(payment.amount or 0) - int(payment.application_fee or 0)
+            )
+
+            # Derive actual tier percentage from payment data
+            # instructor_fee = lesson_price - instructor_share (credits cancel out)
+            actual_instructor_fee_cents = lesson_price_cents - instructor_share_cents
+            if lesson_price_cents > 0 and actual_instructor_fee_cents >= 0:
+                actual_tier_pct = float(actual_instructor_fee_cents) / float(lesson_price_cents)
+                # Sanity check: tier should be between 0 and 25%
+                if not (0 <= actual_tier_pct <= 0.25):
+                    actual_tier_pct = fallback_tier_pct
+            else:
+                actual_tier_pct = fallback_tier_pct
+
+            platform_fee_cents = (
+                actual_instructor_fee_cents if actual_instructor_fee_cents >= 0 else 0
             )
 
             # Aggregate totals
@@ -670,7 +683,7 @@ class StripeService(BaseService):
                     # New instructor-centric fields
                     lesson_price_cents=lesson_price_cents,
                     platform_fee_cents=platform_fee_cents,
-                    platform_fee_rate=instructor_tier_pct,
+                    platform_fee_rate=actual_tier_pct,
                     student_fee_cents=student_fee_cents_calc,
                 )
             )
@@ -748,7 +761,8 @@ class StripeService(BaseService):
             except Exception:
                 return default_pct
 
-        instructor_tier_pct = _get_instructor_tier_pct(pricing_config, profile)
+        # Fallback tier for edge cases where calculation fails
+        fallback_tier_pct = _get_instructor_tier_pct(pricing_config, profile)
         earnings_rows = self.payment_repository.get_instructor_earnings_for_export(
             instructor_id,
             start_date=start_date,
@@ -760,13 +774,24 @@ class StripeService(BaseService):
             lesson_price_cents = _compute_base_price_cents(
                 row.get("hourly_rate"), int(row.get("duration_minutes") or 0)
             )
-            platform_fee_cents = int(
-                Decimal(lesson_price_cents) * Decimal(str(instructor_tier_pct))
-            )
+            # Derive actual tier percentage from payment data
+            # instructor_fee = lesson_price - instructor_share (credits cancel out)
             net_earnings_cents = max(
                 0,
                 int(row.get("payment_amount_cents") or 0)
                 - int(row.get("application_fee_cents") or 0),
+            )
+            actual_instructor_fee_cents = lesson_price_cents - net_earnings_cents
+            if lesson_price_cents > 0 and actual_instructor_fee_cents >= 0:
+                actual_tier_pct = float(actual_instructor_fee_cents) / float(lesson_price_cents)
+                # Sanity check: tier should be between 0 and 25%
+                if not (0 <= actual_tier_pct <= 0.25):
+                    actual_tier_pct = fallback_tier_pct
+            else:
+                actual_tier_pct = fallback_tier_pct
+
+            platform_fee_cents = (
+                actual_instructor_fee_cents if actual_instructor_fee_cents >= 0 else 0
             )
             display_status = map_payment_status(row.get("status"))
             status_label = display_status.replace("_", " ").title()
@@ -1269,12 +1294,17 @@ class StripeService(BaseService):
             "target_instructor_payout_cents": str(context.target_instructor_payout_cents),
         }
 
+        # Use transfer_data[amount] architecture: platform receives full charge,
+        # then transfers exactly target_instructor_payout_cents to instructor.
+        # Platform retains the difference (student_pay_cents - target_instructor_payout_cents).
         stripe_kwargs: Dict[str, Any] = {
             "amount": context.student_pay_cents,
             "currency": settings.stripe_currency or "usd",
             "customer": customer.stripe_customer_id,
-            "transfer_data": {"destination": connected_account.stripe_account_id},
-            "application_fee_amount": context.application_fee_cents,
+            "transfer_data": {
+                "destination": connected_account.stripe_account_id,
+                "amount": context.target_instructor_payout_cents,
+            },
             "metadata": metadata,
             "transfer_group": f"booking:{booking_id}",
             "capture_method": "manual",
@@ -2081,7 +2111,11 @@ class StripeService(BaseService):
 
                 if ctx is not None:
                     amount = int(ctx.student_pay_cents)
-                    application_fee_cents = int(ctx.application_fee_cents)
+                    # Platform retains (student_pay_cents - target_instructor_payout_cents)
+                    platform_retained_cents = int(
+                        ctx.student_pay_cents - ctx.target_instructor_payout_cents
+                    )
+                    transfer_amount_cents = int(ctx.target_instructor_payout_cents)
                     metadata = {
                         "booking_id": booking_id,
                         "platform": "instainstru",
@@ -2141,7 +2175,9 @@ class StripeService(BaseService):
                             "amount_cents is required when charge context is not provided"
                         )
                     amount = int(amount_cents)
-                    application_fee_cents = int(amount * self.platform_fee_percentage)
+                    # Fallback: use generic platform fee percentage to compute transfer amount
+                    platform_retained_cents = int(amount * self.platform_fee_percentage)
+                    transfer_amount_cents = amount - platform_retained_cents
                     metadata = {
                         "booking_id": booking_id,
                         "platform": "instainstru",
@@ -2149,12 +2185,16 @@ class StripeService(BaseService):
                     }
 
                 try:
+                    # Use transfer_data[amount] architecture: platform receives full charge,
+                    # then transfers exactly transfer_amount_cents to instructor.
                     stripe_kwargs = {
                         "amount": amount,
                         "currency": currency,
                         "customer": customer_id,
-                        "transfer_data": {"destination": destination_account_id},
-                        "application_fee_amount": application_fee_cents,
+                        "transfer_data": {
+                            "destination": destination_account_id,
+                            "amount": transfer_amount_cents,
+                        },
                         "metadata": metadata,
                         "capture_method": "manual",
                     }
@@ -2167,7 +2207,7 @@ class StripeService(BaseService):
                         booking_id=booking_id,
                         payment_intent_id=stripe_intent.id,
                         amount=amount,
-                        application_fee=application_fee_cents,
+                        application_fee=platform_retained_cents,
                         status=stripe_intent.status,
                     )
                     self.logger.info(
@@ -2183,7 +2223,7 @@ class StripeService(BaseService):
                             booking_id=booking_id,
                             payment_intent_id=f"mock_pi_{booking_id}",
                             amount=amount,
-                            application_fee=application_fee_cents,
+                            application_fee=platform_retained_cents,
                             status="requires_payment_method",
                         )
                     raise
@@ -2210,10 +2250,15 @@ class StripeService(BaseService):
         """
         Create a manual-capture PaymentIntent for immediate authorization (<24h bookings) and confirm off-session.
 
+        Uses transfer_data[amount] architecture: platform receives full charge, then transfers
+        exactly transfer_amount_cents to instructor. Platform retains the difference.
+
         Returns a dict with keys: payment_intent (Stripe object), status, requires_action, client_secret.
         """
         try:
-            application_fee_cents = int(amount_cents * self.platform_fee_percentage)
+            # Calculate platform retained amount and instructor transfer amount
+            platform_retained_cents = int(amount_cents * self.platform_fee_percentage)
+            transfer_amount_cents = amount_cents - platform_retained_cents
 
             pi = stripe.PaymentIntent.create(
                 amount=amount_cents,
@@ -2223,12 +2268,15 @@ class StripeService(BaseService):
                 capture_method="manual",
                 confirm=True,
                 off_session=True,
-                transfer_data={"destination": destination_account_id},
-                application_fee_amount=application_fee_cents,
+                transfer_data={
+                    "destination": destination_account_id,
+                    "amount": transfer_amount_cents,
+                },
                 metadata={
                     "booking_id": booking_id,
                     "platform": "instainstru",
                     "applied_credit_cents": "0",
+                    "target_instructor_payout_cents": str(transfer_amount_cents),
                 },
                 idempotency_key=idempotency_key,
             )
@@ -2252,7 +2300,7 @@ class StripeService(BaseService):
                         booking_id=booking_id,
                         payment_intent_id=pi.id,
                         amount=amount_cents,
-                        application_fee=application_fee_cents,
+                        application_fee=platform_retained_cents,
                         status=pi.status,
                     )
                 else:
@@ -2263,7 +2311,7 @@ class StripeService(BaseService):
                             booking_id=booking_id,
                             payment_intent_id=pi.id,
                             amount=amount_cents,
-                            application_fee=application_fee_cents,
+                            application_fee=platform_retained_cents,
                             status=pi.status,
                         )
             except Exception:
