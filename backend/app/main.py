@@ -1186,7 +1186,7 @@ def internal_metrics_options() -> None:
 
 
 # Register internal metrics under /api/v1/internal
-api_v1.include_router(internal_metrics_router, prefix="/internal")
+api_v1.include_router(internal_metrics_router, prefix="/internal")  # type: ignore[attr-defined]
 
 # Referral short URLs - now under /api/v1/r/{slug}
 api_v1.include_router(referrals_v1.public_router, prefix="/r")  # type: ignore[attr-defined]

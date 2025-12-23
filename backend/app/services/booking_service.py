@@ -2360,52 +2360,36 @@ class BookingService(BaseService):
         self._invalidate_booking_caches(target_booking)
 
     def _invalidate_booking_caches(self, booking: Booking) -> None:
-        """Invalidate caches affected by booking changes using enhanced cache service."""
-        # Use enhanced cache service to invalidate availability caches
+        """
+        Invalidate caches affected by booking changes using enhanced cache service.
+
+        Note: Ghost keys removed in v123 cleanup. Only active cache keys are invalidated:
+        - Availability caches via invalidate_instructor_availability()
+        - booking_stats:instructor (active - used in get_instructor_booking_stats)
+        - BookingRepository cached methods via delete_pattern
+        """
         if self.cache_service:
             try:
                 # Invalidate all availability caches for the instructor and specific date
                 self.cache_service.invalidate_instructor_availability(
                     booking.instructor_id, [booking.booking_date]
                 )
-                # Invalidate booking statistics cache for the instructor
+                # Invalidate booking statistics cache for the instructor (actively used)
                 stats_cache_key = f"booking_stats:instructor:{booking.instructor_id}"
                 self.cache_service.delete(stats_cache_key)
-                # Invalidate booking statistics cache for the student
-                student_stats_cache_key = f"booking_stats:student:{booking.student_id}"
-                self.cache_service.delete(student_stats_cache_key)
                 logger.debug(
                     f"Invalidated availability and stats caches for instructor {booking.instructor_id}"
                 )
             except Exception as cache_error:
                 logger.warning(f"Failed to invalidate caches: {cache_error}")
 
-        # Legacy cache invalidation for other booking-related caches
-        self.invalidate_cache(f"user_bookings:{booking.student_id}")
-        self.invalidate_cache(f"user_bookings:{booking.instructor_id}")
-
-        # Invalidate date-specific caches
-        self.invalidate_cache(f"bookings:date:{booking.booking_date}")
-
-        # Invalidate instructor availability caches (fallback)
-        self.invalidate_cache(
-            f"instructor_availability:{booking.instructor_id}:{booking.booking_date}"
-        )
-
-        # Invalidate stats caches (legacy)
-        self.invalidate_cache(f"instructor_stats:{booking.instructor_id}")
-
-        # Invalidate BookingRepository cached methods
-        # The cache keys use hashed kwargs, so we need to invalidate ALL cached queries
-        # for student and instructor bookings when any booking changes
-        if self.cache_service:
+            # Invalidate BookingRepository cached methods
+            # The cache keys use hashed kwargs, so we need to invalidate ALL cached queries
             try:
-                # Invalidate ALL student booking caches (can't target specific student due to hashing)
                 self.cache_service.delete_pattern("booking:get_student_bookings:*")
-                # Invalidate ALL instructor booking caches
                 self.cache_service.delete_pattern("booking:get_instructor_bookings:*")
                 logger.debug(
-                    f"Invalidated all BookingRepository caches after booking {booking.id} change"
+                    f"Invalidated BookingRepository caches after booking {booking.id} change"
                 )
             except Exception as e:
                 logger.warning(f"Failed to invalidate BookingRepository caches: {e}")

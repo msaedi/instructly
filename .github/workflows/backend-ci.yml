@@ -33,6 +33,7 @@ concurrency:
 
 jobs:
   test:
+    if: github.actor != 'dependabot[bot]'
     concurrency:
       group: backend-ci-test-${{ github.ref }}
       cancel-in-progress: true

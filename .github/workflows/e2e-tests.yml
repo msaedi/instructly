@@ -43,6 +43,7 @@ concurrency:
 
 jobs:
   unit-tests:
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     steps:
@@ -75,6 +76,7 @@ jobs:
       run: npm test
 
   e2e-tests:
+    if: github.actor != 'dependabot[bot]'
     needs: [unit-tests]  # Don't spin up services if unit tests fail
     runs-on: ubuntu-latest
     timeout-minutes: 20  # Prevent orphaned runs

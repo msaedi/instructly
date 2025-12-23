@@ -306,11 +306,12 @@ class FavoritesService(BaseService):
         return f"favorites:{student_id}:{instructor_id}"
 
     def _invalidate_favorite_cache(self, student_id: str, instructor_id: str) -> None:
-        """Invalidate cache entries related to a favorite."""
+        """
+        Invalidate cache entries related to a favorite.
+
+        Note: Ghost key 'favorites:list:{student_id}' removed in v123 cleanup.
+        Only the status cache key is actively used.
+        """
         if self.cache:
             cache_key = self._get_cache_key(student_id, instructor_id)
             self.cache.delete(cache_key)
-
-            # Also invalidate any list caches if needed
-            list_cache_key = f"favorites:list:{student_id}"
-            self.cache.delete(list_cache_key)

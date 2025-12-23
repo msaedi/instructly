@@ -65,6 +65,7 @@ from ..utils.bitset import (
 from ..utils.time_helpers import string_to_time, time_to_string
 from .audit_redaction import redact
 from .base import BaseService
+from .search.cache_invalidation import invalidate_on_availability_change
 
 # TYPE_CHECKING import to avoid circular dependencies
 if TYPE_CHECKING:
@@ -433,10 +434,107 @@ class AvailabilityService(BaseService):
                 edited_dates=[],
             )
 
-        repo = self._bitmap_repo()
-        rows_written = repo.upsert_week(instructor_id, updates)
-        after_map = dict(target_map)
+        # All DB operations inside transaction block - commit happens when block exits
+        with self.transaction():
+            repo = self._bitmap_repo()
+            rows_written = repo.upsert_week(instructor_id, updates)
 
+            audit_dates = sorted(
+                set(changed_dates_set) | set(skipped_window_list) | set(skipped_forbidden_list)
+            )
+
+            def _windows_payload(
+                bits_map: Dict[date, bytes], target_dates: List[date]
+            ) -> dict[str, Any]:
+                result: dict[str, Any] = {}
+                for target in target_dates:
+                    result[target.isoformat()] = [
+                        {"start_time": start, "end_time": end}
+                        for start, end in windows_from_bits(bits_map.get(target, new_empty_bits()))
+                    ]
+                return result
+
+            if audit_dates and AUDIT_ENABLED:
+
+                def _window_counts(
+                    bits_map: Dict[date, bytes], target_dates: List[date]
+                ) -> dict[str, int]:
+                    counts: dict[str, int] = {}
+                    for target in target_dates:
+                        counts[target.isoformat()] = len(
+                            windows_from_bits(bits_map.get(target, new_empty_bits()))
+                        )
+                    return counts
+
+                before_payload = {
+                    "week_start": week_start.isoformat(),
+                    "windows": _windows_payload(current_map, audit_dates),
+                }
+                before_payload["window_counts"] = _window_counts(current_map, audit_dates)
+                after_payload = {
+                    "week_start": week_start.isoformat(),
+                    "windows": _windows_payload(target_map, audit_dates),
+                    "edited_dates": [d.isoformat() for d in sorted(changed_dates_set)],
+                    "skipped_dates": [d.isoformat() for d in skipped_window_list],
+                    "skipped_forbidden_dates": [d.isoformat() for d in skipped_forbidden_list],
+                    "historical_edit": bool(
+                        past_written_dates_set or skipped_window_list or skipped_forbidden_list
+                    ),
+                    "skipped_past_window": bool(skipped_window_list),
+                    "skipped_past_forbidden": bool(skipped_forbidden_list),
+                    "days_written": len(changed_dates_set),
+                }
+                after_payload["window_counts"] = _window_counts(target_map, audit_dates)
+                try:
+                    self._write_availability_audit(
+                        instructor_id,
+                        week_start,
+                        "save_week",
+                        actor=actor,
+                        before=before_payload,
+                        after=after_payload,
+                    )
+                except Exception as audit_err:
+                    logger.warning(
+                        "Audit write failed for bitmap save_week_bits",
+                        extra={
+                            "instructor_id": instructor_id,
+                            "week_start": week_start.isoformat(),
+                            "error": str(audit_err),
+                        },
+                    )
+
+            event_dates = [
+                d
+                for d in sorted(changed_dates_set)
+                if not (settings.suppress_past_availability_events and d < instructor_today)
+            ]
+            if event_dates:
+                try:
+                    prepared = PreparedWeek(windows=[], affected_dates=set(event_dates))
+                    self._enqueue_week_save_event(
+                        instructor_id,
+                        week_start,
+                        week_dates=[week_start + timedelta(days=i) for i in range(7)],
+                        prepared=prepared,
+                        created_count=len(changed_dates_set),
+                        deleted_count=0,
+                        clear_existing=bool(clear_existing),
+                    )
+                except Exception as enqueue_err:
+                    logger.warning(
+                        "Outbox enqueue failed for bitmap save_week_bits",
+                        extra={
+                            "instructor_id": instructor_id,
+                            "week_start": week_start.isoformat(),
+                            "error": str(enqueue_err),
+                        },
+                    )
+
+        # Transaction committed - DB changes now visible to all connections
+        # Safe to update/invalidate caches
+
+        after_map = dict(target_map)
         if self.cache_service:
             try:
                 week_map_after, _ = self._week_map_from_bits(after_map, include_snapshots=False)
@@ -451,100 +549,14 @@ class AvailabilityService(BaseService):
         new_version = self.compute_week_version_bits(after_map)
         changed_dates = sorted(changed_dates_set)
         past_written_dates = sorted(past_written_dates_set)
-
-        audit_dates = sorted(
-            set(changed_dates) | set(skipped_window_list) | set(skipped_forbidden_list)
-        )
-
-        def _windows_payload(
-            bits_map: Dict[date, bytes], target_dates: List[date]
-        ) -> dict[str, Any]:
-            result: dict[str, Any] = {}
-            for target in target_dates:
-                result[target.isoformat()] = [
-                    {"start_time": start, "end_time": end}
-                    for start, end in windows_from_bits(bits_map.get(target, new_empty_bits()))
-                ]
-            return result
-
-        if audit_dates and AUDIT_ENABLED:
-
-            def _window_counts(
-                bits_map: Dict[date, bytes], target_dates: List[date]
-            ) -> dict[str, int]:
-                counts: dict[str, int] = {}
-                for target in target_dates:
-                    counts[target.isoformat()] = len(
-                        windows_from_bits(bits_map.get(target, new_empty_bits()))
-                    )
-                return counts
-
-            before_payload = {
-                "week_start": week_start.isoformat(),
-                "windows": _windows_payload(current_map, audit_dates),
-            }
-            before_payload["window_counts"] = _window_counts(current_map, audit_dates)
-            after_payload = {
-                "week_start": week_start.isoformat(),
-                "windows": _windows_payload(after_map, audit_dates),
-                "edited_dates": [d.isoformat() for d in changed_dates],
-                "skipped_dates": [d.isoformat() for d in skipped_window_list],
-                "skipped_forbidden_dates": [d.isoformat() for d in skipped_forbidden_list],
-                "historical_edit": bool(
-                    past_written_dates or skipped_window_list or skipped_forbidden_list
-                ),
-                "skipped_past_window": bool(skipped_window_list),
-                "skipped_past_forbidden": bool(skipped_forbidden_list),
-                "days_written": len(changed_dates),
-            }
-            after_payload["window_counts"] = _window_counts(after_map, audit_dates)
-            try:
-                self._write_availability_audit(
-                    instructor_id,
-                    week_start,
-                    "save_week",
-                    actor=actor,
-                    before=before_payload,
-                    after=after_payload,
-                )
-            except Exception as audit_err:
-                logger.warning(
-                    "Audit write failed for bitmap save_week_bits",
-                    extra={
-                        "instructor_id": instructor_id,
-                        "week_start": week_start.isoformat(),
-                        "error": str(audit_err),
-                    },
-                )
-
-        event_dates = [
-            d
-            for d in changed_dates
-            if not (settings.suppress_past_availability_events and d < instructor_today)
-        ]
-        if event_dates:
-            try:
-                prepared = PreparedWeek(windows=[], affected_dates=set(event_dates))
-                self._enqueue_week_save_event(
-                    instructor_id,
-                    week_start,
-                    week_dates=[week_start + timedelta(days=i) for i in range(7)],
-                    prepared=prepared,
-                    created_count=len(changed_dates),
-                    deleted_count=0,
-                    clear_existing=bool(clear_existing),
-                )
-            except Exception as enqueue_err:
-                logger.warning(
-                    "Outbox enqueue failed for bitmap save_week_bits",
-                    extra={
-                        "instructor_id": instructor_id,
-                        "week_start": week_start.isoformat(),
-                        "error": str(enqueue_err),
-                    },
-                )
-
         edited_date_strings = [d.isoformat() for d in changed_dates]
+
+        # Invalidate availability caches (public_availability:*, week:*, etc.)
+        if changed_dates:
+            self._invalidate_availability_caches(instructor_id, changed_dates)
+
+        # Invalidate search cache (fire-and-forget via asyncio.create_task)
+        invalidate_on_availability_change(instructor_id)
 
         return SaveWeekBitsResult(
             rows_written=rows_written,
@@ -1542,8 +1554,10 @@ class AvailabilityService(BaseService):
         Returns:
             Created availability window information as dict
         """
+        target_date = availability_data.specific_date
+
+        # All DB operations inside transaction block - commit happens when block exits
         with self.transaction():
-            target_date = availability_data.specific_date
             bitmap_repo = self._bitmap_repo()
 
             # Get existing bits for the date
@@ -1586,17 +1600,21 @@ class AvailabilityService(BaseService):
             # Save updated bits
             bitmap_repo.upsert_week(instructor_id, [(target_date, new_bits)])
 
-            # Invalidate cache
-            self._invalidate_availability_caches(instructor_id, [target_date])
+        # Transaction committed - DB changes now visible to all connections
+        # Safe to invalidate caches
+        self._invalidate_availability_caches(instructor_id, [target_date])
 
-            # Return window-like dict for compatibility
-            return {
-                "id": f"{instructor_id}:{target_date.isoformat()}:{availability_data.start_time}:{availability_data.end_time}",
-                "instructor_id": instructor_id,
-                "specific_date": target_date,
-                "start_time": availability_data.start_time,
-                "end_time": availability_data.end_time,
-            }
+        # Invalidate search cache (fire-and-forget via asyncio.create_task)
+        invalidate_on_availability_change(instructor_id)
+
+        # Return window-like dict for compatibility
+        return {
+            "id": f"{instructor_id}:{target_date.isoformat()}:{availability_data.start_time}:{availability_data.end_time}",
+            "instructor_id": instructor_id,
+            "specific_date": target_date,
+            "start_time": availability_data.start_time,
+            "end_time": availability_data.end_time,
+        }
 
     @BaseService.measure_operation("get_blackout_dates")
     def get_blackout_dates(self, instructor_id: str) -> list[BlackoutDate]:
@@ -2113,22 +2131,24 @@ class AvailabilityService(BaseService):
         )
 
     def _invalidate_availability_caches(self, instructor_id: str, dates: list[date]) -> None:
-        """Invalidate caches for affected dates using enhanced cache service."""
+        """
+        Invalidate caches for affected dates using enhanced cache service.
+
+        Note: Ghost keys removed in v123 cleanup. The cache service's
+        invalidate_instructor_availability() handles all active patterns:
+        - avail:*:{instructor_id}:*
+        - week:*:{instructor_id}:*
+        - con:*:{instructor_id}:*
+        - public_availability:{instructor_id}:*
+        """
         if self.cache_service:
             try:
-                # Use the new cache service invalidation method
+                # Use the cache service invalidation method - handles all patterns
                 self.cache_service.invalidate_instructor_availability(instructor_id, dates)
             except Exception as cache_error:
                 logger.warning(f"Cache invalidation failed: {cache_error}")
 
-        # Fallback to legacy cache invalidation
-        self.invalidate_cache(f"instructor_availability:{instructor_id}")
-
-        # Invalidate date-specific caches
-        for target_date in dates:
-            self.invalidate_cache(f"instructor_availability:{instructor_id}:{target_date}")
-
-        # Invalidate week caches
+        # Invalidate week cache composite keys via BaseService
         weeks = set()
         for target_date in dates:
             monday = target_date - timedelta(days=target_date.weekday())
@@ -2143,6 +2163,3 @@ class AvailabilityService(BaseService):
                     logger.warning(
                         f"Failed to invalidate availability cache keys for week {week_start}: {cache_error}"
                     )
-
-        for week_start in weeks:
-            self.invalidate_cache(f"week_availability:{instructor_id}:{week_start}")

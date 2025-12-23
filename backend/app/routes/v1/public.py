@@ -249,20 +249,43 @@ async def get_instructor_public_availability(
     if end_date > max_end_date:
         end_date = max_end_date
 
+    # Initialize response_data for type checking
+    response_data: Optional[PublicInstructorAvailability] = None
+
     # Check cache first - include detail level in cache key
     cache_key = f"public_availability:{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}"
-    cached_result: Optional[Dict[str, Any]] = None
     if cache_service:
         try:
             cached_data = await cache_service.get(cache_key)
             if cached_data:
                 logger.info(f"Cache hit for public availability: {cache_key}")
                 cached_result = cast(Dict[str, Any], cached_data)
+                response_data = PublicInstructorAvailability(**cached_result)
+
+                # Generate ETag for cached response
+                response_json = response_data.model_dump_json(exclude_none=True)
+                etag_data = f"{instructor_id}:{start_date}:{end_date}:{response_json}"
+                etag_hash = hashlib.md5(etag_data.encode()).hexdigest()
+                etag = f'W/"{etag_hash}"'
+
+                # Check If-None-Match for 304 response
+                if_none_match = request.headers.get("If-None-Match")
+                if if_none_match and if_none_match == etag:
+                    response_obj.headers["ETag"] = etag
+                    response_obj.headers["Cache-Control"] = "private, no-cache, must-revalidate"
+                    response_obj.headers["Vary"] = "Accept-Encoding"
+                    response_obj.status_code = status.HTTP_304_NOT_MODIFIED
+                    return response_data
+
+                # Return cached response (skip DB computation)
+                response_obj.headers["Cache-Control"] = "private, no-cache, must-revalidate"
+                response_obj.headers["ETag"] = etag
+                response_obj.headers["Vary"] = "Accept-Encoding"
+                return response_data
         except Exception as e:
             logger.warning(f"Cache error: {e}")
 
-    # Initialize response_data
-    response_data: Optional[PublicInstructorAvailability] = None
+    # Cache miss - compute fresh data below
 
     # Build response based on detail level
     if settings.public_availability_detail_level == "minimal":
@@ -419,11 +442,7 @@ async def get_instructor_public_availability(
             earliest_available_date=earliest_available_date,
         )
 
-    # Get response data (either from cache or freshly built)
-    if cached_result is not None:
-        # For cached results, recreate the response model
-        response_data = PublicInstructorAvailability(**cached_result)
-
+    # At this point, we have freshly computed response_data (cache miss path)
     assert response_data is not None
 
     # Use model_dump_json with exclude_none to keep responses clean
@@ -441,14 +460,14 @@ async def get_instructor_public_availability(
         # Set headers on the response object and return the current data
         # The client will handle the 304 logic based on ETag matching
         response_obj.headers["ETag"] = etag
-        response_obj.headers["Cache-Control"] = "public, max-age=300"
+        response_obj.headers["Cache-Control"] = "private, no-cache, must-revalidate"
         response_obj.headers["Vary"] = "Accept-Encoding"
         response_obj.status_code = status.HTTP_304_NOT_MODIFIED
         # Return the existing data - FastAPI will handle 304 response properly
         return response_data
 
-    # Cache the response if not already cached
-    if not cached_result and cache_service:
+    # Cache the freshly computed response (we only reach here on cache miss)
+    if cache_service:
         try:
             await cache_service.set(
                 cache_key,
@@ -458,8 +477,8 @@ async def get_instructor_public_availability(
         except Exception as e:
             logger.warning(f"Failed to cache public availability: {e}")
 
-    # Set cache control headers (5 minutes) and ETag on FastAPI Response object
-    response_obj.headers["Cache-Control"] = "public, max-age=300"
+    # Set headers - disable browser caching so changes are seen immediately
+    response_obj.headers["Cache-Control"] = "private, no-cache, must-revalidate"
     response_obj.headers["ETag"] = etag
     response_obj.headers["Vary"] = "Accept-Encoding"
 
