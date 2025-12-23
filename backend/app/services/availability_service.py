@@ -2131,22 +2131,24 @@ class AvailabilityService(BaseService):
         )
 
     def _invalidate_availability_caches(self, instructor_id: str, dates: list[date]) -> None:
-        """Invalidate caches for affected dates using enhanced cache service."""
+        """
+        Invalidate caches for affected dates using enhanced cache service.
+
+        Note: Ghost keys removed in v123 cleanup. The cache service's
+        invalidate_instructor_availability() handles all active patterns:
+        - avail:*:{instructor_id}:*
+        - week:*:{instructor_id}:*
+        - con:*:{instructor_id}:*
+        - public_availability:{instructor_id}:*
+        """
         if self.cache_service:
             try:
-                # Use the new cache service invalidation method
+                # Use the cache service invalidation method - handles all patterns
                 self.cache_service.invalidate_instructor_availability(instructor_id, dates)
             except Exception as cache_error:
                 logger.warning(f"Cache invalidation failed: {cache_error}")
 
-        # Fallback to legacy cache invalidation
-        self.invalidate_cache(f"instructor_availability:{instructor_id}")
-
-        # Invalidate date-specific caches
-        for target_date in dates:
-            self.invalidate_cache(f"instructor_availability:{instructor_id}:{target_date}")
-
-        # Invalidate week caches
+        # Invalidate week cache composite keys via BaseService
         weeks = set()
         for target_date in dates:
             monday = target_date - timedelta(days=target_date.weekday())
@@ -2161,6 +2163,3 @@ class AvailabilityService(BaseService):
                     logger.warning(
                         f"Failed to invalidate availability cache keys for week {week_start}: {cache_error}"
                     )
-
-        for week_start in weeks:
-            self.invalidate_cache(f"week_availability:{instructor_id}:{week_start}")

@@ -950,12 +950,16 @@ class InstructorService(BaseService):
         }
 
     def _invalidate_instructor_caches(self, user_id: str) -> None:
-        """Invalidate all caches related to an instructor."""
+        """
+        Invalidate all caches related to an instructor.
+
+        Note: Ghost key 'instructor:profile:{user_id}' removed in v123 cleanup.
+        Only instructor:public:{user_id} is actively set and cached.
+        """
         if not self.cache_service:
             return
 
-        # Clear profile caches (both internal and public)
-        self.cache_service.delete(f"instructor:profile:{user_id}")
+        # Clear public profile cache (actively used)
         self.cache_service.delete(f"instructor:public:{user_id}")
 
         # Clear availability caches

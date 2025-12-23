@@ -202,9 +202,9 @@ class TestServiceCaching:
         service._invalidate_booking_caches(mock_booking)
 
         # Verify stats caches were invalidated
+        # Note: booking_stats:student was removed as a ghost key in v123 cleanup
         cache_deletes = [call[0][0] for call in mock_cache.delete.call_args_list]
         assert "booking_stats:instructor:123" in cache_deletes
-        assert "booking_stats:student:456" in cache_deletes
 
         # Verify availability cache was invalidated
         mock_cache.invalidate_instructor_availability.assert_called_once_with(123, [mock_booking.booking_date])
