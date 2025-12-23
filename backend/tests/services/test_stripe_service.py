@@ -2561,12 +2561,68 @@ class TestStripeService:
 
         mock_capture.return_value = capture_payload
 
-        result = stripe_service.capture_payment_intent("pi_direct123")
+        # Mock Transfer.retrieve to return the transfer amount
+        with patch("stripe.Transfer.retrieve") as mock_transfer_retrieve:
+            # Create a mock that behaves like a Stripe object
+            # The code uses: transfer.get("amount") if hasattr(transfer, "get") else ...
+            mock_transfer_obj = MagicMock()
+            mock_transfer_obj.get.side_effect = lambda key: 5230 if key == "amount" else None
+            mock_transfer_obj.amount = 5230  # Instructor payout (5960 - 12% fee)
+            mock_transfer_retrieve.return_value = mock_transfer_obj
+
+            result = stripe_service.capture_payment_intent("pi_direct123")
 
         assert result["payment_intent"] == capture_payload
         assert result["amount_received"] == 5960
         assert result["transfer_id"] == "tr_primary"
+        assert result["transfer_amount"] == 5230  # Instructor payout
         mock_transfer.assert_not_called()
+
+    @patch("stripe.Transfer.retrieve")
+    @patch("stripe.PaymentIntent.capture")
+    def test_capture_payment_intent_returns_transfer_amount(
+        self,
+        mock_capture,
+        mock_transfer_retrieve,
+        stripe_service: StripeService,
+    ) -> None:
+        """Capture should return transfer_amount for 12-24h reversal correctness."""
+        # With transfer_data[amount] architecture:
+        # - amount_received: Total charge to student (e.g., $134.40 = 13440 cents)
+        # - transfer_amount: Amount to instructor (e.g., $105.60 = 10560 cents)
+        capture_payload = {
+            "id": "pi_transfer_amount_test",
+            "status": "succeeded",
+            "charges": {
+                "data": [
+                    {
+                        "id": "ch_456",
+                        "amount": 13440,  # Total charge
+                        "transfer": "tr_instructor",
+                    }
+                ]
+            },
+            "amount_received": 13440,
+            "metadata": {"target_instructor_payout_cents": "10560"},
+        }
+        mock_capture.return_value = capture_payload
+
+        # Transfer has the correct instructor payout
+        # The code uses: transfer.get("amount") if hasattr(transfer, "get") else ...
+        mock_transfer_obj = MagicMock()
+        mock_transfer_obj.get.side_effect = lambda key: 10560 if key == "amount" else None
+        mock_transfer_obj.amount = 10560
+        mock_transfer_retrieve.return_value = mock_transfer_obj
+
+        result = stripe_service.capture_payment_intent("pi_transfer_amount_test")
+
+        assert result["amount_received"] == 13440  # Total charge
+        assert result["transfer_amount"] == 10560  # Instructor payout
+        assert result["transfer_id"] == "tr_instructor"
+
+        # This is critical for 12-24h cancellation:
+        # We should reverse transfer_amount (10560), NOT amount_received (13440)
+        assert result["transfer_amount"] != result["amount_received"]
 
     @patch("stripe.PaymentIntent.capture")
     def test_capture_payment_intent_falls_back_to_amount(
@@ -2653,6 +2709,124 @@ class TestStripeService:
 
         with pytest.raises(ServiceException, match="Failed to cancel payment intent"):
             stripe_service.cancel_payment_intent("pi_cancel_boom")
+
+    # ========== refund_payment tests ==========
+
+    @patch("stripe.Refund.create")
+    def test_refund_payment_full_refund(
+        self, mock_refund_create, stripe_service: StripeService
+    ) -> None:
+        """Full refund with reverse_transfer=True should work correctly."""
+        mock_refund = MagicMock()
+        mock_refund.id = "re_full_123"
+        mock_refund.status = "succeeded"
+        mock_refund.amount = 13440  # Full amount
+        mock_refund_create.return_value = mock_refund
+
+        result = stripe_service.refund_payment(
+            payment_intent_id="pi_captured_123",
+            reason="requested_by_customer",
+            idempotency_key="refund_full_123",
+        )
+
+        assert result["refund_id"] == "re_full_123"
+        assert result["status"] == "succeeded"
+        assert result["amount_refunded"] == 13440
+        assert result["payment_intent_id"] == "pi_captured_123"
+
+        # Verify Stripe was called with correct params
+        call_kwargs = mock_refund_create.call_args.kwargs
+        assert call_kwargs["payment_intent"] == "pi_captured_123"
+        assert call_kwargs["reverse_transfer"] is True
+        assert call_kwargs["reason"] == "requested_by_customer"
+        assert call_kwargs["idempotency_key"] == "refund_full_123"
+        assert "amount" not in call_kwargs  # Full refund = no amount specified
+
+    @patch("stripe.Refund.create")
+    def test_refund_payment_partial_refund(
+        self, mock_refund_create, stripe_service: StripeService
+    ) -> None:
+        """Partial refund should proportionally reverse transfer."""
+        mock_refund = MagicMock()
+        mock_refund.id = "re_partial_123"
+        mock_refund.status = "succeeded"
+        mock_refund.amount = 6720  # 50% refund
+        mock_refund_create.return_value = mock_refund
+
+        result = stripe_service.refund_payment(
+            payment_intent_id="pi_captured_123",
+            amount_cents=6720,
+            reason="duplicate",
+        )
+
+        assert result["refund_id"] == "re_partial_123"
+        assert result["amount_refunded"] == 6720
+
+        # Verify amount was passed for partial refund
+        call_kwargs = mock_refund_create.call_args.kwargs
+        assert call_kwargs["amount"] == 6720
+
+    @patch("stripe.Refund.create")
+    def test_refund_payment_no_reverse_transfer(
+        self, mock_refund_create, stripe_service: StripeService
+    ) -> None:
+        """Refund without reverse_transfer (platform absorbs)."""
+        mock_refund = MagicMock()
+        mock_refund.id = "re_no_reverse_123"
+        mock_refund.status = "succeeded"
+        mock_refund.amount = 5000
+        mock_refund_create.return_value = mock_refund
+
+        stripe_service.refund_payment(
+            payment_intent_id="pi_no_reverse_123",
+            amount_cents=5000,
+            reverse_transfer=False,  # Platform absorbs the cost
+        )
+
+        call_kwargs = mock_refund_create.call_args.kwargs
+        assert call_kwargs["reverse_transfer"] is False
+
+    @patch("stripe.Refund.create")
+    def test_refund_payment_invalid_reason_ignored(
+        self, mock_refund_create, stripe_service: StripeService
+    ) -> None:
+        """Invalid reason should be ignored, not passed to Stripe."""
+        mock_refund = MagicMock()
+        mock_refund.id = "re_invalid_reason"
+        mock_refund.status = "succeeded"
+        mock_refund.amount = 5000
+        mock_refund_create.return_value = mock_refund
+
+        stripe_service.refund_payment(
+            payment_intent_id="pi_invalid_reason",
+            reason="invalid_reason_not_allowed",
+        )
+
+        call_kwargs = mock_refund_create.call_args.kwargs
+        # Invalid reason should NOT be passed
+        assert "reason" not in call_kwargs
+
+    @patch("stripe.Refund.create")
+    def test_refund_payment_stripe_error(
+        self, mock_refund_create, stripe_service: StripeService
+    ) -> None:
+        """Stripe refund errors should raise ServiceException."""
+        mock_refund_create.side_effect = stripe.StripeError("Refund failed")
+
+        with pytest.raises(ServiceException, match="Failed to create refund"):
+            stripe_service.refund_payment(payment_intent_id="pi_fail_refund")
+
+    @patch("stripe.Refund.create")
+    def test_refund_payment_unexpected_error(
+        self, mock_refund_create, stripe_service: StripeService
+    ) -> None:
+        """Unexpected errors should raise ServiceException."""
+        mock_refund_create.side_effect = Exception("Unexpected boom")
+
+        with pytest.raises(ServiceException, match="Failed to create refund"):
+            stripe_service.refund_payment(payment_intent_id="pi_boom_refund")
+
+    # ========== end refund_payment tests ==========
 
     @patch("stripe.Transfer.create_reversal")
     def test_reverse_transfer_partial_reversal(

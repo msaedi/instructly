@@ -1006,8 +1006,11 @@ class BookingService(BaseService):
                 booking.payment_status = "released"
 
             # 12–24h: capture, reverse transfer, issue platform credit
+            # NOTE: We capture the payment, reverse only the instructor's transfer,
+            # and issue platform credit. NO Stripe refund to student card.
             elif 12 < hours_until <= 24:
                 amount_received = None
+                transfer_amount = None
                 if booking.payment_intent_id:
                     try:
                         capture = stripe_service.capture_payment_intent(
@@ -1016,12 +1019,17 @@ class BookingService(BaseService):
                         )
                         transfer_id = capture.get("transfer_id")
                         amount_received = capture.get("amount_received")
+                        # transfer_amount is the actual amount sent to instructor
+                        # (not the full charge amount)
+                        transfer_amount = capture.get("transfer_amount")
 
-                        if transfer_id and amount_received:
+                        if transfer_id and transfer_amount:
                             try:
+                                # Reverse only the transfer amount (instructor payout),
+                                # not the full charge amount
                                 stripe_service.reverse_transfer(
                                     transfer_id=transfer_id,
-                                    amount_cents=amount_received,
+                                    amount_cents=transfer_amount,
                                     idempotency_key=f"reverse_{booking.id}",
                                     reason="student_cancel_12-24h",
                                 )
@@ -1030,7 +1038,8 @@ class BookingService(BaseService):
                                     event_type="transfer_reversed_late_cancel",
                                     event_data={
                                         "transfer_id": transfer_id,
-                                        "amount": amount_received,
+                                        "amount": transfer_amount,
+                                        "original_charge_amount": amount_received,
                                     },
                                 )
                             except Exception as e:

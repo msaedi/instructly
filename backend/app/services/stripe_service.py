@@ -30,6 +30,8 @@ from urllib.parse import ParseResult, urljoin, urlparse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import stripe
+from stripe._refund import Refund as StripeRefund
+from stripe._transfer import Transfer as StripeTransfer
 
 from ..constants.payment_status import map_payment_status
 from ..constants.pricing_defaults import PRICING_DEFAULTS
@@ -2379,7 +2381,17 @@ class StripeService(BaseService):
         """
         Capture a manual-capture PaymentIntent and return charge and transfer info.
 
-        Returns dict: {"payment_intent": pi, "charge_id": str|None, "transfer_id": str|None, "amount_received": int|None}
+        With transfer_data[amount] architecture:
+        - amount_received: Total charge amount (what student paid)
+        - transfer_amount: Amount transferred to instructor (subset of amount_received)
+
+        Returns dict: {
+            "payment_intent": pi,
+            "charge_id": str|None,
+            "transfer_id": str|None,
+            "amount_received": int|None,
+            "transfer_amount": int|None,  # The instructor payout amount
+        }
         """
         try:
             pi = stripe.PaymentIntent.capture(payment_intent_id, idempotency_key=idempotency_key)
@@ -2387,6 +2399,7 @@ class StripeService(BaseService):
             charge_id = None
             transfer_id = None
             amount_received = None
+            transfer_amount = None
 
             try:
                 if pi.get("charges") and pi["charges"]["data"]:
@@ -2395,6 +2408,30 @@ class StripeService(BaseService):
                     amount_received = charge.get("amount") or pi.get("amount_received")
                     # For destination charges, charge.transfer holds the transfer id
                     transfer_id = charge.get("transfer")
+
+                    # Retrieve transfer to get the actual transfer amount
+                    if transfer_id:
+                        try:
+                            transfer = StripeTransfer.retrieve(transfer_id)
+                            transfer_amount = (
+                                transfer.get("amount")
+                                if hasattr(transfer, "get")
+                                else getattr(transfer, "amount", None)
+                            )
+                        except Exception:
+                            # Fallback: try to get from PaymentIntent metadata
+                            metadata = (
+                                pi.get("metadata", {})
+                                if hasattr(pi, "get")
+                                else getattr(pi, "metadata", {})
+                            )
+                            if metadata and metadata.get("target_instructor_payout_cents"):
+                                try:
+                                    transfer_amount = int(
+                                        metadata["target_instructor_payout_cents"]
+                                    )
+                                except (ValueError, TypeError):
+                                    pass
             except Exception:
                 pass
 
@@ -2423,6 +2460,7 @@ class StripeService(BaseService):
                 "charge_id": charge_id,
                 "transfer_id": transfer_id,
                 "amount_received": amount_received,
+                "transfer_amount": transfer_amount,
             }
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error capturing payment intent: {str(e)}")
@@ -2515,6 +2553,80 @@ class StripeService(BaseService):
         except Exception as e:
             self.logger.error(f"Error canceling payment intent: {str(e)}")
             raise ServiceException(f"Failed to cancel payment intent: {str(e)}")
+
+    @BaseService.measure_operation("stripe_refund_payment")
+    def refund_payment(
+        self,
+        payment_intent_id: str,
+        *,
+        amount_cents: Optional[int] = None,
+        reason: str = "requested_by_customer",
+        reverse_transfer: bool = True,
+        idempotency_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Issue a refund for a captured PaymentIntent with automatic transfer reversal.
+
+        With transfer_data[amount] architecture, setting reverse_transfer=True will
+        automatically reverse the proportional amount from the connected account.
+
+        Args:
+            payment_intent_id: The PaymentIntent to refund
+            amount_cents: Optional partial refund amount (None = full refund)
+            reason: Refund reason (requested_by_customer, duplicate, fraudulent)
+            reverse_transfer: Whether to reverse the instructor's transfer (default True)
+            idempotency_key: Optional idempotency key
+
+        Returns:
+            Dict with refund_id, status, and amount_refunded
+
+        Raises:
+            ServiceException: If refund fails
+        """
+        try:
+            refund_kwargs: Dict[str, Any] = {
+                "payment_intent": payment_intent_id,
+                "reverse_transfer": reverse_transfer,
+            }
+
+            if amount_cents is not None:
+                refund_kwargs["amount"] = amount_cents
+
+            if reason:
+                # Stripe only accepts specific reason values
+                valid_reasons = {"requested_by_customer", "duplicate", "fraudulent"}
+                if reason in valid_reasons:
+                    refund_kwargs["reason"] = reason
+
+            if idempotency_key:
+                refund_kwargs["idempotency_key"] = idempotency_key
+
+            refund = StripeRefund.create(**refund_kwargs)
+
+            # Update payment status
+            try:
+                self.payment_repository.update_payment_status(payment_intent_id, "refunded")
+            except Exception:
+                pass
+
+            self.logger.info(
+                f"Refund created for PI {payment_intent_id}: "
+                f"refund_id={refund.id}, amount={refund.amount}, "
+                f"reverse_transfer={reverse_transfer}"
+            )
+
+            return {
+                "refund_id": refund.id,
+                "status": refund.status,
+                "amount_refunded": refund.amount,
+                "payment_intent_id": payment_intent_id,
+            }
+        except stripe.StripeError as e:
+            self.logger.error(f"Stripe error creating refund: {str(e)}")
+            raise ServiceException(f"Failed to create refund: {str(e)}")
+        except Exception as e:
+            self.logger.error(f"Error creating refund: {str(e)}")
+            raise ServiceException(f"Failed to create refund: {str(e)}")
 
     @BaseService.measure_operation("stripe_process_booking_payment")
     def process_booking_payment(

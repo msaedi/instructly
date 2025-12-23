@@ -131,20 +131,28 @@ class TestInstructorServiceAllServices:
         """Test handling when no categories exist"""
         mock_cache_service.get.return_value = None
 
-        # Clear all categories and services
-        db.query(ServiceCatalog).delete()
-        db.query(ServiceCategory).delete()
-        db.commit()
+        # Use a savepoint so we can rollback the destructive deletion
+        # This prevents polluting the database for other tests
+        db.begin_nested()
 
-        # Create service
-        instructor_service = InstructorService(db)
-        instructor_service.cache_service = mock_cache_service
+        try:
+            # Clear all categories and services within the savepoint
+            db.query(ServiceCatalog).delete()
+            db.query(ServiceCategory).delete()
+            db.flush()  # Use flush instead of commit to stay in savepoint
 
-        result = instructor_service.get_all_services_with_instructors()
+            # Create service
+            instructor_service = InstructorService(db)
+            instructor_service.cache_service = mock_cache_service
 
-        assert result["categories"] == []
-        assert result["metadata"]["total_categories"] == 0
-        assert result["metadata"]["total_services"] == 0
+            result = instructor_service.get_all_services_with_instructors()
+
+            assert result["categories"] == []
+            assert result["metadata"]["total_categories"] == 0
+            assert result["metadata"]["total_services"] == 0
+        finally:
+            # Always rollback to restore categories/services for other tests
+            db.rollback()
 
     def test_get_all_services_with_instructors_analytics_data(
         self, db: Session, mock_cache_service, sample_instructors_with_services

@@ -123,6 +123,14 @@ def test_cancel_over_24h_releases_auth(db: Session):
 
 
 def test_cancel_12_24h_capture_reverse_credit(db: Session):
+    """12-24h cancellation should capture, reverse transfer, and issue credit.
+
+    With transfer_data[amount] architecture:
+    - amount_received = total charge (student paid)
+    - transfer_amount = instructor payout (portion transferred)
+
+    The reverse_transfer should only reverse the transfer_amount, NOT amount_received.
+    """
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
     # Booking ~18 hours out. Avoid crossing midnight which would wrap end_time to 00:00
@@ -134,18 +142,32 @@ def test_cancel_12_24h_capture_reverse_credit(db: Session):
 
     service = BookingService(db)
 
+    # Mock with transfer_data[amount] architecture values:
+    # - amount_received: $100 (total charge to student)
+    # - transfer_amount: $88 (instructor payout after 12% platform fee)
     with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture, patch(
         "app.services.stripe_service.StripeService.reverse_transfer"
     ) as mock_reverse, patch(
         "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
     ) as mock_credit:
-        mock_capture.return_value = {"transfer_id": "tr_x", "amount_received": 10000}
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 10000,  # $100 total charge
+            "transfer_amount": 8800,  # $88 instructor payout
+        }
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
     assert result.payment_status == "credit_issued"
     mock_capture.assert_called_once()
     mock_reverse.assert_called_once()
+
+    # CRITICAL: Verify we reverse the transfer_amount (8800), NOT amount_received (10000)
+    reverse_call_kwargs = mock_reverse.call_args.kwargs
+    assert reverse_call_kwargs["amount_cents"] == 8800, (
+        "Should reverse transfer_amount (instructor payout), not amount_received (total charge)"
+    )
+
     mock_credit.assert_called_once()
 
 
