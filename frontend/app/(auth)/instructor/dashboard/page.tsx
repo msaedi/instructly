@@ -425,7 +425,7 @@ export default function InstructorDashboardNew() {
   const reviewSubtitle =
     reviewCount > 0 ? `${reviewCount} review${reviewCount === 1 ? '' : 's'}` : 'Not yet available';
   const reviewAverageText =
-    reviewCount > 0 && reviewAverageDisplay ? `${reviewAverageDisplay} ★` : '–';
+    reviewCount > 0 && reviewAverageDisplay ? reviewAverageDisplay : '–';
   // Suggestions state removed; no longer used
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
@@ -843,10 +843,10 @@ export default function InstructorDashboardNew() {
           </div>
         </div>
         {isMobileMenuOpen && (
-          <nav className="mt-4 border-t border-gray-200 pt-4 md:hidden" aria-label="Instructor navigation">
+          <nav className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 md:hidden" aria-label="Instructor navigation">
             <div className="space-y-4">
               <div>
-                <div className="px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Quick access</div>
+                <div className="px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Quick access</div>
                 <ul className="space-y-2">
                   {MOBILE_NAV_PRIMARY.map((item) => (
                     <li key={item.key}>
@@ -859,8 +859,8 @@ export default function InstructorDashboardNew() {
                         }}
                         className={`w-full text-left px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                           activePanel === item.key
-                            ? 'bg-purple-50 text-[#7E22CE] border border-purple-200'
-                            : 'text-gray-700 hover:bg-purple-50 hover:text-[#7E22CE]'
+                            ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                            : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                         }`}
                         aria-current={activePanel === item.key ? 'page' : undefined}
                       >
@@ -870,10 +870,10 @@ export default function InstructorDashboardNew() {
                   ))}
                 </ul>
               </div>
-              <div className="border-t border-gray-200 pt-3">
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between px-4 py-2 text-sm font-medium text-gray-600 hover:text-[#7E22CE]"
+                  className="flex w-full items-center justify-between px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-[#7E22CE] dark:hover:text-purple-300"
                   onClick={() => setShowMoreMobile((prev) => !prev)}
                   aria-expanded={showMoreMobile}
                   aria-controls="mobile-nav-more"
@@ -894,8 +894,8 @@ export default function InstructorDashboardNew() {
                           }}
                           className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
                             activePanel === item.key
-                              ? 'bg-purple-50 text-[#7E22CE] border border-purple-200'
-                              : 'text-gray-700 hover:bg-purple-50 hover:text-[#7E22CE]'
+                              ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 border border-purple-200 dark:border-purple-700'
+                              : 'text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                           }`}
                           aria-current={activePanel === item.key ? 'page' : undefined}
                         >
@@ -921,7 +921,7 @@ export default function InstructorDashboardNew() {
         <div ref={gridRef} className="grid grid-cols-12 gap-6">
           {/* Sidebar (duplicate for small screens hidden above) */}
           <aside className="hidden md:block col-span-12 md:col-span-3" style={{ marginTop: sidebarOffset }}>
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
               <nav>
                 <ul className="space-y-1">
                   <li>
@@ -931,8 +931,8 @@ export default function InstructorDashboardNew() {
                       aria-current={activePanel === 'dashboard' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'dashboard'
-                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
-                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                       }`}
                     >
                       Dashboard
@@ -945,8 +945,8 @@ export default function InstructorDashboardNew() {
                       aria-current={activePanel === 'account' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'account'
-                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
-                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                       }`}
                     >
                       Account
@@ -959,8 +959,8 @@ export default function InstructorDashboardNew() {
                       aria-current={activePanel === 'profile' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'profile'
-                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
-                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                       }`}
                     >
                       Instructor Profile
@@ -973,8 +973,8 @@ export default function InstructorDashboardNew() {
                       aria-current={activePanel === 'bookings' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'bookings'
-                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
-                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                       }`}
                     >
                       Bookings
@@ -987,8 +987,8 @@ export default function InstructorDashboardNew() {
                       aria-current={activePanel === 'earnings' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'earnings'
-                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
-                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                       }`}
                     >
                       Earnings
@@ -1001,8 +1001,8 @@ export default function InstructorDashboardNew() {
                       aria-current={activePanel === 'availability' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'availability'
-                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
-                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                       }`}
                     >
                       Availability
@@ -1015,8 +1015,8 @@ export default function InstructorDashboardNew() {
                       aria-current={activePanel === 'reviews' ? 'page' : undefined}
                       className={`w-full text-left block px-3 py-2 rounded-md transition-transform transition-colors duration-150 transform ${
                         activePanel === 'reviews'
-                          ? 'bg-purple-50 text-[#7E22CE] font-semibold border border-purple-200'
-                          : 'text-gray-800 hover:scale-[1.02] hover:bg-purple-50 hover:text-[#7E22CE]'
+                          ? 'bg-purple-50 dark:bg-purple-900/30 text-[#7E22CE] dark:text-purple-300 font-semibold border border-purple-200 dark:border-purple-700'
+                          : 'text-gray-800 dark:text-gray-200 hover:scale-[1.02] hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-[#7E22CE] dark:hover:text-purple-300'
                       }`}
                     >
                       Reviews
@@ -1031,7 +1031,7 @@ export default function InstructorDashboardNew() {
               <>
 
         {/* Welcome bar */}
-        <div ref={titleCardRef} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-6">
+        <div ref={titleCardRef} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 sm:p-8 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
             <div className="flex items-center gap-3 min-w-0">
               <div aria-hidden="true" className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center select-none">
@@ -1041,12 +1041,12 @@ export default function InstructorDashboardNew() {
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold text-gray-800">
+                  <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
                     Welcome back, {profile.user?.first_name || 'Instructor'}!
                   </h1>
                   {profile?.is_founding_instructor && <FoundingBadge size="md" />}
                 </div>
-                <p className="text-gray-600 text-sm">Your profile, schedule, and earnings at a glance</p>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">Your profile, schedule, and earnings at a glance</p>
               </div>
             </div>
             <div className="sm:ml-auto">
@@ -1059,7 +1059,7 @@ export default function InstructorDashboardNew() {
                     disabled={!isEnabled}
                     aria-disabled={!isEnabled}
                     title={isEnabled ? 'View your public instructor page' : 'Public profile available Dec 1, 2025'}
-                    className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${isEnabled ? 'bg-white border border-purple-200 text-[#7E22CE]' : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'}`}
+                    className={`profile-view-btn w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${isEnabled ? 'bg-white border border-purple-200 text-[#7E22CE] hover:bg-gray-50 hover:border-purple-300 dark:hover:bg-gray-700 dark:hover:border-purple-500' : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'}`}
                   >
                     <Eye className="h-4 w-4" />
                     <span>Public profile</span>
@@ -1075,14 +1075,14 @@ export default function InstructorDashboardNew() {
           {/* Bookings card - clickable button, navigates to past tab since it shows completed count */}
           <button
             onClick={() => router.push('/instructor/dashboard?panel=bookings&tab=past', { scroll: false })}
-            className="group block h-32 w-full rounded-md border border-gray-200 bg-white p-3 text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
+            className="stat-card group block h-32 w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-left transition-all hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] sm:h-40 sm:rounded-lg sm:p-6"
             aria-label="Open bookings"
           >
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Bookings</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{completedBookingsCount}</p>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-[#7E22CE] dark:group-hover:text-purple-300">Bookings</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-gray-900 dark:group-hover:text-white">{completedBookingsCount}</p>
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 mt-1">
                   {(hasUpcomingBookings === false || completedBookingsCount === 0) ? 'No lessons scheduled today' : '\u00A0'}
                 </p>
               </div>
@@ -1095,13 +1095,13 @@ export default function InstructorDashboardNew() {
           {/* Earnings card - clickable with outline icon */}
           <button
             onClick={() => handlePanelChange('earnings')}
-            className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            className="stat-card group block w-full text-left bg-white dark:bg-gray-800 rounded-md sm:rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open earnings"
           >
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Earnings</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{earningsCardValue}</p>
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-[#7E22CE] dark:group-hover:text-purple-300">Earnings</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-gray-900 dark:group-hover:text-white">{earningsCardValue}</p>
               </div>
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-100 flex items-center justify-center">
                 <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-[#7E22CE]" />
@@ -1111,16 +1111,16 @@ export default function InstructorDashboardNew() {
           {/* Reviews card - clickable with outline icon */}
           <button
             onClick={() => handlePanelChange('reviews')}
-            className="group block w-full text-left bg-white rounded-md sm:rounded-lg border border-gray-200 p-3 sm:p-6 hover:shadow-md h-32 sm:h-40 transition-shadow focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+            className="stat-card group block w-full text-left bg-white dark:bg-gray-800 rounded-md sm:rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-600 h-32 sm:h-40 transition-all focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
             aria-label="Open reviews"
           >
             <div className="flex items-start justify-between h-full">
               <div>
-                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 mb-1 sm:mb-2 group-hover:text-[#7E22CE]">Reviews</h3>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900" data-testid="reviews-avg">
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1 sm:mb-2 group-hover:text-[#7E22CE] dark:group-hover:text-purple-300">Reviews</h3>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white group-hover:text-gray-900 dark:group-hover:text-white" data-testid="reviews-avg">
                   {reviewAverageText}
                 </p>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1" data-testid="reviews-count">
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 mt-1" data-testid="reviews-count">
                   {reviewSubtitle}
                 </p>
               </div>
@@ -1138,7 +1138,7 @@ export default function InstructorDashboardNew() {
 
         <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* Stripe Status Card */}
-          <div id="payments-setup" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 sm:p-6 h-full flex flex-col relative">
+          <div id="payments-setup" className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 sm:p-6 h-full flex flex-col relative">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-start gap-3">
                 <div className="relative group">

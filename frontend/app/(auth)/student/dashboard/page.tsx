@@ -613,7 +613,7 @@ function StudentDashboardContent() {
                                   <p className="mt-1 text-xs text-gray-600">
                                     {primaryArea ? <span>{primaryArea}</span> : null}
                                     {primaryArea && typeof primaryRate === 'number' ? <span> · </span> : null}
-                                    {typeof primaryRate === 'number' ? <span>${'{'}primaryRate{'}'}/hour</span> : null}
+                                    {typeof primaryRate === 'number' ? <span>${primaryRate}/hour</span> : null}
                                   </p>
                                 )}
                               </div>

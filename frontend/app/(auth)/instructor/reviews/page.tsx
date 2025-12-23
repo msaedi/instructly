@@ -55,7 +55,9 @@ function ReviewsPageImpl() {
   const reviews = reviewsData?.reviews ?? [];
   const totalReviews = ratingsData?.overall?.total_reviews ?? reviewsData?.total ?? 0;
   const averageRating = ratingsData?.overall?.rating ?? null;
-  const averageRatingDisplay = ratingsData?.overall?.display_rating ?? (averageRating != null ? `${averageRating.toFixed(1)}★` : null);
+  // Remove the star symbol from display_rating since we show a separate yellow star icon
+  const rawDisplayRating = ratingsData?.overall?.display_rating ?? (averageRating != null ? `${averageRating.toFixed(1)}` : null);
+  const averageRatingDisplay = rawDisplayRating?.replace(/★/g, '') ?? null;
   const confidenceLabel = ratingsData?.confidence_level ?? null;
   const confidenceDisplay = confidenceLabel
     ? confidenceLabel.charAt(0).toUpperCase() + confidenceLabel.slice(1)

@@ -486,20 +486,21 @@ select,
   transform: scale(1.0);
 }
 /* Neutralize Tailwind hover color utilities for buttons (no color change)
-   Exclude brand purple backgrounds so they remain solid on hover */
-button[class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(:disabled):hover,
-[role="button"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(:disabled):hover {
+   Exclude brand purple backgrounds so they remain solid on hover
+   Also exclude .stat-card buttons which need their own hover behavior */
+button[class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(.stat-card):not(:disabled):hover,
+[role="button"][class*="hover:bg-"]:not([class*="bg-[#7E22CE]"]):not([class*="bg-purple-600"]):not([class*="bg-white"]):not(.stat-card):not(:disabled):hover {
   /* keep original background (no color shift); only scale applies */
   background-color: inherit !important;
 }
 
-button[class*="hover:text-"]:not([class*="text-white"]):not(:disabled):hover,
-[role="button"][class*="hover:text-"]:not([class*="text-white"]):not(:disabled):hover {
+button[class*="hover:text-"]:not([class*="text-white"]):not(.stat-card):not(:disabled):hover,
+[role="button"][class*="hover:text-"]:not([class*="text-white"]):not(.stat-card):not(:disabled):hover {
   color: inherit !important;
 }
 
-button[class*="hover:border-"]:not([class*="border-transparent"]):not(:disabled):hover,
-[role="button"][class*="hover:border-"]:not([class*="border-transparent"]):not(:disabled):hover {
+button[class*="hover:border-"]:not([class*="border-transparent"]):not(.stat-card):not(:disabled):hover,
+[role="button"][class*="hover:border-"]:not([class*="border-transparent"]):not(.stat-card):not(:disabled):hover {
   border-color: currentColor !important;
 }
 
@@ -558,9 +559,10 @@ a.bg-primary:hover {
   color: var(--primary-foreground) !important;
 }
 
-/* Keep white buttons solid on hover (no color or border change) */
-button.bg-white:not(:disabled):hover,
-[role="button"].bg-white:not(:disabled):hover,
+/* Keep white buttons solid on hover (no color or border change)
+   Exclude .stat-card and .profile-view-btn buttons which have their own hover styles */
+button.bg-white:not(.stat-card):not(.profile-view-btn):not(:disabled):hover,
+[role="button"].bg-white:not(.stat-card):not(.profile-view-btn):not(:disabled):hover,
 a.bg-white:hover {
   background-color: #ffffff !important;
 }
@@ -578,6 +580,37 @@ a.bg-purple-600:hover {
   background-color: transparent !important;
   box-shadow: none !important;
   transform: none !important;
+}
+
+/* Dashboard stat cards - explicit hover styles that work in both light and dark mode */
+/* Use high specificity to override button.bg-white rules */
+button.stat-card.bg-white:not(:disabled):hover,
+button.stat-card:not(:disabled):hover {
+  background-color: rgb(249 250 251) !important; /* gray-50 */
+  border-color: rgb(216 180 254) !important; /* purple-300 */
+}
+
+@media (prefers-color-scheme: dark) {
+  button.stat-card.bg-white:not(:disabled):hover,
+  button.stat-card:not(:disabled):hover {
+    background-color: rgb(55 65 81) !important; /* gray-700 */
+    border-color: rgb(147 51 234) !important; /* purple-600 */
+  }
+}
+
+/* Public profile button - explicit hover styles */
+button.profile-view-btn.bg-white:not(:disabled):hover,
+button.profile-view-btn:not(:disabled):hover {
+  background-color: rgb(249 250 251) !important; /* gray-50 */
+  border-color: rgb(216 180 254) !important; /* purple-300 */
+}
+
+@media (prefers-color-scheme: dark) {
+  button.profile-view-btn.bg-white:not(:disabled):hover,
+  button.profile-view-btn:not(:disabled):hover {
+    background-color: rgb(55 65 81) !important; /* gray-700 */
+    border-color: rgb(168 85 247) !important; /* purple-500 */
+  }
 }
 
 /* Ensure full-pill hover area for neighborhood chips */
