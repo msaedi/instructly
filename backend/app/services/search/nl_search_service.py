@@ -2539,6 +2539,8 @@ class NLSearchService:
             audience_hint=parsed_query.audience_hint,
             skill_level=parsed_query.skill_level,
             urgency=parsed_query.urgency,
+            lesson_type=parsed_query.lesson_type,
+            use_user_location=parsed_query.use_user_location,
         )
 
         # Build metadata

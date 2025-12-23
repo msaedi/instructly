@@ -315,7 +315,7 @@ export const PlacesAutocompleteInput = forwardRef<HTMLInputElement, PlacesAutoco
           <div
             id={listboxId}
             role="listbox"
-            className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+            className="absolute z-50 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
           >
             {suggestions.map((suggestion, index) => {
               const displayText = getDisplayText(suggestion);

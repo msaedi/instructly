@@ -508,3 +508,110 @@ class TestParsingPerformance:
     def test_confidence_lower_for_complex(self, parser: QueryParser) -> None:
         result = parser.parse("piano or guitar lessons either works")
         assert result.confidence < 0.9
+
+
+class TestLessonTypeParsing:
+    """Tests for lesson type (online/in-person) extraction."""
+
+    @pytest.mark.parametrize(
+        "query,expected_lesson_type",
+        [
+            # Online keywords
+            ("online piano lessons", "online"),
+            ("virtual guitar teacher", "online"),
+            ("remote math tutoring", "online"),
+            ("zoom yoga instructor", "online"),
+            ("video piano lessons", "online"),
+            ("webcam guitar lessons", "online"),
+            # In-person keywords
+            ("in-person piano lessons", "in_person"),
+            ("in person guitar teacher", "in_person"),
+            ("face-to-face math tutoring", "in_person"),
+            ("face to face yoga", "in_person"),
+            ("in-home piano lessons", "in_person"),
+            ("at-home guitar teacher", "in_person"),
+            ("at home yoga", "in_person"),
+            # Default to any when no keyword
+            ("piano lessons", "any"),
+            ("guitar teacher brooklyn", "any"),
+            ("math tutoring for kids", "any"),
+        ],
+    )
+    def test_lesson_type_extraction(
+        self, parser: QueryParser, query: str, expected_lesson_type: str
+    ) -> None:
+        result = parser.parse(query)
+        assert result.lesson_type == expected_lesson_type
+
+    def test_online_keyword_stripped_from_service_query(
+        self, parser: QueryParser
+    ) -> None:
+        """Online/in-person keywords should be stripped from service_query."""
+        result = parser.parse("online piano lessons")
+        assert "online" not in result.service_query.lower()
+        assert "piano" in result.service_query.lower()
+
+    def test_in_person_keyword_stripped_from_service_query(
+        self, parser: QueryParser
+    ) -> None:
+        """In-person keywords should be stripped from service_query."""
+        result = parser.parse("in-person guitar lessons")
+        assert "in-person" not in result.service_query.lower()
+        assert "in person" not in result.service_query.lower()
+        assert "guitar" in result.service_query.lower()
+
+    def test_lesson_type_combined_with_other_constraints(
+        self, parser: QueryParser
+    ) -> None:
+        """Lesson type should work with other constraints."""
+        result = parser.parse("online piano lessons under 50 for kids")
+        assert result.lesson_type == "online"
+        assert result.max_price == 50
+        assert result.audience_hint == "kids"
+        assert "piano" in result.service_query.lower()
+
+
+class TestNearMeLocation:
+    """Tests for 'near me' location detection."""
+
+    @pytest.mark.parametrize(
+        "query,expected_use_user_location,expected_location_type",
+        [
+            ("piano lessons near me", True, "near_me"),
+            ("guitar teacher nearby", True, "near_me"),
+            ("math tutoring close by", True, "near_me"),
+            ("yoga instructors close to me", True, "near_me"),
+            ("piano lessons in my area", True, "near_me"),
+            ("guitar teacher around me", True, "near_me"),
+            ("tutors in my neighborhood", True, "near_me"),
+            # Regular location (not near me)
+            ("piano lessons in brooklyn", False, "borough"),  # Brooklyn is a borough
+            ("piano lessons", False, None),
+        ],
+    )
+    def test_near_me_detection(
+        self,
+        parser: QueryParser,
+        query: str,
+        expected_use_user_location: bool,
+        expected_location_type: str | None,
+    ) -> None:
+        result = parser.parse(query)
+        assert result.use_user_location == expected_use_user_location
+        assert result.location_type == expected_location_type
+
+    def test_near_me_stripped_from_service_query(self, parser: QueryParser) -> None:
+        """Near me keywords should be stripped from service_query."""
+        result = parser.parse("piano lessons near me")
+        assert "near me" not in result.service_query.lower()
+        assert "piano" in result.service_query.lower()
+
+    def test_near_me_combined_with_other_constraints(
+        self, parser: QueryParser
+    ) -> None:
+        """Near me should work with other constraints."""
+        result = parser.parse("online piano lessons near me under 50")
+        assert result.use_user_location is True
+        assert result.location_type == "near_me"
+        assert result.lesson_type == "online"
+        assert result.max_price == 50

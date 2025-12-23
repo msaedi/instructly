@@ -202,10 +202,12 @@ def list_my_service_areas(
     return ServiceAreasResponse(items=items, total=len(items))
 
 
+# NYC bias: Center on Midtown Manhattan with tighter radius to prioritize NY over NJ
+# Note: Jersey City is only ~3km from Manhattan, so a large radius includes NJ
 NYC_AUTOCOMPLETE_BIAS = {
-    "lat": 40.7128,
-    "lng": -74.0060,
-    "radius_m": 45000,
+    "lat": 40.7580,  # Midtown Manhattan (slightly north of original)
+    "lng": -73.9855,  # Shifted east to be more centered on NYC boroughs
+    "radius_m": 30000,  # 30km - covers all 5 boroughs but tighter bias
 }
 
 

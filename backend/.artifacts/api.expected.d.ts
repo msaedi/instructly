@@ -5247,11 +5247,14 @@ export type components = {
  filters_applied?: string[];
  latency_ms: number;
  limit: number;
+ location_message?: string | null;
  location_not_found: boolean;
  location_resolved?: string | null;
  parsed: components["schemas"]["ParsedQueryInfo"];
  parsing_mode: string;
  query: string;
+ requires_address: boolean;
+ requires_auth: boolean;
  search_query_id?: string | null;
  skipped_operations?: string[];
  soft_filter_message?: string | null;
@@ -5348,6 +5351,7 @@ export type components = {
  ParsedQueryInfo: {
  audience_hint?: string | null;
  date?: string | null;
+ lesson_type?: string | null;
  location?: string | null;
  max_price?: number | null;
  service_query: string;
@@ -5355,6 +5359,7 @@ export type components = {
  time_after?: string | null;
  time_before?: string | null;
  urgency?: string | null;
+ use_user_location: boolean;
  };
  PasswordChangeRequest: {
  current_password: string;

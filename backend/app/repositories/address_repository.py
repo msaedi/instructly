@@ -25,6 +25,26 @@ class UserAddressRepository(BaseRepository[UserAddress]):
             )
         )
 
+    def get_default_address(self, user_id: str) -> Optional[UserAddress]:
+        """
+        Get the user's default address, or the first active address if no default is set.
+
+        Returns:
+            The default UserAddress, or None if no active address exists.
+        """
+        query = (
+            self._build_query()
+            .filter(UserAddress.user_id == user_id)
+            .filter(UserAddress.is_active.is_(True))
+            .order_by(
+                UserAddress.is_default.desc(),
+                UserAddress.created_at.desc(),
+            )
+            .limit(1)
+        )
+        results = self._execute_query(query)
+        return results[0] if results else None
+
     def unset_default(self, user_id: str) -> int:
         updated = (
             self.db.query(UserAddress)

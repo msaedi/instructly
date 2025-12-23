@@ -3446,6 +3446,11 @@ export type NLSearchMetaFilterStatsAnyOf = { [key: string]: number };
 export type NLSearchMetaFilterStats = NLSearchMetaFilterStatsAnyOf | null;
 
 /**
+ * User-facing message for location-related issues
+ */
+export type NLSearchMetaLocationMessage = string | null;
+
+/**
  * Resolved location name for display (if available)
  */
 export type NLSearchMetaLocationResolved = string | null;
@@ -3488,6 +3493,8 @@ export interface NLSearchMeta {
    * @minimum 1
    */
   limit: number;
+  /** User-facing message for location-related issues */
+  location_message?: NLSearchMetaLocationMessage;
   /** True if the location text could not be resolved */
   location_not_found?: boolean;
   /** Resolved location name for display (if available) */
@@ -3498,6 +3505,10 @@ export interface NLSearchMeta {
   parsing_mode?: string;
   /** Original search query */
   query: string;
+  /** True if 'near me' was requested but user has no saved address */
+  requires_address?: boolean;
+  /** True if 'near me' was requested but user is not authenticated */
+  requires_auth?: boolean;
   /** Search query ID for click tracking */
   search_query_id?: NLSearchMetaSearchQueryId;
   /** Operations skipped during degradation */
@@ -3785,6 +3796,11 @@ export type ParsedQueryInfoAudienceHint = string | null;
 export type ParsedQueryInfoDate = string | null;
 
 /**
+ * Lesson type filter: 'online', 'in_person', or 'any'
+ */
+export type ParsedQueryInfoLessonType = string | null;
+
+/**
  * Extracted location
  */
 export type ParsedQueryInfoLocation = string | null;
@@ -3822,6 +3838,8 @@ export interface ParsedQueryInfo {
   audience_hint?: ParsedQueryInfoAudienceHint;
   /** Extracted date */
   date?: ParsedQueryInfoDate;
+  /** Lesson type filter: 'online', 'in_person', or 'any' */
+  lesson_type?: ParsedQueryInfoLessonType;
   /** Extracted location */
   location?: ParsedQueryInfoLocation;
   /** Extracted max price */
@@ -3836,6 +3854,8 @@ export interface ParsedQueryInfo {
   time_before?: ParsedQueryInfoTimeBefore;
   /** Detected urgency level */
   urgency?: ParsedQueryInfoUrgency;
+  /** True if 'near me' detected and user location should be used */
+  use_user_location?: boolean;
 }
 
 export interface PasswordChangeRequest {
