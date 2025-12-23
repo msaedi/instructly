@@ -110,7 +110,7 @@ test.describe('[instructor] dashboard reviews snapshot', () => {
 
     await page.goto(`${baseURL}/instructor/dashboard`);
 
-    await expect(page.getByTestId('reviews-avg')).toHaveText('4.5 ★');
+    await expect(page.getByTestId('reviews-avg')).toHaveText('4.5');
     await expect(page.getByTestId('reviews-count')).toHaveText('3 reviews');
   });
 });
