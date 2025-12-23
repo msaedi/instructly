@@ -126,19 +126,28 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           # Soft alerts (non-blocking): missing or surprising values
+          # Values can be: empty (grep failed), SKIPPED (test disabled), MISSING (test ran but value empty), or actual value
           warn=0
           for v in SITE_MODE PHASE CORS_CREDS CORS_ORIGIN DEDUPE LIMITED ATTEMPTS; do
-            if [ -z "${!v:-}" ]; then
-              echo "::warning title=env-contract::Missing value for $v (non-blocking)"
+            val="${!v:-}"
+            if [ -z "$val" ]; then
+              echo "::warning title=env-contract::No value found for $v (grep pattern may not match)"
+              warn=1
+            elif [ "$val" = "SKIPPED" ]; then
+              echo "::notice title=env-contract::$v test was skipped (E2E_*_TEST != 1)"
+            elif [ "$val" = "MISSING" ]; then
+              echo "::warning title=env-contract::$v returned empty from server (non-blocking)"
               warn=1
             fi
           done
 
-          if [ -n "${LIMITED:-}" ] && [ "$LIMITED" -eq 0 ]; then
-            echo "::warning title=env-contract::No 429s observed; rate-limit probe may be inactive (non-blocking)"
-          fi
-          if [ -n "${LIMITED:-}" ] && [ "$LIMITED" -gt 1 ]; then
-            echo "::warning title=env-contract::Multiple 429s observed (limited=$LIMITED); dedupe may be off (non-blocking)"
+          # Rate limit specific checks (only if not skipped)
+          if [ -n "${LIMITED:-}" ] && [ "$LIMITED" != "SKIPPED" ]; then
+            if [ "$LIMITED" -eq 0 ] 2>/dev/null; then
+              echo "::warning title=env-contract::No 429s observed; rate-limit probe may be inactive (non-blocking)"
+            elif [ "$LIMITED" -gt 1 ] 2>/dev/null; then
+              echo "::notice title=env-contract::Rate limiter active: $LIMITED of $ATTEMPTS requests were limited"
+            fi
           fi
 
           # Always succeed; this step is informational by design
@@ -293,19 +302,28 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           # Soft alerts (non-blocking): missing or surprising values
+          # Values can be: empty (grep failed), SKIPPED (test disabled), MISSING (test ran but value empty), or actual value
           warn=0
           for v in SITE_MODE PHASE CORS_CREDS CORS_ORIGIN DEDUPE LIMITED ATTEMPTS; do
-            if [ -z "${!v:-}" ]; then
-              echo "::warning title=env-contract::Missing value for $v (non-blocking)"
+            val="${!v:-}"
+            if [ -z "$val" ]; then
+              echo "::warning title=env-contract::No value found for $v (grep pattern may not match)"
+              warn=1
+            elif [ "$val" = "SKIPPED" ]; then
+              echo "::notice title=env-contract::$v test was skipped (E2E_*_TEST != 1)"
+            elif [ "$val" = "MISSING" ]; then
+              echo "::warning title=env-contract::$v returned empty from server (non-blocking)"
               warn=1
             fi
           done
 
-          if [ -n "${LIMITED:-}" ] && [ "$LIMITED" -eq 0 ]; then
-            echo "::warning title=env-contract::No 429s observed; rate-limit probe may be inactive (non-blocking)"
-          fi
-          if [ -n "${LIMITED:-}" ] && [ "$LIMITED" -gt 1 ]; then
-            echo "::warning title=env-contract::Multiple 429s observed (limited=$LIMITED); dedupe may be off (non-blocking)"
+          # Rate limit specific checks (only if not skipped)
+          if [ -n "${LIMITED:-}" ] && [ "$LIMITED" != "SKIPPED" ]; then
+            if [ "$LIMITED" -eq 0 ] 2>/dev/null; then
+              echo "::warning title=env-contract::No 429s observed; rate-limit probe may be inactive (non-blocking)"
+            elif [ "$LIMITED" -gt 1 ] 2>/dev/null; then
+              echo "::notice title=env-contract::Rate limiter active: $LIMITED of $ATTEMPTS requests were limited"
+            fi
           fi
 
           # Always succeed; this step is informational by design
