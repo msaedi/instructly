@@ -44,7 +44,7 @@ jobs:
 
       - name: Upload ZAP Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: zap-report-${{ steps.target.outputs.env }}-${{ github.run_number }}
           path: report_html.html

@@ -6908,17 +6908,11 @@ export type components = {
         Body_login_api_v1_auth_login_post: {
             /** Client Id */
             client_id?: string | null;
-            /**
-             * Client Secret
-             * Format: password
-             */
+            /** Client Secret */
             client_secret?: string | null;
             /** Grant Type */
             grant_type?: string | null;
-            /**
-             * Password
-             * Format: password
-             */
+            /** Password */
             password: string;
             /**
              * Scope
@@ -11423,7 +11417,7 @@ export type components = {
          *       "top_limited_clients": [
          *         {
          *           "count": 50,
-         *           "endpoint": "/api/search",
+         *           "endpoint": "/api/v1/search",
          *           "key": "ip_192.168.1.100"
          *         }
          *       ],
@@ -13075,7 +13069,7 @@ export type components = {
          *       "slow_queries": [
          *         {
          *           "duration_ms": 523.4,
-         *           "endpoint": "/api/bookings",
+         *           "endpoint": "/api/v1/bookings",
          *           "query": "SELECT * FROM bookings WHERE ...",
          *           "timestamp": "2025-01-20T10:30:00Z"
          *         }
@@ -13100,7 +13094,7 @@ export type components = {
          * @description Slow query information.
          * @example {
          *       "duration_ms": 523.4,
-         *       "endpoint": "/api/bookings",
+         *       "endpoint": "/api/v1/bookings",
          *       "query": "SELECT * FROM bookings WHERE ...",
          *       "timestamp": "2025-01-20T10:30:00Z"
          *     }
@@ -13134,7 +13128,7 @@ export type components = {
          * @example {
          *       "duration_ms": 1234.5,
          *       "method": "GET",
-         *       "path": "/api/instructors/search",
+         *       "path": "/api/v1/instructors/search",
          *       "status_code": 200,
          *       "timestamp": "2025-01-20T10:30:00Z"
          *     }
@@ -13175,7 +13169,7 @@ export type components = {
          *         {
          *           "duration_ms": 1234.5,
          *           "method": "GET",
-         *           "path": "/api/instructors/search",
+         *           "path": "/api/v1/instructors/search",
          *           "status_code": 200,
          *           "timestamp": "2025-01-20T10:30:00Z"
          *         }

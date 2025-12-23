@@ -1,9 +1,10 @@
 pip-audit>=2.7.3
 types-pytz~=2024.1
 types-dateparser>=1.2.0
+celery-types==0.23.0
 pytest-cov>=5,<6
 resend
-mypy==1.18.2
+mypy==1.19.1
 hypothesis>=6.0.0
 schemathesis>=3.34.0
 locust>=2.23.0

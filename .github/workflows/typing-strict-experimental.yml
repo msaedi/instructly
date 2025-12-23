@@ -62,7 +62,7 @@ jobs:
 
       - name: Upload mypy log (always)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: mypy-strict-experimental
           path: .artifacts/mypy-strict.txt

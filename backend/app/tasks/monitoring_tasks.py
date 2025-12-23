@@ -8,7 +8,7 @@ import logging
 import os
 from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, cast
 
-from celery import Task
+from celery.app.task import Task
 import httpx
 from sqlalchemy import func
 from sqlalchemy.orm import Session, sessionmaker
@@ -34,7 +34,7 @@ def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], 
 logger = logging.getLogger(__name__)
 
 
-class MonitoringTask(Task):  # type: ignore[misc]
+class MonitoringTask(Task):  # type: ignore[type-arg]
     """Base task with database session management."""
 
     _db: Optional[Session]
@@ -88,7 +88,7 @@ class MonitoringTask(Task):  # type: ignore[misc]
         task_id: str,
         args: Tuple[Any, ...],
         kwargs: Dict[str, Any],
-        einfo: Optional[BaseException],
+        einfo: Any,
     ) -> None:
         """Clean up the database session after task execution."""
         if self._db is not None:

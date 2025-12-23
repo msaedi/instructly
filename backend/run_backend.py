@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# backend/run.py
+# backend/run_backend.py
 """
 Development server runner that uses staging database
 For local development only - preserves development data
@@ -35,4 +35,12 @@ if __name__ == "__main__":
     print("🌐 Access at: http://localhost:8000")
     print("📚 API Docs: http://localhost:8000/docs")
 
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        reload_delay=0.5,  # Small delay to batch rapid file changes
+        log_level="info",
+        timeout_graceful_shutdown=5,  # Force shutdown after 5s instead of hanging
+    )

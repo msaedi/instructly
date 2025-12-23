@@ -7,7 +7,7 @@ configures task serialization, timezone, and autodiscovery.
 """
 
 import os
-from typing import TYPE_CHECKING, Any, Dict, Optional, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 from celery import Celery, Task
 from celery.schedules import crontab
@@ -170,7 +170,7 @@ def create_celery_app() -> Celery:
 
 
 # Disable Celery's default logging configuration
-@setup_logging.connect  # type: ignore[misc]
+@setup_logging.connect
 def config_loggers(*args: Any, **kwargs: Any) -> None:
     """Configure logging to integrate with the application's logging setup."""
     import logging
@@ -194,7 +194,7 @@ celery_app = create_celery_app()
 
 
 # Define base task class with error handling
-class BaseTask(Task):  # type: ignore[misc]
+class BaseTask(Task):  # type: ignore[type-arg]
     """Base task with automatic error handling and logging."""
 
     autoretry_for = (Exception,)
@@ -252,11 +252,12 @@ class BaseTask(Task):  # type: ignore[misc]
 
 
 # Register BaseTask as default task base for the app
-celery_app.Task = cast(Type[Task], BaseTask)
+# Note: celery_app.Task is read-only in Celery 5.x, use conf.task_cls instead
+celery_app.conf.task_cls = BaseTask
 
 
 # Health check task
-@celery_app.task(name="app.tasks.health_check")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.health_check")
 def health_check() -> Dict[str, str]:
     """
     Simple health check task to verify Celery is working.
@@ -269,14 +270,15 @@ def health_check() -> Dict[str, str]:
     # Get current task context
     current_task = celery_app.current_task
 
+    hostname = current_task.request.hostname if current_task else None
     return {
         "status": "healthy",
-        "worker": current_task.request.hostname if current_task else "unknown",
+        "worker": hostname if hostname else "unknown",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
-@celery_app.task(name="app.tasks.availability_retention.run")  # type: ignore[misc]
+@celery_app.task(name="app.tasks.availability_retention.run")
 def run_availability_retention() -> "RetentionResult":
     """
     Purge stale availability_days rows when retention is enabled.

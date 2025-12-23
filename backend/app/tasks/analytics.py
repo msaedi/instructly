@@ -29,8 +29,8 @@ class TaskWrapper(Protocol[P, R]):
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         ...
 
-    delay: Callable[..., AsyncResult]
-    apply_async: Callable[..., AsyncResult]
+    delay: "Callable[..., AsyncResult[Any]]"
+    apply_async: "Callable[..., AsyncResult[Any]]"
 
 
 def typed_task(
