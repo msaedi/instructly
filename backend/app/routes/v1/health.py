@@ -8,10 +8,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import os
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
 
 from app.core.config import settings
 from app.core.constants import API_VERSION, BRAND_NAME
+from app.middleware.rate_limiter import RateLimitKeyType, rate_limit
 from app.schemas.main_responses import HealthLiteResponse, HealthResponse
 
 router = APIRouter(tags=["health"])
@@ -59,5 +60,17 @@ def health_check_lite() -> HealthLiteResponse:
     Lightweight health check that doesn't hit database.
 
     Use this for high-frequency health probes.
+    """
+    return HealthLiteResponse(status="ok")
+
+
+@router.get("/rate-limit-test", response_model=HealthLiteResponse)
+@rate_limit("3/minute", key_type=RateLimitKeyType.IP)
+def rate_limit_test(request: Request) -> HealthLiteResponse:
+    """
+    Public endpoint for CI rate limit testing.
+
+    Has a strict 3/minute rate limit per IP.
+    Used by env-contract CI workflow to verify rate limiting is active.
     """
     return HealthLiteResponse(status="ok")
