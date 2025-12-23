@@ -17,8 +17,10 @@ test.describe('env-contract smoke', () => {
   test('health headers (gated)', async () => {
     test.skip(process.env.E2E_HEADERS_TEST !== '1', 'Headers test disabled');
     const ctx = await request.newContext({ baseURL: process.env.PLAYWRIGHT_API_BASE_URL! });
+    // Try multiple endpoints - prefer v1 health which goes through all middleware
     const candidates = [
-      '/api/health',          // preferred if present
+      '/api/v1/health',       // v1 health endpoint (preferred)
+      '/api/health',          // root health endpoint
       '/health',              // common alias
       '/openapi.json',        // FastAPI always serves this (unless disabled)
       '/docs'                 // FastAPI docs (HTML)
@@ -34,12 +36,13 @@ test.describe('env-contract smoke', () => {
     }
     // We must have hit a non-5xx response by now.
     expect(res!.status()).toBeLessThan(500);
-    console.info(`[headers] X-Site-Mode=${xSiteMode} X-Phase=${xPhase}`);
+    // Log in a format the CI can parse (must be at start of line for grep)
+    console.log(`[headers] X-Site-Mode=${xSiteMode} X-Phase=${xPhase}`);
     expect(['preview','prod']).toContain((xSiteMode || '').toLowerCase());
     const phase = (xPhase || '').toLowerCase();
     const allowedPhasesCsv = (process.env.ALLOWED_PHASES || 'beta,open,instructor_only,instructor-only');
     const allowedPhases = allowedPhasesCsv.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    console.info(`[headers-allowed] phase=${phase}`);
+    console.log(`[headers-allowed] phase=${phase}`);
     expect(allowedPhases).toContain(phase);
     await ctx.dispose();
   });
@@ -61,8 +64,8 @@ test.describe('env-contract smoke', () => {
     const allowCreds = res.headers()['access-control-allow-credentials'];
     expect((allowCreds || '').toLowerCase()).toBe('true');
     const echoed = res.headers()['access-control-allow-origin'];
-    // Log for env-contract evidence
-    console.info(`[cors] access-control-allow-credentials=${allowCreds} access-control-allow-origin=${echoed}`);
+    // Log for env-contract evidence (must be at start of line for CI grep)
+    console.log(`[cors] access-control-allow-credentials=${allowCreds} access-control-allow-origin=${echoed}`);
     expect(echoed === origin).toBeTruthy();
     await ctx.dispose();
   });
@@ -71,16 +74,17 @@ test.describe('env-contract smoke', () => {
     test.skip(process.env.E2E_RATE_LIMIT_TEST !== '1', 'Rate limit test disabled');
     const ctx = await request.newContext({ baseURL: apiBase });
     const dedupeKey = 'env-contract:rate-limit-test';
-    // Hit the rate-limited endpoint several times quickly
-    const attempts = 10;
+    // Use addresses/coverage/bulk - a public endpoint with 10/minute rate limit
+    // This endpoint is public (no auth required) and rate-limited by IP
+    const attempts = 15;
     let limited = 0;
     for (let i = 0; i < attempts; i += 1) {
-      const res = await ctx.get('/metrics/rate-limits/test?requests=1', { ignoreHTTPSErrors: true });
+      const res = await ctx.get('/api/v1/addresses/coverage/bulk?ids=test', { ignoreHTTPSErrors: true });
       if (res.status() === 429) limited += 1;
     }
     await ctx.dispose();
-    // Log for triage
-    console.info(`[429-triage] dedupeKey=${dedupeKey} limited=${limited} attempts=${attempts}`);
+    // Log for triage (must be at start of line for CI grep)
+    console.log(`[429-triage] dedupeKey=${dedupeKey} limited=${limited} attempts=${attempts}`);
     // Only assert when limiter active; otherwise skip to avoid flakiness
     test.skip(limited === 0, 'No rate-limit 429 observed on preview; skipping assertion');
     expect(limited).toBeGreaterThanOrEqual(1);

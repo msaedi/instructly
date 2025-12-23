@@ -101,13 +101,14 @@ jobs:
           mkdir -p .artifacts
           : > .artifacts/env-contract-evidence.txt
           # Parse lines we print from the Playwright test logs
-          SITE_MODE=$(grep -Eo '^\[headers\] X-Site-Mode=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
-          PHASE=$(grep -E '^\[headers\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*X-Phase=([^ ]+).*/\1/' || true)
-          CORS_CREDS=$(grep -Eo '^\[cors\] access-control-allow-credentials=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
-          CORS_ORIGIN=$(grep -E '^\[cors\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*access-control-allow-origin=//' || true)
-          DEDUPE=$(grep -Eo '^\[429-triage\] dedupeKey=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
-          LIMITED=$(grep -E '^\[429-triage\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*limited=([0-9]+).*/\1/' || true)
-          ATTEMPTS=$(grep -E '^\[429-triage\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*attempts=([0-9]+).*/\1/' || true)
+          # Note: Playwright output may have prefixes, so we don't require ^ at line start
+          SITE_MODE=$(grep -Eo '\[headers\] X-Site-Mode=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
+          PHASE=$(grep -E '\[headers\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*X-Phase=([^ ]+).*/\1/' || true)
+          CORS_CREDS=$(grep -Eo '\[cors\] access-control-allow-credentials=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
+          CORS_ORIGIN=$(grep -E '\[cors\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*access-control-allow-origin=//' || true)
+          DEDUPE=$(grep -Eo '\[429-triage\] dedupeKey=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
+          LIMITED=$(grep -E '\[429-triage\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*limited=([0-9]+).*/\1/' || true)
+          ATTEMPTS=$(grep -E '\[429-triage\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*attempts=([0-9]+).*/\1/' || true)
 
           {
             echo "[headers] X-Site-Mode=${SITE_MODE:-} X-Phase=${PHASE:-}"
@@ -178,9 +179,9 @@ jobs:
 
           for f in "${LOG_FILES[@]}"; do
             [ -f "$f" ] || continue
-            [ -n "$found_headers" ] || found_headers="$(grep -m1 '^\[headers\]' "$f" || true)"
-            [ -n "$found_cors" ]    || found_cors="$(grep -m1 '^\[cors\]' "$f" || true)"
-            [ -n "$found_triage" ]  || found_triage="$(grep -m1 '^\[429-triage\]' "$f" || true)"
+            [ -n "$found_headers" ] || found_headers="$(grep -m1 '\[headers\]' "$f" || true)"
+            [ -n "$found_cors" ]    || found_cors="$(grep -m1 '\[cors\]' "$f" || true)"
+            [ -n "$found_triage" ]  || found_triage="$(grep -m1 '\[429-triage\]' "$f" || true)"
           done
 
           warn=0
@@ -267,13 +268,14 @@ jobs:
           : > .artifacts/env-contract-evidence.txt
 
           # Parse lines we print from the Playwright test logs
-          SITE_MODE=$(grep -Eo '^\[headers\] X-Site-Mode=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
-          PHASE=$(grep -E '^\[headers\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*X-Phase=([^ ]+).*/\1/' || true)
-          CORS_CREDS=$(grep -Eo '^\[cors\] access-control-allow-credentials=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
-          CORS_ORIGIN=$(grep -E '^\[cors\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*access-control-allow-origin=//' || true)
-          DEDUPE=$(grep -Eo '^\[429-triage\] dedupeKey=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
-          LIMITED=$(grep -E '^\[429-triage\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*limited=([0-9]+).*/\1/' || true)
-          ATTEMPTS=$(grep -E '^\[429-triage\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*attempts=([0-9]+).*/\1/' || true)
+          # Note: Playwright output may have prefixes, so we don't require ^ at line start
+          SITE_MODE=$(grep -Eo '\[headers\] X-Site-Mode=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
+          PHASE=$(grep -E '\[headers\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*X-Phase=([^ ]+).*/\1/' || true)
+          CORS_CREDS=$(grep -Eo '\[cors\] access-control-allow-credentials=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
+          CORS_ORIGIN=$(grep -E '\[cors\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*access-control-allow-origin=//' || true)
+          DEDUPE=$(grep -Eo '\[429-triage\] dedupeKey=[^ ]+' .artifacts/pw.log | head -n1 | cut -d= -f2 || true)
+          LIMITED=$(grep -E '\[429-triage\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*limited=([0-9]+).*/\1/' || true)
+          ATTEMPTS=$(grep -E '\[429-triage\] ' .artifacts/pw.log | head -n1 | sed -E 's/.*attempts=([0-9]+).*/\1/' || true)
 
           {
             echo "[headers] X-Site-Mode=${SITE_MODE:-} X-Phase=${PHASE:-}"
@@ -344,9 +346,9 @@ jobs:
 
           for f in "${LOG_FILES[@]}"; do
             [ -f "$f" ] || continue
-            [ -n "$found_headers" ] || found_headers="$(grep -m1 '^\[headers\]' "$f" || true)"
-            [ -n "$found_cors" ]    || found_cors="$(grep -m1 '^\[cors\]' "$f" || true)"
-            [ -n "$found_triage" ]  || found_triage="$(grep -m1 '^\[429-triage\]' "$f" || true)"
+            [ -n "$found_headers" ] || found_headers="$(grep -m1 '\[headers\]' "$f" || true)"
+            [ -n "$found_cors" ]    || found_cors="$(grep -m1 '\[cors\]' "$f" || true)"
+            [ -n "$found_triage" ]  || found_triage="$(grep -m1 '\[429-triage\]' "$f" || true)"
           done
 
           warn=0
