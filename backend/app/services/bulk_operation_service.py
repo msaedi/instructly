@@ -32,6 +32,7 @@ from ..schemas.availability_window import (
 from .availability_service import AvailabilityService
 from .base import BaseService
 from .conflict_checker import ConflictChecker
+from .search.cache_invalidation import invalidate_on_availability_change
 
 # SlotManager removed - bitmap-only storage now
 
@@ -184,6 +185,9 @@ class BulkOperationService(BaseService):
         # Invalidate cache after successful commit
         if successful > 0:
             self._invalidate_affected_cache(instructor_id, update_data.operations, results)
+
+            # Invalidate search cache (fire-and-forget via asyncio.create_task)
+            invalidate_on_availability_change(instructor_id)
 
         return self._create_operation_summary(results, successful, failed, 0)
 

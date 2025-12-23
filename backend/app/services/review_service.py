@@ -41,6 +41,7 @@ from .ratings_math import (
     dirichlet_prior_mean,
     display_policy,
 )
+from .search.cache_invalidation import invalidate_on_review_change
 
 
 class RatingComputation(TypedDict):
@@ -238,6 +239,9 @@ class ReviewService(BaseService):
 
         # Invalidate caches
         self._invalidate_instructor_caches(booking.instructor_id)
+
+        # Invalidate search cache (fire-and-forget via asyncio.create_task)
+        invalidate_on_review_change(booking.instructor_id, str(review.id))
 
         badge_service = BadgeAwardService(self.db)
         badge_service.check_and_award_on_review_received(
@@ -563,6 +567,9 @@ class ReviewService(BaseService):
 
         # Invalidate caches
         self._invalidate_instructor_caches(instructor_id)
+
+        # Invalidate search cache (fire-and-forget via asyncio.create_task)
+        invalidate_on_review_change(instructor_id, review_id)
 
         return response
 

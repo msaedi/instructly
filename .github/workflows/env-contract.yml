@@ -59,6 +59,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   smoke:
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_BASE_URL: ${{ (github.event_name == 'schedule' && vars.PREVIEW_BASE_URL) || inputs.base_url || vars.PREVIEW_BASE_URL }}

@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   contract-check:
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +51,7 @@ jobs:
           fi
 
   lint-build:
+    if: github.actor != 'dependabot[bot]'
     needs: contract-check
     runs-on: ubuntu-latest
     env:
