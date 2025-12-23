@@ -9906,6 +9906,11 @@ export type components = {
              */
             limit: number;
             /**
+             * Location Message
+             * @description User-facing message for location-related issues
+             */
+            location_message?: string | null;
+            /**
              * Location Not Found
              * @description True if the location text could not be resolved
              * @default false
@@ -9929,6 +9934,18 @@ export type components = {
              * @description Original search query
              */
             query: string;
+            /**
+             * Requires Address
+             * @description True if 'near me' was requested but user has no saved address
+             * @default false
+             */
+            requires_address: boolean;
+            /**
+             * Requires Auth
+             * @description True if 'near me' was requested but user is not authenticated
+             * @default false
+             */
+            requires_auth: boolean;
             /**
              * Search Query Id
              * @description Search query ID for click tracking
@@ -10336,6 +10353,11 @@ export type components = {
              */
             date?: string | null;
             /**
+             * Lesson Type
+             * @description Lesson type filter: 'online', 'in_person', or 'any'
+             */
+            lesson_type?: string | null;
+            /**
              * Location
              * @description Extracted location
              */
@@ -10370,6 +10392,12 @@ export type components = {
              * @description Detected urgency level
              */
             urgency?: string | null;
+            /**
+             * Use User Location
+             * @description True if 'near me' detected and user location should be used
+             * @default false
+             */
+            use_user_location: boolean;
         };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {

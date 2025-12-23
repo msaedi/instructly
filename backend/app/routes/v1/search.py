@@ -31,6 +31,7 @@ from ...dependencies.permissions import require_permission
 from ...models import User
 from ...ratelimit.dependency import rate_limit
 from ...repositories.address_repository import UserAddressRepository
+from ...repositories.region_boundary_repository import RegionBoundaryRepository
 from ...schemas.nl_search import (
     ModelOption,
     NLSearchResponse,
@@ -156,6 +157,22 @@ async def nl_search(
                 requires_address = True
                 location_message = "Please add an address to your profile to search near you"
 
+    # Reverse geocode coordinates to neighborhood for "near me" queries
+    near_me_resolved_location: Optional[str] = None
+    if is_near_me_query and user_location is not None:
+
+        def _reverse_geocode_to_neighborhood() -> Optional[str]:
+            with get_db_session() as db:
+                region_repo = RegionBoundaryRepository(db)
+                # user_location is (lng, lat) - need to extract lat and lng
+                lng_val, lat_val = user_location
+                region = region_repo.find_region_by_point(lat_val, lng_val, "nyc")
+                if region and region.get("region_name"):
+                    return str(region["region_name"])
+                return None
+
+        near_me_resolved_location = await asyncio.to_thread(_reverse_geocode_to_neighborhood)
+
     try:
         admin_flags = any(
             [
@@ -199,6 +216,12 @@ async def nl_search(
             result.meta.requires_address = requires_address
             if location_message:
                 result.meta.location_message = location_message
+            # Set resolved location from reverse geocoding
+            if near_me_resolved_location:
+                result.meta.location_resolved = near_me_resolved_location
+                # Also update parsed.location to show "near me" was detected
+                if result.meta.parsed:
+                    result.meta.parsed.location = "near me"
 
         # Set Cache-Control header
         if response:
