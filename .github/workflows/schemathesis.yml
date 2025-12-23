@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload artifacts (preview)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: schemathesis-evidence-preview
           path: |
@@ -128,7 +128,7 @@ jobs:
 
       - name: Upload artifacts (beta)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: schemathesis-evidence-beta
           path: |

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, cast
 
-from celery import Task
+from celery.app.task import Task
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -30,7 +30,7 @@ def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], 
 logger = logging.getLogger(__name__)
 
 
-class DatabaseTask(Task):  # type: ignore[misc]
+class DatabaseTask(Task):  # type: ignore[type-arg]
     """
     Base task class that provides database session management.
     """
@@ -49,7 +49,7 @@ class DatabaseTask(Task):  # type: ignore[misc]
         task_id: str,
         args: Tuple[Any, ...],
         kwargs: Dict[str, Any],
-        einfo: Optional[BaseException],
+        einfo: Any,
     ) -> None:
         """Close database session on task failure."""
         if self._db:

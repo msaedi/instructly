@@ -11,9 +11,9 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from time import monotonic
-from typing import Iterator, Optional, cast
+from typing import Any, Iterator, Optional, cast
 
-from celery.app.task import Task
+from celery.app.task import Task  # noqa: F401 - used for type hints
 from celery.utils.log import get_task_logger
 from sqlalchemy.orm import Session
 
@@ -52,7 +52,7 @@ def _session_scope() -> Iterator[Session]:
         session.close()
 
 
-@celery_app.task(name="outbox.dispatch_pending", max_retries=0, queue="notifications")  # type: ignore[misc]
+@celery_app.task(name="outbox.dispatch_pending", max_retries=0, queue="notifications")
 def dispatch_pending() -> int:
     """
     Fetch pending outbox events and enqueue delivery tasks.
@@ -70,14 +70,14 @@ def dispatch_pending() -> int:
         return scheduled
 
 
-@celery_app.task(  # type: ignore[misc]
+@celery_app.task(
     name="outbox.deliver_event",
     bind=True,
     max_retries=5,
     default_retry_delay=30,
     queue="notifications",
 )
-def deliver_event(self: Task, event_id: str) -> Optional[str]:
+def deliver_event(self: "Task[Any, Any]", event_id: str) -> Optional[str]:
     """Deliver a single outbox event."""
     provider = NotificationProvider()
     session = SessionLocal()

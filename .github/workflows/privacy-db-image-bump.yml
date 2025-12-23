@@ -87,7 +87,7 @@ jobs:
 
       - name: Create PR with changes
         id: cpr
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: ci/privacy-db-image-bump-${{ inputs.tag }}
           title: "ci(privacy): bump DB image to ${{ inputs.tag }} (digest ${{ steps.digest.outputs.digest }})"

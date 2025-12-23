@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           check-latest: true
@@ -257,7 +257,7 @@ jobs:
 
       - name: Upload audit reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: privacy-audit-reports-${{ github.run_number }}
           path: |

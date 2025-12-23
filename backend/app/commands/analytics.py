@@ -162,12 +162,14 @@ class AnalyticsCommand:
         # If it was an async task, check its status
         if last_run.get("mode") == "async" and "task_id" in last_run:
             task_id = last_run["task_id"]
-            result = AsyncResult(task_id)
+            result: AsyncResult[Any] = AsyncResult(task_id)
 
-            if result.pending:
+            # Use result.state to check task status (pending/running are not attributes)
+            task_state = result.state
+            if task_state == "PENDING":
                 status = "pending"
                 message = "Task is waiting to be processed"
-            elif result.running:
+            elif task_state == "STARTED":
                 status = "running"
                 message = "Task is currently running"
             elif result.successful():
@@ -181,8 +183,8 @@ class AnalyticsCommand:
                 status = "failed"
                 message = f"Task failed: {result.info}"
             else:
-                status = result.state
-                message = f"Task status: {result.state}"
+                status = task_state
+                message = f"Task status: {task_state}"
 
             last_run["current_status"] = status
             last_run["status_message"] = message

@@ -30,7 +30,7 @@ jobs:
 
       # Node for contract check
       - name: Use Node 22.x
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22.x'
 
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Use Node 22.x
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22.x'
           cache: 'npm'
@@ -173,7 +173,7 @@ jobs:
         run: echo "⚠️ Found ${{ steps.adopt.outputs.adHocAny }} ad-hoc/any API call-sites (see adoption artifacts)."
 
       - name: Upload contract audit artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: contract-audit
           path: |

@@ -15,7 +15,7 @@ jobs:
       NEXT_PUBLIC_LH_CI: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
@@ -50,7 +50,7 @@ jobs:
 
       - name: Upload LHCI artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: lhci-artifacts
           path: frontend/.lighthouseci

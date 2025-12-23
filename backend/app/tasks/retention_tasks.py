@@ -43,7 +43,7 @@ DEFAULT_CHUNK = _env_int("RETENTION_PURGE_CHUNK", 1000)
 DEFAULT_DRY_RUN = _env_bool("RETENTION_PURGE_DRY_RUN", False)
 
 
-@celery_app.task(  # type: ignore[misc]
+@celery_app.task(
     name="retention.purge_soft_deleted",
     bind=True,
     max_retries=3,

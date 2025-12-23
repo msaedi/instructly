@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
-from celery import Task
+from celery.app.task import Task
 
 from app.database import SessionLocal
 from app.repositories.service_catalog_repository import ServiceCatalogRepository
@@ -27,12 +27,12 @@ BATCH_SIZE = 50
 MAX_SERVICES_PER_RUN = 200
 
 
-@celery_app.task(  # type: ignore[misc]
+@celery_app.task(
     name="maintain_service_embeddings",
     bind=True,
     max_retries=3,
 )
-def maintain_service_embeddings(self: Task) -> Dict[str, int]:
+def maintain_service_embeddings(self: "Task[Any, Any]") -> Dict[str, int]:
     """
     Celery task to maintain service embeddings.
 
@@ -132,12 +132,12 @@ def _check_embedding_coverage(db: "Session") -> None:
             logger.info(f"All {total} active services have embeddings")
 
 
-@celery_app.task(  # type: ignore[misc]
+@celery_app.task(
     name="bulk_embed_all_services",
     bind=True,
     max_retries=3,
 )
-def bulk_embed_all_services(self: Task) -> Dict[str, int]:
+def bulk_embed_all_services(self: "Task[Any, Any]") -> Dict[str, int]:
     """
     One-time task to embed all services.
 
