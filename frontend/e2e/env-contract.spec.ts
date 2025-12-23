@@ -89,13 +89,17 @@ test.describe('env-contract smoke', () => {
       return;
     }
     const ctx = await request.newContext({ baseURL: apiBase });
-    // Use addresses/coverage/bulk - a public endpoint with 10/minute rate limit
-    // This endpoint is public (no auth required) and rate-limited by IP
-    // Increase attempts to 25 to reliably trigger 10/minute limit (allows for burst)
-    const attempts = 25;
+    // Use auth/login endpoint - has strict 5/minute rate limit per IP
+    // POST with invalid credentials to trigger rate limiting without side effects
+    // OAuth2PasswordRequestForm expects form-urlencoded data
+    // With 5/min limit, 15 attempts should yield ~10 429s
+    const attempts = 15;
     let limited = 0;
     for (let i = 0; i < attempts; i += 1) {
-      const res = await ctx.get('/api/v1/addresses/coverage/bulk?ids=test', { ignoreHTTPSErrors: true });
+      const res = await ctx.post('/api/v1/auth/login', {
+        form: { username: 'rate-limit-test@example.com', password: 'invalid' },
+        ignoreHTTPSErrors: true
+      });
       if (res.status() === 429) limited += 1;
     }
     await ctx.dispose();

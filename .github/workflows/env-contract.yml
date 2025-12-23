@@ -17,11 +17,11 @@ on:
       E2E_HEADERS_TEST:
         description: "Enable header/CORS checks (1 to enable)"
         required: false
-        default: "0"
+        default: "1"
       E2E_RATE_LIMIT_TEST:
         description: "Enable 429 dedupe check (1 to enable)"
         required: false
-        default: "0"
+        default: "1"
       allowed_phases:
         description: "Comma-separated allowed X-Phase values"
         required: false
