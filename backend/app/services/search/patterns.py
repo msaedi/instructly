@@ -113,6 +113,21 @@ WEEKDAY_PATTERN: Pattern[str] = re.compile(
 WEEKEND_PATTERN: Pattern[str] = re.compile(r"\b(?:(this|next)\s+)?weekend\b", re.IGNORECASE)
 
 # =============================================================================
+# LESSON TYPE PATTERNS (Apply before Location)
+# =============================================================================
+
+# Online/virtual lesson patterns
+LESSON_TYPE_ONLINE: Pattern[str] = re.compile(
+    r"\b(?:online|virtual|remote|zoom|video|webcam)\b", re.IGNORECASE
+)
+
+# In-person lesson patterns
+LESSON_TYPE_IN_PERSON: Pattern[str] = re.compile(
+    r"\b(?:in[-\s]?person|face[-\s]?to[-\s]?face|in[-\s]?home|at[-\s]?home)\b", re.IGNORECASE
+)
+
+
+# =============================================================================
 # LOCATION PATTERNS (Apply Fourth)
 # =============================================================================
 
@@ -122,12 +137,17 @@ WEEKEND_PATTERN: Pattern[str] = re.compile(r"\b(?:(this|next)\s+)?weekend\b", re
 # - Allows optional "the" ("in the upper west side")
 LOCATION_PREPOSITION: Pattern[str] = re.compile(
     r"\b(?:in|near|around)\b\s+(?:the\s+)?"
-    r"([A-Za-z][A-Za-z\s\-'’.]{2,30}?)"
+    r"([A-Za-z][A-Za-z\s\-''.]{2,30}?)"
     r"(?:\s+(?:area|neighborhood|district))?"
     r"(?=\s+(?:for|under|after|before|today|tomorrow|this|next|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\s*$)",
     re.IGNORECASE,
 )
-NEAR_ME: Pattern[str] = re.compile(r"\b(?:near\s+me|nearby|close\s+by)\b", re.IGNORECASE)
+
+# Near me patterns - expanded to catch more variations
+NEAR_ME: Pattern[str] = re.compile(
+    r"\b(?:near\s+me|nearby|close\s+(?:by|to\s+me)|in\s+my\s+area|around\s+me|my\s+neighborhood)\b",
+    re.IGNORECASE,
+)
 
 # =============================================================================
 # SKILL LEVEL PATTERNS (Apply Fifth)

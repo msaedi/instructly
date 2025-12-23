@@ -505,3 +505,70 @@ class FilterRepository:
             results[instructor_id].append(day_date)
 
         return results
+
+    # =========================================================================
+    # Lesson Type Filtering (Online/In-Person)
+    # =========================================================================
+
+    def filter_by_lesson_type(
+        self,
+        service_ids: List[str],
+        lesson_type: str,
+    ) -> List[str]:
+        """
+        Filter services by lesson type (online or in-person).
+
+        The filter works by checking the location_types array in instructor_services.
+        - "online" lesson_type -> services with 'online' in location_types
+        - "in_person" lesson_type -> services with 'in-person' in location_types
+
+        Args:
+            service_ids: List of instructor_service IDs to filter
+            lesson_type: "online" or "in_person"
+
+        Returns:
+            List of service IDs that match the lesson type filter
+        """
+        if not service_ids or lesson_type == "any":
+            return service_ids
+
+        # Map lesson_type to the array value stored in location_types
+        if lesson_type == "online":
+            type_value = "online"
+        elif lesson_type == "in_person":
+            type_value = "in-person"
+        else:
+            return service_ids
+
+        query = text(
+            """
+            SELECT ins.id
+            FROM instructor_services ins
+            WHERE ins.id = ANY(:service_ids)
+              AND ins.is_active = true
+              AND (
+                  :type_value = ANY(ins.location_types)
+                  OR (
+                      -- Fallback: if location_types is null/empty, check catalog's online_capable
+                      :lesson_type = 'online'
+                      AND (ins.location_types IS NULL OR array_length(ins.location_types, 1) IS NULL)
+                      AND EXISTS (
+                          SELECT 1 FROM service_catalog sc
+                          WHERE sc.id = ins.service_catalog_id
+                          AND sc.online_capable = true
+                      )
+                  )
+              )
+            """
+        )
+
+        result = self.db.execute(
+            query,
+            {
+                "service_ids": service_ids,
+                "type_value": type_value,
+                "lesson_type": lesson_type,
+            },
+        )
+
+        return [row[0] for row in result]

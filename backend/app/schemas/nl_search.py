@@ -143,6 +143,12 @@ class ParsedQueryInfo(BaseModel):
     audience_hint: Optional[str] = Field(None, description="Detected audience hint")
     skill_level: Optional[str] = Field(None, description="Detected skill level")
     urgency: Optional[str] = Field(None, description="Detected urgency level")
+    lesson_type: Optional[str] = Field(
+        None, description="Lesson type filter: 'online', 'in_person', or 'any'"
+    )
+    use_user_location: bool = Field(
+        False, description="True if 'near me' detected and user location should be used"
+    )
 
 
 class StageStatus(str, Enum):
@@ -266,6 +272,16 @@ class NLSearchMeta(BaseModel):
     )
     location_not_found: bool = Field(
         False, description="True if the location text could not be resolved"
+    )
+    # Near me location resolution status
+    requires_auth: bool = Field(
+        False, description="True if 'near me' was requested but user is not authenticated"
+    )
+    requires_address: bool = Field(
+        False, description="True if 'near me' was requested but user has no saved address"
+    )
+    location_message: Optional[str] = Field(
+        None, description="User-facing message for location-related issues"
     )
     diagnostics: Optional[SearchDiagnostics] = Field(
         None, description="Detailed diagnostics for admin tooling"

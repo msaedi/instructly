@@ -30,6 +30,7 @@ from ...database import get_db, get_db_session
 from ...dependencies.permissions import require_permission
 from ...models import User
 from ...ratelimit.dependency import rate_limit
+from ...repositories.address_repository import UserAddressRepository
 from ...schemas.nl_search import (
     ModelOption,
     NLSearchResponse,
@@ -51,6 +52,7 @@ from ...services.cache_service import CacheService
 from ...services.permission_service import PermissionService
 from ...services.search.config import get_search_config
 from ...services.search.nl_search_service import NLSearchService, get_search_inflight_count
+from ...services.search.patterns import NEAR_ME
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +122,10 @@ async def nl_search(
 
     # Validate location (both or neither)
     user_location: Optional[tuple[float, float]] = None
+    requires_auth = False
+    requires_address = False
+    location_message: Optional[str] = None
+
     if lat is not None and lng is not None:
         user_location = (lng, lat)  # Note: (lng, lat) order for PostGIS
     elif lat is not None or lng is not None:
@@ -127,6 +133,28 @@ async def nl_search(
             status_code=400,
             detail="Both lat and lng must be provided together",
         )
+
+    # Handle "near me" queries - fetch user's default address if available
+    is_near_me_query = NEAR_ME.search(q) is not None
+    if is_near_me_query and user_location is None:
+        if current_user is None:
+            requires_auth = True
+            location_message = "Please sign in to search near your location"
+        else:
+            # Try to get user's default address
+            def _get_user_address() -> Optional[tuple[float, float]]:
+                with get_db_session() as db:
+                    address_repo = UserAddressRepository(db)
+                    address = address_repo.get_default_address(current_user.id)
+                    if address and address.latitude and address.longitude:
+                        # Return as (lng, lat) for PostGIS
+                        return (float(address.longitude), float(address.latitude))
+                    return None
+
+            user_location = await asyncio.to_thread(_get_user_address)
+            if user_location is None:
+                requires_address = True
+                location_message = "Please add an address to your profile to search near you"
 
     try:
         admin_flags = any(
@@ -164,6 +192,13 @@ async def nl_search(
             force_skip_embedding=force_skip_embedding,
             force_high_load=force_high_load,
         )
+
+        # Update metadata for "near me" queries
+        if is_near_me_query:
+            result.meta.requires_auth = requires_auth
+            result.meta.requires_address = requires_address
+            if location_message:
+                result.meta.location_message = location_message
 
         # Set Cache-Control header
         if response:

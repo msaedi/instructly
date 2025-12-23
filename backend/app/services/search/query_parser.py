@@ -25,6 +25,8 @@ from app.services.search.patterns import (
     CATEGORY_KEYWORDS,
     KID_CONTEXT,
     KIDS_KEYWORDS,
+    LESSON_TYPE_IN_PERSON,
+    LESSON_TYPE_ONLINE,
     LOCATION_PREPOSITION,
     NEAR_ME,
     PREMIUM_KEYWORDS,
@@ -62,6 +64,10 @@ if TYPE_CHECKING:
 DateType = datetime.date
 
 
+# Lesson type enum for online/in-person filtering
+LessonType = Literal["online", "in_person", "any"]
+
+
 @dataclass
 class ParsedQuery:
     """Structured representation of a parsed natural language search query."""
@@ -90,6 +96,10 @@ class ParsedQuery:
     # Location constraints
     location_text: Optional[str] = None  # Raw extracted text "brooklyn"
     location_type: Optional[Literal["borough", "neighborhood", "near_me"]] = None
+    use_user_location: bool = False  # True when "near me" detected and user location should be used
+
+    # Lesson type constraint (online vs in-person)
+    lesson_type: LessonType = "any"  # "online", "in_person", or "any"
 
     # Audience hint (for ranking, NOT filtering)
     audience_hint: Optional[Literal["kids", "adults"]] = None
@@ -174,11 +184,12 @@ class QueryParser:
             parsing_mode="regex",
         )
 
-        # Apply extractors in order (price -> audience -> time -> location -> skill -> urgency)
+        # Apply extractors in order (price -> audience -> time -> lesson_type -> location -> skill -> urgency)
         working_query, result = self._extract_price(working_query, result, extracted_spans)
         working_query, result = self._extract_audience(working_query, result, extracted_spans)
         working_query, result = self._extract_time(working_query, result, extracted_spans)
         working_query, result = self._extract_date(working_query, result, extracted_spans)
+        working_query, result = self._extract_lesson_type(working_query, result, extracted_spans)
         working_query, result = self._extract_location(working_query, result, extracted_spans)
         working_query, result = self._extract_skill_level(working_query, result, extracted_spans)
         working_query, result = self._extract_urgency(working_query, result, extracted_spans)
@@ -480,6 +491,33 @@ class QueryParser:
 
         return query, result
 
+    def _extract_lesson_type(
+        self, query: str, result: ParsedQuery, spans: List[Tuple[int, int]]
+    ) -> Tuple[str, ParsedQuery]:
+        """
+        Extract lesson type (online vs in-person) from query.
+
+        Online keywords: online, virtual, remote, zoom, video, webcam
+        In-person keywords: in-person, face-to-face, in-home, at-home
+
+        Note: Extract lesson type BEFORE location to avoid "in person" being
+        parsed as a location ("in person" -> location "person").
+        """
+        # Check for in-person first (more specific pattern)
+        if LESSON_TYPE_IN_PERSON.search(query):
+            result.lesson_type = "in_person"
+            query = LESSON_TYPE_IN_PERSON.sub("", query)
+            return query, result
+
+        # Check for online/virtual
+        if LESSON_TYPE_ONLINE.search(query):
+            result.lesson_type = "online"
+            query = LESSON_TYPE_ONLINE.sub("", query)
+            return query, result
+
+        # Default is "any" (already set in dataclass)
+        return query, result
+
     def _extract_location(
         self, query: str, result: ParsedQuery, spans: List[Tuple[int, int]]
     ) -> Tuple[str, ParsedQuery]:
@@ -488,6 +526,7 @@ class QueryParser:
         # Check for "near me" first
         if NEAR_ME.search(query):
             result.location_type = "near_me"
+            result.use_user_location = True  # Signal that we need user's saved address
             query = NEAR_ME.sub("", query)
             return query, result
 

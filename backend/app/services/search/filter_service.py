@@ -247,6 +247,14 @@ class FilterService:
             filter_stats["after_price"] = len(working)
         perf["price_ms"] = int((time_module.perf_counter() - price_start) * 1000)
 
+        # Step 1.5: Lesson type filter (online/in-person)
+        lesson_type_start = time_module.perf_counter()
+        if parsed_query.lesson_type and parsed_query.lesson_type != "any":
+            working = self._filter_lesson_type(working, parsed_query.lesson_type)
+            filters_applied.append("lesson_type")
+            filter_stats["after_lesson_type"] = len(working)
+        perf["lesson_type_ms"] = int((time_module.perf_counter() - lesson_type_start) * 1000)
+
         # Step 2: Location filter
         resolved_location = user_location
         location_start = time_module.perf_counter()
@@ -396,6 +404,35 @@ class FilterService:
                 filtered.append(c)
             else:
                 c.passed_price = False
+        return filtered
+
+    def _filter_lesson_type(
+        self,
+        candidates: List[FilteredCandidate],
+        lesson_type: str,
+    ) -> List[FilteredCandidate]:
+        """
+        Apply lesson type filter (online vs in-person).
+
+        Uses the FilterRepository to check instructor_services.location_types.
+
+        Args:
+            candidates: Current candidate list
+            lesson_type: "online" or "in_person"
+
+        Returns:
+            Filtered list of candidates matching the lesson type
+        """
+        if not candidates or lesson_type == "any":
+            return candidates
+
+        service_ids = [c.service_id for c in candidates]
+        passing_ids = set(self.repository.filter_by_lesson_type(service_ids, lesson_type))
+
+        filtered: List[FilteredCandidate] = []
+        for c in candidates:
+            if c.service_id in passing_ids:
+                filtered.append(c)
         return filtered
 
     def _filter_location(
