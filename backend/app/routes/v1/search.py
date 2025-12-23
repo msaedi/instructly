@@ -142,17 +142,31 @@ async def nl_search(
             requires_auth = True
             location_message = "Please sign in to search near your location"
         else:
-            # Try to get user's default address
-            def _get_user_address() -> Optional[tuple[float, float]]:
-                with get_db_session() as db:
-                    address_repo = UserAddressRepository(db)
-                    address = address_repo.get_default_address(current_user.id)
-                    if address and address.latitude and address.longitude:
-                        # Return as (lng, lat) for PostGIS
-                        return (float(address.longitude), float(address.latitude))
-                    return None
+            # Try cache first, then DB
+            cache_key = f"user_default_address:{current_user.id}"
+            cached_coords = await cache_service.get_json(cache_key)
+            if cached_coords:
+                user_location = (cached_coords["lng"], cached_coords["lat"])
+            else:
+                # DB lookup
+                def _get_user_address() -> Optional[tuple[float, float]]:
+                    with get_db_session() as db:
+                        address_repo = UserAddressRepository(db)
+                        address = address_repo.get_default_address(current_user.id)
+                        if address and address.latitude and address.longitude:
+                            # Return as (lng, lat) for PostGIS
+                            return (float(address.longitude), float(address.latitude))
+                        return None
 
-            user_location = await asyncio.to_thread(_get_user_address)
+                user_location = await asyncio.to_thread(_get_user_address)
+                # Cache if found (1 hour TTL)
+                if user_location:
+                    await cache_service.set_json(
+                        cache_key,
+                        {"lng": user_location[0], "lat": user_location[1]},
+                        ttl=3600,
+                    )
+
             if user_location is None:
                 requires_address = True
                 location_message = "Please add an address to your profile to search near you"

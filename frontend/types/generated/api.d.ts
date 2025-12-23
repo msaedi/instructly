@@ -2268,6 +2268,29 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/rate-limit-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rate Limit Test
+         * @description Public endpoint for CI rate limit testing.
+         *
+         *     Has a strict 3/minute rate limit per IP.
+         *     Used by env-contract CI workflow to verify rate limiting is active.
+         */
+        get: operations["rate_limit_test_api_v1_health_rate_limit_test_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instructor-bookings": {
         parameters: {
             query?: never;
@@ -17595,6 +17618,26 @@ export interface operations {
         };
     };
     health_check_lite_api_v1_health_lite_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthLiteResponse"];
+                };
+            };
+        };
+    };
+    rate_limit_test_api_v1_health_rate_limit_test_get: {
         parameters: {
             query?: never;
             header?: never;

@@ -257,3 +257,145 @@ export function useHealthCheckLiteApiV1HealthLiteGet<
 
   return query;
 }
+
+/**
+ * Public endpoint for CI rate limit testing.
+
+Has a strict 3/minute rate limit per IP.
+Used by env-contract CI workflow to verify rate limiting is active.
+ * @summary Rate Limit Test
+ */
+export const rateLimitTestApiV1HealthRateLimitTestGet = (signal?: AbortSignal) => {
+  return customFetch<HealthLiteResponse>({
+    url: `/api/v1/health/rate-limit-test`,
+    method: 'GET',
+    signal,
+  });
+};
+
+export const getRateLimitTestApiV1HealthRateLimitTestGetQueryKey = () => {
+  return [`/api/v1/health/rate-limit-test`] as const;
+};
+
+export const getRateLimitTestApiV1HealthRateLimitTestGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+      TError,
+      TData
+    >
+  >;
+}) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getRateLimitTestApiV1HealthRateLimitTestGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>
+  > = ({ signal }) => rateLimitTestApiV1HealthRateLimitTestGet(signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type RateLimitTestApiV1HealthRateLimitTestGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>
+>;
+export type RateLimitTestApiV1HealthRateLimitTestGetQueryError = ErrorType<unknown>;
+
+export function useRateLimitTestApiV1HealthRateLimitTestGet<
+  TData = Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+          TError,
+          Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useRateLimitTestApiV1HealthRateLimitTestGet<
+  TData = Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+          TError,
+          Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>
+        >,
+        'initialData'
+      >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useRateLimitTestApiV1HealthRateLimitTestGet<
+  TData = Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Rate Limit Test
+ */
+
+export function useRateLimitTestApiV1HealthRateLimitTestGet<
+  TData = Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+  TError = ErrorType<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof rateLimitTestApiV1HealthRateLimitTestGet>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getRateLimitTestApiV1HealthRateLimitTestGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}

@@ -22,11 +22,12 @@ Endpoints:
 import logging
 from typing import Any, Dict, Mapping, Sequence, cast
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, status
 from fastapi.params import Path
 from sqlalchemy.orm import Session
 
 from ...api.dependencies.auth import get_current_active_user
+from ...api.dependencies.services import get_cache_service_dep
 from ...database import get_db as get_session
 from ...middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ...models.user import User
@@ -49,6 +50,7 @@ from ...schemas.address_responses import (
     NYCZipCheckResponse,
 )
 from ...services.address_service import AddressService
+from ...services.cache_service import CacheService
 from ...services.geocoding.base import AutocompleteResult, GeocodedAddress
 from ...utils.strict import model_filter
 
@@ -145,14 +147,27 @@ def list_my_addresses(
     return AddressListResponse(items=items, total=len(items))
 
 
+async def _invalidate_user_address_cache(cache_service: CacheService, user_id: str) -> None:
+    """Background task to invalidate user address cache."""
+    try:
+        await cache_service.delete(f"user_default_address:{user_id}")
+    except Exception:
+        pass  # Non-critical - cache will expire naturally
+
+
 @router.post("/me", response_model=AddressResponse, status_code=status.HTTP_201_CREATED)
 def create_my_address(
     data: AddressCreate = Body(...),
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+    background_tasks: BackgroundTasks = None,
 ) -> AddressResponse:
     """Create a new address for the current user."""
     created = cast(Mapping[str, Any], service.create_address(current_user.id, data.model_dump()))
+    # Invalidate user address cache (new address might become default)
+    if background_tasks:
+        background_tasks.add_task(_invalidate_user_address_cache, cache_service, current_user.id)
     return AddressResponse(**created)
 
 
@@ -162,6 +177,8 @@ def update_my_address(
     data: AddressUpdate = Body(...),
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+    background_tasks: BackgroundTasks = None,
 ) -> AddressResponse:
     """Update an existing address for the current user."""
     updated = cast(
@@ -170,6 +187,9 @@ def update_my_address(
     )
     if not updated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
+    # Invalidate user address cache (coords or default status may have changed)
+    if background_tasks:
+        background_tasks.add_task(_invalidate_user_address_cache, cache_service, current_user.id)
     return AddressResponse(**updated)
 
 
@@ -178,11 +198,16 @@ def delete_my_address(
     address_id: str = Path(..., pattern=ULID_PATH_PATTERN),
     current_user: User = Depends(get_current_active_user),
     service: AddressService = Depends(get_address_service),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+    background_tasks: BackgroundTasks = None,
 ) -> DeleteResponse:
     """Delete an address for the current user."""
     ok = service.delete_address(current_user.id, address_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
+    # Invalidate user address cache (default address may have changed)
+    if background_tasks:
+        background_tasks.add_task(_invalidate_user_address_cache, cache_service, current_user.id)
     response_payload = {"success": True, "message": "Address deleted"}
     return DeleteResponse(**model_filter(DeleteResponse, response_payload))
 
