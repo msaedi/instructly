@@ -1083,7 +1083,10 @@ class BookingService(BaseService):
                         event_type="credit_created_gaming_reschedule_cancel",
                         event_data={
                             "hours_before_new": round(hours_until, 2),
-                            "hours_from_original": round(hours_from_original, 2),
+                            # hours_from_original is guaranteed non-None here (inside gaming branch)
+                            "hours_from_original": round(hours_from_original, 2)
+                            if hours_from_original is not None
+                            else None,
                             "lesson_price_cents": lesson_price_cents,
                             "rescheduled_from": booking.rescheduled_from_booking_id,
                             "original_lesson_datetime": booking.original_lesson_datetime.isoformat()
