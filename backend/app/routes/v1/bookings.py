@@ -691,6 +691,9 @@ async def reschedule_booking(
         if not original:
             raise NotFoundException("Booking not found")
 
+        # Part 5: Block second reschedule - a booking can only be rescheduled once
+        await asyncio.to_thread(booking_service.validate_reschedule_allowed, original)
+
         # Pre-validate the requested slot
         start_dt = datetime.combine(payload.booking_date, payload.start_time)
         end_dt = start_dt + timedelta(minutes=payload.selected_duration)

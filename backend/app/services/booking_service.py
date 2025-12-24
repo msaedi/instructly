@@ -2645,6 +2645,26 @@ class BookingService(BaseService):
         except Exception:
             return False
 
+    @BaseService.measure_operation("validate_reschedule_allowed")
+    def validate_reschedule_allowed(self, booking: "Booking") -> None:
+        """
+        Validate that a booking can be rescheduled (Part 5: Block Second Reschedule).
+
+        A booking can only be rescheduled ONCE. If it was already created via
+        reschedule (rescheduled_from_booking_id is set), it cannot be rescheduled again.
+
+        Args:
+            booking: The booking to validate
+
+        Raises:
+            BusinessRuleException: If booking has already been rescheduled once
+        """
+        if booking.rescheduled_from_booking_id:
+            raise BusinessRuleException(
+                message="You've already rescheduled this booking. To change the date again, please cancel (for credit) and book a new lesson.",
+                code="reschedule_limit_reached",
+            )
+
     @BaseService.measure_operation("validate_reschedule_payment_method")
     def validate_reschedule_payment_method(
         self,

@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy.orm import Session
 import ulid
 
+from app.core.exceptions import BusinessRuleException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
@@ -790,3 +791,92 @@ def test_legitimate_reschedule_cancel_after_original_passed(db: Session):
 
     # Verify NO credit was issued (card refund, not credit)
     mock_credit.assert_not_called()
+
+
+# =============================================================================
+# Part 5: Block Second Reschedule Tests
+# =============================================================================
+
+
+def test_first_reschedule_allowed(db: Session):
+    """PART 5: First reschedule should be allowed.
+
+    A booking that was NOT created via reschedule (rescheduled_from_booking_id is None)
+    should pass the validate_reschedule_allowed check.
+    """
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    # Create original booking (not from a reschedule)
+    when = datetime.combine(date.today() + timedelta(days=3), time(14, 0))
+    booking = _create_booking(db, student, instructor, svc, when)
+
+    # Confirm booking is not from a reschedule
+    assert booking.rescheduled_from_booking_id is None
+
+    service = BookingService(db)
+
+    # Should NOT raise - first reschedule is allowed
+    service.validate_reschedule_allowed(booking)
+
+
+def test_second_reschedule_blocked(db: Session):
+    """PART 5: Second reschedule should be blocked.
+
+    A booking that was created via reschedule (rescheduled_from_booking_id is set)
+    should raise BusinessRuleException when trying to reschedule again.
+    """
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    # Create original booking
+    when = datetime.combine(date.today() + timedelta(days=3), time(14, 0))
+    original_booking = _create_booking(db, student, instructor, svc, when)
+
+    # Create "rescheduled" booking (simulating first reschedule)
+    rescheduled_when = datetime.combine(date.today() + timedelta(days=5), time(15, 0))
+    rescheduled_booking = _create_booking(db, student, instructor, svc, rescheduled_when)
+    rescheduled_booking.rescheduled_from_booking_id = original_booking.id
+    db.flush()
+
+    service = BookingService(db)
+
+    # Should raise BusinessRuleException - second reschedule blocked
+    with pytest.raises(BusinessRuleException) as exc_info:
+        service.validate_reschedule_allowed(rescheduled_booking)
+
+    assert exc_info.value.code == "reschedule_limit_reached"
+
+
+def test_second_reschedule_error_message(db: Session):
+    """PART 5: Error message should guide user to cancel and rebook.
+
+    The error message should clearly tell the user:
+    - They've already rescheduled this booking
+    - They need to cancel (for credit) and book a new lesson
+    """
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    # Create original booking
+    when = datetime.combine(date.today() + timedelta(days=3), time(14, 0))
+    original_booking = _create_booking(db, student, instructor, svc, when)
+
+    # Create "rescheduled" booking
+    rescheduled_when = datetime.combine(date.today() + timedelta(days=5), time(15, 0))
+    rescheduled_booking = _create_booking(db, student, instructor, svc, rescheduled_when)
+    rescheduled_booking.rescheduled_from_booking_id = original_booking.id
+    db.flush()
+
+    service = BookingService(db)
+
+    with pytest.raises(BusinessRuleException) as exc_info:
+        service.validate_reschedule_allowed(rescheduled_booking)
+
+    error_message = exc_info.value.message
+
+    # Verify the message contains key guidance
+    assert "already rescheduled" in error_message.lower()
+    assert "cancel" in error_message.lower()
+    assert "credit" in error_message.lower()
+    assert "book a new lesson" in error_message.lower()
