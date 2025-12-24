@@ -22,7 +22,7 @@ export function CancellationConfirmationModal({
 }: CancellationConfirmationModalProps) {
   const router = useRouter();
   const cancelLesson = useCancelLesson();
-  const { fee, percentage } = calculateCancellationFee(lesson);
+  const { window, lessonPrice, platformFee, willReceiveCredit } = calculateCancellationFee(lesson);
 
   const handleConfirmCancellation = async () => {
     try {
@@ -83,22 +83,22 @@ export function CancellationConfirmationModal({
           </div>
 
           {/* Fee and Credit Info */}
-          {fee > 0 && (
+          {willReceiveCredit && (
             <div className="border rounded-lg p-4 text-left space-y-2">
               <p className="text-sm">
-                <span className="font-medium">Cancellation fee:</span> ${fee.toFixed(2)}
+                <span className="font-medium">Credit issued:</span> ${lessonPrice.toFixed(2)}
               </p>
-              <p className="text-sm">
-                <span className="font-medium">Credit issued:</span> ${fee.toFixed(2)}
+              <p className="text-sm text-gray-500">
+                The ${platformFee.toFixed(2)} booking fee is non-refundable.
               </p>
             </div>
           )}
 
           {/* Credit Notice */}
           <p className="text-sm text-gray-600">
-            {fee > 0
+            {willReceiveCredit
               ? 'Your credit will be applied to your next booking automatically.'
-              : 'No cancellation fee was charged.'}
+              : window === 'free' ? 'No charges were made.' : 'The full amount has been charged.'}
           </p>
 
           {/* Support Link */}
@@ -173,13 +173,23 @@ export function CancellationConfirmationModal({
         </div>
 
         {/* Fee Information */}
-        {fee > 0 && (
+        {window === 'credit' && (
           <div className="border-2 border-amber-200 bg-amber-50 rounded-lg p-4">
             <p className="text-sm font-medium text-amber-900">
-              A cancellation fee of ${fee.toFixed(2)} ({percentage}%) will be charged.
+              Your lesson price (${lessonPrice.toFixed(2)}) will be added as credit.
             </p>
             <p className="text-sm text-amber-700 mt-1">
-              You will receive a credit for this amount to use on future bookings.
+              The ${platformFee.toFixed(2)} booking fee is non-refundable.
+            </p>
+          </div>
+        )}
+        {window === 'full' && (
+          <div className="border-2 border-red-200 bg-red-50 rounded-lg p-4">
+            <p className="text-sm font-medium text-red-900">
+              The full amount (${(lessonPrice + platformFee).toFixed(2)}) will be charged.
+            </p>
+            <p className="text-sm text-red-700 mt-1">
+              No credit or refund is available for cancellations less than 12 hours before the lesson.
             </p>
           </div>
         )}

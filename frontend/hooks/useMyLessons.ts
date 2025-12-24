@@ -339,25 +339,84 @@ export function useMarkNoShow() {
 }
 
 /**
- * Helper to calculate cancellation fee based on time until lesson
+ * Platform fee percentage (student booking protection fee)
+ */
+const PLATFORM_FEE_PERCENT = 0.12;
+
+/**
+ * Cancellation fee result with clear policy-aligned naming
+ */
+export interface CancellationFeeResult {
+  /** Hours until the lesson starts */
+  hoursUntil: number;
+  /** The cancellation window: 'free' (>24h), 'credit' (12-24h), or 'full' (<12h) */
+  window: 'free' | 'credit' | 'full';
+  /** The lesson price (base price without platform fee) */
+  lessonPrice: number;
+  /** The platform fee (booking protection fee) */
+  platformFee: number;
+  /** For 12-24h: credit amount (lesson price). For <12h: charge amount (total) */
+  creditAmount: number;
+  /** Whether the student will receive a credit (only for 12-24h window) */
+  willReceiveCredit: boolean;
+}
+
+/**
+ * Calculate cancellation policy outcome based on time until lesson.
+ *
+ * Policy (per docs-stripe-cancellation-policy.md):
+ * - >24h before lesson: Full card refund (including platform fee)
+ * - 12-24h before lesson: Platform credit for LESSON PRICE only, fee non-refundable
+ * - <12h before lesson: No refund, full charge, instructor paid
+ *
+ * @param lesson - Booking with required fields
+ * @returns Cancellation policy details
  */
 export function calculateCancellationFee<
   T extends Pick<Booking, 'booking_date' | 'start_time' | 'total_price'>
->(lesson: T): {
-  fee: number;
-  percentage: number;
-  hoursUntil: number;
-} {
+>(lesson: T): CancellationFeeResult {
   const now = new Date();
   const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}`);
   const hoursUntil = (lessonDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
+  // Calculate lesson price and platform fee from total_price
+  // total_price = lesson_price + platform_fee
+  // platform_fee = lesson_price * 0.12
+  // total_price = lesson_price * 1.12
+  // lesson_price = total_price / 1.12
+  const lessonPrice = Math.round((lesson.total_price / (1 + PLATFORM_FEE_PERCENT)) * 100) / 100;
+  const platformFee = Math.round((lesson.total_price - lessonPrice) * 100) / 100;
+
   if (hoursUntil > 24) {
-    return { fee: 0, percentage: 0, hoursUntil };
+    // >24h: Full refund (no charge, no credit)
+    return {
+      hoursUntil,
+      window: 'free',
+      lessonPrice,
+      platformFee,
+      creditAmount: 0,
+      willReceiveCredit: false,
+    };
   } else if (hoursUntil > 12) {
-    return { fee: lesson.total_price * 0.5, percentage: 50, hoursUntil };
+    // 12-24h: Credit for lesson price only, fee is non-refundable
+    return {
+      hoursUntil,
+      window: 'credit',
+      lessonPrice,
+      platformFee,
+      creditAmount: lessonPrice,
+      willReceiveCredit: true,
+    };
   } else {
-    return { fee: lesson.total_price, percentage: 100, hoursUntil };
+    // <12h: Full charge, no refund
+    return {
+      hoursUntil,
+      window: 'full',
+      lessonPrice,
+      platformFee,
+      creditAmount: 0,
+      willReceiveCredit: false,
+    };
   }
 }
 

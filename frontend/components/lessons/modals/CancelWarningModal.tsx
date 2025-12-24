@@ -21,7 +21,7 @@ export function CancelWarningModal({
   const [showReasonModal, setShowReasonModal] = useState(false);
   const [showFullPolicy, setShowFullPolicy] = useState(false);
 
-  const { fee, percentage, hoursUntil } = calculateCancellationFee(lesson);
+  const { window, lessonPrice, platformFee, hoursUntil } = calculateCancellationFee(lesson);
   const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}`);
 
   // Format time until lesson display
@@ -72,11 +72,11 @@ export function CancelWarningModal({
 
             {/* Cancellation Fee Warning */}
             <div className="mb-4">
-              {hoursUntil < 12 ? (
+              {window === 'full' ? (
                 <p className="text-sm text-gray-700">
                   To respect our instructors&apos; time, unfortunately cancellations made less than 12 hours before a lesson can&apos;t be rescheduled and will be charged in full.
                 </p>
-              ) : hoursUntil > 24 ? (
+              ) : window === 'free' ? (
                 <p className="text-sm text-gray-700">
                   Life happens! You can cancel your session free of charge. Would you like to{' '}
                   <button
@@ -90,10 +90,10 @@ export function CancelWarningModal({
               ) : (
                 <>
                   <p className="text-lg font-semibold text-gray-900 mb-1">
-                    Cancellation fee: ${fee.toFixed(2)}
+                    Credit: ${lessonPrice.toFixed(2)}
                   </p>
                   <p className="text-sm text-gray-600">
-                    {percentage}% of lesson price will be charged
+                    Your lesson price will be added as credit. The ${platformFee.toFixed(2)} booking fee is non-refundable.
                   </p>
                 </>
               )}
@@ -121,7 +121,7 @@ export function CancelWarningModal({
                       <span className="font-medium text-gray-600">More than 24 hours before:</span> No worries — cancel or reschedule free of charge.
                     </li>
                     <li>
-                      <span className="font-medium text-gray-600">12–24 hours before:</span> We&apos;ll charge your lesson, but don&apos;t worry — the full amount will be added as credit to your account for an easy rebook.
+                      <span className="font-medium text-gray-600">12–24 hours before:</span> Your lesson price will be added as credit to your account. The booking fee is non-refundable.
                     </li>
                     <li>
                       <span className="font-medium text-gray-600">Less than 12 hours before:</span> At this point rescheduling isn&apos;t possible, and the full lesson amount will be charged.
