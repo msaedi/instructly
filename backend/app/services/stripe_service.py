@@ -1531,10 +1531,22 @@ class StripeService(BaseService):
                             },
                         )
                     else:
+                        # Part 6: Credits can only cover the lesson price, never the platform fee.
+                        # Calculate lesson price (base_price_cents) and cap credits at that value.
+                        lesson_price_cents = int(
+                            Decimal(str(booking.hourly_rate))
+                            * Decimal(booking.duration_minutes)
+                            * Decimal(100)
+                            / Decimal(60)
+                        )
+                        max_applicable_credits = min(
+                            int(requested_credit_cents), lesson_price_cents
+                        )
+
                         credit_result = self.payment_repository.apply_credits_for_booking(
                             user_id=booking.student_id,
                             booking_id=booking_id,
-                            amount_cents=int(requested_credit_cents),
+                            amount_cents=max_applicable_credits,
                         )
                         applied_credit_cents = int(credit_result.get("applied_cents") or 0)
                 else:

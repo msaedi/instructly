@@ -501,8 +501,15 @@ def test_pricing_service_limits_tier_demotion(db, pricing_service, test_instruct
 
 
 def test_pricing_service_handles_large_credit_top_up(db, pricing_service, test_instructor, test_student, instructor_service):
-    """Credits exceeding platform share should trigger a top-up transfer."""
+    """Credits exceeding lesson price trigger top-up transfer (Part 6 compliant).
 
+    With Part 6: Credits can only cover lesson price, never the platform fee.
+    - $100 lesson, $300 credit requested
+    - Credit applied: $100 (capped at lesson price)
+    - Student pays: $12 (fee only - minimum card charge)
+    - Application fee: $0 (credit reduces it below zero)
+    - Top-up needed: instructor payout - student payment
+    """
     booking = _create_booking(
         db=db,
         instructor=test_instructor,
@@ -516,9 +523,20 @@ def test_pricing_service_handles_large_credit_top_up(db, pricing_service, test_i
         applied_credit_cents=30000,
     )
 
+    # Part 6: Credit capped at lesson price ($100)
+    assert response["credit_applied_cents"] == 10000
+
+    # Part 6: Student always pays platform fee ($12)
+    assert response["student_fee_cents"] == 1200
+    assert response["student_pay_cents"] == 1200  # Fee only
+
+    # Application fee reduced to 0 by credit
     assert response["application_fee_cents"] == 0
-    assert response["student_pay_cents"] == 0
-    assert response["top_up_transfer_cents"] == response["target_instructor_payout_cents"]
+
+    # Top-up needed: target_payout - student_pay
+    target_payout = response["target_instructor_payout_cents"]
+    student_pay = response["student_pay_cents"]
+    assert response["top_up_transfer_cents"] == target_payout - student_pay
 
 
 def test_pricing_service_outputs_integer_cents(db, pricing_service, test_instructor, test_student, instructor_service):
@@ -643,3 +661,190 @@ def _restore_default_price_floors(db):
     config_service.set_pricing_config(deepcopy(DEFAULT_PRICING_CONFIG))
     db.commit()
     yield
+
+
+# =============================================================================
+# Part 6: Credits Apply to Lesson Price Only Tests
+# =============================================================================
+
+
+def test_credits_capped_at_lesson_price(db, pricing_service, test_instructor, test_student, instructor_service):
+    """PART 6: Credits exceeding lesson price should be capped.
+
+    Scenario: $200 credit, $120 lesson ($134.40 total)
+    - Credit applied: $120 (capped at lesson price)
+    - Card charged: $14.40 (platform fee)
+    - Remaining credit: $80 (not consumed)
+    """
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("120.00"),  # $120/hr for 60 min = $120 lesson
+    )
+
+    # Try to apply $200 credit (more than lesson price)
+    response = pricing_service.compute_booking_pricing(
+        booking_id=booking.id,
+        applied_credit_cents=20000,  # $200 in cents
+    )
+
+    # Credits should be capped at lesson price ($120)
+    assert response["base_price_cents"] == 12000  # $120
+    assert response["credit_applied_cents"] == 12000  # Capped at lesson price
+    # Student pays platform fee only (12% of $120 = $14.40)
+    assert response["student_fee_cents"] == 1440
+    assert response["student_pay_cents"] == 1440  # Fee only, lesson covered by credit
+
+
+def test_partial_credit_application(db, pricing_service, test_instructor, test_student, instructor_service):
+    """PART 6: Partial credits should reduce lesson price, fee still charged.
+
+    Scenario: $50 credit, $120 lesson ($134.40 total)
+    - Credit applied: $50
+    - Card charged: $84.40 ($70 lesson + $14.40 fee)
+    """
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("120.00"),
+    )
+
+    response = pricing_service.compute_booking_pricing(
+        booking_id=booking.id,
+        applied_credit_cents=5000,  # $50 in cents
+    )
+
+    assert response["base_price_cents"] == 12000  # $120
+    assert response["credit_applied_cents"] == 5000  # Full $50 applied
+    assert response["student_fee_cents"] == 1440  # 12% of $120
+    # Student pays: ($120 - $50) + $14.40 = $84.40
+    assert response["student_pay_cents"] == 8440
+
+
+def test_zero_credits_full_charge(db, pricing_service, test_instructor, test_student, instructor_service):
+    """PART 6: Zero credits means student pays full amount.
+
+    Scenario: $0 credit, $120 lesson
+    - Card charged: $134.40 (lesson + fee)
+    """
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("120.00"),
+    )
+
+    response = pricing_service.compute_booking_pricing(
+        booking_id=booking.id,
+        applied_credit_cents=0,
+    )
+
+    assert response["base_price_cents"] == 12000
+    assert response["credit_applied_cents"] == 0
+    assert response["student_fee_cents"] == 1440
+    # Student pays full: $120 + $14.40 = $134.40
+    assert response["student_pay_cents"] == 13440
+
+
+def test_credits_equal_lesson_price(db, pricing_service, test_instructor, test_student, instructor_service):
+    """PART 6: Credits exactly equal to lesson price should cover lesson only.
+
+    Scenario: $120 credit, $120 lesson
+    - Credit applied: $120
+    - Card charged: $14.40 (fee only)
+    """
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("120.00"),
+    )
+
+    response = pricing_service.compute_booking_pricing(
+        booking_id=booking.id,
+        applied_credit_cents=12000,  # Exactly $120
+    )
+
+    assert response["base_price_cents"] == 12000
+    assert response["credit_applied_cents"] == 12000  # Full lesson covered
+    assert response["student_fee_cents"] == 1440
+    # Student pays fee only: $14.40
+    assert response["student_pay_cents"] == 1440
+
+
+def test_minimum_card_charge_is_fee(db, pricing_service, test_instructor, test_student, instructor_service):
+    """PART 6: Minimum card charge should always be the platform fee.
+
+    No matter how large the credit, student_pay_cents >= student_fee_cents.
+    """
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=Decimal("100.00"),
+    )
+
+    # Apply huge credit (10x lesson price)
+    response = pricing_service.compute_booking_pricing(
+        booking_id=booking.id,
+        applied_credit_cents=100000,  # $1000 in cents
+    )
+
+    base_price = response["base_price_cents"]
+    fee = response["student_fee_cents"]
+
+    # Credit should be capped at lesson price
+    assert response["credit_applied_cents"] == base_price
+
+    # Student always pays at least the fee
+    assert response["student_pay_cents"] >= fee
+    assert response["student_pay_cents"] == fee  # Exactly the fee when lesson is covered
+
+
+@pytest.mark.parametrize(
+    "hourly_rate,credit_cents,expected_credit_applied,expected_student_pay",
+    [
+        # Case 1: Credit larger than lesson - capped at lesson, pay fee only
+        (Decimal("100.00"), 15000, 10000, 1200),  # $150 credit, $100 lesson -> $12 fee only
+        # Case 2: Credit smaller than lesson - full credit used
+        (Decimal("100.00"), 5000, 5000, 6200),  # $50 credit, $100 lesson -> $50 + $12 = $62
+        # Case 3: Zero credit - full payment
+        (Decimal("100.00"), 0, 0, 11200),  # $0 credit, $100 lesson -> $112
+        # Case 4: Credit exactly matches lesson
+        (Decimal("80.00"), 8000, 8000, 960),  # $80 credit, $80 lesson -> $9.60 fee only
+    ],
+)
+def test_credit_scenarios(
+    db,
+    pricing_service,
+    test_instructor,
+    test_student,
+    instructor_service,
+    hourly_rate,
+    credit_cents,
+    expected_credit_applied,
+    expected_student_pay,
+):
+    """PART 6: Parametrized test for various credit scenarios."""
+    booking = _create_booking(
+        db=db,
+        instructor=test_instructor,
+        student=test_student,
+        service=instructor_service,
+        hourly_rate=hourly_rate,
+    )
+
+    response = pricing_service.compute_booking_pricing(
+        booking_id=booking.id,
+        applied_credit_cents=credit_cents,
+    )
+
+    assert response["credit_applied_cents"] == expected_credit_applied
+    assert response["student_pay_cents"] == expected_student_pay

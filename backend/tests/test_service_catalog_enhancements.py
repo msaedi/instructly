@@ -133,35 +133,28 @@ class TestServiceCatalogRepository:
 
         repo = RepositoryFactory.create_service_catalog_repository(db)
 
-        # Store the created service ids and names
-        created_ids = [s.id for s in created_services]
-        [s.name for s in created_services]
+        # Test text search - filter by our category to avoid interference from seeded data
+        results = repo.search_services(query_text="piano", category_id=category.id, limit=100)
+        assert len(results) == 1, f"Expected 1 result for 'piano' in our category, got {len(results)}"
+        assert "piano" in results[0].name.lower()
 
-        # Test text search
-        results = repo.search_services(query_text="piano")
-        # Filter to only our created services
-        our_results = [r for r in results if r.id in created_ids]
-        assert len(our_results) == 1
-        assert "piano" in our_results[0].name.lower()
-
-        # Test filter by online capability
-        results = repo.search_services(online_capable=True, limit=500)  # Increase limit more
-        our_results = [r for r in results if r.id in created_ids]
+        # Test filter by online capability - filter by our category
+        results = repo.search_services(online_capable=True, category_id=category.id, limit=100)
         # We created 2 online-capable services (Piano and Voice)
-        assert len(our_results) == 2, f"Found services: {[(s.name, s.online_capable) for s in our_results]}"
-        assert all(s.online_capable for s in our_results)
+        assert len(results) == 2, f"Found services: {[(s.name, s.online_capable) for s in results]}"
+        assert all(s.online_capable for s in results)
 
-        # Test filter by certification requirement
-        results = repo.search_services(requires_certification=True, limit=200)
-        our_results = [r for r in results if r.id in created_ids]
-        assert len(our_results) == 1
-        assert "voice" in our_results[0].name.lower()
+        # Test filter by certification requirement - filter by our category
+        results = repo.search_services(requires_certification=True, category_id=category.id, limit=100)
+        assert len(results) == 1
+        assert "voice" in results[0].name.lower()
 
-        # Test combined filters
-        results = repo.search_services(query_text="music", online_capable=True, requires_certification=False, limit=200)
-        our_results = [r for r in results if r.id in created_ids]
-        assert len(our_results) == 1
-        assert "piano" in our_results[0].name.lower()
+        # Test combined filters - filter by our category
+        results = repo.search_services(
+            query_text="music", online_capable=True, requires_certification=False, category_id=category.id, limit=100
+        )
+        assert len(results) == 1
+        assert "piano" in results[0].name.lower()
 
     def test_get_popular_services(self, db: Session):
         """Test retrieving popular services based on analytics."""
