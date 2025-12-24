@@ -338,22 +338,19 @@ class BookingService(BaseService):
         booking_data: BookingCreate,
         instructor_profile: InstructorProfile,
     ) -> date:
-        local_day: date = booking_data.booking_date
-        instructor_user = getattr(instructor_profile, "user", None)
-        timezone_name = getattr(instructor_user, "timezone", None)
-        if timezone_name and booking_data.start_time:
-            try:
-                start_dt_utc = datetime.combine(
-                    booking_data.booking_date,
-                    booking_data.start_time,
-                    tzinfo=timezone.utc,
-                )
-                instructor_zone = ZoneInfo(timezone_name)
-                local_day = self._local_date(start_dt_utc, instructor_zone)
-            except Exception:
-                # Fall back to the provided booking_date if timezone conversion fails
-                local_day = booking_data.booking_date
-        return local_day
+        """Return the local date for availability lookup.
+
+        The client sends booking_date and start_time in the instructor's local
+        timezone. No conversion is needed - the booking_date IS the correct
+        date for availability lookup.
+
+        Historical note: Previous implementation incorrectly treated the time
+        as UTC and converted to instructor's timezone, causing early morning
+        bookings (midnight-5am) to look up the wrong day's availability.
+        """
+        # Client always sends times in instructor's local timezone
+        # No conversion needed - just use the provided date
+        return booking_data.booking_date
 
     def _validate_against_availability_bits(
         self,
