@@ -153,6 +153,17 @@ class Booking(Base):
     rescheduled_from_booking_id = Column(String(26), ForeignKey("bookings.id"), nullable=True)
     rescheduled_from = relationship("Booking", remote_side=[id], uselist=False, post_update=True)
 
+    # Lesson datetime of the IMMEDIATE previous booking when rescheduled.
+    # Used for Part 4b: Fair Reschedule Loophole Fix - gaming detection.
+    #
+    # IMPORTANT: This is NOT traced back to the original booking in a chain.
+    # It stores the lesson datetime of the booking the user rescheduled FROM.
+    #
+    # Policy:
+    # - If rescheduled while >24h from PREVIOUS booking → legitimate, normal cancel policy
+    # - If rescheduled while <24h from PREVIOUS booking → gaming attempt, credit-only policy
+    original_lesson_datetime = Column(DateTime(timezone=True), nullable=True)
+
     # Data integrity constraints
     _table_constraints = [
         CheckConstraint(

@@ -124,17 +124,28 @@ A booking can only be rescheduled **once**. If the student needs to change the d
 **User-Facing Message (Attempting Second Reschedule):**
 > "You've already rescheduled this booking. To change the date again, please cancel (for credit) and book a new lesson."
 
-### Rescheduled Booking Cancellation Policy
+### Rescheduled Booking Cancellation Policy (Part 4b: Fair Policy)
 
-**Important:** Rescheduled bookings have a modified cancellation policy to prevent gaming.
+**Important:** Rescheduled bookings have a **fair** modified cancellation policy that only penalizes gaming attempts.
 
-| Window | Regular Booking | Rescheduled Booking |
-|--------|-----------------|---------------------|
-| **>24h before** | Full card refund | Credit (lesson price only) |
-| **12-24h before** | Credit (lesson price only) | Credit (lesson price only) |
-| **<12h before** | No refund | No refund |
+**The key distinction:** When was the reschedule performed relative to the ORIGINAL lesson?
 
-**Rationale:** This prevents the "reschedule loophole" where a student could escape the 12-24h penalty by rescheduling to a later date and then cancelling.
+| Reschedule When | Cancel When | Result |
+|-----------------|-------------|--------|
+| **>24h from original** (legitimate) | >24h from new | Full card refund |
+| **>24h from original** (legitimate) | 12-24h from new | Credit (lesson price only) |
+| **<24h from original** (gaming) | >24h from new | Credit (lesson price only) |
+| **<24h from original** (gaming) | 12-24h from new | Credit (lesson price only) |
+| **Any** | <12h from new | No refund |
+
+**How it works:**
+- We store `original_lesson_datetime` (previous booking's lesson time) when a booking is rescheduled
+- We use `booking.created_at` as the reschedule timestamp
+- Gaming detection: `hours_from_original = original_lesson_datetime - created_at`
+- If the original lesson was **>24h away** when rescheduled → Legitimate, normal cancellation policy applies
+- If the original lesson was **<24h away** when rescheduled → Gaming attempt, credit-only policy
+
+**Rationale:** This closes the "reschedule loophole" (escaping 12-24h penalty by rescheduling) while NOT penalizing students who legitimately reschedule early.
 
 ---
 
@@ -155,22 +166,43 @@ A booking can only be rescheduled **once**. If the student needs to change the d
 
 ---
 
-### Example 5: Reschedule Then Cancel (>24h)
+### Example 5: Reschedule Then Cancel - GAMING Scenario
 
 **Scenario:**
 - Original booking: Saturday 2:00 PM
+- It's Friday 8 PM (**18 hours before** original = in penalty window)
 - Student reschedules to next Wednesday 3:00 PM
 - Student decides to cancel on Sunday (>48h before Wednesday lesson)
 - Lesson price: $120.00
 
 **Result:**
 - Even though it's >24h before the NEW lesson time...
-- This is a rescheduled booking, so credit-only policy applies
+- Original lesson was **<24h away when rescheduled** → GAMING attempt detected
 - Platform credit issued: **$120.00**
 - Platform retains: **$14.40**
 - NO card refund
 
 **Why?** Prevents the "reschedule loophole" exploit.
+
+---
+
+### Example 5b: Reschedule Then Cancel - LEGITIMATE Scenario
+
+**Scenario:**
+- Original booking: Saturday 2:00 PM
+- It's Monday (5 days before original = NOT in penalty window)
+- Student reschedules to next Wednesday 3:00 PM (life happens!)
+- Student decides to cancel on Tuesday (>24h before Wednesday lesson)
+- Lesson price: $120.00
+
+**Result:**
+- Original lesson was **>24h away when rescheduled** → LEGITIMATE reschedule
+- Normal >24h cancellation policy applies
+- Payment authorization released
+- Student receives full refund to card: **$134.40**
+- NO credit issued
+
+**Why?** Fair treatment for legitimate early reschedules.
 
 ---
 
@@ -349,7 +381,8 @@ Platform net:                     $24.60
 | Date | Change | Reason |
 |------|--------|--------|
 | Dec 2025 | 12-24h credit = lesson price only (not full amount) | Cover Stripe costs, prevent abuse |
-| Dec 2025 | Rescheduled bookings = credit-only cancellation | Close reschedule loophole |
+| Dec 2025 | Part 4b: Fair reschedule policy | Only penalize gaming reschedules (<24h from original), not legitimate early reschedules |
+| Dec 2025 | Added `original_lesson_datetime` field | Track when reschedule happened for fair policy |
 | Dec 2025 | One reschedule per booking limit | Prevent gaming |
 | Dec 2025 | Credits apply to lesson price only | Ensure fee always paid by card |
 
@@ -365,6 +398,8 @@ Platform net:                     $24.60
 
 ### Key Database Fields
 - `booking.rescheduled_from_booking_id` - Tracks if booking was rescheduled
+- `booking.original_lesson_datetime` - Previous booking's lesson datetime for fair reschedule policy (Part 4b)
+- `booking.created_at` - Used as reschedule timestamp for gaming detection
 - `platform_credits.source_booking_id` - Links credit to originating booking
 - `booking.payment_status` - Tracks payment state
 
@@ -382,7 +417,8 @@ Platform net:                     $24.60
 | **>24h cancel** | Full card refund |
 | **12-24h cancel** | Credit for lesson price, fee retained |
 | **<12h cancel** | No refund, instructor paid |
-| **Rescheduled cancel** | Always credit-only (any time >12h) |
+| **Rescheduled cancel (gaming)** | Credit-only if rescheduled from <24h window |
+| **Rescheduled cancel (legit)** | Normal policy if rescheduled from >24h window |
 | **Reschedule limit** | Once per booking |
 | **Credit usage** | Lesson price only, fee by card |
 | **Credit expiration** | 1 year from issuance |

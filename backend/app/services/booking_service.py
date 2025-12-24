@@ -608,11 +608,34 @@ class BookingService(BaseService):
                     student, booking_data, service, instructor_profile, selected_duration
                 )
 
-                # If this booking was created via reschedule, persist linkage for analytics
+                # If this booking was created via reschedule, persist linkage and original lesson datetime
+                # for fair cancellation policy (Part 4b: Fair Reschedule Loophole Fix)
+                #
+                # IMPORTANT: We store the IMMEDIATE previous booking's lesson datetime, NOT traced
+                # back to the very first booking in a chain. The question we're answering is:
+                # "Was the user in a penalty window when they made THIS reschedule?"
+                # That's relative to the booking they're rescheduling FROM.
+                #
+                # Example: A → B → C (if Part 5 weren't blocking chains)
+                # When creating C from B, original_lesson_datetime = B's lesson time
+                # NOT: trace back to find A's lesson time
                 if rescheduled_from_booking_id:
                     try:
+                        # Fetch the IMMEDIATE previous booking (NOT the chain's original)
+                        previous_booking = self.repository.get_by_id(rescheduled_from_booking_id)
+                        original_lesson_dt = None
+                        if previous_booking:
+                            # Store the previous booking's lesson datetime for fair cancellation policy
+                            original_lesson_dt = datetime.combine(
+                                previous_booking.booking_date,
+                                previous_booking.start_time,
+                                tzinfo=timezone.utc,
+                            )
+
                         updated_booking = self.repository.update(
-                            booking.id, rescheduled_from_booking_id=rescheduled_from_booking_id
+                            booking.id,
+                            rescheduled_from_booking_id=rescheduled_from_booking_id,
+                            original_lesson_datetime=original_lesson_dt,
                         )
                         if updated_booking is not None:
                             booking = updated_booking
@@ -993,25 +1016,101 @@ class BookingService(BaseService):
                 pricing_service=PricingService(self.db),
             )
 
-            # >24h: release authorization (cancel PI), no charge
+            # Part 4b: Fair Reschedule Loophole Fix
+            # Determine if this is a "gaming" reschedule (rescheduled while in penalty window)
+            # vs a legitimate early reschedule (rescheduled while >24h from original lesson).
+            #
+            # Policy Matrix:
+            # | Scenario                    | Rescheduled When      | Cancel When      | Result         |
+            # |-----------------------------|----------------------|------------------|----------------|
+            # | Regular booking             | N/A                  | >24h             | Card refund    |
+            # | Rescheduled (early)         | >24h from original   | >24h from new    | Card refund    |
+            # | Rescheduled (gaming)        | <24h from original   | >24h from new    | Credit only    |
+            was_gaming_reschedule = False
+            hours_from_original = None  # For logging
+            if booking.rescheduled_from_booking_id and booking.original_lesson_datetime:
+                # Calculate how far from original lesson the reschedule happened.
+                # We use booking.created_at as the reschedule timestamp - when a booking
+                # is created via reschedule, created_at IS when the reschedule occurred.
+                #
+                # Gaming detection: Was the original lesson <24h away WHEN they rescheduled?
+                # hours_from_original = original_lesson_datetime - created_at (reschedule time)
+                original_dt = booking.original_lesson_datetime
+                if original_dt.tzinfo is None:
+                    original_dt = original_dt.replace(tzinfo=timezone.utc)
+
+                reschedule_time = booking.created_at
+                if reschedule_time.tzinfo is None:
+                    reschedule_time = reschedule_time.replace(tzinfo=timezone.utc)
+
+                hours_from_original = (original_dt - reschedule_time).total_seconds() / 3600
+                was_gaming_reschedule = hours_from_original <= 24
+
+            # >24h: release authorization (cancel PI), no charge - UNLESS gaming reschedule
             if hours_until > 24:
-                if booking.payment_intent_id:
+                if was_gaming_reschedule:
+                    # GAMING RESCHEDULE: Credit-only policy even at >24h
+                    # They rescheduled from <24h window to >24h to escape penalty
+                    if booking.payment_intent_id:
+                        try:
+                            stripe_service.cancel_payment_intent(
+                                booking.payment_intent_id,
+                                idempotency_key=f"cancel_resched_{booking.id}",
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                f"Cancel PI failed for gaming reschedule {booking.id}: {e}"
+                            )
+
+                    # Issue platform credit for LESSON PRICE ONLY
+                    lesson_price_cents = int(
+                        float(booking.hourly_rate) * booking.duration_minutes * 100 / 60
+                    )
                     try:
-                        stripe_service.cancel_payment_intent(
-                            booking.payment_intent_id, idempotency_key=f"cancel_{booking.id}"
+                        payment_repo.create_platform_credit(
+                            user_id=booking.student_id,
+                            amount_cents=lesson_price_cents,
+                            reason="Rescheduled booking cancellation (lesson price credit)",
+                            source_booking_id=booking.id,
                         )
                     except Exception as e:
-                        # Best-effort cancel; don't block cancellation if PI is invalid/missing
-                        logger.warning(f"Cancel PI failed for booking {booking.id}: {e}")
-                payment_repo.create_payment_event(
-                    booking_id=booking.id,
-                    event_type="auth_released",
-                    event_data={
-                        "hours_before": round(hours_until, 2),
-                        "payment_intent_id": booking.payment_intent_id,
-                    },
-                )
-                booking.payment_status = "released"
+                        logger.error(
+                            f"Failed to create credit for gaming reschedule {booking.id}: {e}"
+                        )
+
+                    payment_repo.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="credit_created_gaming_reschedule_cancel",
+                        event_data={
+                            "hours_before_new": round(hours_until, 2),
+                            "hours_from_original": round(hours_from_original, 2),
+                            "lesson_price_cents": lesson_price_cents,
+                            "rescheduled_from": booking.rescheduled_from_booking_id,
+                            "original_lesson_datetime": booking.original_lesson_datetime.isoformat()
+                            if booking.original_lesson_datetime
+                            else None,
+                        },
+                    )
+                    booking.payment_status = "credit_issued"
+                else:
+                    # REGULAR BOOKING or LEGITIMATE EARLY RESCHEDULE: Full release, no charge
+                    if booking.payment_intent_id:
+                        try:
+                            stripe_service.cancel_payment_intent(
+                                booking.payment_intent_id, idempotency_key=f"cancel_{booking.id}"
+                            )
+                        except Exception as e:
+                            # Best-effort cancel; don't block cancellation if PI is invalid/missing
+                            logger.warning(f"Cancel PI failed for booking {booking.id}: {e}")
+                    payment_repo.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="auth_released",
+                        event_data={
+                            "hours_before": round(hours_until, 2),
+                            "payment_intent_id": booking.payment_intent_id,
+                        },
+                    )
+                    booking.payment_status = "released"
 
             # 12–24h: capture, reverse transfer, issue platform credit
             # NOTE: We capture the payment, reverse only the instructor's transfer,

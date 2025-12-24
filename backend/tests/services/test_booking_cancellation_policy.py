@@ -3,6 +3,7 @@ Tests for BookingService cancellation policy branches (>24h, 12–24h, <12h).
 """
 
 from datetime import date, datetime, time, timedelta
+from typing import Optional
 from unittest.mock import patch
 
 import pytest
@@ -400,3 +401,392 @@ def test_credit_amount_matches_lesson_price(
         f"Expected credit {expected_credit_cents} cents for "
         f"${hourly_rate}/hr x {duration_minutes}min"
     )
+
+
+# =========================================================================
+# Part 4b: Fair Reschedule Loophole Tests
+# =========================================================================
+
+
+def _create_rescheduled_booking(
+    db: Session,
+    student: User,
+    instructor: User,
+    svc: InstructorService,
+    when: datetime,
+    original_booking_id: str,
+    original_lesson_datetime: Optional[datetime] = None,  # For fair policy
+    hourly_rate: float = 100.00,
+    duration_minutes: int = 60,
+) -> Booking:
+    """Create a booking that was rescheduled from another booking.
+
+    Args:
+        original_lesson_datetime: The datetime of the original lesson. If provided,
+            this is used for the fair cancellation policy to determine if the
+            reschedule was a "gaming" attempt (<24h from original) or legitimate (>24h).
+    """
+    bk = Booking(
+        id=str(ulid.ULID()),
+        student_id=student.id,
+        instructor_id=instructor.id,
+        instructor_service_id=svc.id,
+        booking_date=when.date(),
+        start_time=when.time(),
+        end_time=(when + timedelta(minutes=duration_minutes)).time(),
+        service_name="Svc",
+        hourly_rate=hourly_rate,
+        total_price=hourly_rate * duration_minutes / 60,
+        duration_minutes=duration_minutes,
+        status=BookingStatus.CONFIRMED,
+        payment_method_id="pm_x",
+        payment_intent_id="pi_x",
+        rescheduled_from_booking_id=original_booking_id,
+        original_lesson_datetime=original_lesson_datetime,  # For fair policy!
+    )
+    db.add(bk)
+    db.flush()
+    return bk
+
+
+def test_rescheduled_booking_over_24h_gets_credit_not_refund(db: Session):
+    """GAMING SCENARIO: Rescheduled booking cancelled >24h before should get credit, NOT card refund.
+
+    This tests Part 4b Fair Policy with a GAMING reschedule:
+    - Original lesson was ~18h away (in 12-24h penalty window)
+    - Student reschedules to 5 days out to escape penalty
+    - With loophole closed: credit-only, NOT card refund
+    """
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    # Create an actual original booking (FK requires it to exist)
+    # Original was in 12-24h window (~18h away) = GAMING scenario
+    original_time = datetime.now() + timedelta(hours=18)
+    original_time = original_time.replace(minute=0, second=0, microsecond=0)
+    if (original_time + timedelta(hours=1)).date() != original_time.date():
+        original_time = (original_time + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+    original_booking = _create_booking(db, student, instructor, svc, original_time)
+    original_booking.status = BookingStatus.CANCELLED  # Simulate cancelled via reschedule
+    db.flush()
+
+    # New booking is 5 days out (>24h)
+    when = datetime.combine(date.today() + timedelta(days=5), time(14, 0))
+    # Set original_lesson_datetime to mark this as a GAMING reschedule
+    # (original was <24h away when rescheduled)
+    bk = _create_rescheduled_booking(
+        db, student, instructor, svc, when, original_booking.id,
+        original_lesson_datetime=original_time,  # Gaming: original was ~18h away
+    )
+
+    service = BookingService(db)
+
+    with patch("app.services.stripe_service.StripeService.cancel_payment_intent") as mock_cancel, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_platform_credit") as mock_credit, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_payment_event"):
+        result = service.cancel_booking(bk.id, user=student, reason="test")
+
+    assert result.status == BookingStatus.CANCELLED
+    # CRITICAL: Should be "credit_issued", NOT "released"
+    assert result.payment_status == "credit_issued", (
+        "Rescheduled booking >24h should get credit, not full release"
+    )
+
+    # Verify PI was cancelled (not captured, since >24h it's still in scheduled state)
+    mock_cancel.assert_called_once()
+
+    # Verify credit was issued for lesson price
+    mock_credit.assert_called_once()
+    credit_kwargs = mock_credit.call_args.kwargs
+    expected_lesson_price = 10000  # $100/hr * 60min = $100 = 10000 cents
+    assert credit_kwargs["amount_cents"] == expected_lesson_price
+    assert "Rescheduled" in credit_kwargs["reason"]
+
+
+def test_rescheduled_booking_12_24h_gets_credit(db: Session):
+    """Rescheduled booking cancelled 12-24h before should get credit (same as regular)."""
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    # Create an actual original booking (FK requires it to exist)
+    original_time = datetime.combine(date.today() + timedelta(days=5), time(14, 0))
+    original_booking = _create_booking(db, student, instructor, svc, original_time)
+    original_booking.status = BookingStatus.CANCELLED  # Simulate cancelled via reschedule
+    db.flush()
+
+    # Booking ~18 hours out (12-24h window)
+    when = datetime.now() + timedelta(hours=18)
+    when = when.replace(minute=0, second=0, microsecond=0)
+    if (when + timedelta(hours=1)).date() != when.date():
+        when = (when + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+
+    bk = _create_rescheduled_booking(
+        db, student, instructor, svc, when, original_booking.id
+    )
+
+    service = BookingService(db)
+
+    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture, \
+         patch("app.services.stripe_service.StripeService.reverse_transfer"), \
+         patch("app.repositories.payment_repository.PaymentRepository.create_platform_credit") as mock_credit:
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 10000,
+            "transfer_amount": 8800,
+        }
+        result = service.cancel_booking(bk.id, user=student, reason="test")
+
+    assert result.status == BookingStatus.CANCELLED
+    assert result.payment_status == "credit_issued"
+    mock_credit.assert_called_once()
+
+
+def test_rescheduled_booking_under_12h_no_refund(db: Session):
+    """Rescheduled booking cancelled <12h before should have no refund (same as regular)."""
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    # Create an actual original booking (FK requires it to exist)
+    original_time = datetime.combine(date.today() + timedelta(days=5), time(14, 0))
+    original_booking = _create_booking(db, student, instructor, svc, original_time)
+    original_booking.status = BookingStatus.CANCELLED  # Simulate cancelled via reschedule
+    db.flush()
+
+    # Booking ~3 hours out (<12h)
+    when = datetime.now() + timedelta(hours=3)
+    when = when.replace(minute=0, second=0, microsecond=0)
+    if (when + timedelta(hours=1)).date() != when.date():
+        when = (when + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+
+    bk = _create_rescheduled_booking(
+        db, student, instructor, svc, when, original_booking.id
+    )
+
+    service = BookingService(db)
+
+    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture:
+        mock_capture.return_value = {"amount_received": 10000}
+        result = service.cancel_booking(bk.id, user=student, reason="test")
+
+    assert result.status == BookingStatus.CANCELLED
+    assert result.payment_status == "captured"
+    mock_capture.assert_called_once()
+
+
+def test_regular_booking_over_24h_gets_card_refund(db: Session):
+    """Regular (non-rescheduled) booking >24h before should still get full release.
+
+    This ensures the existing behavior is preserved for regular bookings.
+    """
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    # Regular booking (no rescheduled_from_booking_id) 5 days out
+    when = datetime.combine(date.today() + timedelta(days=5), time(14, 0))
+    bk = _create_booking(db, student, instructor, svc, when)
+
+    # Verify it's NOT a rescheduled booking
+    assert bk.rescheduled_from_booking_id is None
+
+    service = BookingService(db)
+
+    with patch("app.services.stripe_service.StripeService.cancel_payment_intent") as mock_cancel, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_payment_event"):
+        result = service.cancel_booking(bk.id, user=student, reason="test")
+
+    assert result.status == BookingStatus.CANCELLED
+    # Regular booking >24h should be "released" (full refund)
+    assert result.payment_status == "released", (
+        "Regular booking >24h should get full release, not credit"
+    )
+    mock_cancel.assert_called_once()
+
+
+def test_reschedule_loophole_closed(db: Session):
+    """GAMING SCENARIO: End-to-end test proving the loophole is closed.
+
+    Part 4b Fair Policy - This is the core loophole test:
+    1. Student has a booking tomorrow 2pm (20 hours away, in 12-24h window)
+    2. If cancelled now: would get credit-only (12-24h policy)
+    3. Student reschedules to next week (7+ days away)
+    4. If the loophole existed: student cancels and gets full refund
+    5. With loophole fixed: student cancels and still gets credit-only
+
+    The key: we track original_lesson_datetime to detect this gaming attempt.
+    """
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    # Step 1: Create original booking 20 hours out (in 12-24h window) = GAMING scenario
+    original_time = datetime.now() + timedelta(hours=20)
+    original_time = original_time.replace(minute=0, second=0, microsecond=0)
+    if (original_time + timedelta(hours=1)).date() != original_time.date():
+        original_time = (original_time + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+
+    original_booking = _create_booking(db, student, instructor, svc, original_time)
+    original_booking.status = BookingStatus.CANCELLED  # Simulate it was cancelled via reschedule
+    db.flush()
+
+    # Step 2: "Reschedule" creates new booking 7 days out (>24h)
+    new_time = datetime.combine(date.today() + timedelta(days=7), time(14, 0))
+    # CRITICAL: Set original_lesson_datetime to flag this as a GAMING reschedule
+    rescheduled_booking = _create_rescheduled_booking(
+        db, student, instructor, svc, new_time, original_booking.id,
+        original_lesson_datetime=original_time,  # Gaming: original was ~20h away
+    )
+
+    # Step 3: Student tries to cancel the rescheduled booking (now >24h away)
+    service = BookingService(db)
+
+    with patch("app.services.stripe_service.StripeService.cancel_payment_intent") as mock_cancel, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_platform_credit") as mock_credit, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_payment_event"):
+        result = service.cancel_booking(rescheduled_booking.id, user=student, reason="test")
+
+    # Step 4: Verify the loophole is CLOSED
+    assert result.status == BookingStatus.CANCELLED
+
+    # CRITICAL ASSERTION: Should be "credit_issued", NOT "released"
+    assert result.payment_status == "credit_issued", (
+        "LOOPHOLE NOT CLOSED! Rescheduled booking got full release instead of credit"
+    )
+
+    # Verify credit was issued
+    mock_credit.assert_called_once()
+    credit_kwargs = mock_credit.call_args.kwargs
+    assert credit_kwargs["amount_cents"] == 10000  # Lesson price
+    assert credit_kwargs["user_id"] == student.id
+
+    # Verify PI was cancelled (but with credit issued, not just released)
+    mock_cancel.assert_called_once()
+
+
+def test_rescheduled_early_then_cancel_over_24h_gets_refund(db: Session):
+    """LEGITIMATE SCENARIO: Early reschedule cancelled >24h before should get CARD REFUND.
+
+    Part 4b Fair Policy - This proves the fair policy works:
+    1. Student has a booking next Saturday 2pm (5 days away, >24h window)
+    2. Student reschedules to next Wednesday (legitimate - no gaming)
+    3. Student cancels >24h before new booking
+    4. Result: CARD REFUND (not credit) - fair treatment for legitimate reschedule
+
+    The key difference from gaming: original_lesson_datetime was >24h away when rescheduled.
+    """
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    # Original booking was 5 days out (>24h, NOT in penalty window) = LEGITIMATE scenario
+    original_time = datetime.now() + timedelta(days=5)
+    original_time = original_time.replace(minute=0, second=0, microsecond=0)
+    if (original_time + timedelta(hours=1)).date() != original_time.date():
+        original_time = (original_time + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+
+    original_booking = _create_booking(db, student, instructor, svc, original_time)
+    original_booking.status = BookingStatus.CANCELLED  # Simulate it was cancelled via reschedule
+    db.flush()
+
+    # New booking is 7 days out (>24h)
+    new_time = datetime.combine(date.today() + timedelta(days=7), time(14, 0))
+    # CRITICAL: original_lesson_datetime shows this was a LEGITIMATE early reschedule
+    # (original was >24h away = ~120 hours, so NOT gaming)
+    rescheduled_booking = _create_rescheduled_booking(
+        db, student, instructor, svc, new_time, original_booking.id,
+        original_lesson_datetime=original_time,  # Legitimate: original was ~5 days away
+    )
+
+    service = BookingService(db)
+
+    with patch("app.services.stripe_service.StripeService.cancel_payment_intent") as mock_cancel, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_platform_credit") as mock_credit, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_payment_event"):
+        result = service.cancel_booking(rescheduled_booking.id, user=student, reason="test")
+
+    assert result.status == BookingStatus.CANCELLED
+
+    # CRITICAL: Should be "released" (CARD REFUND), NOT "credit_issued"
+    # This is the fair part of the policy - legitimate early reschedules are NOT penalized
+    assert result.payment_status == "released", (
+        "FAIR POLICY BROKEN! Legitimate early reschedule should get card refund, not credit"
+    )
+
+    # Verify PI was cancelled for refund
+    mock_cancel.assert_called_once()
+
+    # Verify NO credit was issued (card refund, not credit)
+    mock_credit.assert_not_called()
+
+
+def test_legitimate_reschedule_cancel_after_original_passed(db: Session):
+    """SCENARIO C: Legitimate reschedule, cancel AFTER original lesson time passed.
+
+    This test proves the fix works correctly when:
+    - Monday: Student has lesson Saturday (5 days away)
+    - Monday: Student reschedules to next Wednesday (LEGITIMATE - was >24h out)
+    - Sunday: Student cancels (Saturday has now PASSED - original is in the past!)
+    - Should get: CARD REFUND (not credit-only)
+
+    The key: At reschedule time (Monday), student was 5 days from Saturday.
+    Even though Saturday is now in the past, this was a legitimate reschedule.
+
+    BUG THIS CATCHES: If we compare original_lesson_datetime to NOW instead of
+    to created_at (reschedule time), the original being in the past would wrongly
+    trigger gaming detection.
+    """
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    # Create an actual original booking for FK constraint
+    # This represents the "Saturday" booking that was rescheduled
+    saturday_booking_time = datetime.now() - timedelta(days=1)  # Saturday (now in the past!)
+    saturday_booking_time = saturday_booking_time.replace(hour=14, minute=0, second=0, microsecond=0)
+    original_booking = _create_booking(db, student, instructor, svc, saturday_booking_time)
+    original_booking.status = BookingStatus.CANCELLED  # Cancelled via reschedule
+    db.flush()
+
+    # New booking is next Wednesday (5 days from now, >24h)
+    wednesday_lesson_time = datetime.combine(date.today() + timedelta(days=5), time(14, 0))
+
+    # Create the rescheduled booking with a PAST created_at to simulate:
+    # "Reschedule happened on Monday" (6 days ago)
+    # At that time, Saturday was 5 days away (LEGITIMATE - >24h)
+    monday_reschedule_time = datetime.now() - timedelta(days=6)
+
+    rescheduled_booking = _create_rescheduled_booking(
+        db, student, instructor, svc, wednesday_lesson_time, original_booking.id,
+        original_lesson_datetime=saturday_booking_time,  # Saturday lesson time
+    )
+    # Manually set created_at to simulate the reschedule happened on Monday
+    rescheduled_booking.created_at = monday_reschedule_time
+    db.flush()
+
+    # Verify test setup: original was 5 days from reschedule time (LEGITIMATE)
+    hours_at_reschedule = (saturday_booking_time - monday_reschedule_time).total_seconds() / 3600
+    assert hours_at_reschedule > 24, f"Test setup error: original should be >24h from reschedule, got {hours_at_reschedule}h"
+
+    # Verify: original is NOW in the past (this is what would break old logic)
+    hours_from_now = (saturday_booking_time - datetime.now()).total_seconds() / 3600
+    assert hours_from_now < 0, f"Test setup error: original should be in the past, got {hours_from_now}h"
+
+    service = BookingService(db)
+
+    with patch("app.services.stripe_service.StripeService.cancel_payment_intent") as mock_cancel, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_platform_credit") as mock_credit, \
+         patch("app.repositories.payment_repository.PaymentRepository.create_payment_event"):
+        result = service.cancel_booking(rescheduled_booking.id, user=student, reason="test")
+
+    assert result.status == BookingStatus.CANCELLED
+
+    # CRITICAL: Should be "released" (CARD REFUND), NOT "credit_issued"
+    # Even though original_lesson_datetime is in the past NOW, at RESCHEDULE TIME
+    # the original was >24h away (5 days), so this was a legitimate reschedule.
+    assert result.payment_status == "released", (
+        "BUG! Legitimate reschedule wrongly flagged as gaming because original is now in past. "
+        f"Original was {hours_at_reschedule:.1f}h from reschedule time (LEGITIMATE), "
+        f"but {hours_from_now:.1f}h from cancel time (past). Fix: use created_at, not now."
+    )
+
+    # Verify PI was cancelled for refund
+    mock_cancel.assert_called_once()
+
+    # Verify NO credit was issued (card refund, not credit)
+    mock_credit.assert_not_called()

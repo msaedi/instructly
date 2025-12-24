@@ -128,6 +128,12 @@ def upgrade() -> None:
         sa.Column("total_price", sa.Numeric(10, 2), nullable=False),
         sa.Column("duration_minutes", sa.Integer(), nullable=False),
         sa.Column("rescheduled_from_booking_id", sa.String(26), nullable=True),
+        sa.Column(
+            "original_lesson_datetime",
+            sa.DateTime(timezone=True),
+            nullable=True,
+            comment="Lesson datetime of IMMEDIATE previous booking when rescheduled. Gaming detection: <24h = credit only on cancel.",
+        ),
         sa.Column("status", sa.String(20), nullable=False, server_default="CONFIRMED"),
         sa.Column("service_area", sa.String(), nullable=True),
         sa.Column("meeting_location", sa.Text(), nullable=True),
