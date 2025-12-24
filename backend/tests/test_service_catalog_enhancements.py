@@ -174,7 +174,7 @@ class TestServiceCatalogRepository:
         for i in range(3):
             service = ServiceCatalog(
                 category_id=category.id,
-                name=f"Service {i}",
+                name=f"Test Popular Service {i}",
                 slug=unique_slug(f"service-{i}"),
                 description=f"Test service {i}",
                 is_active=True,
@@ -191,7 +191,7 @@ class TestServiceCatalogRepository:
                 search_count_30d=50 * (i + 1),
                 booking_count_7d=5 * (i + 1),
                 booking_count_30d=20 * (i + 1),
-                active_instructors=i + 1,
+                active_instructors=0,  # Set to 0 to avoid test pollution
                 last_calculated=datetime.now(timezone.utc),
             )
             db.add(analytics)
@@ -395,7 +395,7 @@ class TestInstructorServiceEnhancements:
         for i in range(3):
             service = ServiceCatalog(
                 category_id=category.id,
-                name=f"Service {i}",
+                name=f"Test Trending Service {i}",
                 slug=unique_slug(f"service-{i}"),
                 description=f"Test service {i}",
                 is_active=True,
@@ -416,7 +416,7 @@ class TestInstructorServiceEnhancements:
                 service_catalog_id=service.id,
                 booking_count_7d=5,
                 booking_count_30d=20,
-                active_instructors=2,
+                active_instructors=0,  # Set to 0 to avoid test pollution
                 last_calculated=datetime.now(timezone.utc),
                 **data,
             )
@@ -428,7 +428,7 @@ class TestInstructorServiceEnhancements:
         trending = instructor_service.get_trending_services(limit=2)
 
         assert len(trending) > 0
-        assert trending[0]["name"] == "Service 0"  # Should be trending
+        assert trending[0]["name"] == "Test Trending Service 0"  # Should be trending
         assert "analytics" in trending[0]
 
     def test_search_services_enhanced(self, db: Session, test_instructor, mock_instructor_profile):
@@ -443,7 +443,7 @@ class TestInstructorServiceEnhancements:
         # Create services
         service = ServiceCatalog(
             category_id=category.id,
-            name="Python Programming",
+            name="Test Python Programming",
             slug=unique_slug("python-programming"),
             description="Learn Python from basics to advanced",
             search_terms=["python", "programming", "coding"],
@@ -552,7 +552,7 @@ class TestEnhancedModels:
 
         service = ServiceCatalog(
             category_id=category.id,
-            name="Enhanced Service",
+            name="Test Enhanced Service",
             slug=unique_slug("enhanced-service"),
             description="Service with all new fields",
             search_terms=["enhanced", "test"],

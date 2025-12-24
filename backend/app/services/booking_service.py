@@ -1050,13 +1050,18 @@ class BookingService(BaseService):
                         # If capture fails or no PI, fall back to credit-only path
                         logger.warning(f"Capture not performed for booking {booking.id}: {e}")
 
-                # Issue platform credit (full price if capture amount not available)
-                credit_amount = amount_received or int(booking.total_price * 100)
+                # Issue platform credit for LESSON PRICE ONLY (not full amount)
+                # Platform retains the booking protection fee as cancellation compensation.
+                # Lesson price = hourly_rate * (duration_minutes / 60)
+                lesson_price_cents = int(
+                    float(booking.hourly_rate) * booking.duration_minutes * 100 / 60
+                )
+                credit_amount = lesson_price_cents
                 try:
                     payment_repo.create_platform_credit(
                         user_id=booking.student_id,
                         amount_cents=credit_amount,
-                        reason="Cancellation 12-24 hours before lesson",
+                        reason="Cancellation 12-24 hours before lesson (lesson price credit)",
                         source_booking_id=booking.id,
                     )
                 except Exception as e:
@@ -1065,7 +1070,11 @@ class BookingService(BaseService):
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="credit_created_late_cancel",
-                    event_data={"amount": credit_amount},
+                    event_data={
+                        "amount": credit_amount,
+                        "lesson_price_cents": lesson_price_cents,
+                        "total_charged_cents": amount_received,
+                    },
                 )
                 booking.payment_status = "credit_issued"
 
