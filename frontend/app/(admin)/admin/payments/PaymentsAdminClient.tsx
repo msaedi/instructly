@@ -9,6 +9,11 @@ import { toast } from 'sonner';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import {
+  useAdminCancelBookingApiV1AdminBookingsBookingIdCancelPost,
+  useAdminUpdateBookingStatusApiV1AdminBookingsBookingIdCompletePost,
+} from '@/src/api/generated/admin-bookings/admin-bookings';
+import type { AdminCancelBookingRequest } from '@/src/api/generated/instructly.schemas';
 
 import BookingsTab from './components/BookingsTab';
 import HistoryTab from './components/HistoryTab';
@@ -25,6 +30,7 @@ import {
 } from './hooks/useAdminBookings';
 import { useBookingStats } from './hooks/useBookingStats';
 import { type AuditFiltersState, useAuditLog } from './hooks/useAuditLog';
+import { useBookingDetail } from './hooks/useBookingDetail';
 
 const defaultBookingFilters: BookingFiltersState = {
   search: '',
@@ -58,7 +64,7 @@ export default function PaymentsAdminClient() {
   const [auditFilters, setAuditFilters] = useState<AuditFiltersState>(defaultAuditFilters);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<AdminBooking | null>(null);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [refundBooking, setRefundBooking] = useState<AdminBooking | null>(null);
   const [refundOpen, setRefundOpen] = useState(false);
   const [cancelBooking, setCancelBooking] = useState<AdminBooking | null>(null);
@@ -68,6 +74,10 @@ export default function PaymentsAdminClient() {
   const bookingsQuery = useAdminBookings(bookingFilters);
   const statsQuery = useBookingStats();
   const auditQuery = useAuditLog(auditFilters);
+  const bookingDetailQuery = useBookingDetail(selectedBookingId);
+
+  const cancelMutation = useAdminCancelBookingApiV1AdminBookingsBookingIdCancelPost();
+  const statusMutation = useAdminUpdateBookingStatusApiV1AdminBookingsBookingIdCompletePost();
 
   const adminOptions = useMemo(() => {
     const admins = auditQuery.data?.entries ?? [];
@@ -81,8 +91,17 @@ export default function PaymentsAdminClient() {
     ];
   }, [auditQuery.data?.entries]);
 
-  const bookings = bookingsQuery.data?.bookings ?? [];
-  const auditEntries = auditQuery.data?.entries ?? [];
+  const bookings = useMemo(() => bookingsQuery.data?.bookings ?? [], [bookingsQuery.data?.bookings]);
+  const auditEntries = useMemo(() => auditQuery.data?.entries ?? [], [auditQuery.data?.entries]);
+  const selectedBooking = useMemo(() => {
+    if (bookingDetailQuery.data) {
+      return bookingDetailQuery.data;
+    }
+    if (!selectedBookingId) {
+      return null;
+    }
+    return bookings.find((booking) => booking.id === selectedBookingId) ?? null;
+  }, [bookingDetailQuery.data, bookings, selectedBookingId]);
 
   const handleTabChange = (tab: 'bookings' | 'history') => {
     const params = new URLSearchParams(searchParams.toString());
@@ -98,11 +117,15 @@ export default function PaymentsAdminClient() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
+      const refreshes: Array<Promise<unknown>> = [
         bookingsQuery.refetch(),
         statsQuery.refetch(),
         auditQuery.refetch(),
-      ]);
+      ];
+      if (selectedBookingId) {
+        refreshes.push(bookingDetailQuery.refetch());
+      }
+      await Promise.all(refreshes);
     } finally {
       setRefreshing(false);
     }
@@ -123,7 +146,7 @@ export default function PaymentsAdminClient() {
   };
 
   const handleViewDetails = (booking: AdminBooking) => {
-    setSelectedBooking(booking);
+    setSelectedBookingId(booking.id);
     setDetailOpen(true);
   };
 
@@ -140,6 +163,7 @@ export default function PaymentsAdminClient() {
   const handleViewAuditLog = (booking: AdminBooking) => {
     setAuditFilters({ ...defaultAuditFilters, search: booking.id, page: 1 });
     setDetailOpen(false);
+    setSelectedBookingId(null);
     handleTabChange('history');
   };
 
@@ -148,22 +172,53 @@ export default function PaymentsAdminClient() {
     toast.success(`Queued email to ${name}`);
   };
 
-  const handleMarkStatus = (booking: AdminBooking, status: 'COMPLETED' | 'NO_SHOW') => {
-    toast.success(`Booking ${booking.id.slice(0, 8)} updated to ${status}`);
+  const handleMarkStatus = async (booking: AdminBooking, status: 'COMPLETED' | 'NO_SHOW') => {
+    try {
+      await statusMutation.mutateAsync({
+        bookingId: booking.id,
+        data: { status },
+      });
+      toast.success(`Booking ${booking.id.slice(0, 8)} updated to ${status}`);
+      await handleRefresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to update booking status';
+      toast.error(message);
+    }
   };
 
-  const handleCancelConfirm = (booking: AdminBooking, reason: string, note: string, refund: boolean) => {
-    const descriptionParts = [];
-    if (reason) {
-      descriptionParts.push(`Reason: ${reason}`);
+  const handleCancelConfirm = async (
+    booking: AdminBooking,
+    reason: string,
+    note: string,
+    refund: boolean
+  ) => {
+    const trimmedReason = reason.trim() || 'Admin cancellation';
+    const payload: AdminCancelBookingRequest = {
+      reason: trimmedReason,
+      refund,
+    };
+    if (note.trim()) {
+      payload.note = note.trim();
     }
-    if (note) {
-      descriptionParts.push(`Note: ${note}`);
-    }
-    const description = descriptionParts.length ? descriptionParts.join(' | ') : 'Reason recorded';
-    toast.success(`Booking ${booking.id.slice(0, 8)} cancelled`, { description });
-    if (refund) {
-      toast.info('Refund will be issued once cancellation is processed.');
+
+    try {
+      await cancelMutation.mutateAsync({
+        bookingId: booking.id,
+        data: payload,
+      });
+      const descriptionParts = [`Reason: ${trimmedReason}`];
+      if (payload.note) {
+        descriptionParts.push(`Note: ${payload.note}`);
+      }
+      const description = descriptionParts.join(' | ');
+      toast.success(`Booking ${booking.id.slice(0, 8)} cancelled`, { description });
+      if (refund) {
+        toast.info('Refund is being processed.');
+      }
+      await handleRefresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to cancel booking';
+      toast.error(message);
     }
   };
 
@@ -329,7 +384,12 @@ export default function PaymentsAdminClient() {
       <BookingDetailPanel
         booking={selectedBooking}
         open={detailOpen}
-        onOpenChange={setDetailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open);
+          if (!open) {
+            setSelectedBookingId(null);
+          }
+        }}
         onIssueRefund={handleRefund}
         onViewAuditLog={handleViewAuditLog}
       />
@@ -338,6 +398,7 @@ export default function PaymentsAdminClient() {
         booking={refundBooking}
         open={refundOpen}
         onOpenChange={setRefundOpen}
+        onRefunded={() => void handleRefresh()}
       />
 
       <CancelModal

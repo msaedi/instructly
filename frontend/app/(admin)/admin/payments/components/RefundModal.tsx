@@ -109,13 +109,6 @@ export default function RefundModal({ booking, open, onOpenChange, onRefunded }:
       payload.amount_cents = amountCents;
     }
 
-    if (booking.is_mock) {
-      toast.success('Preview refund recorded');
-      onRefunded?.(booking.id);
-      handleClose(false);
-      return;
-    }
-
     try {
       await mutation.mutateAsync({ bookingId: booking.id, data: payload });
       toast.success('Refund issued successfully');
