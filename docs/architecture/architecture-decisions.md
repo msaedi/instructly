@@ -282,3 +282,52 @@ OPENAI_CALL_CONCURRENCY=3          # Hard limit on OpenAI calls
 - `is_allowed_origin()` was duplicated in payments.py and stripe_service.py
 - Security-critical code should have single implementation
 - Restricts to explicit allowed IPs only
+
+## Stripe Network Call Decisions (v123)
+
+### Stripe Calls Outside Transactions
+**Decision**: All Stripe API calls must be made OUTSIDE database transactions.
+
+**Rationale**:
+- Stripe calls take 100-500ms (network latency)
+- DB transactions hold row locks
+- Holding locks for 500ms causes contention and slow queries
+- Load testing revealed this as primary bottleneck at 150+ users
+
+**Pattern**:
+```python
+# ❌ BAD: Stripe inside transaction (holds lock 400ms)
+with self.transaction():
+    booking = self.repo.get(id)
+    stripe.PaymentIntent.capture(booking.pi_id)  # 400ms network
+    booking.status = "captured"
+
+# ✅ GOOD: Stripe outside transaction (two 5ms locks)
+# Phase 1: Read
+with self.transaction():
+    booking = self.repo.get(id)
+    pi_id = booking.payment_intent_id
+
+# Phase 2: Network (no lock)
+result = stripe.PaymentIntent.capture(pi_id)
+
+# Phase 3: Write
+with self.transaction():
+    booking.status = "captured"
+```
+
+**Error Handling**:
+- If Phase 2 fails: Log error, update status to failed state in Phase 3
+- If Phase 3 fails: Stripe already succeeded - use idempotency keys to safely retry, or reconcile via webhook
+- Webhooks provide eventual consistency guarantee
+
+**Identified Bottlenecks Fixed**:
+| Method | Before (lock held) | After (lock held) |
+|--------|-------------------|-------------------|
+| `cancel_booking` | 350-800ms | 10-20ms |
+| `process_booking_payment` | 400-800ms | 10-20ms |
+| `save_payment_method` | 250-500ms | 10-20ms |
+| `create_payment_intent` | 200-400ms | 10-20ms |
+| `confirm_payment_intent` | 200-400ms | 10-20ms |
+
+**Added**: December 2025 (v123)

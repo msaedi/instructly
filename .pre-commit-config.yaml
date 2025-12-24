@@ -87,6 +87,14 @@ repos:
         pass_filenames: true
         description: Ensure public methods in BaseService subclasses are decorated with metrics
 
+      - id: check-stripe-transaction-pattern
+        name: Check Stripe calls outside transactions
+        entry: python3 backend/scripts/check_stripe_transaction_pattern.py
+        language: system
+        files: ^backend/app/services/.*\.py$
+        pass_filenames: false
+        description: Ensure Stripe API calls are outside DB transactions (3-phase pattern)
+
       - id: mypy-strict-gate
         name: mypy strict gate (hard fail)
         entry: bash tools/mypy_strict_gate.sh

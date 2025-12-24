@@ -1708,6 +1708,11 @@ class StripeService(BaseService):
         """
         Create a Stripe customer for a user.
 
+        Uses 3-phase pattern to avoid holding DB locks during Stripe calls:
+        - Phase 1: Check if customer exists (quick transaction)
+        - Phase 2: stripe.Customer.create (NO transaction)
+        - Phase 3: Save customer record (quick transaction)
+
         Args:
             user_id: User's ID (ULID string)
             email: User's email address
@@ -1720,50 +1725,51 @@ class StripeService(BaseService):
             ServiceException: If customer creation fails
         """
         try:
+            # ========== PHASE 1: Check if customer exists (quick transaction) ==========
             with self.transaction():
-                # Check if customer already exists
                 existing_customer = self.payment_repository.get_customer_by_user_id(user_id)
                 if existing_customer:
                     self.logger.info(f"Customer already exists for user {user_id}")
                     return existing_customer
 
-                # Try real Stripe path first (allows tests to @patch)
-                try:
-                    stripe_customer = stripe.Customer.create(
-                        email=email, name=name, metadata={"user_id": user_id}
-                    )
-                    customer_record = self.payment_repository.create_customer_record(
-                        user_id=user_id, stripe_customer_id=stripe_customer.id
-                    )
-                    self.logger.info(
-                        f"Created Stripe customer {stripe_customer.id} for user {user_id}"
-                    )
-                    return customer_record
-                except Exception as e:
-                    # If Stripe isn't configured, decide between mock fallback and raising
-                    if not self.stripe_configured:
-                        msg = str(e)
+            # ========== PHASE 2: Stripe Customer.create (NO transaction) ==========
+            try:
+                stripe_customer = stripe.Customer.create(
+                    email=email, name=name, metadata={"user_id": user_id}
+                )
+                stripe_customer_id = stripe_customer.id
+            except Exception as e:
+                # If Stripe isn't configured, decide between mock fallback and raising
+                if not self.stripe_configured:
+                    msg = str(e)
+                    auth_error = False
+                    try:
+                        # AuthenticationError indicates missing/invalid API key
+                        auth_error = isinstance(e, stripe.error.AuthenticationError)
+                    except Exception:
                         auth_error = False
-                        try:
-                            # AuthenticationError indicates missing/invalid API key
-                            auth_error = isinstance(e, stripe.error.AuthenticationError)
-                        except Exception:
-                            auth_error = False
 
-                        if auth_error or "No API key" in msg or "api key" in msg.lower():
-                            self.logger.warning(
-                                f"Stripe not configured (auth error); using mock customer for user {user_id}"
-                            )
-                            return self.payment_repository.create_customer_record(
-                                user_id=user_id, stripe_customer_id=f"mock_cust_{user_id}"
-                            )
-
+                    if auth_error or "No API key" in msg or "api key" in msg.lower():
+                        self.logger.warning(
+                            f"Stripe not configured (auth error); using mock customer for user {user_id}"
+                        )
+                        stripe_customer_id = f"mock_cust_{user_id}"
+                    else:
                         # For other errors (e.g., tests patching to raise API Error), surface as ServiceException
                         self.logger.error(f"Stripe customer creation failed: {msg}")
                         raise ServiceException(f"Failed to create Stripe customer: {msg}")
-
+                else:
                     # If configured, bubble up as a service error
                     raise
+
+            # ========== PHASE 3: Save customer record (quick transaction) ==========
+            with self.transaction():
+                customer_record = self.payment_repository.create_customer_record(
+                    user_id=user_id, stripe_customer_id=stripe_customer_id
+                )
+
+            self.logger.info(f"Created Stripe customer {stripe_customer_id} for user {user_id}")
+            return customer_record
 
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error creating customer: {str(e)}")
@@ -2115,6 +2121,11 @@ class StripeService(BaseService):
         """
         Create a Stripe PaymentIntent for a booking.
 
+        Uses 3-phase pattern to avoid holding DB locks during Stripe calls:
+        - Phase 1: Build charge context if needed (quick transaction)
+        - Phase 2: stripe.PaymentIntent.create (NO transaction)
+        - Phase 3: Save payment record (quick transaction)
+
         Args:
             booking_id: Booking ID
             customer_id: Stripe customer ID
@@ -2130,137 +2141,133 @@ class StripeService(BaseService):
             ServiceException: If PaymentIntent creation fails
         """
         try:
-            with self.transaction():
-                ctx = charge_context
-                if ctx is None and requested_credit_cents is not None:
-                    ctx = self.build_charge_context(booking_id, requested_credit_cents)
+            # ========== PHASE 1: Build context/prepare data (quick transaction if needed) ==========
+            ctx = charge_context
+            if ctx is None and requested_credit_cents is not None:
+                ctx = self.build_charge_context(booking_id, requested_credit_cents)
 
-                if ctx is not None:
-                    amount = int(ctx.student_pay_cents)
-                    # Platform retains (student_pay_cents - target_instructor_payout_cents)
-                    platform_retained_cents = int(
-                        ctx.student_pay_cents - ctx.target_instructor_payout_cents
-                    )
-                    transfer_amount_cents = int(ctx.target_instructor_payout_cents)
-                    metadata = {
-                        "booking_id": booking_id,
-                        "platform": "instainstru",
-                        "instructor_tier_pct": str(ctx.instructor_tier_pct),
-                        "base_price_cents": str(ctx.base_price_cents),
-                        "student_fee_cents": str(ctx.student_fee_cents),
-                        "platform_fee_cents": str(ctx.instructor_platform_fee_cents),
-                        "applied_credit_cents": str(ctx.applied_credit_cents),
-                        "student_pay_cents": str(ctx.student_pay_cents),
-                        "application_fee_cents": str(ctx.application_fee_cents),
-                        "target_instructor_payout_cents": str(ctx.target_instructor_payout_cents),
-                    }
+            if ctx is not None:
+                amount = int(ctx.student_pay_cents)
+                # Platform retains (student_pay_cents - target_instructor_payout_cents)
+                platform_retained_cents = int(
+                    ctx.student_pay_cents - ctx.target_instructor_payout_cents
+                )
+                transfer_amount_cents = int(ctx.target_instructor_payout_cents)
+                metadata = {
+                    "booking_id": booking_id,
+                    "platform": "instainstru",
+                    "instructor_tier_pct": str(ctx.instructor_tier_pct),
+                    "base_price_cents": str(ctx.base_price_cents),
+                    "student_fee_cents": str(ctx.student_fee_cents),
+                    "platform_fee_cents": str(ctx.instructor_platform_fee_cents),
+                    "applied_credit_cents": str(ctx.applied_credit_cents),
+                    "student_pay_cents": str(ctx.student_pay_cents),
+                    "application_fee_cents": str(ctx.application_fee_cents),
+                    "target_instructor_payout_cents": str(ctx.target_instructor_payout_cents),
+                }
 
-                    if settings.environment != "production":
-                        try:
-                            metadata_student_pay_cents = int(metadata["student_pay_cents"])
-                            metadata_base_price_cents = int(metadata["base_price_cents"])
-                            metadata_student_fee_cents = int(metadata["student_fee_cents"])
-                            metadata_applied_credit_cents = int(metadata["applied_credit_cents"])
-                        except (KeyError, ValueError) as parse_error:
-                            self.logger.warning(
-                                "stripe.pi.preview_parity_parse_error",
-                                {
-                                    "booking_id": booking_id,
-                                    "error": str(parse_error),
-                                    "metadata": metadata,
-                                },
-                            )
-                        else:
-                            parity_snapshot = {
-                                "booking_id": booking_id,
-                                "student_pay_cents": ctx.student_pay_cents,
-                                "metadata_student_pay_cents": metadata_student_pay_cents,
-                                "base_price_cents": ctx.base_price_cents,
-                                "metadata_base_price_cents": metadata_base_price_cents,
-                                "student_fee_cents": ctx.student_fee_cents,
-                                "metadata_student_fee_cents": metadata_student_fee_cents,
-                                "applied_credit_cents": ctx.applied_credit_cents,
-                                "metadata_applied_credit_cents": metadata_applied_credit_cents,
-                            }
-                            self.logger.debug("stripe.pi.preview_parity", parity_snapshot)
-                            assert (
-                                metadata_student_pay_cents == ctx.student_pay_cents
-                            ), "PaymentIntent amount mismatch preview student pay"
-                            assert (
-                                metadata_base_price_cents == ctx.base_price_cents
-                            ), "PaymentIntent base price mismatch preview"
-                            assert (
-                                metadata_student_fee_cents == ctx.student_fee_cents
-                            ), "PaymentIntent student fee mismatch preview"
-                            assert (
-                                metadata_applied_credit_cents == ctx.applied_credit_cents
-                            ), "PaymentIntent credit mismatch preview"
-                else:
-                    if amount_cents is None:
-                        raise ServiceException(
-                            "amount_cents is required when charge context is not provided"
-                        )
-                    amount = int(amount_cents)
-                    # Fallback: use generic platform fee percentage to compute transfer amount
-                    platform_retained_cents = int(amount * self.platform_fee_percentage)
-                    transfer_amount_cents = amount - platform_retained_cents
-                    metadata = {
-                        "booking_id": booking_id,
-                        "platform": "instainstru",
-                        "applied_credit_cents": "0",
-                    }
-
-                try:
-                    # Use transfer_data[amount] architecture: platform receives full charge,
-                    # then transfers exactly transfer_amount_cents to instructor.
-                    stripe_kwargs = {
-                        "amount": amount,
-                        "currency": currency,
-                        "customer": customer_id,
-                        "transfer_data": {
-                            "destination": destination_account_id,
-                            "amount": transfer_amount_cents,
-                        },
-                        "metadata": metadata,
-                        "capture_method": "manual",
-                    }
-                    if ctx is not None:
-                        stripe_kwargs["transfer_group"] = f"booking:{booking_id}"
-
-                    stripe_intent = stripe.PaymentIntent.create(**stripe_kwargs)
-
-                    payment_record = self.payment_repository.create_payment_record(
-                        booking_id=booking_id,
-                        payment_intent_id=stripe_intent.id,
-                        amount=amount,
-                        application_fee=platform_retained_cents,
-                        status=stripe_intent.status,
-                        base_price_cents=ctx.base_price_cents if ctx else None,
-                        instructor_tier_pct=ctx.instructor_tier_pct if ctx else None,
-                        instructor_payout_cents=ctx.target_instructor_payout_cents if ctx else None,
-                    )
-                    self.logger.info(
-                        f"Created payment intent {stripe_intent.id} for booking {booking_id}"
-                    )
-                    return payment_record
-                except Exception as e:
-                    if not self.stripe_configured:
+                if settings.environment != "production":
+                    try:
+                        metadata_student_pay_cents = int(metadata["student_pay_cents"])
+                        metadata_base_price_cents = int(metadata["base_price_cents"])
+                        metadata_student_fee_cents = int(metadata["student_fee_cents"])
+                        metadata_applied_credit_cents = int(metadata["applied_credit_cents"])
+                    except (KeyError, ValueError) as parse_error:
                         self.logger.warning(
-                            f"Stripe not configured or call failed ({e}); using mock payment intent for booking {booking_id}"
+                            "stripe.pi.preview_parity_parse_error",
+                            {
+                                "booking_id": booking_id,
+                                "error": str(parse_error),
+                                "metadata": metadata,
+                            },
                         )
-                        return self.payment_repository.create_payment_record(
-                            booking_id=booking_id,
-                            payment_intent_id=f"mock_pi_{booking_id}",
-                            amount=amount,
-                            application_fee=platform_retained_cents,
-                            status="requires_payment_method",
-                            base_price_cents=ctx.base_price_cents if ctx else None,
-                            instructor_tier_pct=ctx.instructor_tier_pct if ctx else None,
-                            instructor_payout_cents=ctx.target_instructor_payout_cents
-                            if ctx
-                            else None,
-                        )
+                    else:
+                        parity_snapshot = {
+                            "booking_id": booking_id,
+                            "student_pay_cents": ctx.student_pay_cents,
+                            "metadata_student_pay_cents": metadata_student_pay_cents,
+                            "base_price_cents": ctx.base_price_cents,
+                            "metadata_base_price_cents": metadata_base_price_cents,
+                            "student_fee_cents": ctx.student_fee_cents,
+                            "metadata_student_fee_cents": metadata_student_fee_cents,
+                            "applied_credit_cents": ctx.applied_credit_cents,
+                            "metadata_applied_credit_cents": metadata_applied_credit_cents,
+                        }
+                        self.logger.debug("stripe.pi.preview_parity", parity_snapshot)
+                        assert (
+                            metadata_student_pay_cents == ctx.student_pay_cents
+                        ), "PaymentIntent amount mismatch preview student pay"
+                        assert (
+                            metadata_base_price_cents == ctx.base_price_cents
+                        ), "PaymentIntent base price mismatch preview"
+                        assert (
+                            metadata_student_fee_cents == ctx.student_fee_cents
+                        ), "PaymentIntent student fee mismatch preview"
+                        assert (
+                            metadata_applied_credit_cents == ctx.applied_credit_cents
+                        ), "PaymentIntent credit mismatch preview"
+            else:
+                if amount_cents is None:
+                    raise ServiceException(
+                        "amount_cents is required when charge context is not provided"
+                    )
+                amount = int(amount_cents)
+                # Fallback: use generic platform fee percentage to compute transfer amount
+                platform_retained_cents = int(amount * self.platform_fee_percentage)
+                transfer_amount_cents = amount - platform_retained_cents
+                metadata = {
+                    "booking_id": booking_id,
+                    "platform": "instainstru",
+                    "applied_credit_cents": "0",
+                }
+
+            # ========== PHASE 2: Stripe PaymentIntent.create (NO transaction) ==========
+            try:
+                # Use transfer_data[amount] architecture: platform receives full charge,
+                # then transfers exactly transfer_amount_cents to instructor.
+                stripe_kwargs = {
+                    "amount": amount,
+                    "currency": currency,
+                    "customer": customer_id,
+                    "transfer_data": {
+                        "destination": destination_account_id,
+                        "amount": transfer_amount_cents,
+                    },
+                    "metadata": metadata,
+                    "capture_method": "manual",
+                }
+                if ctx is not None:
+                    stripe_kwargs["transfer_group"] = f"booking:{booking_id}"
+
+                stripe_intent = stripe.PaymentIntent.create(**stripe_kwargs)
+                stripe_intent_id = stripe_intent.id
+                stripe_intent_status = stripe_intent.status
+
+            except Exception as e:
+                if not self.stripe_configured:
+                    self.logger.warning(
+                        f"Stripe not configured or call failed ({e}); using mock payment intent for booking {booking_id}"
+                    )
+                    stripe_intent_id = f"mock_pi_{booking_id}"
+                    stripe_intent_status = "requires_payment_method"
+                else:
                     raise
+
+            # ========== PHASE 3: Save payment record (quick transaction) ==========
+            with self.transaction():
+                payment_record = self.payment_repository.create_payment_record(
+                    booking_id=booking_id,
+                    payment_intent_id=stripe_intent_id,
+                    amount=amount,
+                    application_fee=platform_retained_cents,
+                    status=stripe_intent_status,
+                    base_price_cents=ctx.base_price_cents if ctx else None,
+                    instructor_tier_pct=ctx.instructor_tier_pct if ctx else None,
+                    instructor_payout_cents=ctx.target_instructor_payout_cents if ctx else None,
+                )
+
+            self.logger.info(f"Created payment intent {stripe_intent_id} for booking {booking_id}")
+            return payment_record
 
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error creating payment intent: {str(e)}")
@@ -2367,6 +2374,11 @@ class StripeService(BaseService):
         """
         Confirm a payment intent with a payment method.
 
+        Uses 3-phase pattern to avoid holding DB locks during Stripe calls:
+        - Phase 1: (none needed - no pre-read required)
+        - Phase 2: stripe.PaymentIntent.confirm (NO transaction)
+        - Phase 3: Update payment status (quick transaction)
+
         Args:
             payment_intent_id: Stripe payment intent ID
             payment_method_id: Stripe payment method ID
@@ -2378,17 +2390,19 @@ class StripeService(BaseService):
             ServiceException: If confirmation fails
         """
         try:
-            with self.transaction():
-                # Confirm payment intent with return_url for redirect-based payment methods
-                stripe_intent = stripe.PaymentIntent.confirm(
-                    payment_intent_id,
-                    payment_method=payment_method_id,
-                    return_url=f"{settings.frontend_url}/student/payment/complete",
-                )
+            # ========== PHASE 2: Stripe confirm (NO transaction) ==========
+            # Confirm payment intent with return_url for redirect-based payment methods
+            stripe_intent = stripe.PaymentIntent.confirm(
+                payment_intent_id,
+                payment_method=payment_method_id,
+                return_url=f"{settings.frontend_url}/student/payment/complete",
+            )
+            stripe_status = stripe_intent.status
 
-                # Update payment status
+            # ========== PHASE 3: Update payment status (quick transaction) ==========
+            with self.transaction():
                 payment_record = self.payment_repository.update_payment_status(
-                    payment_intent_id, stripe_intent.status
+                    payment_intent_id, stripe_status
                 )
 
                 if not payment_record:
@@ -2396,8 +2410,8 @@ class StripeService(BaseService):
                         f"Payment record not found for intent {payment_intent_id}"
                     )
 
-                self.logger.info(f"Confirmed payment intent {payment_intent_id}")
-                return payment_record
+            self.logger.info(f"Confirmed payment intent {payment_intent_id}")
+            return payment_record
 
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error confirming payment: {str(e)}")
@@ -2687,6 +2701,12 @@ class StripeService(BaseService):
         """
         Process payment for a booking end-to-end.
 
+        Architecture Note (v123): This method uses 3-phase pattern to avoid
+        holding DB locks during Stripe network calls:
+        - Phase 1: Quick read transaction (~5ms)
+        - Phase 2: Stripe calls (no transaction, 200-400ms)
+        - Phase 3: Quick write transaction (~5ms)
+
         Args:
             booking_id: Booking ID
             payment_method_id: Stripe payment method ID (required when balance remains)
@@ -2699,16 +2719,12 @@ class StripeService(BaseService):
             ServiceException: If payment processing fails
         """
         try:
+            # ========== PHASE 1: Read/validate (quick transaction) ==========
             with self.transaction():
-                # Get booking details
                 booking = self.booking_repository.get_by_id(booking_id)
                 if not booking:
                     raise ServiceException(f"Booking {booking_id} not found")
 
-                # Get or create customer
-                customer = self.get_or_create_customer(booking.student_id)
-
-                # Get instructor's connected account
                 instructor_profile = self.instructor_repository.get_by_user_id(
                     booking.instructor_id
                 )
@@ -2723,87 +2739,102 @@ class StripeService(BaseService):
                 if not connected_account or not connected_account.onboarding_completed:
                     raise ServiceException("Instructor payment account not set up")
 
-                charge_context = self.build_charge_context(
-                    booking_id=booking.id, requested_credit_cents=requested_credit_cents
-                )
+                # Store IDs for Phase 2 (avoid holding ORM objects across phases)
+                student_id = booking.student_id
+                stripe_account_id = connected_account.stripe_account_id
 
-                if charge_context.student_pay_cents <= 0:
+            # ========== PHASE 2: Stripe calls (NO transaction) ==========
+            # get_or_create_customer may call Stripe if customer doesn't exist
+            customer = self.get_or_create_customer(student_id)
+
+            # build_charge_context has its own transaction for credit application
+            charge_context = self.build_charge_context(
+                booking_id=booking_id, requested_credit_cents=requested_credit_cents
+            )
+
+            # Handle credit-only case (student pays nothing with card)
+            if charge_context.student_pay_cents <= 0:
+                with self.transaction():
+                    booking = self.booking_repository.get_by_id(booking_id)
+                    if booking:
+                        try:
+                            self.payment_repository.create_payment_event(
+                                booking_id=booking.id,
+                                event_type="auth_succeeded_credits_only",
+                                event_data={
+                                    "base_price_cents": charge_context.base_price_cents,
+                                    "credits_applied_cents": charge_context.applied_credit_cents,
+                                    "authorized_at": datetime.now(timezone.utc).isoformat(),
+                                },
+                            )
+                        except Exception:
+                            pass
+                        booking.payment_status = "authorized"
+
+                return {
+                    "success": True,
+                    "payment_intent_id": "credit_only",
+                    "status": "succeeded",
+                    "amount": 0,
+                    "application_fee": 0,
+                    "client_secret": None,
+                }
+
+            if not payment_method_id:
+                raise ServiceException("Payment method required for the remaining balance")
+
+            # create_payment_intent has its own transaction + Stripe call
+            payment_record = self.create_payment_intent(
+                booking_id=booking_id,
+                customer_id=customer.stripe_customer_id,
+                destination_account_id=stripe_account_id,
+                charge_context=charge_context,
+            )
+
+            # Direct Stripe call - NO transaction held during network call
+            try:
+                stripe_intent = stripe.PaymentIntent.confirm(
+                    payment_record.stripe_payment_intent_id,
+                    payment_method=payment_method_id,
+                    return_url=f"{settings.frontend_url}/student/payment/complete",
+                )
+            except stripe.error.CardError as e:
+                raise ServiceException(f"Card error: {str(e)}")
+
+            # ========== PHASE 3: Write (quick transaction) ==========
+            with self.transaction():
+                # Re-fetch booking to avoid stale ORM object
+                booking = self.booking_repository.get_by_id(booking_id)
+                if booking:
+                    # Persist updated status
                     try:
-                        self.payment_repository.create_payment_event(
-                            booking_id=booking.id,
-                            event_type="auth_succeeded_credits_only",
-                            event_data={
-                                "base_price_cents": charge_context.base_price_cents,
-                                "credits_applied_cents": charge_context.applied_credit_cents,
-                                "authorized_at": datetime.now(timezone.utc).isoformat(),
-                            },
+                        self.payment_repository.update_payment_status(
+                            payment_record.stripe_payment_intent_id, stripe_intent.status
                         )
                     except Exception:
                         pass
 
-                    # Mark booking as authorized for payment purposes
-                    booking.payment_status = "authorized"
+                    # Set booking payment_intent_id and payment_status for capture task
+                    booking.payment_intent_id = payment_record.stripe_payment_intent_id
+                    if stripe_intent.status in {"requires_capture", "succeeded"}:
+                        booking.payment_status = "authorized"
 
-                    return {
-                        "success": True,
-                        "payment_intent_id": "credit_only",
-                        "status": "succeeded",
-                        "amount": 0,
-                        "application_fee": 0,
-                        "client_secret": None,
-                    }
+            requires_action = stripe_intent.status in [
+                "requires_action",
+                "requires_confirmation",
+            ]
+            client_secret = (
+                getattr(stripe_intent, "client_secret", None) if requires_action else None
+            )
 
-                if not payment_method_id:
-                    raise ServiceException("Payment method required for the remaining balance")
-
-                # Create payment intent
-                payment_record = self.create_payment_intent(
-                    booking_id=booking_id,
-                    customer_id=customer.stripe_customer_id,
-                    destination_account_id=connected_account.stripe_account_id,
-                    charge_context=charge_context,
-                )
-
-                # Confirm payment
-                # Confirm payment and handle 3DS requirements
-                try:
-                    stripe_intent = stripe.PaymentIntent.confirm(
-                        payment_record.stripe_payment_intent_id,
-                        payment_method=payment_method_id,
-                        return_url=f"{settings.frontend_url}/student/payment/complete",
-                    )
-                except stripe.error.CardError as e:
-                    raise ServiceException(f"Card error: {str(e)}")
-
-                # Persist updated status
-                try:
-                    self.payment_repository.update_payment_status(
-                        payment_record.stripe_payment_intent_id, stripe_intent.status
-                    )
-                except Exception:
-                    pass
-
-                # Set booking payment_intent_id and payment_status for capture task
-                booking.payment_intent_id = payment_record.stripe_payment_intent_id
-                if stripe_intent.status in {"requires_capture", "succeeded"}:
-                    booking.payment_status = "authorized"
-
-                requires_action = stripe_intent.status in [
-                    "requires_action",
-                    "requires_confirmation",
-                ]
-                client_secret = (
-                    getattr(stripe_intent, "client_secret", None) if requires_action else None
-                )
-
-                return {
-                    "success": True,
-                    "payment_intent_id": payment_record.stripe_payment_intent_id,
-                    "status": stripe_intent.status,
-                    "amount": payment_record.amount,
-                    "application_fee": payment_record.application_fee,
-                    "client_secret": client_secret,
-                }
+            return {
+                "success": True,
+                "payment_intent_id": payment_record.stripe_payment_intent_id,
+                "status": stripe_intent.status,
+                "amount": payment_record.amount,
+                "application_fee": payment_record.application_fee,
+                "client_secret": client_secret,
+            }
 
         except Exception as e:
             if isinstance(e, ServiceException):
@@ -2820,6 +2851,11 @@ class StripeService(BaseService):
         """
         Save a payment method for a user.
 
+        Uses 3-phase pattern to avoid holding DB locks during Stripe calls:
+        - Phase 1: Check existing, get customer (quick transaction)
+        - Phase 2: Stripe retrieve/attach (NO transaction)
+        - Phase 3: Save to database (quick transaction)
+
         Args:
             user_id: User's ID
             payment_method_id: Stripe payment method ID
@@ -2832,6 +2868,7 @@ class StripeService(BaseService):
             ServiceException: If saving fails
         """
         try:
+            # ========== PHASE 1: Check existing & get customer (quick transaction) ==========
             with self.transaction():
                 # Check if payment method already exists in our database
                 existing = self.payment_repository.get_payment_method_by_stripe_id(
@@ -2846,46 +2883,48 @@ class StripeService(BaseService):
                         self.payment_repository.set_default_payment_method(existing.id, user_id)
                     return existing
 
-                # Ensure user has a Stripe customer
-                customer = self.get_or_create_customer(user_id)
+            # Ensure user has a Stripe customer (may involve Stripe call, handled separately)
+            customer = self.get_or_create_customer(user_id)
+            stripe_customer_id = customer.stripe_customer_id
 
-                # First retrieve the payment method to check its status
-                try:
-                    stripe_pm = stripe.PaymentMethod.retrieve(payment_method_id)
+            # ========== PHASE 2: Stripe calls (NO transaction) ==========
+            try:
+                stripe_pm = stripe.PaymentMethod.retrieve(payment_method_id)
 
-                    # Check if already attached to a customer
-                    if stripe_pm.customer:
-                        if stripe_pm.customer != customer.stripe_customer_id:
-                            # Payment method is attached to a different customer
-                            self.logger.error(
-                                f"Payment method {payment_method_id} is attached to a different customer"
-                            )
-                            raise ServiceException(
-                                "This payment method is already in use by another account"
-                            )
-                        # Already attached to this customer, just retrieve it
-                        self.logger.info(
-                            f"Payment method {payment_method_id} already attached to customer"
+                # Check if already attached to a customer
+                if stripe_pm.customer:
+                    if stripe_pm.customer != stripe_customer_id:
+                        # Payment method is attached to a different customer
+                        self.logger.error(
+                            f"Payment method {payment_method_id} is attached to a different customer"
                         )
-                    else:
-                        # Not attached, so attach it
-                        stripe_pm = stripe.PaymentMethod.attach(
-                            payment_method_id, customer=customer.stripe_customer_id
+                        raise ServiceException(
+                            "This payment method is already in use by another account"
                         )
-                        self.logger.info(f"Attached payment method {payment_method_id} to customer")
+                    # Already attached to this customer, just retrieve it
+                    self.logger.info(
+                        f"Payment method {payment_method_id} already attached to customer"
+                    )
+                else:
+                    # Not attached, so attach it
+                    stripe_pm = stripe.PaymentMethod.attach(
+                        payment_method_id, customer=stripe_customer_id
+                    )
+                    self.logger.info(f"Attached payment method {payment_method_id} to customer")
 
-                except stripe.error.CardError as e:
-                    # Handle specific card errors
-                    self.logger.error(f"Card error: {str(e)}")
-                    error_message = str(e.user_message) if hasattr(e, "user_message") else str(e)
-                    raise ServiceException(error_message)
+            except stripe.error.CardError as e:
+                # Handle specific card errors
+                self.logger.error(f"Card error: {str(e)}")
+                error_message = str(e.user_message) if hasattr(e, "user_message") else str(e)
+                raise ServiceException(error_message)
 
-                # Extract card details
-                card = stripe_pm.card
-                last4 = cast(Optional[str], getattr(card, "last4", None) if card else None)
-                brand = cast(Optional[str], getattr(card, "brand", None) if card else None)
+            # Extract card details from Stripe response
+            card = stripe_pm.card
+            last4 = cast(Optional[str], getattr(card, "last4", None) if card else None)
+            brand = cast(Optional[str], getattr(card, "brand", None) if card else None)
 
-                # Save to database
+            # ========== PHASE 3: Save to database (quick transaction) ==========
+            with self.transaction():
                 payment_method = self.payment_repository.save_payment_method(
                     user_id=user_id,
                     stripe_payment_method_id=payment_method_id,
@@ -2894,8 +2933,8 @@ class StripeService(BaseService):
                     is_default=set_as_default,
                 )
 
-                self.logger.info(f"Saved payment method {payment_method_id} for user {user_id}")
-                return payment_method
+            self.logger.info(f"Saved payment method {payment_method_id} for user {user_id}")
+            return payment_method
 
         except ServiceException:
             # Re-raise service exceptions
@@ -2934,6 +2973,11 @@ class StripeService(BaseService):
         """
         Delete a payment method.
 
+        Uses 3-phase pattern to avoid holding DB locks during Stripe calls:
+        - Phase 1: (none needed - no pre-read required)
+        - Phase 2: Stripe detach (NO transaction)
+        - Phase 3: Delete from database (quick transaction)
+
         Args:
             payment_method_id: Payment method ID (can be database ID or Stripe ID)
             user_id: User's ID (for ownership verification)
@@ -2945,27 +2989,27 @@ class StripeService(BaseService):
             ServiceException: If deletion fails
         """
         try:
-            with self.transaction():
-                # Try to detach from Stripe if it's a Stripe payment method ID
-                if payment_method_id.startswith("pm_"):
-                    try:
-                        stripe.PaymentMethod.detach(payment_method_id)
-                        self.logger.info(f"Detached payment method {payment_method_id} from Stripe")
-                    except stripe.StripeError as e:
-                        # Log but don't fail - payment method might already be detached
-                        self.logger.warning(
-                            f"Could not detach payment method from Stripe: {str(e)}"
-                        )
+            # ========== PHASE 2: Stripe detach (NO transaction) ==========
+            # Try to detach from Stripe if it's a Stripe payment method ID
+            if payment_method_id.startswith("pm_"):
+                try:
+                    stripe.PaymentMethod.detach(payment_method_id)
+                    self.logger.info(f"Detached payment method {payment_method_id} from Stripe")
+                except stripe.StripeError as e:
+                    # Log but don't fail - payment method might already be detached
+                    self.logger.warning(f"Could not detach payment method from Stripe: {str(e)}")
 
+            # ========== PHASE 3: Delete from database (quick transaction) ==========
+            with self.transaction():
                 # Delete from database (handles both database ID and Stripe ID)
                 success = self.payment_repository.delete_payment_method(payment_method_id, user_id)
 
-                if success:
-                    self.logger.info(
-                        f"Deleted payment method {payment_method_id} from database for user {user_id}"
-                    )
+            if success:
+                self.logger.info(
+                    f"Deleted payment method {payment_method_id} from database for user {user_id}"
+                )
 
-                return bool(success)
+            return bool(success)
 
         except Exception as e:
             self.logger.error(f"Error deleting payment method: {str(e)}")
