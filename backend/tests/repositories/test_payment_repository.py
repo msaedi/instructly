@@ -1536,6 +1536,107 @@ class TestPaymentRepository:
                 expires_at=None,
             )
 
+    # ========== Earnings Metadata Tests (Part 9) ==========
+
+    def test_create_payment_record_stores_earnings_metadata(
+        self, payment_repo: PaymentRepository, test_booking: Booking
+    ):
+        """Test that earnings metadata is stored when provided."""
+        from decimal import Decimal
+
+        payment_intent_id = f"pi_{ulid.ULID()}"
+        amount = 5600  # $56.00 in cents (includes 12% student fee)
+        fee = 600  # $6.00 platform fee (12% of $50 lesson)
+
+        payment = payment_repo.create_payment_record(
+            test_booking.id,
+            payment_intent_id,
+            amount,
+            fee,
+            status="succeeded",
+            base_price_cents=5000,  # $50.00 lesson price
+            instructor_tier_pct=Decimal("0.12"),  # 12% tier
+            instructor_payout_cents=4400,  # $44.00 to instructor
+        )
+
+        assert payment is not None
+        assert payment.base_price_cents == 5000
+        assert payment.instructor_tier_pct == Decimal("0.12")
+        assert payment.instructor_payout_cents == 4400
+
+        # Verify the data persists (re-fetch from DB)
+        fetched = payment_repo.get_payment_by_intent_id(payment_intent_id)
+        assert fetched is not None
+        assert fetched.base_price_cents == 5000
+        assert fetched.instructor_tier_pct == Decimal("0.12")
+        assert fetched.instructor_payout_cents == 4400
+
+    def test_create_payment_record_without_earnings_metadata(
+        self, payment_repo: PaymentRepository, test_booking: Booking
+    ):
+        """Test that payment records work without earnings metadata (legacy support)."""
+        payment_intent_id = f"pi_{ulid.ULID()}"
+        amount = 5000
+        fee = 500
+
+        payment = payment_repo.create_payment_record(
+            test_booking.id,
+            payment_intent_id,
+            amount,
+            fee,
+            status="succeeded",
+            # No earnings metadata provided
+        )
+
+        assert payment is not None
+        assert payment.base_price_cents is None
+        assert payment.instructor_tier_pct is None
+        assert payment.instructor_payout_cents is None
+
+    def test_create_payment_record_stores_founding_instructor_tier(
+        self, payment_repo: PaymentRepository, test_booking: Booking
+    ):
+        """Test that 8% founding instructor tier is stored correctly."""
+        from decimal import Decimal
+
+        payment_intent_id = f"pi_{ulid.ULID()}"
+
+        payment = payment_repo.create_payment_record(
+            test_booking.id,
+            payment_intent_id,
+            amount=5600,
+            application_fee=400,  # 8% of $50 = $4
+            status="succeeded",
+            base_price_cents=5000,
+            instructor_tier_pct=Decimal("0.08"),  # 8% founding rate
+            instructor_payout_cents=4600,  # $50 - $4 = $46
+        )
+
+        assert payment.instructor_tier_pct == Decimal("0.08")
+        assert payment.instructor_payout_cents == 4600
+
+    def test_create_payment_record_stores_standard_instructor_tier(
+        self, payment_repo: PaymentRepository, test_booking: Booking
+    ):
+        """Test that 12% standard instructor tier is stored correctly."""
+        from decimal import Decimal
+
+        payment_intent_id = f"pi_{ulid.ULID()}"
+
+        payment = payment_repo.create_payment_record(
+            test_booking.id,
+            payment_intent_id,
+            amount=5600,
+            application_fee=600,  # 12% of $50 = $6
+            status="succeeded",
+            base_price_cents=5000,
+            instructor_tier_pct=Decimal("0.12"),  # 12% standard rate
+            instructor_payout_cents=4400,  # $50 - $6 = $44
+        )
+
+        assert payment.instructor_tier_pct == Decimal("0.12")
+        assert payment.instructor_payout_cents == 4400
+
     @pytest.mark.parametrize(
         ("method_name", "args"),
         [

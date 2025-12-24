@@ -15,6 +15,7 @@ This repository handles:
 """
 
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 import logging
 from typing import Any, Dict, List, Optional, Tuple, cast
 
@@ -217,6 +218,10 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         amount: int,
         application_fee: int,
         status: str = "requires_payment_method",
+        *,
+        base_price_cents: Optional[int] = None,
+        instructor_tier_pct: Optional[Decimal] = None,
+        instructor_payout_cents: Optional[int] = None,
     ) -> PaymentIntent:
         """
         Create a new payment intent record for a booking.
@@ -227,6 +232,9 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
             amount: Total amount in cents
             application_fee: Platform fee in cents
             status: Payment status (default: requires_payment_method)
+            base_price_cents: Lesson price in cents (optional, for earnings display)
+            instructor_tier_pct: Instructor's platform fee rate (optional, for earnings display)
+            instructor_payout_cents: Amount transferred to instructor in cents (optional)
 
         Returns:
             Created PaymentIntent object
@@ -242,6 +250,9 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
                 amount=amount,
                 application_fee=application_fee,
                 status=status,
+                base_price_cents=base_price_cents,
+                instructor_tier_pct=instructor_tier_pct,
+                instructor_payout_cents=instructor_payout_cents,
             )
             self.db.add(payment)
             self.db.flush()

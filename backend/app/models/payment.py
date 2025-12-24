@@ -7,9 +7,10 @@ payment intents, payment methods, payment events, and platform credits.
 """
 
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import ulid
@@ -95,6 +96,17 @@ class PaymentIntent(Base):
         Integer, nullable=False, comment="Platform fee in cents"
     )
     status: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    # Earnings metadata (stored at payment creation for accurate display)
+    base_price_cents: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Lesson price in cents (hourly_rate * duration)"
+    )
+    instructor_tier_pct: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(5, 4), nullable=True, comment="Instructor platform fee rate (e.g., 0.12 for 12%)"
+    )
+    instructor_payout_cents: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Amount transferred to instructor in cents"
+    )
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

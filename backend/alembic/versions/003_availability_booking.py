@@ -327,6 +327,10 @@ def upgrade() -> None:
         sa.Column("amount", sa.Integer(), nullable=False, comment="Amount in cents"),
         sa.Column("application_fee", sa.Integer(), nullable=False, comment="Platform fee in cents"),
         sa.Column("status", sa.String(50), nullable=False),
+        # Earnings metadata (stored at payment creation for accurate display)
+        sa.Column("base_price_cents", sa.Integer(), nullable=True, comment="Lesson price in cents (hourly_rate * duration)"),
+        sa.Column("instructor_tier_pct", sa.Numeric(5, 4), nullable=True, comment="Instructor platform fee rate (e.g., 0.12 for 12%)"),
+        sa.Column("instructor_payout_cents", sa.Integer(), nullable=True, comment="Amount transferred to instructor in cents"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
         sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),

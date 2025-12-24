@@ -641,29 +641,32 @@ class StripeService(BaseService):
             tip_cents = _money_to_cents(summary.tip_paid if summary else None)
             total_tips += tip_cents
 
-            # Calculate instructor-centric amounts for display
-            lesson_price_cents = _compute_base_price_cents(booking.hourly_rate, minutes)
-            student_fee_cents_calc = int(
-                Decimal(lesson_price_cents) * Decimal(str(student_fee_pct))
-            )
-            # instructor_share_cents is the actual amount from payment records
-            instructor_share_cents = max(
-                0, int(payment.amount or 0) - int(payment.application_fee or 0)
-            )
+            # Read earnings metadata from DB (stored at payment creation time)
+            # Falls back to computed values for legacy payments without metadata
+            if payment.base_price_cents is not None:
+                lesson_price_cents = payment.base_price_cents
+            else:
+                lesson_price_cents = _compute_base_price_cents(booking.hourly_rate, minutes)
 
-            # Derive actual tier percentage from payment data
-            # instructor_fee = lesson_price - instructor_share (credits cancel out)
-            actual_instructor_fee_cents = lesson_price_cents - instructor_share_cents
-            if lesson_price_cents > 0 and actual_instructor_fee_cents >= 0:
-                actual_tier_pct = float(actual_instructor_fee_cents) / float(lesson_price_cents)
-                # Sanity check: tier should be between 0 and 25%
-                if not (0 <= actual_tier_pct <= 0.25):
-                    actual_tier_pct = fallback_tier_pct
+            if payment.instructor_tier_pct is not None:
+                actual_tier_pct = float(payment.instructor_tier_pct)
             else:
                 actual_tier_pct = fallback_tier_pct
 
-            platform_fee_cents = (
-                actual_instructor_fee_cents if actual_instructor_fee_cents >= 0 else 0
+            if payment.instructor_payout_cents is not None:
+                instructor_share_cents = payment.instructor_payout_cents
+            else:
+                # Fallback: calculate from payment amounts
+                instructor_share_cents = max(
+                    0, int(payment.amount or 0) - int(payment.application_fee or 0)
+                )
+
+            # Calculate platform fee from tier (or derive from payment data for legacy)
+            platform_fee_cents = int(lesson_price_cents * actual_tier_pct)
+
+            # Calculate student fee for display
+            student_fee_cents_calc = int(
+                Decimal(lesson_price_cents) * Decimal(str(student_fee_pct))
             )
 
             # Aggregate totals
@@ -1336,6 +1339,9 @@ class StripeService(BaseService):
                     amount=context.student_pay_cents,
                     application_fee=context.application_fee_cents,
                     status="requires_payment_method",
+                    base_price_cents=context.base_price_cents,
+                    instructor_tier_pct=context.instructor_tier_pct,
+                    instructor_payout_cents=context.target_instructor_payout_cents,
                 )
                 booking.payment_intent_id = mock_id
                 booking.payment_status = "authorized"
@@ -1348,6 +1354,9 @@ class StripeService(BaseService):
             amount=context.student_pay_cents,
             application_fee=context.application_fee_cents,
             status=stripe_intent.status,
+            base_price_cents=context.base_price_cents,
+            instructor_tier_pct=context.instructor_tier_pct,
+            instructor_payout_cents=context.target_instructor_payout_cents,
         )
 
         booking.payment_intent_id = stripe_intent.id
@@ -2226,6 +2235,9 @@ class StripeService(BaseService):
                         amount=amount,
                         application_fee=platform_retained_cents,
                         status=stripe_intent.status,
+                        base_price_cents=ctx.base_price_cents if ctx else None,
+                        instructor_tier_pct=ctx.instructor_tier_pct if ctx else None,
+                        instructor_payout_cents=ctx.target_instructor_payout_cents if ctx else None,
                     )
                     self.logger.info(
                         f"Created payment intent {stripe_intent.id} for booking {booking_id}"
@@ -2242,6 +2254,11 @@ class StripeService(BaseService):
                             amount=amount,
                             application_fee=platform_retained_cents,
                             status="requires_payment_method",
+                            base_price_cents=ctx.base_price_cents if ctx else None,
+                            instructor_tier_pct=ctx.instructor_tier_pct if ctx else None,
+                            instructor_payout_cents=ctx.target_instructor_payout_cents
+                            if ctx
+                            else None,
                         )
                     raise
 
