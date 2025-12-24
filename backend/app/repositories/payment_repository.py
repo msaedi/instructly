@@ -17,7 +17,7 @@ This repository handles:
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 import logging
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func
 from sqlalchemy.exc import IntegrityError
@@ -1022,6 +1022,88 @@ class PaymentRepository(BaseRepository[PaymentIntent]):
         except Exception as e:
             self.logger.error(f"Failed to get payment events: {str(e)}")
             raise RepositoryException(f"Failed to get payment events: {str(e)}")
+
+    def list_payment_events_by_types(
+        self,
+        event_types: Sequence[str],
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        limit: Optional[int] = 50,
+        offset: int = 0,
+        desc: bool = True,
+    ) -> List[PaymentEvent]:
+        """
+        List payment events by event types with optional date filtering.
+
+        Args:
+            event_types: Event types to include.
+            start: Optional start datetime (inclusive).
+            end: Optional end datetime (inclusive).
+            limit: Optional maximum rows to return (None for no limit).
+            offset: Rows to skip before returning results.
+            desc: Order descending by created_at when True.
+
+        Returns:
+            List of PaymentEvent objects.
+        """
+        try:
+            query = self.db.query(PaymentEvent).filter(PaymentEvent.event_type.in_(event_types))
+            if start:
+                query = query.filter(PaymentEvent.created_at >= start)
+            if end:
+                query = query.filter(PaymentEvent.created_at <= end)
+
+            order_by = PaymentEvent.created_at.desc() if desc else PaymentEvent.created_at.asc()
+            query = query.order_by(order_by)
+
+            offset = max(0, offset)
+            if offset:
+                query = query.offset(offset)
+            if limit is not None:
+                query = query.limit(max(0, limit))
+
+            return cast(List[PaymentEvent], query.all())
+        except Exception as e:
+            self.logger.error(f"Failed to list payment events by type: {str(e)}")
+            raise RepositoryException(f"Failed to list payment events: {str(e)}")
+
+    def count_payment_events_by_types(
+        self,
+        event_types: Sequence[str],
+        *,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+    ) -> int:
+        """Count payment events by event types with optional date filtering."""
+        try:
+            query = (
+                self.db.query(func.count())
+                .select_from(PaymentEvent)
+                .filter(PaymentEvent.event_type.in_(event_types))
+            )
+            if start:
+                query = query.filter(PaymentEvent.created_at >= start)
+            if end:
+                query = query.filter(PaymentEvent.created_at <= end)
+            return int(query.scalar() or 0)
+        except Exception as e:
+            self.logger.error(f"Failed to count payment events by type: {str(e)}")
+            raise RepositoryException(f"Failed to count payment events: {str(e)}")
+
+    def sum_application_fee_for_booking_date_range(self, start: date, end: date) -> int:
+        """Sum application fees for bookings in the given date range."""
+        try:
+            total = (
+                self.db.query(func.coalesce(func.sum(PaymentIntent.application_fee), 0))
+                .join(Booking, Booking.id == PaymentIntent.booking_id)
+                .filter(Booking.booking_date >= start, Booking.booking_date <= end)
+                .scalar()
+            )
+            return int(total or 0)
+        except Exception as e:
+            self.logger.error(f"Failed to sum application fee: {str(e)}")
+            raise RepositoryException(f"Failed to sum application fee: {str(e)}")
 
     def get_latest_payment_event(
         self, booking_id: str, event_type: Optional[str] = None

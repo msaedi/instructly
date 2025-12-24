@@ -188,6 +188,41 @@ export interface AddressUpdate {
   verification_status?: AddressUpdateVerificationStatus;
 }
 
+export interface AdminAuditActor {
+  email: string;
+  id: string;
+}
+
+export type AdminAuditEntryDetailsAnyOf = { [key: string]: unknown };
+
+export type AdminAuditEntryDetails = AdminAuditEntryDetailsAnyOf | null;
+
+export interface AdminAuditEntry {
+  action: string;
+  admin: AdminAuditActor;
+  details?: AdminAuditEntryDetails;
+  id: string;
+  resource_id: string;
+  resource_type: string;
+  timestamp: string;
+}
+
+export interface AdminAuditLogResponse {
+  entries: AdminAuditEntry[];
+  page: number;
+  per_page: number;
+  summary: AdminAuditLogSummary;
+  total: number;
+  total_pages: number;
+}
+
+export interface AdminAuditLogSummary {
+  captures_count: number;
+  captures_total: number;
+  refunds_count: number;
+  refunds_total: number;
+}
+
 export type AdminAwardBadgeSchemaCriteriaType = string | null;
 
 export interface AdminAwardBadgeSchema {
@@ -234,6 +269,172 @@ export interface AdminAwardStudentSchema {
   display_name?: AdminAwardStudentSchemaDisplayName;
   email?: AdminAwardStudentSchemaEmail;
   id: string;
+}
+
+export type AdminBookingDetailResponseCreatedAt = string | null;
+
+export type AdminBookingDetailResponseInstructorNote = string | null;
+
+export type AdminBookingDetailResponseLocationType = string | null;
+
+export type AdminBookingDetailResponseMeetingLocation = string | null;
+
+export type AdminBookingDetailResponseStudentNote = string | null;
+
+export type AdminBookingDetailResponseUpdatedAt = string | null;
+
+export interface AdminBookingDetailResponse {
+  booking_date: string;
+  created_at?: AdminBookingDetailResponseCreatedAt;
+  end_time: string;
+  id: string;
+  instructor: AdminBookingPerson;
+  instructor_note?: AdminBookingDetailResponseInstructorNote;
+  location_type?: AdminBookingDetailResponseLocationType;
+  meeting_location?: AdminBookingDetailResponseMeetingLocation;
+  payment: AdminBookingPaymentInfo;
+  service: AdminBookingServiceInfo;
+  start_time: string;
+  status: string;
+  student: AdminBookingPerson;
+  student_note?: AdminBookingDetailResponseStudentNote;
+  timeline: AdminBookingTimelineEvent[];
+  updated_at?: AdminBookingDetailResponseUpdatedAt;
+}
+
+export type AdminBookingListItemCreatedAt = string | null;
+
+export type AdminBookingListItemPaymentIntentId = string | null;
+
+export type AdminBookingListItemPaymentStatus = string | null;
+
+export interface AdminBookingListItem {
+  booking_date: string;
+  created_at?: AdminBookingListItemCreatedAt;
+  end_time: string;
+  id: string;
+  instructor: AdminBookingPerson;
+  payment_intent_id?: AdminBookingListItemPaymentIntentId;
+  payment_status?: AdminBookingListItemPaymentStatus;
+  service_name: string;
+  start_time: string;
+  status: string;
+  student: AdminBookingPerson;
+  total_price: number;
+}
+
+export interface AdminBookingListResponse {
+  bookings: AdminBookingListItem[];
+  page: number;
+  per_page: number;
+  total: number;
+  total_pages: number;
+}
+
+export type AdminBookingPaymentInfoPaymentIntentId = string | null;
+
+export type AdminBookingPaymentInfoPaymentStatus = string | null;
+
+export type AdminBookingPaymentInfoStripeUrl = string | null;
+
+export interface AdminBookingPaymentInfo {
+  credits_applied: number;
+  instructor_payout: number;
+  lesson_price: number;
+  payment_intent_id?: AdminBookingPaymentInfoPaymentIntentId;
+  payment_status?: AdminBookingPaymentInfoPaymentStatus;
+  platform_fee: number;
+  platform_revenue: number;
+  stripe_url?: AdminBookingPaymentInfoStripeUrl;
+  total_price: number;
+}
+
+export type AdminBookingPersonPhone = string | null;
+
+export interface AdminBookingPerson {
+  email: string;
+  id: string;
+  name: string;
+  phone?: AdminBookingPersonPhone;
+}
+
+export type AdminBookingServiceInfoId = string | null;
+
+export interface AdminBookingServiceInfo {
+  duration_minutes: number;
+  hourly_rate: number;
+  id?: AdminBookingServiceInfoId;
+  name: string;
+}
+
+export interface AdminBookingStatsNeedsAction {
+  disputed: number;
+  pending_completion: number;
+}
+
+export interface AdminBookingStatsResponse {
+  needs_action: AdminBookingStatsNeedsAction;
+  this_week: AdminBookingStatsWeek;
+  today: AdminBookingStatsToday;
+}
+
+export interface AdminBookingStatsToday {
+  booking_count: number;
+  revenue: number;
+}
+
+export interface AdminBookingStatsWeek {
+  gmv: number;
+  platform_revenue: number;
+}
+
+export type AdminBookingStatusUpdate =
+  (typeof AdminBookingStatusUpdate)[keyof typeof AdminBookingStatusUpdate];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AdminBookingStatusUpdate = {
+  COMPLETED: 'COMPLETED',
+  NO_SHOW: 'NO_SHOW',
+} as const;
+
+export type AdminBookingStatusUpdateRequestNote = string | null;
+
+export interface AdminBookingStatusUpdateRequest {
+  note?: AdminBookingStatusUpdateRequestNote;
+  status: AdminBookingStatusUpdate;
+}
+
+export interface AdminBookingStatusUpdateResponse {
+  booking_id: string;
+  booking_status: string;
+  success: boolean;
+}
+
+export type AdminBookingTimelineEventAmount = number | null;
+
+export interface AdminBookingTimelineEvent {
+  amount?: AdminBookingTimelineEventAmount;
+  event: string;
+  timestamp: string;
+}
+
+export type AdminCancelBookingRequestNote = string | null;
+
+export interface AdminCancelBookingRequest {
+  note?: AdminCancelBookingRequestNote;
+  /** @maxLength 100 */
+  reason: string;
+  refund?: boolean;
+}
+
+export type AdminCancelBookingResponseRefundId = string | null;
+
+export interface AdminCancelBookingResponse {
+  booking_id: string;
+  booking_status: string;
+  refund_id?: AdminCancelBookingResponseRefundId;
+  refund_issued: boolean;
+  success: boolean;
 }
 
 export type AdminInstructorDetailResponseBgcCompletedAt = string | null;
@@ -6707,6 +6908,22 @@ export type ListAuditLogsApiV1AdminAuditGetParams = {
   offset?: number;
 };
 
+export type ListAdminAuditLogApiV1AdminAuditLogGetParams = {
+  action?: string[] | null;
+  admin_id?: string | null;
+  date_from?: string | null;
+  date_to?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  per_page?: number;
+};
+
 export type BgcCasesApiV1AdminBackgroundChecksCasesGetParams = {
   /**
    * review, pending, or all
@@ -6807,6 +7024,24 @@ export type ListPendingAwardsApiV1AdminBadgesPendingGetParams = {
    * @minimum 0
    */
   offset?: number;
+};
+
+export type ListAdminBookingsApiV1AdminBookingsGetParams = {
+  search?: string | null;
+  status?: string[] | null;
+  payment_status?: string[] | null;
+  date_from?: string | null;
+  date_to?: string | null;
+  needs_action?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  per_page?: number;
 };
 
 export type ExportAnalyticsApiV1AnalyticsExportPostParams = {

@@ -132,6 +132,7 @@ from .routes.v1.admin import (
     auth_blocks as admin_auth_blocks_v1,
     background_checks as admin_background_checks_v1,
     badges as admin_badges_v1,
+    bookings as admin_bookings_v1,
     config as admin_config_v1,
     instructors as admin_instructors_v1,
     location_learning as admin_location_learning_v1,
@@ -1045,6 +1046,7 @@ api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/backgrou
 api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
 api_v1.include_router(admin_auth_blocks_v1.router, prefix="/admin/auth-blocks")  # type: ignore[attr-defined]
 api_v1.include_router(admin_location_learning_v1.router, prefix="/admin/location-learning")  # type: ignore[attr-defined]
+api_v1.include_router(admin_bookings_v1.router, prefix="/admin")  # type: ignore[attr-defined]
 api_v1.include_router(admin_refunds_v1.router, prefix="/admin/bookings")  # type: ignore[attr-defined]
 # Phase 23 v1 webhooks router
 api_v1.include_router(webhooks_checkr_v1.router, prefix="/webhooks/checkr")  # type: ignore[attr-defined]

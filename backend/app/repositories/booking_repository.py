@@ -19,12 +19,13 @@ This repository handles:
 """
 
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 import logging
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Query, Session, joinedload
+from sqlalchemy.orm import Query, Session, aliased, joinedload
 
 from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
@@ -876,6 +877,143 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         except Exception as e:
             self.logger.error(f"Error getting booking details: {str(e)}")
             raise RepositoryException(f"Failed to get booking details: {str(e)}")
+
+    def list_admin_bookings(
+        self,
+        *,
+        search: Optional[str],
+        statuses: Optional[Sequence[str]],
+        payment_statuses: Optional[Sequence[str]],
+        date_from: Optional[date],
+        date_to: Optional[date],
+        needs_action: Optional[bool],
+        now: Optional[datetime],
+        page: int,
+        per_page: int,
+    ) -> tuple[List[Booking], int]:
+        """Return admin booking list with filters and pagination."""
+        try:
+            query = self.db.query(Booking).options(
+                joinedload(Booking.student),
+                joinedload(Booking.instructor),
+                joinedload(Booking.instructor_service),
+            )
+
+            if search:
+                student_alias = aliased(User)
+                instructor_alias = aliased(User)
+                term = f"%{search.strip()}%"
+                query = (
+                    query.join(student_alias, Booking.student_id == student_alias.id)
+                    .join(instructor_alias, Booking.instructor_id == instructor_alias.id)
+                    .filter(
+                        or_(
+                            Booking.id.ilike(term),
+                            Booking.service_name.ilike(term),
+                            Booking.payment_intent_id.ilike(term),
+                            student_alias.first_name.ilike(term),
+                            student_alias.last_name.ilike(term),
+                            student_alias.email.ilike(term),
+                            instructor_alias.first_name.ilike(term),
+                            instructor_alias.last_name.ilike(term),
+                            instructor_alias.email.ilike(term),
+                        )
+                    )
+                )
+
+            if statuses:
+                cleaned = [status.upper() for status in statuses if status]
+                if cleaned:
+                    query = query.filter(Booking.status.in_(cleaned))
+
+            if payment_statuses:
+                cleaned = [status.lower() for status in payment_statuses if status]
+                if cleaned:
+                    filters = []
+                    if "pending" in cleaned:
+                        filters.append(Booking.payment_status.is_(None))
+                        filters.append(func.lower(Booking.payment_status) == "pending")
+                        cleaned = [status for status in cleaned if status != "pending"]
+                    if cleaned:
+                        filters.append(func.lower(Booking.payment_status).in_(cleaned))
+                    query = query.filter(or_(*filters))
+
+            if date_from:
+                query = query.filter(Booking.booking_date >= date_from)
+            if date_to:
+                query = query.filter(Booking.booking_date <= date_to)
+
+            if needs_action:
+                effective_now = now or datetime.now(timezone.utc)
+                query = query.filter(Booking.status == BookingStatus.CONFIRMED)
+                query = query.filter(
+                    or_(
+                        Booking.booking_date < effective_now.date(),
+                        and_(
+                            Booking.booking_date == effective_now.date(),
+                            Booking.end_time <= effective_now.time(),
+                        ),
+                    )
+                )
+
+            total = int(query.count())
+            offset = max(0, (page - 1) * per_page)
+            bookings = (
+                query.order_by(Booking.created_at.desc()).offset(offset).limit(per_page).all()
+            )
+            return cast(List[Booking], bookings), total
+        except Exception as e:
+            self.logger.error(f"Error listing admin bookings: {str(e)}")
+            raise RepositoryException(f"Failed to list admin bookings: {str(e)}")
+
+    def count_bookings_in_date_range(self, start: date, end: date) -> int:
+        """Count bookings between two dates."""
+        try:
+            count = (
+                self.db.query(func.count())
+                .select_from(Booking)
+                .filter(Booking.booking_date >= start, Booking.booking_date <= end)
+                .scalar()
+            )
+            return int(count or 0)
+        except Exception as e:
+            self.logger.error(f"Error counting bookings in range: {str(e)}")
+            raise RepositoryException(f"Failed to count bookings: {str(e)}")
+
+    def sum_total_price_in_date_range(self, start: date, end: date) -> Decimal:
+        """Sum total_price between two dates."""
+        try:
+            total = (
+                self.db.query(func.coalesce(func.sum(Booking.total_price), 0))
+                .filter(Booking.booking_date >= start, Booking.booking_date <= end)
+                .scalar()
+            )
+            return cast(Decimal, total)
+        except Exception as e:
+            self.logger.error(f"Error summing total_price in range: {str(e)}")
+            raise RepositoryException(f"Failed to sum booking totals: {str(e)}")
+
+    def count_pending_completion(self, now: datetime) -> int:
+        """Count confirmed bookings that should be completed or no-show."""
+        try:
+            today = now.date()
+            now_time = now.time()
+            count = (
+                self.db.query(func.count())
+                .select_from(Booking)
+                .filter(
+                    Booking.status == BookingStatus.CONFIRMED,
+                    or_(
+                        Booking.booking_date < today,
+                        and_(Booking.booking_date == today, Booking.end_time <= now_time),
+                    ),
+                )
+                .scalar()
+            )
+            return int(count or 0)
+        except Exception as e:
+            self.logger.error(f"Error counting pending completion bookings: {str(e)}")
+            raise RepositoryException(f"Failed to count pending completion bookings: {str(e)}")
 
     # Statistics Queries (unchanged)
 
