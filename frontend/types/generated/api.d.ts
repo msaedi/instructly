@@ -701,6 +701,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/bookings/{booking_id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Refund Booking
+         * @description Issue a refund for a booking (admin only).
+         */
+        post: operations["admin_refund_booking_api_v1_admin_bookings__booking_id__refund_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/config/pricing": {
         parameters: {
             query?: never;
@@ -5809,6 +5829,41 @@ export type components = {
             };
             /** Top Referrers */
             top_referrers: components["schemas"]["TopReferrerOut"][];
+        };
+        /**
+         * AdminRefundReason
+         * @enum {string}
+         */
+        AdminRefundReason: "instructor_no_show" | "dispute" | "platform_error" | "other";
+        /** AdminRefundRequest */
+        AdminRefundRequest: {
+            /**
+             * Amount Cents
+             * @description Refund amount in cents. Full refund if not provided.
+             */
+            amount_cents?: number | null;
+            /**
+             * Note
+             * @description Admin note explaining the refund
+             */
+            note?: string | null;
+            /** @description Reason for refund */
+            reason: components["schemas"]["AdminRefundReason"];
+        };
+        /** AdminRefundResponse */
+        AdminRefundResponse: {
+            /** Amount Refunded Cents */
+            amount_refunded_cents: number;
+            /** Booking Id */
+            booking_id: string;
+            /** Booking Status */
+            booking_status: string;
+            /** Message */
+            message: string;
+            /** Refund Id */
+            refund_id: string;
+            /** Success */
+            success: boolean;
         };
         /**
          * AdminSearchConfigResponse
@@ -15265,6 +15320,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminAwardSchema"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_refund_booking_api_v1_admin_bookings__booking_id__refund_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRefundRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRefundResponse"];
                 };
             };
             /** @description Validation Error */

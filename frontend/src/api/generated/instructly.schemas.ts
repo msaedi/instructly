@@ -338,6 +338,44 @@ export interface AdminReferralsSummaryOut {
   top_referrers: TopReferrerOut[];
 }
 
+export type AdminRefundReason = (typeof AdminRefundReason)[keyof typeof AdminRefundReason];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AdminRefundReason = {
+  instructor_no_show: 'instructor_no_show',
+  dispute: 'dispute',
+  platform_error: 'platform_error',
+  other: 'other',
+} as const;
+
+/**
+ * Refund amount in cents. Full refund if not provided.
+ */
+export type AdminRefundRequestAmountCents = number | null;
+
+/**
+ * Admin note explaining the refund
+ */
+export type AdminRefundRequestNote = string | null;
+
+export interface AdminRefundRequest {
+  /** Refund amount in cents. Full refund if not provided. */
+  amount_cents?: AdminRefundRequestAmountCents;
+  /** Admin note explaining the refund */
+  note?: AdminRefundRequestNote;
+  /** Reason for refund */
+  reason: AdminRefundReason;
+}
+
+export interface AdminRefundResponse {
+  amount_refunded_cents: number;
+  booking_id: string;
+  booking_status: string;
+  message: string;
+  refund_id: string;
+  success: boolean;
+}
+
 /**
  * Admin search configuration with runtime controls.
  */

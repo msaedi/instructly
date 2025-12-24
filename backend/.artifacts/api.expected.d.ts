@@ -543,6 +543,22 @@ export type paths = {
  patch?: never;
  trace?: never;
  };
+ "/api/v1/admin/bookings/{booking_id}/refund": {
+ parameters: {
+ query?: never;
+ header?: never;
+ path?: never;
+ cookie?: never;
+ };
+ get?: never;
+ put?: never;
+ post: operations["admin_refund_booking_api_v1_admin_bookings__booking_id__refund_post"];
+ delete?: never;
+ options?: never;
+ head?: never;
+ patch?: never;
+ trace?: never;
+ };
  "/api/v1/admin/config/pricing": {
  parameters: {
  query?: never;
@@ -3945,6 +3961,20 @@ export type components = {
  [key: string]: number;
  };
  top_referrers: components["schemas"]["TopReferrerOut"][];
+ };
+ AdminRefundReason: "instructor_no_show" | "dispute" | "platform_error" | "other";
+ AdminRefundRequest: {
+ amount_cents?: number | null;
+ note?: string | null;
+ reason: components["schemas"]["AdminRefundReason"];
+ };
+ AdminRefundResponse: {
+ amount_refunded_cents: number;
+ booking_id: string;
+ booking_status: string;
+ message: string;
+ refund_id: string;
+ success: boolean;
  };
  AdminSearchConfigResponse: {
  available_embedding_models: components["schemas"]["ModelOption"][];
@@ -7475,6 +7505,39 @@ export interface operations {
  };
  content: {
  "application/json": components["schemas"]["AdminAwardSchema"];
+ };
+ };
+ 422: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["HTTPValidationError"];
+ };
+ };
+ };
+ };
+ admin_refund_booking_api_v1_admin_bookings__booking_id__refund_post: {
+ parameters: {
+ query?: never;
+ header?: never;
+ path: {
+ booking_id: string;
+ };
+ cookie?: never;
+ };
+ requestBody: {
+ content: {
+ "application/json": components["schemas"]["AdminRefundRequest"];
+ };
+ };
+ responses: {
+ 200: {
+ headers: {
+ [name: string]: unknown;
+ };
+ content: {
+ "application/json": components["schemas"]["AdminRefundResponse"];
  };
  };
  422: {

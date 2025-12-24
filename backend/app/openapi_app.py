@@ -58,6 +58,7 @@ from app.routes.v1.admin import (
     badges as admin_badges_v1,
     config as admin_config_v1,
     instructors as admin_instructors_v1,
+    refunds as admin_refunds_v1,
     search_config as admin_search_config_v1,
 )
 
@@ -127,6 +128,7 @@ def build_openapi_app() -> FastAPI:
     api_v1.include_router(admin_badges_v1.router, prefix="/admin/badges")  # type: ignore[attr-defined]
     api_v1.include_router(admin_background_checks_v1.router, prefix="/admin/background-checks")  # type: ignore[attr-defined]
     api_v1.include_router(admin_instructors_v1.router, prefix="/admin/instructors")  # type: ignore[attr-defined]
+    api_v1.include_router(admin_refunds_v1.router, prefix="/admin/bookings")  # type: ignore[attr-defined]
     api_v1.include_router(referrals_v1.admin_router, prefix="/admin/referrals")  # type: ignore[attr-defined]
 
     # Webhook routes
