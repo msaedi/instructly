@@ -123,14 +123,17 @@ class StripeService(BaseService):
             if settings.stripe_secret_key:
                 stripe.api_key = settings.stripe_secret_key.get_secret_value()
                 # Set sane network timeouts/retries to avoid blocking the server on Stripe calls
+                # IMPORTANT: Keep timeout low (3s) to avoid holding DB transactions open too long
+                # during cancel_booking and other flows that call Stripe inside transactions.
+                # TODO (Part 12): Refactor to move Stripe calls outside DB transactions entirely.
                 try:
-                    # 8s overall timeout; 1 retry for transient failures
+                    # 3s overall timeout; 1 retry for transient failures
                     # Note: Stripe 14.x moved http_client to _http_client (private API)
                     http_client_module = getattr(stripe, "_http_client", None) or getattr(
                         stripe, "http_client", None
                     )
                     if http_client_module:
-                        stripe.default_http_client = http_client_module.RequestsClient(timeout=8)
+                        stripe.default_http_client = http_client_module.RequestsClient(timeout=3)
                     stripe.max_network_retries = 1
                     stripe.verify_ssl_certs = True
                 except Exception:
@@ -2393,8 +2396,20 @@ class StripeService(BaseService):
             "transfer_amount": int|None,  # The instructor payout amount
         }
         """
+        import time
+
         try:
+            # Log Stripe API call timing separately for slow query diagnosis
+            api_start = time.time()
             pi = stripe.PaymentIntent.capture(payment_intent_id, idempotency_key=idempotency_key)
+            api_duration_ms = (time.time() - api_start) * 1000
+            self.logger.info(
+                f"Stripe PaymentIntent.capture API call took {api_duration_ms:.0f}ms",
+                extra={
+                    "stripe_api_duration_ms": api_duration_ms,
+                    "payment_intent_id": payment_intent_id,
+                },
+            )
 
             charge_id = None
             transfer_id = None
@@ -2481,20 +2496,25 @@ class StripeService(BaseService):
         """
         Reverse a transfer (full or partial) back to platform balance.
         """
+        import time
+
         try:
-            params: Dict[str, Any] = {"transfer": transfer_id}
-            if amount_cents is not None:
-                params["amount"] = amount_cents
-            if reason:
-                params["metadata"] = {"reason": reason}
             # stripe.Transfer.create_reversal expects transfer id as positional arg
             kwargs: Dict[str, Any] = {}
             if amount_cents is not None:
                 kwargs["amount"] = amount_cents
             if reason:
                 kwargs["metadata"] = {"reason": reason}
+
+            # Log Stripe API call timing separately for slow query diagnosis
+            api_start = time.time()
             reversal = stripe.Transfer.create_reversal(
                 transfer_id, idempotency_key=idempotency_key, **kwargs
+            )
+            api_duration_ms = (time.time() - api_start) * 1000
+            self.logger.info(
+                f"Stripe Transfer.create_reversal API call took {api_duration_ms:.0f}ms",
+                extra={"stripe_api_duration_ms": api_duration_ms, "transfer_id": transfer_id},
             )
 
             # Alert/metrics for insufficient funds or negative balance scenarios

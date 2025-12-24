@@ -943,6 +943,14 @@ class BookingService(BaseService):
             NotFoundException: If booking not found
             ValidationException: If user cannot cancel
             BusinessRuleException: If booking not cancellable
+
+        TODO (Part 12): Refactor to move Stripe API calls outside the database transaction.
+        Currently this method holds DB locks while making network calls to Stripe
+        (capture_payment_intent, reverse_transfer), which can cause slow UPDATE queries
+        when the transaction commits. The fix is to split into 3 phases:
+        1. Phase 1: Read/validate booking (quick transaction, release locks)
+        2. Phase 2: Make Stripe calls (NO transaction, NO locks held)
+        3. Phase 3: Update booking status (quick transaction)
         """
         with self.transaction():
             # Load booking with relationships
