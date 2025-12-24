@@ -146,6 +146,14 @@ class ReviewService(BaseService):
         # Eligibility
         if booking.student_id != student_id:
             raise ValidationException("You can only review your own booking")
+
+        # Explicit NO_SHOW check with clear message (blocks reviews AND tips)
+        if booking.status == BookingStatus.NO_SHOW:
+            raise ValidationException(
+                "Cannot review a lesson you did not attend. "
+                "This booking was marked as a no-show."
+            )
+
         if booking.status not in [BookingStatus.COMPLETED, BookingStatus.CONFIRMED]:
             raise ValidationException("Only completed bookings can be reviewed")
 
