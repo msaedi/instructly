@@ -132,7 +132,7 @@ export default function BookingFilters({ filters, onChange }: BookingFiltersProp
                 'rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition',
                 active
                   ? 'bg-indigo-600 text-white ring-indigo-400'
-                  : 'bg-white/80 text-gray-700 ring-gray-200 hover:bg-indigo-50'
+                  : 'bg-white/80 text-gray-700 ring-gray-200 hover:bg-indigo-50 dark:bg-gray-900/60 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-800/60'
               )}
             >
               {filter.label}

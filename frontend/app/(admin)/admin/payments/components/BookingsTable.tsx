@@ -129,11 +129,9 @@ export default function BookingsTable({
                   </td>
                   <td className="px-4 py-4">
                     <div className="font-medium text-gray-900 dark:text-gray-100">{booking.student.name}</div>
-                    <div className="text-xs text-gray-500">{booking.student.email}</div>
                   </td>
                   <td className="px-4 py-4">
                     <div className="font-medium text-gray-900 dark:text-gray-100">{booking.instructor.name}</div>
-                    <div className="text-xs text-gray-500">{booking.instructor.email}</div>
                   </td>
                   <td className="px-4 py-4">
                     <div className="text-gray-900 dark:text-gray-100">{formatDate(booking.booking_date)}</div>
@@ -141,7 +139,6 @@ export default function BookingsTable({
                   </td>
                   <td className="px-4 py-4">
                     <div className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(booking.total_price)}</div>
-                    <div className="text-xs text-gray-500">{booking.payment_intent_id}</div>
                   </td>
                   <td className="px-4 py-4 space-y-2">
                     <StatusBadge value={booking.status} />
