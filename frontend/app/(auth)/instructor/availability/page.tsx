@@ -107,6 +107,7 @@ function AvailabilityPageImpl() {
   const [endHour, setEndHour] = useState<number>(AVAILABILITY_CONSTANTS.DEFAULT_END_HOUR);
   const [lastUpdatedLocal, setLastUpdatedLocal] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [cookiesInitialized, setCookiesInitialized] = useState(false);
 
   // Refs to track current hour range for auto-expand logic (avoids dependency array issues)
   const startHourRef = useRef(startHour);
@@ -215,13 +216,18 @@ function AvailabilityPageImpl() {
         setEndHour(parsed);
       }
     }
+    // Mark initialization complete AFTER reading cookies
+    setCookiesInitialized(true);
   }, [getCookie]);
 
-  // Persist hour range preference to cookies
+  // Persist hour range preference to cookies (only after initialization)
   useEffect(() => {
+    // Don't write until cookies have been read - prevents race condition
+    // that would overwrite user preferences with defaults
+    if (!cookiesInitialized) return;
     setCookie('availability_start_hour', startHour.toString());
     setCookie('availability_end_hour', endHour.toString());
-  }, [startHour, endHour, setCookie]);
+  }, [startHour, endHour, setCookie, cookiesInitialized]);
 
   // Auto-expand hour range when availability exists outside visible window
   useEffect(() => {
