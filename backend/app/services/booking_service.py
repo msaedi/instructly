@@ -350,7 +350,8 @@ class BookingService(BaseService):
         """
         # Client always sends times in instructor's local timezone
         # No conversion needed - just use the provided date
-        return booking_data.booking_date
+        result: date = booking_data.booking_date
+        return result
 
     def _validate_against_availability_bits(
         self,
