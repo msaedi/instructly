@@ -1842,17 +1842,45 @@ class BookingService(BaseService):
                 "reason": "Instructor profile not found",
             }
 
-        # Check minimum advance booking
-        booking_datetime = datetime.combine(booking_date, start_time, tzinfo=timezone.utc)
-        min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0)
-        min_booking_time = datetime.now(timezone.utc) + timedelta(hours=min_advance_hours)
+        # Check minimum advance booking using instructor's timezone (not UTC!)
+        # This matches the correct handling in _check_conflicts_and_rules
+        min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
+        user = getattr(instructor_profile, "user", None)
+        tz_name = getattr(user, "timezone", None) or "America/New_York"
+        try:
+            instructor_zone = ZoneInfo(tz_name)
+        except Exception:
+            instructor_zone = ZoneInfo("America/New_York")
 
-        if booking_datetime < min_booking_time:
-            return {
-                "available": False,
-                "reason": f"Must book at least {min_advance_hours} hours in advance",
-                "min_advance_hours": min_advance_hours,
-            }
+        now_utc = datetime.now(timezone.utc)
+
+        # Booking time is in instructor's local timezone
+        booking_local = datetime.combine(booking_date, start_time, tzinfo=instructor_zone)
+
+        # For >=24 hour min advance, use date-level granularity to avoid HH:MM boundary flakiness
+        if min_advance_hours >= 24:
+            local_now = now_utc.astimezone(instructor_zone)
+            min_local_dt = local_now + timedelta(hours=min_advance_hours)
+            min_date_only = min_local_dt.date()
+
+            if booking_date < min_date_only or (
+                booking_date == min_date_only and booking_local.time() < min_local_dt.time()
+            ):
+                return {
+                    "available": False,
+                    "reason": f"Must book at least {min_advance_hours} hours in advance",
+                    "min_advance_hours": min_advance_hours,
+                }
+        else:
+            # For <24 hour min advance, do precise time comparison
+            booking_datetime_utc = booking_local.astimezone(timezone.utc)
+            min_booking_time = now_utc + timedelta(hours=min_advance_hours)
+            if booking_datetime_utc < min_booking_time:
+                return {
+                    "available": False,
+                    "reason": f"Must book at least {min_advance_hours} hours in advance",
+                    "min_advance_hours": min_advance_hours,
+                }
 
         return {
             "available": True,

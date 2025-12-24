@@ -21,6 +21,7 @@ from typing import (
     Union,
     cast,
 )
+from zoneinfo import ZoneInfo
 
 from celery.result import AsyncResult
 from sqlalchemy.orm import Session
@@ -640,18 +641,37 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
         )
 
         # Filter to only bookings where lesson ended >24hr ago
+        # Use instructor's timezone to correctly convert lesson end time to UTC
         bookings_to_auto_complete: List[Booking] = []
         for booking in all_confirmed_bookings:
-            lesson_end = datetime.combine(
-                booking.booking_date, booking.end_time, tzinfo=timezone.utc
+            # Get instructor's timezone (default to NYC if not set)
+            tz_name = getattr(booking.instructor, "timezone", None) or "America/New_York"
+            try:
+                instructor_zone = ZoneInfo(tz_name)
+            except Exception:
+                instructor_zone = ZoneInfo("America/New_York")
+
+            # Lesson end time is in instructor's local timezone, convert to UTC
+            lesson_end_local = datetime.combine(
+                booking.booking_date, booking.end_time, tzinfo=instructor_zone
             )
-            if lesson_end <= auto_complete_cutoff:
+            lesson_end_utc = lesson_end_local.astimezone(timezone.utc)
+            if lesson_end_utc <= auto_complete_cutoff:
                 bookings_to_auto_complete.append(booking)
 
         for booking in bookings_to_auto_complete:
-            lesson_end = datetime.combine(
-                booking.booking_date, booking.end_time, tzinfo=timezone.utc
+            # Get instructor's timezone (default to NYC if not set)
+            tz_name = getattr(booking.instructor, "timezone", None) or "America/New_York"
+            try:
+                instructor_zone = ZoneInfo(tz_name)
+            except Exception:
+                instructor_zone = ZoneInfo("America/New_York")
+
+            # Lesson end time is in instructor's local timezone, convert to UTC
+            lesson_end_local = datetime.combine(
+                booking.booking_date, booking.end_time, tzinfo=instructor_zone
             )
+            lesson_end = lesson_end_local.astimezone(timezone.utc)
             # Auto-complete the booking
             booking.status = BookingStatus.COMPLETED
             booking.completed_at = lesson_end

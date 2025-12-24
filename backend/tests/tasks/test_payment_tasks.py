@@ -1166,11 +1166,18 @@ class TestPaymentTasks:
         booking.payment_status = "authorized"
         booking.student_id = "student_auto"
         booking.instructor_id = "instructor_auto"
+        # Add instructor with timezone for timezone-aware lesson_end calculation
+        booking.instructor = MagicMock()
+        booking.instructor.timezone = "America/New_York"
 
         now = datetime.now(timezone.utc)
-        lesson_end = now - timedelta(hours=25)
+        # Use 30 hours to account for timezone offset (EST is UTC-5)
+        # When we interpret the time as Eastern and convert to UTC, we add 5 hours
+        # So 30 hours ago becomes 25 hours ago after timezone conversion
+        lesson_end = now - timedelta(hours=30)
         booking.booking_date = lesson_end.date()
         booking.end_time = lesson_end.time()
+        booking.payment_intent_id = "pi_test_auto"
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -1212,6 +1219,8 @@ class TestPaymentTasks:
     ):
         """Auto-completed bookings should use lesson end time for completed_at."""
         # Fix: set completed_at to lesson_end for auto-completed lessons.
+        from zoneinfo import ZoneInfo
+
         mock_db = MagicMock()
         mock_session_local.return_value = mock_db
 
@@ -1221,11 +1230,16 @@ class TestPaymentTasks:
         booking.payment_status = "authorized"
         booking.student_id = "student_end_time"
         booking.instructor_id = "instructor_end_time"
+        # Add instructor with timezone for timezone-aware lesson_end calculation
+        booking.instructor = MagicMock()
+        booking.instructor.timezone = "America/New_York"
 
         now = datetime.now(timezone.utc)
-        lesson_end = now - timedelta(hours=25)
+        # Use 30 hours to account for timezone offset (EST is UTC-5)
+        lesson_end = now - timedelta(hours=30)
         booking.booking_date = lesson_end.date()
         booking.end_time = lesson_end.time()
+        booking.payment_intent_id = "pi_test_end_time"
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -1244,9 +1258,12 @@ class TestPaymentTasks:
                 with patch("app.tasks.payment_tasks.StripeService"):
                     capture_completed_lessons()
 
-        expected_completed_at = datetime.combine(
-            booking.booking_date, booking.end_time, tzinfo=timezone.utc
+        # lesson_end is now calculated using instructor's timezone, then converted to UTC
+        instructor_zone = ZoneInfo("America/New_York")
+        lesson_end_local = datetime.combine(
+            booking.booking_date, booking.end_time, tzinfo=instructor_zone
         )
+        expected_completed_at = lesson_end_local.astimezone(timezone.utc)
         assert booking.completed_at == expected_completed_at
 
     @patch("app.tasks.payment_tasks.create_new_authorization_and_capture", return_value={"success": True})
@@ -2237,11 +2254,16 @@ class TestPaymentTasks:
         booking.payment_status = "authorized"
         booking.student_id = "student_auto_fail"
         booking.instructor_id = "instructor_auto_fail"
+        # Add instructor with timezone for timezone-aware lesson_end calculation
+        booking.instructor = MagicMock()
+        booking.instructor.timezone = "America/New_York"
 
         now = datetime.now(timezone.utc)
-        lesson_end = now - timedelta(hours=25)
+        # Use 30 hours to account for timezone offset (EST is UTC-5)
+        lesson_end = now - timedelta(hours=30)
         booking.booking_date = lesson_end.date()
         booking.end_time = lesson_end.time()
+        booking.payment_intent_id = "pi_test_auto_fail"
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
