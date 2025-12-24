@@ -95,6 +95,198 @@ stripe.api_key = (
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
 
 
+def _process_authorization_for_booking(
+    booking_id: str,
+    hours_until_lesson: float,
+) -> Dict[str, Any]:
+    """
+    Process payment authorization for a single booking using 3-phase pattern.
+
+    Phase 1: Quick transaction to read booking and customer data
+    Phase 2: Stripe authorization call (no transaction)
+    Phase 3: Quick transaction to update booking status
+
+    Returns:
+        Dict with success status and details
+    """
+    from app.database import SessionLocal
+    from app.repositories.instructor_profile_repository import InstructorProfileRepository
+
+    # ========== PHASE 1: Read booking and validate (quick transaction) ==========
+    db1: Session = SessionLocal()
+    phase1_error: str | None = None
+    payment_method_id: str | None = None
+    try:
+        booking = db1.query(Booking).filter(Booking.id == booking_id).first()
+        if not booking:
+            # Can't continue without booking
+            return {"success": False, "error": "Booking not found"}
+
+        payment_repo = RepositoryFactory.get_payment_repository(db1)
+
+        # Get student's Stripe customer
+        student_customer = payment_repo.get_customer_by_user_id(booking.student_id)
+        if not student_customer:
+            phase1_error = f"No Stripe customer for student {booking.student_id}"
+        else:
+            # Get instructor's Stripe account
+            instructor_repo = InstructorProfileRepository(db1)
+            instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
+            if instructor_profile is None:
+                phase1_error = f"No instructor profile for {booking.instructor_id}"
+            else:
+                instructor_account = payment_repo.get_connected_account_by_instructor_id(
+                    instructor_profile.id
+                )
+                if not instructor_account or not instructor_account.stripe_account_id:
+                    phase1_error = f"No Stripe account for instructor {booking.instructor_id}"
+                else:
+                    # Extract data needed for Stripe call
+                    payment_method_id = booking.payment_method_id
+
+        db1.commit()  # Release lock immediately
+    finally:
+        db1.close()
+
+    # If Phase 1 failed, skip to Phase 3 to record failure
+    if phase1_error:
+        stripe_result: Dict[str, Any] = {
+            "success": False,
+            "error": phase1_error,
+            "error_type": "validation_error",
+        }
+        # Skip to Phase 3 to update booking status
+    else:
+        # ========== PHASE 2: Stripe authorization (NO transaction) ==========
+        stripe_result = {"success": False}
+        try:
+            db_stripe: Session = SessionLocal()
+            try:
+                config_service = ConfigService(db_stripe)
+                pricing_service = PricingService(db_stripe)
+                stripe_service = StripeService(
+                    db_stripe,
+                    config_service=config_service,
+                    pricing_service=pricing_service,
+                )
+
+                ctx = stripe_service.build_charge_context(
+                    booking_id=booking_id, requested_credit_cents=None
+                )
+
+                if ctx.student_pay_cents <= 0:
+                    stripe_result = {
+                        "success": True,
+                        "credits_only": True,
+                        "base_price_cents": ctx.base_price_cents,
+                        "applied_credit_cents": ctx.applied_credit_cents,
+                    }
+                else:
+                    # Make Stripe authorization call
+                    payment_intent = stripe_service.create_or_retry_booking_payment_intent(
+                        booking_id=booking_id,
+                        payment_method_id=payment_method_id,
+                        requested_credit_cents=None,
+                    )
+
+                    stripe_result = {
+                        "success": True,
+                        "payment_intent_id": getattr(payment_intent, "id", None),
+                        "student_pay_cents": ctx.student_pay_cents,
+                        "application_fee_cents": ctx.application_fee_cents,
+                        "applied_credit_cents": ctx.applied_credit_cents,
+                    }
+
+                db_stripe.commit()
+            finally:
+                db_stripe.close()
+
+        except Exception as e:
+            error_message = str(e)
+            error_type = (
+                "card_declined"
+                if "card" in error_message.lower() or "declined" in error_message.lower()
+                else "system_error"
+            )
+            stripe_result = {
+                "success": False,
+                "error": error_message,
+                "error_type": error_type,
+            }
+
+    # ========== PHASE 3: Write results (quick transaction) ==========
+    db3: Session = SessionLocal()
+    try:
+        booking = db3.query(Booking).filter(Booking.id == booking_id).first()
+        if not booking:
+            return {"success": False, "error": "Booking not found in Phase 3"}
+
+        payment_repo = RepositoryFactory.get_payment_repository(db3)
+
+        if stripe_result.get("success"):
+            if stripe_result.get("credits_only"):
+                booking.payment_status = "authorized"
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="auth_succeeded_credits_only",
+                    event_data={
+                        "base_price_cents": stripe_result.get("base_price_cents"),
+                        "credits_applied_cents": stripe_result.get("applied_credit_cents"),
+                    },
+                )
+                logger.info(
+                    f"Booking {booking_id} fully covered by credits; no authorization needed"
+                )
+            else:
+                booking.payment_intent_id = stripe_result.get("payment_intent_id")
+                booking.payment_status = "authorized"
+
+                # Record metrics
+                if stripe_result.get("applied_credit_cents"):
+                    try:
+                        from app.monitoring.prometheus_metrics import prometheus_metrics
+
+                        prometheus_metrics.inc_credits_applied("authorization")
+                    except Exception:
+                        pass
+
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="auth_succeeded",
+                    event_data={
+                        "payment_intent_id": stripe_result.get("payment_intent_id"),
+                        "amount_cents": stripe_result.get("student_pay_cents"),
+                        "application_fee_cents": stripe_result.get("application_fee_cents"),
+                        "authorized_at": datetime.now(timezone.utc).isoformat(),
+                        "hours_before_lesson": round(hours_until_lesson, 1),
+                        "credits_applied_cents": stripe_result.get("applied_credit_cents"),
+                    },
+                )
+                logger.info(f"Successfully authorized payment for booking {booking_id}")
+        else:
+            # Record failure
+            booking.payment_status = "auth_failed"
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="auth_failed",
+                event_data={
+                    "error": stripe_result.get("error"),
+                    "error_type": stripe_result.get("error_type"),
+                    "hours_until_lesson": round(hours_until_lesson, 1),
+                    "failed_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            logger.error(
+                f"Failed to authorize payment for booking {booking_id}: {stripe_result.get('error')}"
+            )
+
+        db3.commit()  # Commit and release lock immediately
+    finally:
+        db3.close()
+
+    return stripe_result
+
+
 @typed_task(
     bind=True, max_retries=3, name="app.tasks.payment_tasks.process_scheduled_authorizations"
 )
@@ -105,189 +297,331 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
     Runs every 30 minutes to authorize payments for bookings
     that are approaching their 24-hour pre-authorization window.
 
+    Uses 3-phase pattern to minimize lock contention:
+    - Phase 1: Quick read (release lock immediately)
+    - Phase 2: Stripe call (no lock held)
+    - Phase 3: Quick write (release lock immediately)
+
     Returns:
         Dict with success/failure counts and details
     """
     from app.database import SessionLocal
 
-    db: Session = SessionLocal()
+    now = datetime.now(timezone.utc)
+    failures: List[Dict[str, Any]] = []
+    results: AuthorizationJobResults = {
+        "success": 0,
+        "failed": 0,
+        "failures": failures,
+        "processed_at": now.isoformat(),
+    }
+
+    # ========== Collect booking IDs to process (quick read) ==========
+    db_read: Session = SessionLocal()
     try:
-        _payment_repo = RepositoryFactory.get_payment_repository(db)
-        booking_repo = RepositoryFactory.get_booking_repository(db)
-        config_service = ConfigService(db)
-        pricing_service = PricingService(db)
-        stripe_service = StripeService(
-            db,
-            config_service=config_service,
-            pricing_service=pricing_service,
-        )
-        notification_service = NotificationService(db)
+        booking_repo = RepositoryFactory.get_booking_repository(db_read)
 
-        # Find bookings that need authorization (T-24 hours)
-        now = datetime.now(timezone.utc)
-        _auth_window_start = now + timedelta(hours=23, minutes=30)  # 23.5 hours
-        _auth_window_end = now + timedelta(hours=24, minutes=30)  # 24.5 hours
-
-        # Get bookings that need authorization
         bookings_to_authorize = cast(
             Sequence[Booking],
             booking_repo.get_bookings_for_payment_authorization(),
         )
 
-        failures: List[Dict[str, Any]] = []
-        results: AuthorizationJobResults = {
-            "success": 0,
-            "failed": 0,
-            "failures": failures,
-            "processed_at": datetime.now(timezone.utc).isoformat(),
-        }
-
+        # Collect booking IDs and hours_until_lesson for each
+        booking_data: List[Dict[str, Any]] = []
         for booking in bookings_to_authorize:
-            # Calculate exact time until lesson
-            # Make booking_datetime timezone-aware (assuming UTC for booking times)
             booking_datetime = datetime.combine(
                 booking.booking_date, booking.start_time, tzinfo=timezone.utc
             )
             hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
 
             # Only process if in the 23.5-24.5 hour window
-            if not (23.5 <= hours_until_lesson <= 24.5):
-                continue
-
-            try:
-                # Get student's Stripe customer
-                student_customer = _payment_repo.get_customer_by_user_id(booking.student_id)
-                if not student_customer:
-                    raise Exception(f"No Stripe customer for student {booking.student_id}")
-
-                # Get instructor's Stripe account
-                from app.repositories.instructor_profile_repository import (
-                    InstructorProfileRepository,
-                )
-
-                instructor_repo = InstructorProfileRepository(db)
-                instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
-                if instructor_profile is None:
-                    raise Exception(f"No instructor profile for {booking.instructor_id}")
-                instructor_account = _payment_repo.get_connected_account_by_instructor_id(
-                    instructor_profile.id
-                )
-
-                if not instructor_account or not instructor_account.stripe_account_id:
-                    raise Exception(f"No Stripe account for instructor {booking.instructor_id}")
-
-                ctx = stripe_service.build_charge_context(
-                    booking_id=booking.id, requested_credit_cents=None
-                )
-
-                if ctx.student_pay_cents <= 0:
-                    booking.payment_status = "authorized"
-                    _payment_repo.create_payment_event(
-                        booking_id=booking.id,
-                        event_type="auth_succeeded_credits_only",
-                        event_data={
-                            "base_price_cents": ctx.base_price_cents,
-                            "credits_applied_cents": ctx.applied_credit_cents,
-                        },
-                    )
-                    results["success"] += 1
-                    logger.info(
-                        f"Booking {booking.id} fully covered by credits; no authorization needed"
-                    )
-                    continue
-
-                payment_intent = stripe_service.create_or_retry_booking_payment_intent(
-                    booking_id=booking.id,
-                    payment_method_id=booking.payment_method_id,
-                    requested_credit_cents=None,
-                )
-
-                booking.payment_intent_id = getattr(payment_intent, "id", None)
-                booking.payment_status = "authorized"
-
-                # Record success event
-                if ctx.applied_credit_cents:
-                    try:
-                        from app.monitoring.prometheus_metrics import prometheus_metrics
-
-                        prometheus_metrics.inc_credits_applied("authorization")
-                    except Exception:
-                        pass
-
-                _payment_repo.create_payment_event(
-                    booking_id=booking.id,
-                    event_type="auth_succeeded",
-                    event_data={
-                        "payment_intent_id": getattr(payment_intent, "id", None),
-                        "amount_cents": ctx.student_pay_cents,
-                        "application_fee_cents": ctx.application_fee_cents,
-                        "authorized_at": datetime.now(timezone.utc).isoformat(),
-                        "hours_before_lesson": round(hours_until_lesson, 1),
-                        "credits_applied_cents": ctx.applied_credit_cents,
-                    },
-                )
-
-                results["success"] += 1
-                logger.info(f"Successfully authorized payment for booking {booking.id}")
-
-            except Exception as e:
-                # Card was declined
-                # Map likely Stripe card errors to a consistent type without importing patched classes
-                error_message = str(e)
-                error_type = (
-                    "card_declined"
-                    if "card" in error_message.lower() or "declined" in error_message.lower()
-                    else "system_error"
-                )
-                handle_authorization_failure(
-                    booking, _payment_repo, error_message, error_type, hours_until_lesson
-                )
-                # T-24 first failure email: send urgent update-card notice on initial failure
-                try:
-                    # Only send once
-                    if not has_event_type(
-                        _payment_repo, booking.id, "t24_first_failure_email_sent"
-                    ):
-                        notification_service.send_final_payment_warning(
-                            booking, hours_until_lesson
-                        )  # reuse template
-                        _payment_repo.create_payment_event(
-                            booking_id=booking.id,
-                            event_type="t24_first_failure_email_sent",
-                            event_data={
-                                "hours_until_lesson": round(hours_until_lesson, 1),
-                                "error": error_message,
-                            },
-                        )
-                except Exception as mail_err:
-                    logger.error(
-                        f"Failed to send T-24 failure email for booking {booking.id}: {mail_err}"
-                    )
-                results["failed"] += 1
-                results["failures"].append(
+            if 23.5 <= hours_until_lesson <= 24.5:
+                booking_data.append(
                     {
                         "booking_id": booking.id,
-                        "error": error_message,
-                        "type": error_type,
+                        "hours_until_lesson": hours_until_lesson,
+                        "student_id": booking.student_id,
                     }
                 )
 
-        db.commit()
+        db_read.commit()  # Release locks from read phase
+    finally:
+        db_read.close()
 
-        # Log results
-        if results["failed"] > 0:
-            logger.warning(f"Authorization job completed with {results['failed']} failures")
+    # ========== Process each booking with 3-phase pattern ==========
+    for data in booking_data:
+        booking_id = data["booking_id"]
+        hours_until_lesson = data["hours_until_lesson"]
 
-        logger.info(
-            f"Authorization job completed: {results['success']} success, {results['failed']} failed"
+        try:
+            auth_result = _process_authorization_for_booking(booking_id, hours_until_lesson)
+
+            if auth_result.get("success"):
+                results["success"] += 1
+            else:
+                results["failed"] += 1
+                results["failures"].append(
+                    {
+                        "booking_id": booking_id,
+                        "error": auth_result.get("error", "Unknown error"),
+                        "type": auth_result.get("error_type", "system_error"),
+                    }
+                )
+
+                # Send T-24 first failure email
+                try:
+                    db_notify: Session = SessionLocal()
+                    try:
+                        payment_repo = RepositoryFactory.get_payment_repository(db_notify)
+                        if not has_event_type(
+                            payment_repo, booking_id, "t24_first_failure_email_sent"
+                        ):
+                            notification_service = NotificationService(db_notify)
+                            booking = (
+                                db_notify.query(Booking).filter(Booking.id == booking_id).first()
+                            )
+                            if booking:
+                                notification_service.send_final_payment_warning(
+                                    booking, hours_until_lesson
+                                )
+                                payment_repo.create_payment_event(
+                                    booking_id=booking_id,
+                                    event_type="t24_first_failure_email_sent",
+                                    event_data={
+                                        "hours_until_lesson": round(hours_until_lesson, 1),
+                                        "error": auth_result.get("error"),
+                                    },
+                                )
+                        db_notify.commit()
+                    finally:
+                        db_notify.close()
+                except Exception as mail_err:
+                    logger.error(
+                        f"Failed to send T-24 failure email for booking {booking_id}: {mail_err}"
+                    )
+
+        except Exception as e:
+            logger.error(f"Error processing authorization for booking {booking_id}: {e}")
+            results["failed"] += 1
+            results["failures"].append(
+                {
+                    "booking_id": booking_id,
+                    "error": str(e),
+                    "type": "system_error",
+                }
+            )
+
+    # Log results
+    if results["failed"] > 0:
+        logger.warning(f"Authorization job completed with {results['failed']} failures")
+
+    logger.info(
+        f"Authorization job completed: {results['success']} success, {results['failed']} failed"
+    )
+    return results
+
+
+def _cancel_booking_payment_failed(
+    booking_id: str, hours_until_lesson: float, now: datetime
+) -> bool:
+    """
+    Cancel a booking due to payment failure using 3-phase pattern.
+
+    Returns:
+        True if cancelled successfully
+    """
+    from app.database import SessionLocal
+
+    db: Session = SessionLocal()
+    try:
+        booking = db.query(Booking).filter(Booking.id == booking_id).first()
+        if not booking:
+            return False
+
+        booking.status = BookingStatus.CANCELLED
+        booking.payment_status = "auth_abandoned"
+        booking.cancelled_at = now
+        booking.cancellation_reason = "Payment authorization failed after multiple attempts"
+
+        payment_repo = RepositoryFactory.get_payment_repository(db)
+        payment_repo.create_payment_event(
+            booking_id=booking_id,
+            event_type="auth_abandoned",
+            event_data={
+                "reason": "T-6hr cancellation",
+                "hours_until_lesson": round(hours_until_lesson, 1),
+                "cancelled_at": now.isoformat(),
+            },
         )
-        return results
 
-    except Exception as exc:
-        logger.error(f"Authorization job failed: {exc}")
-        raise self.retry(exc=exc, countdown=300)  # Retry in 5 minutes
+        # Send cancellation notification
+        notification_service = NotificationService(db)
+        notification_service.send_booking_cancelled_payment_failed(booking)
+
+        db.commit()
+        logger.info(
+            f"Cancelled booking {booking_id} due to payment failure (T-{hours_until_lesson:.1f}hr)"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error cancelling booking {booking_id}: {e}")
+        db.rollback()
+        return False
     finally:
         db.close()
+
+
+def _process_retry_authorization(booking_id: str, hours_until_lesson: float) -> Dict[str, Any]:
+    """
+    Process authorization retry for a single booking using 3-phase pattern.
+
+    Returns:
+        Dict with success status
+    """
+    from app.database import SessionLocal
+    from app.repositories.instructor_profile_repository import InstructorProfileRepository
+
+    # ========== PHASE 1: Read booking data (quick transaction) ==========
+    db1: Session = SessionLocal()
+    try:
+        booking = db1.query(Booking).filter(Booking.id == booking_id).first()
+        if not booking:
+            return {"success": False, "error": "Booking not found"}
+
+        payment_repo = RepositoryFactory.get_payment_repository(db1)
+
+        # Record retry attempt
+        payment_repo.create_payment_event(
+            booking_id=booking_id,
+            event_type="auth_retry_attempted",
+            event_data={
+                "hours_until_lesson": round(hours_until_lesson, 1),
+                "attempted_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+        # Get student's Stripe customer
+        student_customer = payment_repo.get_customer_by_user_id(booking.student_id)
+        if not student_customer:
+            return {
+                "success": False,
+                "error": f"No Stripe customer for student {booking.student_id}",
+            }
+
+        # Get instructor's Stripe account
+        instructor_repo = InstructorProfileRepository(db1)
+        instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
+        if instructor_profile is None:
+            return {"success": False, "error": f"No instructor profile for {booking.instructor_id}"}
+
+        instructor_account = payment_repo.get_connected_account_by_instructor_id(
+            instructor_profile.id
+        )
+        if not instructor_account:
+            return {
+                "success": False,
+                "error": f"No Stripe account for instructor {booking.instructor_id}",
+            }
+
+        # Extract data needed for Stripe call
+        payment_method_id = booking.payment_method_id
+
+        db1.commit()  # Release lock immediately
+    finally:
+        db1.close()
+
+    # ========== PHASE 2: Stripe retry (NO transaction) ==========
+    stripe_result: Dict[str, Any] = {"success": False}
+    try:
+        db_stripe: Session = SessionLocal()
+        try:
+            config_service = ConfigService(db_stripe)
+            pricing_service = PricingService(db_stripe)
+            stripe_service = StripeService(
+                db_stripe,
+                config_service=config_service,
+                pricing_service=pricing_service,
+            )
+
+            ctx = stripe_service.build_charge_context(
+                booking_id=booking_id, requested_credit_cents=None
+            )
+
+            if ctx.student_pay_cents <= 0:
+                stripe_result = {
+                    "success": True,
+                    "credits_only": True,
+                    "applied_credit_cents": ctx.applied_credit_cents,
+                }
+            else:
+                payment_intent = stripe_service.create_or_retry_booking_payment_intent(
+                    booking_id=booking_id,
+                    payment_method_id=payment_method_id,
+                    requested_credit_cents=None,
+                )
+                stripe_result = {
+                    "success": True,
+                    "payment_intent_id": getattr(payment_intent, "id", None),
+                    "student_pay_cents": ctx.student_pay_cents,
+                    "application_fee_cents": ctx.application_fee_cents,
+                    "applied_credit_cents": ctx.applied_credit_cents,
+                }
+
+            db_stripe.commit()
+        finally:
+            db_stripe.close()
+
+    except Exception as e:
+        stripe_result = {"success": False, "error": str(e)}
+
+    # ========== PHASE 3: Write results (quick transaction) ==========
+    db3: Session = SessionLocal()
+    try:
+        booking = db3.query(Booking).filter(Booking.id == booking_id).first()
+        if not booking:
+            return {"success": False, "error": "Booking not found in Phase 3"}
+
+        payment_repo = RepositoryFactory.get_payment_repository(db3)
+
+        if stripe_result.get("success"):
+            booking.payment_intent_id = (
+                stripe_result.get("payment_intent_id") or booking.payment_intent_id
+            )
+            booking.payment_status = "authorized"
+
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="auth_retry_succeeded",
+                event_data={
+                    "payment_intent_id": stripe_result.get("payment_intent_id"),
+                    "hours_until_lesson": round(hours_until_lesson, 1),
+                    "authorized_at": datetime.now(timezone.utc).isoformat(),
+                    "credits_applied_cents": stripe_result.get("applied_credit_cents"),
+                    "amount_cents": stripe_result.get("student_pay_cents"),
+                    "application_fee_cents": stripe_result.get("application_fee_cents"),
+                },
+            )
+            logger.info(
+                f"Successfully retried authorization for booking {booking_id} (T-{hours_until_lesson:.1f}hr)"
+            )
+        else:
+            booking.payment_status = "auth_retry_failed"
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="auth_retry_failed",
+                event_data={
+                    "error": stripe_result.get("error"),
+                    "hours_until_lesson": round(hours_until_lesson, 1),
+                    "failed_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            logger.error(f"Retry failed for booking {booking_id}: {stripe_result.get('error')}")
+
+        db3.commit()  # Commit and release lock immediately
+    finally:
+        db3.close()
+
+    return stripe_result
 
 
 @typed_task(bind=True, max_retries=5, name="app.tasks.payment_tasks.retry_failed_authorizations")
@@ -302,43 +636,40 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
     - T-12hr: Final warning email + retry
     - T-6hr: Cancel booking if still failing
 
+    Uses 3-phase pattern to minimize lock contention:
+    - Phase 1: Quick read (release lock immediately)
+    - Phase 2: Stripe call (no lock held)
+    - Phase 3: Quick write (release lock immediately)
+
     Returns:
         Dict with retry results
     """
     from app.database import SessionLocal
 
-    db: Session = SessionLocal()
+    now = datetime.now(timezone.utc)
+    results: RetryJobResults = {
+        "retried": 0,
+        "success": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "warnings_sent": 0,
+        "processed_at": now.isoformat(),
+    }
+
+    # ========== Collect booking data to process (quick read) ==========
+    db_read: Session = SessionLocal()
     try:
-        _payment_repo = RepositoryFactory.get_payment_repository(db)
-        booking_repo = RepositoryFactory.get_booking_repository(db)
-        config_service = ConfigService(db)
-        pricing_service = PricingService(db)
-        stripe_service = StripeService(
-            db,
-            config_service=config_service,
-            pricing_service=pricing_service,
-        )
-        notification_service = NotificationService(db)
+        booking_repo = RepositoryFactory.get_booking_repository(db_read)
+        payment_repo = RepositoryFactory.get_payment_repository(db_read)
 
-        now = datetime.now(timezone.utc)
-
-        # Find bookings with failed auth
         bookings_to_retry = cast(
             Sequence[Booking],
             booking_repo.get_bookings_for_payment_retry(),
         )
 
-        results: RetryJobResults = {
-            "retried": 0,
-            "success": 0,
-            "failed": 0,
-            "cancelled": 0,
-            "warnings_sent": 0,
-            "processed_at": datetime.now(timezone.utc).isoformat(),
-        }
-
+        # Collect booking data with their action type
+        booking_actions: List[Dict[str, Any]] = []
         for booking in bookings_to_retry:
-            # Calculate hours until lesson
             booking_datetime = datetime.combine(
                 booking.booking_date, booking.start_time, tzinfo=timezone.utc
             )
@@ -348,97 +679,115 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
             if hours_until_lesson < 0:
                 continue
 
-            # Determine action based on time until lesson
+            # Determine action
             if hours_until_lesson <= 6:
-                # Too late - cancel the booking
-                booking.status = BookingStatus.CANCELLED
-                booking.payment_status = "auth_abandoned"
-                booking.cancelled_at = now
-                booking.cancellation_reason = "Payment authorization failed after multiple attempts"
-
-                _payment_repo.create_payment_event(
-                    booking_id=booking.id,
-                    event_type="auth_abandoned",
-                    event_data={
-                        "reason": "T-6hr cancellation",
-                        "hours_until_lesson": round(hours_until_lesson, 1),
-                        "cancelled_at": now.isoformat(),
-                    },
+                booking_actions.append(
+                    {
+                        "booking_id": booking.id,
+                        "hours_until_lesson": hours_until_lesson,
+                        "action": "cancel",
+                    }
                 )
-
-                # Send cancellation notification
-                notification_service.send_booking_cancelled_payment_failed(booking)
-                results["cancelled"] += 1
-                logger.info(
-                    f"Cancelled booking {booking.id} due to payment failure (T-{hours_until_lesson:.1f}hr)"
-                )
-
             elif hours_until_lesson <= 12:
-                # T-12hr: Send final warning and retry
-                if not has_event_type(_payment_repo, booking.id, "final_warning_sent"):
-                    # Send final warning email
-                    notification_service.send_final_payment_warning(booking, hours_until_lesson)
-
-                    _payment_repo.create_payment_event(
-                        booking_id=booking.id,
-                        event_type="final_warning_sent",
-                        event_data={
-                            "hours_until_lesson": round(hours_until_lesson, 1),
-                            "sent_at": now.isoformat(),
-                        },
-                    )
-                    results["warnings_sent"] += 1
-
-                # Attempt retry
-                if attempt_authorization_retry(
-                    booking, _payment_repo, db, hours_until_lesson, stripe_service
-                ):
-                    results["success"] += 1
-                else:
-                    results["failed"] += 1
-
-                results["retried"] += 1
-
-            elif 17 <= hours_until_lesson < 23:  # T-18hr, T-20hr, T-22hr windows
-                # Silent retry at specific windows
-                retry_windows = [18, 20, 22]
-                should_retry = any(
-                    abs(hours_until_lesson - window) < 0.5 for window in retry_windows
+                has_warning = has_event_type(payment_repo, booking.id, "final_warning_sent")
+                booking_actions.append(
+                    {
+                        "booking_id": booking.id,
+                        "hours_until_lesson": hours_until_lesson,
+                        "action": "retry_with_warning",
+                        "needs_warning": not has_warning,
+                    }
                 )
+            elif 17 <= hours_until_lesson < 23:
+                # Check if in retry window
+                retry_windows = [18, 20, 22]
+                should_retry = any(abs(hours_until_lesson - w) < 0.5 for w in retry_windows)
 
                 if should_retry:
-                    # Check if we already retried at this window
-                    recent_events = _payment_repo.get_payment_events_for_booking(booking.id)
+                    recent_events = payment_repo.get_payment_events_for_booking(booking.id)
                     recent_retry_times = [
                         e.created_at
                         for e in recent_events
                         if e.event_type in ["auth_retry_attempted", "auth_retry_succeeded"]
-                        and (now - e.created_at).total_seconds() < 3600  # Within last hour
+                        and (now - e.created_at).total_seconds() < 3600
                     ]
 
-                    if not recent_retry_times:  # Haven't retried recently
-                        if attempt_authorization_retry(
-                            booking, _payment_repo, db, hours_until_lesson, stripe_service
-                        ):
-                            results["success"] += 1
-                        else:
-                            results["failed"] += 1
-                        results["retried"] += 1
+                    if not recent_retry_times:
+                        booking_actions.append(
+                            {
+                                "booking_id": booking.id,
+                                "hours_until_lesson": hours_until_lesson,
+                                "action": "silent_retry",
+                            }
+                        )
 
-        db.commit()
-
-        logger.info(
-            f"Retry job completed: {results['retried']} attempted, "
-            f"{results['success']} success, {results['failed']} failed, "
-            f"{results['cancelled']} cancelled, {results['warnings_sent']} warnings sent"
-        )
-        return results
-
-    except Exception as exc:
-        logger.error(f"Retry job failed: {exc}")
-        raise self.retry(exc=exc, countdown=600)  # Retry in 10 minutes
+        db_read.commit()  # Release locks from read phase
     finally:
-        db.close()
+        db_read.close()
+
+    # ========== Process each booking with 3-phase pattern ==========
+    for action_data in booking_actions:
+        booking_id = action_data["booking_id"]
+        hours_until_lesson = action_data["hours_until_lesson"]
+        action = action_data["action"]
+
+        try:
+            if action == "cancel":
+                if _cancel_booking_payment_failed(booking_id, hours_until_lesson, now):
+                    results["cancelled"] += 1
+
+            elif action == "retry_with_warning":
+                # Send warning if needed (in separate transaction)
+                if action_data.get("needs_warning"):
+                    db_warn: Session = SessionLocal()
+                    try:
+                        booking = db_warn.query(Booking).filter(Booking.id == booking_id).first()
+                        if booking:
+                            notification_service = NotificationService(db_warn)
+                            notification_service.send_final_payment_warning(
+                                booking, hours_until_lesson
+                            )
+
+                            payment_repo = RepositoryFactory.get_payment_repository(db_warn)
+                            payment_repo.create_payment_event(
+                                booking_id=booking_id,
+                                event_type="final_warning_sent",
+                                event_data={
+                                    "hours_until_lesson": round(hours_until_lesson, 1),
+                                    "sent_at": now.isoformat(),
+                                },
+                            )
+                            results["warnings_sent"] += 1
+                        db_warn.commit()
+                    finally:
+                        db_warn.close()
+
+                # Retry authorization
+                retry_result = _process_retry_authorization(booking_id, hours_until_lesson)
+                if retry_result.get("success"):
+                    results["success"] += 1
+                else:
+                    results["failed"] += 1
+                results["retried"] += 1
+
+            elif action == "silent_retry":
+                retry_result = _process_retry_authorization(booking_id, hours_until_lesson)
+                if retry_result.get("success"):
+                    results["success"] += 1
+                else:
+                    results["failed"] += 1
+                results["retried"] += 1
+
+        except Exception as e:
+            logger.error(f"Error processing retry for booking {booking_id}: {e}")
+            results["failed"] += 1
+
+    logger.info(
+        f"Retry job completed: {results['retried']} attempted, "
+        f"{results['success']} success, {results['failed']} failed, "
+        f"{results['cancelled']} cancelled, {results['warnings_sent']} warnings sent"
+    )
+    return results
 
 
 def handle_authorization_failure(
@@ -573,6 +922,277 @@ def has_event_type(payment_repo: Any, booking_id: Union[int, str], event_type: s
     return any(e.event_type == event_type for e in events)
 
 
+def _process_capture_for_booking(
+    booking_id: str,
+    capture_reason: str,
+) -> Dict[str, Any]:
+    """
+    Process payment capture for a single booking using 3-phase pattern.
+
+    Phase 1: Quick transaction to read booking data
+    Phase 2: Stripe call (no transaction)
+    Phase 3: Quick transaction to update booking status
+
+    Returns:
+        Dict with success status and capture result
+    """
+    from app.database import SessionLocal
+
+    # ========== PHASE 1: Read booking data (quick transaction) ==========
+    db1: Session = SessionLocal()
+    try:
+        booking = db1.query(Booking).filter(Booking.id == booking_id).first()
+        if not booking:
+            return {"success": False, "error": "Booking not found"}
+
+        # Extract data needed for Stripe call
+        payment_intent_id = booking.payment_intent_id
+        current_payment_status = booking.payment_status
+
+        if not payment_intent_id:
+            return {"success": False, "error": "No payment_intent_id"}
+
+        if current_payment_status == "captured":
+            return {"success": True, "already_captured": True}
+
+        if booking.status == BookingStatus.CANCELLED and current_payment_status == "captured":
+            return {"success": True, "skipped": True}
+
+        db1.commit()  # Release lock immediately
+    finally:
+        db1.close()
+
+    # ========== PHASE 2: Stripe call (NO transaction) ==========
+    stripe_result: Dict[str, Any] = {"success": False}
+    try:
+        db_stripe: Session = SessionLocal()
+        try:
+            config_service = ConfigService(db_stripe)
+            pricing_service = PricingService(db_stripe)
+            stripe_service = StripeService(
+                db_stripe,
+                config_service=config_service,
+                pricing_service=pricing_service,
+            )
+            db_stripe.commit()  # Release any locks from service init
+        finally:
+            db_stripe.close()
+
+        # Make Stripe call with NO database transaction
+        capture_payload = stripe_service.capture_booking_payment_intent(
+            booking_id=booking_id,
+            payment_intent_id=payment_intent_id,
+        )
+
+        payment_intent = None
+        amount_received = None
+
+        if isinstance(capture_payload, dict):
+            payment_intent = capture_payload.get("payment_intent")
+            amount_received = capture_payload.get("amount_received")
+        else:
+            payment_intent = capture_payload
+
+        if amount_received is None and payment_intent is not None:
+            amount_received = getattr(payment_intent, "amount_received", None)
+
+        if amount_received is None and payment_intent is not None:
+            amount_received = getattr(payment_intent, "amount", None)
+
+        stripe_result = {
+            "success": True,
+            "amount_received": amount_received,
+            "payment_intent_id": payment_intent_id,
+        }
+
+    except stripe.error.InvalidRequestError as e:
+        error_code = e.code if hasattr(e, "code") else None
+
+        if "already been captured" in str(e).lower():
+            stripe_result = {"success": True, "already_captured": True}
+        elif "expired" in str(e).lower() or error_code == "payment_intent_unexpected_state":
+            stripe_result = {"success": False, "expired": True, "error": str(e)}
+        else:
+            stripe_result = {"success": False, "error": str(e), "error_code": error_code}
+
+    except stripe.error.CardError as e:
+        stripe_result = {
+            "success": False,
+            "card_error": True,
+            "error": str(e),
+            "error_code": e.code if hasattr(e, "code") else None,
+        }
+
+    except Exception as e:
+        stripe_result = {"success": False, "error": str(e)}
+
+    # ========== PHASE 3: Write results (quick transaction) ==========
+    db3: Session = SessionLocal()
+    try:
+        booking = db3.query(Booking).filter(Booking.id == booking_id).first()
+        if not booking:
+            return {"success": False, "error": "Booking not found in Phase 3"}
+
+        payment_repo = RepositoryFactory.get_payment_repository(db3)
+
+        if stripe_result.get("success"):
+            booking.payment_status = "captured"
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="payment_captured",
+                event_data={
+                    "payment_intent_id": stripe_result.get("payment_intent_id"),
+                    "amount_captured_cents": stripe_result.get("amount_received"),
+                    "capture_reason": capture_reason,
+                    "captured_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            logger.info(
+                f"Successfully captured payment for booking {booking_id} (reason: {capture_reason})"
+            )
+
+        elif stripe_result.get("already_captured"):
+            booking.payment_status = "captured"
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="capture_already_done",
+                event_data={
+                    "payment_intent_id": payment_intent_id,
+                    "error": stripe_result.get("error", "Already captured"),
+                },
+            )
+
+        elif stripe_result.get("expired"):
+            booking.payment_status = "auth_expired"
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="capture_failed_expired",
+                event_data={
+                    "payment_intent_id": payment_intent_id,
+                    "error": stripe_result.get("error"),
+                    "capture_reason": capture_reason,
+                },
+            )
+
+        elif stripe_result.get("card_error"):
+            booking.payment_status = "capture_failed"
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="capture_failed_card",
+                event_data={
+                    "payment_intent_id": payment_intent_id,
+                    "error": stripe_result.get("error"),
+                    "error_code": stripe_result.get("error_code"),
+                    "capture_reason": capture_reason,
+                },
+            )
+
+        else:
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="capture_failed",
+                event_data={
+                    "payment_intent_id": payment_intent_id,
+                    "error": stripe_result.get("error"),
+                    "capture_reason": capture_reason,
+                },
+            )
+            logger.error(
+                f"Failed to capture payment for booking {booking_id}: {stripe_result.get('error')}"
+            )
+
+        db3.commit()  # Commit and release lock immediately
+    finally:
+        db3.close()
+
+    return stripe_result
+
+
+def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
+    """
+    Auto-complete a booking and capture payment using 3-phase pattern.
+
+    Returns:
+        Dict with success status
+    """
+    from app.database import SessionLocal
+
+    # ========== PHASE 1: Read and update booking status (quick transaction) ==========
+    db1: Session = SessionLocal()
+    payment_intent_id: Optional[str] = None
+    try:
+        booking = (
+            db1.query(Booking)
+            .options(
+                # Load instructor for timezone
+            )
+            .filter(Booking.id == booking_id)
+            .first()
+        )
+        if not booking:
+            return {"success": False, "error": "Booking not found"}
+
+        # Get instructor's timezone
+        tz_name = getattr(booking.instructor, "timezone", None) or "America/New_York"
+        try:
+            instructor_zone = ZoneInfo(tz_name)
+        except Exception:
+            instructor_zone = ZoneInfo("America/New_York")
+
+        # Calculate lesson end in UTC
+        lesson_end_local = datetime.combine(
+            booking.booking_date, booking.end_time, tzinfo=instructor_zone
+        )
+        lesson_end = lesson_end_local.astimezone(timezone.utc)
+
+        # Mark as completed
+        booking.status = BookingStatus.COMPLETED
+        booking.completed_at = lesson_end
+
+        # Issue milestone credit
+        credit_service = StudentCreditService(db1)
+        credit_service.maybe_issue_milestone_credit(
+            student_id=booking.student_id,
+            booking_id=booking.id,
+        )
+
+        # Record auto-completion event
+        payment_repo = RepositoryFactory.get_payment_repository(db1)
+        payment_repo.create_payment_event(
+            booking_id=booking.id,
+            event_type="auto_completed",
+            event_data={
+                "reason": "No instructor confirmation within 24hr",
+                "lesson_end": lesson_end.isoformat(),
+                "auto_completed_at": now.isoformat(),
+            },
+        )
+
+        payment_intent_id = booking.payment_intent_id
+        db1.commit()  # Commit status change immediately
+    finally:
+        db1.close()
+
+    # ========== PHASE 2 & 3: Capture payment (uses 3-phase internally) ==========
+    if not payment_intent_id:
+        logger.warning(f"Skipping capture for booking {booking_id}: no payment_intent_id")
+        return {
+            "success": True,
+            "auto_completed": True,
+            "captured": False,
+            "capture_attempted": False,
+        }
+
+    capture_result = _process_capture_for_booking(booking_id, "auto_completed")
+
+    return {
+        "success": True,
+        "auto_completed": True,
+        "captured": capture_result.get("success", False),
+        "capture_attempted": True,
+    }
+
+
 @typed_task(bind=True, max_retries=3, name="app.tasks.payment_tasks.capture_completed_lessons")
 def capture_completed_lessons(self: Any) -> CaptureJobResults:
     """
@@ -583,141 +1203,76 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
     2. Auto-complete and capture lessons not marked complete within 24hr of end
     3. Handle expired authorizations (>7 days old)
 
+    Uses 3-phase pattern to minimize lock contention:
+    - Phase 1: Quick read (release lock immediately)
+    - Phase 2: Stripe call (no lock held)
+    - Phase 3: Quick write (release lock immediately)
+
     Returns:
         Dict with capture results
     """
     from app.database import SessionLocal
 
-    db: Session = SessionLocal()
+    now = datetime.now(timezone.utc)
+    results: CaptureJobResults = {
+        "captured": 0,
+        "failed": 0,
+        "auto_completed": 0,
+        "expired_handled": 0,
+        "processed_at": now.isoformat(),
+    }
+
+    # ========== Collect booking IDs to process (quick read) ==========
+    db_read: Session = SessionLocal()
     try:
-        _payment_repo = RepositoryFactory.get_payment_repository(db)
-        booking_repo = RepositoryFactory.get_booking_repository(db)
-        config_service = ConfigService(db)
-        pricing_service = PricingService(db)
-        stripe_service = StripeService(
-            db,
-            config_service=config_service,
-            pricing_service=pricing_service,
-        )
-        credit_service = StudentCreditService(db)
-        now = datetime.now(timezone.utc)
+        booking_repo = RepositoryFactory.get_booking_repository(db_read)
+        payment_repo = RepositoryFactory.get_payment_repository(db_read)
 
-        results: CaptureJobResults = {
-            "captured": 0,
-            "failed": 0,
-            "auto_completed": 0,
-            "expired_handled": 0,
-            "processed_at": now.isoformat(),
-        }
-
-        # 1. Find bookings ready for capture (24hr after instructor marked complete)
+        # 1. Find booking IDs ready for capture
         all_completed_bookings = cast(
             Sequence[Booking],
             booking_repo.get_bookings_for_payment_capture(),
         )
-        bookings_to_capture = [
-            booking
+        capture_booking_ids = [
+            booking.id
             for booking in all_completed_bookings
-            if booking.completed_at and booking.completed_at <= now - timedelta(hours=24)
+            if booking.completed_at
+            and booking.completed_at <= now - timedelta(hours=24)
+            and booking.payment_intent_id
         ]
 
-        for booking in bookings_to_capture:
-            if not booking.payment_intent_id:
-                logger.warning(f"Skipping capture for booking {booking.id}: no payment_intent_id")
-                continue
-            capture_result = attempt_payment_capture(
-                booking, _payment_repo, "instructor_completed", stripe_service
-            )
-            if capture_result["success"]:
-                results["captured"] += 1
-            else:
-                results["failed"] += 1
-
-        # 2. Auto-complete lessons not marked complete within 24hr of end
+        # 2. Find booking IDs for auto-completion
         auto_complete_cutoff = now - timedelta(hours=24)
         all_confirmed_bookings = cast(
             Sequence[Booking],
             booking_repo.get_bookings_for_auto_completion(),
         )
-
-        # Filter to only bookings where lesson ended >24hr ago
-        # Use instructor's timezone to correctly convert lesson end time to UTC
-        bookings_to_auto_complete: List[Booking] = []
+        auto_complete_booking_ids: List[str] = []
         for booking in all_confirmed_bookings:
-            # Get instructor's timezone (default to NYC if not set)
             tz_name = getattr(booking.instructor, "timezone", None) or "America/New_York"
             try:
                 instructor_zone = ZoneInfo(tz_name)
             except Exception:
                 instructor_zone = ZoneInfo("America/New_York")
 
-            # Lesson end time is in instructor's local timezone, convert to UTC
             lesson_end_local = datetime.combine(
                 booking.booking_date, booking.end_time, tzinfo=instructor_zone
             )
             lesson_end_utc = lesson_end_local.astimezone(timezone.utc)
             if lesson_end_utc <= auto_complete_cutoff:
-                bookings_to_auto_complete.append(booking)
+                auto_complete_booking_ids.append(booking.id)
 
-        for booking in bookings_to_auto_complete:
-            # Get instructor's timezone (default to NYC if not set)
-            tz_name = getattr(booking.instructor, "timezone", None) or "America/New_York"
-            try:
-                instructor_zone = ZoneInfo(tz_name)
-            except Exception:
-                instructor_zone = ZoneInfo("America/New_York")
-
-            # Lesson end time is in instructor's local timezone, convert to UTC
-            lesson_end_local = datetime.combine(
-                booking.booking_date, booking.end_time, tzinfo=instructor_zone
-            )
-            lesson_end = lesson_end_local.astimezone(timezone.utc)
-            # Auto-complete the booking
-            booking.status = BookingStatus.COMPLETED
-            booking.completed_at = lesson_end
-
-            credit_service.maybe_issue_milestone_credit(
-                student_id=booking.student_id,
-                booking_id=booking.id,
-            )
-
-            _payment_repo.create_payment_event(
-                booking_id=booking.id,
-                event_type="auto_completed",
-                event_data={
-                    "reason": "No instructor confirmation within 24hr",
-                    "lesson_end": lesson_end.isoformat(),
-                    "auto_completed_at": now.isoformat(),
-                },
-            )
-
-            # Attempt capture
-            if not booking.payment_intent_id:
-                logger.warning(f"Skipping capture for booking {booking.id}: no payment_intent_id")
-                results["auto_completed"] += 1
-                continue
-            capture_result = attempt_payment_capture(
-                booking, _payment_repo, "auto_completed", stripe_service
-            )
-            if capture_result["success"]:
-                results["captured"] += 1
-            else:
-                results["failed"] += 1
-
-            results["auto_completed"] += 1
-
-        # 3. Handle expired authorizations (>7 days old)
+        # 3. Find booking IDs with expired auth
         seven_days_ago = now - timedelta(days=7)
         bookings_with_expired_auth = cast(
             Sequence[Booking],
             booking_repo.get_bookings_with_expired_auth(),
         )
-
+        expired_auth_data: List[Dict[str, Any]] = []
         for booking in bookings_with_expired_auth:
-            # Check when authorization was created
             auth_events = cast(
                 Sequence[PaymentEvent],
-                _payment_repo.get_payment_events_for_booking(booking.id),
+                payment_repo.get_payment_events_for_booking(booking.id),
             )
             auth_event = next(
                 (
@@ -727,52 +1282,102 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                 ),
                 None,
             )
-
             if auth_event and auth_event.created_at <= seven_days_ago:
-                # Authorization is expired, need to handle it
+                expired_auth_data.append(
+                    {
+                        "booking_id": booking.id,
+                        "status": booking.status,
+                        "auth_created_at": auth_event.created_at.isoformat(),
+                    }
+                )
+
+        db_read.commit()  # Release locks from read phase
+    finally:
+        db_read.close()
+
+    # ========== Process each booking with 3-phase pattern ==========
+
+    # 1. Process instructor-completed bookings
+    for booking_id in capture_booking_ids:
+        try:
+            capture_result = _process_capture_for_booking(booking_id, "instructor_completed")
+            if capture_result.get("success"):
+                results["captured"] += 1
+            else:
+                results["failed"] += 1
+        except Exception as e:
+            logger.error(f"Error processing capture for booking {booking_id}: {e}")
+            results["failed"] += 1
+
+    # 2. Process auto-complete bookings
+    for booking_id in auto_complete_booking_ids:
+        try:
+            auto_result = _auto_complete_booking(booking_id, now)
+            if auto_result.get("auto_completed"):
+                results["auto_completed"] += 1
+            if auto_result.get("captured"):
+                results["captured"] += 1
+            elif auto_result.get("capture_attempted") and not auto_result.get("captured"):
+                # Count as failed only if we tried to capture but failed
+                results["failed"] += 1
+        except Exception as e:
+            logger.error(f"Error auto-completing booking {booking_id}: {e}")
+            results["failed"] += 1
+
+    # 3. Process expired authorizations
+    for expired_data in expired_auth_data:
+        booking_id = expired_data["booking_id"]
+        try:
+            db_expired: Session = SessionLocal()
+            try:
+                booking = db_expired.query(Booking).filter(Booking.id == booking_id).first()
+                if not booking:
+                    continue
+
                 if booking.status == BookingStatus.COMPLETED:
-                    # Try to capture anyway (might fail)
-                    capture_result = attempt_payment_capture(
-                        booking, _payment_repo, "expired_auth", stripe_service
-                    )
-                    if not capture_result["success"]:
-                        # Create new authorization and capture
+                    # Try capture first (uses 3-phase internally)
+                    capture_result = _process_capture_for_booking(booking_id, "expired_auth")
+                    if not capture_result.get("success"):
+                        # Create new auth and capture (still needs refactoring)
+                        payment_repo = RepositoryFactory.get_payment_repository(db_expired)
                         new_auth_result = create_new_authorization_and_capture(
-                            booking, _payment_repo, db
+                            booking, payment_repo, db_expired
                         )
+                        db_expired.commit()
                         if new_auth_result["success"]:
                             results["captured"] += 1
                         else:
                             results["failed"] += 1
+                    else:
+                        results["captured"] += 1
                 else:
-                    # Mark as expired, will need manual intervention
+                    # Mark as expired
                     booking.payment_status = "auth_expired"
-                    _payment_repo.create_payment_event(
-                        booking_id=booking.id,
+                    payment_repo = RepositoryFactory.get_payment_repository(db_expired)
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
                         event_type="auth_expired",
                         event_data={
                             "payment_intent_id": booking.payment_intent_id,
                             "expired_at": now.isoformat(),
-                            "auth_created_at": auth_event.created_at.isoformat(),
+                            "auth_created_at": expired_data["auth_created_at"],
                         },
                     )
+                    db_expired.commit()
 
                 results["expired_handled"] += 1
+            finally:
+                db_expired.close()
+        except Exception as e:
+            logger.error(f"Error handling expired auth for booking {booking_id}: {e}")
+            results["failed"] += 1
 
-        db.commit()
-
-        logger.info(
-            f"Capture job completed: {results['captured']} captured, "
-            f"{results['failed']} failed, {results['auto_completed']} auto-completed, "
-            f"{results['expired_handled']} expired handled"
-        )
-        return results
-
-    except Exception as exc:
-        logger.error(f"Capture job failed: {exc}")
-        raise self.retry(exc=exc, countdown=300)  # Retry in 5 minutes
-    finally:
-        db.close()
+    logger.info(
+        f"Capture job completed: {results['captured']} captured, "
+        f"{results['failed']} failed, {results['auto_completed']} auto-completed, "
+        f"{results['expired_handled']} expired handled"
+    )
+    return results
 
 
 def attempt_payment_capture(

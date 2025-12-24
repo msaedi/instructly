@@ -584,9 +584,13 @@ class TestCeleryTaskTimezone:
                     mock_payment_repo = MagicMock()
                     mock_factory.get_payment_repository.return_value = mock_payment_repo
 
+                    # Setup query mock to return the booking for direct db.query() calls
+                    mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = booking
+                    mock_db.query.return_value.filter.return_value.first.return_value = booking
+
                     with patch("app.tasks.payment_tasks.StripeService"):
                         with patch("app.tasks.payment_tasks.StudentCreditService"):
-                            with patch("app.tasks.payment_tasks.attempt_payment_capture", return_value={"success": True}):
+                            with patch("app.tasks.payment_tasks._process_capture_for_booking", return_value={"success": True}):
                                 result = capture_completed_lessons()
 
         # Should auto-complete because 25 hours have passed
