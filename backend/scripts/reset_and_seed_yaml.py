@@ -1891,18 +1891,24 @@ class DatabaseSeeder:
                             student_id=student.id,
                             base_date=base_date_val,
                             lookback_days=seed_lookback,
-                            horizon_days=seed_horizon,
+                            horizon_days=0,
                             day_start_hour=seed_day_start,
                             day_end_hour=seed_day_end,
                             step_minutes=seed_step_minutes,
                             durations_minutes=seed_durations,
                             randomize=True,
+                            past_only=True,
                         )
 
                         if not slot:
                             break
 
                         booking_date_val, start_time_val, end_time_val = slot
+                        if booking_date_val > date.today():
+                            print(
+                                f"WARNING: Skipping future date {booking_date_val} for completed review booking."
+                            )
+                            continue
 
                         # Pre-generate ULID for bulk insert
                         booking_id = str(ulid.ULID())

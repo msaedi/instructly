@@ -691,6 +691,7 @@ def find_free_slot_bulk(
     step_minutes: int = 15,
     durations_minutes: Optional[Sequence[int]] = None,
     randomize: bool = True,
+    past_only: bool = False,
 ) -> Optional[Tuple[date, time, time]]:
     """
     Find a free slot using pre-loaded bitmap data and in-memory conflict detection.
@@ -710,12 +711,13 @@ def find_free_slot_bulk(
     day_end_minutes = min(24 * 60, max(day_start_minutes + 1, day_end_hour * 60))
     step = max(1, step_minutes)
 
-    # Build candidate dates (backward then forward)
+    # Build candidate dates (backward then forward unless past_only=True)
     candidate_dates: List[date] = []
     for day_offset in range(1, lookback + 1):
         candidate_dates.append(base_date - timedelta(days=day_offset))
-    for day_offset in range(0, horizon + 1):
-        candidate_dates.append(base_date + timedelta(days=day_offset))
+    if not past_only:
+        for day_offset in range(0, horizon + 1):
+            candidate_dates.append(base_date + timedelta(days=day_offset))
 
     # Optionally randomize to distribute slots more evenly
     if randomize:
