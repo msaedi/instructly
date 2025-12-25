@@ -225,6 +225,7 @@ class TestBookingPaymentService:
             last_name="Instructor",
             zip_code="10001",
             is_active=True,
+            timezone="UTC",
         )
         instructor.roles.append(instructor_role)
         db.add(instructor)

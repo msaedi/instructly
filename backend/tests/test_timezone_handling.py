@@ -1,10 +1,10 @@
 """
-UTC timezone handling tests.
+Timezone handling tests.
 
 These tests verify that:
-1. Booking availability checks use UTC consistently.
+1. Booking availability checks convert instructor-local times to UTC.
 2. Auto-completion cutoff uses UTC lesson end times.
-3. Instructor timezone does not alter backend calculations.
+3. Instructor timezone drives conversion, not ignored.
 """
 
 from datetime import date, datetime, time, timezone
@@ -44,21 +44,24 @@ def _run_check_availability(
     with patch("app.services.booking_service.datetime") as mock_dt:
         mock_dt.now.return_value = now_utc
         mock_dt.combine = datetime.combine
+        with patch("app.services.timezone_service.datetime") as mock_tz_dt:
+            mock_tz_dt.now.return_value = now_utc
+            mock_tz_dt.combine = datetime.combine
 
-        with patch.object(booking_service, "repository") as mock_repo:
-            mock_repo.check_time_conflict.return_value = False
+            with patch.object(booking_service, "repository") as mock_repo:
+                mock_repo.check_time_conflict.return_value = False
 
-            with patch.object(booking_service, "conflict_checker_repository") as mock_ccr:
-                mock_ccr.get_active_service.return_value = MagicMock()
-                mock_ccr.get_instructor_profile.return_value = instructor_profile
+                with patch.object(booking_service, "conflict_checker_repository") as mock_ccr:
+                    mock_ccr.get_active_service.return_value = MagicMock()
+                    mock_ccr.get_instructor_profile.return_value = instructor_profile
 
-                return booking_service.check_availability(
-                    instructor_id=instructor_profile.user.id,
-                    booking_date=booking_date,
-                    start_time=start_time,
-                    end_time=end_time,
-                    service_id="test_service",
-                )
+                    return booking_service.check_availability(
+                        instructor_id=instructor_profile.user.id,
+                        booking_date=booking_date,
+                        start_time=start_time,
+                        end_time=end_time,
+                        service_id="test_service",
+                    )
 
 
 def _make_booking(booking_date: date, end_time: time, tz_name: str) -> MagicMock:
@@ -76,8 +79,8 @@ def _make_booking(booking_date: date, end_time: time, tz_name: str) -> MagicMock
     return booking
 
 
-class TestCheckAvailabilityUTC:
-    def test_booking_1hr_advance_passes_in_utc(self, db):
+class TestCheckAvailabilityTimezone:
+    def test_booking_1hr_advance_passes_with_instructor_timezone(self, db):
         instructor_profile = _make_instructor_profile("Asia/Tokyo")
         now_utc = datetime(2024, 6, 15, 10, 0, 0, tzinfo=timezone.utc)
 
@@ -86,8 +89,8 @@ class TestCheckAvailabilityUTC:
             instructor_profile=instructor_profile,
             now_utc=now_utc,
             booking_date=date(2024, 6, 15),
-            start_time=time(11, 0),
-            end_time=time(12, 0),
+            start_time=time(20, 0),
+            end_time=time(21, 0),
         )
 
         assert result["available"] is True
@@ -101,8 +104,8 @@ class TestCheckAvailabilityUTC:
             instructor_profile=instructor_profile,
             now_utc=now_utc,
             booking_date=date(2024, 6, 15),
-            start_time=time(10, 30),
-            end_time=time(11, 30),
+            start_time=time(3, 30),
+            end_time=time(4, 30),
         )
 
         assert result["available"] is False

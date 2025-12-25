@@ -52,6 +52,7 @@ from .notification_service import NotificationService
 from .pricing_service import PricingService
 from .student_credit_service import StudentCreditService
 from .system_message_service import SystemMessageService
+from .timezone_service import TimezoneService
 
 if TYPE_CHECKING:
     # AvailabilitySlot removed - bitmap-only storage now
@@ -332,14 +333,99 @@ class BookingService(BaseService):
         booking_data: BookingCreate,
         instructor_profile: InstructorProfile,
     ) -> date:
-        """Return the UTC date for availability lookup.
+        """Return the instructor-local date for availability lookup.
 
-        All booking_date/start_time values are treated as UTC in the backend.
-        No conversion is needed - the provided date is the canonical UTC date.
+        Booking requests send instructor-local dates/times, and availability
+        is stored in instructor-local days. No conversion is needed here.
         """
-        # Client and storage are UTC; use the provided date as-is.
+        # Client and availability are instructor-local; use the provided date as-is.
         result: date = booking_data.booking_date
         return result
+
+    @staticmethod
+    def _is_online_lesson(booking_data: BookingCreate) -> bool:
+        """Return True when the lesson is remote/online."""
+        location_type = getattr(booking_data, "location_type", None)
+        return location_type == "remote"
+
+    def _resolve_instructor_timezone(self, instructor_profile: InstructorProfile) -> str:
+        """Resolve instructor timezone with a safe default."""
+        instructor_user = getattr(instructor_profile, "user", None)
+        instructor_tz = getattr(instructor_user, "timezone", None)
+        return instructor_tz or TimezoneService.DEFAULT_TIMEZONE
+
+    @staticmethod
+    def _resolve_student_timezone(student: Optional[User]) -> str:
+        """Resolve student timezone with a safe default."""
+        student_tz = getattr(student, "timezone", None) if student else None
+        return student_tz or TimezoneService.DEFAULT_TIMEZONE
+
+    def _resolve_lesson_timezone(
+        self,
+        booking_data: BookingCreate,
+        instructor_profile: InstructorProfile,
+    ) -> str:
+        instructor_tz = self._resolve_instructor_timezone(instructor_profile)
+        is_online = self._is_online_lesson(booking_data)
+        return TimezoneService.get_lesson_timezone(instructor_tz, is_online)
+
+    @staticmethod
+    def _resolve_end_date(booking_date: date, start_time: time, end_time: time) -> date:
+        """Resolve the end date for a booking, handling midnight rollover."""
+        midnight = time(0, 0)
+        if end_time == midnight and start_time != midnight:
+            return booking_date + timedelta(days=1)
+        return booking_date
+
+    def _resolve_booking_times_utc(
+        self,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        lesson_tz: str,
+    ) -> Tuple[datetime, datetime]:
+        """Convert local booking times to UTC, raising on invalid times."""
+        end_date = self._resolve_end_date(booking_date, start_time, end_time)
+        try:
+            start_utc = TimezoneService.local_to_utc(booking_date, start_time, lesson_tz)
+            end_utc = TimezoneService.local_to_utc(end_date, end_time, lesson_tz)
+        except ValueError as exc:
+            raise BusinessRuleException(str(exc)) from exc
+        return start_utc, end_utc
+
+    def _get_booking_start_utc(self, booking: Booking) -> datetime:
+        """Get booking start time in UTC, handling legacy bookings."""
+        if booking.booking_start_utc:
+            return cast(datetime, booking.booking_start_utc)
+
+        lesson_tz = booking.lesson_timezone or booking.instructor_tz_at_booking
+        if not lesson_tz and booking.instructor:
+            lesson_tz = getattr(booking.instructor, "timezone", None)
+        lesson_tz = lesson_tz or TimezoneService.DEFAULT_TIMEZONE
+        return TimezoneService.local_to_utc(
+            booking.booking_date,
+            booking.start_time,
+            lesson_tz,
+        )
+
+    def _get_booking_end_utc(self, booking: Booking) -> datetime:
+        """Get booking end time in UTC, handling legacy bookings."""
+        if booking.booking_end_utc:
+            return cast(datetime, booking.booking_end_utc)
+
+        lesson_tz = booking.lesson_timezone or booking.instructor_tz_at_booking
+        if not lesson_tz and booking.instructor:
+            lesson_tz = getattr(booking.instructor, "timezone", None)
+        lesson_tz = lesson_tz or TimezoneService.DEFAULT_TIMEZONE
+
+        end_date = self._resolve_end_date(
+            booking.booking_date, booking.start_time, booking.end_time
+        )
+        return TimezoneService.local_to_utc(
+            end_date,
+            booking.end_time,
+            lesson_tz,
+        )
 
     def _validate_against_availability_bits(
         self,
@@ -612,11 +698,7 @@ class BookingService(BaseService):
                         original_lesson_dt = None
                         if previous_booking:
                             # Store the previous booking's lesson datetime for fair cancellation policy
-                            original_lesson_dt = datetime.combine(
-                                previous_booking.booking_date,
-                                previous_booking.start_time,
-                                tzinfo=timezone.utc,
-                            )
+                            original_lesson_dt = self._get_booking_start_utc(previous_booking)
 
                         updated_booking = self.repository.update(
                             booking.id,
@@ -792,11 +874,8 @@ class BookingService(BaseService):
                 )
 
             # Phase 2.2: Schedule authorization based on lesson timing (UTC)
-            booking_datetime = datetime.combine(
-                booking.booking_date, booking.start_time, tzinfo=timezone.utc
-            )
-            now = datetime.now(timezone.utc)
-            hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
+            booking_start_utc = self._get_booking_start_utc(booking)
+            hours_until_lesson = TimezoneService.hours_until(booking_start_utc)
 
             is_gaming_reschedule = False
             hours_from_original: Optional[float] = None
@@ -848,7 +927,7 @@ class BookingService(BaseService):
 
             else:
                 # Lesson is >24 hours away - schedule authorization
-                auth_time = booking_datetime - timedelta(hours=24)
+                auth_time = booking_start_utc - timedelta(hours=24)
                 booking.payment_status = "scheduled"
 
                 # Create scheduled event using repository
@@ -1090,9 +1169,8 @@ class BookingService(BaseService):
         Build context for cancellation (Phase 1 helper).
         Extracts all data needed for Stripe calls and finalization.
         """
-        now_dt = datetime.now(timezone.utc)
-        lesson_dt = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
-        hours_until = (lesson_dt - now_dt).total_seconds() / 3600
+        booking_start_utc = self._get_booking_start_utc(booking)
+        hours_until = TimezoneService.hours_until(booking_start_utc)
 
         # Part 4b: Fair Reschedule Loophole Fix
         was_gaming_reschedule = False
@@ -1833,10 +1911,8 @@ class BookingService(BaseService):
 
             # Verify lesson has ended
             now = datetime.now(timezone.utc)
-            lesson_end = datetime.combine(
-                booking.booking_date, booking.end_time, tzinfo=timezone.utc
-            )
-            if lesson_end > now:
+            lesson_end_utc = self._get_booking_end_utc(booking)
+            if lesson_end_utc > now:
                 raise BusinessRuleException("Cannot mark lesson as complete before it ends")
 
             # Mark as completed
@@ -2064,16 +2140,28 @@ class BookingService(BaseService):
         # Check minimum advance booking using UTC.
         min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
         now_utc = datetime.now(timezone.utc)
-        booking_datetime_utc = datetime.combine(booking_date, start_time, tzinfo=timezone.utc)
+        lesson_tz = TimezoneService.get_lesson_timezone(
+            self._resolve_instructor_timezone(instructor_profile),
+            is_online=False,
+        )
+        try:
+            booking_start_utc, _ = self._resolve_booking_times_utc(
+                booking_date,
+                start_time,
+                end_time,
+                lesson_tz,
+            )
+        except BusinessRuleException as exc:
+            return {"available": False, "reason": str(exc)}
 
         # For >=24 hour min advance, use date-level granularity to avoid HH:MM boundary flakiness
         if min_advance_hours >= 24:
             min_booking_dt = now_utc + timedelta(hours=min_advance_hours)
             min_date_only = min_booking_dt.date()
 
-            if booking_datetime_utc.date() < min_date_only or (
-                booking_datetime_utc.date() == min_date_only
-                and booking_datetime_utc.time() < min_booking_dt.time()
+            if booking_start_utc.date() < min_date_only or (
+                booking_start_utc.date() == min_date_only
+                and booking_start_utc.time() < min_booking_dt.time()
             ):
                 return {
                     "available": False,
@@ -2082,8 +2170,8 @@ class BookingService(BaseService):
                 }
         else:
             # For <24 hour min advance, do precise time comparison
-            min_booking_time = now_utc + timedelta(hours=min_advance_hours)
-            if booking_datetime_utc < min_booking_time:
+            hours_until = TimezoneService.hours_until(booking_start_utc)
+            if hours_until < min_advance_hours:
                 return {
                     "available": False,
                     "reason": f"Must book at least {min_advance_hours} hours in advance",
@@ -2225,6 +2313,14 @@ class BookingService(BaseService):
         if booking_data.end_time is None:
             raise ValidationException("End time must be specified before conflict checks")
 
+        lesson_tz = self._resolve_lesson_timezone(booking_data, instructor_profile)
+        booking_start_utc, _ = self._resolve_booking_times_utc(
+            booking_data.booking_date,
+            booking_data.start_time,
+            booking_data.end_time,
+            lesson_tz,
+        )
+
         existing_conflicts = self.repository.check_time_conflict(
             instructor_id=booking_data.instructor_id,
             booking_date=booking_data.booking_date,
@@ -2265,27 +2361,21 @@ class BookingService(BaseService):
         # For instructors with >=24 hour min advance, enforce on date granularity to avoid HH:MM boundary flakiness
         min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
         now_utc = datetime.now(timezone.utc)
-        booking_datetime_utc = datetime.combine(
-            booking_data.booking_date,
-            booking_data.start_time,
-            tzinfo=timezone.utc,
-        )
 
         if min_advance_hours >= 24:
             min_booking_dt = now_utc + timedelta(hours=min_advance_hours)
-            booking_date_only = booking_data.booking_date
             min_date_only = min_booking_dt.date()
 
-            if booking_date_only < min_date_only or (
-                booking_date_only == min_date_only
-                and booking_datetime_utc.time() < min_booking_dt.time()
+            if booking_start_utc.date() < min_date_only or (
+                booking_start_utc.date() == min_date_only
+                and booking_start_utc.time() < min_booking_dt.time()
             ):
                 raise BusinessRuleException(
                     f"Bookings must be made at least {min_advance_hours} hours in advance"
                 )
         else:
-            min_booking_time = now_utc + timedelta(hours=min_advance_hours)
-            if booking_datetime_utc < min_booking_time:
+            hours_until = TimezoneService.hours_until(booking_start_utc)
+            if hours_until < min_advance_hours:
                 raise BusinessRuleException(
                     f"Bookings must be made at least {min_advance_hours} hours in advance"
                 )
@@ -2315,6 +2405,18 @@ class BookingService(BaseService):
             raise ValidationException("End time must be calculated before creating a booking")
         end_time_value = booking_data.end_time
 
+        instructor_tz = self._resolve_instructor_timezone(instructor_profile)
+        student_tz = self._resolve_student_timezone(student)
+        lesson_tz = TimezoneService.get_lesson_timezone(
+            instructor_tz, self._is_online_lesson(booking_data)
+        )
+        booking_start_utc, booking_end_utc = self._resolve_booking_times_utc(
+            booking_data.booking_date,
+            booking_data.start_time,
+            end_time_value,
+            lesson_tz,
+        )
+
         # Calculate pricing based on selected duration
         total_price = service.session_price(selected_duration)
 
@@ -2329,6 +2431,11 @@ class BookingService(BaseService):
             booking_date=booking_data.booking_date,
             start_time=booking_data.start_time,
             end_time=end_time_value,
+            booking_start_utc=booking_start_utc,
+            booking_end_utc=booking_end_utc,
+            lesson_timezone=lesson_tz,
+            instructor_tz_at_booking=instructor_tz,
+            student_tz_at_booking=student_tz,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=total_price,
@@ -2625,10 +2732,8 @@ class BookingService(BaseService):
     def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
         """Apply business rules for cancellation."""
         # Check cancellation deadline using UTC
-        booking_datetime = datetime.combine(
-            booking.booking_date, booking.start_time, tzinfo=timezone.utc
-        )
-        cancellation_deadline = booking_datetime - timedelta(hours=2)
+        booking_start_utc = self._get_booking_start_utc(booking)
+        cancellation_deadline = booking_start_utc - timedelta(hours=2)
         now_utc = datetime.now(timezone.utc)
 
         if now_utc > cancellation_deadline:

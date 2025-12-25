@@ -57,6 +57,7 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         last_name="T",
         zip_code="10001",
         is_active=True,
+        timezone="UTC",
     )
     student.roles.append(student_role)
     db.add(student)
@@ -70,6 +71,7 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         last_name="N",
         zip_code="10001",
         is_active=True,
+        timezone="UTC",
     )
     instructor.roles.append(instructor_role)
     db.add(instructor)
