@@ -123,6 +123,11 @@ def upgrade() -> None:
         sa.Column("booking_date", sa.Date(), nullable=False),
         sa.Column("start_time", sa.Time(), nullable=False),
         sa.Column("end_time", sa.Time(), nullable=False),
+        sa.Column("booking_start_utc", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("booking_end_utc", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("lesson_timezone", sa.String(50), nullable=True),
+        sa.Column("instructor_tz_at_booking", sa.String(50), nullable=True),
+        sa.Column("student_tz_at_booking", sa.String(50), nullable=True),
         sa.Column("service_name", sa.String(), nullable=False),
         sa.Column("hourly_rate", sa.Numeric(10, 2), nullable=False),
         sa.Column("total_price", sa.Numeric(10, 2), nullable=False),
@@ -174,6 +179,7 @@ def upgrade() -> None:
     op.create_index("idx_bookings_date", "bookings", ["booking_date"])
     op.create_index("idx_bookings_status", "bookings", ["status"])
     op.create_index("idx_bookings_created_at", "bookings", ["created_at"])
+    op.create_index("ix_bookings_start_utc", "bookings", ["booking_start_utc"])
     op.create_index(
         "ix_booking_instructor_completed",
         "bookings",
@@ -681,6 +687,7 @@ def downgrade() -> None:
     op.drop_index("idx_bookings_date", table_name="bookings")
     op.drop_index("idx_bookings_instructor_id", table_name="bookings")
     op.drop_index("idx_bookings_student_id", table_name="bookings")
+    op.drop_index("ix_bookings_start_utc", table_name="bookings")
     op.drop_table("bookings")
 
     op.drop_index("idx_blackout_dates_instructor_date", table_name="blackout_dates")

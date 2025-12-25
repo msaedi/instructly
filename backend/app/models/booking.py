@@ -95,6 +95,11 @@ class Booking(Base):
     booking_date = Column(Date, nullable=False, index=True)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
+    booking_start_utc = Column(DateTime(timezone=True), nullable=True, index=True)
+    booking_end_utc = Column(DateTime(timezone=True), nullable=True)
+    lesson_timezone = Column(String(50), nullable=True)
+    instructor_tz_at_booking = Column(String(50), nullable=True)
+    student_tz_at_booking = Column(String(50), nullable=True)
 
     # Service snapshot (preserved for history)
     service_name = Column(String, nullable=False)

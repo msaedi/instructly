@@ -1854,10 +1854,10 @@ export type paths = {
         put?: never;
         /**
          * Confirm Booking Payment
+         * @deprecated
          * @description Confirm payment method for a booking (Phase 2.1).
          *
-         *     Called after frontend collects card details via SetupIntent.
-         *     This completes the booking creation flow.
+         *     Deprecated: use /api/v1/payments/checkout instead.
          */
         post: operations["confirm_booking_payment_api_v1_bookings__booking_id__confirm_payment_post"];
         delete?: never;
