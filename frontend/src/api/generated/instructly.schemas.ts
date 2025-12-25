@@ -271,9 +271,17 @@ export interface AdminAwardStudentSchema {
   id: string;
 }
 
+export type AdminBookingDetailResponseBookingEndUtc = string | null;
+
+export type AdminBookingDetailResponseBookingStartUtc = string | null;
+
 export type AdminBookingDetailResponseCreatedAt = string | null;
 
 export type AdminBookingDetailResponseInstructorNote = string | null;
+
+export type AdminBookingDetailResponseInstructorTimezone = string | null;
+
+export type AdminBookingDetailResponseLessonTimezone = string | null;
 
 export type AdminBookingDetailResponseLocationType = string | null;
 
@@ -281,15 +289,21 @@ export type AdminBookingDetailResponseMeetingLocation = string | null;
 
 export type AdminBookingDetailResponseStudentNote = string | null;
 
+export type AdminBookingDetailResponseStudentTimezone = string | null;
+
 export type AdminBookingDetailResponseUpdatedAt = string | null;
 
 export interface AdminBookingDetailResponse {
   booking_date: string;
+  booking_end_utc?: AdminBookingDetailResponseBookingEndUtc;
+  booking_start_utc?: AdminBookingDetailResponseBookingStartUtc;
   created_at?: AdminBookingDetailResponseCreatedAt;
   end_time: string;
   id: string;
   instructor: AdminBookingPerson;
   instructor_note?: AdminBookingDetailResponseInstructorNote;
+  instructor_timezone?: AdminBookingDetailResponseInstructorTimezone;
+  lesson_timezone?: AdminBookingDetailResponseLessonTimezone;
   location_type?: AdminBookingDetailResponseLocationType;
   meeting_location?: AdminBookingDetailResponseMeetingLocation;
   payment: AdminBookingPaymentInfo;
@@ -298,28 +312,44 @@ export interface AdminBookingDetailResponse {
   status: string;
   student: AdminBookingPerson;
   student_note?: AdminBookingDetailResponseStudentNote;
+  student_timezone?: AdminBookingDetailResponseStudentTimezone;
   timeline: AdminBookingTimelineEvent[];
   updated_at?: AdminBookingDetailResponseUpdatedAt;
 }
 
+export type AdminBookingListItemBookingEndUtc = string | null;
+
+export type AdminBookingListItemBookingStartUtc = string | null;
+
 export type AdminBookingListItemCreatedAt = string | null;
+
+export type AdminBookingListItemInstructorTimezone = string | null;
+
+export type AdminBookingListItemLessonTimezone = string | null;
 
 export type AdminBookingListItemPaymentIntentId = string | null;
 
 export type AdminBookingListItemPaymentStatus = string | null;
 
+export type AdminBookingListItemStudentTimezone = string | null;
+
 export interface AdminBookingListItem {
   booking_date: string;
+  booking_end_utc?: AdminBookingListItemBookingEndUtc;
+  booking_start_utc?: AdminBookingListItemBookingStartUtc;
   created_at?: AdminBookingListItemCreatedAt;
   end_time: string;
   id: string;
   instructor: AdminBookingPerson;
+  instructor_timezone?: AdminBookingListItemInstructorTimezone;
+  lesson_timezone?: AdminBookingListItemLessonTimezone;
   payment_intent_id?: AdminBookingListItemPaymentIntentId;
   payment_status?: AdminBookingListItemPaymentStatus;
   service_name: string;
   start_time: string;
   status: string;
   student: AdminBookingPerson;
+  student_timezone?: AdminBookingListItemStudentTimezone;
   total_price: number;
 }
 
@@ -1553,6 +1583,11 @@ export type BookingCreateMeetingLocation = string | null;
 export type BookingCreateStudentNote = string | null;
 
 /**
+ * IANA timezone for booking times (defaults to instructor timezone)
+ */
+export type BookingCreateTimezone = string | null;
+
+/**
  * Create a booking with self-contained time information.
 
 Clean Architecture: No slot references - bookings are independent.
@@ -1582,7 +1617,13 @@ export interface BookingCreate {
   start_time: string;
   /** Optional note from student */
   student_note?: BookingCreateStudentNote;
+  /** IANA timezone for booking times (defaults to instructor timezone) */
+  timezone?: BookingCreateTimezone;
 }
+
+export type BookingCreateResponseBookingEndUtc = string | null;
+
+export type BookingCreateResponseBookingStartUtc = string | null;
 
 export type BookingCreateResponseCancellationReason = string | null;
 
@@ -1595,6 +1636,10 @@ export type BookingCreateResponseCompletedAt = string | null;
 export type BookingCreateResponseConfirmedAt = string | null;
 
 export type BookingCreateResponseInstructorNote = string | null;
+
+export type BookingCreateResponseInstructorTimezone = string | null;
+
+export type BookingCreateResponseLessonTimezone = string | null;
 
 export type BookingCreateResponseLocationType = string | null;
 
@@ -1615,6 +1660,8 @@ export type BookingCreateResponseSetupIntentClientSecret = string | null;
 
 export type BookingCreateResponseStudentNote = string | null;
 
+export type BookingCreateResponseStudentTimezone = string | null;
+
 /**
  * Response after creating a booking with payment setup.
 
@@ -1622,6 +1669,8 @@ Includes SetupIntent client_secret for collecting payment method.
  */
 export interface BookingCreateResponse {
   booking_date: string;
+  booking_end_utc?: BookingCreateResponseBookingEndUtc;
+  booking_start_utc?: BookingCreateResponseBookingStartUtc;
   cancellation_reason: BookingCreateResponseCancellationReason;
   cancelled_at: BookingCreateResponseCancelledAt;
   cancelled_by_id: BookingCreateResponseCancelledById;
@@ -1637,6 +1686,8 @@ export interface BookingCreateResponse {
   instructor_note: BookingCreateResponseInstructorNote;
   instructor_service: ServiceInfo;
   instructor_service_id: string;
+  instructor_timezone?: BookingCreateResponseInstructorTimezone;
+  lesson_timezone?: BookingCreateResponseLessonTimezone;
   location_type: BookingCreateResponseLocationType;
   meeting_location: BookingCreateResponseMeetingLocation;
   payment_summary?: BookingCreateResponsePaymentSummary;
@@ -1653,6 +1704,7 @@ export interface BookingCreateResponse {
   student: StudentInfo;
   student_id: string;
   student_note: BookingCreateResponseStudentNote;
+  student_timezone?: BookingCreateResponseStudentTimezone;
   total_price: number;
 }
 
@@ -1721,6 +1773,10 @@ export interface BookingRescheduleRequest {
   start_time: string;
 }
 
+export type BookingResponseBookingEndUtc = string | null;
+
+export type BookingResponseBookingStartUtc = string | null;
+
 export type BookingResponseCancellationReason = string | null;
 
 export type BookingResponseCancelledAt = string | null;
@@ -1732,6 +1788,10 @@ export type BookingResponseCompletedAt = string | null;
 export type BookingResponseConfirmedAt = string | null;
 
 export type BookingResponseInstructorNote = string | null;
+
+export type BookingResponseInstructorTimezone = string | null;
+
+export type BookingResponseLessonTimezone = string | null;
 
 export type BookingResponseLocationType = string | null;
 
@@ -1747,6 +1807,8 @@ export type BookingResponseServiceArea = string | null;
 
 export type BookingResponseStudentNote = string | null;
 
+export type BookingResponseStudentTimezone = string | null;
+
 /**
  * Complete booking response with privacy protection.
 
@@ -1756,6 +1818,8 @@ Clean Architecture: No availability slot references.
  */
 export interface BookingResponse {
   booking_date: string;
+  booking_end_utc?: BookingResponseBookingEndUtc;
+  booking_start_utc?: BookingResponseBookingStartUtc;
   cancellation_reason: BookingResponseCancellationReason;
   cancelled_at: BookingResponseCancelledAt;
   cancelled_by_id: BookingResponseCancelledById;
@@ -1771,6 +1835,8 @@ export interface BookingResponse {
   instructor_note: BookingResponseInstructorNote;
   instructor_service: ServiceInfo;
   instructor_service_id: string;
+  instructor_timezone?: BookingResponseInstructorTimezone;
+  lesson_timezone?: BookingResponseLessonTimezone;
   location_type: BookingResponseLocationType;
   meeting_location: BookingResponseMeetingLocation;
   payment_summary?: BookingResponsePaymentSummary;
@@ -1783,6 +1849,7 @@ export interface BookingResponse {
   student: StudentInfo;
   student_id: string;
   student_note: BookingResponseStudentNote;
+  student_timezone?: BookingResponseStudentTimezone;
   total_price: number;
 }
 

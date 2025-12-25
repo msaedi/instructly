@@ -738,6 +738,11 @@ class TestBookingRoutes:
         mock_booking.cancelled_at = None
         mock_booking.cancelled_by_id = None
         mock_booking.cancellation_reason = None
+        mock_booking.booking_start_utc = datetime(2025, 1, 1, 15, 0, tzinfo=timezone.utc)
+        mock_booking.booking_end_utc = datetime(2025, 1, 1, 16, 0, tzinfo=timezone.utc)
+        mock_booking.lesson_timezone = "America/New_York"
+        mock_booking.instructor_tz_at_booking = "America/New_York"
+        mock_booking.student_tz_at_booking = "America/Los_Angeles"
         mock_booking.student = Mock(
             id=generate_ulid(), first_name="Test", last_name="Student", email="student@test.com"
         )
@@ -754,6 +759,11 @@ class TestBookingRoutes:
         data = response.json()
         assert data["id"] == booking_id
         assert data["service_name"] == "Piano Lesson"
+        assert data["booking_start_utc"] == "2025-01-01T15:00:00Z"
+        assert data["booking_end_utc"] == "2025-01-01T16:00:00Z"
+        assert data["lesson_timezone"] == "America/New_York"
+        assert data["instructor_timezone"] == "America/New_York"
+        assert data["student_timezone"] == "America/Los_Angeles"
 
     def test_get_booking_details_not_found(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service

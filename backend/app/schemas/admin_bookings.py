@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import Field
+from pydantic import Field, field_serializer
 
 from ._strict_base import StrictModel, StrictRequestModel
+
+
+def _serialize_utc_datetime(value: Optional[datetime]) -> Optional[str]:
+    if value is None or not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class AdminBookingPerson(StrictModel):
@@ -26,11 +36,20 @@ class AdminBookingListItem(StrictModel):
     booking_date: date
     start_time: time
     end_time: time
+    booking_start_utc: Optional[datetime] = None
+    booking_end_utc: Optional[datetime] = None
+    lesson_timezone: Optional[str] = None
+    instructor_timezone: Optional[str] = None
+    student_timezone: Optional[str] = None
     total_price: float
     status: str
     payment_status: Optional[str] = None
     payment_intent_id: Optional[str] = None
     created_at: Optional[datetime] = None
+
+    @field_serializer("booking_start_utc", "booking_end_utc")
+    def serialize_booking_utc(self, value: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc_datetime(value)
 
 
 class AdminBookingListResponse(StrictModel):
@@ -74,6 +93,11 @@ class AdminBookingDetailResponse(StrictModel):
     booking_date: date
     start_time: time
     end_time: time
+    booking_start_utc: Optional[datetime] = None
+    booking_end_utc: Optional[datetime] = None
+    lesson_timezone: Optional[str] = None
+    instructor_timezone: Optional[str] = None
+    student_timezone: Optional[str] = None
     location_type: Optional[str] = None
     meeting_location: Optional[str] = None
     student_note: Optional[str] = None
@@ -83,6 +107,10 @@ class AdminBookingDetailResponse(StrictModel):
     timeline: list[AdminBookingTimelineEvent]
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    @field_serializer("booking_start_utc", "booking_end_utc")
+    def serialize_booking_utc(self, value: Optional[datetime]) -> Optional[str]:
+        return _serialize_utc_datetime(value)
 
 
 class AdminBookingStatsToday(StrictModel):

@@ -5874,6 +5874,10 @@ export type components = {
              * Format: date
              */
             booking_date: string;
+            /** Booking End Utc */
+            booking_end_utc?: string | null;
+            /** Booking Start Utc */
+            booking_start_utc?: string | null;
             /** Created At */
             created_at?: string | null;
             /**
@@ -5886,6 +5890,10 @@ export type components = {
             instructor: components["schemas"]["AdminBookingPerson"];
             /** Instructor Note */
             instructor_note?: string | null;
+            /** Instructor Timezone */
+            instructor_timezone?: string | null;
+            /** Lesson Timezone */
+            lesson_timezone?: string | null;
             /** Location Type */
             location_type?: string | null;
             /** Meeting Location */
@@ -5902,6 +5910,8 @@ export type components = {
             student: components["schemas"]["AdminBookingPerson"];
             /** Student Note */
             student_note?: string | null;
+            /** Student Timezone */
+            student_timezone?: string | null;
             /** Timeline */
             timeline: components["schemas"]["AdminBookingTimelineEvent"][];
             /** Updated At */
@@ -5914,6 +5924,10 @@ export type components = {
              * Format: date
              */
             booking_date: string;
+            /** Booking End Utc */
+            booking_end_utc?: string | null;
+            /** Booking Start Utc */
+            booking_start_utc?: string | null;
             /** Created At */
             created_at?: string | null;
             /**
@@ -5924,6 +5938,10 @@ export type components = {
             /** Id */
             id: string;
             instructor: components["schemas"]["AdminBookingPerson"];
+            /** Instructor Timezone */
+            instructor_timezone?: string | null;
+            /** Lesson Timezone */
+            lesson_timezone?: string | null;
             /** Payment Intent Id */
             payment_intent_id?: string | null;
             /** Payment Status */
@@ -5938,6 +5956,8 @@ export type components = {
             /** Status */
             status: string;
             student: components["schemas"]["AdminBookingPerson"];
+            /** Student Timezone */
+            student_timezone?: string | null;
             /** Total Price */
             total_price: number;
         };
@@ -7491,6 +7511,11 @@ export type components = {
              * @description Optional note from student
              */
             student_note?: string | null;
+            /**
+             * Timezone
+             * @description IANA timezone for booking times (defaults to instructor timezone)
+             */
+            timezone?: string | null;
         };
         /**
          * BookingCreateResponse
@@ -7504,6 +7529,10 @@ export type components = {
              * Format: date
              */
             booking_date: string;
+            /** Booking End Utc */
+            booking_end_utc?: string | null;
+            /** Booking Start Utc */
+            booking_start_utc?: string | null;
             /** Cancellation Reason */
             cancellation_reason: string | null;
             /** Cancelled At */
@@ -7538,6 +7567,10 @@ export type components = {
             instructor_service: components["schemas"]["ServiceInfo"];
             /** Instructor Service Id */
             instructor_service_id: string;
+            /** Instructor Timezone */
+            instructor_timezone?: string | null;
+            /** Lesson Timezone */
+            lesson_timezone?: string | null;
             /** Location Type */
             location_type: string | null;
             /** Meeting Location */
@@ -7572,6 +7605,8 @@ export type components = {
             student_id: string;
             /** Student Note */
             student_note: string | null;
+            /** Student Timezone */
+            student_timezone?: string | null;
             /** Total Price */
             total_price: number;
         };
@@ -7677,6 +7712,10 @@ export type components = {
              * Format: date
              */
             booking_date: string;
+            /** Booking End Utc */
+            booking_end_utc?: string | null;
+            /** Booking Start Utc */
+            booking_start_utc?: string | null;
             /** Cancellation Reason */
             cancellation_reason: string | null;
             /** Cancelled At */
@@ -7711,6 +7750,10 @@ export type components = {
             instructor_service: components["schemas"]["ServiceInfo"];
             /** Instructor Service Id */
             instructor_service_id: string;
+            /** Instructor Timezone */
+            instructor_timezone?: string | null;
+            /** Lesson Timezone */
+            lesson_timezone?: string | null;
             /** Location Type */
             location_type: string | null;
             /** Meeting Location */
@@ -7734,6 +7777,8 @@ export type components = {
             student_id: string;
             /** Student Note */
             student_note: string | null;
+            /** Student Timezone */
+            student_timezone?: string | null;
             /** Total Price */
             total_price: number;
         };

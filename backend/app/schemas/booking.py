@@ -16,9 +16,11 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    field_serializer,
     field_validator,
     model_validator,
 )
+import pytz
 
 from ..models.booking import BookingStatus
 from ..schemas.base import STRICT_SCHEMAS, Money, StandardizedModel
@@ -75,6 +77,10 @@ class BookingCreate(StrictRequestModel):
 
     # Note: end_time is calculated from start_time + selected_duration
     end_time: Optional[time] = Field(None, description="Calculated end time (set automatically)")
+    timezone: Optional[str] = Field(
+        None,
+        description="IANA timezone for booking times (defaults to instructor timezone)",
+    )
 
     @field_validator("booking_date", mode="before")
     @classmethod
@@ -102,6 +108,16 @@ class BookingCreate(StrictRequestModel):
             raise ValueError("Duration must be at least 15 minutes")
         if v > 720:  # 12 hours
             raise ValueError("Duration cannot exceed 12 hours")
+        return v
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            try:
+                pytz.timezone(v)
+            except pytz.UnknownTimeZoneError as exc:
+                raise ValueError(f"Invalid timezone: {v}") from exc
         return v
 
     # NOTE: Date validation moved to services to support user timezones
@@ -263,6 +279,11 @@ class BookingBase(StandardizedModel):
     booking_date: date
     start_time: time
     end_time: time
+    booking_start_utc: Optional[datetime] = None
+    booking_end_utc: Optional[datetime] = None
+    lesson_timezone: Optional[str] = None
+    instructor_timezone: Optional[str] = None
+    student_timezone: Optional[str] = None
     service_name: str
     hourly_rate: Money
     total_price: Money
@@ -289,6 +310,17 @@ class BookingBase(StandardizedModel):
     cancellation_reason: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("booking_start_utc", "booking_end_utc")
+    def serialize_booking_utc(self, value: Optional[datetime]) -> Optional[str]:
+        """Serialize UTC datetimes to ISO 8601 with Z suffix."""
+        if value is None or not isinstance(value, datetime):
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        else:
+            value = value.astimezone(timezone.utc)
+        return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class StudentInfo(StandardizedModel):
@@ -425,6 +457,12 @@ class BookingResponse(BookingBase):
                 return value
             return "neutral"
 
+        def _safe_datetime(value: object) -> Optional[datetime]:
+            return value if isinstance(value, datetime) else None
+
+        def _safe_str(value: object) -> Optional[str]:
+            return value if isinstance(value, str) else None
+
         rescheduled_from_booking_id_value = getattr(booking, "rescheduled_from_booking_id", None)
 
         response_data = {
@@ -440,6 +478,11 @@ class BookingResponse(BookingBase):
             "booking_date": booking.booking_date,
             "start_time": booking.start_time,
             "end_time": booking.end_time,
+            "booking_start_utc": _safe_datetime(getattr(booking, "booking_start_utc", None)),
+            "booking_end_utc": _safe_datetime(getattr(booking, "booking_end_utc", None)),
+            "lesson_timezone": _safe_str(getattr(booking, "lesson_timezone", None)),
+            "instructor_timezone": _safe_str(getattr(booking, "instructor_tz_at_booking", None)),
+            "student_timezone": _safe_str(getattr(booking, "student_tz_at_booking", None)),
             "service_name": booking.service_name,
             "hourly_rate": booking.hourly_rate,
             "total_price": booking.total_price,
@@ -534,6 +577,13 @@ class BookingCreateResponse(BookingResponse):
         Create BookingCreateResponse from Booking ORM model.
         Inherits privacy protection from parent and adds payment setup fields.
         """
+
+        def _safe_datetime(value: object) -> Optional[datetime]:
+            return value if isinstance(value, datetime) else None
+
+        def _safe_str(value: object) -> Optional[str]:
+            return value if isinstance(value, str) else None
+
         # Use the parent's from_booking method to build base response
         response_data = {
             # Base fields from BookingBase
@@ -545,6 +595,11 @@ class BookingCreateResponse(BookingResponse):
             "booking_date": booking.booking_date,
             "start_time": booking.start_time,
             "end_time": booking.end_time,
+            "booking_start_utc": _safe_datetime(getattr(booking, "booking_start_utc", None)),
+            "booking_end_utc": _safe_datetime(getattr(booking, "booking_end_utc", None)),
+            "lesson_timezone": _safe_str(getattr(booking, "lesson_timezone", None)),
+            "instructor_timezone": _safe_str(getattr(booking, "instructor_tz_at_booking", None)),
+            "student_timezone": _safe_str(getattr(booking, "student_tz_at_booking", None)),
             "service_name": booking.service_name,
             "hourly_rate": booking.hourly_rate,
             "total_price": booking.total_price,
