@@ -2,9 +2,10 @@ import * as Popover from '@radix-ui/react-popover';
 import { CheckCircle2, FileText, Mail, MoreVertical, UserRound, XCircle } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
 
 import type { AdminBooking, BookingStatus, PaymentStatus } from '../hooks/useAdminBookings';
-import { formatCurrency, formatDate, formatTimeRange } from '../utils';
+import { formatCurrency } from '../utils';
 
 interface BookingsTableProps {
   bookings: AdminBooking[];
@@ -56,7 +57,10 @@ function PaymentBadge({ value }: { value: PaymentStatus }) {
 }
 
 function isLessonPast(booking: AdminBooking) {
-  const dateTime = new Date(`${booking.booking_date}T${booking.end_time}`);
+  const bookingEndUtc = (booking as { booking_end_utc?: string | null }).booking_end_utc;
+  const dateTime = bookingEndUtc
+    ? new Date(bookingEndUtc)
+    : new Date(`${booking.booking_date}T${booking.end_time}`);
   if (Number.isNaN(dateTime.getTime())) {
     return false;
   }
@@ -134,8 +138,8 @@ export default function BookingsTable({
                     <div className="font-medium text-gray-900 dark:text-gray-100">{booking.instructor.name}</div>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="text-gray-900 dark:text-gray-100">{formatDate(booking.booking_date)}</div>
-                    <div className="text-xs text-gray-500">{formatTimeRange(booking.start_time, booking.end_time)}</div>
+                    <div className="text-gray-900 dark:text-gray-100">{formatBookingDate(booking)}</div>
+                    <div className="text-xs text-gray-500">{formatBookingTimeRange(booking)}</div>
                   </td>
                   <td className="px-4 py-4">
                     <div className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(booking.total_price)}</div>

@@ -17,9 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
 
 import type { AdminBooking } from '../hooks/useAdminBookings';
-import { formatCurrency, formatDate, formatTimeRange } from '../utils';
+import { formatCurrency } from '../utils';
 
 interface RefundModalProps {
   booking: AdminBooking | null;
@@ -145,8 +146,8 @@ export default function RefundModal({ booking, open, onOpenChange, onRefunded }:
                   <p className="font-medium text-gray-900">{booking.student.name}</p>
                   <p>{booking.instructor.name}</p>
                   <p>
-                    {booking.service_name} - {formatDate(booking.booking_date)} -{' '}
-                    {formatTimeRange(booking.start_time, booking.end_time)}
+                    {booking.service_name} - {formatBookingDate(booking)} -{' '}
+                    {formatBookingTimeRange(booking)}
                   </p>
                   <p className="font-semibold">Total Paid: {formatCurrency(fullAmount)}</p>
                 </div>

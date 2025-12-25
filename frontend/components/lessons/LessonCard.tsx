@@ -4,8 +4,8 @@ import { reviewsApi } from '@/services/api/reviews';
 import { Booking } from '@/types/booking';
 import { LessonStatus } from './LessonStatus';
 import { InstructorInfo } from './InstructorInfo';
-import { format } from 'date-fns';
 import { Calendar, Clock, DollarSign, ChevronRight } from 'lucide-react';
+import { formatBookingDate, formatBookingTime } from '@/lib/timezone/formatBookingTime';
 // formatLessonStatus utility available at: '@/hooks/useMyLessons'
 
 interface LessonCardProps {
@@ -38,9 +38,8 @@ export function LessonCard({
   suppressFetchReviewed,
 }: LessonCardProps) {
   const [reviewed, setReviewed] = useState<boolean | null>(null);
-  const lessonDate = new Date(`${lesson.booking_date}T${lesson.start_time}`);
-  const formattedDate = format(lessonDate, 'EEE MMM d');
-  const formattedTime = format(lessonDate, 'h:mmaaa');
+  const formattedDate = formatBookingDate(lesson);
+  const formattedTime = formatBookingTime(lesson);
 
   // Status formatting helper available: formatLessonStatus(lesson.status, lesson.cancelled_at)
 
@@ -210,8 +209,10 @@ function getCancellationFeeDisplay(lesson: Booking): string {
   }
 
   const cancelledDate = new Date(lesson.cancelled_at);
-  // Normalize to UTC to avoid timezone skew when comparing cancellation vs lesson start
-  const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}Z`);
+  const bookingStartUtc = (lesson as { booking_start_utc?: string | null }).booking_start_utc;
+  const lessonDateTime = bookingStartUtc
+    ? new Date(bookingStartUtc)
+    : new Date(`${lesson.booking_date}T${lesson.start_time}Z`);
   const hoursBeforeLesson = (lessonDateTime.getTime() - cancelledDate.getTime()) / (1000 * 60 * 60);
 
   if (hoursBeforeLesson > 24) {

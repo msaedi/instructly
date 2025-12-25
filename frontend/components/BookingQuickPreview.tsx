@@ -3,6 +3,7 @@ import { BookingPreview, getLocationTypeIcon } from '@/types/booking';
 import { fetchBookingPreview } from '@/lib/api';
 import Modal from '@/components/Modal';
 import { logger } from '@/lib/logger';
+import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
 
 interface BookingQuickPreviewProps {
   bookingId: string;
@@ -40,25 +41,6 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
       });
   }, [bookingId]);
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatTime = (timeStr: string) => {
-    const timeParts = timeStr.split(':');
-    const hours = timeParts[0] || '0';
-    const minutes = timeParts[1] || '00';
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
-  };
-
   return (
     <Modal isOpen={true} onClose={onClose} title="Booking Details" size="sm" showCloseButton={true}>
       <div className="p-4">
@@ -93,9 +75,9 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
               {/* Date and time */}
               <div>
                 <span className="text-sm text-gray-500">When</span>
-                <p className="font-medium">{formatDate(booking.booking_date)}</p>
+                <p className="font-medium">{formatBookingDate(booking)}</p>
                 <p className="text-sm text-gray-600">
-                  {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                  {formatBookingTimeRange(booking)}
                 </p>
               </div>
 

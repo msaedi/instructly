@@ -2,9 +2,10 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { ExternalLink, FileText, Mail, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
 
 import type { AdminBooking, BookingStatus } from '../hooks/useAdminBookings';
-import { formatCurrency, formatDate, formatDateTime, formatTimeRange } from '../utils';
+import { formatCurrency, formatDateTime } from '../utils';
 
 interface BookingDetailPanelProps {
   booking: AdminBooking | null;
@@ -100,11 +101,11 @@ export default function BookingDetailPanel({
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">Date</span>
-                    <span>{formatDate(booking.booking_date)}</span>
+                    <span>{formatBookingDate(booking)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">Time</span>
-                    <span>{formatTimeRange(booking.start_time, booking.end_time)}</span>
+                    <span>{formatBookingTimeRange(booking)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-gray-500">Location</span>

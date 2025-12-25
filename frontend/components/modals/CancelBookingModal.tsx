@@ -4,6 +4,7 @@ import { AlertCircle, Calendar, Clock } from 'lucide-react';
 import Modal from '@/components/Modal';
 import { Booking } from '@/types/booking';
 import { logger } from '@/lib/logger';
+import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
 
 /**
  * CancelBookingModal Component
@@ -85,43 +86,6 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
     }
   };
 
-  /**
-   * Format date for display
-   */
-  const formatDate = (dateStr: string): string => {
-    try {
-      return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      logger.error('Failed to format date in cancel modal', { dateStr });
-      return dateStr;
-    }
-  };
-
-  /**
-   * Format time for display
-   */
-  const formatTime = (timeStr: string): string => {
-    try {
-      const timeParts = timeStr.split(':');
-      const hours = timeParts[0] || '0';
-      const minutes = timeParts[1] || '0';
-      const date = new Date();
-      date.setHours(parseInt(hours), parseInt(minutes));
-      return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      });
-    } catch {
-      return timeStr;
-    }
-  };
-
   // Display either validation error or external error
   const displayError = validationError || externalError;
 
@@ -173,12 +137,12 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2 text-gray-700">
               <Calendar className="w-4 h-4 text-gray-400" />
-              <span>{formatDate(booking.booking_date)}</span>
+              <span>{formatBookingDate(booking)}</span>
             </div>
             <div className="flex items-center gap-2 text-gray-700">
               <Clock className="w-4 h-4 text-gray-400" />
               <span>
-                {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                {formatBookingTimeRange(booking)}
               </span>
             </div>
             <div className="text-gray-700">

@@ -36,6 +36,7 @@ import {
   formatServiceSupportLabel,
   formatServiceSupportTooltip,
 } from '@/lib/pricing/studentFee';
+import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
 
 const stripePromise = loadStripe(
   process.env['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || ''
@@ -49,6 +50,9 @@ interface Booking {
   booking_date: string;
   start_time: string;
   end_time: string;
+  booking_start_utc?: string | null;
+  booking_end_utc?: string | null;
+  lesson_timezone?: string | null;
   duration_minutes: number;
   hourly_rate: number;
   total_price: number;
@@ -431,24 +435,6 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
     setPaymentStatus('error');
   };
 
-  // Format date and time
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
-  const formatTime = (timeStr: string) => {
-    return new Date(`2000-01-01T${timeStr}`).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -487,7 +473,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
             <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
             <div>
               <p className="font-medium">Date</p>
-              <p className="text-gray-600">{formatDate(booking.booking_date)}</p>
+              <p className="text-gray-600">{formatBookingDate(booking)}</p>
             </div>
           </div>
 
@@ -496,7 +482,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
             <div>
               <p className="font-medium">Time</p>
               <p className="text-gray-600">
-                {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                {formatBookingTimeRange(booking)}
               </p>
               <p className="text-sm text-gray-500">{booking.duration_minutes} minutes</p>
             </div>

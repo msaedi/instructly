@@ -4,6 +4,7 @@ import { X, Calendar, Clock, MapPin, User, DollarSign, Hash } from 'lucide-react
 import { Booking } from '@/types/booking';
 import { logger } from '@/lib/logger';
 import { formatInstructorFromUser, formatFullName } from '@/utils/nameDisplay';
+import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
 
 /**
  * BookingDetailsModal Component
@@ -52,45 +53,12 @@ export default function BookingDetailsModal({
     bookingId: booking?.id,
     status: booking?.status,
   });
-
-  /**
-   * Format date for display
-   * @param dateStr - ISO date string
-   * @returns Formatted date string
-   */
-  const formatDate = (dateStr: string): string => {
-    try {
-      return new Date(dateStr).toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      });
-    } catch (error) {
-      logger.error('Failed to format date in modal', error, { dateStr });
-      return dateStr;
-    }
-  };
-
-  /**
-   * Format time for display
-   * @param timeStr - Time string (HH:MM:SS)
-   * @returns Formatted time string
-   */
-  const formatTime = (timeStr: string): string => {
-    try {
-      const timeParts = timeStr.split(':');
-      const hours = timeParts[0] || '0';
-      const minutes = timeParts[1] || '00';
-      const hour = parseInt(hours);
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const displayHour = hour % 12 || 12;
-      return `${displayHour}:${minutes} ${ampm}`;
-    } catch (error) {
-      logger.error('Failed to format time in modal', error, { timeStr });
-      return timeStr;
-    }
-  };
+  const viewerTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const lessonTimezone =
+    (booking as { lesson_timezone?: string | null }).lesson_timezone || null;
+  const showLessonTimezone = Boolean(
+    lessonTimezone && lessonTimezone !== viewerTimezone
+  );
 
   /**
    * Format price for display
@@ -110,6 +78,21 @@ export default function BookingDetailsModal({
       logger.error('Failed to format price', error, { price });
       return '0.00';
     }
+  };
+
+  const formatMetaDate = (value?: string | null): string => {
+    if (!value) {
+      return '';
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   };
 
   /**
@@ -184,7 +167,12 @@ export default function BookingDetailsModal({
               <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
               <div>
                 <p className="font-medium text-gray-900">Date</p>
-                <p className="text-gray-600">{formatDate(booking.booking_date)}</p>
+                <p className="text-gray-600">{formatBookingDate(booking, viewerTimezone)}</p>
+                {showLessonTimezone ? (
+                  <p className="text-xs text-gray-500">
+                    {formatBookingDate(booking, lessonTimezone ?? undefined)} ({lessonTimezone})
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -192,8 +180,13 @@ export default function BookingDetailsModal({
               <div>
                 <p className="font-medium text-gray-900">Time</p>
                 <p className="text-gray-600">
-                  {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                  {formatBookingTimeRange(booking, viewerTimezone)}
                 </p>
+                {showLessonTimezone ? (
+                  <p className="text-xs text-gray-500">
+                    {formatBookingTimeRange(booking, lessonTimezone ?? undefined)} ({lessonTimezone})
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -259,7 +252,7 @@ export default function BookingDetailsModal({
                 <p className="text-red-800">{booking.cancellation_reason}</p>
                 {booking.cancelled_at && (
                   <p className="text-red-600 text-sm mt-2">
-                    Cancelled on {formatDate(booking.cancelled_at)}
+                    Cancelled on {formatMetaDate(booking.cancelled_at)}
                   </p>
                 )}
               </div>
@@ -268,9 +261,9 @@ export default function BookingDetailsModal({
 
           {/* Booking Metadata */}
           <div className="border-t pt-6 text-sm text-gray-500">
-            <p>Booked on {formatDate(booking.created_at)}</p>
+            <p>Booked on {formatMetaDate(booking.created_at)}</p>
             {booking.updated_at !== booking.created_at && (
-              <p>Last updated {formatDate(booking.updated_at)}</p>
+              <p>Last updated {formatMetaDate(booking.updated_at)}</p>
             )}
           </div>
         </div>
