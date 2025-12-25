@@ -3,9 +3,8 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RescheduleModal } from '@/components/lessons/modals/RescheduleModal';
 import type { Booking } from '@/features/shared/api/types';
-import { format } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import { AuthProvider } from '@/features/shared/hooks/useAuth';
-import * as dateFns from 'date-fns';
 import * as myLessonsHooks from '@/hooks/useMyLessons';
 
 // Mock the hooks
@@ -35,34 +34,32 @@ jest.mock('@/src/api/services/bookings', () => ({
 
 // Mock API client used by availability modal
 jest.mock('@/features/shared/api/client', () => {
-  const { format } = jest.requireActual('date-fns') as typeof dateFns;
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const dayAfter = new Date(today);
-  dayAfter.setDate(today.getDate() + 2);
-
-  const t1 = format(tomorrow, 'yyyy-MM-dd');
-  const t2 = format(dayAfter, 'yyyy-MM-dd');
+  const { addDays, format } = jest.requireActual('date-fns') as typeof import('date-fns');
 
   return {
     publicApi: {
-      getInstructorAvailability: jest.fn().mockResolvedValue({
-        data: {
-          availability_by_date: {
-            [t1]: {
-              available_slots: [
-                { start_time: '10:00:00', end_time: '11:00:00' },
-                { start_time: '14:00:00', end_time: '15:00:00' },
-              ],
-            },
-            [t2]: {
-              available_slots: [
-                { start_time: '09:00:00', end_time: '10:00:00' },
-              ],
+      getInstructorAvailability: jest.fn().mockImplementation(() => {
+        const today = new Date();
+        const t1 = format(addDays(today, 1), 'yyyy-MM-dd');
+        const t2 = format(addDays(today, 2), 'yyyy-MM-dd');
+
+        return Promise.resolve({
+          data: {
+            availability_by_date: {
+              [t1]: {
+                available_slots: [
+                  { start_time: '10:00:00', end_time: '11:00:00' },
+                  { start_time: '14:00:00', end_time: '15:00:00' },
+                ],
+              },
+              [t2]: {
+                available_slots: [
+                  { start_time: '09:00:00', end_time: '10:00:00' },
+                ],
+              },
             },
           },
-        },
+        });
       }),
     },
   };
@@ -78,9 +75,10 @@ const createTestQueryClient = () => {
 };
 
 describe('RescheduleModal', () => {
+  const bookingDate = format(addDays(new Date(), 9), 'yyyy-MM-dd');
   const mockBooking = ({
     id: '01K2MAY484FQGFEQVN3VKGYZ58',
-    booking_date: '2025-12-25',
+    booking_date: bookingDate,
     start_time: '14:00:00',
     end_time: '15:00:00',
     status: 'CONFIRMED',
@@ -200,8 +198,7 @@ describe('RescheduleModal', () => {
     await waitFor(() => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = addDays(new Date(), 1);
     const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
     // Navigate to tomorrow's month if it's different from current month
@@ -244,8 +241,7 @@ describe('RescheduleModal', () => {
     await act(async () => { await Promise.resolve(); });
 
     // Select tomorrow's date first
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = addDays(new Date(), 1);
     const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
     await waitFor(() => {
@@ -310,7 +306,11 @@ describe('RescheduleModal', () => {
     const firstBanner = currentLessonBanners[0];
     if (firstBanner) {
       expect(firstBanner.textContent).toContain('Mathematics');
-      expect(firstBanner.textContent).toContain('Dec 25');
+      const bookingLabel = format(
+        new Date(`${mockBooking.booking_date}T${mockBooking.start_time}`),
+        'MMM d'
+      );
+      expect(firstBanner.textContent).toContain(bookingLabel);
     }
   });
 
@@ -329,8 +329,7 @@ describe('RescheduleModal', () => {
     await act(async () => { await Promise.resolve(); });
 
     // Select tomorrow's date
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = addDays(new Date(), 1);
     const tomorrowIso = format(tomorrow, 'yyyy-MM-dd');
 
     await waitFor(() => {
