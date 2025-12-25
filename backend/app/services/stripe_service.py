@@ -125,7 +125,6 @@ class StripeService(BaseService):
                 # Set sane network timeouts/retries to avoid blocking the server on Stripe calls
                 # IMPORTANT: Keep timeout low (3s) to avoid holding DB transactions open too long
                 # during cancel_booking and other flows that call Stripe inside transactions.
-                # TODO (Part 12): Refactor to move Stripe calls outside DB transactions entirely.
                 try:
                     # 3s overall timeout; 1 retry for transient failures
                     # Note: Stripe 14.x moved http_client to _http_client (private API)
@@ -1303,15 +1302,18 @@ class StripeService(BaseService):
         }
 
         # Use transfer_data[amount] architecture: platform receives full charge,
-        # then transfers exactly target_instructor_payout_cents to instructor.
-        # Platform retains the difference (student_pay_cents - target_instructor_payout_cents).
+        # then transfers up to target_instructor_payout_cents to instructor.
+        # Top-up handles any shortfall when credits reduce the charge.
+        transfer_amount_cents = min(
+            int(context.student_pay_cents), int(context.target_instructor_payout_cents)
+        )
         stripe_kwargs: Dict[str, Any] = {
             "amount": context.student_pay_cents,
             "currency": settings.stripe_currency or "usd",
             "customer": customer.stripe_customer_id,
             "transfer_data": {
                 "destination": connected_account.stripe_account_id,
-                "amount": context.target_instructor_payout_cents,
+                "amount": transfer_amount_cents,
             },
             "metadata": metadata,
             "transfer_group": f"booking:{booking_id}",
@@ -2148,11 +2150,9 @@ class StripeService(BaseService):
 
             if ctx is not None:
                 amount = int(ctx.student_pay_cents)
-                # Platform retains (student_pay_cents - target_instructor_payout_cents)
-                platform_retained_cents = int(
-                    ctx.student_pay_cents - ctx.target_instructor_payout_cents
-                )
-                transfer_amount_cents = int(ctx.target_instructor_payout_cents)
+                # Cap transfer amount to the actual charge; top-up handles any shortfall.
+                transfer_amount_cents = min(amount, int(ctx.target_instructor_payout_cents))
+                platform_retained_cents = max(0, amount - transfer_amount_cents)
                 metadata = {
                     "booking_id": booking_id,
                     "platform": "instainstru",

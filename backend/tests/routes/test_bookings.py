@@ -16,7 +16,7 @@ TEST FAILURE ANALYSIS - test_bookings.py
    - Fix: Already fixed via fixture update
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import MagicMock, Mock, patch
 
 from fastapi import status
@@ -1611,13 +1611,15 @@ class TestBookingIntegration:
             .first()
         )
 
+        utc_today = datetime.now(timezone.utc).date()
+
         # Create completed bookings
         for i in range(3):
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor_with_availability.id,
                 instructor_service_id=service.id,
-                booking_date=date.today() - timedelta(days=i + 1),
+                booking_date=utc_today - timedelta(days=i + 1),
                 start_time=time(10, 0),
                 end_time=time(11, 0),
                 service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
@@ -1636,7 +1638,7 @@ class TestBookingIntegration:
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,
-            booking_date=date.today() + timedelta(days=1),
+            booking_date=utc_today + timedelta(days=1),
             start_time=time(14, 0),
             end_time=time(15, 0),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown",
@@ -1654,7 +1656,7 @@ class TestBookingIntegration:
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,
-            booking_date=date.today() + timedelta(days=2),
+            booking_date=utc_today + timedelta(days=2),
             start_time=time(16, 0),
             end_time=time(17, 0),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown",

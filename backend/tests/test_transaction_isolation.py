@@ -21,6 +21,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.user import User
 from app.services.booking_service import BookingService
+from app.tasks.payment_tasks import create_new_authorization_and_capture
 
 # =============================================================================
 # FIXTURES
@@ -204,6 +205,102 @@ class TestTransactionIsolation:
                 # In the refactored code, we expect:
                 # tx_enter -> tx_exit -> stripe_create -> stripe_confirm -> tx_enter -> tx_exit
                 # NOT: tx_enter -> stripe_create -> stripe_confirm -> tx_exit
+
+    def test_create_booking_with_payment_setup_stripe_outside_transaction(self):
+        """SetupIntent creation should happen outside the booking transaction."""
+        call_order: list[str] = []
+
+        class MockTransaction:
+            def __init__(self, label: str):
+                self.label = label
+
+            def __enter__(self):
+                call_order.append(f"{self.label}_start")
+                return self
+
+            def __exit__(self, *args):
+                call_order.append(f"{self.label}_end")
+
+        mock_db = MagicMock()
+        service = BookingService(mock_db)
+        service.repository = MagicMock()
+        service.repository.transaction = MagicMock(return_value=MockTransaction("phase1"))
+        service.transaction = MagicMock(return_value=MockTransaction("phase3"))
+
+        service._validate_booking_prerequisites = MagicMock(
+            return_value=(MagicMock(duration_options=[60]), MagicMock())
+        )
+        service._calculate_and_validate_end_time = MagicMock(return_value=time(10, 0))
+        service._validate_against_availability_bits = MagicMock()
+        service._check_conflicts_and_rules = MagicMock()
+
+        booking = MagicMock(spec=Booking)
+        booking.id = generate_ulid()
+        booking.total_price = Decimal("100.00")
+        booking.booking_date = date.today()
+        booking.start_time = time(9, 0)
+        service._create_booking_record = MagicMock(return_value=booking)
+        service._enqueue_booking_outbox_event = MagicMock()
+        service._write_booking_audit = MagicMock()
+
+        service.repository.get_by_id = MagicMock(return_value=booking)
+
+        booking_data = MagicMock()
+        booking_data.instructor_id = generate_ulid()
+        booking_data.booking_date = date.today()
+        booking_data.start_time = time(9, 0)
+
+        student = MagicMock(spec=User)
+        student.id = generate_ulid()
+
+        def mock_setup_intent_create(*_args, **_kwargs):
+            call_order.append("stripe_setup_intent")
+            return MagicMock(
+                id="seti_test", client_secret="secret", status="requires_payment_method"
+            )
+
+        with patch("app.services.stripe_service.StripeService") as mock_stripe_service:
+            mock_stripe_service.return_value.get_or_create_customer.return_value = MagicMock(
+                stripe_customer_id="cus_test"
+            )
+            with patch("stripe.SetupIntent.create", side_effect=mock_setup_intent_create):
+                service.create_booking_with_payment_setup(
+                    student,
+                    booking_data,
+                    selected_duration=60,
+                )
+
+        assert "stripe_setup_intent" in call_order
+        assert call_order.index("phase1_end") < call_order.index("stripe_setup_intent")
+        assert call_order.index("stripe_setup_intent") < call_order.index("phase3_start")
+
+    def test_reauth_and_capture_uses_separate_session_for_stripe_calls(self):
+        """Expired-auth reauthorization should use a separate session for Stripe calls."""
+        booking = MagicMock(spec=Booking)
+        booking.id = generate_ulid()
+        booking.payment_method_id = "pm_test"
+        booking.payment_intent_id = "pi_old"
+
+        payment_repo = MagicMock()
+        db = MagicMock()
+        stripe_db = MagicMock()
+
+        with patch("app.database.SessionLocal", return_value=stripe_db):
+            with patch("app.tasks.payment_tasks.StripeService") as mock_stripe_service:
+                stripe_service_instance = mock_stripe_service.return_value
+                stripe_service_instance.create_or_retry_booking_payment_intent.return_value = (
+                    MagicMock(id="pi_new")
+                )
+                stripe_service_instance.capture_booking_payment_intent.return_value = {
+                    "amount_received": 10000,
+                    "top_up_transfer_cents": 0,
+                }
+
+                result = create_new_authorization_and_capture(booking, payment_repo, db)
+
+        assert result["success"] is True
+        mock_stripe_service.assert_called_once()
+        assert mock_stripe_service.call_args.args[0] is stripe_db
 
     def test_cancel_booking_phase2_failure_handled(self, mock_db, mock_booking, mock_user):
         """

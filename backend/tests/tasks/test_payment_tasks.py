@@ -161,6 +161,74 @@ class TestPaymentTasks:
 
     @patch("app.tasks.payment_tasks.StripeService")
     @patch("app.database.SessionLocal")
+    def test_process_scheduled_authorizations_handles_authorizing_status(
+        self, mock_session_local, mock_stripe_service
+    ):
+        """Bookings marked as authorizing should still be processed."""
+        mock_db = MagicMock()
+        mock_session_local.return_value = mock_db
+
+        booking = MagicMock(spec=Booking)
+        booking.id = str(ulid.ULID())
+        booking.status = BookingStatus.CONFIRMED
+        booking.payment_status = "authorizing"
+        booking.payment_method_id = "pm_test123"
+        now = datetime.now(timezone.utc)
+        booking_datetime = now + timedelta(hours=24)
+        booking.booking_date = booking_datetime.date()
+        booking.start_time = booking_datetime.time()
+        booking.total_price = 100.00
+
+        mock_query = MagicMock()
+        mock_query.filter.return_value.all.return_value = [booking]
+        mock_query.filter.return_value.first.return_value = booking
+        mock_db.query.return_value = mock_query
+
+        mock_stripe_service_instance = mock_stripe_service.return_value
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.id = "pi_test123"
+        mock_stripe_service_instance.create_or_retry_booking_payment_intent.return_value = (
+            mock_payment_intent
+        )
+        mock_stripe_service_instance.build_charge_context.return_value = _charge_context_from_config(
+            booking_id=booking.id,
+            base_price_cents=10000,
+            tier_index=1,
+        )
+
+        mock_payment_repo = MagicMock()
+        mock_customer = MagicMock()
+        mock_customer.stripe_customer_id = "cus_test123"
+        mock_payment_repo.get_customer_by_user_id.return_value = mock_customer
+
+        mock_connected_account = MagicMock()
+        mock_connected_account.stripe_account_id = "acct_test123"
+        mock_payment_repo.get_connected_account_by_instructor_id.return_value = mock_connected_account
+
+        mock_booking_repo = MagicMock()
+        mock_booking_repo.get_bookings_for_payment_authorization.return_value = [booking]
+
+        mock_instructor_profile = MagicMock()
+        mock_instructor_profile.id = "instructor_profile_id"
+
+        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+            ):
+                with patch(
+                    "app.repositories.instructor_profile_repository.InstructorProfileRepository"
+                ) as mock_instructor_repo_class:
+                    mock_instructor_repo = MagicMock()
+                    mock_instructor_repo.get_by_user_id.return_value = mock_instructor_profile
+                    mock_instructor_repo_class.return_value = mock_instructor_repo
+
+                    result = process_scheduled_authorizations()
+
+        assert result["success"] == 1
+        assert booking.payment_status == "authorized"
+
+    @patch("app.tasks.payment_tasks.StripeService")
+    @patch("app.database.SessionLocal")
     def test_process_scheduled_authorizations_failure(self, mock_session_local, mock_stripe_service):
         """Test handling of authorization failures."""
         # Setup mock database
@@ -408,8 +476,11 @@ class TestPaymentTasks:
         # Verify notification of cancellation due to payment failure was sent (email mocked)
         notification_instance.send_booking_cancelled_payment_failed.assert_called_once_with(booking)
 
-    def test_create_new_authorization_and_capture_application_fee(self):
+    @patch("app.database.SessionLocal")
+    def test_create_new_authorization_and_capture_application_fee(self, mock_session_local):
         """New authorization + capture uses correct application fee scaling."""
+        mock_db = MagicMock()
+        mock_session_local.return_value = mock_db
 
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
@@ -1188,7 +1259,7 @@ class TestPaymentTasks:
         # So 30 hours ago becomes 25 hours ago after timezone conversion
         lesson_end = now - timedelta(hours=30)
         booking.booking_date = lesson_end.date()
-        booking.end_time = lesson_end.time()
+        booking.end_time = lesson_end.time().replace(tzinfo=None)
         booking.payment_intent_id = "pi_test_auto"
 
         # Setup query mock to return the booking for direct db.query() calls
@@ -1241,8 +1312,6 @@ class TestPaymentTasks:
     ):
         """Auto-completed bookings should use lesson end time for completed_at."""
         # Fix: set completed_at to lesson_end for auto-completed lessons.
-        from zoneinfo import ZoneInfo
-
         mock_db = MagicMock()
         mock_session_local.return_value = mock_db
 
@@ -1252,12 +1321,12 @@ class TestPaymentTasks:
         booking.payment_status = "authorized"
         booking.student_id = "student_end_time"
         booking.instructor_id = "instructor_end_time"
-        # Add instructor with timezone for timezone-aware lesson_end calculation
+        # Add instructor timezone to ensure UTC logic ignores it
         booking.instructor = MagicMock()
         booking.instructor.timezone = "America/New_York"
 
         now = datetime.now(timezone.utc)
-        # Use 30 hours to account for timezone offset (EST is UTC-5)
+        # Use 30 hours to ensure auto-complete cutoff is exceeded
         lesson_end = now - timedelta(hours=30)
         booking.booking_date = lesson_end.date()
         booking.end_time = lesson_end.time()
@@ -1293,12 +1362,10 @@ class TestPaymentTasks:
                 with patch("app.tasks.payment_tasks.StripeService", return_value=mock_stripe_service):
                     capture_completed_lessons()
 
-        # lesson_end is now calculated using instructor's timezone, then converted to UTC
-        instructor_zone = ZoneInfo("America/New_York")
-        lesson_end_local = datetime.combine(
-            booking.booking_date, booking.end_time, tzinfo=instructor_zone
+        # lesson_end is calculated as UTC based on booking_date and end_time
+        expected_completed_at = datetime.combine(
+            booking.booking_date, booking.end_time, tzinfo=timezone.utc
         )
-        expected_completed_at = lesson_end_local.astimezone(timezone.utc)
         assert booking.completed_at == expected_completed_at
 
     @patch("app.tasks.payment_tasks.create_new_authorization_and_capture", return_value={"success": True})
@@ -1793,7 +1860,9 @@ class TestPaymentTasks:
         stripe_service_instance = mock_stripe_service.return_value
         stripe_service_instance.create_or_retry_booking_payment_intent.return_value = {}
 
-        result = create_new_authorization_and_capture(booking, payment_repo, MagicMock())
+        with patch("app.database.SessionLocal") as mock_session_local:
+            mock_session_local.return_value = MagicMock()
+            result = create_new_authorization_and_capture(booking, payment_repo, MagicMock())
 
         assert result["success"] is False
         event_call = payment_repo.create_payment_event.call_args

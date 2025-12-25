@@ -1287,6 +1287,40 @@ class TestStripeService:
         assert payment.application_fee == application_fee_cents
 
     @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_caps_transfer_amount_when_credits_reduce_charge(
+        self, mock_create, stripe_service: StripeService, test_booking: Booking
+    ) -> None:
+        """Transfer amount should not exceed the actual charge when credits reduce the amount."""
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=8000,
+            base_price_cents=10000,
+            student_fee_cents=1200,
+            instructor_platform_fee_cents=1500,
+            target_instructor_payout_cents=8500,
+            student_pay_cents=3200,
+            application_fee_cents=0,
+            top_up_transfer_cents=5300,
+            instructor_tier_pct=Decimal("0.15"),
+        )
+
+        mock_intent = MagicMock()
+        mock_intent.id = "pi_cap_123"
+        mock_intent.status = "requires_payment_method"
+        mock_create.return_value = mock_intent
+
+        payment = stripe_service.create_payment_intent(
+            booking_id=test_booking.id,
+            customer_id="cus_cap",
+            destination_account_id="acct_cap",
+            charge_context=context,
+        )
+
+        call_args = mock_create.call_args[1]
+        assert call_args["transfer_data"]["amount"] == context.student_pay_cents
+        assert payment.application_fee == 0
+
+    @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_builds_context_for_requested_credit(
         self, mock_create, stripe_service: StripeService, test_booking: Booking
     ) -> None:
@@ -1543,6 +1577,51 @@ class TestStripeService:
         assert kwargs["transfer_group"] == f"booking:{test_booking.id}"
         assert kwargs["capture_method"] == "manual"
         assert kwargs["payment_method"] == "pm_card123"
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_or_retry_booking_payment_intent_caps_transfer_amount(
+        self,
+        mock_create,
+        stripe_service: StripeService,
+        test_booking: Booking,
+        test_instructor: tuple,
+    ) -> None:
+        """Transfer amount should be capped when credits reduce student charge."""
+        _, profile, _ = test_instructor
+        stripe_service.payment_repository.create_customer_record(
+            test_booking.student_id, "cus_student123"
+        )
+        stripe_service.payment_repository.create_connected_account_record(
+            profile.id, "acct_instructor123", onboarding_completed=True
+        )
+
+        context = ChargeContext(
+            booking_id=test_booking.id,
+            applied_credit_cents=8000,
+            base_price_cents=10000,
+            student_fee_cents=1200,
+            instructor_platform_fee_cents=1500,
+            target_instructor_payout_cents=8500,
+            student_pay_cents=3200,
+            application_fee_cents=0,
+            top_up_transfer_cents=5300,
+            instructor_tier_pct=Decimal("0.15"),
+        )
+
+        stripe_service.build_charge_context = MagicMock(return_value=context)
+
+        mock_intent = MagicMock()
+        mock_intent.id = "pi_ctx_cap"
+        mock_intent.status = "requires_capture"
+        mock_create.return_value = mock_intent
+
+        stripe_service.create_or_retry_booking_payment_intent(
+            booking_id=test_booking.id,
+            payment_method_id="pm_card123",
+        )
+
+        kwargs = mock_create.call_args[1]
+        assert kwargs["transfer_data"]["amount"] == context.student_pay_cents
         assert kwargs["confirm"] is True
         assert kwargs["off_session"] is True
 

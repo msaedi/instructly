@@ -1,6 +1,6 @@
 """Tests to validate seed script data integrity."""
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from uuid import uuid4
 
 from scripts import reset_and_seed_yaml
@@ -93,8 +93,10 @@ class TestSeedDataIntegrity:
         COMPLETED bookings up to 21 days in the future.
         """
         _seed_review_context(db)
+        monkeypatch.setenv("SITE_MODE", "int")
 
-        future_date = date.today() + timedelta(days=7)
+        utc_today = datetime.now(timezone.utc).date()
+        future_date = utc_today + timedelta(days=7)
         calls = []
 
         def _future_slot(*args, past_only=False, horizon_days=None, **kwargs):
@@ -111,7 +113,7 @@ class TestSeedDataIntegrity:
         db.expire_all()
         future_completed = db.query(Booking).filter(
             Booking.status == BookingStatus.COMPLETED.value,
-            Booking.booking_date > date.today(),
+            Booking.booking_date > utc_today,
         ).all()
 
         assert len(future_completed) == 0, (
@@ -122,8 +124,9 @@ class TestSeedDataIntegrity:
     def test_no_completed_bookings_before_lesson_time(self, db: Session, monkeypatch):
         """COMPLETED bookings should have completed_at after lesson end."""
         _seed_review_context(db)
+        monkeypatch.setenv("SITE_MODE", "int")
 
-        past_date = date.today() - timedelta(days=120)
+        past_date = datetime.now(timezone.utc).date() - timedelta(days=120)
         calls = []
 
         def _past_slot(*args, past_only=False, horizon_days=None, **kwargs):
@@ -149,14 +152,16 @@ class TestSeedDataIntegrity:
 
         violations = []
         for booking in completed:
-            lesson_end = datetime.combine(booking.booking_date, booking.end_time)
+            lesson_end = datetime.combine(
+                booking.booking_date, booking.end_time, tzinfo=timezone.utc
+            )
             completed_at = booking.completed_at
             if completed_at is None:
                 continue
-            if completed_at.tzinfo is not None and lesson_end.tzinfo is None:
-                lesson_end = lesson_end.replace(tzinfo=completed_at.tzinfo)
-            elif completed_at.tzinfo is None and lesson_end.tzinfo is not None:
-                completed_at = completed_at.replace(tzinfo=lesson_end.tzinfo)
+            if completed_at.tzinfo is None:
+                completed_at = completed_at.replace(tzinfo=timezone.utc)
+            else:
+                completed_at = completed_at.astimezone(timezone.utc)
             if completed_at < lesson_end:
                 violations.append((booking.id, booking.booking_date, completed_at))
 

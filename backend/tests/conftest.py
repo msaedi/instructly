@@ -1428,7 +1428,7 @@ def test_instructor_with_availability(db: Session, test_instructor: User) -> Use
     UPDATED: Creates availability using bitmap storage (AvailabilityDayRepository).
     """
     # Add availability for the next 7 days using bitmap storage
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     repo = AvailabilityDayRepository(db)
 
     items = []
@@ -1458,7 +1458,7 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
     UPDATED: Creates bookings without any reference to availability_slot_id,
     following the clean architecture from Session v56.
     """
-    tomorrow = date.today() + timedelta(days=1)
+    tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
 
     # Get instructor's profile and service
     profile = (

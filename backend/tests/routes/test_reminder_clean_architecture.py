@@ -14,7 +14,7 @@ Run with:
     pytest tests/routes/test_reminder_clean_architecture.py -v
 """
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -104,7 +104,7 @@ class TestReminderQueryLogic:
     @pytest.fixture
     def tomorrow_booking(self, db, test_student, test_instructor):
         """Create a booking for tomorrow."""
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
 
         # Get the instructor's profile
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
@@ -194,13 +194,13 @@ class TestReminderQueryLogic:
         from datetime import datetime, timedelta
 
         # This is how the reminder service calculates tomorrow
-        tomorrow = datetime.now().date() + timedelta(days=1)
+        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
 
         # Should be a date object
         assert isinstance(tomorrow, date)
 
         # Should be tomorrow
-        assert tomorrow == date.today() + timedelta(days=1)
+        assert tomorrow == datetime.now(timezone.utc).date() + timedelta(days=1)
 
         # No slot calculations involved
         assert True  # Just confirming clean calculation
@@ -223,7 +223,7 @@ class TestReminderQueryLogic:
         """Test that only CONFIRMED bookings get reminders."""
         from app.services.notification_service import NotificationService
 
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
 
         # Create bookings with different statuses
         statuses = [
@@ -276,13 +276,11 @@ class TestReminderIntegration:
 
     def test_full_reminder_flow_uses_clean_architecture(self, db, test_student, test_instructor):
         """Test complete reminder flow from endpoint to email."""
-        # Create tomorrow booking based on student's timezone
-        from app.core.timezone_utils import get_user_today
         from app.events import BookingReminder
         from app.services.booking_service import BookingService
 
-        student_today = get_user_today(test_student)
-        tomorrow = student_today + timedelta(days=1)
+        # Create tomorrow booking based on UTC
+        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
 
         # Get the instructor's profile and service
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()

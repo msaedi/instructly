@@ -902,6 +902,7 @@ async def mark_booking_no_show(
     response_model=BookingResponse,
     dependencies=[Depends(new_rate_limit("payment"))],
     responses={404: {"description": "Booking not found"}},
+    deprecated=True,
 )
 async def confirm_booking_payment(
     booking_id: str = Path(
@@ -917,8 +918,7 @@ async def confirm_booking_payment(
     """
     Confirm payment method for a booking (Phase 2.1).
 
-    Called after frontend collects card details via SetupIntent.
-    This completes the booking creation flow.
+    Deprecated: use /api/v1/payments/checkout instead.
     """
     try:
         booking = await asyncio.to_thread(

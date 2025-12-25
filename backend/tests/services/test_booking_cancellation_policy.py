@@ -206,6 +206,58 @@ def test_cancel_under_12h_capture_only(db: Session):
     mock_capture.assert_called_once()
 
 
+def test_12_24h_cancel_no_credit_on_failed_capture(db: Session):
+    """Credit should not be issued if capture fails."""
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    when = datetime.now() + timedelta(hours=18)
+    when = when.replace(minute=0, second=0, microsecond=0)
+    if (when + timedelta(hours=1)).date() != when.date():
+        when = (when + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+
+    bk = _create_booking(db, student, instructor, svc, when)
+    bk.payment_status = "authorized"
+
+    service = BookingService(db)
+
+    with patch(
+        "app.services.stripe_service.StripeService.capture_payment_intent",
+        side_effect=Exception("Card declined"),
+    ), patch(
+        "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
+    ) as mock_credit:
+        result = service.cancel_booking(bk.id, user=student, reason="test")
+
+    assert result.payment_status == "capture_failed"
+    mock_credit.assert_not_called()
+
+
+def test_instructor_cancel_under_24h_full_refund(db: Session):
+    """Instructor cancellation should always release auth and refund student."""
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    when = datetime.now() + timedelta(hours=6)
+    when = when.replace(minute=0, second=0, microsecond=0)
+    if (when + timedelta(hours=1)).date() != when.date():
+        when = (when + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+
+    bk = _create_booking(db, student, instructor, svc, when)
+    bk.payment_status = "authorized"
+
+    service = BookingService(db)
+
+    with patch("app.services.stripe_service.StripeService.cancel_payment_intent") as mock_cancel, patch(
+        "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
+    ) as mock_credit:
+        result = service.cancel_booking(bk.id, user=instructor, reason="test")
+
+    assert result.payment_status == "released"
+    mock_cancel.assert_called_once()
+    mock_credit.assert_not_called()
+
+
 # =========================================================================
 # Part 3: 12-24h Credit = Lesson Price Only (Platform Retains Fee)
 # =========================================================================
@@ -350,6 +402,47 @@ def test_platform_retains_fee_on_12_24h_cancel(db: Session):
     )
 
 
+def test_12_24h_cancel_net_credit_when_credits_used(db: Session):
+    """Cancellation credit should not double-count previously applied credits."""
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    when = datetime.now() + timedelta(hours=18)
+    when = when.replace(minute=0, second=0, microsecond=0)
+    if (when + timedelta(hours=1)).date() != when.date():
+        when = (when + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+
+    bk = _create_booking_with_fee(
+        db, student, instructor, svc, when,
+        hourly_rate=100.00,
+        duration_minutes=60,
+        student_fee_pct=0.12,
+    )
+    bk.payment_status = "authorized"
+
+    service = BookingService(db)
+
+    with patch(
+        "app.repositories.payment_repository.PaymentRepository.get_credits_used_by_booking",
+        return_value=[("credit_1", 3000)],
+    ), patch(
+        "app.services.stripe_service.StripeService.capture_payment_intent"
+    ) as mock_capture, patch(
+        "app.services.stripe_service.StripeService.reverse_transfer"
+    ), patch(
+        "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
+    ) as mock_credit:
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 11200,
+            "transfer_amount": 8800,
+        }
+        service.cancel_booking(bk.id, user=student, reason="test")
+
+    credit_amounts = [call.kwargs.get("amount_cents") for call in mock_credit.call_args_list]
+    assert 7000 in credit_amounts, "Net credit should exclude previously applied credits"
+
+
 @pytest.mark.parametrize(
     "hourly_rate,duration_minutes,expected_credit_cents",
     [
@@ -479,12 +572,19 @@ def test_rescheduled_booking_over_24h_gets_credit_not_refund(db: Session):
         db, student, instructor, svc, when, original_booking.id,
         original_lesson_datetime=original_time,  # Gaming: original was ~18h away
     )
+    bk.payment_status = "authorized"
 
     service = BookingService(db)
 
-    with patch("app.services.stripe_service.StripeService.cancel_payment_intent") as mock_cancel, \
+    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture, \
+         patch("app.services.stripe_service.StripeService.reverse_transfer") as mock_reverse, \
          patch("app.repositories.payment_repository.PaymentRepository.create_platform_credit") as mock_credit, \
          patch("app.repositories.payment_repository.PaymentRepository.create_payment_event"):
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 10000,
+            "transfer_amount": 8800,
+        }
         result = service.cancel_booking(bk.id, user=student, reason="test")
 
     assert result.status == BookingStatus.CANCELLED
@@ -493,8 +593,9 @@ def test_rescheduled_booking_over_24h_gets_credit_not_refund(db: Session):
         "Rescheduled booking >24h should get credit, not full release"
     )
 
-    # Verify PI was cancelled (not captured, since >24h it's still in scheduled state)
-    mock_cancel.assert_called_once()
+    # Verify PI was captured and transfer reversed (to retain platform fee)
+    mock_capture.assert_called_once()
+    mock_reverse.assert_called_once()
 
     # Verify credit was issued for lesson price
     mock_credit.assert_called_once()
@@ -635,13 +736,20 @@ def test_reschedule_loophole_closed(db: Session):
         db, student, instructor, svc, new_time, original_booking.id,
         original_lesson_datetime=original_time,  # Gaming: original was ~20h away
     )
+    rescheduled_booking.payment_status = "authorized"
 
     # Step 3: Student tries to cancel the rescheduled booking (now >24h away)
     service = BookingService(db)
 
-    with patch("app.services.stripe_service.StripeService.cancel_payment_intent") as mock_cancel, \
+    with patch("app.services.stripe_service.StripeService.capture_payment_intent") as mock_capture, \
+         patch("app.services.stripe_service.StripeService.reverse_transfer") as mock_reverse, \
          patch("app.repositories.payment_repository.PaymentRepository.create_platform_credit") as mock_credit, \
          patch("app.repositories.payment_repository.PaymentRepository.create_payment_event"):
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 10000,
+            "transfer_amount": 8800,
+        }
         result = service.cancel_booking(rescheduled_booking.id, user=student, reason="test")
 
     # Step 4: Verify the loophole is CLOSED
@@ -658,8 +766,9 @@ def test_reschedule_loophole_closed(db: Session):
     assert credit_kwargs["amount_cents"] == 10000  # Lesson price
     assert credit_kwargs["user_id"] == student.id
 
-    # Verify PI was cancelled (but with credit issued, not just released)
-    mock_cancel.assert_called_once()
+    # Verify PI was captured and transfer reversed (credit-only, not release)
+    mock_capture.assert_called_once()
+    mock_reverse.assert_called_once()
 
 
 def test_rescheduled_early_then_cancel_over_24h_gets_refund(db: Session):

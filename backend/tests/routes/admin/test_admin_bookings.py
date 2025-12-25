@@ -294,7 +294,7 @@ class TestAdminBookingStats:
     """GET /api/v1/admin/bookings/stats"""
 
     def test_get_stats_today(self, client, auth_headers_admin, db, test_student, test_instructor_with_availability):
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         service_id = _get_active_service_id(db, test_instructor_with_availability.id)
         booking = create_booking_pg_safe(
             db,
@@ -330,7 +330,7 @@ class TestAdminBookingStats:
         assert data["today"]["revenue"] == pytest.approx(100.0)
 
     def test_get_stats_this_week(self, client, auth_headers_admin, db, test_student, test_instructor_with_availability):
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         yesterday = today - timedelta(days=1)
         service_id = _get_active_service_id(db, test_instructor_with_availability.id)
 

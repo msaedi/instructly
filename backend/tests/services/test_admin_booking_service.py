@@ -157,7 +157,7 @@ class TestAdminBookingService:
         assert "payment_captured" in events
 
     def test_calculate_stats(self, db, test_student, test_instructor_with_availability):
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         yesterday = today - timedelta(days=1)
         service_id = _get_active_service_id(db, test_instructor_with_availability.id)
 

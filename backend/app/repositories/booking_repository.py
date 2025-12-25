@@ -1331,7 +1331,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
         Returns bookings that are:
         - Status: CONFIRMED
-        - Payment status: scheduled
+        - Payment status: scheduled or authorizing
         - Have payment method ID
         """
         try:
@@ -1341,7 +1341,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 .filter(
                     and_(
                         Booking.status == BookingStatus.CONFIRMED,
-                        Booking.payment_status == "scheduled",
+                        Booking.payment_status.in_(["scheduled", "authorizing"]),
                         Booking.payment_method_id.isnot(None),
                     )
                 )

@@ -368,29 +368,18 @@ class TestCIEnvironment:
                     # Can't directly compare due to mock, but verify it's a date
                     assert isinstance(user_today, date)
 
-    def test_all_services_use_user_timezone(self, db: Session):
-        """Verify all services use user timezone, not system timezone."""
-        # This test ensures our fixes work in any system timezone
-        services_to_test = [
-            (AvailabilityService, "get_user_today_by_id"),
-            (BookingService, "get_user_today_by_id"),
-        ]
+    def test_booking_service_uses_utc_reference(self, db: Session):
+        """Verify booking service uses UTC reference time for date calculations."""
+        service = BookingService(db)
+        module = service.__class__.__module__
+        service_module = __import__(module, fromlist=[""])
 
-        for service_class, timezone_func in services_to_test:
-            service = service_class(db)
+        module_source = service_module.__file__
+        with open(module_source, "r") as f:
+            source_code = f.read()
 
-            # Verify the service imports the timezone utility
-            module = service.__class__.__module__
-            service_module = __import__(module, fromlist=[""])
-
-            # Check if timezone utils are imported by looking for the import
-            module_source = service_module.__file__
-            with open(module_source, "r") as f:
-                source_code = f.read()
-                assert (
-                    "from ..core.timezone_utils import get_user_today_by_id" in source_code
-                    or "from app.core.timezone_utils import get_user_today_by_id" in source_code
-                )
+        assert "get_user_today_by_id" not in source_code
+        assert "timezone.utc" in source_code
 
 
 class TestRegressionPrevention:

@@ -21,7 +21,6 @@ from typing import (
     Union,
     cast,
 )
-from zoneinfo import ZoneInfo
 
 from celery.result import AsyncResult
 from sqlalchemy.orm import Session
@@ -262,6 +261,7 @@ def _process_authorization_for_booking(
                         "credits_applied_cents": stripe_result.get("applied_credit_cents"),
                     },
                 )
+                # TODO: Notify student on authorization success (Issue #10).
                 logger.info(f"Successfully authorized payment for booking {booking_id}")
         else:
             # Record failure
@@ -1121,29 +1121,12 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
     db1: Session = SessionLocal()
     payment_intent_id: Optional[str] = None
     try:
-        booking = (
-            db1.query(Booking)
-            .options(
-                # Load instructor for timezone
-            )
-            .filter(Booking.id == booking_id)
-            .first()
-        )
+        booking = db1.query(Booking).filter(Booking.id == booking_id).first()
         if not booking:
             return {"success": False, "error": "Booking not found"}
 
-        # Get instructor's timezone
-        tz_name = getattr(booking.instructor, "timezone", None) or "America/New_York"
-        try:
-            instructor_zone = ZoneInfo(tz_name)
-        except Exception:
-            instructor_zone = ZoneInfo("America/New_York")
-
         # Calculate lesson end in UTC
-        lesson_end_local = datetime.combine(
-            booking.booking_date, booking.end_time, tzinfo=instructor_zone
-        )
-        lesson_end = lesson_end_local.astimezone(timezone.utc)
+        lesson_end = datetime.combine(booking.booking_date, booking.end_time, tzinfo=timezone.utc)
 
         # Mark as completed
         booking.status = BookingStatus.COMPLETED
@@ -1249,16 +1232,9 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
         )
         auto_complete_booking_ids: List[str] = []
         for booking in all_confirmed_bookings:
-            tz_name = getattr(booking.instructor, "timezone", None) or "America/New_York"
-            try:
-                instructor_zone = ZoneInfo(tz_name)
-            except Exception:
-                instructor_zone = ZoneInfo("America/New_York")
-
-            lesson_end_local = datetime.combine(
-                booking.booking_date, booking.end_time, tzinfo=instructor_zone
+            lesson_end_utc = datetime.combine(
+                booking.booking_date, booking.end_time, tzinfo=timezone.utc
             )
-            lesson_end_utc = lesson_end_local.astimezone(timezone.utc)
             if lesson_end_utc <= auto_complete_cutoff:
                 auto_complete_booking_ids.append(booking.id)
 
@@ -1338,7 +1314,7 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
                     # Try capture first (uses 3-phase internally)
                     capture_result = _process_capture_for_booking(booking_id, "expired_auth")
                     if not capture_result.get("success"):
-                        # Create new auth and capture (still needs refactoring)
+                        # Create new auth and capture (3-phase pattern)
                         payment_repo = RepositoryFactory.get_payment_repository(db_expired)
                         new_auth_result = create_new_authorization_and_capture(
                             booking, payment_repo, db_expired
@@ -1532,42 +1508,61 @@ def create_new_authorization_and_capture(
     Returns:
         Dict with success status
     """
+    from app.database import SessionLocal
+
+    original_intent_id = booking.payment_intent_id
+
     try:
-        config_service = ConfigService(db)
-        pricing_service = PricingService(db)
-        stripe_service = StripeService(
-            db,
-            config_service=config_service,
-            pricing_service=pricing_service,
-        )
-        original_intent_id = booking.payment_intent_id
+        # Ensure we are not holding a transaction during Stripe calls.
+        try:
+            db.commit()
+        except Exception:
+            pass
 
-        # Recreate authorization via service so pricing comes from pricing_service
-        new_intent = stripe_service.create_or_retry_booking_payment_intent(
-            booking_id=booking.id,
-            payment_method_id=booking.payment_method_id,
-        )
-        intent_id = getattr(new_intent, "id", None)
-        if intent_id is None and isinstance(new_intent, dict):
-            intent_id = new_intent.get("id")
+        # ========== Phase 2: Stripe calls (NO transaction) ==========
+        db_stripe: Session = SessionLocal()
+        try:
+            config_service = ConfigService(db_stripe)
+            pricing_service = PricingService(db_stripe)
+            stripe_service = StripeService(
+                db_stripe,
+                config_service=config_service,
+                pricing_service=pricing_service,
+            )
 
-        resolved_intent_id = intent_id or booking.payment_intent_id
-        if not resolved_intent_id:
-            raise Exception(f"No payment intent id after reauthorization for booking {booking.id}")
+            # Recreate authorization via service so pricing comes from pricing_service
+            new_intent = stripe_service.create_or_retry_booking_payment_intent(
+                booking_id=booking.id,
+                payment_method_id=booking.payment_method_id,
+            )
+            intent_id = getattr(new_intent, "id", None)
+            if intent_id is None and isinstance(new_intent, dict):
+                intent_id = new_intent.get("id")
 
-        capture_result = stripe_service.capture_booking_payment_intent(
-            booking_id=booking.id,
-            payment_intent_id=str(resolved_intent_id),
-        )
+            resolved_intent_id = intent_id or booking.payment_intent_id
+            if not resolved_intent_id:
+                raise Exception(
+                    f"No payment intent id after reauthorization for booking {booking.id}"
+                )
 
+            capture_result = stripe_service.capture_booking_payment_intent(
+                booking_id=booking.id,
+                payment_intent_id=str(resolved_intent_id),
+            )
+            db_stripe.commit()
+        finally:
+            db_stripe.close()
+
+        # ========== Phase 3: Write results (quick transaction) ==========
+        resolved_intent_id = str(resolved_intent_id)
         booking.payment_status = "captured"
-        new_payment_intent_id = booking.payment_intent_id or resolved_intent_id
+        booking.payment_intent_id = resolved_intent_id
 
         payment_repo.create_payment_event(
             booking_id=booking.id,
             event_type="reauth_and_capture_success",
             event_data={
-                "new_payment_intent_id": new_payment_intent_id,
+                "new_payment_intent_id": resolved_intent_id,
                 "original_payment_intent_id": original_intent_id,
                 "amount_captured_cents": capture_result.get("amount_received"),
                 "top_up_transfer_cents": capture_result.get("top_up_transfer_cents"),
