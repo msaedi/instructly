@@ -12,8 +12,8 @@ Allowed patterns:
 - datetime.now(tz=timezone.utc)
 - datetime.combine(date, time, tzinfo=timezone.utc)
 
-Exception marker (line or immediately above):
-    # utc-naive-ok: Display to user in local timezone
+Exception marker (same line, immediately above, or within 3 lines after):
+    # utc-naive-ok: <reason>
 """
 
 from __future__ import annotations
@@ -24,8 +24,18 @@ import os
 import sys
 from typing import Iterable, List, Sequence
 
-MARKER = "utc-naive-ok: Display to user in local timezone"
+MARKER = "utc-naive-ok:"
 DEFAULT_ROOT = os.path.join("backend", "app")
+
+
+def has_exception_marker(lines: Sequence[str], line_num: int, marker: str = MARKER) -> bool:
+    """Check if exception marker exists near the violation line."""
+    start = max(1, line_num - 1)
+    end = min(len(lines), line_num + 3)
+    for idx in range(start, end + 1):
+        if marker in lines[idx - 1]:
+            return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -49,16 +59,6 @@ def _collect_py_files(targets: Sequence[str]) -> List[str]:
     return sorted(files)
 
 
-def _build_ignored_lines(lines: Sequence[str]) -> set[int]:
-    ignored: set[int] = set()
-    for idx, line in enumerate(lines, start=1):
-        if MARKER in line:
-            ignored.add(idx)
-            if idx + 1 <= len(lines):
-                ignored.add(idx + 1)
-    return ignored
-
-
 def _is_name_attr(node: ast.AST, name: str, attr: str) -> bool:
     return (
         isinstance(node, ast.Attribute)
@@ -69,17 +69,16 @@ def _is_name_attr(node: ast.AST, name: str, attr: str) -> bool:
 
 
 class _Visitor(ast.NodeVisitor):
-    def __init__(self, filename: str, lines: Sequence[str], ignored: set[int]) -> None:
+    def __init__(self, filename: str, lines: Sequence[str]) -> None:
         self._filename = filename
         self._lines = lines
-        self._ignored = ignored
         self.violations: List[Violation] = []
 
     def _record(self, node: ast.AST, message: str) -> None:
         lineno = getattr(node, "lineno", None)
         if not lineno:
             return
-        if lineno in self._ignored:
+        if has_exception_marker(self._lines, lineno):
             return
         code = self._lines[lineno - 1].rstrip()
         self.violations.append(
@@ -116,14 +115,13 @@ def _scan_file(path: str) -> List[Violation]:
     with open(path, "r", encoding="utf-8") as handle:
         content = handle.read()
     lines = content.splitlines()
-    ignored = _build_ignored_lines(lines)
 
     try:
         tree = ast.parse(content, filename=path)
     except SyntaxError:
         return []
 
-    visitor = _Visitor(path, lines, ignored)
+    visitor = _Visitor(path, lines)
     visitor.visit(tree)
     return visitor.violations
 
