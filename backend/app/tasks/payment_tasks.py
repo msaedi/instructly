@@ -5,7 +5,8 @@ Handles scheduled authorizations, retries, captures, and payouts.
 Implements proper retry timing windows based on lesson time.
 """
 
-from datetime import datetime, timedelta, timezone
+import datetime as datetime_module
+from datetime import date, datetime, time, timedelta, timezone
 import logging
 from typing import (
     Any,
@@ -36,6 +37,7 @@ from app.services.notification_service import NotificationService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
 from app.services.student_credit_service import StudentCreditService
+from app.services.timezone_service import TimezoneService
 from app.tasks.celery_app import celery_app
 
 P = ParamSpec("P")
@@ -92,6 +94,80 @@ stripe.api_key = (
     settings.stripe_secret_key.get_secret_value() if settings.stripe_secret_key else None
 )
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
+
+
+def _resolve_lesson_timezone(booking: Booking) -> str:
+    lesson_tz = getattr(booking, "lesson_timezone", None)
+    if not isinstance(lesson_tz, str) or not lesson_tz:
+        lesson_tz = getattr(booking, "instructor_tz_at_booking", None)
+    if isinstance(lesson_tz, str) and lesson_tz:
+        return lesson_tz
+    instructor = getattr(booking, "instructor", None)
+    if instructor is not None:
+        instructor_tz = getattr(instructor, "timezone", None)
+        if isinstance(instructor_tz, str) and instructor_tz:
+            return instructor_tz
+        instructor_user = getattr(instructor, "user", None)
+        instructor_user_tz = getattr(instructor_user, "timezone", None) if instructor_user else None
+        if isinstance(instructor_user_tz, str) and instructor_user_tz:
+            return instructor_user_tz
+    return TimezoneService.DEFAULT_TIMEZONE
+
+
+def _resolve_end_date(booking: Booking) -> date:
+    """Resolve end date for legacy bookings that end at midnight."""
+    booking_date = cast(date, booking.booking_date)
+    if not isinstance(booking.end_time, time) or not isinstance(booking.start_time, time):
+        return booking_date
+    midnight = time(0, 0)
+    if booking.end_time == midnight and booking.start_time != midnight:
+        return booking_date + timedelta(days=1)
+    return booking_date
+
+
+def _get_booking_start_utc(booking: Booking) -> datetime:
+    """Get booking start time in UTC, with fallback for legacy bookings."""
+    booking_start_utc = getattr(booking, "booking_start_utc", None)
+    if isinstance(booking_start_utc, datetime_module.datetime):
+        return booking_start_utc
+
+    lesson_tz = _resolve_lesson_timezone(booking)
+    try:
+        return TimezoneService.local_to_utc(
+            booking.booking_date,
+            booking.start_time,
+            lesson_tz,
+        )
+    except ValueError as exc:
+        logger.warning(
+            "Failed to convert booking %s start to UTC (%s); falling back to UTC combine.",
+            booking.id,
+            exc,
+        )
+        return datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
+
+
+def _get_booking_end_utc(booking: Booking) -> datetime:
+    """Get booking end time in UTC, with fallback for legacy bookings."""
+    booking_end_utc = getattr(booking, "booking_end_utc", None)
+    if isinstance(booking_end_utc, datetime_module.datetime):
+        return booking_end_utc
+
+    lesson_tz = _resolve_lesson_timezone(booking)
+    end_date = _resolve_end_date(booking)
+    try:
+        return TimezoneService.local_to_utc(
+            end_date,
+            booking.end_time,
+            lesson_tz,
+        )
+    except ValueError as exc:
+        logger.warning(
+            "Failed to convert booking %s end to UTC (%s); falling back to UTC combine.",
+            booking.id,
+            exc,
+        )
+        return datetime.combine(end_date, booking.end_time, tzinfo=timezone.utc)
 
 
 def _process_authorization_for_booking(
@@ -329,10 +405,8 @@ def process_scheduled_authorizations(self: Any) -> AuthorizationJobResults:
         # Collect booking IDs and hours_until_lesson for each
         booking_data: List[Dict[str, Any]] = []
         for booking in bookings_to_authorize:
-            booking_datetime = datetime.combine(
-                booking.booking_date, booking.start_time, tzinfo=timezone.utc
-            )
-            hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
+            booking_start_utc = _get_booking_start_utc(booking)
+            hours_until_lesson = TimezoneService.hours_until(booking_start_utc)
 
             # Only process if in the 23.5-24.5 hour window
             if 23.5 <= hours_until_lesson <= 24.5:
@@ -670,10 +744,8 @@ def retry_failed_authorizations(self: Any) -> RetryJobResults:
         # Collect booking data with their action type
         booking_actions: List[Dict[str, Any]] = []
         for booking in bookings_to_retry:
-            booking_datetime = datetime.combine(
-                booking.booking_date, booking.start_time, tzinfo=timezone.utc
-            )
-            hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
+            booking_start_utc = _get_booking_start_utc(booking)
+            hours_until_lesson = TimezoneService.hours_until(booking_start_utc)
 
             # Skip if lesson already happened
             if hours_until_lesson < 0:
@@ -1126,7 +1198,7 @@ def _auto_complete_booking(booking_id: str, now: datetime) -> Dict[str, Any]:
             return {"success": False, "error": "Booking not found"}
 
         # Calculate lesson end in UTC
-        lesson_end = datetime.combine(booking.booking_date, booking.end_time, tzinfo=timezone.utc)
+        lesson_end = _get_booking_end_utc(booking)
 
         # Mark as completed
         booking.status = BookingStatus.COMPLETED
@@ -1232,9 +1304,7 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
         )
         auto_complete_booking_ids: List[str] = []
         for booking in all_confirmed_bookings:
-            lesson_end_utc = datetime.combine(
-                booking.booking_date, booking.end_time, tzinfo=timezone.utc
-            )
+            lesson_end_utc = _get_booking_end_utc(booking)
             if lesson_end_utc <= auto_complete_cutoff:
                 auto_complete_booking_ids.append(booking.id)
 
@@ -1622,10 +1692,8 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
 
         # Verify this is a late cancellation
         now = datetime.now(timezone.utc)
-        lesson_datetime = datetime.combine(
-            booking.booking_date, booking.start_time, tzinfo=timezone.utc
-        )
-        hours_until_lesson = (lesson_datetime - now).total_seconds() / 3600
+        booking_start_utc = _get_booking_start_utc(booking)
+        hours_until_lesson = TimezoneService.hours_until(booking_start_utc)
 
         if hours_until_lesson >= 12:
             logger.warning(
@@ -1748,10 +1816,8 @@ def check_authorization_health() -> Dict[str, Any]:
         )
 
         for booking in scheduled_bookings:
-            booking_datetime = datetime.combine(
-                booking.booking_date, booking.start_time, tzinfo=timezone.utc
-            )
-            hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
+            booking_start_utc = _get_booking_start_utc(booking)
+            hours_until_lesson = TimezoneService.hours_until(booking_start_utc)
 
             if hours_until_lesson < 24:  # Should have been authorized
                 overdue_bookings.append(

@@ -20,6 +20,8 @@ from app.services.config_service import DEFAULT_PRICING_CONFIG, ConfigService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import ChargeContext, StripeService
 from app.tasks.payment_tasks import (
+    _get_booking_end_utc,
+    _get_booking_start_utc,
     attempt_authorization_retry,
     attempt_payment_capture,
     audit_and_fix_payout_schedules,
@@ -65,6 +67,12 @@ def _charge_context_from_config(
     )
 
 
+def _apply_utc_timezone_context(booking: Any) -> None:
+    booking.lesson_timezone = "UTC"
+    booking.instructor_tz_at_booking = "UTC"
+    booking.student_tz_at_booking = "UTC"
+
+
 class TestPaymentTasks:
     """Test suite for payment Celery tasks."""
 
@@ -89,6 +97,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=24)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
         booking.total_price = 100.00
 
         # Mock query to return the booking
@@ -177,6 +186,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=24)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
         booking.total_price = 100.00
 
         mock_query = MagicMock()
@@ -227,6 +237,21 @@ class TestPaymentTasks:
         assert result["success"] == 1
         assert booking.payment_status == "authorized"
 
+    def test_get_booking_start_utc_handles_dst_fall_back(self):
+        """DST fall-back ambiguity resolves to the first occurrence."""
+        booking = MagicMock(spec=Booking)
+        booking.id = str(ulid.ULID())
+        booking.booking_start_utc = None
+        booking.booking_date = date(2025, 11, 2)
+        booking.start_time = time(1, 30)
+        booking.lesson_timezone = "America/New_York"
+
+        result = _get_booking_start_utc(booking)
+
+        assert result.tzinfo == timezone.utc
+        assert result.hour == 5
+        assert result.minute == 30
+
     @patch("app.tasks.payment_tasks.StripeService")
     @patch("app.database.SessionLocal")
     def test_process_scheduled_authorizations_failure(self, mock_session_local, mock_stripe_service):
@@ -248,6 +273,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=24)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
         booking.total_price = 100.00
 
         mock_query = MagicMock()
@@ -337,6 +363,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=20)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
         booking.total_price = 100.00
         booking.student_id = "student_123"
         booking.instructor_id = "instructor_123"
@@ -438,6 +465,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=5)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         mock_query = MagicMock()
         mock_query.filter.return_value.all.return_value = [booking]
@@ -826,6 +854,7 @@ class TestPaymentTasks:
             booking.booking_date = date.today()
             booking.start_time = time(14, 0)
             booking.payment_status = "scheduled"
+            _apply_utc_timezone_context(booking)
 
         # Mock repositories
         mock_payment_repo = MagicMock()
@@ -870,6 +899,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=24)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking
@@ -939,6 +969,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=30)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -979,6 +1010,10 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=11)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
+        _apply_utc_timezone_context(booking)
+        _apply_utc_timezone_context(booking)
+        _apply_utc_timezone_context(booking)
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking
@@ -1362,10 +1397,8 @@ class TestPaymentTasks:
                 with patch("app.tasks.payment_tasks.StripeService", return_value=mock_stripe_service):
                     capture_completed_lessons()
 
-        # lesson_end is calculated as UTC based on booking_date and end_time
-        expected_completed_at = datetime.combine(
-            booking.booking_date, booking.end_time, tzinfo=timezone.utc
-        )
+        # lesson_end should match the UTC helper for legacy bookings
+        expected_completed_at = _get_booking_end_utc(booking)
         assert booking.completed_at == expected_completed_at
 
     @patch("app.tasks.payment_tasks.create_new_authorization_and_capture", return_value={"success": True})
@@ -1475,6 +1508,7 @@ class TestPaymentTasks:
         lesson_time = now + timedelta(hours=6)
         booking.booking_date = lesson_time.date()
         booking.start_time = lesson_time.time()
+        _apply_utc_timezone_context(booking)
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -1517,6 +1551,7 @@ class TestPaymentTasks:
         lesson_time = now + timedelta(hours=14)
         booking.booking_date = lesson_time.date()
         booking.start_time = lesson_time.time()
+        _apply_utc_timezone_context(booking)
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -1552,6 +1587,7 @@ class TestPaymentTasks:
         lesson_time = now + timedelta(hours=6)
         booking.booking_date = lesson_time.date()
         booking.start_time = lesson_time.time()
+        _apply_utc_timezone_context(booking)
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -1587,6 +1623,7 @@ class TestPaymentTasks:
         lesson_time = now + timedelta(hours=6)
         booking.booking_date = lesson_time.date()
         booking.start_time = lesson_time.time()
+        _apply_utc_timezone_context(booking)
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -1696,6 +1733,10 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=24)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
+        _apply_utc_timezone_context(booking)
+        _apply_utc_timezone_context(booking)
+        _apply_utc_timezone_context(booking)
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = MagicMock()
@@ -1759,6 +1800,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=11)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         sent_event = MagicMock()
         sent_event.event_type = "final_warning_sent"
@@ -1938,6 +1980,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=24)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking
@@ -1992,6 +2035,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=24)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking
@@ -2045,6 +2089,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=24)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking
@@ -2102,6 +2147,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=24)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_customer_by_user_id.return_value = None
@@ -2154,6 +2200,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=24)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         # Setup query mock to return the booking for direct db.query() calls
         mock_db.query.return_value.filter.return_value.first.return_value = booking
@@ -2219,6 +2266,7 @@ class TestPaymentTasks:
         booking_datetime = now - timedelta(hours=2)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()
@@ -2257,6 +2305,7 @@ class TestPaymentTasks:
         booking_datetime = now + timedelta(hours=20)
         booking.booking_date = booking_datetime.date()
         booking.start_time = booking_datetime.time()
+        _apply_utc_timezone_context(booking)
 
         mock_payment_repo = MagicMock()
         mock_payment_repo.get_payment_events_for_booking.return_value = []
@@ -2432,6 +2481,7 @@ class TestPaymentTasks:
         lesson_end = now - timedelta(hours=1)
         booking.booking_date = lesson_end.date()
         booking.end_time = lesson_end.time()
+        _apply_utc_timezone_context(booking)
 
         mock_payment_repo = MagicMock()
         mock_booking_repo = MagicMock()

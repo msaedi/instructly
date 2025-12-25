@@ -132,7 +132,7 @@ class TestCaptureCompletedLessonsUTC:
         from app.tasks.payment_tasks import capture_completed_lessons
 
         booking = _make_booking(date(2024, 12, 24), time(21, 0), "America/New_York")
-        now_utc = datetime(2024, 12, 25, 20, 0, 0, tzinfo=timezone.utc)
+        now_utc = datetime(2024, 12, 25, 21, 30, 0, tzinfo=timezone.utc)
 
         with patch("app.tasks.payment_tasks.datetime") as mock_dt:
             mock_dt.now.return_value = now_utc
@@ -162,7 +162,7 @@ class TestCaptureCompletedLessonsUTC:
         from app.tasks.payment_tasks import capture_completed_lessons
 
         booking = _make_booking(date(2024, 12, 24), time(21, 0), "America/New_York")
-        now_utc = datetime(2024, 12, 25, 21, 30, 0, tzinfo=timezone.utc)
+        now_utc = datetime(2024, 12, 26, 2, 30, 0, tzinfo=timezone.utc)
 
         with patch("app.tasks.payment_tasks.datetime") as mock_dt:
             mock_dt.now.return_value = now_utc
