@@ -1,15 +1,14 @@
-
 from fastapi.testclient import TestClient
+import pytest
 
-from app.main import fastapi_app
 
-
-def test_read_route_has_rate_headers_shadow(monkeypatch):
+def test_read_route_has_rate_headers_shadow(client: TestClient, monkeypatch: pytest.MonkeyPatch):
+    """Verify rate limit headers are present in shadow mode."""
     # Ensure global shadow is on
     monkeypatch.setenv("RATE_LIMIT_ENABLED", "true")
     monkeypatch.setenv("RATE_LIMIT_SHADOW", "true")
 
-    client = TestClient(fastapi_app)
+    # Use shared client fixture from conftest
     # Use search route which we wired with read bucket
     # This route requires query param q; use a simple value
     r = client.get("/api/v1/search", params={"q": "piano"})

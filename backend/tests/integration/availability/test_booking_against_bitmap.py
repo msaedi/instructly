@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from importlib import reload
 from types import SimpleNamespace
 
 try:  # pragma: no cover - support direct invocation
@@ -12,51 +11,13 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-import app.api.dependencies.services as dependency_services
-import app.main
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService
 from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-import app.routes.v1.availability_windows as availability_routes
-import app.routes.v1.bookings as booking_routes
-import app.services.availability_service as availability_service_module
-import app.services.booking_service as booking_service_module
-import app.services.week_operation_service as week_operation_service_module
 from app.utils.bitset import bits_from_windows, new_empty_bits
 
-
-@pytest.fixture
-def bitmap_booking_app(monkeypatch: pytest.MonkeyPatch):
-    """Reload the FastAPI app with bitmap availability enabled for bookings."""
-
-    reload(availability_service_module)
-    reload(week_operation_service_module)
-    reload(booking_service_module)
-    reload(availability_routes)
-    reload(booking_routes)
-    reload(dependency_services)
-    reload(app.main)
-
-    yield app.main
-
-    reload(availability_service_module)
-    reload(week_operation_service_module)
-    reload(booking_service_module)
-    reload(availability_routes)
-    reload(booking_routes)
-    reload(dependency_services)
-    reload(app.main)
-
-
-@pytest.fixture
-def bitmap_booking_client(bitmap_booking_app) -> TestClient:
-    """Return a TestClient for the bitmap-enabled app instance."""
-    client = TestClient(bitmap_booking_app.fastapi_app, raise_server_exceptions=False)
-    try:
-        yield client
-    finally:
-        client.close()
+# Use shared bitmap_booking_app and bitmap_booking_client fixtures from conftest
 
 
 @pytest.fixture(autouse=True)
