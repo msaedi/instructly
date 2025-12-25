@@ -1,5 +1,6 @@
 # InstaInstru Cancellation & Payment Policy
-*Last Updated: December 2025*
+*Last Updated: January 2026 (Audit updates)*
+*Updates in this revision are marked with [UPDATED] or [NEW].*
 
 ## Overview
 
@@ -22,6 +23,8 @@ AUTHORIZE ────────────► LESSON ───────�
 | **Lesson** | Scheduled time | Lesson takes place |
 | **Capture** | 24 hours after lesson ends | Payment is captured and transferred to instructor |
 
+- [UPDATED] For bookings/reschedules within 24 hours (including gaming reschedules <24h from the original lesson), authorization is triggered immediately instead of waiting for T-24h.
+
 ---
 
 ## Cancellation Policy
@@ -31,8 +34,12 @@ AUTHORIZE ────────────► LESSON ───────�
 | Window | Policy | Student Receives |
 |--------|--------|------------------|
 | **More than 24 hours** | Full refund | Card refund (full amount including fees) |
-| **12-24 hours** | Credit only | Platform credit for lesson price (fee non-refundable) |
+| **12-24 hours** | Credit only | Platform credit for lesson price (net of credits already used; fee non-refundable) |
 | **Less than 12 hours** | No refund | Nothing (instructor receives payment) |
+
+### Instructor Cancellation [UPDATED]
+
+If an instructor cancels at any time, the system cancels the PaymentIntent (releases the authorization) and the student is not charged. This is handled automatically by the cancellation flow.
 
 ### User-Facing Messaging
 
@@ -138,12 +145,16 @@ A booking can only be rescheduled **once**. If the student needs to change the d
 | **<24h from original** (gaming) | 12-24h from new | Credit (lesson price only) |
 | **Any** | <12h from new | No refund |
 
+**[UPDATED] Exactly 24h from the original lesson is treated as legitimate (not gaming).**
+**[UPDATED] Credits issued on cancellation are net of credits already used on the booking.**
+
 **How it works:**
 - We store `original_lesson_datetime` (previous booking's lesson time) when a booking is rescheduled
 - We use `booking.created_at` as the reschedule timestamp
-- Gaming detection: `hours_from_original = original_lesson_datetime - created_at`
-- If the original lesson was **>24h away** when rescheduled → Legitimate, normal cancellation policy applies
+- [UPDATED] Gaming detection: `hours_from_original = original_lesson_datetime - created_at`; gaming if **<24h** (exactly 24h is legitimate)
+- If the original lesson was **>=24h away** when rescheduled → Legitimate, normal cancellation policy applies
 - If the original lesson was **<24h away** when rescheduled → Gaming attempt, credit-only policy
+- [NEW] If gaming is detected, authorization is triggered immediately when the reschedule is confirmed (not at T-24h), ensuring an auth exists for any later cancellation.
 
 **Rationale:** This closes the "reschedule loophole" (escaping 12-24h penalty by rescheduling) while NOT penalizing students who legitimately reschedule early.
 
@@ -181,6 +192,7 @@ A booking can only be rescheduled **once**. If the student needs to change the d
 - Platform credit issued: **$120.00**
 - Platform retains: **$14.40**
 - NO card refund
+- [UPDATED] Authorization is triggered immediately at reschedule confirmation for gaming cases.
 
 **Why?** Prevents the "reschedule loophole" exploit.
 
@@ -233,6 +245,7 @@ A booking can only be rescheduled **once**. If the student needs to change the d
 | **Minimum card payment** | Platform fee must always be paid by card |
 | **FIFO usage** | Earliest expiring credits used first |
 | **Partial usage** | Credits can be partially applied |
+| **Net credit on cancellation [UPDATED]** | Credit issued = lesson price - credits already used (floored at 0) |
 | **Expiration** | Credits expire 1 year from issuance |
 
 ### Why Credits Don't Cover Fees
@@ -241,6 +254,11 @@ This ensures:
 1. Platform always covers Stripe processing costs
 2. Prevents infinite credit cycling exploits
 3. Student has "skin in the game" for every booking
+
+### Transfer Handling [UPDATED]
+
+When credits reduce the student charge, the instructor transfer is capped to the amount actually charged:
+`transfer = min(student_pay_cents, target_payout_cents)`. Any shortfall vs the target payout is covered by a top-up transfer during capture.
 
 ---
 
@@ -290,7 +308,7 @@ Unused credit:          $30.00 (remains in account)
 
 ---
 
-### Example 9: Credit Booking Cancelled in 12-24h Window
+### Example 9: Credit Booking Cancelled in 12-24h Window [UPDATED]
 
 **Scenario:**
 - Student used $50 credit + $84.40 card for $120 lesson
@@ -298,11 +316,10 @@ Unused credit:          $30.00 (remains in account)
 
 **Result:**
 - Card capture: $84.40
-- Original credit reinstated: $50.00
-- New credit from capture: $70.00 (lesson portion of $84.40)
+- Credit issued: **$70.00** (net lesson price credit: $120 - $50 used)
 - Platform retains: $14.40 (fee)
 
-**Student's Total Credit:** $120.00 ($50 reinstated + $70 new)
+**Student's Total Credit:** $70.00 (credits already used on the booking are not reinstated)
 
 ---
 
@@ -385,16 +402,27 @@ Platform net:                     $24.60
 | Dec 2025 | Added `original_lesson_datetime` field | Track when reschedule happened for fair policy |
 | Dec 2025 | One reschedule per booking limit | Prevent gaming |
 | Dec 2025 | Credits apply to lesson price only | Ensure fee always paid by card |
+| Jan 2026 | [UPDATED] Immediate auth on gaming reschedule (<24h) | Close delayed-auth loophole |
+| Jan 2026 | [UPDATED] Gaming threshold clarified (<24h, exactly 24h is legitimate) | Align policy with code |
+| Jan 2026 | [UPDATED] Net credit issuance on cancellation | Prevent double-crediting |
+| Jan 2026 | [UPDATED] Transfer capping when credits applied | Keep transfer <= student charge; top-up handles shortfall |
+| Jan 2026 | [UPDATED] UTC-only backend datetime handling | Consistent time calculations |
+| Jan 2026 | [UPDATED] Deprecated confirm-payment endpoint | Use /payments/checkout |
 
 ---
 
 ## Technical Implementation Notes
 
 ### Backend Files
-- Cancellation logic: `booking_service.py:929-1154`
-- Credit system: `payment_repository.py:1097-1289`
-- Stripe integration: `stripe_service.py`
-- Capture task: `payment_tasks.py:574-756`
+- Cancellation logic: `booking_service.py:1003-1452`
+- Authorization scheduling + gaming immediate auth: `booking_service.py:731-900`
+- Credit system: `payment_repository.py:1141-1421`
+- Stripe payment intent + transfer capping/top-up: `stripe_service.py:1257-1515`
+- Capture task + auth expiry handling: `payment_tasks.py:1180-1355`
+
+### Technical Notes [UPDATED]
+- UTC-only backend time handling (all service/task logic uses `timezone.utc`); frontend converts to local time for display.
+- Deprecated endpoint: `/api/v1/bookings/{id}/confirm-payment` (use `/api/v1/payments/checkout`).
 
 ### Key Database Fields
 - `booking.rescheduled_from_booking_id` - Tracks if booking was rescheduled
@@ -415,9 +443,9 @@ Platform net:                     $24.60
 | Policy | Description |
 |--------|-------------|
 | **>24h cancel** | Full card refund |
-| **12-24h cancel** | Credit for lesson price, fee retained |
+| **12-24h cancel** | Credit for lesson price (net of used credits), fee retained |
 | **<12h cancel** | No refund, instructor paid |
-| **Rescheduled cancel (gaming)** | Credit-only if rescheduled from <24h window |
+| **Rescheduled cancel (gaming)** | Credit-only (net of used credits) if rescheduled from <24h window |
 | **Rescheduled cancel (legit)** | Normal policy if rescheduled from >24h window |
 | **Reschedule limit** | Once per booking |
 | **Credit usage** | Lesson price only, fee by card |
