@@ -1,6 +1,6 @@
 """Repositories for BetaInvite and BetaAccess (repository pattern)."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Optional, Sequence, cast
 
 from sqlalchemy.orm import Session
@@ -21,7 +21,7 @@ class BetaInviteRepository(BaseRepository[BetaInvite]):
         invite = self.get_by_code(code)
         if not invite or invite.used_at is not None:
             return False
-        invite.used_at = used_at or datetime.now().astimezone()
+        invite.used_at = used_at or datetime.now(timezone.utc)
         invite.used_by_user_id = user_id
         self.db.flush()
         return True

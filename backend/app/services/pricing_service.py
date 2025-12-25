@@ -148,7 +148,8 @@ class PricingService(BaseService):
 
         duration_minutes = int(payload.selected_duration)
         end_time_obj = (
-            datetime.combine(date(2000, 1, 1), start_time_obj) + timedelta(minutes=duration_minutes)
+            datetime.combine(date(2000, 1, 1), start_time_obj, tzinfo=timezone.utc)
+            + timedelta(minutes=duration_minutes)
         ).time()
 
         hourly_rate = Decimal(str(service.hourly_rate))

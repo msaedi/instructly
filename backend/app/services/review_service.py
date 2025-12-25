@@ -190,6 +190,7 @@ class ReviewService(BaseService):
 
             # Compute the scheduled end datetime in user's timezone, then convert to UTC
             if booking.end_time is not None:
+                # utc-naive-ok: Display to user in local timezone
                 local_end_naive = datetime.combine(booking.booking_date, booking.end_time)
                 if user_tz and hasattr(user_tz, "localize"):
                     tz_with_localize = cast(Any, user_tz)  # pytz tzinfo exposes localize()

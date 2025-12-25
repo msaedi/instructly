@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import random
 import time
@@ -129,7 +129,7 @@ def _perf_after_cursor_execute(
 # Log pool events for monitoring
 @event.listens_for(engine, "connect")
 def receive_connect(dbapi_connection: Any, connection_record: Any) -> None:
-    connection_record.info["connect_time"] = datetime.now()
+    connection_record.info["connect_time"] = datetime.now(timezone.utc)
     logger.debug("Database connection established")
 
 

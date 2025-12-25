@@ -71,6 +71,12 @@ repos:
         exclude: ^backend/app/services/(cache_service|logging_service|metrics_service)\.py$
         description: Prevent timezone bugs by checking for date.today() in user-facing code
 
+      - id: check-utc-timezone
+        name: Check UTC timezone usage
+        entry: python backend/scripts/check_utc_timezone.py
+        language: python
+        files: ^backend/app/.*\.py$
+
       - id: check-repository-pattern
         name: Check Repository Pattern Compliance
         entry: python3 backend/scripts/check_repository_pattern.py

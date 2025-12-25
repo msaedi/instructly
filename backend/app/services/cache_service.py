@@ -13,7 +13,7 @@ Now monitoring all cache operations to optimize energy usage! ⚡
 """
 
 import asyncio
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from enum import Enum
 from functools import wraps
 import hashlib
@@ -101,7 +101,9 @@ class CircuitBreaker:
             if self._state == CircuitState.OPEN:
                 # Check if we should try half-open
                 if self._last_failure_time:
-                    time_since_failure = (datetime.now() - self._last_failure_time).total_seconds()
+                    time_since_failure = (
+                        datetime.now(timezone.utc) - self._last_failure_time
+                    ).total_seconds()
                     if time_since_failure >= self.recovery_timeout:
                         self._state = CircuitState.HALF_OPEN
             return self._state
@@ -151,7 +153,7 @@ class CircuitBreaker:
         """Handle failed call."""
         with self._lock:
             self._failure_count += 1
-            self._last_failure_time = datetime.now()
+            self._last_failure_time = datetime.now(timezone.utc)
 
             if self._failure_count >= self.failure_threshold:
                 self._state = CircuitState.OPEN
@@ -328,7 +330,7 @@ class CacheService(BaseService):
                     return None
 
                 expires_at = self._memory_expiry.get(key)
-                if expires_at is None or datetime.now() < expires_at:
+                if expires_at is None or datetime.now(timezone.utc) < expires_at:
                     return cached
 
                 # Key expired in memory cache; clean up and treat as miss
@@ -363,7 +365,9 @@ class CacheService(BaseService):
                     return True
             elif redis_client is None:
                 self._memory_cache[key] = value
-                self._memory_expiry[key] = datetime.now() + timedelta(seconds=expiration)
+                self._memory_expiry[key] = datetime.now(timezone.utc) + timedelta(
+                    seconds=expiration
+                )
                 self._stats["sets"] += 1
                 return True
 
@@ -465,7 +469,9 @@ class CacheService(BaseService):
             elif redis_client is None:
                 # In-memory fallback
                 self._memory_cache[key] = value
-                self._memory_expiry[key] = datetime.now() + timedelta(seconds=expiration)
+                self._memory_expiry[key] = datetime.now(timezone.utc) + timedelta(
+                    seconds=expiration
+                )
                 self._stats["sets"] += 1
                 return True
 
@@ -595,7 +601,7 @@ class CacheService(BaseService):
                 return bool(result)
             else:
                 # In-memory fallback: use simple dict check with expiry
-                now = datetime.now()
+                now = datetime.now(timezone.utc)
                 expires_at = self._memory_expiry.get(key)
                 if expires_at is None or now >= expires_at:
                     # Lock is free or expired - acquire it
@@ -716,7 +722,7 @@ class CacheService(BaseService):
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
 
         # Use shorter TTL for current/future weeks
-        if week_start >= date.today():
+        if week_start >= datetime.now(timezone.utc).date():
             tier = "hot"  # 5 minutes
         else:
             tier = "warm"  # 1 hour for past weeks
@@ -752,7 +758,7 @@ class CacheService(BaseService):
         key = self.key_builder.build("availability", "range", instructor_id, start_date, end_date)
 
         # Use hot cache for current/future dates, warm for past
-        if start_date >= date.today():
+        if start_date >= datetime.now(timezone.utc).date():
             tier = "hot"  # 5 minutes
         else:
             tier = "warm"  # 1 hour
@@ -887,7 +893,7 @@ class CacheService(BaseService):
         from ..services.availability_service import AvailabilityService
 
         availability_service = AvailabilityService(self.db)
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
         monday = today - timedelta(days=today.weekday())
 
         warmed = 0

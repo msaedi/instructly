@@ -15,7 +15,7 @@ Changes from original:
 - Uses dependency injection for TemplateService (no singleton)
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 import logging
 import time
@@ -443,7 +443,9 @@ class NotificationService(BaseService):
         subject = f"Booking Confirmed: {booking.service_name} with {booking.instructor.first_name}"
 
         # Format booking time
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        booking_datetime = datetime.combine(
+            booking.booking_date, booking.start_time, tzinfo=timezone.utc
+        )
         formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
         formatted_time = booking_datetime.strftime("%-I:%M %p")
 
@@ -604,7 +606,9 @@ class NotificationService(BaseService):
         subject = f"New Booking: {booking.service_name} with {booking.student.first_name}"
 
         # Format booking time
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        booking_datetime = datetime.combine(
+            booking.booking_date, booking.start_time, tzinfo=timezone.utc
+        )
         formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
         formatted_time = booking_datetime.strftime("%-I:%M %p")
 
@@ -641,7 +645,9 @@ class NotificationService(BaseService):
         """Send cancellation notification to student when instructor cancels."""
         subject = f"Booking Cancelled: {booking.service_name}"
 
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        booking_datetime = datetime.combine(
+            booking.booking_date, booking.start_time, tzinfo=timezone.utc
+        )
         formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
         formatted_time = booking_datetime.strftime("%-I:%M %p")
 
@@ -678,7 +684,9 @@ class NotificationService(BaseService):
         """Send cancellation notification to instructor when student cancels."""
         subject = f"Booking Cancelled: {booking.service_name}"
 
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        booking_datetime = datetime.combine(
+            booking.booking_date, booking.start_time, tzinfo=timezone.utc
+        )
         formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
         formatted_time = booking_datetime.strftime("%-I:%M %p")
 
@@ -712,7 +720,9 @@ class NotificationService(BaseService):
         subject = f"Cancellation Confirmed: {booking.service_name}"
 
         # Format booking time for the confirmation
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        booking_datetime = datetime.combine(
+            booking.booking_date, booking.start_time, tzinfo=timezone.utc
+        )
         formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
         formatted_time = booking_datetime.strftime("%-I:%M %p")
 
@@ -744,7 +754,9 @@ class NotificationService(BaseService):
         subject = f"Cancellation Confirmed: {booking.service_name}"
 
         # Format booking time for the confirmation
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        booking_datetime = datetime.combine(
+            booking.booking_date, booking.start_time, tzinfo=timezone.utc
+        )
         formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
         formatted_time = booking_datetime.strftime("%-I:%M %p")
 
@@ -775,7 +787,9 @@ class NotificationService(BaseService):
         """Send 24-hour reminder to student."""
         subject = f"Reminder: {booking.service_name} Tomorrow"
 
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        booking_datetime = datetime.combine(
+            booking.booking_date, booking.start_time, tzinfo=timezone.utc
+        )
         formatted_time = booking_datetime.strftime("%-I:%M %p")
 
         # Prepare template context
@@ -805,7 +819,9 @@ class NotificationService(BaseService):
         """Send 24-hour reminder to instructor."""
         subject = f"Reminder: {booking.service_name} Tomorrow"
 
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        booking_datetime = datetime.combine(
+            booking.booking_date, booking.start_time, tzinfo=timezone.utc
+        )
         formatted_time = booking_datetime.strftime("%-I:%M %p")
 
         # Prepare template context

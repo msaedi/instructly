@@ -119,7 +119,7 @@ async def get_pending_completion_bookings(
     pending_bookings = [
         booking
         for booking in bookings
-        if datetime.combine(booking.booking_date, booking.end_time) <= now
+        if datetime.combine(booking.booking_date, booking.end_time, tzinfo=timezone.utc) <= now
     ]
 
     return _paginate_bookings(pending_bookings, page=page, per_page=per_page)

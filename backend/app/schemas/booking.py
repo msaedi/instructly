@@ -8,7 +8,7 @@ the "Rug and Person" principle where bookings persist independently of
 availability changes.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 import re
 from typing import Any, Dict, List, Literal, Mapping, Optional
 
@@ -141,7 +141,7 @@ class BookingCreate(StrictRequestModel):
             # Calculate end_time from start_time + duration
             # Use a reference date for time calculation (this is just for math, not timezone-specific)
             reference_date = date(2024, 1, 1)
-            start_datetime = datetime.combine(reference_date, self.start_time)
+            start_datetime = datetime.combine(reference_date, self.start_time, tzinfo=timezone.utc)
             end_datetime = start_datetime + timedelta(minutes=self.selected_duration)
             self.end_time = end_datetime.time()
 

@@ -283,12 +283,12 @@ def run_availability_retention() -> "RetentionResult":
     """
     Purge stale availability_days rows when retention is enabled.
     """
-    from datetime import date
+    from datetime import datetime, timezone
 
     from app.database import SessionLocal
     from app.services.retention_service import RetentionService
 
-    run_day = date.today()
+    run_day = datetime.now(timezone.utc).date()
     if not settings.availability_retention_enabled:
         return {
             "inspected_days": 0,
