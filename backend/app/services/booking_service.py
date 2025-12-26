@@ -354,13 +354,19 @@ class BookingService(BaseService):
         """Resolve instructor timezone with a safe default."""
         instructor_user = getattr(instructor_profile, "user", None)
         instructor_tz = getattr(instructor_user, "timezone", None)
-        return instructor_tz or TimezoneService.DEFAULT_TIMEZONE
+        default_tz: str = TimezoneService.DEFAULT_TIMEZONE
+        if isinstance(instructor_tz, str) and instructor_tz:
+            return instructor_tz
+        return default_tz
 
     @staticmethod
     def _resolve_student_timezone(student: Optional[User]) -> str:
         """Resolve student timezone with a safe default."""
         student_tz = getattr(student, "timezone", None) if student else None
-        return student_tz or TimezoneService.DEFAULT_TIMEZONE
+        default_tz: str = TimezoneService.DEFAULT_TIMEZONE
+        if isinstance(student_tz, str) and student_tz:
+            return student_tz
+        return default_tz
 
     def _resolve_lesson_timezone(
         self,
@@ -369,7 +375,8 @@ class BookingService(BaseService):
     ) -> str:
         instructor_tz = self._resolve_instructor_timezone(instructor_profile)
         is_online = self._is_online_lesson(booking_data)
-        return TimezoneService.get_lesson_timezone(instructor_tz, is_online)
+        lesson_tz: str = TimezoneService.get_lesson_timezone(instructor_tz, is_online)
+        return lesson_tz or TimezoneService.DEFAULT_TIMEZONE
 
     @staticmethod
     def _resolve_end_date(booking_date: date, start_time: time, end_time: time) -> date:
@@ -404,11 +411,12 @@ class BookingService(BaseService):
         if not lesson_tz and booking.instructor:
             lesson_tz = getattr(booking.instructor, "timezone", None)
         lesson_tz = lesson_tz or TimezoneService.DEFAULT_TIMEZONE
-        return TimezoneService.local_to_utc(
+        start_utc: datetime = TimezoneService.local_to_utc(
             booking.booking_date,
             booking.start_time,
             lesson_tz,
         )
+        return start_utc
 
     def _get_booking_end_utc(self, booking: Booking) -> datetime:
         """Get booking end time in UTC, handling legacy bookings."""
@@ -425,11 +433,12 @@ class BookingService(BaseService):
             booking.start_time,
             booking.end_time,  # tz-pattern-ok: legacy end-date resolution
         )
-        return TimezoneService.local_to_utc(
+        end_utc: datetime = TimezoneService.local_to_utc(
             end_date,
             booking.end_time,
             lesson_tz,
         )
+        return end_utc
 
     def _validate_against_availability_bits(
         self,
