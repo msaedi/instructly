@@ -7300,6 +7300,10 @@ export type ListInstructorBookingsApiV1InstructorBookingsGetParams = {
    */
   upcoming?: boolean;
   /**
+   * Exclude future confirmed bookings (for History tab)
+   */
+  exclude_future_confirmed?: boolean;
+  /**
    * Page number
    * @minimum 1
    */
@@ -7310,6 +7314,9 @@ export type ListInstructorBookingsApiV1InstructorBookingsGetParams = {
    * @maximum 100
    */
   per_page?: number;
+  /**
+   * Include past confirmed bookings (for BookAgain)
+   */
   include_past_confirmed?: boolean;
 };
 

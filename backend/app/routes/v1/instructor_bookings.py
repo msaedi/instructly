@@ -220,11 +220,16 @@ async def list_instructor_bookings(
         None, description="Filter by booking status (COMPLETED, CONFIRMED, etc.)"
     ),
     upcoming: bool = Query(False, description="Only include upcoming confirmed bookings"),
+    exclude_future_confirmed: bool = Query(
+        False, description="Exclude future confirmed bookings (for History tab)"
+    ),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-    include_past_confirmed: bool = False,
+    include_past_confirmed: bool = Query(
+        False, description="Include past confirmed bookings (for BookAgain)"
+    ),
 ) -> PaginatedResponse[BookingResponse]:
     """List instructor bookings with filters."""
     check_permission(current_user, PermissionName.VIEW_INCOMING_BOOKINGS, db)
@@ -235,6 +240,7 @@ async def list_instructor_bookings(
         instructor_id=current_user.id,
         status=status,
         upcoming_only=upcoming,
+        exclude_future_confirmed=exclude_future_confirmed,
         include_past_confirmed=include_past_confirmed,
     )
     return _paginate_bookings(bookings, page=page, per_page=per_page)

@@ -20,6 +20,7 @@ import { isApiError } from '@/lib/react-query/api';
 import { StatusBadge } from '@/components/ui/status-badge';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useReviewForBooking } from '@/src/api/services/reviews';
+import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
 
 type LessonPaymentSummary = {
   lesson_amount: number;
@@ -117,11 +118,18 @@ export default function LessonDetailsPage() {
     );
   }
 
-  const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}`);
+  const { start: bookingStart, end: bookingEnd } = resolveBookingDateTimes(lesson);
+  const lessonDateTime = bookingStart ?? new Date(`${lesson.booking_date}T${lesson.start_time}`);
   const now = new Date();
-  const isPastLesson = lessonDateTime < now;
-  const isUpcoming = lesson.status === 'CONFIRMED' && !isPastLesson;
-  const isCompleted = lesson.status === 'COMPLETED' || (lesson.status === 'CONFIRMED' && isPastLesson);
+  const isInProgress =
+    lesson.status === 'CONFIRMED' &&
+    bookingEnd !== null &&
+    now >= lessonDateTime &&
+    now < bookingEnd;
+  const isUpcoming = lesson.status === 'CONFIRMED' && now < lessonDateTime;
+  const isCompleted =
+    lesson.status === 'COMPLETED' ||
+    (lesson.status === 'CONFIRMED' && bookingEnd !== null && now >= bookingEnd);
   const isCancelled = lesson.status === 'CANCELLED';
 
   // Check if lesson is within 12 hours (cannot reschedule)
@@ -214,7 +222,10 @@ export default function LessonDetailsPage() {
               <h1 className="text-2xl sm:text-3xl font-bold text-[#7E22CE]">
                 {lesson.service_name}
               </h1>
-              {isCompleted && (
+              {isInProgress && (
+                <StatusBadge variant="pending" label="In Progress" showIcon={true} />
+              )}
+              {!isInProgress && isCompleted && (
                 <StatusBadge variant="success" label="Completed" showIcon={true} />
               )}
             </div>

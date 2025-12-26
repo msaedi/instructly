@@ -18363,10 +18363,13 @@ export interface operations {
                 status?: components["schemas"]["BookingStatus"] | null;
                 /** @description Only include upcoming confirmed bookings */
                 upcoming?: boolean;
+                /** @description Exclude future confirmed bookings (for History tab) */
+                exclude_future_confirmed?: boolean;
                 /** @description Page number */
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
+                /** @description Include past confirmed bookings (for BookAgain) */
                 include_past_confirmed?: boolean;
             };
             header?: never;

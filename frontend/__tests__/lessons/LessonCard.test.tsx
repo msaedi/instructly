@@ -88,6 +88,21 @@ describe('LessonCard', () => {
     expect(screen.queryByText('Confirmed')).not.toBeInTheDocument();
   });
 
+  it('shows in progress badge for in-progress confirmed lessons', () => {
+    render(
+      <LessonCard
+        lesson={mockBooking}
+        isCompleted={false}
+        isInProgress={true}
+        onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
+      />
+    );
+
+    expect(screen.getByText('In Progress')).toBeInTheDocument();
+  });
+
   it('shows completed badge for completed lessons', () => {
     const completedBooking = {
       ...mockBooking,

@@ -36,6 +36,7 @@ const EMPTY_PAGE: PaginatedBookingResponse = {
 type UseInstructorBookingsOptions = {
   status?: BookingStatus;
   upcoming?: boolean;
+  excludeFutureConfirmed?: boolean;
   page?: number;
   perPage?: number;
   enabled?: boolean;
@@ -44,11 +45,15 @@ type UseInstructorBookingsOptions = {
 export function useInstructorBookings({
   status,
   upcoming,
+  excludeFutureConfirmed,
   page = 1,
   perPage = 50,
   enabled = true,
 }: UseInstructorBookingsOptions) {
   const cappedPerPage = Math.min(perPage, 100);
+  type ListParams = NonNullable<Parameters<typeof useInstructorBookingsList>[0]> & {
+    exclude_future_confirmed?: boolean;
+  };
 
   // Determine which endpoint to use BEFORE calling hooks
   // This ensures we only make ONE API call, not three
@@ -68,12 +73,15 @@ export function useInstructorBookings({
 
   // Case 3: General list with filters (only enabled when needed)
   const listParams = shouldUseList
-    ? {
+    ? ({
         ...(status !== undefined ? { status } : {}),
         ...(upcoming !== undefined ? { upcoming } : {}),
+        ...(excludeFutureConfirmed !== undefined
+          ? { exclude_future_confirmed: excludeFutureConfirmed }
+          : {}),
         page,
         per_page: cappedPerPage,
-      }
+      } as ListParams)
     : undefined;
 
   const listResult = useInstructorBookingsList(listParams, {

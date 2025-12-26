@@ -11,6 +11,7 @@ import { formatBookingDate, formatBookingTime } from '@/lib/timezone/formatBooki
 interface LessonCardProps {
   lesson: Booking;
   isCompleted: boolean;
+  isInProgress?: boolean;
   onViewDetails: () => void;
   onBookAgain?: () => void;
   onChat?: () => void;
@@ -26,6 +27,7 @@ interface LessonCardProps {
 export function LessonCard({
   lesson,
   isCompleted,
+  isInProgress = false,
   onViewDetails,
   onBookAgain,
   onChat,
@@ -40,6 +42,10 @@ export function LessonCard({
   const [reviewed, setReviewed] = useState<boolean | null>(null);
   const formattedDate = formatBookingDate(lesson);
   const formattedTime = formatBookingTime(lesson);
+  const showInProgressBadge = lesson.status === 'CONFIRMED' && isInProgress;
+  const showCompletedBadge =
+    lesson.status === 'COMPLETED' ||
+    (lesson.status === 'CONFIRMED' && isCompleted && !showInProgressBadge);
 
   // Status formatting helper available: formatLessonStatus(lesson.status, lesson.cancelled_at)
 
@@ -128,7 +134,8 @@ export function LessonCard({
                 {lesson.service_name}
               </h3>
               {/* Show completed badge for completed lessons or past confirmed lessons */}
-              {(lesson.status === 'COMPLETED' || (isCompleted && lesson.status === 'CONFIRMED')) && (
+              {showInProgressBadge && <LessonStatus status="IN_PROGRESS" />}
+              {showCompletedBadge && (
                 <LessonStatus status="COMPLETED" {...(lesson.cancelled_at && { cancelledAt: lesson.cancelled_at })} />
               )}
               {/* Show cancelled badge inline for cancelled lessons */}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { addDays, format, subDays } from 'date-fns';
 import MyLessonsPage from '@/app/(auth)/student/lessons/page';
 import * as myLessonsModule from '@/hooks/useMyLessons';
 import * as authModule from '@/features/shared/hooks/useAuth';
@@ -67,11 +68,16 @@ const renderWithProviders = (ui: React.ReactElement) => {
 };
 
 describe('MyLessonsPage', () => {
+  const futureDateOne = format(addDays(new Date(), 5), 'yyyy-MM-dd');
+  const futureDateTwo = format(addDays(new Date(), 6), 'yyyy-MM-dd');
+  const pastDateOne = format(subDays(new Date(), 5), 'yyyy-MM-dd');
+  const pastDateTwo = format(subDays(new Date(), 6), 'yyyy-MM-dd');
+
   const mockUpcomingLessons = {
     items: [
       {
         id: 1,
-        booking_date: '2024-12-25',
+        booking_date: futureDateOne,
         start_time: '14:00:00',
         end_time: '15:00:00',
         status: 'CONFIRMED',
@@ -92,7 +98,7 @@ describe('MyLessonsPage', () => {
       },
       {
         id: 2,
-        booking_date: '2024-12-26',
+        booking_date: futureDateTwo,
         start_time: '10:00:00',
         end_time: '11:00:00',
         status: 'CONFIRMED',
@@ -123,7 +129,7 @@ describe('MyLessonsPage', () => {
     items: [
       {
         id: 3,
-        booking_date: '2024-12-20',
+        booking_date: pastDateOne,
         start_time: '14:00:00',
         end_time: '15:00:00',
         status: 'COMPLETED',
@@ -144,7 +150,7 @@ describe('MyLessonsPage', () => {
       },
       {
         id: 4,
-        booking_date: '2024-12-19',
+        booking_date: pastDateTwo,
         start_time: '10:00:00',
         end_time: '11:00:00',
         status: 'CANCELLED',

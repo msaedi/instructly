@@ -4,7 +4,9 @@
  * Prefers UTC fields and falls back to legacy local date/time strings.
  */
 
-type BookingTimeFields = {
+import { timeToMinutes } from '@/lib/time';
+
+export type BookingTimeFields = {
   booking_start_utc?: string | null;
   booking_end_utc?: string | null;
   booking_date?: string;
@@ -122,4 +124,63 @@ export function formatBookingTimeRange(
   }
 
   return `${start} - ${end}`;
+}
+
+function buildLocalDateTime(date: string, time: string): Date | null {
+  const value = new Date(`${date}T${time}`);
+  return Number.isNaN(value.getTime()) ? null : value;
+}
+
+export function resolveBookingDateTimes(
+  booking: BookingTimeFields & { duration_minutes?: number | null }
+): { start: Date | null; end: Date | null } {
+  if (booking.booking_start_utc) {
+    const startUtc = new Date(booking.booking_start_utc);
+    if (!Number.isNaN(startUtc.getTime())) {
+      let endUtc: Date | null = null;
+      if (booking.booking_end_utc) {
+        const candidate = new Date(booking.booking_end_utc);
+        endUtc = Number.isNaN(candidate.getTime()) ? null : candidate;
+      } else if (
+        typeof booking.duration_minutes === 'number' &&
+        Number.isFinite(booking.duration_minutes)
+      ) {
+        endUtc = new Date(startUtc.getTime() + booking.duration_minutes * 60 * 1000);
+      }
+      return { start: startUtc, end: endUtc };
+    }
+  }
+
+  if (booking.booking_date && booking.start_time) {
+    const startLocal = buildLocalDateTime(booking.booking_date, booking.start_time);
+    if (!startLocal) {
+      return { start: null, end: null };
+    }
+
+    let endLocal: Date | null = null;
+    if (booking.end_time) {
+      const startMinutes = timeToMinutes(booking.start_time);
+      const endMinutes = timeToMinutes(booking.end_time, { isEndTime: true });
+      endLocal = new Date(startLocal);
+
+      if (endMinutes === 24 * 60) {
+        endLocal.setDate(endLocal.getDate() + 1);
+        endLocal.setHours(0, 0, 0, 0);
+      } else {
+        if (endMinutes <= startMinutes) {
+          endLocal.setDate(endLocal.getDate() + 1);
+        }
+        endLocal.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0);
+      }
+    } else if (
+      typeof booking.duration_minutes === 'number' &&
+      Number.isFinite(booking.duration_minutes)
+    ) {
+      endLocal = new Date(startLocal.getTime() + booking.duration_minutes * 60 * 1000);
+    }
+
+    return { start: startLocal, end: endLocal };
+  }
+
+  return { start: null, end: null };
 }

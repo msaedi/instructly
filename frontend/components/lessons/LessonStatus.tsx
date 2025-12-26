@@ -2,7 +2,7 @@ import { StatusBadge, StatusBadgeVariant } from '@/components/ui/status-badge';
 import { BookingStatus } from '@/types/booking';
 
 interface LessonStatusProps {
-  status: BookingStatus;
+  status: BookingStatus | 'IN_PROGRESS';
   cancelledAt?: string;
 }
 
@@ -11,6 +11,8 @@ export function LessonStatus({ status, cancelledAt: _cancelledAt }: LessonStatus
     switch (status) {
       case 'CONFIRMED':
         return { variant: 'pending', label: 'Upcoming' };
+      case 'IN_PROGRESS':
+        return { variant: 'pending', label: 'In Progress' };
       case 'COMPLETED':
         return { variant: 'success', label: 'Completed' };
       case 'CANCELLED':

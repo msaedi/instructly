@@ -57,8 +57,8 @@ function BookingsPageImpl() {
   });
 
   const pastQuery = useInstructorBookings({
-    status: 'COMPLETED',
     upcoming: false,
+    excludeFutureConfirmed: true,
     page: 1,
     perPage: PAGE_SIZE,
   });

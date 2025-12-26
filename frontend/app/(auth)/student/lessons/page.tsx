@@ -16,6 +16,7 @@ import { ChatModal } from '@/components/chat/ChatModal';
 import type { Booking } from '@/types/booking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { useRatingsBatch, useExistingReviews } from '@/hooks/queries/useReviewsBatch';
+import { resolveBookingDateTimes } from '@/lib/timezone/formatBookingTime';
 
 function MyLessonsContent() {
   const router = useRouter();
@@ -54,12 +55,73 @@ function MyLessonsContent() {
     error: errorHistory,
   } = useCompletedLessons();
 
+  type LessonItem = Omit<Booking, 'updated_at'> & { updated_at?: string };
+
+  const combinedLessons = useMemo(() => {
+    const items = [
+      ...(upcomingLessons?.items ?? []),
+      ...(historyLessons?.items ?? []),
+    ];
+    const deduped = new Map<string, LessonItem>();
+    items.forEach((lesson) => {
+      deduped.set(String(lesson.id), lesson as LessonItem);
+    });
+    return Array.from(deduped.values());
+  }, [upcomingLessons?.items, historyLessons?.items]);
+
+  const { upcomingList, historyList } = useMemo(() => {
+    if (!hasMounted) {
+      return {
+        upcomingList: upcomingLessons?.items ?? [],
+        historyList: historyLessons?.items ?? [],
+      };
+    }
+
+    const now = new Date();
+    const upcoming: LessonItem[] = [];
+    const history: LessonItem[] = [];
+    const startTimes = new Map<string, number>();
+
+    combinedLessons.forEach((lesson) => {
+      const { start, end } = resolveBookingDateTimes(lesson);
+      const startMs = start?.getTime() ?? 0;
+      startTimes.set(String(lesson.id), startMs);
+
+      if (lesson.status === 'CONFIRMED') {
+        if (end && now >= end) {
+          history.push(lesson);
+        } else {
+          upcoming.push(lesson);
+        }
+        return;
+      }
+
+      if (lesson.status === 'COMPLETED' || lesson.status === 'CANCELLED' || lesson.status === 'NO_SHOW') {
+        history.push(lesson);
+        return;
+      }
+
+      history.push(lesson);
+    });
+
+    upcoming.sort((a, b) => {
+      const aStart = startTimes.get(String(a.id)) ?? 0;
+      const bStart = startTimes.get(String(b.id)) ?? 0;
+      return aStart - bStart;
+    });
+
+    history.sort((a, b) => {
+      const aStart = startTimes.get(String(a.id)) ?? 0;
+      const bStart = startTimes.get(String(b.id)) ?? 0;
+      return bStart - aStart;
+    });
+
+    return { upcomingList: upcoming, historyList: history };
+  }, [combinedLessons, hasMounted, upcomingLessons?.items, historyLessons?.items]);
+
   const isLoading = activeTab === 'upcoming' ? isLoadingUpcoming : isLoadingHistory;
   const error = activeTab === 'upcoming' ? errorUpcoming : errorHistory;
-  const lessons =
-    activeTab === 'upcoming'
-      ? upcomingLessons?.items
-      : historyLessons?.items;
+  const lessons = activeTab === 'upcoming' ? upcomingList : historyList;
 
   // Derive instructor IDs for batch ratings lookup
   const uniqueInstructorIds = useMemo(() => {
@@ -75,8 +137,8 @@ function MyLessonsContent() {
       .filter((l) => {
         if (l.status === 'COMPLETED') return true;
         if (l.status === 'CONFIRMED') {
-          const lessonDateTime = new Date(`${l.booking_date}T${l.start_time}`);
-          return lessonDateTime < now;
+          const { end } = resolveBookingDateTimes(l);
+          return end ? end < now : false;
         }
         return false;
       })
@@ -223,16 +285,26 @@ function MyLessonsContent() {
         ) : lessons && lessons.length > 0 ? (
           // Lesson cards
           lessons.map((lesson) => {
-            // Check if lesson is in the past (for lessons that haven't been marked COMPLETED yet)
-            const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}`);
-            const isPastLesson = hasMounted ? (lessonDateTime < new Date()) : false;
+            const { start, end } = resolveBookingDateTimes(lesson);
+            const now = new Date();
+            const isInProgress =
+              hasMounted &&
+              lesson.status === 'CONFIRMED' &&
+              start !== null &&
+              end !== null &&
+              now >= start &&
+              now < end;
+            const isCompleted =
+              lesson.status === 'COMPLETED' ||
+              (lesson.status === 'CONFIRMED' && hasMounted && end !== null && now >= end);
             const br = ratingsMap[lesson.instructor_id];
 
             return (
               <LessonCard
                 key={lesson.id}
                 lesson={{ ...lesson, updated_at: (lesson as unknown as { updated_at?: string }).updated_at ?? new Date().toISOString() } as unknown as Booking}
-                isCompleted={lesson.status === 'COMPLETED' || (lesson.status === 'CONFIRMED' && isPastLesson)}
+                isCompleted={isCompleted}
+                isInProgress={isInProgress}
                 onViewDetails={() => router.push(`/student/lessons/${lesson.id}`)}
                 onChat={() => handleOpenChat(lesson as unknown as Booking)}
                 onBookAgain={() => router.push(`/instructors/${lesson.instructor_id}`)}

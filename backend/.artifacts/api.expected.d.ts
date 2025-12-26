@@ -10205,6 +10205,7 @@ export interface operations {
  query?: {
  status?: components["schemas"]["BookingStatus"] | null;
  upcoming?: boolean;
+ exclude_future_confirmed?: boolean;
  page?: number;
  per_page?: number;
  include_past_confirmed?: boolean;

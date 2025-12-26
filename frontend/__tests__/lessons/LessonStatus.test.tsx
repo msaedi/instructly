@@ -11,6 +11,14 @@ describe('LessonStatus', () => {
     expect(badge).toHaveClass('bg-blue-50', 'text-blue-700', 'border-blue-200');
   });
 
+  it('renders in-progress status with pending styling', () => {
+    render(<LessonStatus status="IN_PROGRESS" />);
+
+    const badge = screen.getByText('In Progress');
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveClass('bg-blue-50', 'text-blue-700', 'border-blue-200');
+  });
+
   it('renders completed status with success styling', () => {
     render(<LessonStatus status="COMPLETED" />);
 
