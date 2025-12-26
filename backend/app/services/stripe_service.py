@@ -1373,6 +1373,7 @@ class StripeService(BaseService):
         *,
         booking_id: str,
         payment_intent_id: str,
+        idempotency_key: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Capture a booking PI and return capture details with top-up metadata.
 
@@ -1383,7 +1384,9 @@ class StripeService(BaseService):
         }
         Capture prefers PI metadata to compute top-up; falls back to recompute when metadata is absent.
         """
-        capture_result = self.capture_payment_intent(payment_intent_id)
+        capture_result = self.capture_payment_intent(
+            payment_intent_id, idempotency_key=idempotency_key
+        )
 
         payment_intent = capture_result.get("payment_intent")
         refreshed_pi = payment_intent

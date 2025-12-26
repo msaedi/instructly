@@ -27,10 +27,11 @@ STRIPE_CALL_PATTERNS = [
 ]
 
 # Files to check for Stripe transaction violations
+SCRIPT_ROOT = Path(__file__).resolve().parents[1]
 SERVICE_FILES = [
-    Path("app/services/booking_service.py"),
-    Path("app/services/stripe_service.py"),
-    Path("app/services/review_service.py"),
+    SCRIPT_ROOT / "app" / "services" / "booking_service.py",
+    SCRIPT_ROOT / "app" / "services" / "stripe_service.py",
+    SCRIPT_ROOT / "app" / "services" / "review_service.py",
 ]
 
 # Marker comment to explicitly allow Stripe call inside transaction

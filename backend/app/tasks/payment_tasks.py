@@ -1057,9 +1057,11 @@ def _process_capture_for_booking(
             db_stripe.close()
 
         # Make Stripe call with NO database transaction
+        idempotency_key = f"capture_{capture_reason}_{booking_id}_{payment_intent_id}"
         capture_payload = stripe_service.capture_booking_payment_intent(
             booking_id=booking_id,
             payment_intent_id=payment_intent_id,
+            idempotency_key=idempotency_key,
         )
 
         payment_intent = None
@@ -1461,9 +1463,11 @@ def attempt_payment_capture(
             logger.info(f"Skipping cancelled booking {booking.id} - already captured")
             return {"success": True, "skipped": True}
 
+        idempotency_key = f"capture_{capture_reason}_{booking.id}_{booking.payment_intent_id}"
         capture_payload = stripe_service.capture_booking_payment_intent(
             booking_id=booking.id,
             payment_intent_id=booking.payment_intent_id,
+            idempotency_key=idempotency_key,
         )
 
         booking.payment_status = "captured"
@@ -1621,9 +1625,11 @@ def create_new_authorization_and_capture(
                     f"No payment intent id after reauthorization for booking {booking.id}"
                 )
 
+            idempotency_key = f"capture_reauth_{booking.id}_{resolved_intent_id}"
             capture_result = stripe_service.capture_booking_payment_intent(
                 booking_id=booking.id,
                 payment_intent_id=str(resolved_intent_id),
+                idempotency_key=idempotency_key,
             )
             db_stripe.commit()
         finally:
@@ -1719,9 +1725,11 @@ def capture_late_cancellation(self: Any, booking_id: Union[int, str]) -> Dict[st
 
         # Attempt immediate capture
         try:
+            idempotency_key = f"capture_late_cancel_{booking.id}_{booking.payment_intent_id}"
             captured_intent = stripe_service.capture_booking_payment_intent(
                 booking_id=booking.id,
                 payment_intent_id=booking.payment_intent_id,
+                idempotency_key=idempotency_key,
             )
 
             booking.payment_status = "captured"

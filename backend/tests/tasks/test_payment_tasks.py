@@ -621,9 +621,13 @@ class TestPaymentTasks:
         assert result["failed"] == 0
         assert booking.payment_status == "captured"
 
+        expected_idempotency_key = (
+            f"capture_instructor_completed_{booking.id}_pi_test123"
+        )
         mock_stripe_service_instance.capture_booking_payment_intent.assert_called_once_with(
             booking_id=booking.id,
             payment_intent_id="pi_test123",
+            idempotency_key=expected_idempotency_key,
         )
 
         # Verify capture event was created

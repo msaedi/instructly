@@ -868,23 +868,23 @@ class BookingService(BaseService):
         trigger_immediate_auth = False
         immediate_auth_hours_until: Optional[float] = None
 
+        # Save payment method for future use (Stripe call should be outside DB transaction)
+        if save_payment_method:
+            from ..services.stripe_service import StripeService
+
+            stripe_service = StripeService(
+                self.db,
+                config_service=ConfigService(self.db),
+                pricing_service=PricingService(self.db),
+            )
+            stripe_service.save_payment_method(
+                user_id=student.id, payment_method_id=payment_method_id, set_as_default=False
+            )
+
         with self.transaction():
             # Save payment method
             booking.payment_method_id = payment_method_id
             booking.payment_status = "payment_method_saved"
-
-            # Save payment method for future use if requested
-            if save_payment_method:
-                from ..services.stripe_service import StripeService
-
-                stripe_service = StripeService(
-                    self.db,
-                    config_service=ConfigService(self.db),
-                    pricing_service=PricingService(self.db),
-                )
-                stripe_service.save_payment_method(
-                    user_id=student.id, payment_method_id=payment_method_id, set_as_default=False
-                )
 
             # Phase 2.2: Schedule authorization based on lesson timing (UTC)
             booking_start_utc = self._get_booking_start_utc(booking)
