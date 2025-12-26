@@ -58,6 +58,34 @@ export function to24HourTime(label: string): string {
 }
 
 /**
+ * Convert a HH:MM (or HH:MM:SS) time string into minutes since midnight.
+ * Treat "00:00" as 24:00 when used as an end time.
+ */
+export function timeToMinutes(
+  value: string,
+  options: { isEndTime?: boolean } = {}
+): number {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) {
+    return 0;
+  }
+  const [hoursRaw = '0', minutesRaw = '0'] = trimmed.split(':');
+  const hours = Number.parseInt(hoursRaw, 10);
+  const minutes = Number.parseInt(minutesRaw, 10);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return 0;
+  }
+  if (hours === 24 && minutes === 0) {
+    return 24 * 60;
+  }
+  const total = hours * 60 + minutes;
+  if (options.isEndTime && total === 0) {
+    return 24 * 60;
+  }
+  return total;
+}
+
+/**
  * Add minutes to a HH:MM time string (24-hour) and return the resulting HH:MM (wrapping at 24 hours).
  */
 export function addMinutesHHMM(start: string, minutesToAdd: number): string {

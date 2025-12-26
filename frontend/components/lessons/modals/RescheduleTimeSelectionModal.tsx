@@ -5,6 +5,7 @@ import { flushSync } from 'react-dom';
 import { X, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { logger } from '@/lib/logger';
+import { timeToMinutes } from '@/lib/time';
 import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -323,14 +324,8 @@ export default function RescheduleTimeSelectionModal({
             stepMinutes: number,
             requiredMinutes: number
           ): string[] => {
-            const startParts = start.split(':');
-            const endParts = end.split(':');
-            const sh = parseInt(at(startParts, 0) || '0', 10);
-            const sm = parseInt(at(startParts, 1) || '0', 10);
-            const eh = parseInt(at(endParts, 0) || '0', 10);
-            const em = parseInt(at(endParts, 1) || '0', 10);
-            const startTotal = sh * 60 + sm;
-            const endTotal = eh * 60 + em;
+            const startTotal = timeToMinutes(start);
+            const endTotal = timeToMinutes(end, { isEndTime: true });
 
             const times: string[] = [];
             for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
@@ -408,14 +403,8 @@ export default function RescheduleTimeSelectionModal({
           stepMinutes: number,
           requiredMinutes: number
         ): string[] => {
-          const startParts = start.split(':');
-          const endParts = end.split(':');
-          const sh = parseInt(at(startParts, 0) || '0', 10);
-          const sm = parseInt(at(startParts, 1) || '0', 10);
-          const eh = parseInt(at(endParts, 0) || '0', 10);
-          const em = parseInt(at(endParts, 1) || '0', 10);
-          const startTotal = sh * 60 + sm;
-          const endTotal = eh * 60 + em;
+          const startTotal = timeToMinutes(start);
+          const endTotal = timeToMinutes(end, { isEndTime: true });
 
           const times: string[] = [];
           for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {

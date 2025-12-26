@@ -25,6 +25,7 @@ from app.models.booking import Booking, BookingStatus
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.services.timezone_service import TimezoneService
 from app.utils.bitset import windows_from_bits
+from app.utils.time_utils import time_to_minutes
 
 logger = logging.getLogger(__name__)
 DEFAULT_TIMEZONE = "America/New_York"
@@ -640,8 +641,8 @@ def bulk_load_bookings(
     student_bookings: Set[Tuple[str, date, int, int]] = set()
 
     for instructor_id, student_id, booking_date, start_time, end_time in rows:
-        start_min = start_time.hour * 60 + start_time.minute if start_time else 0
-        end_min = end_time.hour * 60 + end_time.minute if end_time else 1440
+        start_min = time_to_minutes(start_time, is_end_time=False) if start_time else 0
+        end_min = time_to_minutes(end_time, is_end_time=True) if end_time else 1440
 
         instructor_bookings.add((instructor_id, booking_date, start_min, end_min))
         student_bookings.add((student_id, booking_date, start_min, end_min))
@@ -826,8 +827,8 @@ def register_pending_booking(
     Register a newly created booking in the context so subsequent slot searches
     see it for conflict detection.
     """
-    start_min = start_time.hour * 60 + start_time.minute
-    end_min = end_time.hour * 60 + end_time.minute
+    start_min = time_to_minutes(start_time, is_end_time=False)
+    end_min = time_to_minutes(end_time, is_end_time=True)
     ctx.pending_instructor_bookings.add((instructor_id, booking_date, start_min, end_min))
     ctx.pending_student_bookings.add((student_id, booking_date, start_min, end_min))
 

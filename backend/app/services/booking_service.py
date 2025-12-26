@@ -44,6 +44,8 @@ from ..repositories.availability_day_repository import AvailabilityDayRepository
 from ..repositories.factory import RepositoryFactory
 from ..repositories.job_repository import JobRepository
 from ..schemas.booking import BookingCreate, BookingUpdate
+from ..utils.time_helpers import string_to_time
+from ..utils.time_utils import time_to_minutes
 from .audit_redaction import redact
 from .base import BaseService
 from .cache_service import CacheService, CacheServiceSyncAdapter
@@ -207,9 +209,9 @@ class BookingService(BaseService):
         )
 
     @staticmethod
-    def _time_to_minutes(value: time) -> int:
+    def _time_to_minutes(value: time, *, is_end_time: bool = False) -> int:
         """Return minutes since midnight for a time value."""
-        return value.hour * 60 + value.minute
+        return time_to_minutes(value, is_end_time=is_end_time)
 
     @staticmethod
     def _minutes_to_time(value: int) -> time:
@@ -219,22 +221,19 @@ class BookingService(BaseService):
         return time(value // 60, value % 60)
 
     @staticmethod
-    def _bitmap_str_to_minutes(value: str) -> int:
+    def _bitmap_str_to_minutes(value: str, *, is_end_time: bool = False) -> int:
         """Convert bitmap strings (e.g., '24:00:00') into minute offsets."""
-        parts = value.split(":")
-        hour = int(parts[0]) if parts and parts[0] else 0
-        minute = int(parts[1]) if len(parts) > 1 and parts[1] else 0
-        if hour >= 24:
-            return 24 * 60
-        return hour * 60 + minute
+        if value.startswith("24:"):
+            is_end_time = True
+        return time_to_minutes(string_to_time(value), is_end_time=is_end_time)
 
     @staticmethod
     def _booking_window_to_minutes(booking: Booking) -> tuple[int, int]:
         """Convert a booking's start/end times into minute offsets."""
         if not booking.start_time or not booking.end_time:
             return 0, 0
-        start = BookingService._time_to_minutes(booking.start_time)
-        end = BookingService._time_to_minutes(booking.end_time)
+        start = BookingService._time_to_minutes(booking.start_time, is_end_time=False)
+        end = BookingService._time_to_minutes(booking.end_time, is_end_time=True)
         if end <= start:
             end = 24 * 60
         return start, end
@@ -2678,16 +2677,12 @@ class BookingService(BaseService):
             return []
 
         windows_str: list[tuple[str, str]] = windows_from_bits(bits)
-        earliest_minutes = self._time_to_minutes(earliest_time)
-        latest_minutes = self._time_to_minutes(latest_time)
-        if latest_minutes <= earliest_minutes and latest_time == time(0, 0):
-            latest_minutes = 24 * 60
-        if latest_minutes <= earliest_minutes and latest_time == time(0, 0):
-            latest_minutes = 24 * 60
+        earliest_minutes = self._time_to_minutes(earliest_time, is_end_time=False)
+        latest_minutes = self._time_to_minutes(latest_time, is_end_time=True)
         result: list[dict[str, Any]] = []
         for start_str, end_str in windows_str:
-            start_minutes = self._bitmap_str_to_minutes(start_str)
-            end_minutes = self._bitmap_str_to_minutes(end_str)
+            start_minutes = self._bitmap_str_to_minutes(start_str, is_end_time=False)
+            end_minutes = self._bitmap_str_to_minutes(end_str, is_end_time=True)
             if end_minutes <= earliest_minutes or start_minutes >= latest_minutes:
                 continue
             result.append(
@@ -2754,10 +2749,8 @@ class BookingService(BaseService):
             List of booking opportunities
         """
         opportunities: List[Dict[str, Any]] = []
-        earliest_minutes = self._time_to_minutes(earliest_time)
-        latest_minutes = self._time_to_minutes(latest_time)
-        if latest_minutes <= earliest_minutes and latest_time == time(0, 0):
-            latest_minutes = 24 * 60
+        earliest_minutes = self._time_to_minutes(earliest_time, is_end_time=False)
+        latest_minutes = self._time_to_minutes(latest_time, is_end_time=True)
 
         for window in availability_windows:
             slot_start = max(window["_start_minutes"], earliest_minutes)

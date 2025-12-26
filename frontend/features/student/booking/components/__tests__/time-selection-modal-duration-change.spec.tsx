@@ -199,4 +199,36 @@ describe('TimeSelectionModal duration changes', () => {
     await screen.findAllByText(/10:30am/i);
     expect(screen.queryByText(/10:00am/i)).toBeNull();
   });
+
+  it('keeps windows ending at midnight when building slots', async () => {
+    availabilityMock.mockResolvedValue(
+      buildAvailabilityResponse({
+        '2030-10-17': {
+          available_slots: [{ start_time: '17:00', end_time: '00:00' }],
+        },
+      })
+    );
+
+    render(<TimeSelectionModal {...baseProps} />);
+
+    await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
+    const timeButtons = await screen.findAllByText(/5:00pm/i);
+    expect(timeButtons.length).toBeGreaterThan(0);
+  });
+
+  it('renders the 11:30pm slot when the window ends at midnight', async () => {
+    availabilityMock.mockResolvedValue(
+      buildAvailabilityResponse({
+        '2030-10-17': {
+          available_slots: [{ start_time: '23:30', end_time: '00:00' }],
+        },
+      })
+    );
+
+    render(<TimeSelectionModal {...baseProps} />);
+
+    await waitFor(() => expect(availabilityMock).toHaveBeenCalled());
+    const timeButtons = await screen.findAllByText(/11:30pm/i);
+    expect(timeButtons.length).toBeGreaterThan(0);
+  });
 });

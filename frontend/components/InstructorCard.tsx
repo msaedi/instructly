@@ -22,6 +22,7 @@ import { useRecentReviews } from '@/src/api/services/reviews';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
 import { getServiceAreaBoroughs, getServiceAreaDisplay } from '@/lib/profileServiceAreas';
+import { timeToMinutes } from '@/lib/time';
 import { at } from '@/lib/ts/safe';
 import { MessageInstructorButton } from '@/components/instructor/MessageInstructorButton';
 import { FoundingBadge } from '@/components/ui/FoundingBadge';
@@ -101,10 +102,9 @@ const formatDisplayText = (date: Date, hour: number, minute: number): string => 
 };
 
 const diffMinutes = (start: string, end: string): number => {
-  const startParts = parseTimeToParts(start);
-  const endParts = parseTimeToParts(end);
-  if (!startParts || !endParts) return 0;
-  return endParts.hour * 60 + endParts.minute - (startParts.hour * 60 + startParts.minute);
+  const startMinutes = timeToMinutes(start);
+  const endMinutes = timeToMinutes(end, { isEndTime: true });
+  return endMinutes - startMinutes;
 };
 
 const toHHMM = (hour: number, minute: number): string => {

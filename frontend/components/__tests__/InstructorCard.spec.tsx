@@ -161,4 +161,20 @@ describe('InstructorCard next available booking', () => {
       ).toHaveTextContent(/Sat, May 11/);
     });
   });
+
+  it('keeps today when the next slot ends at midnight', () => {
+    render(
+      <InstructorCard
+        instructor={buildInstructor()}
+        availabilityData={buildAvailabilityData({
+          '2024-05-08': {
+            available_slots: [{ start_time: '23:30', end_time: '00:00' }],
+          },
+        })}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /Next Available/i });
+    expect(button).toHaveTextContent(/Wed, May 8/);
+  });
 });

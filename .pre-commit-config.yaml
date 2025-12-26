@@ -70,6 +70,13 @@ repos:
         files: ^backend/app/(routes|services|api)/.*\.py$
         exclude: ^backend/app/services/(cache_service|logging_service|metrics_service)\.py$
         description: Prevent timezone bugs by checking for date.today() in user-facing code
+      - id: check-time-to-minutes
+        name: Check time-to-minutes conversions
+        entry: python backend/scripts/check_time_to_minutes.py
+        language: python
+        files: ^backend/.*\.py$
+        pass_filenames: true
+        description: Block ad-hoc time-to-minutes conversions; use time_to_minutes()
 
       - id: check-utc-timezone
         name: Check UTC timezone usage

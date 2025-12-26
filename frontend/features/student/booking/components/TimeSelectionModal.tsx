@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { logger } from '@/lib/logger';
+import { timeToMinutes } from '@/lib/time';
 import { at } from '@/lib/ts/safe';
 import { publicApi } from '@/features/shared/api/client';
 import { ApiProblemError } from '@/lib/api/fetch';
@@ -40,14 +41,8 @@ const expandDiscreteStarts = (
   stepMinutes: number,
   requiredMinutes: number
 ): string[] => {
-  const startParts = start.split(':');
-  const endParts = end.split(':');
-  const sh = parseInt(at(startParts, 0) || '0', 10);
-  const sm = parseInt(at(startParts, 1) || '0', 10);
-  const eh = parseInt(at(endParts, 0) || '0', 10);
-  const em = parseInt(at(endParts, 1) || '0', 10);
-  const startTotal = sh * 60 + sm;
-  const endTotal = eh * 60 + em;
+  const startTotal = timeToMinutes(start);
+  const endTotal = timeToMinutes(end, { isEndTime: true });
 
   const times: string[] = [];
   for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
@@ -1090,14 +1085,8 @@ export default function TimeSelectionModal({
 
         const isDurationValidForSelectedTime = (dur: number): boolean => {
           return slots.some((slot: AvailabilitySlot) => {
-            const startParts = slot.start_time.split(':');
-            const endParts = slot.end_time.split(':');
-            const sh = parseInt(at(startParts, 0) || '0', 10);
-            const sm = parseInt(at(startParts, 1) || '0', 10);
-            const eh = parseInt(at(endParts, 0) || '0', 10);
-            const em = parseInt(at(endParts, 1) || '0', 10);
-            const slotStart = sh * 60 + (sm || 0);
-            const slotEnd = eh * 60 + (em || 0);
+            const slotStart = timeToMinutes(slot.start_time);
+            const slotEnd = timeToMinutes(slot.end_time, { isEndTime: true });
             return selectedStartMins >= slotStart && selectedStartMins + dur <= slotEnd;
           });
         };
@@ -1177,14 +1166,8 @@ export default function TimeSelectionModal({
 
         const isDurationValidForSelectedTime = (dur: number): boolean => {
           return slots.some((slot: AvailabilitySlot) => {
-            const startParts = slot.start_time.split(':');
-            const endParts = slot.end_time.split(':');
-            const sh = parseInt(at(startParts, 0) || '0', 10);
-            const sm = parseInt(at(startParts, 1) || '0', 10);
-            const eh = parseInt(at(endParts, 0) || '0', 10);
-            const em = parseInt(at(endParts, 1) || '0', 10);
-            const slotStart = sh * 60 + (sm || 0);
-            const slotEnd = eh * 60 + (em || 0);
+            const slotStart = timeToMinutes(slot.start_time);
+            const slotEnd = timeToMinutes(slot.end_time, { isEndTime: true });
             return selectedStartMins >= slotStart && selectedStartMins + dur <= slotEnd;
           });
         };

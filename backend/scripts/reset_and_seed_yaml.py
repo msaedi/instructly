@@ -53,6 +53,7 @@ from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
 from app.services.timezone_service import TimezoneService
 from app.utils.bitset import bits_from_windows, new_empty_bits
+from app.utils.time_utils import time_to_minutes
 
 
 class DatabaseSeeder:
@@ -1626,8 +1627,8 @@ class DatabaseSeeder:
                 ).time()
 
                 # In-memory conflict check
-                start_min = start_time.hour * 60 + start_time.minute
-                end_min = end_time.hour * 60 + end_time.minute
+                start_min = time_to_minutes(start_time, is_end_time=False)
+                end_min = time_to_minutes(end_time, is_end_time=True)
 
                 # Check for conflicts in context
                 has_conflict = False
@@ -1754,8 +1755,8 @@ class DatabaseSeeder:
                 ).time()
 
                 # In-memory conflict check
-                start_min = start_time.hour * 60 + start_time.minute
-                end_min = end_time.hour * 60 + end_time.minute
+                start_min = time_to_minutes(start_time, is_end_time=False)
+                end_min = time_to_minutes(end_time, is_end_time=True)
 
                 has_conflict = False
                 for key in list(bulk_ctx.pending_instructor_bookings) + list(bulk_ctx.instructor_bookings):

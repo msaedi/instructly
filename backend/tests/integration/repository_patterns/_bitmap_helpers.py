@@ -9,17 +9,20 @@ from sqlalchemy.orm import Session
 
 from app.models.availability_day import AvailabilityDay
 from app.utils.bitset import bits_from_windows, windows_from_bits
+from app.utils.time_helpers import string_to_time
+from app.utils.time_utils import time_to_minutes
 
 
 def _time_str(value: time | str) -> str:
     return value if isinstance(value, str) else value.strftime("%H:%M:%S")
 
 
-def _minutes(value: time | str) -> int:
+def _minutes(value: time | str, *, is_end_time: bool = False) -> int:
     if isinstance(value, str):
-        parts = value.split(":")
-        return int(parts[0]) * 60 + int(parts[1])
-    return value.hour * 60 + value.minute
+        if value.startswith("24:"):
+            is_end_time = True
+        return time_to_minutes(string_to_time(value), is_end_time=is_end_time)
+    return time_to_minutes(value, is_end_time=is_end_time)
 
 
 def seed_day(
@@ -102,10 +105,10 @@ def delete_day(db: Session, instructor_id: str, day_date: date) -> int:
 def overlaps(window: tuple[str, str], start: time, end: time) -> bool:
     """Return True if the stored window overlaps the candidate time range."""
     win_start, win_end = window
-    start_min = _minutes(start)
-    end_min = _minutes(end)
-    win_start_min = _minutes(win_start)
-    win_end_min = _minutes(win_end)
+    start_min = _minutes(start, is_end_time=False)
+    end_min = _minutes(end, is_end_time=True)
+    win_start_min = _minutes(win_start, is_end_time=False)
+    win_end_min = _minutes(win_end, is_end_time=True)
     return max(start_min, win_start_min) < min(end_min, win_end_min)
 
 
