@@ -8,6 +8,7 @@ Usage:
   Production: SITE_MODE=prod python backend/scripts/reset_and_seed_yaml.py (requires confirmation)
 """
 
+from contextlib import contextmanager
 from pathlib import Path
 import sys
 
@@ -18,7 +19,7 @@ from decimal import Decimal
 import json
 import os
 import random
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterator, Optional, Sequence, Tuple
 
 # Add the scripts directory to Python path so imports work from anywhere
 sys.path.insert(0, str(Path(__file__).parent))
@@ -55,11 +56,12 @@ from app.utils.bitset import bits_from_windows, new_empty_bits
 
 
 class DatabaseSeeder:
-    def __init__(self):
+    def __init__(self, db: Optional[Session] = None):
         # Use absolute path based on script location
         seed_data_path = Path(__file__).parent / "seed_data"
         self.loader = SeedDataLoader(seed_data_dir=str(seed_data_path))
-        self.engine = self._create_engine()
+        self._external_session = db
+        self.engine = db.get_bind() if db is not None else self._create_engine()
         self.created_users = {}
         self.created_services = {}
         self.stripe_mapping = self._load_stripe_mapping()
@@ -69,6 +71,14 @@ class DatabaseSeeder:
         db_url = settings.get_database_url()
         # The DatabaseConfig will print which database is being used
         return create_engine(db_url)
+
+    @contextmanager
+    def _session_scope(self) -> Iterator[Session]:
+        if self._external_session is not None:
+            yield self._external_session
+            return
+        with Session(self.engine) as session:
+            yield session
 
     def _load_stripe_mapping(self):
         """Load Stripe test account mappings if file exists"""
@@ -149,7 +159,7 @@ class DatabaseSeeder:
 
     def reset_database(self):
         """Clean test data from database"""
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Delete in order to respect foreign key constraints
             print("🧹 Cleaning database...")
 
@@ -233,7 +243,7 @@ class DatabaseSeeder:
             RoleName.INSTRUCTOR.value: "Instructors providing lessons on the platform",
             RoleName.STUDENT.value: "Students booking lessons",
         }
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             existing = {
                 role.name for role in session.query(Role).filter(Role.name.in_(tuple(core_roles)))
             }
@@ -275,7 +285,7 @@ class DatabaseSeeder:
         students = self.loader.get_students()
         password = self.loader.get_default_password()
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Get roles
             admin_role = session.query(Role).filter_by(name=RoleName.ADMIN).first()
             student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
@@ -359,7 +369,7 @@ class DatabaseSeeder:
         instructors = self.loader.get_instructors()
         password = self.loader.get_default_password()
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Get instructor role
             instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
 
@@ -574,7 +584,7 @@ class DatabaseSeeder:
 
     def seed_tier_maintenance_sessions(self, reason: str = "") -> int:
         """Seed tier maintenance sessions using a fresh session."""
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             return self._seed_tier_maintenance_sessions(session, reason=reason)
 
     def _slot_conflicts(
@@ -837,7 +847,7 @@ class DatabaseSeeder:
         Coverage rules are defined in seed_data/coverage.yaml, allowing per-instructor overrides
         by email, and default Manhattan neighborhoods otherwise.
         """
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             region_repo = RegionBoundaryRepository(session)
 
             rules = self.loader.get_coverage_rules()
@@ -938,7 +948,7 @@ class DatabaseSeeder:
 
         print(f"  ⏳ Creating availability for {len(instructors)} instructors ({weeks_past} past + {weeks_future} future weeks)...")
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             repo = AvailabilityDayRepository(session)
             created_count = 0
 
@@ -1030,7 +1040,7 @@ class DatabaseSeeder:
         backfill_days = self._get_env_int("BITMAP_BACKFILL_DAYS", 56)
         from scripts.backfill_bitmaps import backfill_bitmaps_range
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             stats = backfill_bitmaps_range(session, backfill_days)
             if stats:
                 session.commit()
@@ -1091,7 +1101,7 @@ class DatabaseSeeder:
         booking_days_future = settings_cfg.get("booking_days_future", settings_cfg.get("booking_days_ahead", 7))
         booking_days_past = settings_cfg.get("booking_days_past", 21)
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Get all students
             student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
             students = (
@@ -1809,7 +1819,7 @@ class DatabaseSeeder:
         """
         from psycopg2.extras import execute_values
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             try:
                 instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
                 student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
@@ -2215,7 +2225,7 @@ class DatabaseSeeder:
 
     def print_summary(self):
         """Print summary of created data"""
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Get role IDs
             student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
             instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
@@ -2260,8 +2270,7 @@ class DatabaseSeeder:
         """Create sample platform credits for specific test users."""
         from datetime import timedelta
 
-
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Find Emma Johnson
             emma = session.query(User).filter(User.email == "emma.johnson@example.com").first()
             if not emma:

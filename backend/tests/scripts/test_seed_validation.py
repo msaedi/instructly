@@ -105,7 +105,7 @@ class TestSeedDataIntegrity:
 
         monkeypatch.setattr(reset_and_seed_yaml, "find_free_slot_bulk", _future_slot)
 
-        reset_and_seed_yaml.DatabaseSeeder().create_reviews()
+        reset_and_seed_yaml.DatabaseSeeder(db=db).create_reviews()
 
         assert calls, "Expected review seeding to request a slot."
         assert all(past_only is True for past_only, _ in calls)
@@ -137,7 +137,7 @@ class TestSeedDataIntegrity:
 
         monkeypatch.setattr(reset_and_seed_yaml, "find_free_slot_bulk", _past_slot)
 
-        reset_and_seed_yaml.DatabaseSeeder().create_reviews()
+        reset_and_seed_yaml.DatabaseSeeder(db=db).create_reviews()
 
         assert calls, "Expected review seeding to request a slot."
         assert all(past_only is True for past_only, _ in calls)
