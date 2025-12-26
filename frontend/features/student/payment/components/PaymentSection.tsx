@@ -1220,10 +1220,23 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       requireString(bookingDate, 'bookingDate');
       requireString(instructorId, 'instructorId');
       requireString(serviceId, 'serviceId');
+      const instructorTimezone =
+        typeof mergedMetadata['timezone'] === 'string'
+          ? mergedMetadata['timezone']
+          : typeof mergedMetadata['lesson_timezone'] === 'string'
+            ? mergedMetadata['lesson_timezone']
+            : typeof mergedMetadata['lessonTimezone'] === 'string'
+              ? mergedMetadata['lessonTimezone']
+              : typeof mergedMetadata['instructor_timezone'] === 'string'
+                ? mergedMetadata['instructor_timezone']
+                : typeof mergedMetadata['instructorTimezone'] === 'string'
+                  ? mergedMetadata['instructorTimezone']
+                  : undefined;
       const bookingPayload = buildCreateBookingPayload({
         instructorId,
         serviceId,
         bookingDate,
+        ...(instructorTimezone ? { instructorTimezone } : {}),
         booking: {
           ...bookingData,
           ...updatedBookingData,

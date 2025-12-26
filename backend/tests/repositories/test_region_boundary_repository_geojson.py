@@ -20,10 +20,11 @@ def test_get_simplified_geojson_by_ids_returns_geometry(db):
     # Insert a tiny square region with a valid 26-char ULID (far from Times Square to avoid test collisions)
     region_id = generate_ulid()
     wkt = _square_wkt(-73.9000, 40.7000, -73.8900, 40.7100)
+    region_code = f"TST-{region_id[-6:]}"
     repo.insert_wkt(
         region_id=region_id,
         region_type="nyc",
-        region_code="TST",
+        region_code=region_code,
         region_name="Test Region A",
         parent_region="Manhattan",
         wkt_polygon=wkt,

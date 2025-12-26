@@ -21,6 +21,11 @@ from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture
 def stripe_service(db: Session) -> StripeService:
@@ -115,14 +120,18 @@ def test_instructor(db: Session) -> tuple[User, InstructorProfile, InstructorSer
 @pytest.fixture
 def test_booking(db: Session, test_user: User, test_instructor: tuple) -> Booking:
     instructor_user, _, instructor_service = test_instructor
+    booking_date = datetime.now().date()
+    start_time = time(10, 0)
+    end_time = time(11, 0)
     booking = Booking(
         id=str(ulid.ULID()),
         student_id=test_user.id,
         instructor_id=instructor_user.id,
         instructor_service_id=instructor_service.id,
-        booking_date=datetime.now().date(),
-        start_time=time(10, 0),
-        end_time=time(11, 0),
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        **booking_timezone_fields(booking_date, start_time, end_time),
         service_name="Payout Service",
         hourly_rate=120.00,
         total_price=120.00,
@@ -424,6 +433,9 @@ def test_get_instructor_earnings_summary_handles_missing_booking_and_summary_err
         application_fee=0,
         status="succeeded",
         created_at=datetime.now(timezone.utc),
+        base_price_cents=None,
+        instructor_tier_pct=None,
+        instructor_payout_cents=None,
     )
     bad_booking = MagicMock(
         id="bk_bad",
@@ -440,6 +452,9 @@ def test_get_instructor_earnings_summary_handles_missing_booking_and_summary_err
         application_fee=100,
         status="succeeded",
         created_at=datetime.now(timezone.utc),
+        base_price_cents=None,
+        instructor_tier_pct=None,
+        instructor_payout_cents=None,
     )
 
     with (
@@ -673,3 +688,236 @@ def test_get_instructor_earnings_summary_defaults_student_fee_pct_when_missing(
         Decimal(invoice.lesson_price_cents) * Decimal(str(PRICING_DEFAULTS["student_fee_pct"]))
     )
     assert invoice.student_fee_cents == expected_fee_cents
+
+
+# ========== Part 9: Earnings Metadata Tests ==========
+
+
+def test_earnings_summary_reads_from_db_columns(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+) -> None:
+    """Earnings should read directly from DB columns when available."""
+    instructor_user, profile, _ = test_instructor
+
+    # Create payment with earnings metadata
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_db_columns",
+        amount=13440,  # Total student paid
+        application_fee=1440,  # 12% of 12000
+        status="succeeded",
+        base_price_cents=12000,  # Stored lesson price
+        instructor_tier_pct=Decimal("0.12"),  # Stored tier
+        instructor_payout_cents=10560,  # Stored payout (12000 - 1440)
+    )
+
+    summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    assert len(summary.invoices) == 1
+    invoice = summary.invoices[0]
+
+    # These should come directly from DB, not computed
+    assert invoice.lesson_price_cents == 12000
+    assert invoice.platform_fee_rate == pytest.approx(0.12)
+    assert invoice.instructor_share_cents == 10560
+
+
+def test_earnings_summary_fallback_for_legacy_payments(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+) -> None:
+    """Legacy payments without metadata should use computed fallback values."""
+    instructor_user, profile, _ = test_instructor
+
+    # Create payment WITHOUT earnings metadata (legacy style)
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_legacy",
+        amount=13440,
+        application_fee=1440,
+        status="succeeded",
+        # No base_price_cents, instructor_tier_pct, instructor_payout_cents
+    )
+
+    with (
+        patch.object(
+            stripe_service,
+            "get_instructor_earnings",
+            return_value={
+                "total_earned": 0,
+                "total_fees": 0,
+                "booking_count": 0,
+                "average_earning": 0,
+                "period_start": None,
+                "period_end": None,
+            },
+        ),
+        patch(
+            "app.services.stripe_service.build_student_payment_summary",
+            return_value=MagicMock(tip_paid=0),
+        ),
+    ):
+        summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    assert len(summary.invoices) == 1
+    invoice = summary.invoices[0]
+
+    # Fallback: lesson_price computed from hourly_rate * duration
+    # test_booking: hourly_rate=120, duration=60min -> 12000 cents
+    assert invoice.lesson_price_cents == 12000
+
+    # Fallback: instructor_share = amount - application_fee
+    assert invoice.instructor_share_cents == 13440 - 1440
+
+
+def test_founding_instructor_8pct_tier_from_db(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+) -> None:
+    """Founding instructor 8% tier should display correctly when stored in DB."""
+    instructor_user, profile, _ = test_instructor
+
+    # Create payment with 8% founding tier
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_founding",
+        amount=13440,
+        application_fee=960,  # 8% of 12000
+        status="succeeded",
+        base_price_cents=12000,
+        instructor_tier_pct=Decimal("0.08"),  # Founding rate
+        instructor_payout_cents=11040,  # 12000 - 960
+    )
+
+    summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    invoice = summary.invoices[0]
+    assert invoice.platform_fee_rate == pytest.approx(0.08)
+    assert invoice.platform_fee_cents == 960  # 8% of 12000
+    assert invoice.instructor_share_cents == 11040
+
+
+def test_standard_instructor_12pct_tier_from_db(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+) -> None:
+    """Standard instructor 12% tier should display correctly when stored in DB."""
+    instructor_user, profile, _ = test_instructor
+
+    # Create payment with 12% standard tier
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_standard",
+        amount=13440,
+        application_fee=1440,  # 12% of 12000
+        status="succeeded",
+        base_price_cents=12000,
+        instructor_tier_pct=Decimal("0.12"),  # Standard rate
+        instructor_payout_cents=10560,  # 12000 - 1440
+    )
+
+    summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    invoice = summary.invoices[0]
+    assert invoice.platform_fee_rate == pytest.approx(0.12)
+    assert invoice.platform_fee_cents == 1440  # 12% of 12000
+    assert invoice.instructor_share_cents == 10560
+
+
+def test_earnings_accurate_when_credits_applied(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+) -> None:
+    """Earnings should remain accurate even when platform credits were applied."""
+    instructor_user, profile, _ = test_instructor
+
+    # Create payment where student used $20 credit
+    # Original: $120 lesson + $14.40 student fee = $134.40
+    # After $20 credit: Student pays $114.40, but lesson value unchanged
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_credit_applied",
+        amount=11440,  # Student paid after credit
+        application_fee=1440,
+        status="succeeded",
+        # Key: base_price_cents still reflects full lesson value
+        base_price_cents=12000,
+        instructor_tier_pct=Decimal("0.12"),
+        instructor_payout_cents=10560,  # Instructor gets full amount
+    )
+
+    summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    invoice = summary.invoices[0]
+    # Lesson price should still be full value
+    assert invoice.lesson_price_cents == 12000
+    # Instructor share should be full payout
+    assert invoice.instructor_share_cents == 10560
+
+
+def test_earnings_accurate_after_partial_refund(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple
+) -> None:
+    """Earnings should reflect original values even after refunds."""
+    instructor_user, profile, _ = test_instructor
+
+    # Original payment with full metadata
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_before_refund",
+        amount=13440,
+        application_fee=1440,
+        status="succeeded",
+        base_price_cents=12000,
+        instructor_tier_pct=Decimal("0.12"),
+        instructor_payout_cents=10560,
+    )
+
+    summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    invoice = summary.invoices[0]
+    # Values should remain as originally stored
+    assert invoice.lesson_price_cents == 12000
+    assert invoice.instructor_share_cents == 10560
+    assert invoice.platform_fee_cents == 1440
+
+
+def test_payment_to_earnings_end_to_end(
+    stripe_service: StripeService, test_booking: Booking, test_instructor: tuple, db: Session
+) -> None:
+    """Integration test: Payment creation to earnings display end-to-end."""
+    instructor_user, profile, _ = test_instructor
+
+    # Simulate the flow that happens during booking payment
+    # 1. Build charge context (normally done by stripe_service)
+    base_price = 12000  # $120/hr * 60min
+    tier_pct = Decimal("0.10")  # 10% tier
+    platform_fee = int(base_price * tier_pct)  # 1200
+    instructor_payout = base_price - platform_fee  # 10800
+    student_fee = int(base_price * Decimal("0.12"))  # 1440
+    student_pays = base_price + student_fee  # 13440
+
+    # 2. Create payment record with all metadata
+    stripe_service.payment_repository.create_payment_record(
+        test_booking.id,
+        "pi_e2e_test",
+        amount=student_pays,
+        application_fee=platform_fee + student_fee,  # 2640
+        status="succeeded",
+        base_price_cents=base_price,
+        instructor_tier_pct=tier_pct,
+        instructor_payout_cents=instructor_payout,
+    )
+
+    # 3. Get earnings summary (as instructor would see it)
+    summary = stripe_service.get_instructor_earnings_summary(user=instructor_user)
+
+    # 4. Verify all values display correctly
+    assert len(summary.invoices) == 1
+    invoice = summary.invoices[0]
+
+    assert invoice.lesson_price_cents == 12000
+    assert invoice.platform_fee_rate == pytest.approx(0.10)
+    assert invoice.platform_fee_cents == 1200
+    assert invoice.instructor_share_cents == 10800
+    assert invoice.total_paid_cents == 13440
+
+    # Aggregate totals should also be correct
+    assert summary.total_lesson_value == 12000
+    assert summary.total_platform_fees == 1200

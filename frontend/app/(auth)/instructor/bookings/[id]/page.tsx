@@ -1,19 +1,61 @@
 "use client";
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Calendar, Clock, MapPin, User, DollarSign } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, MapPin, User, DollarSign, CheckCircle, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { getLocationTypeIcon, type LocationType } from '@/types/booking';
 import { at } from '@/lib/ts/safe';
-import { useBooking } from '@/src/api/services/bookings';
+import { useBooking, useCompleteBooking, useMarkBookingNoShow } from '@/src/api/services/bookings';
+import { queryKeys } from '@/src/api/queryKeys';
 
 export default function BookingDetailsPage() {
   const params = useParams();
   const bookingId = params['id'] as string;
+  const queryClient = useQueryClient();
+  const [showNoShowModal, setShowNoShowModal] = useState(false);
 
   // Use React Query hook for booking details (prevents duplicate API calls)
   const { data: booking, isLoading: loading, error: queryError } = useBooking(bookingId);
   const error = queryError ? 'Failed to load booking details' : null;
+
+  // Mutations for complete and no-show actions
+  const completeBooking = useCompleteBooking();
+  const markNoShow = useMarkBookingNoShow();
+
+  const handleMarkComplete = async () => {
+    try {
+      await completeBooking.mutateAsync({ bookingId });
+      toast.success('Lesson marked as complete', { duration: 3000 });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(bookingId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.instructor() });
+    } catch {
+      toast.error('Failed to mark lesson as complete', { duration: 4000 });
+    }
+  };
+
+  const handleMarkNoShow = async () => {
+    try {
+      await markNoShow.mutateAsync({ bookingId });
+      toast.success('Lesson marked as no-show', { duration: 3000 });
+      setShowNoShowModal(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(bookingId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.instructor() });
+    } catch {
+      toast.error('Failed to mark lesson as no-show', { duration: 4000 });
+    }
+  };
+
+  // Check if lesson is past and needs action
+  const isPastLesson = (): boolean => {
+    if (!booking) return false;
+    const lessonEnd = new Date(`${booking.booking_date}T${booking.end_time}`);
+    return lessonEnd < new Date();
+  };
+
+  const needsAction = booking?.status === 'CONFIRMED' && isPastLesson();
 
   const formatTime = (timeStr: string) => {
     const parts = timeStr.split(':');
@@ -171,8 +213,78 @@ export default function BookingDetailsPage() {
               </div>
             </div>
           )}
+
+          {/* Action buttons for past CONFIRMED lessons */}
+          {needsAction && (
+            <div className="border-t pt-6">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-2 text-amber-800">
+                  <AlertTriangle className="w-5 h-5" />
+                  <span className="font-medium">Action Required</span>
+                </div>
+                <p className="text-amber-700 text-sm mt-1">
+                  This lesson has ended. Please confirm the outcome.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <button
+                  onClick={handleMarkComplete}
+                  disabled={completeBooking.isPending || markNoShow.isPending}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {completeBooking.isPending ? 'Marking...' : 'Mark Complete'}
+                </button>
+                <button
+                  onClick={() => setShowNoShowModal(true)}
+                  disabled={completeBooking.isPending || markNoShow.isPending}
+                  className="flex items-center gap-2 px-4 py-2 border border-amber-600 text-amber-700 rounded-lg hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Report No-Show
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* No-Show Confirmation Modal */}
+      {showNoShowModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+            <div className="mb-4">
+              <div className="flex items-center gap-2 text-amber-600 mb-2">
+                <AlertTriangle className="w-6 h-6" />
+                <h3 className="text-lg font-semibold text-gray-900">Report No-Show</h3>
+              </div>
+              <p className="text-sm text-gray-600">
+                Are you sure you want to mark this lesson as a no-show? This indicates that
+                <span className="font-medium"> {booking.student ? `${booking.student.first_name} ${booking.student.last_name}` : 'the student'}</span> did not attend the scheduled lesson.
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                The student will still be charged for the lesson.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+                onClick={() => setShowNoShowModal(false)}
+                disabled={markNoShow.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                className="rounded-lg px-4 py-2 text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                onClick={handleMarkNoShow}
+                disabled={markNoShow.isPending}
+              >
+                {markNoShow.isPending ? 'Marking...' : 'Confirm No-Show'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

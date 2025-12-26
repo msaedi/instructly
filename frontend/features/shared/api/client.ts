@@ -742,6 +742,7 @@ export interface CreateBookingRequest {
   start_time: string; // HH:MM format
   end_time: string; // HH:MM format
   selected_duration: number; // Duration in minutes
+  timezone?: string; // Optional IANA timezone for booking times
   student_note?: string;
   meeting_location?: string;
   location_type?: 'student_home' | 'instructor_location' | 'neutral' | 'remote' | 'in_person';

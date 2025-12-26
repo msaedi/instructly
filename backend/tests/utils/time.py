@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Tuple
 
 SAFE_EPS_MINUTES = 5
 
 
 def now_trimmed(base: datetime | None = None) -> datetime:
-    dt = base or datetime.now()
+    dt = base or datetime.now(timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
     return dt.replace(second=0, microsecond=0)
 
 
@@ -16,7 +20,9 @@ def start_within_24h(base: datetime | None = None, hours: int = 2, minutes: int 
     start = n + timedelta(hours=hours, minutes=minutes)
     # avoid midnight-wrap for typical +1h durations
     if (start + timedelta(hours=1)).date() != start.date():
-        start = datetime.combine((n + timedelta(days=1)).date(), time(10, 0))
+        start = datetime.combine(
+            (n + timedelta(days=1)).date(), time(10, 0), tzinfo=timezone.utc
+        )
     return start
 
 
@@ -47,4 +53,8 @@ def start_just_over_24h(base: datetime | None = None, minutes: int = 1) -> datet
 
 def booking_fields_from_start(start: datetime, duration_minutes: int = 60) -> Tuple[date, time, time]:
     end = start + timedelta(minutes=duration_minutes)
-    return start.date(), start.time(), end.time()
+    return (
+        start.date(),
+        start.time().replace(tzinfo=None),
+        end.time().replace(tzinfo=None),
+    )

@@ -67,7 +67,7 @@ describe('LessonCard', () => {
 
     // Check date and time
     expect(screen.getByText(/Dec 25/)).toBeInTheDocument();
-    expect(screen.getByText(/2:00pm/)).toBeInTheDocument();
+    expect(screen.getByText(/2:00\s?PM/i)).toBeInTheDocument();
 
     // Check price (formatted with currency symbol)
     expect(screen.getByText('$60.00')).toBeInTheDocument();
@@ -227,7 +227,7 @@ describe('LessonCard', () => {
       />
     );
 
-    expect(screen.getByText(/9:30am/)).toBeInTheDocument();
+    expect(screen.getByText(/9:30\s?AM/i)).toBeInTheDocument();
   });
 
   it('shows cancellation fee information for cancelled lessons', () => {

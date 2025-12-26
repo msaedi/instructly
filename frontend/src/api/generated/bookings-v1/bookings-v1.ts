@@ -1150,8 +1150,8 @@ export const useCompleteBookingApiV1BookingsBookingIdCompletePost = <
 /**
  * Confirm payment method for a booking (Phase 2.1).
 
-Called after frontend collects card details via SetupIntent.
-This completes the booking creation flow.
+Deprecated: use /api/v1/payments/checkout instead.
+ * @deprecated
  * @summary Confirm Booking Payment
  */
 export const confirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost = (
@@ -1213,6 +1213,7 @@ export type ConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPostMutatio
   ErrorType<void | HTTPValidationError>;
 
 /**
+ * @deprecated
  * @summary Confirm Booking Payment
  */
 export const useConfirmBookingPaymentApiV1BookingsBookingIdConfirmPaymentPost = <

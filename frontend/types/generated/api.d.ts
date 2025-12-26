@@ -416,6 +416,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Admin Audit Log */
+        get: operations["list_admin_audit_log_api_v1_admin_audit_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/background-checks/cases": {
         parameters: {
             query?: never;
@@ -695,6 +712,111 @@ export type paths = {
         put?: never;
         /** Revoke Award */
         post: operations["revoke_award_api_v1_admin_badges__award_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Admin Bookings */
+        get: operations["list_admin_bookings_api_v1_admin_bookings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bookings/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Admin Booking Stats */
+        get: operations["get_admin_booking_stats_api_v1_admin_bookings_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bookings/{booking_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Admin Booking Detail */
+        get: operations["get_admin_booking_detail_api_v1_admin_bookings__booking_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bookings/{booking_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Cancel Booking */
+        post: operations["admin_cancel_booking_api_v1_admin_bookings__booking_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bookings/{booking_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Update Booking Status */
+        post: operations["admin_update_booking_status_api_v1_admin_bookings__booking_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bookings/{booking_id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Refund Booking
+         * @description Issue a refund for a booking (admin only).
+         */
+        post: operations["admin_refund_booking_api_v1_admin_bookings__booking_id__refund_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1732,10 +1854,10 @@ export type paths = {
         put?: never;
         /**
          * Confirm Booking Payment
+         * @deprecated
          * @description Confirm payment method for a booking (Phase 2.1).
          *
-         *     Called after frontend collects card details via SetupIntent.
-         *     This completes the booking creation flow.
+         *     Deprecated: use /api/v1/payments/checkout instead.
          */
         post: operations["confirm_booking_payment_api_v1_bookings__booking_id__confirm_payment_post"];
         delete?: never;
@@ -5641,6 +5763,59 @@ export type components = {
             /** Verification Status */
             verification_status?: string | null;
         };
+        /** AdminAuditActor */
+        AdminAuditActor: {
+            /** Email */
+            email: string;
+            /** Id */
+            id: string;
+        };
+        /** AdminAuditEntry */
+        AdminAuditEntry: {
+            /** Action */
+            action: string;
+            admin: components["schemas"]["AdminAuditActor"];
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            } | null;
+            /** Id */
+            id: string;
+            /** Resource Id */
+            resource_id: string;
+            /** Resource Type */
+            resource_type: string;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp: string;
+        };
+        /** AdminAuditLogResponse */
+        AdminAuditLogResponse: {
+            /** Entries */
+            entries: components["schemas"]["AdminAuditEntry"][];
+            /** Page */
+            page: number;
+            /** Per Page */
+            per_page: number;
+            summary: components["schemas"]["AdminAuditLogSummary"];
+            /** Total */
+            total: number;
+            /** Total Pages */
+            total_pages: number;
+        };
+        /** AdminAuditLogSummary */
+        AdminAuditLogSummary: {
+            /** Captures Count */
+            captures_count: number;
+            /** Captures Total */
+            captures_total: number;
+            /** Refunds Count */
+            refunds_count: number;
+            /** Refunds Total */
+            refunds_total: number;
+        };
         /** AdminAwardBadgeSchema */
         AdminAwardBadgeSchema: {
             /** Criteria Type */
@@ -5691,6 +5866,240 @@ export type components = {
             email?: string | null;
             /** Id */
             id: string;
+        };
+        /** AdminBookingDetailResponse */
+        AdminBookingDetailResponse: {
+            /**
+             * Booking Date
+             * Format: date
+             */
+            booking_date: string;
+            /** Booking End Utc */
+            booking_end_utc?: string | null;
+            /** Booking Start Utc */
+            booking_start_utc?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /** Id */
+            id: string;
+            instructor: components["schemas"]["AdminBookingPerson"];
+            /** Instructor Note */
+            instructor_note?: string | null;
+            /** Instructor Timezone */
+            instructor_timezone?: string | null;
+            /** Lesson Timezone */
+            lesson_timezone?: string | null;
+            /** Location Type */
+            location_type?: string | null;
+            /** Meeting Location */
+            meeting_location?: string | null;
+            payment: components["schemas"]["AdminBookingPaymentInfo"];
+            service: components["schemas"]["AdminBookingServiceInfo"];
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Status */
+            status: string;
+            student: components["schemas"]["AdminBookingPerson"];
+            /** Student Note */
+            student_note?: string | null;
+            /** Student Timezone */
+            student_timezone?: string | null;
+            /** Timeline */
+            timeline: components["schemas"]["AdminBookingTimelineEvent"][];
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /** AdminBookingListItem */
+        AdminBookingListItem: {
+            /**
+             * Booking Date
+             * Format: date
+             */
+            booking_date: string;
+            /** Booking End Utc */
+            booking_end_utc?: string | null;
+            /** Booking Start Utc */
+            booking_start_utc?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /** Id */
+            id: string;
+            instructor: components["schemas"]["AdminBookingPerson"];
+            /** Instructor Timezone */
+            instructor_timezone?: string | null;
+            /** Lesson Timezone */
+            lesson_timezone?: string | null;
+            /** Payment Intent Id */
+            payment_intent_id?: string | null;
+            /** Payment Status */
+            payment_status?: string | null;
+            /** Service Name */
+            service_name: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Status */
+            status: string;
+            student: components["schemas"]["AdminBookingPerson"];
+            /** Student Timezone */
+            student_timezone?: string | null;
+            /** Total Price */
+            total_price: number;
+        };
+        /** AdminBookingListResponse */
+        AdminBookingListResponse: {
+            /** Bookings */
+            bookings: components["schemas"]["AdminBookingListItem"][];
+            /** Page */
+            page: number;
+            /** Per Page */
+            per_page: number;
+            /** Total */
+            total: number;
+            /** Total Pages */
+            total_pages: number;
+        };
+        /** AdminBookingPaymentInfo */
+        AdminBookingPaymentInfo: {
+            /** Credits Applied */
+            credits_applied: number;
+            /** Instructor Payout */
+            instructor_payout: number;
+            /** Lesson Price */
+            lesson_price: number;
+            /** Payment Intent Id */
+            payment_intent_id?: string | null;
+            /** Payment Status */
+            payment_status?: string | null;
+            /** Platform Fee */
+            platform_fee: number;
+            /** Platform Revenue */
+            platform_revenue: number;
+            /** Stripe Url */
+            stripe_url?: string | null;
+            /** Total Price */
+            total_price: number;
+        };
+        /** AdminBookingPerson */
+        AdminBookingPerson: {
+            /** Email */
+            email: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone?: string | null;
+        };
+        /** AdminBookingServiceInfo */
+        AdminBookingServiceInfo: {
+            /** Duration Minutes */
+            duration_minutes: number;
+            /** Hourly Rate */
+            hourly_rate: number;
+            /** Id */
+            id?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** AdminBookingStatsNeedsAction */
+        AdminBookingStatsNeedsAction: {
+            /** Disputed */
+            disputed: number;
+            /** Pending Completion */
+            pending_completion: number;
+        };
+        /** AdminBookingStatsResponse */
+        AdminBookingStatsResponse: {
+            needs_action: components["schemas"]["AdminBookingStatsNeedsAction"];
+            this_week: components["schemas"]["AdminBookingStatsWeek"];
+            today: components["schemas"]["AdminBookingStatsToday"];
+        };
+        /** AdminBookingStatsToday */
+        AdminBookingStatsToday: {
+            /** Booking Count */
+            booking_count: number;
+            /** Revenue */
+            revenue: number;
+        };
+        /** AdminBookingStatsWeek */
+        AdminBookingStatsWeek: {
+            /** Gmv */
+            gmv: number;
+            /** Platform Revenue */
+            platform_revenue: number;
+        };
+        /**
+         * AdminBookingStatusUpdate
+         * @enum {string}
+         */
+        AdminBookingStatusUpdate: "COMPLETED" | "NO_SHOW";
+        /** AdminBookingStatusUpdateRequest */
+        AdminBookingStatusUpdateRequest: {
+            /** Note */
+            note?: string | null;
+            status: components["schemas"]["AdminBookingStatusUpdate"];
+        };
+        /** AdminBookingStatusUpdateResponse */
+        AdminBookingStatusUpdateResponse: {
+            /** Booking Id */
+            booking_id: string;
+            /** Booking Status */
+            booking_status: string;
+            /** Success */
+            success: boolean;
+        };
+        /** AdminBookingTimelineEvent */
+        AdminBookingTimelineEvent: {
+            /** Amount */
+            amount?: number | null;
+            /** Event */
+            event: string;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp: string;
+        };
+        /** AdminCancelBookingRequest */
+        AdminCancelBookingRequest: {
+            /** Note */
+            note?: string | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Refund
+             * @default false
+             */
+            refund: boolean;
+        };
+        /** AdminCancelBookingResponse */
+        AdminCancelBookingResponse: {
+            /** Booking Id */
+            booking_id: string;
+            /** Booking Status */
+            booking_status: string;
+            /** Refund Id */
+            refund_id?: string | null;
+            /** Refund Issued */
+            refund_issued: boolean;
+            /** Success */
+            success: boolean;
         };
         /**
          * AdminInstructorDetailResponse
@@ -5809,6 +6218,41 @@ export type components = {
             };
             /** Top Referrers */
             top_referrers: components["schemas"]["TopReferrerOut"][];
+        };
+        /**
+         * AdminRefundReason
+         * @enum {string}
+         */
+        AdminRefundReason: "instructor_no_show" | "dispute" | "platform_error" | "other";
+        /** AdminRefundRequest */
+        AdminRefundRequest: {
+            /**
+             * Amount Cents
+             * @description Refund amount in cents. Full refund if not provided.
+             */
+            amount_cents?: number | null;
+            /**
+             * Note
+             * @description Admin note explaining the refund
+             */
+            note?: string | null;
+            /** @description Reason for refund */
+            reason: components["schemas"]["AdminRefundReason"];
+        };
+        /** AdminRefundResponse */
+        AdminRefundResponse: {
+            /** Amount Refunded Cents */
+            amount_refunded_cents: number;
+            /** Booking Id */
+            booking_id: string;
+            /** Booking Status */
+            booking_status: string;
+            /** Message */
+            message: string;
+            /** Refund Id */
+            refund_id: string;
+            /** Success */
+            success: boolean;
         };
         /**
          * AdminSearchConfigResponse
@@ -7067,6 +7511,11 @@ export type components = {
              * @description Optional note from student
              */
             student_note?: string | null;
+            /**
+             * Timezone
+             * @description IANA timezone for booking times (defaults to instructor timezone)
+             */
+            timezone?: string | null;
         };
         /**
          * BookingCreateResponse
@@ -7080,6 +7529,10 @@ export type components = {
              * Format: date
              */
             booking_date: string;
+            /** Booking End Utc */
+            booking_end_utc?: string | null;
+            /** Booking Start Utc */
+            booking_start_utc?: string | null;
             /** Cancellation Reason */
             cancellation_reason: string | null;
             /** Cancelled At */
@@ -7114,6 +7567,10 @@ export type components = {
             instructor_service: components["schemas"]["ServiceInfo"];
             /** Instructor Service Id */
             instructor_service_id: string;
+            /** Instructor Timezone */
+            instructor_timezone?: string | null;
+            /** Lesson Timezone */
+            lesson_timezone?: string | null;
             /** Location Type */
             location_type: string | null;
             /** Meeting Location */
@@ -7148,6 +7605,8 @@ export type components = {
             student_id: string;
             /** Student Note */
             student_note: string | null;
+            /** Student Timezone */
+            student_timezone?: string | null;
             /** Total Price */
             total_price: number;
         };
@@ -7253,6 +7712,10 @@ export type components = {
              * Format: date
              */
             booking_date: string;
+            /** Booking End Utc */
+            booking_end_utc?: string | null;
+            /** Booking Start Utc */
+            booking_start_utc?: string | null;
             /** Cancellation Reason */
             cancellation_reason: string | null;
             /** Cancelled At */
@@ -7287,6 +7750,10 @@ export type components = {
             instructor_service: components["schemas"]["ServiceInfo"];
             /** Instructor Service Id */
             instructor_service_id: string;
+            /** Instructor Timezone */
+            instructor_timezone?: string | null;
+            /** Lesson Timezone */
+            lesson_timezone?: string | null;
             /** Location Type */
             location_type: string | null;
             /** Meeting Location */
@@ -7310,6 +7777,8 @@ export type components = {
             student_id: string;
             /** Student Note */
             student_note: string | null;
+            /** Student Timezone */
+            student_timezone?: string | null;
             /** Total Price */
             total_price: number;
         };
@@ -14806,6 +15275,42 @@ export interface operations {
             };
         };
     };
+    list_admin_audit_log_api_v1_admin_audit_log_get: {
+        parameters: {
+            query?: {
+                action?: string[] | null;
+                admin_id?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAuditLogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     bgc_cases_api_v1_admin_background_checks_cases_get: {
         parameters: {
             query?: {
@@ -15265,6 +15770,200 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminAwardSchema"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_admin_bookings_api_v1_admin_bookings_get: {
+        parameters: {
+            query?: {
+                search?: string | null;
+                status?: string[] | null;
+                payment_status?: string[] | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                needs_action?: boolean | null;
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookingListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_booking_stats_api_v1_admin_bookings_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookingStatsResponse"];
+                };
+            };
+        };
+    };
+    get_admin_booking_detail_api_v1_admin_bookings__booking_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookingDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_cancel_booking_api_v1_admin_bookings__booking_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCancelBookingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCancelBookingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_booking_status_api_v1_admin_bookings__booking_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminBookingStatusUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBookingStatusUpdateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_refund_booking_api_v1_admin_bookings__booking_id__refund_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRefundRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRefundResponse"];
                 };
             };
             /** @description Validation Error */

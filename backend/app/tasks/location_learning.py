@@ -11,12 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.search.alias_learning_service import AliasLearningService
-from app.tasks.celery_app import celery_app
+from app.tasks.celery_app import typed_task
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(
+@typed_task(
     name="app.tasks.location_learning.process_location_learning",
     bind=True,
     max_retries=0,

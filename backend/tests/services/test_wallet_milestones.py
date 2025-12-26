@@ -12,6 +12,11 @@ from app.models.user import User
 from app.repositories.payment_repository import PaymentRepository
 from app.services.student_credit_service import StudentCreditService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture
 def student(db):
@@ -100,6 +105,7 @@ def _create_completed_booking(db, student, instructor_service, instructor_id: st
         booking_date=base_date,
         start_time=start_time,
         end_time=end_time,
+        **booking_timezone_fields(base_date, start_time, end_time),
         status=BookingStatus.COMPLETED,
         completed_at=datetime.now(timezone.utc) + timedelta(minutes=index),
     )
@@ -188,6 +194,9 @@ def test_reinstate_used_credits(db, student, instructor_setup):
     )
     db.commit()
 
+    booking_date = datetime.now(timezone.utc).date()
+    start_time = time(10, 0)
+    end_time = time(11, 0)
     refund_booking = Booking(
         id=str(ulid.ULID()),
         student_id=student.id,
@@ -197,9 +206,10 @@ def test_reinstate_used_credits(db, student, instructor_setup):
         hourly_rate=50.0,
         total_price=50.0,
         duration_minutes=60,
-        booking_date=datetime.now(timezone.utc).date(),
-        start_time=time(10, 0),
-        end_time=time(11, 0),
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        **booking_timezone_fields(booking_date, start_time, end_time),
         status=BookingStatus.CONFIRMED,
     )
     db.add(refund_booking)

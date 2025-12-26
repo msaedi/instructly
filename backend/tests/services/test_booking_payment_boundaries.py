@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from tests.utils.time import (
 import ulid
 
 from app.core.enums import RoleName
-from app.models.booking import BookingStatus
+from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.rbac import Role
 from app.models.user import User
@@ -57,6 +58,7 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         last_name="T",
         zip_code="10001",
         is_active=True,
+        timezone="UTC",
     )
     student.roles.append(student_role)
     db.add(student)
@@ -70,6 +72,7 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         last_name="N",
         zip_code="10001",
         is_active=True,
+        timezone="UTC",
     )
     instructor.roles.append(instructor_role)
     db.add(instructor)
@@ -98,7 +101,7 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
 
     svc = BookingService(db)
 
-    # 23h59m ⇒ authorizing
+    # 23h59m ⇒ authorized
     start1 = start_just_under_24h()
     bd1, st1, et1 = booking_fields_from_start(start1, duration_minutes=duration_minutes)
     b1 = create_booking_pg_safe(
@@ -109,6 +112,8 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         booking_date=bd1,
         start_time=st1,
         end_time=et1,
+        instructor_timezone="UTC",
+        student_timezone="UTC",
         service_name="Test",
         hourly_rate=100.0,
         total_price=100.0,
@@ -117,8 +122,21 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         payment_status="pending_payment_method",
         offset_index=0,
     )
-    c1 = svc.confirm_booking_payment(b1.id, student, "pm_x", False)
-    assert c1.payment_status == "authorizing"
+    def _authorize_now(booking_id: str, _hours_until: float):
+        target = db.query(Booking).filter(Booking.id == booking_id).first()
+        assert target is not None
+        target.payment_status = "authorized"
+        target.payment_intent_id = "pi_test"
+        db.flush()
+        return {"success": True}
+
+    with patch(
+        "app.tasks.payment_tasks._process_authorization_for_booking",
+        side_effect=_authorize_now,
+    ):
+        c1 = svc.confirm_booking_payment(b1.id, student, "pm_x", False)
+
+    assert c1.payment_status == "authorized"
 
     # 24h01m ⇒ scheduled
     start2 = start_just_over_24h()
@@ -145,6 +163,8 @@ def test_immediate_vs_scheduled_boundary(db: Session) -> None:
         booking_date=bd2,
         start_time=st2,
         end_time=et2,
+        instructor_timezone="UTC",
+        student_timezone="UTC",
         service_name="Test",
         hourly_rate=100.0,
         total_price=100.0,

@@ -481,7 +481,7 @@ class BulkOperationService(BaseService):
 
         # Check if it's today and time has passed
         if operation_date == instructor_today:
-            now = datetime.now().time()
+            now = datetime.now(timezone.utc).time()
             if end_time <= now:
                 return (
                     f"Cannot add availability for past time slot {start_time.strftime('%H:%M')}-"

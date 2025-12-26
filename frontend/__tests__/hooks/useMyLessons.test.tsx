@@ -339,7 +339,11 @@ describe('useMyLessons hooks', () => {
   });
 
   describe('calculateCancellationFee', () => {
-    it('returns 0 for cancellations more than 24 hours in advance', () => {
+    // total_price = 60, lessonPrice = 60/1.12 ≈ 53.57, platformFee ≈ 6.43
+    const EXPECTED_LESSON_PRICE = 53.57;
+    const EXPECTED_PLATFORM_FEE = 6.43;
+
+    it('returns free window for cancellations more than 24 hours in advance', () => {
       const booking = {
         booking_date: '2024-12-30',
         start_time: '14:00:00',
@@ -351,13 +355,16 @@ describe('useMyLessons hooks', () => {
       jest.setSystemTime(new Date('2024-12-25'));
 
       const result = calculateCancellationFee(booking);
-      expect(result.fee).toBe(0);
-      expect(result.percentage).toBe(0);
+      expect(result.window).toBe('free');
+      expect(result.lessonPrice).toBeCloseTo(EXPECTED_LESSON_PRICE, 2);
+      expect(result.platformFee).toBeCloseTo(EXPECTED_PLATFORM_FEE, 2);
+      expect(result.creditAmount).toBe(0);
+      expect(result.willReceiveCredit).toBe(false);
 
       jest.useRealTimers();
     });
 
-    it('returns 50% fee for cancellations between 12-24 hours', () => {
+    it('returns credit window with lesson price credit for 12-24 hours', () => {
       const booking = {
         booking_date: '2024-12-26',
         start_time: '14:00:00',
@@ -369,13 +376,16 @@ describe('useMyLessons hooks', () => {
       jest.setSystemTime(new Date('2024-12-25T20:00:00'));
 
       const result = calculateCancellationFee(booking);
-      expect(result.fee).toBe(30);
-      expect(result.percentage).toBe(50);
+      expect(result.window).toBe('credit');
+      expect(result.lessonPrice).toBeCloseTo(EXPECTED_LESSON_PRICE, 2);
+      expect(result.platformFee).toBeCloseTo(EXPECTED_PLATFORM_FEE, 2);
+      expect(result.creditAmount).toBeCloseTo(EXPECTED_LESSON_PRICE, 2);
+      expect(result.willReceiveCredit).toBe(true);
 
       jest.useRealTimers();
     });
 
-    it('returns 100% fee for cancellations within 12 hours', () => {
+    it('returns full window for cancellations within 12 hours', () => {
       const booking = {
         booking_date: '2024-12-26',
         start_time: '14:00:00',
@@ -387,8 +397,11 @@ describe('useMyLessons hooks', () => {
       jest.setSystemTime(new Date('2024-12-26T13:30:00'));
 
       const result = calculateCancellationFee(booking);
-      expect(result.fee).toBe(60);
-      expect(result.percentage).toBe(100);
+      expect(result.window).toBe('full');
+      expect(result.lessonPrice).toBeCloseTo(EXPECTED_LESSON_PRICE, 2);
+      expect(result.platformFee).toBeCloseTo(EXPECTED_PLATFORM_FEE, 2);
+      expect(result.creditAmount).toBe(0);
+      expect(result.willReceiveCredit).toBe(false);
 
       jest.useRealTimers();
     });
@@ -400,18 +413,20 @@ describe('useMyLessons hooks', () => {
         total_price: 60,
       } as Booking;
 
-      // Exactly 24 hours before (edge case - should be 50% since it's not > 24)
+      // Exactly 24 hours before (edge case - should be credit since it's not > 24)
       jest.useFakeTimers();
       jest.setSystemTime(new Date('2024-12-25T14:00:00'));
       const result24 = calculateCancellationFee(booking);
-      expect(result24.fee).toBe(30);
-      expect(result24.percentage).toBe(50);
+      expect(result24.window).toBe('credit');
+      expect(result24.creditAmount).toBeCloseTo(EXPECTED_LESSON_PRICE, 2);
+      expect(result24.willReceiveCredit).toBe(true);
 
-      // Exactly 12 hours before (edge case - should be 100% since it's not > 12)
+      // Exactly 12 hours before (edge case - should be full since it's not > 12)
       jest.setSystemTime(new Date('2024-12-26T02:00:00'));
       const result12 = calculateCancellationFee(booking);
-      expect(result12.fee).toBe(60);
-      expect(result12.percentage).toBe(100);
+      expect(result12.window).toBe('full');
+      expect(result12.creditAmount).toBe(0);
+      expect(result12.willReceiveCredit).toBe(false);
 
       jest.useRealTimers();
     });

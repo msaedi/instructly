@@ -2,56 +2,21 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, time, timedelta, timezone
-from importlib import reload
 from typing import Dict, List, Tuple
 
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-import app.api.dependencies.services as dependency_services
 from app.core.config import settings
 import app.core.timezone_utils as timezone_utils_module
-import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-import app.routes.v1.availability_windows as availability_routes
 import app.services.availability_service as availability_service_module
 from app.services.booking_service import BookingService
-import app.services.week_operation_service as week_operation_service_module
 from app.utils.bitset import bits_from_windows, windows_from_bits
 
-
-@pytest.fixture
-def bitmap_app(monkeypatch: pytest.MonkeyPatch):
-    """Reload the application with bitmap availability enabled."""
-    # Bitmap availability is always enabled
-    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
-
-    reload(availability_service_module)
-    reload(week_operation_service_module)
-    reload(availability_routes)
-    reload(dependency_services)
-    reload(app.main)
-
-    yield app.main
-
-    # Allow tests to flip other behaviors without legacy flags
-    reload(availability_service_module)
-    reload(week_operation_service_module)
-    reload(availability_routes)
-    reload(dependency_services)
-    reload(app.main)
-
-
-@pytest.fixture
-def bitmap_client(bitmap_app) -> TestClient:
-    """Return a TestClient backed by the bitmap-enabled app instance."""
-    client = TestClient(bitmap_app.fastapi_app, raise_server_exceptions=False)
-    try:
-        yield client
-    finally:
-        client.close()
+# Use shared bitmap_app and bitmap_client fixtures from conftest
 
 
 def _upsert_week(

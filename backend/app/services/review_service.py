@@ -146,6 +146,14 @@ class ReviewService(BaseService):
         # Eligibility
         if booking.student_id != student_id:
             raise ValidationException("You can only review your own booking")
+
+        # Explicit NO_SHOW check with clear message (blocks reviews AND tips)
+        if booking.status == BookingStatus.NO_SHOW:
+            raise ValidationException(
+                "Cannot review a lesson you did not attend. "
+                "This booking was marked as a no-show."
+            )
+
         if booking.status not in [BookingStatus.COMPLETED, BookingStatus.CONFIRMED]:
             raise ValidationException("Only completed bookings can be reviewed")
 
@@ -182,7 +190,10 @@ class ReviewService(BaseService):
 
             # Compute the scheduled end datetime in user's timezone, then convert to UTC
             if booking.end_time is not None:
-                local_end_naive = datetime.combine(booking.booking_date, booking.end_time)
+                # utc-naive-ok: Display to user in local timezone
+                local_end_naive = datetime.combine(  # tz-pattern-ok: localized immediately below
+                    booking.booking_date, booking.end_time
+                )
                 if user_tz and hasattr(user_tz, "localize"):
                     tz_with_localize = cast(Any, user_tz)  # pytz tzinfo exposes localize()
                     local_end = tz_with_localize.localize(local_end_naive)

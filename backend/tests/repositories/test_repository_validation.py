@@ -37,6 +37,11 @@ from app.repositories import (
     WeekOperationRepository,
 )
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 class TestRepositoryInstantiation:
     """Test that all repositories can be created via factory."""
@@ -109,14 +114,18 @@ class TestBookingRepositoryNoSlotReferences:
         service = test_instructor.instructor_profile.instructor_services[0]
 
         # Create booking with self-contained time data
+        booking_date = date.today()
+        start_time = time(15, 0)
+        end_time = time(16, 0)
         booking = repo.create(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
             # NO availability_slot_id!
-            booking_date=date.today(),
-            start_time=time(15, 0),
-            end_time=time(16, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
@@ -136,13 +145,17 @@ class TestBookingRepositoryNoSlotReferences:
         service = test_instructor.instructor_profile.instructor_services[0]
 
         # Create an existing booking
+        booking_date = date.today()
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         _existing = repo.create(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
@@ -227,13 +240,17 @@ class TestConflictCheckerNoSlotJoins:
         service = test_instructor.instructor_profile.instructor_services[0]
 
         # Create a booking
+        booking_date = date.today()
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
@@ -262,13 +279,17 @@ class TestWeekOperationSimplified:
         service = test_instructor.instructor_profile.instructor_services[0]
 
         # Create test booking
+        booking_date = date.today()
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
@@ -330,14 +351,18 @@ class TestRepositoryIntegration:
         booking_repo = BookingRepository(db)
         service = test_instructor.instructor_profile.instructor_services[0]
 
+        booking_date = date.today()
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         booking = booking_repo.create(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
             # Same time as availability, but no reference to it!
-            booking_date=date.today(),
-            start_time=time(10, 0),
-            end_time=time(11, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,

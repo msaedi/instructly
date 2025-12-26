@@ -15,7 +15,7 @@ Changes from original:
 - Uses dependency injection for TemplateService (no singleton)
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 import logging
 import time
@@ -32,6 +32,7 @@ from ..services.base import BaseService
 from ..services.email import EmailService
 from ..services.template_registry import TemplateRegistry
 from ..services.template_service import TemplateService
+from ..services.timezone_service import TimezoneService
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +145,44 @@ class NotificationService(BaseService):
         """Clean up the database session if we created it."""
         if hasattr(self, "_owns_db") and self._owns_db and hasattr(self, "db"):
             self.db.close()
+
+    def _resolve_lesson_timezone(self, booking: Booking) -> str:
+        lesson_tz = getattr(booking, "lesson_timezone", None) or getattr(
+            booking, "instructor_tz_at_booking", None
+        )
+        instructor = getattr(booking, "instructor", None)
+        instructor_user = getattr(instructor, "user", None) if instructor else None
+        lesson_tz = lesson_tz or getattr(instructor_user, "timezone", None)
+        return lesson_tz or TimezoneService.DEFAULT_TIMEZONE
+
+    def _get_booking_start_utc(self, booking: Booking) -> datetime:
+        booking_start_utc = getattr(booking, "booking_start_utc", None)
+        if isinstance(booking_start_utc, datetime):
+            return booking_start_utc
+
+        lesson_tz = self._resolve_lesson_timezone(booking)
+        try:
+            return TimezoneService.local_to_utc(
+                booking.booking_date,
+                booking.start_time,
+                lesson_tz,
+            )
+        except ValueError as exc:
+            logger.warning(
+                "Failed to convert booking %s start to UTC (%s); falling back to UTC combine.",
+                getattr(booking, "id", None),
+                exc,
+            )
+            return datetime.combine(  # tz-pattern-ok: fallback for invalid legacy time
+                booking.booking_date,
+                booking.start_time,
+                tzinfo=timezone.utc,  # tz-pattern-ok: legacy fallback
+            )
+
+    def _get_booking_local_datetime(self, booking: Booking) -> datetime:
+        lesson_tz = self._resolve_lesson_timezone(booking)
+        start_utc = self._get_booking_start_utc(booking)
+        return TimezoneService.utc_to_local(start_utc, lesson_tz)
 
     @BaseService.measure_operation("send_booking_confirmation")
     def send_booking_confirmation(self, booking: Booking) -> bool:
@@ -442,10 +481,10 @@ class NotificationService(BaseService):
         """Send booking confirmation email to student using template."""
         subject = f"Booking Confirmed: {booking.service_name} with {booking.instructor.first_name}"
 
-        # Format booking time
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
-        formatted_time = booking_datetime.strftime("%-I:%M %p")
+        # Format booking time in lesson timezone
+        local_dt = self._get_booking_local_datetime(booking)
+        formatted_date = local_dt.strftime("%A, %B %d, %Y")
+        formatted_time = local_dt.strftime("%-I:%M %p")
 
         # Prepare template context
         context = {
@@ -579,10 +618,13 @@ class NotificationService(BaseService):
 
             # Fallback minimal content
             if not html_content:
+                local_dt = self._get_booking_local_datetime(booking)
+                formatted_date = local_dt.strftime("%B %d, %Y")
+                formatted_time = local_dt.strftime("%-I:%M %p")
                 fallback = (
                     "<p>We couldn't authorize your payment for your upcoming lesson. "
                     "Please update your card on file to avoid cancellation.</p>"
-                    f"<p>Lesson: {booking.service_name} on {booking.booking_date} at {booking.start_time}</p>"
+                    f"<p>Lesson: {booking.service_name} on {formatted_date} at {formatted_time}</p>"
                     f"<p><a href='{self.frontend_url}/student/payments'>Update payment method</a></p>"
                 )
                 html_content = self.template_service.render_string(fallback, context)
@@ -603,10 +645,10 @@ class NotificationService(BaseService):
         """Send new booking notification to instructor using template."""
         subject = f"New Booking: {booking.service_name} with {booking.student.first_name}"
 
-        # Format booking time
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
-        formatted_time = booking_datetime.strftime("%-I:%M %p")
+        # Format booking time in lesson timezone
+        local_dt = self._get_booking_local_datetime(booking)
+        formatted_date = local_dt.strftime("%A, %B %d, %Y")
+        formatted_time = local_dt.strftime("%-I:%M %p")
 
         # Prepare template context with custom colors for instructor
         context = {
@@ -641,9 +683,9 @@ class NotificationService(BaseService):
         """Send cancellation notification to student when instructor cancels."""
         subject = f"Booking Cancelled: {booking.service_name}"
 
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
-        formatted_time = booking_datetime.strftime("%-I:%M %p")
+        local_dt = self._get_booking_local_datetime(booking)
+        formatted_date = local_dt.strftime("%A, %B %d, %Y")
+        formatted_time = local_dt.strftime("%-I:%M %p")
 
         # Prepare template context with red colors for cancellation
         context = {
@@ -678,9 +720,9 @@ class NotificationService(BaseService):
         """Send cancellation notification to instructor when student cancels."""
         subject = f"Booking Cancelled: {booking.service_name}"
 
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
-        formatted_time = booking_datetime.strftime("%-I:%M %p")
+        local_dt = self._get_booking_local_datetime(booking)
+        formatted_date = local_dt.strftime("%A, %B %d, %Y")
+        formatted_time = local_dt.strftime("%-I:%M %p")
 
         # Prepare template context
         context = {
@@ -712,9 +754,9 @@ class NotificationService(BaseService):
         subject = f"Cancellation Confirmed: {booking.service_name}"
 
         # Format booking time for the confirmation
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
-        formatted_time = booking_datetime.strftime("%-I:%M %p")
+        local_dt = self._get_booking_local_datetime(booking)
+        formatted_date = local_dt.strftime("%A, %B %d, %Y")
+        formatted_time = local_dt.strftime("%-I:%M %p")
 
         # Prepare template context
         context = {
@@ -744,9 +786,9 @@ class NotificationService(BaseService):
         subject = f"Cancellation Confirmed: {booking.service_name}"
 
         # Format booking time for the confirmation
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
-        formatted_time = booking_datetime.strftime("%-I:%M %p")
+        local_dt = self._get_booking_local_datetime(booking)
+        formatted_date = local_dt.strftime("%A, %B %d, %Y")
+        formatted_time = local_dt.strftime("%-I:%M %p")
 
         # Prepare template context
         context = {
@@ -775,8 +817,8 @@ class NotificationService(BaseService):
         """Send 24-hour reminder to student."""
         subject = f"Reminder: {booking.service_name} Tomorrow"
 
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        formatted_time = booking_datetime.strftime("%-I:%M %p")
+        local_dt = self._get_booking_local_datetime(booking)
+        formatted_time = local_dt.strftime("%-I:%M %p")
 
         # Prepare template context
         context = {
@@ -805,8 +847,8 @@ class NotificationService(BaseService):
         """Send 24-hour reminder to instructor."""
         subject = f"Reminder: {booking.service_name} Tomorrow"
 
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        formatted_time = booking_datetime.strftime("%-I:%M %p")
+        local_dt = self._get_booking_local_datetime(booking)
+        formatted_time = local_dt.strftime("%-I:%M %p")
 
         # Prepare template context
         context = {
@@ -866,12 +908,13 @@ class NotificationService(BaseService):
             subject = f"New message from your {sender_role} - {booking.service_name}"
 
             # Prepare template context
+            local_dt = self._get_booking_local_datetime(booking)
             context = {
                 "recipient_name": recipient.first_name,
                 "sender_name": sender.first_name,
                 "sender_role": sender_role,
-                "booking_date": booking.booking_date.strftime("%B %d, %Y"),
-                "booking_time": booking.start_time.strftime("%-I:%M %p"),
+                "booking_date": local_dt.strftime("%B %d, %Y"),
+                "booking_time": local_dt.strftime("%-I:%M %p"),
                 "service_name": booking.service_name,
                 "message_preview": message_content[:200] + "..."
                 if len(message_content) > 200

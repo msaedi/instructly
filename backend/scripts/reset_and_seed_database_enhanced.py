@@ -895,8 +895,8 @@ def create_sample_bookings(session: Session):
                 start_time, end_time = random.choice(typical_times)
 
                 # Calculate duration
-                start_datetime = datetime.combine(date.today(), start_time)
-                end_datetime = datetime.combine(date.today(), end_time)
+                start_datetime = datetime.combine(date.today(), start_time)  # tz-pattern-ok: seed script generates test data
+                end_datetime = datetime.combine(date.today(), end_time)  # tz-pattern-ok: seed script generates test data
                 duration_minutes = int((end_datetime - start_datetime).total_seconds() / 60)
 
                 # Create self-contained booking (NO availability_slot_id!)
@@ -951,8 +951,8 @@ def create_sample_bookings(session: Session):
             start_time, end_time = random.choice(typical_times)
 
             # Calculate duration
-            start_datetime = datetime.combine(date.today(), start_time)
-            end_datetime = datetime.combine(date.today(), end_time)
+            start_datetime = datetime.combine(date.today(), start_time)  # tz-pattern-ok: seed script generates test data
+            end_datetime = datetime.combine(date.today(), end_time)  # tz-pattern-ok: seed script generates test data
             duration_minutes = int((end_datetime - start_datetime).total_seconds() / 60)
 
             # Determine booking status based on date

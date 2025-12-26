@@ -9,6 +9,11 @@ from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 ACTIVE_STATUSES: Dict[str, BookingStatus] = {
     status.name: status for status in (BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED)
 }
@@ -19,15 +24,17 @@ def _active_status_values() -> Iterable[str]:
 
 
 def _minutes_between(start: time, end: time) -> int:
-    start_dt = datetime.combine(date(2000, 1, 1), start)
-    end_dt = datetime.combine(date(2000, 1, 1), end)
+    start_dt = datetime.combine(date(2000, 1, 1), start)  # tz-pattern-ok: test factory builds fixtures
+    end_dt = datetime.combine(date(2000, 1, 1), end)  # tz-pattern-ok: test factory builds fixtures
     if end_dt <= start_dt:
         end_dt = start_dt + timedelta(minutes=1)
     return int((end_dt - start_dt).total_seconds() // 60)
 
 
 def _bump_time(base: time, minutes: int) -> time:
-    dt = datetime.combine(date(2000, 1, 1), base) + timedelta(minutes=minutes)
+    dt = datetime.combine(date(2000, 1, 1), base) + timedelta(  # tz-pattern-ok: test factory builds fixtures
+        minutes=minutes
+    )
     return dt.time()
 
 
@@ -145,6 +152,8 @@ def create_booking_pg_safe(
     cancel_duplicate: bool = False,
     offset_index: Optional[int] = None,
     max_shifts: int = 120,
+    instructor_timezone: Optional[str] = None,
+    student_timezone: Optional[str] = None,
     **extra_fields: Any,
 ) -> Booking:
     """
@@ -200,13 +209,25 @@ def create_booking_pg_safe(
                     cancel_exact_duplicate(session, instructor_id, booking_date, start_time, end_time)
                     break
 
-            start_dt = datetime.combine(booking_date, start_time) + timedelta(minutes=1)
+            start_dt = datetime.combine(  # tz-pattern-ok: test factory builds fixtures
+                booking_date, start_time
+            ) + timedelta(minutes=1)
             end_dt = start_dt + timedelta(minutes=duration_minutes)
             start_time = start_dt.time()
             end_time = end_dt.time()
             attempts += 1
             if attempts >= max_attempts:
                 raise RuntimeError("Unable to resolve booking overlap after several adjustments")
+
+    lesson_timezone = extra_fields.get("lesson_timezone") or instructor_timezone or "America/New_York"
+    student_tz = extra_fields.get("student_tz_at_booking") or student_timezone or lesson_timezone
+    timezone_fields = booking_timezone_fields(
+        booking_date,
+        start_time,
+        end_time,
+        instructor_timezone=lesson_timezone,
+        student_timezone=student_tz,
+    )
 
     booking_kwargs = {
         "student_id": student_id,
@@ -216,6 +237,7 @@ def create_booking_pg_safe(
         "start_time": start_time,
         "end_time": end_time,
         "status": status,
+        **timezone_fields,
         **extra_fields,
     }
 

@@ -23,9 +23,11 @@ from sqlalchemy.orm import Session
 from app.models.availability_day import AvailabilityDay
 from app.models.booking import Booking, BookingStatus
 from app.repositories.availability_day_repository import AvailabilityDayRepository
+from app.services.timezone_service import TimezoneService
 from app.utils.bitset import windows_from_bits
 
 logger = logging.getLogger(__name__)
+DEFAULT_TIMEZONE = "America/New_York"
 
 
 @dataclass
@@ -62,15 +64,40 @@ def _active_status_values() -> Iterable[str]:
 
 
 def _minutes_between(start: time, end: time) -> int:
-    start_dt = datetime.combine(date(2000, 1, 1), start)
-    end_dt = datetime.combine(date(2000, 1, 1), end)
+    start_dt = datetime.combine(date(2000, 1, 1), start)  # tz-pattern-ok: seed utility for test data
+    end_dt = datetime.combine(date(2000, 1, 1), end)  # tz-pattern-ok: seed utility for test data
     if end_dt <= start_dt:
         end_dt = start_dt + timedelta(minutes=1)
     return int((end_dt - start_dt).total_seconds() // 60)
 
 
+def _booking_timezone_fields(
+    booking_date: date,
+    start_time: time,
+    end_time: time,
+    *,
+    lesson_timezone: Optional[str] = None,
+    student_timezone: Optional[str] = None,
+) -> dict[str, Any]:
+    if start_time.tzinfo is not None:
+        start_time = start_time.replace(tzinfo=None)
+    if end_time.tzinfo is not None:
+        end_time = end_time.replace(tzinfo=None)
+    lesson_tz = lesson_timezone or DEFAULT_TIMEZONE
+    student_tz = student_timezone or lesson_tz
+    return {
+        "booking_start_utc": TimezoneService.local_to_utc(booking_date, start_time, lesson_tz),
+        "booking_end_utc": TimezoneService.local_to_utc(booking_date, end_time, lesson_tz),
+        "lesson_timezone": lesson_tz,
+        "instructor_tz_at_booking": lesson_tz,
+        "student_tz_at_booking": student_tz,
+    }
+
+
 def _shift_time(base: time, minutes: int) -> time:
-    shifted = datetime.combine(date(2000, 1, 1), base) + timedelta(minutes=minutes)
+    shifted = datetime.combine(date(2000, 1, 1), base) + timedelta(  # tz-pattern-ok: seed utility for test data
+        minutes=minutes
+    )
     return shifted.time()
 
 
@@ -338,7 +365,9 @@ def create_booking_safe(
             break
 
         attempts += 1
-        next_start_dt = datetime.combine(booking_date, current_start) + timedelta(minutes=shift_minutes)
+        next_start_dt = datetime.combine(  # tz-pattern-ok: seed utility for test data
+            booking_date, current_start
+        ) + timedelta(minutes=shift_minutes)
         next_end_dt = next_start_dt + timedelta(minutes=duration_minutes)
 
         if next_start_dt.date() != booking_date or next_end_dt.date() != booking_date:
@@ -367,6 +396,20 @@ def create_booking_safe(
         )
         return None
 
+    if current_start.tzinfo is not None:
+        current_start = current_start.replace(tzinfo=None)
+    if current_end.tzinfo is not None:
+        current_end = current_end.replace(tzinfo=None)
+    lesson_timezone = extra_fields.get("lesson_timezone") or extra_fields.get("instructor_tz_at_booking")
+    student_timezone = extra_fields.get("student_tz_at_booking")
+    timezone_fields = _booking_timezone_fields(
+        booking_date,
+        current_start,
+        current_end,
+        lesson_timezone=lesson_timezone,
+        student_timezone=student_timezone,
+    )
+
     booking = Booking(
         student_id=student_id,
         instructor_id=instructor_id,
@@ -375,6 +418,7 @@ def create_booking_safe(
         start_time=current_start,
         end_time=current_end,
         status=status,
+        **timezone_fields,
         **extra_fields,
     )
     session.add(booking)
@@ -691,6 +735,7 @@ def find_free_slot_bulk(
     step_minutes: int = 15,
     durations_minutes: Optional[Sequence[int]] = None,
     randomize: bool = True,
+    past_only: bool = False,
 ) -> Optional[Tuple[date, time, time]]:
     """
     Find a free slot using pre-loaded bitmap data and in-memory conflict detection.
@@ -710,12 +755,13 @@ def find_free_slot_bulk(
     day_end_minutes = min(24 * 60, max(day_start_minutes + 1, day_end_hour * 60))
     step = max(1, step_minutes)
 
-    # Build candidate dates (backward then forward)
+    # Build candidate dates (backward then forward unless past_only=True)
     candidate_dates: List[date] = []
     for day_offset in range(1, lookback + 1):
         candidate_dates.append(base_date - timedelta(days=day_offset))
-    for day_offset in range(0, horizon + 1):
-        candidate_dates.append(base_date + timedelta(days=day_offset))
+    if not past_only:
+        for day_offset in range(0, horizon + 1):
+            candidate_dates.append(base_date + timedelta(days=day_offset))
 
     # Optionally randomize to distribute slots more evenly
     if randomize:
@@ -802,6 +848,20 @@ def create_booking_bulk(
     """
     Create a booking and register it in the bulk context for conflict tracking.
     """
+    if start_time.tzinfo is not None:
+        start_time = start_time.replace(tzinfo=None)
+    if end_time.tzinfo is not None:
+        end_time = end_time.replace(tzinfo=None)
+    lesson_timezone = extra_fields.get("lesson_timezone") or extra_fields.get("instructor_tz_at_booking")
+    student_timezone = extra_fields.get("student_tz_at_booking")
+    timezone_fields = _booking_timezone_fields(
+        booking_date,
+        start_time,
+        end_time,
+        lesson_timezone=lesson_timezone,
+        student_timezone=student_timezone,
+    )
+
     booking = Booking(
         student_id=student_id,
         instructor_id=instructor_id,
@@ -810,6 +870,7 @@ def create_booking_bulk(
         start_time=start_time,
         end_time=end_time,
         status=status,
+        **timezone_fields,
         **extra_fields,
     )
     session.add(booking)

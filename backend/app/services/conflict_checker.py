@@ -12,7 +12,7 @@ All conflict checks now use booking's own fields (date, start_time, end_time)
 without any reference to availability slots.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -229,8 +229,13 @@ class ConflictChecker(BaseService):
             return {"valid": False, "reason": "End time must be after start time"}
 
         # Calculate duration using reference date (timezone-agnostic)
-        start = datetime.combine(date.today(), start_time)  # reference calculation only
-        end = datetime.combine(date.today(), end_time)  # reference calculation only
+        reference_date = date(2000, 1, 1)
+        start = datetime.combine(  # tz-pattern-ok: duration math only
+            reference_date, start_time, tzinfo=timezone.utc
+        )
+        end = datetime.combine(  # tz-pattern-ok: duration math only
+            reference_date, end_time, tzinfo=timezone.utc
+        )
         duration = end - start
         duration_minutes = int(duration.total_seconds() / 60)
 
@@ -453,10 +458,13 @@ class ConflictChecker(BaseService):
 
         # Check if we can start at earliest_time
         current_time = earliest_time
+        reference_date = date(2000, 1, 1)
 
         for booking in active_bookings:
             # Calculate potential end time using reference date (timezone-agnostic)
-            start_dt = datetime.combine(date.today(), current_time)  # reference calculation only
+            start_dt = datetime.combine(  # tz-pattern-ok: duration math only
+                reference_date, current_time, tzinfo=timezone.utc
+            )
             end_dt = start_dt + timedelta(minutes=duration_minutes)
             potential_end = end_dt.time()
 
@@ -473,7 +481,9 @@ class ConflictChecker(BaseService):
             current_time = booking.end_time
 
         # Check if there's room after all bookings using reference date (timezone-agnostic)
-        start_dt = datetime.combine(date.today(), current_time)  # reference calculation only
+        start_dt = datetime.combine(  # tz-pattern-ok: duration math only
+            reference_date, current_time, tzinfo=timezone.utc
+        )
         end_dt = start_dt + timedelta(minutes=duration_minutes)
         potential_end = end_dt.time()
 

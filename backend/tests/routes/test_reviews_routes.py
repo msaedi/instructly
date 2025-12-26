@@ -119,3 +119,59 @@ def test_respond_to_review_route(
         headers=auth_headers_instructor_2,
     )
     assert res2.status_code in (400, 403)
+
+
+# ========== NO_SHOW Blocking Tests (Part 10) ==========
+
+
+def test_cannot_review_no_show_booking(client, db, test_booking, auth_headers):
+    """Students cannot review bookings marked as no-show."""
+    # Mark booking as NO_SHOW
+    test_booking.status = "NO_SHOW"
+    db.flush()
+
+    payload = {
+        "booking_id": test_booking.id,
+        "rating": 5,
+        "review_text": "Great lesson!",
+    }
+    res = client.post("/api/v1/reviews", json=payload, headers=auth_headers)
+    assert res.status_code == 400
+    data = res.json()
+    assert "no-show" in data["detail"].lower()
+
+
+def test_cannot_tip_no_show_booking(client, db, test_booking, auth_headers):
+    """Students cannot tip on bookings marked as no-show (tips require review)."""
+    # Mark booking as NO_SHOW
+    test_booking.status = "NO_SHOW"
+    db.flush()
+
+    # Tips are submitted with reviews via tip_amount_cents field
+    payload = {
+        "booking_id": test_booking.id,
+        "rating": 5,
+        "review_text": "Amazing!",
+        "tip_amount_cents": 2000,  # $20 tip
+    }
+    res = client.post("/api/v1/reviews", json=payload, headers=auth_headers)
+    assert res.status_code == 400
+    data = res.json()
+    assert "no-show" in data["detail"].lower()
+
+
+def test_can_review_completed_booking(client, db, test_booking, auth_headers):
+    """Students CAN review completed bookings (regression test)."""
+    test_booking.status = "COMPLETED"
+    test_booking.completed_at = datetime.now(timezone.utc) - timedelta(days=1)
+    db.flush()
+
+    payload = {
+        "booking_id": test_booking.id,
+        "rating": 4,
+        "review_text": "Good lesson.",
+    }
+    res = client.post("/api/v1/reviews", json=payload, headers=auth_headers)
+    assert res.status_code in (200, 201)
+    data = res.json()
+    assert data["rating"] == 4

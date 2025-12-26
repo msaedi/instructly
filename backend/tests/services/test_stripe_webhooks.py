@@ -20,6 +20,11 @@ from app.services.config_service import ConfigService
 from app.services.pricing_service import PricingService
 from app.services.stripe_service import StripeService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture
 def stripe_service(db: Session) -> StripeService:
@@ -114,14 +119,18 @@ def test_instructor(db: Session) -> tuple[User, InstructorProfile, InstructorSer
 @pytest.fixture
 def test_booking(db: Session, test_user: User, test_instructor: tuple) -> Booking:
     instructor_user, _, instructor_service = test_instructor
+    booking_date = datetime.now().date()
+    start_time = time(14, 0)
+    end_time = time(15, 0)
     booking = Booking(
         id=str(ulid.ULID()),
         student_id=test_user.id,
         instructor_id=instructor_user.id,
         instructor_service_id=instructor_service.id,
-        booking_date=datetime.now().date(),
-        start_time=time(14, 0),
-        end_time=time(15, 0),
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        **booking_timezone_fields(booking_date, start_time, end_time),
         service_name="Webhook Service",
         hourly_rate=50.00,
         total_price=50.00,

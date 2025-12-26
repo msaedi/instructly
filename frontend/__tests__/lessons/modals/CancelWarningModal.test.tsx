@@ -4,12 +4,15 @@ import { CancelWarningModal } from '@/components/lessons/modals/CancelWarningMod
 import type { Booking } from '@/features/shared/api/types';
 import * as myLessonsModule from '@/hooks/useMyLessons';
 
-// Mock the useMyLessons hook
+// Mock the useMyLessons hook with new CancellationFeeResult interface
 jest.mock('@/hooks/useMyLessons', () => ({
   calculateCancellationFee: jest.fn(() => ({
-    fee: 0,
-    percentage: 0,
-    hoursUntil: 72
+    hoursUntil: 72,
+    window: 'free',
+    lessonPrice: 53.57,
+    platformFee: 6.43,
+    creditAmount: 0,
+    willReceiveCredit: false,
   }))
 }));
 
@@ -90,9 +93,16 @@ describe('CancelWarningModal', () => {
   });
 
   it('shows warning for late cancellation', () => {
-    // Mock a late cancellation scenario
+    // Mock a late cancellation scenario (12-24h window = credit)
     const calculateCancellationFee = myLessonsModule.calculateCancellationFee as jest.Mock;
-    calculateCancellationFee.mockReturnValue({ fee: 30, percentage: 50, hoursUntil: 18 }); // 50% fee
+    calculateCancellationFee.mockReturnValue({
+      hoursUntil: 18,
+      window: 'credit',
+      lessonPrice: 53.57,
+      platformFee: 6.43,
+      creditAmount: 53.57,
+      willReceiveCredit: true,
+    });
 
     render(
       <CancelWarningModal
@@ -125,9 +135,16 @@ describe('CancelWarningModal', () => {
   });
 
   it('calls onReschedule when Continue then Reschedule is clicked', () => {
-    // Mock >12 hours until lesson to show reschedule option
+    // Mock >24 hours until lesson to show free cancellation with reschedule option
     const calculateCancellationFee = myLessonsModule.calculateCancellationFee as jest.Mock;
-    calculateCancellationFee.mockReturnValue({ fee: 0, percentage: 0, hoursUntil: 24 });
+    calculateCancellationFee.mockReturnValue({
+      hoursUntil: 48,
+      window: 'free',
+      lessonPrice: 53.57,
+      platformFee: 6.43,
+      creditAmount: 0,
+      willReceiveCredit: false,
+    });
 
     render(
       <CancelWarningModal
@@ -181,9 +198,16 @@ describe('CancelWarningModal', () => {
   });
 
   it('shows no fee message for free cancellation', () => {
-    // Mock the calculateCancellationFee to return 0 fee
+    // Mock the calculateCancellationFee to return free window (>24h)
     const calculateCancellationFee = myLessonsModule.calculateCancellationFee as jest.Mock;
-    calculateCancellationFee.mockReturnValue({ fee: 0, percentage: 0, hoursUntil: 120 }); // 5 days = 120 hours
+    calculateCancellationFee.mockReturnValue({
+      hoursUntil: 120, // 5 days = 120 hours
+      window: 'free',
+      lessonPrice: 53.57,
+      platformFee: 6.43,
+      creditAmount: 0,
+      willReceiveCredit: false,
+    });
 
     render(
       <CancelWarningModal
@@ -198,9 +222,16 @@ describe('CancelWarningModal', () => {
     expect(screen.getByText('> 24 hours')).toBeInTheDocument();
   });
 
-  it('shows 50% fee for late cancellation', () => {
+  it('shows credit window for 12-24h cancellation', () => {
     const calculateCancellationFee = myLessonsModule.calculateCancellationFee as jest.Mock;
-    calculateCancellationFee.mockReturnValue({ fee: 30, percentage: 50, hoursUntil: 18 }); // 50% fee
+    calculateCancellationFee.mockReturnValue({
+      hoursUntil: 18, // 18 hours = credit window
+      window: 'credit',
+      lessonPrice: 53.57,
+      platformFee: 6.43,
+      creditAmount: 53.57,
+      willReceiveCredit: true,
+    });
 
     render(
       <CancelWarningModal
@@ -211,13 +242,21 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    // Shows partial charge warning for late cancellation (18 hours = > 12 hours)
+    // Shows credit message and time until lesson (18 hours = > 12 hours)
     expect(screen.getByText('> 12 hours')).toBeInTheDocument();
+    expect(screen.getByText(/Credit: \$53\.57/)).toBeInTheDocument();
   });
 
-  it('shows 100% fee for very late cancellation', () => {
+  it('shows full charge for very late cancellation', () => {
     const calculateCancellationFee = myLessonsModule.calculateCancellationFee as jest.Mock;
-    calculateCancellationFee.mockReturnValue({ fee: 60, percentage: 100, hoursUntil: 8 }); // 100% fee
+    calculateCancellationFee.mockReturnValue({
+      hoursUntil: 8, // 8 hours = full window
+      window: 'full',
+      lessonPrice: 53.57,
+      platformFee: 6.43,
+      creditAmount: 0,
+      willReceiveCredit: false,
+    });
 
     render(
       <CancelWarningModal

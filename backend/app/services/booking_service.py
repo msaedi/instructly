@@ -20,7 +20,6 @@ import logging
 import os
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
@@ -53,6 +52,7 @@ from .notification_service import NotificationService
 from .pricing_service import PricingService
 from .student_credit_service import StudentCreditService
 from .system_message_service import SystemMessageService
+from .timezone_service import TimezoneService
 
 if TYPE_CHECKING:
     # AvailabilitySlot removed - bitmap-only storage now
@@ -70,6 +70,10 @@ AUDIT_ENABLED = os.getenv("AUDIT_ENABLED", "true").lower() in {"1", "true", "yes
 INSTRUCTOR_CONFLICT_MESSAGE = "Instructor already has a booking that overlaps this time"
 STUDENT_CONFLICT_MESSAGE = "Student already has a booking that overlaps this time"
 GENERIC_CONFLICT_MESSAGE = "This time slot conflicts with an existing booking"
+CANCELLATION_CREDIT_REASONS = {
+    "Cancellation 12-24 hours before lesson (lesson price credit)",
+    "Rescheduled booking cancellation (lesson price credit)",
+}
 
 
 class BookingService(BaseService):
@@ -307,7 +311,9 @@ class BookingService(BaseService):
         Allows bookings that end exactly at midnight (treated as 24:00) but rejects
         any ranges that otherwise wrap past the booking date.
         """
-        start_datetime = datetime.combine(booking_date, start_time)
+        start_datetime = datetime.combine(  # tz-pattern-ok: duration math only
+            booking_date, start_time, tzinfo=timezone.utc
+        )
         end_datetime = start_datetime + timedelta(minutes=selected_duration)
         end_time = end_datetime.time()
         midnight = time(0, 0)
@@ -328,32 +334,115 @@ class BookingService(BaseService):
         """Map HH:MM to the half-hour slot index used by bitmap availability."""
         return hh * 2 + (1 if mm >= 30 else 0)
 
-    @staticmethod
-    def _local_date(dt: datetime, tz: ZoneInfo) -> date:
-        """Convert a timezone-aware datetime into the provided timezone and return its date."""
-        return dt.astimezone(tz).date()
-
     def _resolve_local_booking_day(
         self,
         booking_data: BookingCreate,
         instructor_profile: InstructorProfile,
     ) -> date:
-        local_day: date = booking_data.booking_date
+        """Return the instructor-local date for availability lookup.
+
+        Booking requests send instructor-local dates/times, and availability
+        is stored in instructor-local days. No conversion is needed here.
+        """
+        # Client and availability are instructor-local; use the provided date as-is.
+        result: date = booking_data.booking_date
+        return result
+
+    @staticmethod
+    def _is_online_lesson(booking_data: BookingCreate) -> bool:
+        """Return True when the lesson is remote/online."""
+        location_type = getattr(booking_data, "location_type", None)
+        return location_type == "remote"
+
+    def _resolve_instructor_timezone(self, instructor_profile: InstructorProfile) -> str:
+        """Resolve instructor timezone with a safe default."""
         instructor_user = getattr(instructor_profile, "user", None)
-        timezone_name = getattr(instructor_user, "timezone", None)
-        if timezone_name and booking_data.start_time:
-            try:
-                start_dt_utc = datetime.combine(
-                    booking_data.booking_date,
-                    booking_data.start_time,
-                    tzinfo=timezone.utc,
-                )
-                instructor_zone = ZoneInfo(timezone_name)
-                local_day = self._local_date(start_dt_utc, instructor_zone)
-            except Exception:
-                # Fall back to the provided booking_date if timezone conversion fails
-                local_day = booking_data.booking_date
-        return local_day
+        instructor_tz = getattr(instructor_user, "timezone", None)
+        default_tz: str = TimezoneService.DEFAULT_TIMEZONE
+        if isinstance(instructor_tz, str) and instructor_tz:
+            return instructor_tz
+        return default_tz
+
+    @staticmethod
+    def _resolve_student_timezone(student: Optional[User]) -> str:
+        """Resolve student timezone with a safe default."""
+        student_tz = getattr(student, "timezone", None) if student else None
+        default_tz: str = TimezoneService.DEFAULT_TIMEZONE
+        if isinstance(student_tz, str) and student_tz:
+            return student_tz
+        return default_tz
+
+    def _resolve_lesson_timezone(
+        self,
+        booking_data: BookingCreate,
+        instructor_profile: InstructorProfile,
+    ) -> str:
+        instructor_tz = self._resolve_instructor_timezone(instructor_profile)
+        is_online = self._is_online_lesson(booking_data)
+        lesson_tz: str = TimezoneService.get_lesson_timezone(instructor_tz, is_online)
+        return lesson_tz or TimezoneService.DEFAULT_TIMEZONE
+
+    @staticmethod
+    def _resolve_end_date(booking_date: date, start_time: time, end_time: time) -> date:
+        """Resolve the end date for a booking, handling midnight rollover."""
+        midnight = time(0, 0)
+        if end_time == midnight and start_time != midnight:
+            return booking_date + timedelta(days=1)
+        return booking_date
+
+    def _resolve_booking_times_utc(
+        self,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        lesson_tz: str,
+    ) -> Tuple[datetime, datetime]:
+        """Convert local booking times to UTC, raising on invalid times."""
+        end_date = self._resolve_end_date(booking_date, start_time, end_time)
+        try:
+            start_utc = TimezoneService.local_to_utc(booking_date, start_time, lesson_tz)
+            end_utc = TimezoneService.local_to_utc(end_date, end_time, lesson_tz)
+        except ValueError as exc:
+            raise BusinessRuleException(str(exc)) from exc
+        return start_utc, end_utc
+
+    def _get_booking_start_utc(self, booking: Booking) -> datetime:
+        """Get booking start time in UTC, handling legacy bookings."""
+        if booking.booking_start_utc:
+            return cast(datetime, booking.booking_start_utc)
+
+        lesson_tz = booking.lesson_timezone or booking.instructor_tz_at_booking
+        if not lesson_tz and booking.instructor:
+            lesson_tz = getattr(booking.instructor, "timezone", None)
+        lesson_tz = lesson_tz or TimezoneService.DEFAULT_TIMEZONE
+        start_utc: datetime = TimezoneService.local_to_utc(
+            booking.booking_date,
+            booking.start_time,
+            lesson_tz,
+        )
+        return start_utc
+
+    def _get_booking_end_utc(self, booking: Booking) -> datetime:
+        """Get booking end time in UTC, handling legacy bookings."""
+        if booking.booking_end_utc:
+            return cast(datetime, booking.booking_end_utc)
+
+        lesson_tz = booking.lesson_timezone or booking.instructor_tz_at_booking
+        if not lesson_tz and booking.instructor:
+            lesson_tz = getattr(booking.instructor, "timezone", None)
+        lesson_tz = lesson_tz or TimezoneService.DEFAULT_TIMEZONE
+
+        end_date = self._resolve_end_date(  # tz-pattern-ok: legacy end-date resolution
+            booking.booking_date,
+            booking.start_time,
+            booking.end_time,  # tz-pattern-ok: legacy end-date resolution
+        )
+        end_utc: datetime = TimezoneService.local_to_utc(
+            end_date,
+            booking.end_time,
+            lesson_tz,
+        )
+        return end_utc
 
     def _validate_against_availability_bits(
         self,
@@ -608,11 +697,30 @@ class BookingService(BaseService):
                     student, booking_data, service, instructor_profile, selected_duration
                 )
 
-                # If this booking was created via reschedule, persist linkage for analytics
+                # If this booking was created via reschedule, persist linkage and original lesson datetime
+                # for fair cancellation policy (Part 4b: Fair Reschedule Loophole Fix)
+                #
+                # IMPORTANT: We store the IMMEDIATE previous booking's lesson datetime, NOT traced
+                # back to the very first booking in a chain. The question we're answering is:
+                # "Was the user in a penalty window when they made THIS reschedule?"
+                # That's relative to the booking they're rescheduling FROM.
+                #
+                # Example: A → B → C (if Part 5 weren't blocking chains)
+                # When creating C from B, original_lesson_datetime = B's lesson time
+                # NOT: trace back to find A's lesson time
                 if rescheduled_from_booking_id:
                     try:
+                        # Fetch the IMMEDIATE previous booking (NOT the chain's original)
+                        previous_booking = self.repository.get_by_id(rescheduled_from_booking_id)
+                        original_lesson_dt = None
+                        if previous_booking:
+                            # Store the previous booking's lesson datetime for fair cancellation policy
+                            original_lesson_dt = self._get_booking_start_utc(previous_booking)
+
                         updated_booking = self.repository.update(
-                            booking.id, rescheduled_from_booking_id=rescheduled_from_booking_id
+                            booking.id,
+                            rescheduled_from_booking_id=rescheduled_from_booking_id,
+                            original_lesson_datetime=original_lesson_dt,
                         )
                         if updated_booking is not None:
                             booking = updated_booking
@@ -624,63 +732,6 @@ class BookingService(BaseService):
                 booking.status = BookingStatus.PENDING
                 booking.payment_status = "pending_payment_method"
                 self._enqueue_booking_outbox_event(booking, "booking.created")
-
-                # 7. Create Stripe SetupIntent (with safe fallback for CI/mock environments)
-                stripe_service = StripeService(
-                    self.db,
-                    config_service=ConfigService(self.db),
-                    pricing_service=PricingService(self.db),
-                )
-
-                # Ensure customer exists (uses mock customer in non-configured environments)
-                stripe_customer = stripe_service.get_or_create_customer(student.id)
-
-                setup_intent: Any = None
-                try:
-                    # Attempt real Stripe call; tests patch this in CI
-                    setup_intent = stripe.SetupIntent.create(
-                        customer=stripe_customer.stripe_customer_id,
-                        payment_method_types=["card"],
-                        usage="off_session",  # Will be used for future off-session payments
-                        metadata={
-                            "booking_id": booking.id,
-                            "student_id": student.id,
-                            "instructor_id": booking_data.instructor_id,
-                            "amount_cents": int(booking.total_price * 100),
-                        },
-                    )
-                except Exception as e:
-                    # Any Stripe error – fall back to mock (non-network CI path)
-                    logger.warning(
-                        f"SetupIntent creation failed for booking {booking.id}: {e}. Falling back to mock.",
-                    )
-                    setup_intent = SimpleNamespace(
-                        id=f"seti_mock_{booking.id}",
-                        client_secret=f"seti_mock_secret_{booking.id}",
-                        status="requires_payment_method",
-                    )
-
-                # Store setup intent details
-                assert setup_intent is not None
-                booking.payment_intent_id = setup_intent.id
-                setattr(
-                    booking,
-                    "setup_intent_client_secret",
-                    getattr(setup_intent, "client_secret", None),
-                )
-
-                # Create payment event using repository
-                from ..repositories.payment_repository import PaymentRepository
-
-                payment_repo = PaymentRepository(self.db)
-                payment_repo.create_payment_event(
-                    booking_id=booking.id,
-                    event_type="setup_intent_created",
-                    event_data={
-                        "setup_intent_id": setup_intent.id,
-                        "status": setup_intent.status,
-                    },
-                )
 
                 # Transaction handles flush/commit automatically
                 audit_after = self._snapshot_booking(booking)
@@ -711,6 +762,68 @@ class BookingService(BaseService):
             raise
         except RepositoryException as exc:
             self._raise_conflict_from_repo_error(exc, booking_data, student.id)
+
+        # ========== Phase 2: Stripe SetupIntent (NO transaction) ==========
+        stripe_service = StripeService(
+            self.db,
+            config_service=ConfigService(self.db),
+            pricing_service=PricingService(self.db),
+        )
+
+        stripe_customer = stripe_service.get_or_create_customer(student.id)
+
+        setup_intent: Any = None
+        try:
+            # Attempt real Stripe call; tests patch this in CI
+            setup_intent = stripe.SetupIntent.create(
+                customer=stripe_customer.stripe_customer_id,
+                payment_method_types=["card"],
+                usage="off_session",  # Will be used for future off-session payments
+                metadata={
+                    "booking_id": booking.id,
+                    "student_id": student.id,
+                    "instructor_id": booking_data.instructor_id,
+                    "amount_cents": int(booking.total_price * 100),
+                },
+            )
+        except Exception as e:
+            # Any Stripe error – fall back to mock (non-network CI path)
+            logger.warning(
+                f"SetupIntent creation failed for booking {booking.id}: {e}. Falling back to mock.",
+            )
+            setup_intent = SimpleNamespace(
+                id=f"seti_mock_{booking.id}",
+                client_secret=f"seti_mock_secret_{booking.id}",
+                status="requires_payment_method",
+            )
+
+        # ========== Phase 3: Persist SetupIntent (quick transaction) ==========
+        with self.transaction():
+            refreshed_booking = self.repository.get_by_id(booking.id)
+            if not refreshed_booking:
+                raise NotFoundException("Booking not found after setup intent creation")
+
+            # Avoid mixing SetupIntent IDs with PaymentIntent IDs.
+            # PaymentIntent IDs are stored later during authorization.
+            setattr(
+                refreshed_booking,
+                "setup_intent_client_secret",
+                getattr(setup_intent, "client_secret", None),
+            )
+
+            from ..repositories.payment_repository import PaymentRepository
+
+            payment_repo = PaymentRepository(self.db)
+            payment_repo.create_payment_event(
+                booking_id=refreshed_booking.id,
+                event_type="setup_intent_created",
+                event_data={
+                    "setup_intent_id": setup_intent.id,
+                    "status": setup_intent.status,
+                },
+            )
+
+            booking = refreshed_booking
 
         self.log_operation("create_booking_with_payment_setup_completed", booking_id=booking.id)
         return booking
@@ -757,31 +870,67 @@ class BookingService(BaseService):
         if booking.status != BookingStatus.PENDING:
             raise NotFoundException("Booking not found")
 
+        trigger_immediate_auth = False
+        immediate_auth_hours_until: Optional[float] = None
+
+        # Save payment method for future use (Stripe call should be outside DB transaction)
+        if save_payment_method:
+            from ..services.stripe_service import StripeService
+
+            stripe_service = StripeService(
+                self.db,
+                config_service=ConfigService(self.db),
+                pricing_service=PricingService(self.db),
+            )
+            stripe_service.save_payment_method(
+                user_id=student.id, payment_method_id=payment_method_id, set_as_default=False
+            )
+
         with self.transaction():
             # Save payment method
             booking.payment_method_id = payment_method_id
             booking.payment_status = "payment_method_saved"
 
-            # Save payment method for future use if requested
-            if save_payment_method:
-                from ..services.stripe_service import StripeService
+            # Phase 2.2: Schedule authorization based on lesson timing (UTC)
+            booking_start_utc = self._get_booking_start_utc(booking)
+            hours_until_lesson = TimezoneService.hours_until(booking_start_utc)
 
-                stripe_service = StripeService(
-                    self.db,
-                    config_service=ConfigService(self.db),
-                    pricing_service=PricingService(self.db),
+            is_gaming_reschedule = False
+            hours_from_original: Optional[float] = None
+            if booking.rescheduled_from_booking_id and booking.original_lesson_datetime:
+                original_dt = booking.original_lesson_datetime
+                if original_dt.tzinfo is None:
+                    original_dt = original_dt.replace(tzinfo=timezone.utc)
+                reschedule_time = booking.created_at
+                if reschedule_time is not None:
+                    if reschedule_time.tzinfo is None:
+                        reschedule_time = reschedule_time.replace(tzinfo=timezone.utc)
+                    hours_from_original_value = (
+                        original_dt - reschedule_time
+                    ).total_seconds() / 3600
+                    hours_from_original = hours_from_original_value
+                    is_gaming_reschedule = hours_from_original_value < 24
+
+            if is_gaming_reschedule:
+                # Gaming reschedule: authorize immediately to prevent delayed-auth loophole.
+                booking.payment_status = "authorizing"
+                trigger_immediate_auth = True
+                immediate_auth_hours_until = hours_until_lesson
+
+                payment_repo = PaymentRepository(self.db)
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="auth_immediate",
+                    event_data={
+                        "payment_method_id": payment_method_id,
+                        "hours_until_lesson": hours_until_lesson,
+                        "hours_from_original": hours_from_original,
+                        "scheduled_for": "immediate",
+                        "reason": "gaming_reschedule",
+                    },
                 )
-                stripe_service.save_payment_method(
-                    user_id=student.id, payment_method_id=payment_method_id, set_as_default=False
-                )
 
-            # Phase 2.2: Schedule authorization based on lesson timing
-            # Use naive datetimes consistently to avoid timezone skew with stored local times
-            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-            now = datetime.now()
-            hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
-
-            if hours_until_lesson <= 24:
+            elif hours_until_lesson <= 24:
                 # Lesson is within 24 hours - mark for immediate authorization by background task
                 booking.payment_status = "authorizing"
 
@@ -796,10 +945,12 @@ class BookingService(BaseService):
                         "scheduled_for": "immediate",
                     },
                 )
+                trigger_immediate_auth = True
+                immediate_auth_hours_until = hours_until_lesson
 
             else:
                 # Lesson is >24 hours away - schedule authorization
-                auth_time = booking_datetime - timedelta(hours=24)
+                auth_time = booking_start_utc - timedelta(hours=24)
                 booking.payment_status = "scheduled"
 
                 # Create scheduled event using repository
@@ -825,6 +976,31 @@ class BookingService(BaseService):
             booking_id=booking.id,
             payment_status=booking.payment_status,
         )
+
+        if trigger_immediate_auth:
+            try:
+                from app.tasks.payment_tasks import _process_authorization_for_booking
+
+                auth_result = _process_authorization_for_booking(
+                    booking.id, immediate_auth_hours_until or 0.0
+                )
+                if not auth_result.get("success"):
+                    logger.warning(
+                        "Immediate auth failed for gaming reschedule booking %s: %s",
+                        booking.id,
+                        auth_result.get("error"),
+                    )
+            except Exception as exc:
+                logger.error(
+                    "Immediate auth error for gaming reschedule booking %s: %s",
+                    booking.id,
+                    exc,
+                )
+
+            try:
+                self.repository.refresh(booking)
+            except Exception:
+                pass
 
         # Create system message in conversation
         try:
@@ -931,6 +1107,12 @@ class BookingService(BaseService):
         """
         Cancel a booking.
 
+        Architecture Note (v123): Uses 3-phase pattern to avoid holding DB locks
+        during Stripe network calls:
+        - Phase 1: Read/validate booking, determine scenario (~5ms)
+        - Phase 2: Execute Stripe calls based on scenario (no transaction, 100-500ms)
+        - Phase 3: Update booking status, create events (~5ms)
+
         Args:
             booking_id: ID of booking to cancel
             user: User performing cancellation
@@ -944,156 +1126,46 @@ class BookingService(BaseService):
             ValidationException: If user cannot cancel
             BusinessRuleException: If booking not cancellable
         """
+        from ..repositories.payment_repository import PaymentRepository
+        from ..services.stripe_service import StripeService
+
+        # ========== PHASE 1: Read/validate (quick transaction) ==========
         with self.transaction():
-            # Load booking with relationships
             booking = self.repository.get_booking_with_details(booking_id)
             if not booking:
                 raise NotFoundException("Booking not found")
 
-            # Validate user can cancel
             if user.id not in [booking.student_id, booking.instructor_id]:
                 raise ValidationException("You don't have permission to cancel this booking")
 
-            audit_before = self._snapshot_booking(booking)
-            default_role = (
-                RoleName.STUDENT.value
-                if user.id == booking.student_id
-                else RoleName.INSTRUCTOR.value
-            )
-
-            # Check if cancellable
             if not booking.is_cancellable:
                 raise BusinessRuleException(
                     f"Booking cannot be cancelled - current status: {booking.status}"
                 )
 
-            # Apply cancellation policy
-            # Determine hours until lesson using UTC-aware datetimes
-            now_dt = datetime.now(timezone.utc)
-            lesson_dt = datetime.combine(
-                booking.booking_date, booking.start_time, tzinfo=timezone.utc
-            )
-            hours_until = (lesson_dt - now_dt).total_seconds() / 3600
+            # Extract data needed for Phase 2 (avoid holding ORM objects)
+            cancel_ctx = self._build_cancellation_context(booking, user)
 
-            from ..repositories.payment_repository import PaymentRepository
-            from ..services.stripe_service import StripeService
+        # ========== PHASE 2: Stripe calls (NO transaction) ==========
+        stripe_service = StripeService(
+            self.db,
+            config_service=ConfigService(self.db),
+            pricing_service=PricingService(self.db),
+        )
+        stripe_results = self._execute_cancellation_stripe_calls(cancel_ctx, stripe_service)
+
+        # ========== PHASE 3: Write results (quick transaction) ==========
+        with self.transaction():
+            # Re-fetch booking to avoid stale ORM object
+            booking = self.repository.get_booking_with_details(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found after Stripe calls")
 
             payment_repo = PaymentRepository(self.db)
-            stripe_service = StripeService(
-                self.db,
-                config_service=ConfigService(self.db),
-                pricing_service=PricingService(self.db),
-            )
+            audit_before = self._snapshot_booking(booking)
 
-            # >24h: release authorization (cancel PI), no charge
-            if hours_until > 24:
-                if booking.payment_intent_id:
-                    try:
-                        stripe_service.cancel_payment_intent(
-                            booking.payment_intent_id, idempotency_key=f"cancel_{booking.id}"
-                        )
-                    except Exception as e:
-                        # Best-effort cancel; don't block cancellation if PI is invalid/missing
-                        logger.warning(f"Cancel PI failed for booking {booking.id}: {e}")
-                payment_repo.create_payment_event(
-                    booking_id=booking.id,
-                    event_type="auth_released",
-                    event_data={
-                        "hours_before": round(hours_until, 2),
-                        "payment_intent_id": booking.payment_intent_id,
-                    },
-                )
-                booking.payment_status = "released"
-
-            # 12–24h: capture, reverse transfer, issue platform credit
-            elif 12 < hours_until <= 24:
-                amount_received = None
-                if booking.payment_intent_id:
-                    try:
-                        capture = stripe_service.capture_payment_intent(
-                            booking.payment_intent_id,
-                            idempotency_key=f"capture_cancel_{booking.id}",
-                        )
-                        transfer_id = capture.get("transfer_id")
-                        amount_received = capture.get("amount_received")
-
-                        if transfer_id and amount_received:
-                            try:
-                                stripe_service.reverse_transfer(
-                                    transfer_id=transfer_id,
-                                    amount_cents=amount_received,
-                                    idempotency_key=f"reverse_{booking.id}",
-                                    reason="student_cancel_12-24h",
-                                )
-                                payment_repo.create_payment_event(
-                                    booking_id=booking.id,
-                                    event_type="transfer_reversed_late_cancel",
-                                    event_data={
-                                        "transfer_id": transfer_id,
-                                        "amount": amount_received,
-                                    },
-                                )
-                            except Exception as e:
-                                logger.error(
-                                    f"Transfer reversal failed for booking {booking.id}: {e}"
-                                )
-                    except Exception as e:
-                        # If capture fails or no PI, fall back to credit-only path
-                        logger.warning(f"Capture not performed for booking {booking.id}: {e}")
-
-                # Issue platform credit (full price if capture amount not available)
-                credit_amount = amount_received or int(booking.total_price * 100)
-                try:
-                    payment_repo.create_platform_credit(
-                        user_id=booking.student_id,
-                        amount_cents=credit_amount,
-                        reason="Cancellation 12-24 hours before lesson",
-                        source_booking_id=booking.id,
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to create platform credit for booking {booking.id}: {e}")
-
-                payment_repo.create_payment_event(
-                    booking_id=booking.id,
-                    event_type="credit_created_late_cancel",
-                    event_data={"amount": credit_amount},
-                )
-                booking.payment_status = "credit_issued"
-
-            # <12h: capture immediately (instructor paid later via Stripe payouts)
-            else:
-                if not booking.payment_intent_id:
-                    # Best-effort: No PI present; skip capture but do not block cancellation
-                    payment_repo.create_payment_event(
-                        booking_id=booking.id,
-                        event_type="capture_skipped_no_intent",
-                        event_data={"reason": "<12h cancellation without payment_intent"},
-                    )
-                    booking.payment_status = "capture_not_possible"
-                else:
-                    try:
-                        capture = stripe_service.capture_payment_intent(
-                            booking.payment_intent_id,
-                            idempotency_key=f"capture_late_cancel_{booking.id}",
-                        )
-                        payment_repo.create_payment_event(
-                            booking_id=booking.id,
-                            event_type="captured_last_minute_cancel",
-                            event_data={
-                                "payment_intent_id": booking.payment_intent_id,
-                                "amount": capture.get("amount_received"),
-                            },
-                        )
-                        booking.payment_status = "captured"
-                    except Exception as e:
-                        # Best-effort capture; do not block cancellation if PI is invalid/missing
-                        logger.warning(f"Capture not performed for booking {booking.id}: {e}")
-                        payment_repo.create_payment_event(
-                            booking_id=booking.id,
-                            event_type="capture_failed_last_minute_cancel",
-                            event_data={"payment_intent_id": booking.payment_intent_id},
-                        )
-                        booking.payment_status = "capture_failed"
+            # Finalize cancellation with Stripe results
+            self._finalize_cancellation(booking, cancel_ctx, stripe_results, payment_repo)
 
             # Cancel the booking
             booking.cancel(user.id, reason)
@@ -1105,11 +1177,469 @@ class BookingService(BaseService):
                 actor=user,
                 before=audit_before,
                 after=audit_after,
-                default_role=default_role,
+                default_role=cancel_ctx["default_role"],
             )
+
+        cancelled_by_role = cancel_ctx["cancelled_by_role"]
+
+        # Post-transaction: Publish events and notifications
+        self._post_cancellation_actions(booking, cancelled_by_role)
+
+        return booking
+
+    def _build_cancellation_context(self, booking: Booking, user: User) -> Dict[str, Any]:
+        """
+        Build context for cancellation (Phase 1 helper).
+        Extracts all data needed for Stripe calls and finalization.
+        """
+        booking_start_utc = self._get_booking_start_utc(booking)
+        hours_until = TimezoneService.hours_until(booking_start_utc)
+
+        raw_payment_intent_id = booking.payment_intent_id
+        payment_intent_id = (
+            raw_payment_intent_id
+            if isinstance(raw_payment_intent_id, str) and raw_payment_intent_id.startswith("pi_")
+            else None
+        )
+
+        # Part 4b: Fair Reschedule Loophole Fix
+        was_gaming_reschedule = False
+        hours_from_original: Optional[float] = None
+        if booking.rescheduled_from_booking_id and booking.original_lesson_datetime:
+            original_dt = booking.original_lesson_datetime
+            if original_dt.tzinfo is None:
+                original_dt = original_dt.replace(tzinfo=timezone.utc)
+            reschedule_time = booking.created_at
+            if reschedule_time is not None:
+                if reschedule_time.tzinfo is None:
+                    reschedule_time = reschedule_time.replace(tzinfo=timezone.utc)
+                hours_from_original_value = (original_dt - reschedule_time).total_seconds() / 3600
+                hours_from_original = hours_from_original_value
+                was_gaming_reschedule = hours_from_original_value < 24
 
         cancelled_by_role = "student" if user.id == booking.student_id else "instructor"
 
+        # Determine cancellation scenario
+        is_pending_payment = (
+            booking.status == BookingStatus.PENDING
+            or booking.payment_status == "pending_payment_method"
+        ) and payment_intent_id is None
+        if is_pending_payment:
+            scenario = "pending_payment"
+        elif cancelled_by_role == "instructor":
+            if hours_until >= 24:
+                scenario = "instructor_cancel_over_24h"
+            else:
+                scenario = "instructor_cancel_under_24h"
+        else:
+            if hours_until >= 24:
+                scenario = "over_24h_gaming" if was_gaming_reschedule else "over_24h_regular"
+            elif 12 <= hours_until < 24:
+                scenario = "between_12_24h"
+            else:
+                scenario = "under_12h" if payment_intent_id else "under_12h_no_pi"
+
+            if scenario == "over_24h_gaming" and booking.payment_status != "authorized":
+                raise BusinessRuleException(
+                    "Gaming reschedule cancellations require an authorized payment"
+                )
+
+        # Calculate lesson price for credit scenarios
+        lesson_price_cents = int(float(booking.hourly_rate) * booking.duration_minutes * 100 / 60)
+
+        default_role = (
+            RoleName.STUDENT.value if user.id == booking.student_id else RoleName.INSTRUCTOR.value
+        )
+
+        used_credit_cents = 0
+        try:
+            from ..repositories.payment_repository import PaymentRepository
+
+            payment_repo = PaymentRepository(self.db)
+            used = payment_repo.get_credits_used_by_booking(booking.id)
+            used_credit_cents = sum(amount for _, amount in used)
+        except Exception as exc:
+            logger.warning(
+                "Failed to load credits used by booking %s: %s",
+                booking.id,
+                exc,
+            )
+
+        return {
+            "booking_id": booking.id,
+            "student_id": booking.student_id,
+            "instructor_id": booking.instructor_id,
+            "payment_intent_id": payment_intent_id,
+            "scenario": scenario,
+            "hours_until": hours_until,
+            "hours_from_original": hours_from_original,
+            "was_gaming_reschedule": was_gaming_reschedule,
+            "lesson_price_cents": lesson_price_cents,
+            "used_credit_cents": used_credit_cents,
+            "rescheduled_from_booking_id": booking.rescheduled_from_booking_id,
+            "original_lesson_datetime": booking.original_lesson_datetime,
+            "default_role": default_role,
+            "cancelled_by_role": cancelled_by_role,
+            "booking_date": booking.booking_date,
+            "start_time": booking.start_time,
+        }
+
+    def _execute_cancellation_stripe_calls(
+        self, ctx: Dict[str, Any], stripe_service: Any
+    ) -> Dict[str, Any]:
+        """
+        Execute Stripe calls for cancellation (Phase 2).
+        No transaction held during network calls.
+        """
+        results: Dict[str, Any] = {
+            "cancel_pi_success": False,
+            "capture_success": False,
+            "reverse_success": False,
+            "reverse_attempted": False,
+            "reverse_failed": False,
+            "capture_data": None,
+            "error": None,
+        }
+
+        scenario = ctx["scenario"]
+        payment_intent_id = ctx["payment_intent_id"]
+        booking_id = ctx["booking_id"]
+
+        if scenario == "over_24h_gaming":
+            # Capture payment intent, then reverse transfer to retain fee and issue credit.
+            if payment_intent_id:
+                try:
+                    capture = stripe_service.capture_payment_intent(
+                        payment_intent_id,
+                        idempotency_key=f"capture_resched_{booking_id}",
+                    )
+                    results["capture_success"] = True
+                    results["capture_data"] = {
+                        "transfer_id": capture.get("transfer_id"),
+                        "amount_received": capture.get("amount_received"),
+                        "transfer_amount": capture.get("transfer_amount"),
+                    }
+
+                    transfer_id = capture.get("transfer_id")
+                    transfer_amount = capture.get("transfer_amount")
+                    if transfer_id and transfer_amount:
+                        results["reverse_attempted"] = True
+                        try:
+                            stripe_service.reverse_transfer(
+                                transfer_id=transfer_id,
+                                amount_cents=transfer_amount,
+                                idempotency_key=f"reverse_resched_{booking_id}",
+                                reason="gaming_reschedule_cancel",
+                            )
+                            results["reverse_success"] = True
+                        except Exception as e:
+                            results["reverse_failed"] = True
+                            logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
+                except Exception as e:
+                    logger.warning(f"Capture not performed for booking {booking_id}: {e}")
+                    results["error"] = str(e)
+
+        elif scenario in (
+            "over_24h_regular",
+            "instructor_cancel_over_24h",
+            "instructor_cancel_under_24h",
+        ):
+            # Cancel payment intent (release authorization)
+            if payment_intent_id:
+                idem_key = (
+                    f"cancel_instructor_{booking_id}"
+                    if scenario.startswith("instructor_cancel")
+                    else f"cancel_{booking_id}"
+                )
+                try:
+                    stripe_service.cancel_payment_intent(
+                        payment_intent_id, idempotency_key=idem_key
+                    )
+                    results["cancel_pi_success"] = True
+                except Exception as e:
+                    logger.warning(f"Cancel PI failed for booking {booking_id}: {e}")
+                    results["error"] = str(e)
+
+        elif scenario == "between_12_24h":
+            # Capture payment intent, then reverse transfer
+            if payment_intent_id:
+                try:
+                    capture = stripe_service.capture_payment_intent(
+                        payment_intent_id,
+                        idempotency_key=f"capture_cancel_{booking_id}",
+                    )
+                    results["capture_success"] = True
+                    results["capture_data"] = {
+                        "transfer_id": capture.get("transfer_id"),
+                        "amount_received": capture.get("amount_received"),
+                        "transfer_amount": capture.get("transfer_amount"),
+                    }
+
+                    # Reverse transfer if available
+                    transfer_id = capture.get("transfer_id")
+                    transfer_amount = capture.get("transfer_amount")
+                    if transfer_id and transfer_amount:
+                        results["reverse_attempted"] = True
+                        try:
+                            stripe_service.reverse_transfer(
+                                transfer_id=transfer_id,
+                                amount_cents=transfer_amount,
+                                idempotency_key=f"reverse_{booking_id}",
+                                reason="student_cancel_12-24h",
+                            )
+                            results["reverse_success"] = True
+                        except Exception as e:
+                            results["reverse_failed"] = True
+                            logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
+                except Exception as e:
+                    logger.warning(f"Capture not performed for booking {booking_id}: {e}")
+                    results["error"] = str(e)
+
+        elif scenario == "under_12h":
+            # Capture payment intent only
+            if payment_intent_id:
+                try:
+                    capture = stripe_service.capture_payment_intent(
+                        payment_intent_id,
+                        idempotency_key=f"capture_late_cancel_{booking_id}",
+                    )
+                    results["capture_success"] = True
+                    results["capture_data"] = {
+                        "amount_received": capture.get("amount_received"),
+                    }
+                except Exception as e:
+                    logger.warning(f"Capture not performed for booking {booking_id}: {e}")
+                    results["error"] = str(e)
+
+        # scenario == "under_12h_no_pi" - no Stripe calls needed
+
+        return results
+
+    def _finalize_cancellation(
+        self,
+        booking: Booking,
+        ctx: Dict[str, Any],
+        stripe_results: Dict[str, Any],
+        payment_repo: Any,
+    ) -> None:
+        """
+        Finalize cancellation with Stripe results (Phase 3 helper).
+        Creates payment events and updates booking status.
+        """
+        scenario = ctx["scenario"]
+        booking_id = ctx["booking_id"]
+
+        def _cancellation_credit_already_issued() -> bool:
+            try:
+                credits = payment_repo.get_credits_issued_for_source(booking_id)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to check existing credits for booking %s: %s",
+                    booking_id,
+                    exc,
+                )
+                return False
+            return any(
+                getattr(credit, "reason", None) in CANCELLATION_CREDIT_REASONS for credit in credits
+            )
+
+        if scenario == "over_24h_gaming":
+            if stripe_results["capture_success"]:
+                if stripe_results.get("reverse_failed"):
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="transfer_reversal_failed",
+                        event_data={
+                            "payment_intent_id": ctx["payment_intent_id"],
+                            "scenario": scenario,
+                        },
+                    )
+                    booking.payment_status = "reversal_failed"
+                    logger.error(
+                        "Transfer reversal failed for booking %s; manual review required",
+                        booking_id,
+                    )
+                    return
+                if _cancellation_credit_already_issued():
+                    booking.payment_status = "credit_issued"
+                else:
+                    net_credit_cents = max(
+                        0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
+                    )
+                    try:
+                        payment_repo.create_platform_credit(
+                            user_id=ctx["student_id"],
+                            amount_cents=net_credit_cents,
+                            reason="Rescheduled booking cancellation (lesson price credit)",
+                            source_booking_id=booking_id,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to create credit for gaming reschedule {booking_id}: {e}"
+                        )
+
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="credit_created_gaming_reschedule_cancel",
+                        event_data={
+                            "hours_before_new": round(ctx["hours_until"], 2),
+                            "hours_from_original": round(ctx["hours_from_original"], 2)
+                            if ctx["hours_from_original"] is not None
+                            else None,
+                            "lesson_price_cents": ctx["lesson_price_cents"],
+                            "used_credit_cents": ctx.get("used_credit_cents", 0),
+                            "credit_issued_cents": net_credit_cents,
+                            "rescheduled_from": ctx["rescheduled_from_booking_id"],
+                            "original_lesson_datetime": ctx["original_lesson_datetime"].isoformat()
+                            if ctx["original_lesson_datetime"]
+                            else None,
+                        },
+                    )
+                booking.payment_status = "credit_issued"
+            else:
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="capture_failed_gaming_reschedule_cancel",
+                    event_data={
+                        "payment_intent_id": ctx["payment_intent_id"],
+                        "error": stripe_results.get("error"),
+                    },
+                )
+                booking.payment_status = "capture_failed"
+
+        elif scenario == "over_24h_regular":
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="auth_released",
+                event_data={
+                    "hours_before": round(ctx["hours_until"], 2),
+                    "payment_intent_id": ctx["payment_intent_id"],
+                },
+            )
+            booking.payment_status = "released"
+
+        elif scenario == "between_12_24h":
+            capture_data = stripe_results.get("capture_data") or {}
+
+            if stripe_results["reverse_success"]:
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="transfer_reversed_late_cancel",
+                    event_data={
+                        "transfer_id": capture_data.get("transfer_id"),
+                        "amount": capture_data.get("transfer_amount"),
+                        "original_charge_amount": capture_data.get("amount_received"),
+                    },
+                )
+
+            if stripe_results["capture_success"]:
+                if stripe_results.get("reverse_failed"):
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="transfer_reversal_failed",
+                        event_data={
+                            "payment_intent_id": ctx["payment_intent_id"],
+                            "scenario": scenario,
+                        },
+                    )
+                    booking.payment_status = "reversal_failed"
+                    logger.error(
+                        "Transfer reversal failed for booking %s; manual review required",
+                        booking_id,
+                    )
+                    return
+                if _cancellation_credit_already_issued():
+                    booking.payment_status = "credit_issued"
+                else:
+                    net_credit_cents = max(
+                        0, ctx["lesson_price_cents"] - ctx.get("used_credit_cents", 0)
+                    )
+                    try:
+                        payment_repo.create_platform_credit(
+                            user_id=ctx["student_id"],
+                            amount_cents=net_credit_cents,
+                            reason="Cancellation 12-24 hours before lesson (lesson price credit)",
+                            source_booking_id=booking_id,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to create platform credit for booking {booking_id}: {e}"
+                        )
+
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="credit_created_late_cancel",
+                        event_data={
+                            "amount": net_credit_cents,
+                            "lesson_price_cents": ctx["lesson_price_cents"],
+                            "used_credit_cents": ctx.get("used_credit_cents", 0),
+                            "total_charged_cents": capture_data.get("amount_received"),
+                        },
+                    )
+                    booking.payment_status = "credit_issued"
+            else:
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="capture_failed_late_cancel",
+                    event_data={
+                        "payment_intent_id": ctx["payment_intent_id"],
+                        "error": stripe_results.get("error"),
+                    },
+                )
+                booking.payment_status = "capture_failed"
+
+        elif scenario == "under_12h":
+            if stripe_results["capture_success"]:
+                capture_data = stripe_results.get("capture_data") or {}
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="captured_last_minute_cancel",
+                    event_data={
+                        "payment_intent_id": ctx["payment_intent_id"],
+                        "amount": capture_data.get("amount_received"),
+                    },
+                )
+                booking.payment_status = "captured"
+            else:
+                payment_repo.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="capture_failed_last_minute_cancel",
+                    event_data={"payment_intent_id": ctx["payment_intent_id"]},
+                )
+                booking.payment_status = "capture_failed"
+
+        elif scenario == "under_12h_no_pi":
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="capture_skipped_no_intent",
+                event_data={"reason": "<12h cancellation without payment_intent"},
+            )
+            booking.payment_status = "capture_not_possible"
+
+        elif scenario == "pending_payment":
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="cancelled_before_payment",
+                event_data={"reason": "pending_payment_method"},
+            )
+            booking.payment_status = "not_started"
+
+        elif scenario in ("instructor_cancel_over_24h", "instructor_cancel_under_24h"):
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="instructor_cancelled",
+                event_data={
+                    "hours_before": round(ctx["hours_until"], 2),
+                    "payment_intent_id": ctx["payment_intent_id"],
+                },
+            )
+            booking.payment_status = "released"
+
+    def _post_cancellation_actions(self, booking: Booking, cancelled_by_role: str) -> None:
+        """
+        Post-transaction actions for cancellation.
+        Handles event publishing, notifications, and cache invalidation.
+        """
         # Publish cancellation event
         try:
             self.event_publisher.publish(
@@ -1141,17 +1671,17 @@ class BookingService(BaseService):
         # Invalidate caches
         self._invalidate_booking_caches(booking)
 
-        try:
-            credit_service = StudentCreditService(self.db)
-            credit_service.process_refund_hooks(booking=booking)
-        except Exception as exc:
-            logger.error(
-                "Failed to adjust student credits for cancelled booking %s: %s",
-                booking.id,
-                exc,
-            )
-
-        return booking
+        # Process refund hooks
+        if booking.payment_status in {"released", "refunded"}:
+            try:
+                credit_service = StudentCreditService(self.db)
+                credit_service.process_refund_hooks(booking=booking)
+            except Exception as exc:
+                logger.error(
+                    "Failed to adjust student credits for cancelled booking %s: %s",
+                    booking.id,
+                    exc,
+                )
 
     @BaseService.measure_operation("get_bookings_for_user")
     def get_bookings_for_user(
@@ -1225,10 +1755,8 @@ class BookingService(BaseService):
         # Calculate stats if not cached
         bookings = self.repository.get_instructor_bookings_for_stats(instructor_id)
 
-        # Get instructor's today date for timezone-aware calculations
-        from ..core.timezone_utils import get_user_today_by_id
-
-        instructor_today = get_user_today_by_id(instructor_id, self.db)
+        # Use UTC for date-based calculations
+        instructor_today = datetime.now(timezone.utc).date()
 
         # Calculate stats
         total_bookings = len(bookings)
@@ -1455,7 +1983,7 @@ class BookingService(BaseService):
         Mark a lesson as completed by the instructor with payment tracking.
 
         This triggers the 24-hour payment capture timer. The payment will be
-        captured 24 hours after completion, giving the student time to dispute.
+        captured 24 hours after lesson end, giving the student time to dispute.
 
         Args:
             booking_id: ID of the booking to complete
@@ -1490,8 +2018,8 @@ class BookingService(BaseService):
 
             # Verify lesson has ended
             now = datetime.now(timezone.utc)
-            lesson_end = datetime.combine(booking.booking_date, booking.end_time)
-            if lesson_end > now:
+            lesson_end_utc = self._get_booking_end_utc(booking)
+            if lesson_end_utc > now:
                 raise BusinessRuleException("Cannot mark lesson as complete before it ends")
 
             # Mark as completed
@@ -1499,6 +2027,8 @@ class BookingService(BaseService):
             booking.completed_at = now
             if notes:
                 booking.instructor_note = notes
+
+            capture_at = lesson_end_utc + timedelta(hours=24)
 
             # Record payment completion event
             payment_repo.create_payment_event(
@@ -1508,7 +2038,7 @@ class BookingService(BaseService):
                     "instructor_id": instructor.id,
                     "completed_at": now.isoformat(),
                     "notes": notes,
-                    "payment_capture_scheduled_for": (now + timedelta(hours=24)).isoformat(),
+                    "payment_capture_scheduled_for": capture_at.isoformat(),
                 },
             )
 
@@ -1716,17 +2246,46 @@ class BookingService(BaseService):
                 "reason": "Instructor profile not found",
             }
 
-        # Check minimum advance booking
-        booking_datetime = datetime.combine(booking_date, start_time, tzinfo=timezone.utc)
-        min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0)
-        min_booking_time = datetime.now(timezone.utc) + timedelta(hours=min_advance_hours)
+        # Check minimum advance booking using UTC.
+        min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
+        now_utc = datetime.now(timezone.utc)
+        lesson_tz = TimezoneService.get_lesson_timezone(
+            self._resolve_instructor_timezone(instructor_profile),
+            is_online=False,
+        )
+        try:
+            booking_start_utc, _ = self._resolve_booking_times_utc(
+                booking_date,
+                start_time,
+                end_time,
+                lesson_tz,
+            )
+        except BusinessRuleException as exc:
+            return {"available": False, "reason": str(exc)}
 
-        if booking_datetime < min_booking_time:
-            return {
-                "available": False,
-                "reason": f"Must book at least {min_advance_hours} hours in advance",
-                "min_advance_hours": min_advance_hours,
-            }
+        # For >=24 hour min advance, use date-level granularity to avoid HH:MM boundary flakiness
+        if min_advance_hours >= 24:
+            min_booking_dt = now_utc + timedelta(hours=min_advance_hours)
+            min_date_only = min_booking_dt.date()
+
+            if booking_start_utc.date() < min_date_only or (
+                booking_start_utc.date() == min_date_only
+                and booking_start_utc.time() < min_booking_dt.time()
+            ):
+                return {
+                    "available": False,
+                    "reason": f"Must book at least {min_advance_hours} hours in advance",
+                    "min_advance_hours": min_advance_hours,
+                }
+        else:
+            # For <24 hour min advance, do precise time comparison
+            hours_until = TimezoneService.hours_until(booking_start_utc)
+            if hours_until < min_advance_hours:
+                return {
+                    "available": False,
+                    "reason": f"Must book at least {min_advance_hours} hours in advance",
+                    "min_advance_hours": min_advance_hours,
+                }
 
         return {
             "available": True,
@@ -1746,51 +2305,17 @@ class BookingService(BaseService):
         Returns:
             Number of reminders sent
         """
-        # Get bookings for a range of dates to handle timezone differences
-        # In worst case, tomorrow in one timezone could be 2 days away in UTC
-        from datetime import datetime, timezone as tz
+        # Use UTC-only scheduling to avoid mixed timezone behavior.
+        utc_today = datetime.now(timezone.utc).date()
+        target_date = utc_today + timedelta(days=1)
 
-        # Use UTC as reference and get a 3-day window to cover all timezones
-        utc_now = datetime.now(tz.utc).date()
-        date_range = [
-            utc_now,  # Today in UTC (could be tomorrow in some timezones)
-            utc_now + timedelta(days=1),  # Tomorrow in UTC
-            utc_now + timedelta(days=2),  # Day after (could be tomorrow in other timezones)
-        ]
-
-        # Get all confirmed bookings in this date range
-        all_bookings = []
-        for check_date in date_range:
-            bookings = self.repository.get_bookings_for_date(
-                booking_date=check_date, status=BookingStatus.CONFIRMED, with_relationships=True
-            )
-            all_bookings.extend(bookings)
+        bookings = self.repository.get_bookings_for_date(
+            booking_date=target_date, status=BookingStatus.CONFIRMED, with_relationships=True
+        )
 
         sent_count = 0
-        processed_bookings = set()  # Track processed bookings to avoid duplicates
 
-        for booking in all_bookings:
-            # Skip if already processed (in case of duplicates from date range)
-            if booking.id in processed_bookings:
-                continue
-            processed_bookings.add(booking.id)
-
-            # Verify this booking is actually tomorrow in the instructor's timezone
-            from ..core.timezone_utils import get_user_today_by_id
-
-            instructor_today = get_user_today_by_id(booking.instructor_id, self.db)
-            instructor_tomorrow = instructor_today + timedelta(days=1)
-
-            # Also check student's timezone for accuracy
-            student_today = get_user_today_by_id(booking.student_id, self.db)
-            student_tomorrow = student_today + timedelta(days=1)
-
-            # The booking should be tomorrow for both instructor and student
-            if (
-                booking.booking_date != instructor_tomorrow
-                and booking.booking_date != student_tomorrow
-            ):
-                continue
+        for booking in bookings:
             try:
                 # Queue reminder event for this specific booking
                 self.event_publisher.publish(
@@ -1897,6 +2422,14 @@ class BookingService(BaseService):
         if booking_data.end_time is None:
             raise ValidationException("End time must be specified before conflict checks")
 
+        lesson_tz = self._resolve_lesson_timezone(booking_data, instructor_profile)
+        booking_start_utc, _ = self._resolve_booking_times_utc(
+            booking_data.booking_date,
+            booking_data.start_time,
+            booking_data.end_time,
+            lesson_tz,
+        )
+
         existing_conflicts = self.repository.check_time_conflict(
             instructor_id=booking_data.instructor_id,
             booking_date=booking_data.booking_date,
@@ -1933,40 +2466,25 @@ class BookingService(BaseService):
                     details=conflict_details,
                 )
 
-        # Check minimum advance booking time
+        # Check minimum advance booking time (UTC)
         # For instructors with >=24 hour min advance, enforce on date granularity to avoid HH:MM boundary flakiness
         min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
-        user = getattr(instructor_profile, "user", None)
-        tz_name = getattr(user, "timezone", None) or "America/New_York"
-        try:
-            instructor_zone = ZoneInfo(tz_name)
-        except Exception:
-            instructor_zone = ZoneInfo("America/New_York")
-
         now_utc = datetime.now(timezone.utc)
 
-        booking_local = datetime.combine(
-            booking_data.booking_date,
-            booking_data.start_time,
-            tzinfo=instructor_zone,
-        )
-
         if min_advance_hours >= 24:
-            local_now = now_utc.astimezone(instructor_zone)
-            min_local_dt = local_now + timedelta(hours=min_advance_hours)
-            booking_date_only = booking_data.booking_date
-            min_date_only = min_local_dt.date()
+            min_booking_dt = now_utc + timedelta(hours=min_advance_hours)
+            min_date_only = min_booking_dt.date()
 
-            if booking_date_only < min_date_only or (
-                booking_date_only == min_date_only and booking_local.time() < min_local_dt.time()
+            if booking_start_utc.date() < min_date_only or (
+                booking_start_utc.date() == min_date_only
+                and booking_start_utc.time() < min_booking_dt.time()
             ):
                 raise BusinessRuleException(
                     f"Bookings must be made at least {min_advance_hours} hours in advance"
                 )
         else:
-            booking_datetime_utc = booking_local.astimezone(timezone.utc)
-            min_booking_time = now_utc + timedelta(hours=min_advance_hours)
-            if booking_datetime_utc < min_booking_time:
+            hours_until = TimezoneService.hours_until(booking_start_utc)
+            if hours_until < min_advance_hours:
                 raise BusinessRuleException(
                     f"Bookings must be made at least {min_advance_hours} hours in advance"
                 )
@@ -1996,6 +2514,18 @@ class BookingService(BaseService):
             raise ValidationException("End time must be calculated before creating a booking")
         end_time_value = booking_data.end_time
 
+        instructor_tz = self._resolve_instructor_timezone(instructor_profile)
+        student_tz = self._resolve_student_timezone(student)
+        lesson_tz = TimezoneService.get_lesson_timezone(
+            instructor_tz, self._is_online_lesson(booking_data)
+        )
+        booking_start_utc, booking_end_utc = self._resolve_booking_times_utc(
+            booking_data.booking_date,
+            booking_data.start_time,
+            end_time_value,
+            lesson_tz,
+        )
+
         # Calculate pricing based on selected duration
         total_price = service.session_price(selected_duration)
 
@@ -2010,6 +2540,11 @@ class BookingService(BaseService):
             booking_date=booking_data.booking_date,
             start_time=booking_data.start_time,
             end_time=end_time_value,
+            booking_start_utc=booking_start_utc,
+            booking_end_utc=booking_end_utc,
+            lesson_timezone=lesson_tz,
+            instructor_tz_at_booking=instructor_tz,
+            student_tz_at_booking=student_tz,
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=total_price,
@@ -2301,27 +2836,6 @@ class BookingService(BaseService):
 
         return opportunities
 
-    # Existing private helper methods
-
-    def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
-        """Apply business rules for cancellation."""
-        # Check cancellation deadline using user's timezone
-        from app.core.timezone_utils import get_user_timezone
-
-        # Get user's timezone for proper comparison
-        user_tz = get_user_timezone(user)
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        # Make the booking datetime timezone-aware in user's timezone
-        booking_datetime_aware = cast(Any, user_tz).localize(booking_datetime)
-        cancellation_deadline = booking_datetime_aware - timedelta(hours=2)
-
-        # Compare with current time in user's timezone
-        now_in_user_tz = datetime.now(user_tz)
-
-        if now_in_user_tz > cancellation_deadline:
-            # Log late cancellation but allow it
-            logger.warning(f"Late cancellation for booking {booking.id} by user {user.id}")
-
     def _calculate_pricing(
         self, service: InstructorService, start_time: time, end_time: time
     ) -> Dict[str, Any]:
@@ -2330,8 +2844,12 @@ class BookingService(BaseService):
         # Use a reference date for duration calculations
         # This is just for calculating the duration, not timezone-specific
         reference_date = date(2024, 1, 1)
-        start = datetime.combine(reference_date, start_time)
-        end = datetime.combine(reference_date, end_time)
+        start = datetime.combine(  # tz-pattern-ok: duration math only
+            reference_date, start_time, tzinfo=timezone.utc
+        )
+        end = datetime.combine(  # tz-pattern-ok: duration math only
+            reference_date, end_time, tzinfo=timezone.utc
+        )
         duration = end - start
         duration_minutes = int(duration.total_seconds() / 60)
 
@@ -2516,6 +3034,26 @@ class BookingService(BaseService):
             return bool(conflicting)
         except Exception:
             return False
+
+    @BaseService.measure_operation("validate_reschedule_allowed")
+    def validate_reschedule_allowed(self, booking: "Booking") -> None:
+        """
+        Validate that a booking can be rescheduled (Part 5: Block Second Reschedule).
+
+        A booking can only be rescheduled ONCE. If it was already created via
+        reschedule (rescheduled_from_booking_id is set), it cannot be rescheduled again.
+
+        Args:
+            booking: The booking to validate
+
+        Raises:
+            BusinessRuleException: If booking has already been rescheduled once
+        """
+        if booking.rescheduled_from_booking_id:
+            raise BusinessRuleException(
+                message="You've already rescheduled this booking. To change the date again, please cancel (for credit) and book a new lesson.",
+                code="reschedule_limit_reached",
+            )
 
     @BaseService.measure_operation("validate_reschedule_payment_method")
     def validate_reschedule_payment_method(

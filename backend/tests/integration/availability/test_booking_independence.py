@@ -6,51 +6,22 @@ and that availability display may subtract bookings but saving is unaffected.
 """
 
 from datetime import date, time, timedelta
-from importlib import reload
 
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
-import app.main
 from app.models import Booking, BookingStatus, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-import app.routes.v1.availability_windows as availability_routes
-import app.services.availability_service as availability_service_module
 
 try:
     from backend.tests.factories.booking_builders import create_booking_pg_safe
 except ModuleNotFoundError:
     from tests.factories.booking_builders import create_booking_pg_safe
 
-
-@pytest.fixture
-def bitmap_app(monkeypatch: pytest.MonkeyPatch):
-    """Reload the application with bitmap availability enabled."""
-    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
-    # Allow editing any past dates (uses setattr to avoid polluting other tests)
-    monkeypatch.setattr(settings, "past_edit_window_days", 0)
-
-    reload(availability_service_module)
-    reload(availability_routes)
-    reload(app.main)
-
-    yield app.main
-
-    reload(availability_service_module)
-    reload(availability_routes)
-    reload(app.main)
-
-
-@pytest.fixture
-def bitmap_client(bitmap_app) -> TestClient:
-    """Return a TestClient backed by the bitmap-enabled app instance."""
-    client = TestClient(bitmap_app.fastapi_app, raise_server_exceptions=False)
-    try:
-        yield client
-    finally:
-        client.close()
+# Use shared bitmap_app and bitmap_client fixtures from conftest
+# bitmap_env_relaxed sets past_edit_window_days=0 needed for these tests
+pytestmark = pytest.mark.usefixtures("bitmap_env_relaxed")
 
 
 class TestSaveWeekSucceedsEvenWithOverlappingBookings:

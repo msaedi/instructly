@@ -148,7 +148,10 @@ class PricingService(BaseService):
 
         duration_minutes = int(payload.selected_duration)
         end_time_obj = (
-            datetime.combine(date(2000, 1, 1), start_time_obj) + timedelta(minutes=duration_minutes)
+            datetime.combine(  # tz-pattern-ok: duration math only
+                date(2000, 1, 1), start_time_obj, tzinfo=timezone.utc
+            )
+            + timedelta(minutes=duration_minutes)
         ).time()
 
         hourly_rate = Decimal(str(service.hourly_rate))
@@ -238,10 +241,17 @@ class PricingService(BaseService):
         )
         target_payout_cents = base_price_cents - instructor_platform_fee_cents
 
-        credit_cents = int(applied_credit_cents)
-        subtotal_with_fee = base_price_cents + student_fee_cents
+        # Part 6: Credits can only cover the lesson price, never the platform fee.
+        # The minimum card charge is always the platform fee (student_fee_cents).
+        credit_cents = min(int(applied_credit_cents), base_price_cents)
+        lesson_after_credit = base_price_cents - credit_cents
 
-        student_pay_cents = max(0, subtotal_with_fee - credit_cents)
+        # Student pays: (lesson price - credits) + platform fee
+        # Platform fee is ALWAYS charged to the card (minimum card charge)
+        student_pay_cents = lesson_after_credit + student_fee_cents
+
+        # Application fee includes student fee + instructor fee, minus credits
+        # (credits reduce the lesson price, not fees)
         application_fee_raw = student_fee_cents + instructor_platform_fee_cents - credit_cents
         application_fee_cents = max(0, application_fee_raw)
 

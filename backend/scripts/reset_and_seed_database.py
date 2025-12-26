@@ -850,7 +850,7 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
 
     if booking_type == "past":
         status = BookingStatus.COMPLETED
-        completed_at = datetime.combine(target_date, slot.end_time)
+        completed_at = datetime.combine(target_date, slot.end_time)  # tz-pattern-ok: seed script generates test data
         cancelled_at = None
         cancelled_by = None
         cancellation_reason = None

@@ -11,6 +11,11 @@ import pytest
 from app.models import Booking, InstructorProfile, SearchEvent, SearchHistory, User
 from app.services.privacy_service import PrivacyService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture
 def privacy_service(db):
@@ -52,13 +57,17 @@ def sample_booking(db, sample_user_for_privacy, sample_instructor_for_privacy):
     db.add(instructor_service)
     db.flush()
 
+    booking_date = datetime.now(timezone.utc).date()
+    start_time = time(14, 0)
+    end_time = time(15, 0)
     booking = Booking(
         student_id=sample_user_for_privacy.id,
         instructor_id=sample_instructor_for_privacy.id,
         instructor_service_id=instructor_service.id,
-        booking_date=datetime.now(timezone.utc).date(),
-        start_time=time(14, 0),  # Fixed 2 PM
-        end_time=time(15, 0),  # Fixed 3 PM
+        booking_date=booking_date,
+        start_time=start_time,  # Fixed 2 PM
+        end_time=end_time,  # Fixed 3 PM
+        **booking_timezone_fields(booking_date, start_time, end_time),
         service_name="Test Service",
         hourly_rate=50.00,
         total_price=50.00,
@@ -236,13 +245,17 @@ class TestPrivacyService:
         db.add(instructor_service)
         db.flush()
 
+        booking_date = (old_date - timedelta(days=400)).date()
+        start_time = time(10, 0)
+        end_time = time(11, 0)
         old_booking = Booking(
             student_id=sample_user_for_privacy.id,
             instructor_id=sample_instructor_for_privacy.id,
             instructor_service_id=instructor_service.id,
-            booking_date=(old_date - timedelta(days=400)).date(),
-            start_time=time(10, 0),  # Fixed time to avoid wrap-around
-            end_time=time(11, 0),  # One hour later
+            booking_date=booking_date,
+            start_time=start_time,  # Fixed time to avoid wrap-around
+            end_time=end_time,  # One hour later
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Old Service",
             hourly_rate=40.00,
             total_price=40.00,

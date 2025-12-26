@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { addDays, format } from 'date-fns';
 import { useRouter, useParams } from 'next/navigation';
 import LessonDetailsPage from '@/app/(auth)/student/lessons/[id]/page';
 import * as myLessonsModule from '@/hooks/useMyLessons';
@@ -68,6 +69,7 @@ const renderWithProviders = (ui: React.ReactElement) => {
 };
 
 describe('LessonDetailsPage', () => {
+  const upcomingBookingDate = format(addDays(new Date(), 9), 'yyyy-MM-dd');
   const mockRouter = {
     push: jest.fn(),
     back: jest.fn(),
@@ -75,7 +77,7 @@ describe('LessonDetailsPage', () => {
 
   const mockLesson = {
     id: 1,
-    booking_date: '2024-12-25',
+    booking_date: upcomingBookingDate,
     start_time: '14:00:00',
     end_time: '15:00:00',
     status: 'CONFIRMED',
@@ -132,7 +134,8 @@ describe('LessonDetailsPage', () => {
     expect(screen.getByText('Mathematics')).toBeInTheDocument();
 
     // Check date and time (weekday copy changed to Wed in UI)
-    const dateEls = screen.getAllByText(/Dec 25/);
+    const dateLabel = format(new Date(`${mockLesson.booking_date}T${mockLesson.start_time}`), 'MMM d');
+    const dateEls = screen.getAllByText(new RegExp(dateLabel));
     expect(dateEls.length).toBeGreaterThan(0);
     expect(screen.getByText(/2:00 PM/)).toBeInTheDocument();
 
@@ -168,7 +171,7 @@ describe('LessonDetailsPage', () => {
     // Mock a future date to ensure the lesson is upcoming
     const futureLesson = {
       ...mockLesson,
-      booking_date: '2025-12-25',
+      booking_date: upcomingBookingDate,
       start_time: '14:00:00',
     };
 
@@ -189,7 +192,7 @@ describe('LessonDetailsPage', () => {
     // Mock a future date to ensure the lesson is upcoming
     const futureLesson = {
       ...mockLesson,
-      booking_date: '2025-12-25',
+      booking_date: upcomingBookingDate,
       start_time: '14:00:00',
     };
 
@@ -214,7 +217,7 @@ describe('LessonDetailsPage', () => {
     // Mock a future date to ensure the lesson is upcoming
     const futureLesson = {
       ...mockLesson,
-      booking_date: '2025-12-25',
+      booking_date: upcomingBookingDate,
       start_time: '14:00:00',
     };
 
@@ -239,7 +242,7 @@ describe('LessonDetailsPage', () => {
     // Mock a future date to ensure the lesson is upcoming
     const futureLesson = {
       ...mockLesson,
-      booking_date: '2025-12-25',
+      booking_date: upcomingBookingDate,
       start_time: '14:00:00',
     };
 

@@ -3,6 +3,7 @@ import React from 'react';
 import { Booking, BookingStatus } from '@/types/booking';
 import { logger } from '@/lib/logger';
 import { formatInstructorFromUser } from '@/utils/nameDisplay';
+import { formatBookingDate, formatBookingTimeRange } from '@/lib/timezone/formatBookingTime';
 
 /**
  * BookingCard Component
@@ -53,43 +54,6 @@ export const BookingCard: React.FC<BookingCardProps> = ({
   className = '',
 }) => {
   /**
-   * Format date string for display
-   * @param dateStr - ISO date string
-   * @returns Formatted date (e.g., "Mon, January 15")
-   */
-  const formatDate = (dateStr: string): string => {
-    try {
-      return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch (error) {
-      logger.error('Failed to format date', error, { dateStr });
-      return dateStr;
-    }
-  };
-
-  /**
-   * Format time string for display
-   * @param timeStr - Time string (HH:MM:SS)
-   * @returns Formatted time (e.g., "9:00 AM")
-   */
-  const formatTime = (timeStr: string): string => {
-    try {
-      const timeParts = timeStr.split(':');
-      const hours = parseInt(timeParts[0] || '0', 10);
-      const minutes = parseInt(timeParts[1] || '0', 10);
-      const period = (hours || 0) >= 12 ? 'PM' : 'AM';
-      const displayHours = (hours || 0) === 0 ? 12 : (hours || 0) > 12 ? (hours || 0) - 12 : (hours || 0);
-      return `${displayHours}:${(minutes || 0).toString().padStart(2, '0')} ${period}`;
-    } catch (error) {
-      logger.error('Failed to format time', error, { timeStr });
-      return timeStr;
-    }
-  };
-
-  /**
    * Get status badge configuration
    * @param status - Booking status
    * @returns Badge styling and label
@@ -118,7 +82,10 @@ export const BookingCard: React.FC<BookingCardProps> = ({
   };
 
   // Determine booking state for action buttons
-  const isPastBooking = new Date(`${booking.booking_date}T${booking.end_time}`) < new Date();
+  const bookingEndUtc = (booking as { booking_end_utc?: string | null }).booking_end_utc;
+  const isPastBooking = bookingEndUtc
+    ? new Date(bookingEndUtc) < new Date()
+    : new Date(`${booking.booking_date}T${booking.end_time}`) < new Date();
   const canCancel = booking.status === 'CONFIRMED' && !isPastBooking;
   const canComplete = booking.status === 'CONFIRMED' && isPastBooking;
 
@@ -160,7 +127,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
               d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
             />
           </svg>
-          {formatDate(booking.booking_date)}
+          {formatBookingDate(booking)}
         </div>
 
         {/* Time */}
@@ -173,7 +140,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
               d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+          {formatBookingTimeRange(booking)}
         </div>
 
         {/* Price */}

@@ -32,6 +32,11 @@ from app.schemas.instructor import InstructorProfileUpdate, ServiceCreate
 from app.services.booking_service import BookingService
 from app.services.instructor_service import InstructorService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 class TestSoftDeleteServices:
     """Test suite for service soft delete functionality."""
@@ -119,6 +124,7 @@ class TestSoftDeleteServices:
                     booking_date=booking_date,
                     start_time=start_time,
                     end_time=end_time,
+                    **booking_timezone_fields(booking_date, start_time, end_time),
                     service_name=service_with_bookings["name"],
                     hourly_rate=service_with_bookings["hourly_rate"],
                     total_price=service_with_bookings["hourly_rate"] * ((end_time.hour - start_time.hour) or 1),
@@ -295,6 +301,7 @@ class TestSoftDeleteServices:
             booking_date=tomorrow,
             start_time=target_start,
             end_time=target_end,
+            **booking_timezone_fields(tomorrow, target_start, target_end),
             service_name=service_to_delete["name"],
             hourly_rate=service_to_delete["hourly_rate"],
             total_price=service_to_delete["hourly_rate"],

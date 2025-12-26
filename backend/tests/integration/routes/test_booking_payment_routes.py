@@ -9,6 +9,11 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture
 def student_user(db: Session, auth_headers_student) -> User:
@@ -35,7 +40,7 @@ def instructor_setup(db: Session, test_instructor: User):
 @pytest.mark.parametrize(
     "minutes_ahead, expected_status",
     [
-        (23 * 60 + 59, "authorizing"),  # 23h59m -> immediate
+        (23 * 60 + 59, "authorized"),  # 23h59m -> immediate
         (24 * 60 + 1, "scheduled"),  # 24h01m -> scheduled
     ],
 )
@@ -49,7 +54,7 @@ def test_confirm_booking_payment_boundary_route(
     db: Session,
 ):
     """
-    Route-level boundary: <=24h is immediate (authorizing), >24h is scheduled.
+    Route-level boundary: <=24h is immediate (authorized), >24h is scheduled.
     Uses a fixed 'now' and monkeypatches booking_service.datetime.now to avoid clock drift.
     """
     instructor, _profile, service = instructor_setup
@@ -58,14 +63,18 @@ def test_confirm_booking_payment_boundary_route(
     start_dt = fixed_now + timedelta(minutes=minutes_ahead)
 
     # Build a one-hour booking starting at start_dt
+    booking_date = start_dt.date()
+    start_time = start_dt.time().replace(tzinfo=None)
+    end_time = (start_dt + timedelta(hours=1)).time().replace(tzinfo=None)
     booking = Booking(
         id=str(ulid.ULID()),
         student_id=student_user.id,
         instructor_id=instructor.id,
         instructor_service_id=service.id,
-        booking_date=start_dt.date(),
-        start_time=start_dt.time(),
-        end_time=(start_dt + timedelta(hours=1)).time(),
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        **booking_timezone_fields(booking_date, start_time, end_time),
         service_name="Boundary Test",
         hourly_rate=100.00,
         total_price=100.00,
@@ -87,12 +96,24 @@ def test_confirm_booking_payment_boundary_route(
             return fixed_now if tz is None else fixed_now.astimezone(tz)
 
     mod.datetime = FixedDT
+    def _authorize_now(booking_id: str, _hours_until: float):
+        target = db.query(Booking).filter(Booking.id == booking_id).first()
+        assert target is not None
+        target.payment_status = "authorized"
+        target.payment_intent_id = "pi_test"
+        db.commit()
+        return {"success": True}
+
     try:
-        resp = client.post(
-            f"/api/v1/bookings/{booking.id}/confirm-payment",
-            json={"payment_method_id": "pm_test", "save_payment_method": False},
-            headers=auth_headers_student,
-        )
+        with patch(
+            "app.tasks.payment_tasks._process_authorization_for_booking",
+            side_effect=_authorize_now,
+        ):
+            resp = client.post(
+                f"/api/v1/bookings/{booking.id}/confirm-payment",
+                json={"payment_method_id": "pm_test", "save_payment_method": False},
+                headers=auth_headers_student,
+            )
     finally:
         mod.datetime = RealDT
 
@@ -102,7 +123,7 @@ def test_confirm_booking_payment_boundary_route(
 
     # Determine dynamic threshold: 24h plus any buffer_time_minutes from profile
     threshold_minutes = 24 * 60 + getattr(_profile, "buffer_time_minutes", 0)
-    expected_status = "scheduled" if minutes_ahead > threshold_minutes else "authorizing"
+    expected_status = "scheduled" if minutes_ahead > threshold_minutes else "authorized"
     assert booking.payment_status == expected_status
 
 """
@@ -304,7 +325,7 @@ class TestBookingPaymentRoutes:
         assert booking is not None
         assert booking.status == BookingStatus.PENDING
         assert booking.payment_status == "pending_payment_method"
-        assert booking.payment_intent_id == "seti_test123"
+        assert booking.payment_intent_id is None
 
     def test_create_booking_invalid_duration(
         self,
@@ -407,14 +428,18 @@ class TestBookingPaymentRoutes:
         base = now_ts + timedelta(hours=2, minutes=5)
         if (base + timedelta(hours=1)).date() != base.date():
             base = datetime.combine((now_ts + timedelta(days=1)).date(), time(10, 0))
+        booking_date = base.date()
+        start_time = base.time()
+        end_time = (base + timedelta(hours=1)).time()
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,
             instructor_id=instructor.id,
             instructor_service_id=service.id,
-            booking_date=base.date(),
-            start_time=base.time(),
-            end_time=(base + timedelta(hours=1)).time(),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Test Service",
             hourly_rate=100.00,
             total_price=100.00,
@@ -431,10 +456,22 @@ class TestBookingPaymentRoutes:
             "save_payment_method": False,
         }
 
-        response = authenticated_client.post(
-            f"/api/v1/bookings/{booking.id}/confirm-payment",
-            json=payment_data,
-        )
+        def _authorize_now(booking_id: str, _hours_until: float):
+            target = db.query(Booking).filter(Booking.id == booking_id).first()
+            assert target is not None
+            target.payment_status = "authorized"
+            target.payment_intent_id = "pi_test"
+            db.commit()
+            return {"success": True}
+
+        with patch(
+            "app.tasks.payment_tasks._process_authorization_for_booking",
+            side_effect=_authorize_now,
+        ):
+            response = authenticated_client.post(
+                f"/api/v1/bookings/{booking.id}/confirm-payment",
+                json=payment_data,
+            )
 
         # Debug output if failing
         if response.status_code != 200:
@@ -452,7 +489,7 @@ class TestBookingPaymentRoutes:
         db.refresh(booking)
         assert booking.status == BookingStatus.CONFIRMED
         assert booking.payment_method_id == "pm_test123"
-        assert booking.payment_status == "authorizing"
+        assert booking.payment_status == "authorized"
 
     def test_confirm_booking_payment_scheduled(
         self,
@@ -468,14 +505,18 @@ class TestBookingPaymentRoutes:
 
         # Create pending booking for 3 days from now
         future_date = date.today() + timedelta(days=3)
+        booking_date = future_date
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,
             instructor_id=instructor.id,
             instructor_service_id=service.id,
-            booking_date=future_date,
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Test Service",
             hourly_rate=100.00,
             total_price=100.00,
@@ -539,14 +580,18 @@ class TestBookingPaymentRoutes:
         db.flush()
 
         # Create booking for different user
+        booking_date = date.today()
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=other_student.id,  # Different user
             instructor_id=instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Test",
             hourly_rate=50.00,
             total_price=50.00,
@@ -579,14 +624,18 @@ class TestBookingPaymentRoutes:
         """Test that already confirmed bookings cannot be re-confirmed."""
         instructor, profile, service = instructor_setup
 
+        booking_date = date.today()
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,
             instructor_id=instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Test",
             hourly_rate=50.00,
             total_price=50.00,
@@ -645,14 +694,18 @@ class TestBookingPaymentRoutes:
         """Test that invalid payment data is rejected."""
         instructor, profile, service = instructor_setup
 
+        booking_date = date.today()
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,
             instructor_id=instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Test",
             hourly_rate=50.00,
             total_price=50.00,

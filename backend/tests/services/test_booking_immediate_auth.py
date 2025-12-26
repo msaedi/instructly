@@ -2,7 +2,7 @@
 Tests that immediate auth (<24h) defers to background and emits events.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -30,6 +30,7 @@ def _bootstrap_instructor_and_service(db: Session) -> tuple[User, InstructorProf
         last_name="N",
         is_active=True,
         zip_code="10001",
+        timezone="UTC",
     )
     db.add(instructor)
     db.flush()
@@ -68,6 +69,7 @@ def _create_student(db: Session) -> User:
         last_name="T",
         is_active=True,
         zip_code="10001",
+        timezone="UTC",
     )
     db.add(student)
     db.flush()
@@ -79,16 +81,21 @@ def test_confirm_payment_immediate_defers_and_emits_event(db: Session):
     student = _create_student(db)
 
     # Create a PENDING booking within 24h (tomorrow earlier than now's time)
-    now = datetime.now()
-    lesson = (now + timedelta(days=1)).replace(hour=max(0, now.hour - 2), minute=0, second=0, microsecond=0)
+    now_utc = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    lesson_utc = now_utc + timedelta(hours=23)
     booking = Booking(
         id=str(ulid.ULID()),
         student_id=student.id,
         instructor_id=instructor.id,
         instructor_service_id=svc.id,
-        booking_date=lesson.date(),
-        start_time=lesson.time(),
-        end_time=(lesson + timedelta(hours=1)).time(),
+        booking_date=lesson_utc.date(),
+        start_time=lesson_utc.time().replace(tzinfo=None),
+        end_time=(lesson_utc + timedelta(hours=1)).time().replace(tzinfo=None),
+        booking_start_utc=lesson_utc,
+        booking_end_utc=lesson_utc + timedelta(hours=1),
+        lesson_timezone="UTC",
+        instructor_tz_at_booking="UTC",
+        student_tz_at_booking="UTC",
         service_name="Svc",
         hourly_rate=100.00,
         total_price=100.00,
@@ -100,11 +107,23 @@ def test_confirm_payment_immediate_defers_and_emits_event(db: Session):
 
     service = BookingService(db)
 
-    with patch("app.repositories.payment_repository.PaymentRepository.create_payment_event") as mock_event:
+    def _authorize_now(booking_id: str, _hours_until: float):
+        target = db.query(Booking).filter(Booking.id == booking_id).first()
+        assert target is not None
+        target.payment_status = "authorized"
+        target.payment_intent_id = "pi_test"
+        db.flush()
+        return {"success": True}
+
+    with patch("app.repositories.payment_repository.PaymentRepository.create_payment_event") as mock_event, patch(
+        "app.tasks.payment_tasks._process_authorization_for_booking",
+        side_effect=_authorize_now,
+    ) as mock_authorize:
         updated = service.confirm_booking_payment(booking.id, student=student, payment_method_id="pm_x")
 
-    # Booking moves to CONFIRMED and payment_status authorizing
+    # Booking moves to CONFIRMED and is authorized immediately
     assert updated.status == BookingStatus.CONFIRMED
-    assert updated.payment_status == "authorizing"
+    assert updated.payment_status == "authorized"
+    mock_authorize.assert_called_once()
     # Event emitted
     mock_event.assert_called()

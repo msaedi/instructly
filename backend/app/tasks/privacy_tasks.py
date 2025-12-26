@@ -8,7 +8,7 @@ and apply data retention policies.
 
 from datetime import datetime, timezone
 import logging
-from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, TypeAlias, TypeVar, cast
 
 from celery.app.task import Task
 from sqlalchemy.orm import Session
@@ -19,6 +19,10 @@ from ..services.search_history_cleanup_service import SearchHistoryCleanupServic
 from .celery_app import celery_app
 
 TaskCallable = TypeVar("TaskCallable", bound=Callable[..., Any])
+if TYPE_CHECKING:
+    DatabaseTaskBase: TypeAlias = Task[Any, Any]
+else:
+    DatabaseTaskBase = Task
 
 
 def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], TaskCallable]:
@@ -30,7 +34,7 @@ def typed_task(*task_args: Any, **task_kwargs: Any) -> Callable[[TaskCallable], 
 logger = logging.getLogger(__name__)
 
 
-class DatabaseTask(Task):  # type: ignore[type-arg]
+class DatabaseTask(DatabaseTaskBase):
     """
     Base task class that provides database session management.
     """

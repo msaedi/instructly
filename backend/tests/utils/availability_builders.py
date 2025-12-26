@@ -35,7 +35,9 @@ def build_week_payload(week_start: date, slot_count: int, clear_existing: bool =
         target_day = days[idx % len(days)]
         hour_block = (idx // len(days)) % 8  # keep within daytime hours
         start_hour = 8 + hour_block
-        start_dt = datetime.combine(target_day, time(start_hour, 0))
+        start_dt = datetime.combine(  # tz-pattern-ok: test utility builds fixtures
+            target_day, time(start_hour, 0)
+        )
         end_dt = start_dt + timedelta(minutes=duration_minutes)
 
         schedule.append(
@@ -90,11 +92,11 @@ def fan_out_day_slots(
     start time and repeat every ``step_minutes``.
     """
     slots: list[Dict[str, str]] = []
-    base_dt = datetime.combine(day, start)
+    base_dt = datetime.combine(day, start)  # tz-pattern-ok: test utility builds fixtures
     step = timedelta(minutes=step_minutes)
     for i in range(occurrences):
         begin = (base_dt + step * i).time()
-        end = (datetime.combine(day, begin) + step).time()
+        end = (datetime.combine(day, begin) + step).time()  # tz-pattern-ok: test utility builds fixtures
         slots.append(
             {
                 "date": day.isoformat(),

@@ -79,7 +79,9 @@ def check_bookings():
             print("\nFirst 5 bookings:")
             for booking in instructor_bookings[:5]:
                 print(f"\n  Booking ID: {booking.id}")
-                print(f"  Date: {booking.booking_date} {booking.start_time}-{booking.end_time}")
+                print(
+                    f"  Date: {booking.booking_date} {booking.start_time}-{booking.end_time}"  # tz-pattern-ok: debug script printing info
+                )
                 print(f"  Service: {booking.service_name} (${booking.hourly_rate}/hr)")
                 print(f"  Status: {booking.status}")
                 print(f"  availability_slot_id: {booking.availability_slot_id}")

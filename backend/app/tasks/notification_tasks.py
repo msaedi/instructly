@@ -24,7 +24,7 @@ from app.services.notification_provider import (
     NotificationProvider,
     NotificationProviderTemporaryError,
 )
-from app.tasks.celery_app import celery_app
+from app.tasks.celery_app import typed_task
 
 logger = get_task_logger(__name__)
 
@@ -52,7 +52,7 @@ def _session_scope() -> Iterator[Session]:
         session.close()
 
 
-@celery_app.task(name="outbox.dispatch_pending", max_retries=0, queue="notifications")
+@typed_task(name="outbox.dispatch_pending", max_retries=0, queue="notifications")
 def dispatch_pending() -> int:
     """
     Fetch pending outbox events and enqueue delivery tasks.
@@ -70,7 +70,7 @@ def dispatch_pending() -> int:
         return scheduled
 
 
-@celery_app.task(
+@typed_task(
     name="outbox.deliver_event",
     bind=True,
     max_retries=5,

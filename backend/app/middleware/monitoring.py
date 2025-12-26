@@ -6,7 +6,7 @@ Simple performance monitoring to track real-world metrics.
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import time
 from typing import Any, DefaultDict, Deque
@@ -41,13 +41,13 @@ class PerformanceMonitor:
                     "endpoint": endpoint,
                     "method": method,
                     "duration_ms": duration_ms,
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "status_code": status_code,
                 }
             )
 
         # Hourly aggregation
-        hour_key = datetime.now().strftime("%Y-%m-%d %H:00")
+        hour_key = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:00")
         self.hourly_stats[hour_key].append(duration_ms)
 
     def get_stats(self) -> dict[str, Any]:

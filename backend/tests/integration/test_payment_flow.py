@@ -504,14 +504,33 @@ class TestPaymentIntegration:
         )
         assert {b.id for b in refreshed} == {existing_booking.id, pending_booking.id}
 
-    def test_credit_only_checkout_consumes_balance(
+    @patch("stripe.PaymentIntent.create")
+    @patch("stripe.PaymentIntent.confirm")
+    def test_credit_checkout_with_fee_payment(
         self,
+        mock_confirm: MagicMock,
+        mock_intent_create: MagicMock,
         db: Session,
         student_user: User,
         instructor_setup: tuple,
         test_booking: Booking,
     ):
-        """Verify credit-only payments reduce available balance."""
+        """Part 6: Verify credits are capped at lesson price and fee is charged to card.
+
+        With Part 6, credits can only cover the lesson price, never the platform fee.
+        - $200 credit available, $80 lesson ($89.60 total with 12% fee)
+        - Credit applied: $80 (capped at lesson price)
+        - Card charged: $9.60 (platform fee - minimum card charge)
+        - Remaining credit: $120
+        """
+        # Mock Stripe responses
+        mock_pi = MagicMock()
+        mock_pi.id = "pi_credit_test"
+        mock_pi.status = "succeeded"
+        mock_pi.client_secret = "pi_credit_test_secret"
+        mock_intent_create.return_value = mock_pi
+        mock_confirm.return_value = mock_pi
+
         instructor_user, instructor_profile, _service = instructor_setup
         stripe_service = _build_stripe_service(db)
         payment_repo = stripe_service.payment_repository
@@ -524,7 +543,7 @@ class TestPaymentIntegration:
         )
         payment_repo.create_platform_credit(
             user_id=student_user.id,
-            amount_cents=20000,
+            amount_cents=20000,  # $200 credit
             reason="test_credit",
             source_booking_id=None,
         )
@@ -532,9 +551,10 @@ class TestPaymentIntegration:
         initial_balance = payment_repo.get_total_available_credits(student_user.id)
         assert initial_balance == 20000
 
+        # Part 6: Payment method required even with large credit (fee must be paid)
         result = stripe_service.process_booking_payment(
             booking_id=test_booking.id,
-            payment_method_id=None,
+            payment_method_id="pm_credit_test",  # Required for fee
             requested_credit_cents=initial_balance,
         )
 
@@ -542,11 +562,17 @@ class TestPaymentIntegration:
         remaining = payment_repo.get_total_available_credits(student_user.id)
 
         assert result["success"] is True
-        assert result["payment_intent_id"] == "credit_only"
+        assert result["payment_intent_id"] == "pi_credit_test"
         assert result["status"] == "succeeded"
-        assert applied > 0
-        assert remaining == max(initial_balance - applied, 0)
-        assert test_booking.payment_status == "authorized"
+
+        # Part 6: Credit capped at lesson price ($80 = 8000 cents)
+        assert applied == 8000, f"Credit should be capped at lesson price, got {applied}"
+
+        # Remaining = $200 - $80 = $120
+        assert remaining == 12000, f"Remaining credit should be $120, got {remaining}"
+
+        # Card charged = $9.60 (fee only)
+        assert result["amount"] == 960, f"Card should be charged fee only ($9.60), got {result['amount']}"
 
     @patch("stripe.Customer.create")
     def test_multiple_payment_methods_flow(self, mock_customer_create, db: Session, student_user: User):

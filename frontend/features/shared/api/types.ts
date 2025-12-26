@@ -61,6 +61,9 @@ export type CatalogServiceMinimal = components['schemas']['CatalogServiceMinimal
 // Booking enums
 export type BookingStatus = components['schemas']['BookingStatus'];
 
+// Payment breakdown
+export type PaymentSummary = components['schemas']['PaymentSummary'];
+
 // Instructor service
 export type InstructorService = components['schemas']['InstructorServiceResponse'];
 

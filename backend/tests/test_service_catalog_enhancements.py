@@ -133,35 +133,28 @@ class TestServiceCatalogRepository:
 
         repo = RepositoryFactory.create_service_catalog_repository(db)
 
-        # Store the created service ids and names
-        created_ids = [s.id for s in created_services]
-        [s.name for s in created_services]
+        # Test text search - filter by our category to avoid interference from seeded data
+        results = repo.search_services(query_text="piano", category_id=category.id, limit=100)
+        assert len(results) == 1, f"Expected 1 result for 'piano' in our category, got {len(results)}"
+        assert "piano" in results[0].name.lower()
 
-        # Test text search
-        results = repo.search_services(query_text="piano")
-        # Filter to only our created services
-        our_results = [r for r in results if r.id in created_ids]
-        assert len(our_results) == 1
-        assert "piano" in our_results[0].name.lower()
-
-        # Test filter by online capability
-        results = repo.search_services(online_capable=True, limit=500)  # Increase limit more
-        our_results = [r for r in results if r.id in created_ids]
+        # Test filter by online capability - filter by our category
+        results = repo.search_services(online_capable=True, category_id=category.id, limit=100)
         # We created 2 online-capable services (Piano and Voice)
-        assert len(our_results) == 2, f"Found services: {[(s.name, s.online_capable) for s in our_results]}"
-        assert all(s.online_capable for s in our_results)
+        assert len(results) == 2, f"Found services: {[(s.name, s.online_capable) for s in results]}"
+        assert all(s.online_capable for s in results)
 
-        # Test filter by certification requirement
-        results = repo.search_services(requires_certification=True, limit=200)
-        our_results = [r for r in results if r.id in created_ids]
-        assert len(our_results) == 1
-        assert "voice" in our_results[0].name.lower()
+        # Test filter by certification requirement - filter by our category
+        results = repo.search_services(requires_certification=True, category_id=category.id, limit=100)
+        assert len(results) == 1
+        assert "voice" in results[0].name.lower()
 
-        # Test combined filters
-        results = repo.search_services(query_text="music", online_capable=True, requires_certification=False, limit=200)
-        our_results = [r for r in results if r.id in created_ids]
-        assert len(our_results) == 1
-        assert "piano" in our_results[0].name.lower()
+        # Test combined filters - filter by our category
+        results = repo.search_services(
+            query_text="music", online_capable=True, requires_certification=False, category_id=category.id, limit=100
+        )
+        assert len(results) == 1
+        assert "piano" in results[0].name.lower()
 
     def test_get_popular_services(self, db: Session):
         """Test retrieving popular services based on analytics."""
@@ -174,7 +167,7 @@ class TestServiceCatalogRepository:
         for i in range(3):
             service = ServiceCatalog(
                 category_id=category.id,
-                name=f"Service {i}",
+                name=f"Test Popular Service {i}",
                 slug=unique_slug(f"service-{i}"),
                 description=f"Test service {i}",
                 is_active=True,
@@ -191,7 +184,7 @@ class TestServiceCatalogRepository:
                 search_count_30d=50 * (i + 1),
                 booking_count_7d=5 * (i + 1),
                 booking_count_30d=20 * (i + 1),
-                active_instructors=i + 1,
+                active_instructors=0,  # Set to 0 to avoid test pollution
                 last_calculated=datetime.now(timezone.utc),
             )
             db.add(analytics)
@@ -395,7 +388,7 @@ class TestInstructorServiceEnhancements:
         for i in range(3):
             service = ServiceCatalog(
                 category_id=category.id,
-                name=f"Service {i}",
+                name=f"Test Trending Service {i}",
                 slug=unique_slug(f"service-{i}"),
                 description=f"Test service {i}",
                 is_active=True,
@@ -416,7 +409,7 @@ class TestInstructorServiceEnhancements:
                 service_catalog_id=service.id,
                 booking_count_7d=5,
                 booking_count_30d=20,
-                active_instructors=2,
+                active_instructors=0,  # Set to 0 to avoid test pollution
                 last_calculated=datetime.now(timezone.utc),
                 **data,
             )
@@ -428,7 +421,7 @@ class TestInstructorServiceEnhancements:
         trending = instructor_service.get_trending_services(limit=2)
 
         assert len(trending) > 0
-        assert trending[0]["name"] == "Service 0"  # Should be trending
+        assert trending[0]["name"] == "Test Trending Service 0"  # Should be trending
         assert "analytics" in trending[0]
 
     def test_search_services_enhanced(self, db: Session, test_instructor, mock_instructor_profile):
@@ -443,7 +436,7 @@ class TestInstructorServiceEnhancements:
         # Create services
         service = ServiceCatalog(
             category_id=category.id,
-            name="Python Programming",
+            name="Test Python Programming",
             slug=unique_slug("python-programming"),
             description="Learn Python from basics to advanced",
             search_terms=["python", "programming", "coding"],
@@ -552,7 +545,7 @@ class TestEnhancedModels:
 
         service = ServiceCatalog(
             category_id=category.id,
-            name="Enhanced Service",
+            name="Test Enhanced Service",
             slug=unique_slug("enhanced-service"),
             description="Service with all new fields",
             search_terms=["enhanced", "test"],

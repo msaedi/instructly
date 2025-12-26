@@ -17,6 +17,11 @@ from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture
 def test_booking():
@@ -39,14 +44,18 @@ def test_booking():
         zip_code="10001",
     )
 
+    booking_date = date.today() + timedelta(days=1)
+    start_time = time(14, 0)
+    end_time = time(15, 0)
     booking = Booking(
         id=100,
         student_id=student.id,  # Use the actual student ID
         instructor_id=instructor.id,  # Use the actual instructor ID
         instructor_service_id=10,
-        booking_date=date.today() + timedelta(days=1),
-        start_time=time(14, 0),
-        end_time=time(15, 0),
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        **booking_timezone_fields(booking_date, start_time, end_time),
         service_name="Piano Lessons",
         hourly_rate=75.00,
         total_price=75.00,

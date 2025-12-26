@@ -208,6 +208,10 @@ class BaseRepository(IRepository[T]):
             self.logger.error(f"Error getting all {self.model.__name__}: {str(e)}")
             raise RepositoryException(f"Failed to retrieve {self.model.__name__} list: {str(e)}")
 
+    def refresh(self, instance: T) -> None:
+        """Refresh an instance from the database."""
+        self.db.refresh(instance)
+
     def create(self, **kwargs) -> T:
         """
         Create a new entity.

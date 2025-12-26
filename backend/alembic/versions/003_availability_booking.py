@@ -123,11 +123,22 @@ def upgrade() -> None:
         sa.Column("booking_date", sa.Date(), nullable=False),
         sa.Column("start_time", sa.Time(), nullable=False),
         sa.Column("end_time", sa.Time(), nullable=False),
+        sa.Column("booking_start_utc", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("booking_end_utc", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("lesson_timezone", sa.String(50), nullable=True),
+        sa.Column("instructor_tz_at_booking", sa.String(50), nullable=True),
+        sa.Column("student_tz_at_booking", sa.String(50), nullable=True),
         sa.Column("service_name", sa.String(), nullable=False),
         sa.Column("hourly_rate", sa.Numeric(10, 2), nullable=False),
         sa.Column("total_price", sa.Numeric(10, 2), nullable=False),
         sa.Column("duration_minutes", sa.Integer(), nullable=False),
         sa.Column("rescheduled_from_booking_id", sa.String(26), nullable=True),
+        sa.Column(
+            "original_lesson_datetime",
+            sa.DateTime(timezone=True),
+            nullable=True,
+            comment="Lesson datetime of IMMEDIATE previous booking when rescheduled. Gaming detection: <24h = credit only on cancel.",
+        ),
         sa.Column("status", sa.String(20), nullable=False, server_default="CONFIRMED"),
         sa.Column("service_area", sa.String(), nullable=True),
         sa.Column("meeting_location", sa.Text(), nullable=True),
@@ -168,6 +179,7 @@ def upgrade() -> None:
     op.create_index("idx_bookings_date", "bookings", ["booking_date"])
     op.create_index("idx_bookings_status", "bookings", ["status"])
     op.create_index("idx_bookings_created_at", "bookings", ["created_at"])
+    op.create_index("ix_bookings_start_utc", "bookings", ["booking_start_utc"])
     op.create_index(
         "ix_booking_instructor_completed",
         "bookings",
@@ -321,6 +333,10 @@ def upgrade() -> None:
         sa.Column("amount", sa.Integer(), nullable=False, comment="Amount in cents"),
         sa.Column("application_fee", sa.Integer(), nullable=False, comment="Platform fee in cents"),
         sa.Column("status", sa.String(50), nullable=False),
+        # Earnings metadata (stored at payment creation for accurate display)
+        sa.Column("base_price_cents", sa.Integer(), nullable=True, comment="Lesson price in cents (hourly_rate * duration)"),
+        sa.Column("instructor_tier_pct", sa.Numeric(5, 4), nullable=True, comment="Instructor platform fee rate (e.g., 0.12 for 12%)"),
+        sa.Column("instructor_payout_cents", sa.Integer(), nullable=True, comment="Amount transferred to instructor in cents"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
         sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
@@ -671,6 +687,7 @@ def downgrade() -> None:
     op.drop_index("idx_bookings_date", table_name="bookings")
     op.drop_index("idx_bookings_instructor_id", table_name="bookings")
     op.drop_index("idx_bookings_student_id", table_name="bookings")
+    op.drop_index("ix_bookings_start_utc", table_name="bookings")
     op.drop_table("bookings")
 
     op.drop_index("idx_blackout_dates_instructor_date", table_name="blackout_dates")

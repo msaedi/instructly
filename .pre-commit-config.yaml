@@ -71,6 +71,19 @@ repos:
         exclude: ^backend/app/services/(cache_service|logging_service|metrics_service)\.py$
         description: Prevent timezone bugs by checking for date.today() in user-facing code
 
+      - id: check-utc-timezone
+        name: Check UTC timezone usage
+        entry: python backend/scripts/check_utc_timezone.py
+        language: python
+        files: ^backend/app/.*\.py$
+
+      - id: check-timezone-patterns
+        name: Check timezone patterns
+        entry: python backend/scripts/check_timezone_patterns.py
+        language: python
+        types: [python]
+        pass_filenames: true
+
       - id: check-repository-pattern
         name: Check Repository Pattern Compliance
         entry: python3 backend/scripts/check_repository_pattern.py
@@ -86,6 +99,14 @@ repos:
         files: ^backend/app/services/.*\.py$
         pass_filenames: true
         description: Ensure public methods in BaseService subclasses are decorated with metrics
+
+      - id: check-stripe-transaction-pattern
+        name: Check Stripe calls outside transactions
+        entry: python3 backend/scripts/check_stripe_transaction_pattern.py
+        language: system
+        files: ^backend/app/services/.*\.py$
+        pass_filenames: false
+        description: Ensure Stripe API calls are outside DB transactions (3-phase pattern)
 
       - id: mypy-strict-gate
         name: mypy strict gate (hard fail)

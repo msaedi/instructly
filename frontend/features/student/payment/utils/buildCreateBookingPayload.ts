@@ -7,6 +7,7 @@ interface BuildCreateBookingPayloadParams {
   instructorId: string;
   serviceId: string;
   bookingDate: string | Date;
+  instructorTimezone?: string;
   booking: BookingPayment & {
     metadata?: Record<string, unknown>;
   };
@@ -44,6 +45,14 @@ function normalizeBookingDate(value: string | Date): string {
   return toDateOnlyString(value, 'booking.date');
 }
 
+function normalizeTimezone(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function normalizeModality(modality: unknown, fallbackLocation: string | undefined): 'remote' | 'in_person' {
   const raw = typeof modality === 'string' ? modality.toLowerCase() : '';
   if (raw.includes('remote') || raw.includes('online') || raw.includes('virtual')) {
@@ -66,6 +75,7 @@ export function buildCreateBookingPayload({
   instructorId,
   serviceId,
   bookingDate,
+  instructorTimezone,
   booking,
 }: BuildCreateBookingPayloadParams): CreateBookingRequest {
   if (!booking.startTime || !booking.endTime) {
@@ -86,8 +96,15 @@ export function buildCreateBookingPayload({
   const meetingLocation = booking.location || (modality === 'remote' ? 'Online' : 'In-person lesson');
   const normalizedDate = normalizeBookingDate(bookingDate);
   const locationType = modality;
+  const resolvedTimezone =
+    normalizeTimezone(instructorTimezone) ??
+    normalizeTimezone(metadata['timezone']) ??
+    normalizeTimezone(metadata['lesson_timezone']) ??
+    normalizeTimezone(metadata['lessonTimezone']) ??
+    normalizeTimezone(metadata['instructor_timezone']) ??
+    normalizeTimezone(metadata['instructorTimezone']);
 
-  return {
+  const payload: CreateBookingRequest = {
     instructor_id: instructorId,
     instructor_service_id: serviceId,
     booking_date: normalizedDate,
@@ -97,4 +114,10 @@ export function buildCreateBookingPayload({
     meeting_location: meetingLocation,
     location_type: locationType,
   };
+
+  if (resolvedTimezone) {
+    payload.timezone = resolvedTimezone;
+  }
+
+  return payload;
 }

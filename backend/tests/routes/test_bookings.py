@@ -16,7 +16,7 @@ TEST FAILURE ANALYSIS - test_bookings.py
    - Fix: Already fixed via fixture update
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import MagicMock, Mock, patch
 
 from fastapi import status
@@ -27,6 +27,11 @@ from app.core.exceptions import ConflictException, NotFoundException, Validation
 from app.core.ulid_helper import generate_ulid
 from app.main import fastapi_app as app
 from app.models.booking import BookingStatus
+
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
 
 
 @pytest.fixture(autouse=True)
@@ -738,6 +743,11 @@ class TestBookingRoutes:
         mock_booking.cancelled_at = None
         mock_booking.cancelled_by_id = None
         mock_booking.cancellation_reason = None
+        mock_booking.booking_start_utc = datetime(2025, 1, 1, 15, 0, tzinfo=timezone.utc)
+        mock_booking.booking_end_utc = datetime(2025, 1, 1, 16, 0, tzinfo=timezone.utc)
+        mock_booking.lesson_timezone = "America/New_York"
+        mock_booking.instructor_tz_at_booking = "America/New_York"
+        mock_booking.student_tz_at_booking = "America/Los_Angeles"
         mock_booking.student = Mock(
             id=generate_ulid(), first_name="Test", last_name="Student", email="student@test.com"
         )
@@ -754,6 +764,11 @@ class TestBookingRoutes:
         data = response.json()
         assert data["id"] == booking_id
         assert data["service_name"] == "Piano Lesson"
+        assert data["booking_start_utc"] == "2025-01-01T15:00:00Z"
+        assert data["booking_end_utc"] == "2025-01-01T16:00:00Z"
+        assert data["lesson_timezone"] == "America/New_York"
+        assert data["instructor_timezone"] == "America/New_York"
+        assert data["student_timezone"] == "America/Los_Angeles"
 
     def test_get_booking_details_not_found(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
@@ -1611,15 +1626,21 @@ class TestBookingIntegration:
             .first()
         )
 
+        utc_today = datetime.now(timezone.utc).date()
+
         # Create completed bookings
         for i in range(3):
+            booking_date = utc_today - timedelta(days=i + 1)
+            start_time = time(10, 0)
+            end_time = time(11, 0)
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor_with_availability.id,
                 instructor_service_id=service.id,
-                booking_date=date.today() - timedelta(days=i + 1),
-                start_time=time(10, 0),
-                end_time=time(11, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
                 hourly_rate=service.hourly_rate,
                 total_price=service.hourly_rate,
@@ -1632,13 +1653,17 @@ class TestBookingIntegration:
             db.add(booking)
 
         # Create upcoming booking
+        booking_date = utc_today + timedelta(days=1)
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         upcoming = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,
-            booking_date=date.today() + timedelta(days=1),
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
@@ -1650,13 +1675,17 @@ class TestBookingIntegration:
         db.add(upcoming)
 
         # Create cancelled booking
+        booking_date = utc_today + timedelta(days=2)
+        start_time = time(16, 0)
+        end_time = time(17, 0)
         cancelled = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,
-            booking_date=date.today() + timedelta(days=2),
-            start_time=time(16, 0),
-            end_time=time(17, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,

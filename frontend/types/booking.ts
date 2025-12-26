@@ -35,6 +35,11 @@ export interface Booking {
   booking_date: string; // ISO date string (YYYY-MM-DD)
   start_time: string; // Time string (HH:MM:SS)
   end_time: string; // Time string (HH:MM:SS)
+  booking_start_utc?: string | null;
+  booking_end_utc?: string | null;
+  lesson_timezone?: string | null;
+  instructor_timezone?: string | null;
+  student_timezone?: string | null;
 
   // Booking details
   status: BookingStatus;
@@ -160,6 +165,7 @@ export interface BookingCreate {
   booking_date: string; // ISO date: "2025-07-15"
   start_time: string; // 24hr format: "09:00"
   end_time: string; // 24hr format: "10:00"
+  timezone?: string; // Optional IANA timezone
   student_note?: string;
   meeting_location?: string;
   location_type?: LocationType;

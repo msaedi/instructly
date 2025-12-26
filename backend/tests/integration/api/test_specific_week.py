@@ -13,6 +13,11 @@ from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 def test_week_with_known_bookings(
     client: TestClient,
@@ -41,14 +46,16 @@ def test_week_with_known_bookings(
     # Create bookings for 2 of the 3 windows with time-based pattern
     slot_times = [(time(9, 0), time(10, 0)), (time(10, 0), time(11, 0)), (time(14, 0), time(15, 0))]
     for i in range(2):
+        start_time, end_time = slot_times[i]
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,
             # availability_slot_id completely removed from architecture
             booking_date=test_date,
-            start_time=slot_times[i][0],
-            end_time=slot_times[i][1],
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(test_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,

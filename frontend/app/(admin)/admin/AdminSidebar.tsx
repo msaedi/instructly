@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import {
   Award,
   Code,
+  CreditCard,
   FlaskConical,
   Gift,
   Search,
@@ -78,6 +79,8 @@ function WebhookErrorBadge({ className }: { className?: string }) {
 
 function AdminSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const paymentsTab = searchParams.get('tab');
 
   const categories = [
     {
@@ -147,6 +150,16 @@ function AdminSidebar() {
       ],
     },
     {
+      key: 'payments',
+      label: 'Payments',
+      href: '/admin/payments',
+      icon: CreditCard,
+      items: [
+        { name: 'Bookings', href: '/admin/payments' },
+        { name: 'History', href: '/admin/payments?tab=history' },
+      ],
+    },
+    {
       key: 'beta',
       label: 'Beta',
       href: '/admin/beta/invites',
@@ -197,7 +210,11 @@ function AdminSidebar() {
             {active && (
               <ul className="mt-1 ml-8 space-y-1">
                 {cat.items.map((sub) => {
-                  const subActive = pathname === sub.href;
+                  const isPaymentsHistory = sub.href.includes('/admin/payments?tab=history');
+                  const isPaymentsRoot = sub.href === '/admin/payments';
+                  const subActive = isPaymentsHistory
+                    ? pathname === '/admin/payments' && paymentsTab === 'history'
+                    : pathname === sub.href && !(isPaymentsRoot && paymentsTab === 'history');
                   return (
                     <li key={sub.href}>
                       <Link

@@ -21,6 +21,11 @@ from app.models.booking import Booking, BookingStatus
 from app.services.cache_service import CacheService
 from app.services.notification_service import NotificationService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 class TestSupportingSystemsIntegration:
     """Test that all supporting systems work together cleanly."""
@@ -45,14 +50,18 @@ class TestSupportingSystemsIntegration:
         )
 
         # Create booking with time-based pattern (no availability_slot_id needed)
+        booking_date = tomorrow
+        start_time = time(9, 0)
+        end_time = time(10, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
             instructor_service_id=service.id,
             # Remove availability_slot_id - not part of new architecture
-            booking_date=tomorrow,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,

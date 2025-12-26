@@ -7,7 +7,18 @@ configures task serialization, timezone, and autodiscovery.
 """
 
 import os
-from typing import TYPE_CHECKING, Any, Dict, Optional, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Optional,
+    ParamSpec,
+    Protocol,
+    TypeAlias,
+    TypeVar,
+    cast,
+)
 
 from celery import Celery, Task
 from celery.schedules import crontab
@@ -17,6 +28,10 @@ from app.core.config import settings
 
 if TYPE_CHECKING:
     from app.services.retention_service import RetentionResult
+
+    BaseTaskType: TypeAlias = Task[Any, Any]
+else:
+    BaseTaskType = Task
 
 # Import production config if available
 if settings.environment == "production":
@@ -193,8 +208,12 @@ celery_app = create_celery_app()
 # and also via the force imports list in celery_app.conf.imports
 
 
+P = ParamSpec("P")
+R = TypeVar("R", covariant=True)
+
+
 # Define base task class with error handling
-class BaseTask(Task):  # type: ignore[type-arg]
+class BaseTask(BaseTaskType):
     """Base task with automatic error handling and logging."""
 
     autoretry_for = (Exception,)
@@ -256,8 +275,27 @@ class BaseTask(Task):  # type: ignore[type-arg]
 celery_app.conf.task_cls = BaseTask
 
 
+class TaskWrapper(Protocol[P, R]):
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
+        ...
+
+    delay: Callable[..., Any]
+    apply_async: Callable[..., Any]
+
+
+def typed_task(
+    *task_args: Any, **task_kwargs: Any
+) -> Callable[[Callable[P, R]], TaskWrapper[P, R]]:
+    """Return a typed Celery task decorator for mypy."""
+
+    return cast(
+        Callable[[Callable[P, R]], TaskWrapper[P, R]],
+        celery_app.task(*task_args, **task_kwargs),
+    )
+
+
 # Health check task
-@celery_app.task(name="app.tasks.health_check")
+@typed_task(name="app.tasks.health_check")
 def health_check() -> Dict[str, str]:
     """
     Simple health check task to verify Celery is working.
@@ -278,17 +316,17 @@ def health_check() -> Dict[str, str]:
     }
 
 
-@celery_app.task(name="app.tasks.availability_retention.run")
+@typed_task(name="app.tasks.availability_retention.run")
 def run_availability_retention() -> "RetentionResult":
     """
     Purge stale availability_days rows when retention is enabled.
     """
-    from datetime import date
+    from datetime import datetime, timezone
 
     from app.database import SessionLocal
     from app.services.retention_service import RetentionService
 
-    run_day = date.today()
+    run_day = datetime.now(timezone.utc).date()
     if not settings.availability_retention_enabled:
         return {
             "inspected_days": 0,

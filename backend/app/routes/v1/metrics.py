@@ -501,7 +501,7 @@ async def test_rate_limit(
     """
     return RateLimitTestResponse(
         message="Rate limit test successful",
-        timestamp=datetime.now().isoformat(),
+        timestamp=datetime.now(timezone.utc).isoformat(),
         note="This endpoint is rate limited to 3 requests per minute",
     )
 

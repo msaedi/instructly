@@ -112,6 +112,7 @@ export interface TimeSelectionModalProps {
       last_initial: string;
       has_profile_picture?: boolean;
       profile_picture_version?: number;
+      timezone?: string;
     };
     services: Array<{
       id?: string;
@@ -877,6 +878,9 @@ export default function TimeSelectionModal({
       // Prepare booking data for payment page
       const locationLabel = selectedModality === 'in_person' ? 'In-person (student to confirm location)' : 'Online';
 
+      const instructorTimezone =
+        typeof instructor?.user?.timezone === 'string' ? instructor.user.timezone : undefined;
+
       const bookingData = {
         instructorId: instructor.user_id,
         instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
@@ -894,6 +898,7 @@ export default function TimeSelectionModal({
         location: locationLabel,
         metadata: {
           modality: selectedModality,
+          ...(instructorTimezone ? { timezone: instructorTimezone } : {}),
         },
         freeCancellationUntil: freeCancellationUntil.toISOString(),
       };

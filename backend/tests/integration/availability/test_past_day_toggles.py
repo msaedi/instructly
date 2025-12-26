@@ -5,77 +5,19 @@ Locks the behavior when AVAILABILITY_ALLOW_PAST is true vs false.
 """
 
 from datetime import date, timedelta, timezone
-from importlib import reload
 
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-import app.main
 from app.models import AvailabilityDay, User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-import app.routes.v1.availability_windows as availability_routes
-import app.routes.v1.availability_windows as availability_routes_v1
 import app.services.availability_service as availability_service_module
 from app.utils.bitset import windows_from_bits
 
-
-@pytest.fixture
-def bitmap_app_allow_past(monkeypatch: pytest.MonkeyPatch):
-    """Reload the application with bitmap availability and allow_past enabled."""
-    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
-
-    reload(availability_service_module)
-    reload(availability_routes)
-    reload(availability_routes_v1)
-    reload(app.main)
-
-    yield app.main
-
-    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "false")
-    reload(availability_service_module)
-    reload(availability_routes)
-    reload(availability_routes_v1)
-    reload(app.main)
-
-
-@pytest.fixture
-def bitmap_app_disallow_past(monkeypatch: pytest.MonkeyPatch):
-    """Reload the application with bitmap availability but disallow_past."""
-    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "false")
-
-    reload(availability_service_module)
-    reload(availability_routes)
-    reload(availability_routes_v1)
-    reload(app.main)
-
-    yield app.main
-
-    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
-    reload(availability_service_module)
-    reload(availability_routes)
-    reload(availability_routes_v1)
-    reload(app.main)
-
-
-@pytest.fixture
-def bitmap_client_allow_past(bitmap_app_allow_past) -> TestClient:
-    """Return a TestClient with allow_past enabled."""
-    client = TestClient(bitmap_app_allow_past.fastapi_app, raise_server_exceptions=False)
-    try:
-        yield client
-    finally:
-        client.close()
-
-
-@pytest.fixture
-def bitmap_client_disallow_past(bitmap_app_disallow_past) -> TestClient:
-    """Return a TestClient with allow_past disabled."""
-    client = TestClient(bitmap_app_disallow_past.fastapi_app, raise_server_exceptions=False)
-    try:
-        yield client
-    finally:
-        client.close()
+# Use shared fixtures from conftest:
+# - bitmap_app_allow_past / bitmap_client_allow_past
+# - bitmap_app_disallow_past / bitmap_client_disallow_past
 
 
 def _freeze_time_to_date(monkeypatch: pytest.MonkeyPatch, target_date: date) -> None:

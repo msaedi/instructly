@@ -123,6 +123,30 @@ class InstructorInfo:
 6. **No new migrations during dev** - Modify existing files
 7. **Default to INT database** - Production requires explicit confirmation
 
+### Timezone Architecture (v123)
+**Decision**: Store UTC timestamps with timezone context, use TimezoneService for all conversions.
+
+**New Fields**:
+- `booking_start_utc`: Canonical UTC timestamp
+- `booking_end_utc`: Canonical UTC timestamp
+- `lesson_timezone`: IANA timezone ID for the lesson
+- `instructor_tz_at_booking`: Snapshot of instructor TZ
+- `student_tz_at_booking`: Snapshot of student TZ
+
+**Rules**:
+- In-person lessons: Instructor's timezone
+- Online lessons: Instructor's timezone
+- All comparisons: Use UTC
+- DST spring-forward gaps: Reject with user-friendly error
+- DST fall-back overlaps: Use first occurrence
+- Wall-clock preservation: "2 PM" stays "2 PM" across DST
+
+**Enforcement**:
+- Pre-commit hook: check_timezone_patterns.py
+- Exception marker: `# tz-pattern-ok: <reason>`
+
+**Rationale**: Fixes min-advance check bug where local times were incorrectly treated as UTC.
+
 ## Messaging Architecture Decisions (v117)
 
 ### Per-User Conversation State
@@ -282,3 +306,52 @@ OPENAI_CALL_CONCURRENCY=3          # Hard limit on OpenAI calls
 - `is_allowed_origin()` was duplicated in payments.py and stripe_service.py
 - Security-critical code should have single implementation
 - Restricts to explicit allowed IPs only
+
+## Stripe Network Call Decisions (v123)
+
+### Stripe Calls Outside Transactions
+**Decision**: All Stripe API calls must be made OUTSIDE database transactions.
+
+**Rationale**:
+- Stripe calls take 100-500ms (network latency)
+- DB transactions hold row locks
+- Holding locks for 500ms causes contention and slow queries
+- Load testing revealed this as primary bottleneck at 150+ users
+
+**Pattern**:
+```python
+# ❌ BAD: Stripe inside transaction (holds lock 400ms)
+with self.transaction():
+    booking = self.repo.get(id)
+    stripe.PaymentIntent.capture(booking.pi_id)  # 400ms network
+    booking.status = "captured"
+
+# ✅ GOOD: Stripe outside transaction (two 5ms locks)
+# Phase 1: Read
+with self.transaction():
+    booking = self.repo.get(id)
+    pi_id = booking.payment_intent_id
+
+# Phase 2: Network (no lock)
+result = stripe.PaymentIntent.capture(pi_id)
+
+# Phase 3: Write
+with self.transaction():
+    booking.status = "captured"
+```
+
+**Error Handling**:
+- If Phase 2 fails: Log error, update status to failed state in Phase 3
+- If Phase 3 fails: Stripe already succeeded - use idempotency keys to safely retry, or reconcile via webhook
+- Webhooks provide eventual consistency guarantee
+
+**Identified Bottlenecks Fixed**:
+| Method | Before (lock held) | After (lock held) |
+|--------|-------------------|-------------------|
+| `cancel_booking` | 350-800ms | 10-20ms |
+| `process_booking_payment` | 400-800ms | 10-20ms |
+| `save_payment_method` | 250-500ms | 10-20ms |
+| `create_payment_intent` | 200-400ms | 10-20ms |
+| `confirm_payment_intent` | 200-400ms | 10-20ms |
+
+**Added**: December 2025 (v123)

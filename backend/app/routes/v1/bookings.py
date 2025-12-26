@@ -24,7 +24,7 @@ Endpoints:
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any, NoReturn, Optional
 
@@ -691,8 +691,13 @@ async def reschedule_booking(
         if not original:
             raise NotFoundException("Booking not found")
 
+        # Part 5: Block second reschedule - a booking can only be rescheduled once
+        await asyncio.to_thread(booking_service.validate_reschedule_allowed, original)
+
         # Pre-validate the requested slot
-        start_dt = datetime.combine(payload.booking_date, payload.start_time)
+        start_dt = datetime.combine(  # tz-pattern-ok: duration math only
+            payload.booking_date, payload.start_time, tzinfo=timezone.utc
+        )
         end_dt = start_dt + timedelta(minutes=payload.selected_duration)
         proposed_end_time = end_dt.time()
 
@@ -899,6 +904,7 @@ async def mark_booking_no_show(
     response_model=BookingResponse,
     dependencies=[Depends(new_rate_limit("payment"))],
     responses={404: {"description": "Booking not found"}},
+    deprecated=True,
 )
 async def confirm_booking_payment(
     booking_id: str = Path(
@@ -914,8 +920,7 @@ async def confirm_booking_payment(
     """
     Confirm payment method for a booking (Phase 2.1).
 
-    Called after frontend collects card details via SetupIntent.
-    This completes the booking creation flow.
+    Deprecated: use /api/v1/payments/checkout instead.
     """
     try:
         booking = await asyncio.to_thread(

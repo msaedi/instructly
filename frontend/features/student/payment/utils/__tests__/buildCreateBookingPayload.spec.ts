@@ -29,6 +29,7 @@ describe('buildCreateBookingPayload', () => {
       serviceId: 'svc-1',
       bookingDate: '2025-05-06',
       booking: baseBooking,
+      instructorTimezone: 'America/New_York',
     });
 
     expect(payload).toEqual(
@@ -41,6 +42,7 @@ describe('buildCreateBookingPayload', () => {
         selected_duration: 60,
         location_type: 'remote',
         meeting_location: expect.stringMatching(/online/i),
+        timezone: 'America/New_York',
       })
     );
   });

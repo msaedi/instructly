@@ -6,48 +6,14 @@ confirming that bitmap-only operations are being used.
 """
 
 from datetime import date, timedelta
-from importlib import reload
 
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
-import app.api.dependencies.services as dependency_services
-import app.main
 from app.models.user import User
-import app.routes.v1.availability_windows as availability_routes
-import app.services.availability_service as availability_service_module
-import app.services.week_operation_service as week_operation_service_module
 
-
-@pytest.fixture
-def bitmap_app(monkeypatch: pytest.MonkeyPatch):
-    """Reload the application with bitmap availability enabled."""
-    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
-
-    reload(availability_service_module)
-    reload(week_operation_service_module)
-    reload(availability_routes)
-    reload(dependency_services)
-    reload(app.main)
-
-    yield app.main
-
-    reload(availability_service_module)
-    reload(week_operation_service_module)
-    reload(availability_routes)
-    reload(dependency_services)
-    reload(app.main)
-
-
-@pytest.fixture
-def bitmap_client(bitmap_app) -> TestClient:
-    """Return a TestClient backed by the bitmap-enabled app instance."""
-    client = TestClient(bitmap_app.fastapi_app, raise_server_exceptions=False)
-    try:
-        yield client
-    finally:
-        client.close()
+# Use shared bitmap_app and bitmap_client fixtures from conftest
 
 
 @pytest.fixture

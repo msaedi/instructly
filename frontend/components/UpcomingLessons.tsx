@@ -8,6 +8,7 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName } from '@/types/enums';
 import { useUpcomingBookings } from '@/src/api/services/bookings';
+import { formatBookingDate, formatBookingTime } from '@/lib/timezone/formatBookingTime';
 
 export function UpcomingLessons() {
   const { isAuthenticated, user, isLoading: isAuthLoading } = useAuth();
@@ -60,44 +61,30 @@ export function UpcomingLessons() {
     return null; // Silently fail for now
   }
 
-  const formatDate = (dateStr: string) => {
-    // Parse the date string properly (assuming YYYY-MM-DD format from backend)
-    const dateParts = dateStr.split('-');
-    const year = parseInt(dateParts[0] || '0', 10);
-    const month = parseInt(dateParts[1] || '0', 10);
-    const day = parseInt(dateParts[2] || '0', 10);
-    const bookingDate = new Date(year, (month || 1) - 1, day); // month is 0-indexed
+  const viewerTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const dayKey = (value: Date) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: viewerTimezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(value);
 
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+  const formatDateLabel = (booking: { booking_start_utc?: string | null; booking_date: string }) => {
+    const bookingDate = booking.booking_start_utc
+      ? new Date(booking.booking_start_utc)
+      : new Date(`${booking.booking_date}T00:00:00`);
+    const todayKey = dayKey(new Date());
+    const tomorrowKey = dayKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
+    const bookingKey = dayKey(bookingDate);
 
-    // Compare using date strings to avoid timezone issues
-    const bookingDateStr = bookingDate.toDateString();
-    const todayStr = today.toDateString();
-    const tomorrowStr = tomorrow.toDateString();
-
-    if (bookingDateStr === todayStr) {
+    if (bookingKey === todayKey) {
       return 'Today';
-    } else if (bookingDateStr === tomorrowStr) {
-      return 'Tomorrow';
-    } else {
-      return bookingDate.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-      });
     }
-  };
-
-  const formatTime = (timeStr: string) => {
-    const timeParts = timeStr.split(':');
-    const hours = timeParts[0] || '0';
-    const minutes = timeParts[1] || '00';
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'pm' : 'am';
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-    return `${displayHour}:${minutes}${ampm}`;
+    if (bookingKey === tomorrowKey) {
+      return 'Tomorrow';
+    }
+    return formatBookingDate(booking, viewerTimezone);
   };
 
   const getLocationArea = (location?: string) => {
@@ -131,7 +118,7 @@ export function UpcomingLessons() {
                 style={{ borderRadius: '8px', border: '0.5px solid #E0E0E0' }}
               >
                 <div className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                  {formatDate(booking.booking_date)} {formatTime(booking.start_time)}
+                  {formatDateLabel(booking)} {formatBookingTime(booking, viewerTimezone)}
                 </div>
                 <div className="text-base font-bold text-gray-600 mb-1">
                   {booking.service_name}

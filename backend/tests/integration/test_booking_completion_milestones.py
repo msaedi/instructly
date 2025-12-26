@@ -16,6 +16,11 @@ from app.repositories.booking_repository import BookingRepository
 from app.repositories.payment_repository import PaymentRepository
 from app.services.booking_service import BookingService
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 @pytest.fixture
 def milestone_setup(db):
@@ -80,6 +85,9 @@ def milestone_setup(db):
 
 
 def _new_confirmed_booking(student: User, instructor: User, instructor_service: InstructorService, offset: int) -> Booking:
+    booking_date = (datetime.now(timezone.utc) - timedelta(days=offset)).date()
+    start_time = time(12, 0)
+    end_time = time(13, 0)
     booking = Booking(
         id=str(ulid.ULID()),
         student_id=student.id,
@@ -89,9 +97,10 @@ def _new_confirmed_booking(student: User, instructor: User, instructor_service: 
         hourly_rate=instructor_service.hourly_rate,
         total_price=55.0,
         duration_minutes=60,
-        booking_date=(datetime.now(timezone.utc) - timedelta(days=offset)).date(),
-        start_time=time(12, 0),
-        end_time=time(13, 0),
+        booking_date=booking_date,
+        start_time=start_time,
+        end_time=end_time,
+        **booking_timezone_fields(booking_date, start_time, end_time),
         status=BookingStatus.CONFIRMED,
     )
     return booking
@@ -137,7 +146,7 @@ async def test_booking_completion_milestones_flow(db, milestone_setup):
     assert all(c.reason != "milestone_s11" or c.used_at is not None for c in revoked_credits)
 
     # Create booking that consumes credits and then gets cancelled (refund scenario)
-    refund_booking = _new_confirmed_booking(student, instructor, instructor_service, 0)
+    refund_booking = _new_confirmed_booking(student, instructor, instructor_service, -2)
     db.add(refund_booking)
     db.commit()
 

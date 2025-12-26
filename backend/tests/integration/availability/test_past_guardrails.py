@@ -5,41 +5,19 @@ Integration tests for bitmap past-edit guardrails.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
-from importlib import reload
 
 from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-import app.main
 from app.models import AuditLog, AvailabilityDay, EventOutbox
 from app.repositories.availability_day_repository import AvailabilityDayRepository
-import app.routes.v1.availability_windows as availability_routes
 import app.services.availability_service as availability_service_module
 import app.services.week_operation_service as week_operation_service_module
 from app.utils.bitset import bits_from_windows, windows_from_bits
 
-
-@pytest.fixture
-def bitmap_app(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("AVAILABILITY_ALLOW_PAST", "true")
-    reload(availability_service_module)
-    reload(availability_routes)
-    reload(app.main)
-    yield app.main
-    reload(availability_service_module)
-    reload(availability_routes)
-    reload(app.main)
-
-
-@pytest.fixture
-def bitmap_client(bitmap_app) -> TestClient:
-    client = TestClient(bitmap_app.fastapi_app, raise_server_exceptions=False)
-    try:
-        yield client
-    finally:
-        client.close()
+# Use shared bitmap_app and bitmap_client fixtures from conftest
 
 
 @pytest.fixture

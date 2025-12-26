@@ -40,8 +40,10 @@ from app.services.permission_service import PermissionService
 
 try:  # pragma: no cover - fallback for direct backend pytest runs
     from backend.tests.conftest import add_service_areas_for_boroughs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
 except ModuleNotFoundError:  # pragma: no cover
     from tests.conftest import add_service_areas_for_boroughs
+    from tests.utils.booking_timezone import booking_timezone_fields
 
 
 class TestArchitecturalValidation:
@@ -228,14 +230,18 @@ class TestModelInstantiation:
         profile = test_instructor.instructor_profile
         service = db.query(Service).filter_by(instructor_profile_id=profile.id).first()
 
+        booking_date = date.today()
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
             # No availability_slot_id!
-            booking_date=date.today(),
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
@@ -246,9 +252,9 @@ class TestModelInstantiation:
         db.flush()
 
         assert booking.id is not None
-        assert booking.booking_date == date.today()
-        assert booking.start_time == time(14, 0)
-        assert booking.end_time == time(15, 0)
+        assert booking.booking_date == booking_date
+        assert booking.start_time == start_time
+        assert booking.end_time == end_time
         # Verify no slot reference exists
         assert not hasattr(booking, "availability_slot_id")
         assert not hasattr(booking, "availability_slot")
@@ -290,13 +296,17 @@ class TestCleanArchitectureVerification:
         service = db.query(Service).filter_by(instructor_profile_id=profile.id).first()
 
         # Create booking with all necessary data
+        booking_date = date(2024, 7, 15)
+        start_time = time(10, 30)
+        end_time = time(11, 30)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=date(2024, 7, 15),
-            start_time=time(10, 30),
-            end_time=time(11, 30),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,
@@ -337,13 +347,17 @@ class TestCleanArchitectureVerification:
         service = db.query(Service).filter_by(instructor_profile_id=profile.id).first()
 
         # Create a booking
+        booking_date = date.today()
+        start_time = time(15, 0)
+        end_time = time(16, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(15, 0),
-            end_time=time(16, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
@@ -368,8 +382,8 @@ class TestCleanArchitectureVerification:
         # Booking should still exist ("person remains")
         booking = db.get(Booking, booking_id)
         assert booking is not None
-        assert booking.start_time == time(15, 0)
-        assert booking.end_time == time(16, 0)
+        assert booking.start_time == start_time
+        assert booking.end_time == end_time
 
 
 class TestRelationships:
@@ -410,13 +424,17 @@ class TestRelationships:
         profile = test_instructor.instructor_profile
         service = db.query(Service).filter_by(instructor_profile_id=profile.id).first()
 
+        booking_date = date.today()
+        start_time = time(13, 0)
+        end_time = time(14, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(13, 0),
-            end_time=time(14, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
@@ -443,13 +461,17 @@ class TestRelationships:
         profile = test_instructor.instructor_profile
         service = db.query(Service).filter_by(instructor_profile_id=profile.id).first()
 
+        booking_date = date.today()
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
@@ -570,13 +592,17 @@ class TestFieldValidation:
         service = db.query(Service).filter_by(instructor_profile_id=profile.id).first()
 
         for status in [BookingStatus.CONFIRMED, BookingStatus.CANCELLED, BookingStatus.COMPLETED]:
+            booking_date = date.today()
+            start_time = time(9, 0)
+            end_time = time(10, 0)
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor.id,
                 instructor_service_id=service.id,
-                booking_date=date.today(),
-                start_time=time(9, 0),
-                end_time=time(10, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 service_name="Test",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -637,13 +663,17 @@ class TestDefaultValues:
         profile = test_instructor.instructor_profile
         service = db.query(Service).filter_by(instructor_profile_id=profile.id).first()
 
+        booking_date = date.today()
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
@@ -683,13 +713,17 @@ class TestArchitecturalIntegrity:
         profile = test_instructor.instructor_profile
         service = db.query(Service).filter_by(instructor_profile_id=profile.id).first()
 
+        booking_date = date.today()
+        start_time = time(16, 0)
+        end_time = time(17, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=time(16, 0),
-            end_time=time(17, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,

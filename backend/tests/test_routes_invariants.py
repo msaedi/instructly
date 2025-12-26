@@ -203,6 +203,9 @@ class TestRoutingInvariants:
             ("/api/v1/bookings/{booking_id}", "/api/v1/bookings/check-availability"),
             ("/api/v1/bookings/send-reminders", "/api/v1/bookings/{booking_id}"),
             ("/api/v1/bookings/{booking_id}", "/api/v1/bookings/send-reminders"),
+            # Admin bookings: static stats route defined before dynamic booking_id route
+            ("/api/v1/admin/bookings/stats", "/api/v1/admin/bookings/{booking_id}"),
+            ("/api/v1/admin/bookings/{booking_id}", "/api/v1/admin/bookings/stats"),
             # Pricing endpoint uses same {booking_id} path parameter
             ("/api/v1/bookings/{booking_id}/pricing", "/api/v1/bookings/{booking_id}/preview"),
             ("/api/v1/bookings/{booking_id}/preview", "/api/v1/bookings/{booking_id}/pricing"),

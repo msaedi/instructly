@@ -1,0 +1,194 @@
+from decimal import Decimal
+from unittest.mock import patch
+
+from app.core.ulid_helper import generate_ulid
+from app.models.audit_log import AuditLog
+from app.models.booking import Booking
+
+
+def _prepare_booking_for_refund(db, booking: Booking) -> Booking:
+    booking.payment_intent_id = booking.payment_intent_id or "pi_test_123"
+    booking.payment_status = "captured"
+    db.commit()
+    db.refresh(booking)
+    return booking
+
+
+@patch("app.services.stripe_service.StripeService.refund_payment")
+def test_admin_can_refund_booking(
+    mock_refund_payment,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    expected_cents = int(Decimal(str(booking.total_price)) * 100)
+    mock_refund_payment.return_value = {
+        "refund_id": "re_test_123",
+        "amount_refunded": expected_cents,
+    }
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "instructor_no_show", "note": "Instructor no-show"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["refund_id"] == "re_test_123"
+    assert data["amount_refunded_cents"] == expected_cents
+
+    mock_refund_payment.assert_called_once()
+    assert mock_refund_payment.call_args.kwargs["amount_cents"] == expected_cents
+
+    db.refresh(booking)
+    assert booking.payment_status == "refunded"
+
+
+@patch("app.services.stripe_service.StripeService.refund_payment")
+def test_admin_can_partial_refund(
+    mock_refund_payment,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    mock_refund_payment.return_value = {
+        "refund_id": "re_partial",
+        "amount_refunded": 5000,
+    }
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "dispute", "amount_cents": 5000},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["amount_refunded_cents"] == 5000
+    assert mock_refund_payment.call_args.kwargs["amount_cents"] == 5000
+
+
+def test_non_admin_cannot_refund(client, db, test_booking, auth_headers):
+    booking = _prepare_booking_for_refund(db, test_booking)
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "platform_error"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 403
+
+
+def test_refund_nonexistent_booking(client, auth_headers_admin):
+    response = client.post(
+        f"/api/v1/admin/bookings/{generate_ulid()}/refund",
+        json={"reason": "other"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 404
+
+
+def test_refund_already_refunded_booking(client, db, test_booking, auth_headers_admin):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    booking.payment_status = "refunded"
+    db.commit()
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "dispute"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 400
+    assert "already refunded" in response.json()["detail"].lower()
+
+
+@patch("app.services.stripe_service.StripeService.refund_payment")
+def test_instructor_no_show_sets_no_show_status(
+    mock_refund_payment,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    mock_refund_payment.return_value = {
+        "refund_id": "re_no_show",
+        "amount_refunded": 5000,
+    }
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "instructor_no_show"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 200
+    db.refresh(booking)
+    assert booking.status == "NO_SHOW"
+    assert booking.payment_status == "refunded"
+
+
+@patch("app.services.stripe_service.StripeService.refund_payment")
+def test_dispute_sets_cancelled_status(
+    mock_refund_payment,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    mock_refund_payment.return_value = {
+        "refund_id": "re_dispute",
+        "amount_refunded": 5000,
+    }
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "dispute"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 200
+    db.refresh(booking)
+    assert booking.status == "CANCELLED"
+
+
+@patch("app.services.stripe_service.StripeService.refund_payment")
+def test_refund_creates_audit_log(
+    mock_refund_payment,
+    client,
+    db,
+    test_booking,
+    auth_headers_admin,
+    admin_user,
+):
+    booking = _prepare_booking_for_refund(db, test_booking)
+    mock_refund_payment.return_value = {
+        "refund_id": "re_audit",
+        "amount_refunded": 5000,
+    }
+
+    response = client.post(
+        f"/api/v1/admin/bookings/{booking.id}/refund",
+        json={"reason": "instructor_no_show", "note": "Test refund"},
+        headers=auth_headers_admin,
+    )
+
+    assert response.status_code == 200
+
+    log = (
+        db.query(AuditLog)
+        .filter(AuditLog.entity_id == booking.id, AuditLog.action == "admin_refund")
+        .first()
+    )
+    assert log is not None
+    assert log.actor_id == admin_user.id

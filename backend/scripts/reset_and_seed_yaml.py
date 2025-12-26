@@ -8,6 +8,7 @@ Usage:
   Production: SITE_MODE=prod python backend/scripts/reset_and_seed_yaml.py (requires confirmation)
 """
 
+from contextlib import contextmanager
 from pathlib import Path
 import sys
 
@@ -18,7 +19,7 @@ from decimal import Decimal
 import json
 import os
 import random
-from typing import Any, Dict, Sequence, Tuple
+from typing import Any, Dict, Iterator, Optional, Sequence, Tuple
 
 # Add the scripts directory to Python path so imports work from anywhere
 sys.path.insert(0, str(Path(__file__).parent))
@@ -50,15 +51,17 @@ from app.models.user import User
 from app.repositories.availability_day_repository import AvailabilityDayRepository
 from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.region_boundary_repository import RegionBoundaryRepository
+from app.services.timezone_service import TimezoneService
 from app.utils.bitset import bits_from_windows, new_empty_bits
 
 
 class DatabaseSeeder:
-    def __init__(self):
+    def __init__(self, db: Optional[Session] = None):
         # Use absolute path based on script location
         seed_data_path = Path(__file__).parent / "seed_data"
         self.loader = SeedDataLoader(seed_data_dir=str(seed_data_path))
-        self.engine = self._create_engine()
+        self._external_session = db
+        self.engine = db.get_bind() if db is not None else self._create_engine()
         self.created_users = {}
         self.created_services = {}
         self.stripe_mapping = self._load_stripe_mapping()
@@ -68,6 +71,14 @@ class DatabaseSeeder:
         db_url = settings.get_database_url()
         # The DatabaseConfig will print which database is being used
         return create_engine(db_url)
+
+    @contextmanager
+    def _session_scope(self) -> Iterator[Session]:
+        if self._external_session is not None:
+            yield self._external_session
+            return
+        with Session(self.engine) as session:
+            yield session
 
     def _load_stripe_mapping(self):
         """Load Stripe test account mappings if file exists"""
@@ -114,9 +125,41 @@ class DatabaseSeeder:
                 continue
         return values or list(default)
 
+    @staticmethod
+    def _resolve_user_timezone(user: Optional[User]) -> str:
+        tz_value = getattr(user, "timezone", None) if user else None
+        if isinstance(tz_value, str) and tz_value:
+            return tz_value
+        return TimezoneService.DEFAULT_TIMEZONE
+
+    def _build_booking_timezone_fields(
+        self,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        *,
+        instructor_user: Optional[User],
+        student_user: Optional[User],
+    ) -> Dict[str, Any]:
+        instructor_tz = self._resolve_user_timezone(instructor_user)
+        student_tz = self._resolve_user_timezone(student_user)
+        lesson_tz = TimezoneService.get_lesson_timezone(instructor_tz, is_online=False)
+        end_date = booking_date
+        if end_time == time(0, 0) and start_time != time(0, 0):
+            end_date = booking_date + timedelta(days=1)
+        start_utc = TimezoneService.local_to_utc(booking_date, start_time, lesson_tz)
+        end_utc = TimezoneService.local_to_utc(end_date, end_time, lesson_tz)
+        return {
+            "booking_start_utc": start_utc,
+            "booking_end_utc": end_utc,
+            "lesson_timezone": lesson_tz,
+            "instructor_tz_at_booking": instructor_tz,
+            "student_tz_at_booking": student_tz,
+        }
+
     def reset_database(self):
         """Clean test data from database"""
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Delete in order to respect foreign key constraints
             print("🧹 Cleaning database...")
 
@@ -200,7 +243,7 @@ class DatabaseSeeder:
             RoleName.INSTRUCTOR.value: "Instructors providing lessons on the platform",
             RoleName.STUDENT.value: "Students booking lessons",
         }
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             existing = {
                 role.name for role in session.query(Role).filter(Role.name.in_(tuple(core_roles)))
             }
@@ -242,7 +285,7 @@ class DatabaseSeeder:
         students = self.loader.get_students()
         password = self.loader.get_default_password()
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Get roles
             admin_role = session.query(Role).filter_by(name=RoleName.ADMIN).first()
             student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
@@ -326,7 +369,7 @@ class DatabaseSeeder:
         instructors = self.loader.get_instructors()
         password = self.loader.get_default_password()
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Get instructor role
             instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
 
@@ -541,7 +584,7 @@ class DatabaseSeeder:
 
     def seed_tier_maintenance_sessions(self, reason: str = "") -> int:
         """Seed tier maintenance sessions using a fresh session."""
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             return self._seed_tier_maintenance_sessions(session, reason=reason)
 
     def _slot_conflicts(
@@ -631,6 +674,18 @@ class DatabaseSeeder:
             print(f"  ⚠️  Skipping tier maintenance seeding: {gate_hint}")
             return 0
 
+        instructor_ids = [
+            plan.get("user_id")
+            for plan in self.instructor_seed_plan.values()
+            if plan.get("user_id")
+        ]
+        instructors_by_id: Dict[str, User] = {}
+        if instructor_ids:
+            instructors_by_id = {
+                instructor.id: instructor
+                for instructor in session.query(User).filter(User.id.in_(instructor_ids)).all()
+            }
+
         rng = random.Random(42)
         total_seeded = 0
         pending_student_spans: set[tuple[str, date, time, time]] = set()
@@ -646,6 +701,7 @@ class DatabaseSeeder:
             user_id = plan.get("user_id")
             if not user_id:
                 continue
+            instructor_user = instructors_by_id.get(user_id)
 
             existing_count = (
                 session.query(Booking)
@@ -690,7 +746,7 @@ class DatabaseSeeder:
 
                     start_hour = rng.randint(9, 18)
                     start_time = time(start_hour, 0)
-                    start_dt_naive = datetime.combine(booking_date, start_time)
+                    start_dt_naive = datetime.combine(booking_date, start_time)  # tz-pattern-ok: seed script generates test data
                     end_dt_naive = start_dt_naive + timedelta(minutes=duration)
                     end_time = end_dt_naive.time()
 
@@ -737,6 +793,13 @@ class DatabaseSeeder:
                         else (service.description or service.name)
                     )
 
+                    tz_fields = self._build_booking_timezone_fields(
+                        booking_date,
+                        start_time,
+                        end_time,
+                        instructor_user=instructor_user,
+                        student_user=student,
+                    )
                     booking = Booking(
                         student_id=student.id,
                         instructor_id=user_id,
@@ -744,6 +807,7 @@ class DatabaseSeeder:
                         booking_date=booking_date,
                         start_time=start_time,
                         end_time=end_time,
+                        **tz_fields,
                         duration_minutes=duration,
                         service_name=service_name,
                         hourly_rate=hourly_rate,
@@ -783,7 +847,7 @@ class DatabaseSeeder:
         Coverage rules are defined in seed_data/coverage.yaml, allowing per-instructor overrides
         by email, and default Manhattan neighborhoods otherwise.
         """
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             region_repo = RegionBoundaryRepository(session)
 
             rules = self.loader.get_coverage_rules()
@@ -884,7 +948,7 @@ class DatabaseSeeder:
 
         print(f"  ⏳ Creating availability for {len(instructors)} instructors ({weeks_past} past + {weeks_future} future weeks)...")
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             repo = AvailabilityDayRepository(session)
             created_count = 0
 
@@ -976,7 +1040,7 @@ class DatabaseSeeder:
         backfill_days = self._get_env_int("BITMAP_BACKFILL_DAYS", 56)
         from scripts.backfill_bitmaps import backfill_bitmaps_range
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             stats = backfill_bitmaps_range(session, backfill_days)
             if stats:
                 session.commit()
@@ -994,8 +1058,9 @@ class DatabaseSeeder:
         horizon_days: int,
         sample_size: int = 3,
     ) -> dict:
-        window_start = date.today() - timedelta(days=lookback_days)
-        window_end = date.today() + timedelta(days=horizon_days)
+        utc_today = datetime.now(timezone.utc).date()
+        window_start = utc_today - timedelta(days=lookback_days)
+        window_end = utc_today + timedelta(days=horizon_days)
 
         sample_ids: list[str] = []
         if instructor_ids:
@@ -1036,7 +1101,7 @@ class DatabaseSeeder:
         booking_days_future = settings_cfg.get("booking_days_future", settings_cfg.get("booking_days_ahead", 7))
         booking_days_past = settings_cfg.get("booking_days_past", 21)
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Get all students
             student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
             students = (
@@ -1064,6 +1129,7 @@ class DatabaseSeeder:
                 .filter(User.id.in_(instructor_user_ids))
                 .all()
             )
+            instructors_by_id = {instructor.id: instructor for instructor in instructors}
             instructor_id_set = {
                 u.id for u in instructors
                 if any(r.name == RoleName.INSTRUCTOR for r in u.roles)
@@ -1120,6 +1186,7 @@ class DatabaseSeeder:
 
             # Create 1-3 bookings per instructor using bulk slot finding
             for instructor_id, services in instructor_data_list:
+                instructor_user = instructors_by_id.get(instructor_id)
                 num_bookings = random.randint(1, min(3, len(students)))
 
                 for _ in range(num_bookings):
@@ -1143,6 +1210,13 @@ class DatabaseSeeder:
                     booking_date, start_time, end_time = slot
                     service_name = catalog_services.get(service.service_catalog_id, "Service")
 
+                    tz_fields = self._build_booking_timezone_fields(
+                        booking_date,
+                        start_time,
+                        end_time,
+                        instructor_user=instructor_user,
+                        student_user=student,
+                    )
                     booking = Booking(
                         student_id=student.id,
                         instructor_id=instructor_id,
@@ -1150,6 +1224,7 @@ class DatabaseSeeder:
                         booking_date=booking_date,
                         start_time=start_time,
                         end_time=end_time,
+                        **tz_fields,
                         duration_minutes=duration,
                         service_name=service_name,
                         hourly_rate=service.hourly_rate,
@@ -1254,7 +1329,12 @@ class DatabaseSeeder:
                 # Random time between 10 AM and 6 PM
                 hour = random.randint(10, 17)
                 start_time = time(hour, 0)
-                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+                end_time = (
+                    datetime.combine(  # tz-pattern-ok: seed script generates test data
+                        date.today(), start_time
+                    )
+                    + timedelta(minutes=duration)
+                ).time()
 
                 # Skip if this student already has a booking overlapping this window
                 student_overlap = (
@@ -1299,6 +1379,13 @@ class DatabaseSeeder:
                 if instructor_overlap:
                     continue
 
+                tz_fields = self._build_booking_timezone_fields(
+                    booking_date,
+                    start_time,
+                    end_time,
+                    instructor_user=instructor,
+                    student_user=student,
+                )
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor.id,
@@ -1306,6 +1393,7 @@ class DatabaseSeeder:
                     booking_date=booking_date,
                     start_time=start_time,
                     end_time=end_time,
+                    **tz_fields,
                     status=BookingStatus.COMPLETED,
                     location_type="neutral",
                     meeting_location="Zoom",
@@ -1387,7 +1475,12 @@ class DatabaseSeeder:
                 # Random time between 10 AM and 6 PM
                 hour = random.randint(10, 17)
                 start_time = time(hour, 0)
-                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+                end_time = (
+                    datetime.combine(  # tz-pattern-ok: seed script generates test data
+                        date.today(), start_time
+                    )
+                    + timedelta(minutes=duration)
+                ).time()
 
                 # Get service details from catalog
                 catalog_service = session.query(ServiceCatalog).filter_by(id=service.service_catalog_id).first()
@@ -1435,6 +1528,13 @@ class DatabaseSeeder:
                 if instructor_overlap:
                     continue
 
+                tz_fields = self._build_booking_timezone_fields(
+                    booking_date,
+                    start_time,
+                    end_time,
+                    instructor_user=instructor,
+                    student_user=student,
+                )
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor.id,
@@ -1442,6 +1542,7 @@ class DatabaseSeeder:
                     booking_date=booking_date,
                     start_time=start_time,
                     end_time=end_time,
+                    **tz_fields,
                     status=BookingStatus.COMPLETED,
                     location_type="neutral",
                     meeting_location="In-person",
@@ -1517,7 +1618,12 @@ class DatabaseSeeder:
 
                 hour = random.randint(10, 17)
                 start_time = time(hour, 0)
-                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+                end_time = (
+                    datetime.combine(  # tz-pattern-ok: seed script generates test data
+                        date.today(), start_time
+                    )
+                    + timedelta(minutes=duration)
+                ).time()
 
                 # In-memory conflict check
                 start_min = start_time.hour * 60 + start_time.minute
@@ -1541,6 +1647,13 @@ class DatabaseSeeder:
                 if has_conflict:
                     continue
 
+                tz_fields = self._build_booking_timezone_fields(
+                    booking_date,
+                    start_time,
+                    end_time,
+                    instructor_user=instructor,
+                    student_user=student,
+                )
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor.id,
@@ -1548,6 +1661,7 @@ class DatabaseSeeder:
                     booking_date=booking_date,
                     start_time=start_time,
                     end_time=end_time,
+                    **tz_fields,
                     status=BookingStatus.COMPLETED,
                     location_type="neutral",
                     meeting_location="Zoom",
@@ -1632,7 +1746,12 @@ class DatabaseSeeder:
 
                 hour = random.randint(10, 17)
                 start_time = time(hour, 0)
-                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+                end_time = (
+                    datetime.combine(  # tz-pattern-ok: seed script generates test data
+                        date.today(), start_time
+                    )
+                    + timedelta(minutes=duration)
+                ).time()
 
                 # In-memory conflict check
                 start_min = start_time.hour * 60 + start_time.minute
@@ -1657,6 +1776,13 @@ class DatabaseSeeder:
 
                 service_name = catalog_services.get(service.service_catalog_id, "Service")
 
+                tz_fields = self._build_booking_timezone_fields(
+                    booking_date,
+                    start_time,
+                    end_time,
+                    instructor_user=instructor,
+                    student_user=student,
+                )
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor.id,
@@ -1664,6 +1790,7 @@ class DatabaseSeeder:
                     booking_date=booking_date,
                     start_time=start_time,
                     end_time=end_time,
+                    **tz_fields,
                     status=BookingStatus.COMPLETED,
                     location_type="neutral",
                     meeting_location="In-person",
@@ -1692,7 +1819,7 @@ class DatabaseSeeder:
         """
         from psycopg2.extras import execute_values
 
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             try:
                 instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
                 student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
@@ -1707,6 +1834,7 @@ class DatabaseSeeder:
                 seed_step_minutes = self._get_env_int("SEED_REVIEW_STEP_MINUTES", 15)
                 seed_durations = self._get_env_csv_ints("SEED_REVIEW_DURATIONS", [60, 45, 30])
                 preferred_student_email = os.getenv("SEED_REVIEW_STUDENT_EMAIL", "").strip() or None
+                utc_today = datetime.now(timezone.utc).date()
 
                 probe_snapshot: dict[str, Any] | None = None
                 probe_raw = os.getenv("BITMAP_PROBE_RESULT")
@@ -1881,7 +2009,7 @@ class DatabaseSeeder:
                         duration = random.choice(service.duration_options)
                         max_days_ago = max(7, seed_lookback - 1)
                         days_ago = random.randint(7, max_days_ago)
-                        base_date_val = date.today() - timedelta(days=days_ago)
+                        base_date_val = utc_today - timedelta(days=days_ago)
                         helper_completed_at = datetime.now(timezone.utc) - timedelta(days=days_ago - 1)
 
                         # Use bulk slot finding (in-memory conflict detection)
@@ -1891,23 +2019,37 @@ class DatabaseSeeder:
                             student_id=student.id,
                             base_date=base_date_val,
                             lookback_days=seed_lookback,
-                            horizon_days=seed_horizon,
+                            horizon_days=0,
                             day_start_hour=seed_day_start,
                             day_end_hour=seed_day_end,
                             step_minutes=seed_step_minutes,
                             durations_minutes=seed_durations,
                             randomize=True,
+                            past_only=True,
                         )
 
                         if not slot:
                             break
 
                         booking_date_val, start_time_val, end_time_val = slot
+                        if booking_date_val > utc_today:
+                            print(
+                                f"WARNING: Skipping future date {booking_date_val} for completed review booking."
+                            )
+                            continue
 
                         # Pre-generate ULID for bulk insert
                         booking_id = str(ulid.ULID())
                         service_name = service.catalog_entry.name if service.catalog_entry else "Service"
                         total_price = float(service.hourly_rate * (duration / 60))
+
+                        tz_fields = self._build_booking_timezone_fields(
+                            booking_date_val,
+                            start_time_val,
+                            end_time_val,
+                            instructor_user=instructor,
+                            student_user=student,
+                        )
 
                         # Collect booking data for bulk INSERT
                         pending_bookings.append((
@@ -1918,6 +2060,11 @@ class DatabaseSeeder:
                             booking_date_val,
                             start_time_val,
                             end_time_val,
+                            tz_fields["booking_start_utc"],
+                            tz_fields["booking_end_utc"],
+                            tz_fields["lesson_timezone"],
+                            tz_fields["instructor_tz_at_booking"],
+                            tz_fields["student_tz_at_booking"],
                             service_name,
                             float(service.hourly_rate),
                             total_price,
@@ -2025,6 +2172,8 @@ class DatabaseSeeder:
                         INSERT INTO bookings (
                             id, student_id, instructor_id, instructor_service_id,
                             booking_date, start_time, end_time,
+                            booking_start_utc, booking_end_utc, lesson_timezone,
+                            instructor_tz_at_booking, student_tz_at_booking,
                             service_name, hourly_rate, total_price, duration_minutes,
                             status, location_type, meeting_location, student_note, completed_at,
                             created_at, confirmed_at
@@ -2033,6 +2182,8 @@ class DatabaseSeeder:
                     booking_template = """(
                         %s, %s, %s, %s,
                         %s, %s, %s,
+                        %s::timestamptz, %s::timestamptz, %s,
+                        %s, %s,
                         %s, %s::numeric, %s::numeric, %s::integer,
                         %s, %s, %s, %s, %s::timestamptz,
                         NOW(), NOW()
@@ -2074,7 +2225,7 @@ class DatabaseSeeder:
 
     def print_summary(self):
         """Print summary of created data"""
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Get role IDs
             student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
             instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
@@ -2119,8 +2270,7 @@ class DatabaseSeeder:
         """Create sample platform credits for specific test users."""
         from datetime import timedelta
 
-
-        with Session(self.engine) as session:
+        with self._session_scope() as session:
             # Find Emma Johnson
             emma = session.query(User).filter(User.email == "emma.johnson@example.com").first()
             if not emma:

@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card';
 import { format } from 'date-fns';
-import { CalendarDays, Clock, User } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle, Clock, User } from 'lucide-react';
 import { Fragment } from 'react';
 
 export type BookingListItem = {
@@ -27,6 +27,12 @@ type BookingListProps = {
   emptyTitle: string;
   emptyDescription: string;
   'data-testid'?: string;
+  /** Optional callback when "Mark Complete" is clicked on a past CONFIRMED booking */
+  onComplete?: (bookingId: string) => void;
+  /** Optional callback when "Report No-Show" is clicked on a past CONFIRMED booking */
+  onNoShow?: (bookingId: string) => void;
+  /** Whether an action is currently pending (disables buttons) */
+  isActionPending?: boolean;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -56,6 +62,15 @@ function isInProgress(booking: BookingListItem): boolean {
   return now >= start && now < end;
 }
 
+/**
+ * Check if a booking is past and needs action (CONFIRMED but lesson has ended).
+ */
+function needsAction(booking: BookingListItem): boolean {
+  if (booking.status !== 'CONFIRMED' || !booking.end_time) return false;
+  const end = new Date(`${booking.booking_date}T${booking.end_time}`);
+  return end < new Date();
+}
+
 function formatLessonDate(date: string, time: string): { date: string; time: string } {
   const start = new Date(`${date}T${time}`);
   if (Number.isNaN(start.valueOf())) {
@@ -73,6 +88,9 @@ export function BookingList({
   emptyDescription,
   emptyTitle,
   'data-testid': dataTestId = 'booking-list',
+  onComplete,
+  onNoShow,
+  isActionPending = false,
 }: BookingListProps) {
   if (isLoading) {
     return (
@@ -119,6 +137,7 @@ export function BookingList({
         const instructorName = booking.instructor
           ? `${booking.instructor.first_name}${booking.instructor.last_initial ? ` ${booking.instructor.last_initial}.` : ''}`
           : 'You';
+        const showActionButtons = needsAction(booking) && (onComplete !== undefined || onNoShow !== undefined);
 
         return (
           <Card
@@ -160,6 +179,43 @@ export function BookingList({
                 <span>{instructorName}</span>
               </div>
             </div>
+            {/* Action buttons for past CONFIRMED bookings */}
+            {showActionButtons && (
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-amber-700">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span className="text-sm font-medium">Action Required</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {onComplete !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() => onComplete(booking.id)}
+                        disabled={isActionPending}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        data-testid="mark-complete-button"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        Mark Complete
+                      </button>
+                    )}
+                    {onNoShow !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() => onNoShow(booking.id)}
+                        disabled={isActionPending}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-600 hover:border-amber-500 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        data-testid="report-no-show-button"
+                      >
+                        <AlertTriangle className="h-4 w-4" />
+                        Report No-Show
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
         );
       })}

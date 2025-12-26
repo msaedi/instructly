@@ -16,6 +16,11 @@ from app.core.enums import RoleName
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
+
 
 class TestAccountLifecycleEndpoints:
     """Test suite for account lifecycle endpoints."""
@@ -52,13 +57,17 @@ class TestAccountLifecycleEndpoints:
 
         # Create a future booking
         tomorrow = date.today() + timedelta(days=1)
+        booking_date = tomorrow
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,
-            booking_date=tomorrow,
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name,
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,

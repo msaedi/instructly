@@ -55,14 +55,18 @@ export function fromWindows(
   windows: { start_time: string; end_time: string }[],
 ): DayBits {
   const bits = newEmptyBits();
-  const toIdx = (timeStr: string) => {
+  const toIdx = (timeStr: string, isEndTime: boolean = false): number => {
     const [H, M] = timeStr.split(":").map(Number);
+    // Midnight (00:00) as end time means end-of-day (slot 48)
+    if (isEndTime && H === 0 && M === 0) {
+      return SLOTS_PER_DAY;
+    }
     return idx(Number(H), Number(M));
   };
 
   for (const { start_time, end_time } of windows) {
-    const start = Math.max(0, Math.min(SLOTS_PER_DAY, toIdx(start_time)));
-    const end = Math.max(0, Math.min(SLOTS_PER_DAY, toIdx(end_time)));
+    const start = Math.max(0, Math.min(SLOTS_PER_DAY, toIdx(start_time, false)));
+    const end = Math.max(0, Math.min(SLOTS_PER_DAY, toIdx(end_time, true)));
     for (let i = start; i < end; i += 1) {
       const byte = Math.floor(i / 8);
       if (byte >= bits.length) break;

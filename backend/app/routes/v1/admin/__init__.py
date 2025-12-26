@@ -10,9 +10,11 @@ from . import (
     auth_blocks,
     background_checks,
     badges,
+    bookings,
     config,
     instructors,
     location_learning,
+    refunds,
     search_config,
 )
 
@@ -21,8 +23,10 @@ __all__ = [
     "auth_blocks",
     "background_checks",
     "badges",
+    "bookings",
     "config",
     "instructors",
     "location_learning",
+    "refunds",
     "search_config",
 ]

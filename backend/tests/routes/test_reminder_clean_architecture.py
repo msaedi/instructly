@@ -14,7 +14,7 @@ Run with:
     pytest tests/routes/test_reminder_clean_architecture.py -v
 """
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -23,6 +23,11 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
+
+try:  # pragma: no cover - fallback for direct backend pytest runs
+    from backend.tests.utils.booking_timezone import booking_timezone_fields
+except ModuleNotFoundError:  # pragma: no cover
+    from tests.utils.booking_timezone import booking_timezone_fields
 
 
 class TestReminderEndpointCleanArchitecture:
@@ -104,7 +109,7 @@ class TestReminderQueryLogic:
     @pytest.fixture
     def tomorrow_booking(self, db, test_student, test_instructor):
         """Create a booking for tomorrow."""
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
 
         # Get the instructor's profile
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
@@ -114,13 +119,17 @@ class TestReminderQueryLogic:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
+        booking_date = tomorrow
+        start_time = time(9, 0)
+        end_time = time(10, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,  # Use actual service ID instead of hardcoded 1
-            booking_date=tomorrow,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Use catalog name
             hourly_rate=service.hourly_rate,  # Use actual hourly rate
             total_price=service.hourly_rate,  # Use actual rate for total
@@ -194,13 +203,13 @@ class TestReminderQueryLogic:
         from datetime import datetime, timedelta
 
         # This is how the reminder service calculates tomorrow
-        tomorrow = datetime.now().date() + timedelta(days=1)
+        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
 
         # Should be a date object
         assert isinstance(tomorrow, date)
 
         # Should be tomorrow
-        assert tomorrow == date.today() + timedelta(days=1)
+        assert tomorrow == datetime.now(timezone.utc).date() + timedelta(days=1)
 
         # No slot calculations involved
         assert True  # Just confirming clean calculation
@@ -223,7 +232,7 @@ class TestReminderQueryLogic:
         """Test that only CONFIRMED bookings get reminders."""
         from app.services.notification_service import NotificationService
 
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
 
         # Create bookings with different statuses
         statuses = [
@@ -240,13 +249,17 @@ class TestReminderQueryLogic:
         )
 
         for i, status in enumerate(statuses):
+            booking_date = tomorrow
+            start_time = time(9 + i, 0)
+            end_time = time(10 + i, 0)
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor.id,
                 instructor_service_id=service.id,  # Use actual service ID
-                booking_date=tomorrow,
-                start_time=time(9 + i, 0),
-                end_time=time(10 + i, 0),
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
+                **booking_timezone_fields(booking_date, start_time, end_time),
                 service_name=service.catalog_entry.name
                 if service.catalog_entry
                 else "Unknown Service",  # Use catalog name
@@ -276,13 +289,11 @@ class TestReminderIntegration:
 
     def test_full_reminder_flow_uses_clean_architecture(self, db, test_student, test_instructor):
         """Test complete reminder flow from endpoint to email."""
-        # Create tomorrow booking based on student's timezone
-        from app.core.timezone_utils import get_user_today
         from app.events import BookingReminder
         from app.services.booking_service import BookingService
 
-        student_today = get_user_today(test_student)
-        tomorrow = student_today + timedelta(days=1)
+        # Create tomorrow booking based on UTC
+        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
 
         # Get the instructor's profile and service
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
@@ -291,13 +302,17 @@ class TestReminderIntegration:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
+        booking_date = tomorrow
+        start_time = time(14, 0)
+        end_time = time(15, 0)
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
             instructor_service_id=service.id,  # Use actual service ID
-            booking_date=tomorrow,
-            start_time=time(14, 0),
-            end_time=time(15, 0),
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+            **booking_timezone_fields(booking_date, start_time, end_time),
             service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Use catalog name
             hourly_rate=service.hourly_rate,  # Use actual rate
             total_price=service.hourly_rate,
