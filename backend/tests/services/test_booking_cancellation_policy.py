@@ -2,7 +2,7 @@
 Tests for BookingService cancellation policy branches (>24h, 12–24h, <12h).
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 from unittest.mock import patch
 
@@ -444,7 +444,9 @@ def test_12_24h_cancel_net_credit_when_credits_used(db: Session):
         "app.services.stripe_service.StripeService.reverse_transfer"
     ), patch(
         "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
-    ) as mock_credit:
+    ) as mock_credit, patch(
+        "app.services.booking_service.StudentCreditService.process_refund_hooks"
+    ) as mock_refund_hooks:
         mock_capture.return_value = {
             "transfer_id": "tr_x",
             "amount_received": 11200,
@@ -454,6 +456,40 @@ def test_12_24h_cancel_net_credit_when_credits_used(db: Session):
 
     credit_amounts = [call.kwargs.get("amount_cents") for call in mock_credit.call_args_list]
     assert 7000 in credit_amounts, "Net credit should exclude previously applied credits"
+    mock_refund_hooks.assert_not_called()
+
+
+def test_cancel_exactly_12h_gets_credit(db: Session):
+    """Cancellation exactly 12h before should receive credit (12-24h window)."""
+    instructor, profile, svc = _create_instructor_with_service(db)
+    student = _create_student(db)
+
+    fixed_now = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    lesson_time = (fixed_now + timedelta(hours=12)).replace(tzinfo=None)
+    bk = _create_booking(db, student, instructor, svc, lesson_time)
+    bk.payment_status = "authorized"
+
+    service = BookingService(db)
+
+    with patch(
+        "app.services.booking_service.TimezoneService.hours_until",
+        return_value=12.0,
+    ), patch(
+        "app.services.stripe_service.StripeService.capture_payment_intent"
+    ) as mock_capture, patch(
+        "app.services.stripe_service.StripeService.reverse_transfer"
+    ), patch(
+        "app.repositories.payment_repository.PaymentRepository.create_platform_credit"
+    ) as mock_credit:
+        mock_capture.return_value = {
+            "transfer_id": "tr_x",
+            "amount_received": 10000,
+            "transfer_amount": 8800,
+        }
+        result = service.cancel_booking(bk.id, user=student, reason="test")
+
+    assert result.payment_status == "credit_issued"
+    mock_credit.assert_called_once()
 
 
 @pytest.mark.parametrize(

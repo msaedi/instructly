@@ -40,7 +40,7 @@ def instructor_setup(db: Session, test_instructor: User):
 @pytest.mark.parametrize(
     "minutes_ahead, expected_status",
     [
-        (23 * 60 + 59, "authorizing"),  # 23h59m -> immediate
+        (23 * 60 + 59, "authorized"),  # 23h59m -> immediate
         (24 * 60 + 1, "scheduled"),  # 24h01m -> scheduled
     ],
 )
@@ -54,7 +54,7 @@ def test_confirm_booking_payment_boundary_route(
     db: Session,
 ):
     """
-    Route-level boundary: <=24h is immediate (authorizing), >24h is scheduled.
+    Route-level boundary: <=24h is immediate (authorized), >24h is scheduled.
     Uses a fixed 'now' and monkeypatches booking_service.datetime.now to avoid clock drift.
     """
     instructor, _profile, service = instructor_setup
@@ -96,12 +96,24 @@ def test_confirm_booking_payment_boundary_route(
             return fixed_now if tz is None else fixed_now.astimezone(tz)
 
     mod.datetime = FixedDT
+    def _authorize_now(booking_id: str, _hours_until: float):
+        target = db.query(Booking).filter(Booking.id == booking_id).first()
+        assert target is not None
+        target.payment_status = "authorized"
+        target.payment_intent_id = "pi_test"
+        db.commit()
+        return {"success": True}
+
     try:
-        resp = client.post(
-            f"/api/v1/bookings/{booking.id}/confirm-payment",
-            json={"payment_method_id": "pm_test", "save_payment_method": False},
-            headers=auth_headers_student,
-        )
+        with patch(
+            "app.tasks.payment_tasks._process_authorization_for_booking",
+            side_effect=_authorize_now,
+        ):
+            resp = client.post(
+                f"/api/v1/bookings/{booking.id}/confirm-payment",
+                json={"payment_method_id": "pm_test", "save_payment_method": False},
+                headers=auth_headers_student,
+            )
     finally:
         mod.datetime = RealDT
 
@@ -111,7 +123,7 @@ def test_confirm_booking_payment_boundary_route(
 
     # Determine dynamic threshold: 24h plus any buffer_time_minutes from profile
     threshold_minutes = 24 * 60 + getattr(_profile, "buffer_time_minutes", 0)
-    expected_status = "scheduled" if minutes_ahead > threshold_minutes else "authorizing"
+    expected_status = "scheduled" if minutes_ahead > threshold_minutes else "authorized"
     assert booking.payment_status == expected_status
 
 """
@@ -444,10 +456,22 @@ class TestBookingPaymentRoutes:
             "save_payment_method": False,
         }
 
-        response = authenticated_client.post(
-            f"/api/v1/bookings/{booking.id}/confirm-payment",
-            json=payment_data,
-        )
+        def _authorize_now(booking_id: str, _hours_until: float):
+            target = db.query(Booking).filter(Booking.id == booking_id).first()
+            assert target is not None
+            target.payment_status = "authorized"
+            target.payment_intent_id = "pi_test"
+            db.commit()
+            return {"success": True}
+
+        with patch(
+            "app.tasks.payment_tasks._process_authorization_for_booking",
+            side_effect=_authorize_now,
+        ):
+            response = authenticated_client.post(
+                f"/api/v1/bookings/{booking.id}/confirm-payment",
+                json=payment_data,
+            )
 
         # Debug output if failing
         if response.status_code != 200:
@@ -465,7 +489,7 @@ class TestBookingPaymentRoutes:
         db.refresh(booking)
         assert booking.status == BookingStatus.CONFIRMED
         assert booking.payment_method_id == "pm_test123"
-        assert booking.payment_status == "authorizing"
+        assert booking.payment_status == "authorized"
 
     def test_confirm_booking_payment_scheduled(
         self,

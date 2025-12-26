@@ -107,11 +107,23 @@ def test_confirm_payment_immediate_defers_and_emits_event(db: Session):
 
     service = BookingService(db)
 
-    with patch("app.repositories.payment_repository.PaymentRepository.create_payment_event") as mock_event:
+    def _authorize_now(booking_id: str, _hours_until: float):
+        target = db.query(Booking).filter(Booking.id == booking_id).first()
+        assert target is not None
+        target.payment_status = "authorized"
+        target.payment_intent_id = "pi_test"
+        db.flush()
+        return {"success": True}
+
+    with patch("app.repositories.payment_repository.PaymentRepository.create_payment_event") as mock_event, patch(
+        "app.tasks.payment_tasks._process_authorization_for_booking",
+        side_effect=_authorize_now,
+    ) as mock_authorize:
         updated = service.confirm_booking_payment(booking.id, student=student, payment_method_id="pm_x")
 
-    # Booking moves to CONFIRMED and payment_status authorizing
+    # Booking moves to CONFIRMED and is authorized immediately
     assert updated.status == BookingStatus.CONFIRMED
-    assert updated.payment_status == "authorizing"
+    assert updated.payment_status == "authorized"
+    mock_authorize.assert_called_once()
     # Event emitted
     mock_event.assert_called()

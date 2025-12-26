@@ -146,7 +146,7 @@ async def test_booking_completion_milestones_flow(db, milestone_setup):
     assert all(c.reason != "milestone_s11" or c.used_at is not None for c in revoked_credits)
 
     # Create booking that consumes credits and then gets cancelled (refund scenario)
-    refund_booking = _new_confirmed_booking(student, instructor, instructor_service, 0)
+    refund_booking = _new_confirmed_booking(student, instructor, instructor_service, -2)
     db.add(refund_booking)
     db.commit()
 

@@ -937,6 +937,8 @@ class BookingService(BaseService):
                         "scheduled_for": "immediate",
                     },
                 )
+                trigger_immediate_auth = True
+                immediate_auth_hours_until = hours_until_lesson
 
             else:
                 # Lesson is >24 hours away - schedule authorization
@@ -1209,7 +1211,7 @@ class BookingService(BaseService):
         else:
             if hours_until > 24:
                 scenario = "over_24h_gaming" if was_gaming_reschedule else "over_24h_regular"
-            elif 12 < hours_until <= 24:
+            elif 12 <= hours_until <= 24:
                 scenario = "between_12_24h"
             else:
                 scenario = "under_12h" if booking.payment_intent_id else "under_12h_no_pi"
@@ -1579,15 +1581,16 @@ class BookingService(BaseService):
         self._invalidate_booking_caches(booking)
 
         # Process refund hooks
-        try:
-            credit_service = StudentCreditService(self.db)
-            credit_service.process_refund_hooks(booking=booking)
-        except Exception as exc:
-            logger.error(
-                "Failed to adjust student credits for cancelled booking %s: %s",
-                booking.id,
-                exc,
-            )
+        if booking.payment_status in {"released", "refunded"}:
+            try:
+                credit_service = StudentCreditService(self.db)
+                credit_service.process_refund_hooks(booking=booking)
+            except Exception as exc:
+                logger.error(
+                    "Failed to adjust student credits for cancelled booking %s: %s",
+                    booking.id,
+                    exc,
+                )
 
     @BaseService.measure_operation("get_bookings_for_user")
     def get_bookings_for_user(

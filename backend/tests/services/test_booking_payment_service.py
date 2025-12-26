@@ -31,7 +31,7 @@ def _disable_bitmap_guard(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.mark.anyio
 async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_student, test_instructor):
-    """Booking at now + 23h59m => immediate (authorizing)."""
+    """Booking at now + 23h59m => immediate (authorized)."""
     # Build instructor+service from standard test fixtures in conftest
     instructor = test_instructor
     assert instructor is not None
@@ -77,23 +77,36 @@ async def test_confirm_booking_payment_boundary_within_24h(db, auth_headers_stud
 
     mod.datetime = FixedDT
     svc = BookingService(db)
+
+    def _authorize_now(booking_id: str, _hours_until: float):
+        target = db.query(Booking).filter(Booking.id == booking_id).first()
+        assert target is not None
+        target.payment_status = "authorized"
+        target.payment_intent_id = "pi_test"
+        db.flush()
+        return {"success": True}
+
+    hours_until = (start_dt - FIXED_NOW).total_seconds() / 3600
     try:
-        confirmed = await asyncio.to_thread(
-            svc.confirm_booking_payment,
-            booking.id,
-            student,
-            "pm_test",
-            False,
-        )
+        with patch(
+            "app.services.booking_service.TimezoneService.hours_until",
+            return_value=hours_until,
+        ), patch(
+            "app.tasks.payment_tasks._process_authorization_for_booking",
+            side_effect=_authorize_now,
+        ):
+            confirmed = await asyncio.to_thread(
+                svc.confirm_booking_payment,
+                booking.id,
+                student,
+                "pm_test",
+                False,
+            )
     finally:
         mod.datetime = RealDT
 
     assert confirmed.status == BookingStatus.CONFIRMED
-    # Dynamic threshold considers buffer_time_minutes
-    buffer_minutes = getattr(profile, "buffer_time_minutes", 0)
-    threshold_minutes = 24 * 60 + buffer_minutes
-    expected_status = "scheduled" if 23 * 60 + 59 > threshold_minutes else "authorizing"
-    assert confirmed.payment_status == expected_status
+    assert confirmed.payment_status == "authorized"
 
 
 @pytest.mark.anyio
@@ -144,22 +157,24 @@ async def test_confirm_booking_payment_boundary_beyond_24h(db, auth_headers_stud
     student: User | None = db.query(User).filter_by(email="test.student@example.com").first()
     assert student is not None
     svc = BookingService(db)
+    hours_until = (start_dt - FIXED_NOW).total_seconds() / 3600
     try:
-        confirmed = await asyncio.to_thread(
-            svc.confirm_booking_payment,
-            booking.id,
-            student,
-            "pm_test",
-            False,
-        )
+        with patch(
+            "app.services.booking_service.TimezoneService.hours_until",
+            return_value=hours_until,
+        ):
+            confirmed = await asyncio.to_thread(
+                svc.confirm_booking_payment,
+                booking.id,
+                student,
+                "pm_test",
+                False,
+            )
     finally:
         mod.datetime = RealDT
 
     assert confirmed.status == BookingStatus.CONFIRMED
-    buffer_minutes = getattr(profile, "buffer_time_minutes", 0)
-    threshold_minutes = 24 * 60 + buffer_minutes
-    expected_status = "scheduled" if 24 * 60 + 1 > threshold_minutes else "authorizing"
-    assert confirmed.payment_status == expected_status
+    assert confirmed.payment_status == "scheduled"
 
 """
 Tests for BookingService payment functionality (Phase 2).
@@ -431,19 +446,31 @@ class TestBookingPaymentService:
         db.add(booking)
         db.flush()
 
+        def _authorize_now(booking_id: str, _hours_until: float):
+            target = db.query(Booking).filter(Booking.id == booking_id).first()
+            assert target is not None
+            target.payment_status = "authorized"
+            target.payment_intent_id = "pi_test"
+            db.flush()
+            return {"success": True}
+
         # Confirm payment
-        confirmed_booking = await run_sync(
-            booking_service.confirm_booking_payment,
-            booking.id,
-            student_user,
-            "pm_test123",
-            False,
-        )
+        with patch(
+            "app.tasks.payment_tasks._process_authorization_for_booking",
+            side_effect=_authorize_now,
+        ):
+            confirmed_booking = await run_sync(
+                booking_service.confirm_booking_payment,
+                booking.id,
+                student_user,
+                "pm_test123",
+                False,
+            )
 
         # Verify booking updated correctly
         assert confirmed_booking.status == BookingStatus.CONFIRMED
         assert confirmed_booking.payment_method_id == "pm_test123"
-        assert confirmed_booking.payment_status == "authorizing"
+        assert confirmed_booking.payment_status == "authorized"
         assert confirmed_booking.confirmed_at is not None
 
         # Verify immediate auth event created
