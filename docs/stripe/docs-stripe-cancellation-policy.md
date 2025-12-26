@@ -177,6 +177,24 @@ A booking can only be rescheduled **once**. If the student needs to change the d
 
 ---
 
+### Example 4b: Reschedule When Payment Already Captured
+
+**Scenario:**
+- Student books Piano lesson for tomorrow 12:00 PM (19 hours away)
+- Payment already captured: $134.40 (because <24h)
+- Student reschedules to Wednesday 8:30 PM
+
+**Result:**
+- ✅ Reschedule successful
+- Captured payment transfers to the new booking (no refund, no new charge)
+- No new payment intent created
+- Original `payment_intent_id` stays linked to the booking
+- `original_lesson_datetime` set for gaming detection on future cancellation
+
+**Why?** Student's money is already committed. Moving the lesson date doesn't require re-charging - the funds apply to the new date.
+
+---
+
 ### Example 5: Reschedule Then Cancel - GAMING Scenario
 
 **Scenario:**

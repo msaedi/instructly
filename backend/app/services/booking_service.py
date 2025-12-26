@@ -829,6 +829,125 @@ class BookingService(BaseService):
         self.log_operation("create_booking_with_payment_setup_completed", booking_id=booking.id)
         return booking
 
+    @BaseService.measure_operation("create_rescheduled_booking_with_existing_payment")
+    def create_rescheduled_booking_with_existing_payment(
+        self,
+        student: User,
+        booking_data: BookingCreate,
+        selected_duration: int,
+        original_booking_id: str,
+        payment_intent_id: str,
+        payment_status: Optional[str],
+        payment_method_id: Optional[str],
+    ) -> Booking:
+        """
+        Create a rescheduled booking that reuses an existing PaymentIntent.
+
+        This avoids creating a new PaymentIntent when the original payment was
+        already authorized or captured.
+        """
+        from ..repositories.payment_repository import PaymentRepository
+
+        self.log_operation(
+            "create_rescheduled_booking_with_existing_payment",
+            student_id=student.id,
+            instructor_id=booking_data.instructor_id,
+            date=booking_data.booking_date,
+            original_booking_id=original_booking_id,
+        )
+
+        # 1. Validate and load required data
+        service, instructor_profile = self._validate_booking_prerequisites(student, booking_data)
+
+        # 2. Validate selected duration
+        if selected_duration not in service.duration_options:
+            raise BusinessRuleException(
+                f"Invalid duration {selected_duration}. Available options: {service.duration_options}"
+            )
+
+        # 3. Calculate end time
+        calculated_end_time = self._calculate_and_validate_end_time(
+            booking_data.booking_date,
+            booking_data.start_time,
+            selected_duration,
+        )
+        booking_data.end_time = calculated_end_time
+
+        # 4. Ensure requested interval fits published availability (bitmap V2)
+        self._validate_against_availability_bits(booking_data, instructor_profile)
+
+        # 5. Check conflicts and apply business rules
+        self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
+
+        # 6. Create the booking with transaction
+        transactional_repo = cast(Any, self.repository)
+        old_booking: Optional[Booking] = None
+        try:
+            with transactional_repo.transaction():
+                booking = self._create_booking_record(
+                    student, booking_data, service, instructor_profile, selected_duration
+                )
+
+                old_booking = self.repository.get_by_id(original_booking_id)
+                if not old_booking:
+                    raise NotFoundException("Original booking not found")
+
+                original_lesson_dt = self._get_booking_start_utc(old_booking)
+                booking.rescheduled_from_booking_id = old_booking.id
+                booking.original_lesson_datetime = original_lesson_dt
+
+                # Reuse payment fields from the original booking
+                booking.payment_intent_id = payment_intent_id
+                if isinstance(payment_method_id, str):
+                    booking.payment_method_id = payment_method_id
+                if isinstance(payment_status, str):
+                    booking.payment_status = payment_status
+
+                # Move PaymentIntent record to the new booking if it exists
+                payment_repo = PaymentRepository(self.db)
+                payment_record = payment_repo.get_payment_by_intent_id(payment_intent_id)
+                if payment_record:
+                    payment_record.booking_id = booking.id
+
+                self._enqueue_booking_outbox_event(booking, "booking.created")
+                audit_after = self._snapshot_booking(booking)
+                self._write_booking_audit(
+                    booking,
+                    "create",
+                    actor=student,
+                    before=None,
+                    after=audit_after,
+                    default_role=RoleName.STUDENT.value,
+                )
+        except IntegrityError as exc:
+            message, scope = self._resolve_integrity_conflict_message(exc)
+            conflict_details = self._build_conflict_details(booking_data, student.id)
+            if scope:
+                conflict_details["conflict_scope"] = scope
+            raise BookingConflictException(
+                message=message,
+                details=conflict_details,
+            ) from exc
+        except OperationalError as exc:
+            if self._is_deadlock_error(exc):
+                conflict_details = self._build_conflict_details(booking_data, student.id)
+                raise BookingConflictException(
+                    message=GENERIC_CONFLICT_MESSAGE,
+                    details=conflict_details,
+                ) from exc
+            raise
+        except RepositoryException as exc:
+            self._raise_conflict_from_repo_error(exc, booking_data, student.id)
+
+        # 7. Handle post-creation tasks
+        self._handle_post_booking_tasks(
+            booking,
+            is_reschedule=old_booking is not None,
+            old_booking=old_booking,
+        )
+
+        return booking
+
     @BaseService.measure_operation("confirm_booking_payment")
     def confirm_booking_payment(
         self,
@@ -1184,6 +1303,60 @@ class BookingService(BaseService):
         cancelled_by_role = cancel_ctx["cancelled_by_role"]
 
         # Post-transaction: Publish events and notifications
+        self._post_cancellation_actions(booking, cancelled_by_role)
+
+        return booking
+
+    @BaseService.measure_operation("cancel_booking_without_stripe")
+    def cancel_booking_without_stripe(
+        self,
+        booking_id: str,
+        user: User,
+        reason: Optional[str] = None,
+        *,
+        clear_payment_intent: bool = False,
+    ) -> Booking:
+        """
+        Cancel a booking without invoking Stripe or cancellation policy logic.
+
+        This is intended for reschedule flows where the existing payment is reused.
+        """
+        with self.transaction():
+            booking = self.repository.get_booking_with_details(booking_id)
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if user.id not in [booking.student_id, booking.instructor_id]:
+                raise ValidationException("You don't have permission to cancel this booking")
+
+            if not booking.is_cancellable:
+                raise BusinessRuleException(
+                    f"Booking cannot be cancelled - current status: {booking.status}"
+                )
+
+            audit_before = self._snapshot_booking(booking)
+
+            if clear_payment_intent:
+                booking.payment_intent_id = None
+
+            booking.cancel(user.id, reason)
+            self._enqueue_booking_outbox_event(booking, "booking.cancelled")
+            audit_after = self._snapshot_booking(booking)
+            default_role = (
+                RoleName.STUDENT.value
+                if user.id == booking.student_id
+                else RoleName.INSTRUCTOR.value
+            )
+            self._write_booking_audit(
+                booking,
+                "cancel",
+                actor=user,
+                before=audit_before,
+                after=audit_after,
+                default_role=default_role,
+            )
+
+        cancelled_by_role = "student" if user.id == booking.student_id else "instructor"
         self._post_cancellation_actions(booking, cancelled_by_role)
 
         return booking

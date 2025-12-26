@@ -742,22 +742,6 @@ async def reschedule_booking(
                 detail="You already have a booking scheduled at this time",
             )
 
-        # Preflight: Check payment method (using service method, no direct db access)
-        has_payment_method, stripe_pm_id = await asyncio.to_thread(
-            booking_service.validate_reschedule_payment_method,
-            current_user.id,
-        )
-
-        if not has_payment_method or not stripe_pm_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "code": "payment_method_required_for_reschedule",
-                    "message": "A payment method is required to reschedule this lesson. Please add a payment method and try again.",
-                },
-            )
-
-        # Create new booking
         _student_note = (
             original.student_note
             if isinstance(getattr(original, "student_note", None), str)
@@ -787,41 +771,91 @@ async def reschedule_booking(
             location_type=_location_type,
         )
 
-        new_booking = await asyncio.to_thread(
-            booking_service.create_booking_with_payment_setup,
-            current_user,
-            new_booking_data,
-            payload.selected_duration,
-            original.id,
+        raw_payment_intent_id = getattr(original, "payment_intent_id", None)
+        raw_payment_status = getattr(original, "payment_status", None)
+        normalized_payment_status = raw_payment_status
+        if raw_payment_status == "requires_capture":
+            normalized_payment_status = "authorized"
+        elif raw_payment_status == "succeeded":
+            normalized_payment_status = "captured"
+        reuse_payment = (
+            isinstance(raw_payment_intent_id, str)
+            and raw_payment_intent_id.startswith("pi_")
+            and isinstance(normalized_payment_status, str)
+            and normalized_payment_status in {"authorized", "captured"}
         )
 
-        # Auto-confirm payment
-        try:
+        if reuse_payment:
             new_booking = await asyncio.to_thread(
-                booking_service.confirm_booking_payment,
-                new_booking.id,
+                booking_service.create_rescheduled_booking_with_existing_payment,
                 current_user,
-                stripe_pm_id,
-                False,
+                new_booking_data,
+                payload.selected_duration,
+                original.id,
+                raw_payment_intent_id,
+                normalized_payment_status,
+                getattr(original, "payment_method_id", None),
             )
-        except Exception as e:
-            logger.error(f"Failed to confirm payment for rescheduled booking: {e}")
-            # Abort the pending booking (using service method, no direct db access)
-            await asyncio.to_thread(booking_service.abort_pending_booking, new_booking.id)
+        else:
+            # Preflight: Check payment method (using service method, no direct db access)
+            has_payment_method, stripe_pm_id = await asyncio.to_thread(
+                booking_service.validate_reschedule_payment_method,
+                current_user.id,
+            )
 
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "code": "payment_confirmation_failed",
-                    "message": "We couldn't process your payment method. Please try again or update your payment method.",
-                },
+            if not has_payment_method or not stripe_pm_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "payment_method_required_for_reschedule",
+                        "message": "A payment method is required to reschedule this lesson. Please add a payment method and try again.",
+                    },
+                )
+
+            new_booking = await asyncio.to_thread(
+                booking_service.create_booking_with_payment_setup,
+                current_user,
+                new_booking_data,
+                payload.selected_duration,
+                original.id,
             )
+
+            # Auto-confirm payment
+            try:
+                new_booking = await asyncio.to_thread(
+                    booking_service.confirm_booking_payment,
+                    new_booking.id,
+                    current_user,
+                    stripe_pm_id,
+                    False,
+                )
+            except Exception as e:
+                logger.error(f"Failed to confirm payment for rescheduled booking: {e}")
+                # Abort the pending booking (using service method, no direct db access)
+                await asyncio.to_thread(booking_service.abort_pending_booking, new_booking.id)
+
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "payment_confirmation_failed",
+                        "message": "We couldn't process your payment method. Please try again or update your payment method.",
+                    },
+                )
 
         # Cancel original booking
         try:
-            await asyncio.to_thread(
-                booking_service.cancel_booking, booking_id, current_user, "Rescheduled"
-            )
+            if reuse_payment:
+                await asyncio.to_thread(
+                    booking_service.cancel_booking_without_stripe,
+                    booking_id,
+                    current_user,
+                    "Rescheduled",
+                    clear_payment_intent=True,
+                )
+            else:
+                await asyncio.to_thread(
+                    booking_service.cancel_booking, booking_id, current_user, "Rescheduled"
+                )
         except DomainException as e:
             raise e
         except Exception:
