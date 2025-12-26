@@ -803,7 +803,8 @@ class BookingService(BaseService):
             if not refreshed_booking:
                 raise NotFoundException("Booking not found after setup intent creation")
 
-            refreshed_booking.payment_intent_id = setup_intent.id
+            # Avoid mixing SetupIntent IDs with PaymentIntent IDs.
+            # PaymentIntent IDs are stored later during authorization.
             setattr(
                 refreshed_booking,
                 "setup_intent_client_secret",
@@ -1194,6 +1195,13 @@ class BookingService(BaseService):
         booking_start_utc = self._get_booking_start_utc(booking)
         hours_until = TimezoneService.hours_until(booking_start_utc)
 
+        raw_payment_intent_id = booking.payment_intent_id
+        payment_intent_id = (
+            raw_payment_intent_id
+            if isinstance(raw_payment_intent_id, str) and raw_payment_intent_id.startswith("pi_")
+            else None
+        )
+
         # Part 4b: Fair Reschedule Loophole Fix
         was_gaming_reschedule = False
         hours_from_original: Optional[float] = None
@@ -1212,7 +1220,13 @@ class BookingService(BaseService):
         cancelled_by_role = "student" if user.id == booking.student_id else "instructor"
 
         # Determine cancellation scenario
-        if cancelled_by_role == "instructor":
+        is_pending_payment = (
+            booking.status == BookingStatus.PENDING
+            or booking.payment_status == "pending_payment_method"
+        ) and payment_intent_id is None
+        if is_pending_payment:
+            scenario = "pending_payment"
+        elif cancelled_by_role == "instructor":
             if hours_until >= 24:
                 scenario = "instructor_cancel_over_24h"
             else:
@@ -1223,7 +1237,7 @@ class BookingService(BaseService):
             elif 12 <= hours_until < 24:
                 scenario = "between_12_24h"
             else:
-                scenario = "under_12h" if booking.payment_intent_id else "under_12h_no_pi"
+                scenario = "under_12h" if payment_intent_id else "under_12h_no_pi"
 
             if scenario == "over_24h_gaming" and booking.payment_status != "authorized":
                 raise BusinessRuleException(
@@ -1255,7 +1269,7 @@ class BookingService(BaseService):
             "booking_id": booking.id,
             "student_id": booking.student_id,
             "instructor_id": booking.instructor_id,
-            "payment_intent_id": booking.payment_intent_id,
+            "payment_intent_id": payment_intent_id,
             "scenario": scenario,
             "hours_until": hours_until,
             "hours_from_original": hours_from_original,
@@ -1281,6 +1295,8 @@ class BookingService(BaseService):
             "cancel_pi_success": False,
             "capture_success": False,
             "reverse_success": False,
+            "reverse_attempted": False,
+            "reverse_failed": False,
             "capture_data": None,
             "error": None,
         }
@@ -1307,6 +1323,7 @@ class BookingService(BaseService):
                     transfer_id = capture.get("transfer_id")
                     transfer_amount = capture.get("transfer_amount")
                     if transfer_id and transfer_amount:
+                        results["reverse_attempted"] = True
                         try:
                             stripe_service.reverse_transfer(
                                 transfer_id=transfer_id,
@@ -1316,6 +1333,7 @@ class BookingService(BaseService):
                             )
                             results["reverse_success"] = True
                         except Exception as e:
+                            results["reverse_failed"] = True
                             logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
                 except Exception as e:
                     logger.warning(f"Capture not performed for booking {booking_id}: {e}")
@@ -1361,6 +1379,7 @@ class BookingService(BaseService):
                     transfer_id = capture.get("transfer_id")
                     transfer_amount = capture.get("transfer_amount")
                     if transfer_id and transfer_amount:
+                        results["reverse_attempted"] = True
                         try:
                             stripe_service.reverse_transfer(
                                 transfer_id=transfer_id,
@@ -1370,6 +1389,7 @@ class BookingService(BaseService):
                             )
                             results["reverse_success"] = True
                         except Exception as e:
+                            results["reverse_failed"] = True
                             logger.error(f"Transfer reversal failed for booking {booking_id}: {e}")
                 except Exception as e:
                     logger.warning(f"Capture not performed for booking {booking_id}: {e}")
@@ -1425,6 +1445,21 @@ class BookingService(BaseService):
 
         if scenario == "over_24h_gaming":
             if stripe_results["capture_success"]:
+                if stripe_results.get("reverse_failed"):
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="transfer_reversal_failed",
+                        event_data={
+                            "payment_intent_id": ctx["payment_intent_id"],
+                            "scenario": scenario,
+                        },
+                    )
+                    booking.payment_status = "reversal_failed"
+                    logger.error(
+                        "Transfer reversal failed for booking %s; manual review required",
+                        booking_id,
+                    )
+                    return
                 if _cancellation_credit_already_issued():
                     booking.payment_status = "credit_issued"
                 else:
@@ -1498,6 +1533,21 @@ class BookingService(BaseService):
                 )
 
             if stripe_results["capture_success"]:
+                if stripe_results.get("reverse_failed"):
+                    payment_repo.create_payment_event(
+                        booking_id=booking_id,
+                        event_type="transfer_reversal_failed",
+                        event_data={
+                            "payment_intent_id": ctx["payment_intent_id"],
+                            "scenario": scenario,
+                        },
+                    )
+                    booking.payment_status = "reversal_failed"
+                    logger.error(
+                        "Transfer reversal failed for booking %s; manual review required",
+                        booking_id,
+                    )
+                    return
                 if _cancellation_credit_already_issued():
                     booking.payment_status = "credit_issued"
                 else:
@@ -1565,6 +1615,14 @@ class BookingService(BaseService):
                 event_data={"reason": "<12h cancellation without payment_intent"},
             )
             booking.payment_status = "capture_not_possible"
+
+        elif scenario == "pending_payment":
+            payment_repo.create_payment_event(
+                booking_id=booking_id,
+                event_type="cancelled_before_payment",
+                event_data={"reason": "pending_payment_method"},
+            )
+            booking.payment_status = "not_started"
 
         elif scenario in ("instructor_cancel_over_24h", "instructor_cancel_under_24h"):
             payment_repo.create_payment_event(
@@ -2777,19 +2835,6 @@ class BookingService(BaseService):
             current_minutes = potential_end
 
         return opportunities
-
-    # Existing private helper methods
-
-    def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
-        """Apply business rules for cancellation."""
-        # Check cancellation deadline using UTC
-        booking_start_utc = self._get_booking_start_utc(booking)
-        cancellation_deadline = booking_start_utc - timedelta(hours=2)
-        now_utc = datetime.now(timezone.utc)
-
-        if now_utc > cancellation_deadline:
-            # Log late cancellation but allow it
-            logger.warning(f"Late cancellation for booking {booking.id} by user {user.id}")
 
     def _calculate_pricing(
         self, service: InstructorService, start_time: time, end_time: time

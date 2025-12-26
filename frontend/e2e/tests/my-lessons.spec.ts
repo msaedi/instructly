@@ -712,7 +712,8 @@ test.describe('My Lessons Page', () => {
 
     // Verify details are visible on the page
     await expect(page.getByText(upcomingLesson.instructor)).toBeVisible();
-    await expect(page.getByText(upcomingLesson.date)).toBeVisible();
+    const dateMatcher = new RegExp(upcomingLesson.date.replace(' ', ',? '));
+    await expect(page.getByText(dateMatcher)).toBeVisible();
     // Time formatting may differ; assert loosely on any hh:mm
     await expect(page.getByText(/\d{1,2}:\d{2}/)).toBeVisible();
     await expect(page.getByText(`$${upcomingLesson.price}`)).toBeVisible();

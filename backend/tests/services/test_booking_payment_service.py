@@ -364,7 +364,7 @@ class TestBookingPaymentService:
         assert booking.id is not None
         assert booking.status == BookingStatus.PENDING
         assert booking.payment_status == "pending_payment_method"
-        assert booking.payment_intent_id == "seti_test123"
+        assert booking.payment_intent_id is None
         assert hasattr(booking, "setup_intent_client_secret")
         assert booking.setup_intent_client_secret == "seti_test123_secret"
 

@@ -7,7 +7,18 @@ configures task serialization, timezone, and autodiscovery.
 """
 
 import os
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, ParamSpec, Protocol, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Optional,
+    ParamSpec,
+    Protocol,
+    TypeAlias,
+    TypeVar,
+    cast,
+)
 
 from celery import Celery, Task
 from celery.schedules import crontab
@@ -18,7 +29,7 @@ from app.core.config import settings
 if TYPE_CHECKING:
     from app.services.retention_service import RetentionResult
 
-    BaseTaskType = Task[Any, Any]
+    BaseTaskType: TypeAlias = Task[Any, Any]
 else:
     BaseTaskType = Task
 
@@ -174,7 +185,6 @@ def create_celery_app() -> Celery:
 
 
 # Disable Celery's default logging configuration
-# Celery's signal decorator is untyped.
 @setup_logging.connect
 def config_loggers(*args: Any, **kwargs: Any) -> None:
     """Configure logging to integrate with the application's logging setup."""

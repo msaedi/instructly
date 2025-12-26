@@ -325,7 +325,7 @@ class TestBookingPaymentRoutes:
         assert booking is not None
         assert booking.status == BookingStatus.PENDING
         assert booking.payment_status == "pending_payment_method"
-        assert booking.payment_intent_id == "seti_test123"
+        assert booking.payment_intent_id is None
 
     def test_create_booking_invalid_duration(
         self,

@@ -1048,8 +1048,9 @@ class DatabaseSeeder:
         horizon_days: int,
         sample_size: int = 3,
     ) -> dict:
-        window_start = date.today() - timedelta(days=lookback_days)
-        window_end = date.today() + timedelta(days=horizon_days)
+        utc_today = datetime.now(timezone.utc).date()
+        window_start = utc_today - timedelta(days=lookback_days)
+        window_end = utc_today + timedelta(days=horizon_days)
 
         sample_ids: list[str] = []
         if instructor_ids:
@@ -1823,6 +1824,7 @@ class DatabaseSeeder:
                 seed_step_minutes = self._get_env_int("SEED_REVIEW_STEP_MINUTES", 15)
                 seed_durations = self._get_env_csv_ints("SEED_REVIEW_DURATIONS", [60, 45, 30])
                 preferred_student_email = os.getenv("SEED_REVIEW_STUDENT_EMAIL", "").strip() or None
+                utc_today = datetime.now(timezone.utc).date()
 
                 probe_snapshot: dict[str, Any] | None = None
                 probe_raw = os.getenv("BITMAP_PROBE_RESULT")
@@ -1997,7 +1999,7 @@ class DatabaseSeeder:
                         duration = random.choice(service.duration_options)
                         max_days_ago = max(7, seed_lookback - 1)
                         days_ago = random.randint(7, max_days_ago)
-                        base_date_val = date.today() - timedelta(days=days_ago)
+                        base_date_val = utc_today - timedelta(days=days_ago)
                         helper_completed_at = datetime.now(timezone.utc) - timedelta(days=days_ago - 1)
 
                         # Use bulk slot finding (in-memory conflict detection)
@@ -2020,7 +2022,7 @@ class DatabaseSeeder:
                             break
 
                         booking_date_val, start_time_val, end_time_val = slot
-                        if booking_date_val > date.today():
+                        if booking_date_val > utc_today:
                             print(
                                 f"WARNING: Skipping future date {booking_date_val} for completed review booking."
                             )
