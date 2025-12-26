@@ -795,6 +795,44 @@ class TestBookingServiceUnit:
 
         booking_service.repository.complete_booking.assert_called_once_with(1)
 
+    def test_instructor_mark_complete_schedules_capture_from_lesson_end(
+        self,
+        booking_service,
+        mock_instructor,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Capture schedule should anchor to lesson end, not completion time."""
+        lesson_end = datetime(2025, 1, 1, 15, 0, tzinfo=timezone.utc)
+        now = lesson_end + timedelta(hours=2)
+
+        booking = Mock(spec=Booking)
+        booking.id = generate_ulid()
+        booking.instructor_id = mock_instructor.id
+        booking.student_id = generate_ulid()
+        booking.status = BookingStatus.CONFIRMED
+        booking.completed_at = None
+        booking.booking_end_utc = lesson_end
+        booking.created_at = lesson_end - timedelta(hours=2)
+        booking.confirmed_at = booking.created_at
+        booking.instructor_note = None
+        booking.instructor_service = None
+        booking.booking_date = lesson_end.date()
+
+        booking_service.repository.get_by_id.return_value = booking
+        self._freeze_time(monkeypatch, now)
+
+        mock_payment_repo = Mock()
+        with patch("app.services.booking_service.PaymentRepository", return_value=mock_payment_repo), patch(
+            "app.services.booking_service.BadgeAwardService"
+        ):
+            booking_service.instructor_mark_complete(booking.id, mock_instructor)
+
+        event_kwargs = mock_payment_repo.create_payment_event.call_args[1]
+        assert event_kwargs["event_type"] == "instructor_marked_complete"
+        assert event_kwargs["event_data"]["payment_capture_scheduled_for"] == (
+            lesson_end + timedelta(hours=24)
+        ).isoformat()
+
     def test_complete_booking_wrong_instructor(self, booking_service, mock_booking):
         """Test instructor can only complete their own bookings."""
         wrong_instructor = Mock(spec=User)

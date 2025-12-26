@@ -1925,7 +1925,7 @@ class BookingService(BaseService):
         Mark a lesson as completed by the instructor with payment tracking.
 
         This triggers the 24-hour payment capture timer. The payment will be
-        captured 24 hours after completion, giving the student time to dispute.
+        captured 24 hours after lesson end, giving the student time to dispute.
 
         Args:
             booking_id: ID of the booking to complete
@@ -1970,6 +1970,8 @@ class BookingService(BaseService):
             if notes:
                 booking.instructor_note = notes
 
+            capture_at = lesson_end_utc + timedelta(hours=24)
+
             # Record payment completion event
             payment_repo.create_payment_event(
                 booking_id=booking.id,
@@ -1978,7 +1980,7 @@ class BookingService(BaseService):
                     "instructor_id": instructor.id,
                     "completed_at": now.isoformat(),
                     "notes": notes,
-                    "payment_capture_scheduled_for": (now + timedelta(hours=24)).isoformat(),
+                    "payment_capture_scheduled_for": capture_at.isoformat(),
                 },
             )
 

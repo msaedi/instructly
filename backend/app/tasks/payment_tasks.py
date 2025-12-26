@@ -1262,7 +1262,7 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
     Capture payments for completed lessons.
 
     Runs hourly to:
-    1. Capture payments 24hr after instructor marks complete
+    1. Capture payments 24hr after lesson end (booking_end_utc)
     2. Auto-complete and capture lessons not marked complete within 24hr of end
     3. Handle expired authorizations (>7 days old)
 
@@ -1296,13 +1296,12 @@ def capture_completed_lessons(self: Any) -> CaptureJobResults:
             Sequence[Booking],
             booking_repo.get_bookings_for_payment_capture(),
         )
-        capture_booking_ids = [
-            booking.id
-            for booking in all_completed_bookings
-            if booking.completed_at
-            and booking.completed_at <= now - timedelta(hours=24)
-            and booking.payment_intent_id
-        ]
+        capture_booking_ids: List[str] = []
+        capture_cutoff = now - timedelta(hours=24)
+        for booking in all_completed_bookings:
+            lesson_end_utc = _get_booking_end_utc(booking)
+            if lesson_end_utc <= capture_cutoff and booking.payment_intent_id:
+                capture_booking_ids.append(booking.id)
 
         # 2. Find booking IDs for auto-completion
         auto_complete_cutoff = now - timedelta(hours=24)

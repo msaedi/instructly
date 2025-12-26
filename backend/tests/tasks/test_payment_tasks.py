@@ -581,13 +581,16 @@ class TestPaymentTasks:
         mock_db = MagicMock()
         mock_session_local.return_value = mock_db
 
+        now = datetime.now(timezone.utc)
+
         # Create mock completed booking
         booking = MagicMock(spec=Booking)
         booking.id = str(ulid.ULID())
         booking.status = BookingStatus.COMPLETED
         booking.payment_status = "authorized"
         booking.payment_intent_id = "pi_test123"
-        booking.completed_at = datetime.now(timezone.utc) - timedelta(hours=25)  # 25 hours ago
+        booking.booking_end_utc = now - timedelta(hours=25)
+        booking.completed_at = now - timedelta(hours=1)
 
         mock_query = MagicMock()
         mock_query.filter.return_value.all.return_value = [booking]
@@ -2398,6 +2401,7 @@ class TestPaymentTasks:
         booking.status = BookingStatus.COMPLETED
         booking.payment_status = "authorized"
         booking.payment_intent_id = "pi_failed_capture"
+        booking.booking_end_utc = datetime.now(timezone.utc) - timedelta(hours=25)
         booking.completed_at = datetime.now(timezone.utc) - timedelta(hours=25)
 
         mock_payment_repo = MagicMock()
@@ -2660,6 +2664,7 @@ class TestPaymentTasks:
         booking.status = BookingStatus.COMPLETED
         booking.payment_status = "authorized"
         booking.payment_intent_id = None
+        booking.booking_end_utc = datetime.now(timezone.utc) - timedelta(hours=25)
         booking.completed_at = datetime.now(timezone.utc) - timedelta(hours=25)
 
         mock_payment_repo = MagicMock()
